@@ -43,7 +43,7 @@ dev = [
   "pytest>=8.3,<9",
   "pytest-asyncio>=0.25,<1",
   "ruff>=0.12,<1",
-  "mypy>=1.15,<2",
+  "mypy>=1.15,<3",
   "pandas-stubs>=2.2,<3",
 ]
 
