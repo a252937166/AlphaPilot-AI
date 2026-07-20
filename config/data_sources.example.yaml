@@ -1,0 +1,25 @@
+version: 1
+providers:
+  daily_bars:
+    primary: baostock
+    fallback: akshare
+    validation: tushare
+    freshness_sla_seconds: 21600
+    max_missing_ratio: 0.005
+  intraday_snapshot:
+    primary: futu
+    fallback: akshare
+    freshness_sla_seconds: 30
+    max_missing_ratio: 0.01
+  disclosures:
+    primary: official_exchange
+    fallback: akshare
+    freshness_sla_seconds: 900
+  fundamentals:
+    primary: tushare
+    fallback: akshare
+    freshness_sla_seconds: 86400
+quality_rules:
+  price_relative_tolerance: 0.002
+  volume_relative_tolerance: 0.02
+  quarantine_on_conflict: true

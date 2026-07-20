@@ -1,0 +1,31 @@
+name: Feature request
+description: Propose a product or engineering capability
+title: "[Feature]: "
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+    validations:
+      required: true
+  - type: checkboxes
+    id: controls
+    attributes:
+      label: Controls
+      options:
+        - label: Point-in-Time implications considered
+        - label: Data licensing implications considered
+        - label: Trading and risk implications considered

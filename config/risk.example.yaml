@@ -1,0 +1,18 @@
+version: 1
+trading_mode: research
+live_trading_enabled: false
+limits:
+  min_trade_confidence: 0.68
+  max_single_position_pct: 0.10
+  max_sector_position_pct: 0.30
+  max_daily_loss_pct: 0.02
+  max_market_data_age_seconds: 120
+  max_order_pct_average_daily_value: 0.005
+  max_open_orders_per_symbol: 1
+controls:
+  require_human_confirmation: true
+  reject_on_stale_data: true
+  reject_on_source_conflict: true
+  reject_on_model_drift: true
+  reject_duplicate_idempotency_key: true
+  kill_switch_enabled: true

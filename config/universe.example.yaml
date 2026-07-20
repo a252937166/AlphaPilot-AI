@@ -1,0 +1,17 @@
+version: 1
+market: CN
+include_boards: [main, chinext, star]
+exclude:
+  st: true
+  suspended: true
+  delisting: true
+  negative_equity: true
+  audit_opinion_abnormal: true
+minimums:
+  listing_days: 250
+  average_daily_value_cny: 50000000
+  history_trading_days: 250
+portfolio:
+  max_names: 20
+  rebalance_frequency: weekly
+  benchmark: CSI300
