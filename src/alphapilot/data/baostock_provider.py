@@ -85,8 +85,11 @@ class BaoStockMarketDataProvider:
         frame["date"] = pd.to_datetime(frame["date"], errors="coerce")
         for column in ["open", "high", "low", "close", "volume", "amount"]:
             frame[column] = pd.to_numeric(frame[column], errors="coerce")
+        frame[["volume", "amount"]] = frame[["volume", "amount"]].fillna(0.0)
         result = (
-            frame.dropna(subset=["date", "close"]).sort_values("date").reset_index(drop=True)
+            frame.dropna(subset=["date", "open", "high", "low", "close"])
+            .sort_values("date")
+            .reset_index(drop=True)
         )
         if result.empty:
             raise DataProviderError(f"BaoStock returned no valid daily bars for {code}")
