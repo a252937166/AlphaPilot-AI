@@ -155,7 +155,10 @@ def test_account_mutation_is_disabled_by_default() -> None:
 
 
 def test_trade_queries_are_a_separate_opt_in() -> None:
-    client = FutuClient(Settings(), sdk_module=FakeFutuModule)
+    client = FutuClient(
+        Settings(futu_enable_trade_query=False),
+        sdk_module=FakeFutuModule,
+    )
 
     with pytest.raises(FutuFeatureDisabledError):
         client.trade_call("security", "get_acc_list")
