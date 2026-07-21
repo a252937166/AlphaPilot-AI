@@ -17,8 +17,10 @@ from alphapilot.db.models import (
     DailyBar,
     FactorValue,
     Security,
+    StyleDaily,
 )
 from alphapilot.domain.models import ScreeningRequest
+from alphapilot.engines.style import style_source_fingerprint
 from alphapilot.main import app
 
 TARGET_DATE = date(2026, 7, 21)
@@ -31,6 +33,7 @@ def test_screening_run_context_migration_upgrades_existing_schema(tmp_path: Path
         connection.execute(
             text("CREATE TABLE screening_runs (id INTEGER PRIMARY KEY AUTOINCREMENT)")
         )
+        connection.execute(text("CREATE TABLE style_daily (trade_date DATE PRIMARY KEY)"))
 
     applied = run_migrations(engine)
     columns = {column["name"] for column in inspect(engine).get_columns("screening_runs")}
@@ -44,13 +47,20 @@ def test_screening_run_context_migration_upgrades_existing_schema(tmp_path: Path
 def _seed_screening_data(session: Session) -> None:
     trade_dates = [stamp.date() for stamp in pd.bdate_range(end=TARGET_DATE, periods=61)]
     securities = [
-        ("600001", "测试一", "制造业", 100.0, 98.0, -1.0, 1.0),
-        ("600002", "测试二", "制造业", 200.0, 88.0, 0.0, 0.0),
-        ("600003", "测试三", "金融业", 300.0, 78.0, 1.0, -1.0),
+        ("600001", "测试一", "制造业", 100.0, 98.0, -1.0, 1.0, "growth"),
+        ("600002", "测试二", "制造业", 200.0, 88.0, 0.0, 0.0, "value"),
+        ("600003", "测试三", "金融业", 300.0, 78.0, 1.0, -1.0, "defensive"),
     ]
-    for index, (symbol, name, industry, market_cap, score, volatility, momentum) in enumerate(
-        securities
-    ):
+    for index, (
+        symbol,
+        name,
+        industry,
+        market_cap,
+        score,
+        volatility,
+        momentum,
+        style,
+    ) in enumerate(securities):
         session.add(
             Security(
                 symbol=symbol,
@@ -61,6 +71,7 @@ def _seed_screening_data(session: Session) -> None:
                 is_st=False,
                 list_status="listed",
                 market_cap=market_cap,
+                style_tag=style,
             )
         )
         session.add(
@@ -98,6 +109,17 @@ def _seed_screening_data(session: Session) -> None:
                     source="test",
                 )
             )
+    session.flush()
+    session.add(
+        StyleDaily(
+            trade_date=TARGET_DATE,
+            growth_pct=0.4,
+            value_pct=0.3,
+            defensive_pct=0.3,
+            balanced_pct=0.0,
+            source_fingerprint=style_source_fingerprint(session, TARGET_DATE),
+        )
+    )
 
 
 def test_screening_request_preserves_legacy_symbols_mode() -> None:
@@ -164,10 +186,11 @@ def test_full_market_screen_api_persists_and_diffs(tmp_path: Path) -> None:
             json={"universe": "all", "top_n": 2, "industries": None},
         )
         second_diff = client.get("/v1/screens/diff")
-        style_error = client.post(
+        style_response = client.post(
             "/v1/screens/run",
             json={"universe": "all", "top_n": 2, "style": "value"},
         )
+        style_exposure = client.get("/v1/screens/style-exposure")
     finally:
         app.dependency_overrides.pop(db_session_dependency, None)
 
@@ -188,7 +211,7 @@ def test_full_market_screen_api_persists_and_diffs(tmp_path: Path) -> None:
     assert custom_filter_error.status_code == 422
     assert custom_filter_error.json()["detail"].startswith("custom 兼容模式不支持 industries")
     assert custom_style_error.status_code == 422
-    assert "P2.2-S4" in custom_style_error.json()["detail"]
+    assert custom_style_error.json()["detail"].startswith("custom 兼容模式不支持 style")
 
     assert second_diff.status_code == 200
     assert second_diff.json()["baseline_missing"] is False
@@ -197,5 +220,13 @@ def test_full_market_screen_api_persists_and_diffs(tmp_path: Path) -> None:
     assert second_diff.json()["dropped"] == []
     assert second_diff.json()["stayed"] == 2
 
-    assert style_error.status_code == 422
-    assert "S4" in style_error.json()["detail"]
+    assert style_response.status_code == 200
+    assert [item["symbol"] for item in style_response.json()["candidates"]] == ["600002"]
+    assert style_response.json()["candidates"][0]["style"] == "value"
+    assert style_exposure.status_code == 200
+    assert style_exposure.json()["total_candidates"] == 1
+    assert style_exposure.json()["exposure"][1] == {
+        "style": "value",
+        "count": 1,
+        "pct": 1.0,
+    }

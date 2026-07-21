@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -10,7 +10,13 @@ from alphapilot.api.dependencies import db_session_dependency, get_provider
 from alphapilot.core.timeutil import iso_utc
 from alphapilot.data.base import DataProviderError
 from alphapilot.db.models import ScreeningRun
-from alphapilot.domain.models import ScreeningRequest, ScreeningResponse
+from alphapilot.domain.models import (
+    ScreeningRequest,
+    ScreeningResponse,
+    StyleExposureResponse,
+    StyleExposureSlice,
+    StyleTag,
+)
 from alphapilot.prediction.baseline import BaselineForecastEngine
 from alphapilot.screening.service import ScreeningService
 from alphapilot.services.screening_v2 import (
@@ -20,6 +26,8 @@ from alphapilot.services.screening_v2 import (
 )
 
 router = APIRouter(prefix="/v1/screens", tags=["screening"])
+
+STYLE_ORDER: tuple[StyleTag, ...] = ("growth", "value", "defensive", "balanced")
 
 # Demo universe until the point-in-time security master lands.
 DEFAULT_UNIVERSE = [
@@ -185,3 +193,57 @@ def screen_diff(session: Session = Depends(db_session_dependency)) -> dict[str, 
         "dropped": [symbol for symbol in previous_symbols if symbol not in current_set],
         "stayed": len(current_set.intersection(previous_set)),
     }
+
+
+@router.get("/style-exposure", response_model=StyleExposureResponse)
+def style_exposure(
+    run_id: int | None = Query(default=None, ge=1),
+    session: Session = Depends(db_session_dependency),
+) -> StyleExposureResponse:
+    statement = select(ScreeningRun)
+    if run_id is not None:
+        statement = statement.where(ScreeningRun.id == run_id)
+    run = session.scalars(
+        statement.order_by(ScreeningRun.created_at.desc(), ScreeningRun.id.desc()).limit(1)
+    ).first()
+    if run is None:
+        detail = "暂无选股运行记录。" if run_id is None else f"未找到选股运行记录 run_id={run_id}。"
+        raise HTTPException(status_code=404, detail=detail)
+
+    candidates = run.candidates
+    if not isinstance(candidates, list):
+        raise HTTPException(
+            status_code=503,
+            detail="该选股运行缺少候选风格快照，无法还原历史暴露；请重新运行选股。",
+        )
+
+    counts: dict[StyleTag, int] = dict.fromkeys(STYLE_ORDER, 0)
+    for candidate in candidates:
+        if not isinstance(candidate, dict) or candidate.get("style") not in STYLE_ORDER:
+            raise HTTPException(
+                status_code=503,
+                detail="该选股运行缺少候选风格快照，无法还原历史暴露；请重新运行选股。",
+            )
+        style = candidate["style"]
+        if style == "growth":
+            counts["growth"] += 1
+        elif style == "value":
+            counts["value"] += 1
+        elif style == "defensive":
+            counts["defensive"] += 1
+        else:
+            counts["balanced"] += 1
+
+    total = len(candidates)
+    return StyleExposureResponse(
+        run_id=run.id,
+        total_candidates=total,
+        exposure=[
+            StyleExposureSlice(
+                style=style,
+                count=counts[style],
+                pct=counts[style] / total if total else 0.0,
+            )
+            for style in STYLE_ORDER
+        ],
+    )

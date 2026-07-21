@@ -20,6 +20,7 @@ from alphapilot.api.routes import (
     screens,
     sectors,
     stocks,
+    style,
     trades,
     watchlist,
 )
@@ -72,6 +73,7 @@ app.include_router(dashboard.router)
 app.include_router(factors.router)
 app.include_router(stocks.router)
 app.include_router(screens.router)
+app.include_router(style.router)
 app.include_router(market.router)
 app.include_router(portfolio.router)
 app.include_router(sectors.router)
