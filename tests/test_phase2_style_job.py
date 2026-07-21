@@ -114,6 +114,7 @@ def test_style_models_and_migration_are_idempotent(tmp_path: Path) -> None:
             text("CREATE TABLE screening_runs (id INTEGER PRIMARY KEY AUTOINCREMENT)")
         )
         connection.execute(text("CREATE TABLE style_daily (trade_date DATE PRIMARY KEY)"))
+        connection.execute(text("CREATE TABLE alerts (id INTEGER PRIMARY KEY AUTOINCREMENT)"))
 
     applied = run_migrations(engine)
     columns = {column["name"] for column in inspect(engine).get_columns("securities")}

@@ -34,6 +34,7 @@ def test_screening_run_context_migration_upgrades_existing_schema(tmp_path: Path
             text("CREATE TABLE screening_runs (id INTEGER PRIMARY KEY AUTOINCREMENT)")
         )
         connection.execute(text("CREATE TABLE style_daily (trade_date DATE PRIMARY KEY)"))
+        connection.execute(text("CREATE TABLE alerts (id INTEGER PRIMARY KEY AUTOINCREMENT)"))
 
     applied = run_migrations(engine)
     columns = {column["name"] for column in inspect(engine).get_columns("screening_runs")}

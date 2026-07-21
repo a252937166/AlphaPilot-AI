@@ -614,6 +614,9 @@ def test_refresh_runs_event_only_drift_after_forecast_failure_and_returns_alert(
 
     assert [record.action for record in created] == ["REVIEW_REQUIRED"]
     assert created[0].model_version == thesis_drift.MODEL_VERSION
+    assert created[0].target_low is None
+    assert created[0].target_high is None
+    assert created[0].suggested_notional is None
     assert "业绩预告显著下修" in created[0].reasons[0]
     assert session.scalar(select(func.count()).select_from(ForecastSnapshot)) == 0
     assert _artifact_counts(session) == (1, 1, 1)
