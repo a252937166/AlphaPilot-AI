@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import date
 
+import httpx
 import pandas as pd
 import pytest
 
@@ -9,6 +10,7 @@ from alphapilot.data.baostock_provider import BaoStockMarketDataProvider
 from alphapilot.data.base import DataProviderError
 from alphapilot.data.mock import MockMarketDataProvider
 from alphapilot.data.router import FailoverMarketDataProvider
+from alphapilot.data.sina_provider import SinaDailyBarProvider
 
 
 class BrokenProvider:
@@ -51,3 +53,29 @@ def test_failover_raises_when_all_sources_fail() -> None:
     )
     with pytest.raises(DataProviderError, match="All providers failed"):
         router.get_daily_bars("600000", date(2026, 1, 1), date(2026, 7, 1))
+
+
+def test_sina_bse_snapshot_parses_date_and_market_fields(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    payload = (
+        'var hq_str_bj920000="安徽凤凰,11.350,11.320,11.710,11.760,10.700,'
+        "11.700,11.710,1056462,11863548.780,0,0,0,0,0,0,0,0,0,0,0,0,0,0,"
+        '0,0,0,0,0,0,2026-07-21,15:30:02,00";\n'
+    ).encode("gb18030")
+
+    def fake_get(*_args: object, **_kwargs: object) -> httpx.Response:
+        return httpx.Response(
+            200,
+            content=payload,
+            request=httpx.Request("GET", "https://hq.sinajs.cn/"),
+        )
+
+    monkeypatch.setattr(httpx, "get", fake_get)
+    frame = SinaDailyBarProvider(min_interval_seconds=0).get_snapshot(["920000"])
+
+    assert frame.iloc[0]["symbol"] == "920000"
+    assert frame.iloc[0]["last_price"] == pytest.approx(11.71)
+    assert frame.iloc[0]["prev_close_price"] == pytest.approx(11.32)
+    assert frame.iloc[0]["turnover"] == pytest.approx(11_863_548.78)
+    assert frame.iloc[0]["as_of"].isoformat() == "2026-07-21T07:30:02+00:00"

@@ -14,7 +14,7 @@ from alphapilot.db.models import JobRun, utcnow
 @dataclass(frozen=True, slots=True)
 class JobSpec:
     name: str
-    func: Callable[[], dict[str, Any]]
+    func: Callable[..., dict[str, Any]]
     trigger: CronTrigger | IntervalTrigger
     enabled_key: str | None = None
 
@@ -28,7 +28,7 @@ def register(spec: JobSpec) -> None:
     JOBS[spec.name] = spec
 
 
-def run_job(name: str) -> JobRun:
+def run_job(name: str, **kwargs: Any) -> JobRun:
     """Run a registered job and persist its full success or failure audit."""
 
     spec = JOBS.get(name)
@@ -42,7 +42,7 @@ def run_job(name: str) -> JobRun:
         run_id = record.id
 
     try:
-        stats = spec.func()
+        stats = spec.func(**kwargs)
     except Exception as exc:  # the audit row is the scheduler's failure boundary
         with get_session() as session:
             failed = session.get(JobRun, run_id)
