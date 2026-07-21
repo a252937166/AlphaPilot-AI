@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 
 from alphapilot.core.timeutil import iso_utc
 from alphapilot.db.engine import get_session
-from alphapilot.db.models import SectorConstituent, SectorSnapshot
+from alphapilot.db.models import DailyBar, SectorConstituent, SectorForecast, SectorSnapshot
 from alphapilot.futu.client import FutuClient, FutuClientError
 
 FALLBACK_MAX_PLATES = 10
@@ -26,6 +26,10 @@ class SectorServiceError(RuntimeError):
     pass
 
 
+SECTOR_FORECAST_HORIZONS = (5, 10, 20)
+SECTOR_LIFECYCLES = ("boom", "rising", "decline", "bottoming", "recovery")
+
+
 def _utc(value: datetime) -> datetime:
     return (value.replace(tzinfo=UTC) if value.tzinfo is None else value).astimezone(UTC)
 
@@ -36,6 +40,105 @@ def _number(value: object, default: float = 0.0) -> float:
     except (TypeError, ValueError):
         return default
     return result if isfinite(result) else default
+
+
+def _forecast_row(row: SectorForecast, rank: int) -> dict[str, Any]:
+    return {
+        "rank": rank,
+        "plate_code": row.plate_code,
+        "plate_name": row.plate_name,
+        "trade_date": row.trade_date.isoformat(),
+        "horizon": row.horizon,
+        "score": row.score,
+        "expected_excess": row.expected_excess,
+        "win_rate": row.win_rate,
+        "lifecycle": row.lifecycle,
+        "rsi14": row.rsi14,
+        "reversal_score": row.reversal_score,
+        "model_version": row.model_version,
+    }
+
+
+def get_sector_forecast_view(
+    session: Session,
+    *,
+    horizon: int,
+    view: str = "forecast",
+) -> dict[str, Any]:
+    """Return a current, persisted sector forecast view without fabricating flow data."""
+
+    if horizon not in SECTOR_FORECAST_HORIZONS:
+        raise ValueError(f"unsupported sector forecast horizon: {horizon}")
+    latest_forecast = session.scalar(select(func.max(SectorForecast.trade_date)))
+    if latest_forecast is None:
+        raise SectorServiceError("板块预测尚未生成，请先运行 sector_forecast 任务。")
+    latest_benchmark = session.scalar(
+        select(func.max(DailyBar.trade_date)).where(DailyBar.symbol == "SH.000001")
+    )
+    if latest_benchmark is not None and latest_benchmark != latest_forecast:
+        raise SectorServiceError(
+            "板块预测尚未与最新交易日日线同步，请先运行 sector_forecast 任务。"
+        )
+
+    rows = session.scalars(
+        select(SectorForecast)
+        .where(
+            SectorForecast.trade_date == latest_forecast,
+            SectorForecast.horizon == horizon,
+        )
+        .order_by(SectorForecast.score.desc(), SectorForecast.plate_code)
+    ).all()
+    if not rows:
+        raise SectorServiceError(f"板块预测缺少 {horizon} 日截面，请重新运行任务。")
+    model_versions = {row.model_version for row in rows}
+    if len(model_versions) != 1:
+        raise SectorServiceError("板块预测截面混入多个模型版本，已拒绝展示。")
+    model_version = next(iter(model_versions))
+    no_flow = model_version.endswith("-no-flow")
+    fixed_universe_reason = (
+        "历史成分有效期尚未落库，胜率为固定当前成分股宇宙回测，不代表无前视偏差的 PIT 结果。"
+    )
+    degraded_reason = fixed_universe_reason
+    if no_flow:
+        degraded_reason += " 板块资金流历史不足，当前使用无资金流模型；未补零或复制历史值。"
+
+    selected = list(rows)
+    available = True
+    reason: str | None = None
+    if view == "lifecycle":
+        selected.sort(key=lambda row: (row.lifecycle is None, row.lifecycle or "", -row.score))
+    elif view == "overbought":
+        selected = [row for row in rows if row.rsi14 is not None and row.rsi14 > 70]
+        selected.sort(key=lambda row: (-float(row.rsi14 or 0.0), row.plate_code))
+    elif view == "reversal":
+        selected = [row for row in rows if row.reversal_score is not None]
+        selected.sort(key=lambda row: (-float(row.reversal_score or 0.0), row.plate_code))
+        if no_flow:
+            available = False
+            reason = "资金流历史尚不足以计算 flow_turn_z，反转排行将在数据积累完成后开放。"
+    elif view != "forecast":
+        raise ValueError(f"unsupported sector forecast view: {view}")
+
+    payload: dict[str, Any] = {
+        "as_of": latest_forecast.isoformat(),
+        "horizon": horizon,
+        "model_version": model_version,
+        "flow_mode": "no-flow" if no_flow else "full",
+        "backtest_scope": "fixed-current-membership",
+        "degraded_reason": degraded_reason,
+        "available": available,
+        "count": len(selected),
+        "rows": [_forecast_row(row, rank) for rank, row in enumerate(selected, 1)],
+    }
+    if reason is not None:
+        payload["reason"] = reason
+    if view == "lifecycle":
+        counts = {name: 0 for name in SECTOR_LIFECYCLES}
+        counts["unclassified"] = 0
+        for row in rows:
+            counts[row.lifecycle or "unclassified"] += 1
+        payload["counts"] = counts
+    return payload
 
 
 def _db_plate_constituents(session: Session) -> dict[str, dict[str, Any]]:
