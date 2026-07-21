@@ -4,6 +4,7 @@ from datetime import date, timedelta
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from alphapilot.alerts.service import AlertService
@@ -13,7 +14,9 @@ from alphapilot.api.dependencies import (
     get_provider,
 )
 from alphapilot.cninfo.client import CninfoClient, CninfoError
+from alphapilot.core.timeutil import iso_utc
 from alphapilot.data.base import DataProviderError
+from alphapilot.db.models import CalendarEvent
 from alphapilot.domain.models import StockAlert, StockForecast
 from alphapilot.prediction.baseline import BaselineForecastEngine
 from alphapilot.services import disclosures as disclosure_service
@@ -88,6 +91,46 @@ def stock_bars(
                 "amount": record.get("amount"),
             }
             for record in frame.to_dict(orient="records")
+        ],
+    }
+
+
+@router.get("/{symbol}/calendar")
+def stock_calendar(
+    symbol: str,
+    days: int = Query(default=90, ge=1, le=730),
+    session: Session = Depends(db_session_dependency),
+) -> dict[str, Any]:
+    code = normalize_symbol(symbol)
+    today = date.today()
+    start = today - timedelta(days=days)
+    end = today + timedelta(days=days)
+    rows = session.scalars(
+        select(CalendarEvent)
+        .where(
+            CalendarEvent.symbol == code,
+            CalendarEvent.event_date >= start,
+            CalendarEvent.event_date <= end,
+        )
+        .order_by(CalendarEvent.event_date, CalendarEvent.id)
+    ).all()
+    return {
+        "symbol": code,
+        "from": start.isoformat(),
+        "to": end.isoformat(),
+        "days": days,
+        "events": [
+            {
+                "id": row.id,
+                "symbol": row.symbol,
+                "event_type": row.event_type,
+                "event_date": row.event_date.isoformat(),
+                "title": row.title,
+                "payload": row.payload,
+                "source": row.source,
+                "available_time": iso_utc(row.available_time),
+            }
+            for row in rows
         ],
     }
 
