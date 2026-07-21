@@ -19,13 +19,14 @@ from alphapilot.core.timeutil import iso_utc
 from alphapilot.data.base import DataProviderError
 from alphapilot.db.models import MarketSnapshotAgg
 from alphapilot.domain.models import RegimeResult
-from alphapilot.futu.client import FutuClient
+from alphapilot.futu.client import FutuClient, FutuClientError
 from alphapilot.prediction.regime import MarketRegimeClassifier
 from alphapilot.services import market_data
 from alphapilot.services.sectors import SectorServiceError, market_breadth_from_sample
 
 router = APIRouter(prefix="/v1/market", tags=["market"])
 MARKET_TIMEZONE = ZoneInfo("Asia/Shanghai")
+INDEX_INTRADAY_SYMBOLS = {entry["symbol"] for entry in market_data.INDEX_SYMBOLS}
 
 
 def _as_utc(value: datetime) -> datetime:
@@ -160,3 +161,32 @@ def market_breadth_full(
             ),
         )
     return _serialize_full_breadth(latest, previous)
+
+
+@router.get("/intraday")
+def market_intraday(
+    symbols: str = Query(
+        default="SH.000001,SZ.399001",
+        description="逗号分隔的核心指数富途代码，最多 5 个。",
+    ),
+    client: FutuClient = Depends(futu_client_dependency),
+) -> dict[str, list[dict[str, Any]]]:
+    requested = list(
+        dict.fromkeys(item.strip().upper() for item in symbols.split(",") if item.strip())
+    )
+    unsupported = [symbol for symbol in requested if symbol not in INDEX_INTRADAY_SYMBOLS]
+    if not requested:
+        raise HTTPException(status_code=422, detail="请至少指定一个指数代码。")
+    if len(requested) > len(INDEX_INTRADAY_SYMBOLS) or unsupported:
+        allowed = ", ".join(sorted(INDEX_INTRADAY_SYMBOLS))
+        raise HTTPException(
+            status_code=422,
+            detail=f"仅支持最多 5 个核心指数；不支持 {unsupported}。可选：{allowed}",
+        )
+    try:
+        return market_data.index_intraday(client, requested)
+    except (FutuClientError, DataProviderError, ValueError) as exc:
+        raise HTTPException(
+            status_code=503,
+            detail=f"指数分时暂不可用，请确认 Futu OpenD 已启动并具备行情权限：{exc}",
+        ) from exc

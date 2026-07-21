@@ -16,6 +16,7 @@ from alphapilot.data.base import DataProviderError, MarketDataProvider
 from alphapilot.data.futu_provider import FutuMarketDataProvider
 from alphapilot.data.mock import MockMarketDataProvider
 from alphapilot.db.models import DailyBar
+from alphapilot.futu.client import FutuClient
 
 BAR_COLUMNS = ["date", "open", "high", "low", "close", "volume", "amount"]
 
@@ -203,9 +204,61 @@ def index_quotes(settings: Settings) -> list[dict[str, object]]:
     return quotes
 
 
+def index_intraday(
+    client: FutuClient,
+    symbols: list[str],
+) -> dict[str, list[dict[str, Any]]]:
+    """Subscribe to and return the current trading day's index minute series."""
+
+    if not symbols:
+        raise ValueError("index intraday requires at least one symbol")
+    client.quote_call_raw(
+        "subscribe",
+        args=[symbols, ["RT_DATA"]],
+        kwargs={"is_first_push": False},
+    )
+    series: dict[str, list[dict[str, Any]]] = {}
+    required = {"time", "cur_price", "avg_price", "volume"}
+    for symbol in symbols:
+        payload = client.quote_call_raw("get_rt_data", args=[symbol])
+        if not isinstance(payload, pd.DataFrame):
+            raise DataProviderError(f"Futu index intraday payload is invalid: {symbol}")
+        missing = sorted(required.difference(str(column) for column in payload.columns))
+        if missing:
+            raise DataProviderError(
+                f"Futu index intraday is missing fields for {symbol}: {missing}"
+            )
+        points: list[dict[str, Any]] = []
+        for raw_record in payload.to_dict(orient="records"):
+            record = {str(key): value for key, value in raw_record.items()}
+            if bool(record.get("is_blank", False)):
+                continue
+            price = _finite_or_none(record.get("cur_price"))
+            if price is None:
+                continue
+            points.append(
+                {
+                    "time": str(record["time"]),
+                    "price": price,
+                    "avg_price": _finite_or_none(record.get("avg_price")),
+                    "volume": _finite_or_none(record.get("volume")),
+                }
+            )
+        series[symbol] = points
+    return series
+
+
 def _iso(value: object) -> str | None:
     if isinstance(value, datetime):
         return value.astimezone(UTC).isoformat()
     if isinstance(value, pd.Timestamp):
         return value.isoformat()
     return None
+
+
+def _finite_or_none(value: object) -> float | None:
+    try:
+        number = float(str(value))
+    except (TypeError, ValueError):
+        return None
+    return number if isfinite(number) else None
