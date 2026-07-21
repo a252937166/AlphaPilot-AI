@@ -307,6 +307,29 @@ class MarketRegimeState(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 
+class FinancialIndicator(Base):
+    """Quarterly fundamental metric with point-in-time availability provenance."""
+
+    __tablename__ = "financial_indicators"
+    __table_args__ = (
+        UniqueConstraint(
+            "symbol",
+            "report_period",
+            "metric",
+            name="uq_fin_metric",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    symbol: Mapped[str] = mapped_column(String(24), index=True)
+    report_period: Mapped[str] = mapped_column(String(10))
+    metric: Mapped[str] = mapped_column(String(32))
+    value: Mapped[float | None] = mapped_column(Float, nullable=True)
+    source: Mapped[str] = mapped_column(String(16), default="baostock")
+    available_time: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    payload: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+
+
 class DailyReport(Base):
     __tablename__ = "daily_reports"
 
