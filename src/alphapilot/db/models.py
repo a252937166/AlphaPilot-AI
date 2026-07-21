@@ -47,6 +47,7 @@ class Security(Base):
     pe_ttm: Mapped[float | None] = mapped_column(Float, nullable=True)
     pb: Mapped[float | None] = mapped_column(Float, nullable=True)
     turnover_rate: Mapped[float | None] = mapped_column(Float, nullable=True)
+    style_tag: Mapped[str | None] = mapped_column(String(16), nullable=True)
     snapshot_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     listed_date: Mapped[str | None] = mapped_column(String(16))
     status: Mapped[str | None] = mapped_column(String(32))
@@ -363,6 +364,20 @@ class CompositeScore(Base):
     win_rate_20d: Mapped[float | None] = mapped_column(Float, nullable=True)
     factors: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
     model_version: Mapped[str] = mapped_column(String(32))
+
+
+class StyleDaily(Base):
+    """Turnover-weighted daily market style distribution."""
+
+    __tablename__ = "style_daily"
+
+    trade_date: Mapped[date] = mapped_column(Date, primary_key=True)
+    growth_pct: Mapped[float] = mapped_column(Float)
+    value_pct: Mapped[float] = mapped_column(Float)
+    defensive_pct: Mapped[float] = mapped_column(Float)
+    balanced_pct: Mapped[float] = mapped_column(Float)
+    model_version: Mapped[str] = mapped_column(String(32), default="style-v1.0.0")
+    source_fingerprint: Mapped[str] = mapped_column(String(64), default="")
 
 
 class DailyReport(Base):

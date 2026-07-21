@@ -16,13 +16,16 @@ from alphapilot.db.models import (
     FactorValue,
     ForecastSnapshot,
     Security,
+    StyleDaily,
     WatchlistItem,
 )
 from alphapilot.domain.models import (
     ScreeningCandidate,
     ScreeningRequest,
     ScreeningResponse,
+    StyleTag,
 )
+from alphapilot.engines.style import style_source_fingerprint
 from alphapilot.prediction.baseline import BaselineForecastEngine
 
 RiskLevel = Literal["low", "mid", "high"]
@@ -45,6 +48,7 @@ class _ScreenRow:
     model_version: str
     display_name: str | None
     industry: str | None
+    style: StyleTag | None
     market_cap: float | None
     volatility_z: float | None
 
@@ -57,6 +61,18 @@ def _finite_or_none(value: object) -> float | None:
     except (TypeError, ValueError):
         return None
     return number if isfinite(number) else None
+
+
+def _style_or_none(value: object) -> StyleTag | None:
+    if value == "growth":
+        return "growth"
+    if value == "value":
+        return "value"
+    if value == "defensive":
+        return "defensive"
+    if value == "balanced":
+        return "balanced"
+    return None
 
 
 def _quantile(values: list[float], proportion: float) -> float:
@@ -127,6 +143,8 @@ def _screen_rows(
     trade_date: date,
     thresholds: tuple[float, float] | None,
     watchlist_symbols: list[str] | None,
+    *,
+    style_is_current: bool,
 ) -> list[_ScreenRow]:
     statement = (
         select(
@@ -137,6 +155,7 @@ def _screen_rows(
             CompositeScore.model_version,
             Security.name,
             Security.industry_csrc,
+            Security.style_tag,
             Security.market_cap,
             FactorValue.zscore,
         )
@@ -167,6 +186,8 @@ def _screen_rows(
         statement = statement.where(Security.industry_csrc.in_(industries))
     if request.min_market_cap is not None:
         statement = statement.where(Security.market_cap >= request.min_market_cap)
+    if request.style is not None:
+        statement = statement.where(Security.style_tag == request.style)
     if request.risk_level is not None:
         if thresholds is None:
             raise ScreeningUnavailableError(
@@ -197,6 +218,7 @@ def _screen_rows(
                 model_version=str(record.model_version),
                 display_name=str(record.name) if record.name is not None else None,
                 industry=(str(record.industry_csrc) if record.industry_csrc is not None else None),
+                style=_style_or_none(record.style_tag) if style_is_current else None,
                 market_cap=_finite_or_none(record.market_cap),
                 volatility_z=_finite_or_none(record.zscore),
             )
@@ -383,7 +405,7 @@ def _enrich_candidates(
                 confidence_20d=confidence_20d,
                 display_name=row.display_name,
                 industry=row.industry,
-                style=None,
+                style=row.style,
                 risk_level=_risk_level(row.volatility_z, thresholds),
                 market_cap=row.market_cap,
                 trade_date=row.trade_date,
@@ -421,9 +443,6 @@ def run_factor_screen(session: Session, request: ScreeningRequest) -> ScreeningR
         raise ScreeningFilterError(
             "all 或 watchlist 模式固定使用本地因子与日线缓存，请移除 provider。"
         )
-    if request.style is not None:
-        raise ScreeningFilterError("风格筛选将在 P2.2-S4 完成后启用；请暂时移除 style 参数后重试。")
-
     latest_date = session.scalar(select(func.max(CompositeScore.trade_date)))
     if not isinstance(latest_date, date):
         raise ScreeningUnavailableError("暂无综合评分，请先运行 compute_factors 任务后重试。")
@@ -434,6 +453,20 @@ def run_factor_screen(session: Session, request: ScreeningRequest) -> ScreeningR
     )
     if not isinstance(model_version, str):
         raise ScreeningUnavailableError("最新综合评分缺少模型版本，请重新运行 compute_factors。")
+
+    latest_style = session.scalars(
+        select(StyleDaily).order_by(StyleDaily.trade_date.desc()).limit(1)
+    ).first()
+    current_source_fingerprint = style_source_fingerprint(session, latest_date)
+    style_is_current = bool(
+        latest_style is not None
+        and latest_style.trade_date == latest_date
+        and latest_style.source_fingerprint == current_source_fingerprint
+    )
+    if request.style is not None and not style_is_current:
+        raise ScreeningUnavailableError(
+            "风格数据尚未与最新综合评分同步，请先运行 compute_style_daily 任务后重试。"
+        )
 
     watchlist_symbols: list[str] | None = None
     if request.universe == "watchlist":
@@ -456,12 +489,21 @@ def run_factor_screen(session: Session, request: ScreeningRequest) -> ScreeningR
         latest_date,
         thresholds,
         watchlist_symbols,
+        style_is_current=style_is_current,
     )
     persisted_expected = (
         _latest_expected_returns(session) if request.sort_by == "expected_return" else {}
     )
     selected = _preselect(rows, request, persisted_expected)
     candidates, failed = _enrich_candidates(session, selected, request, thresholds)
+    if (
+        style_is_current
+        and latest_style is not None
+        and style_source_fingerprint(session, latest_date) != latest_style.source_fingerprint
+    ):
+        raise ScreeningUnavailableError(
+            "风格数据在筛选期间发生变化，请先运行 compute_style_daily 任务后重试。"
+        )
     return ScreeningResponse(
         generated_at=datetime.now(UTC),
         provider="factor-db",

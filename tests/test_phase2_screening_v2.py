@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 
 import pandas as pd
@@ -15,12 +15,14 @@ from alphapilot.db.models import (
     FactorValue,
     ForecastSnapshot,
     Security,
+    StyleDaily,
     WatchlistItem,
 )
-from alphapilot.domain.models import ScreeningRequest, StockForecast
+from alphapilot.domain.models import ScreeningRequest, StockForecast, StyleTag
+from alphapilot.engines.style import style_source_fingerprint
 from alphapilot.prediction.baseline import BaselineForecastEngine
+from alphapilot.services import screening_v2
 from alphapilot.services.screening_v2 import (
-    ScreeningFilterError,
     ScreeningUnavailableError,
     run_factor_screen,
 )
@@ -46,6 +48,7 @@ def _seed_symbol(
     bars: int = 80,
     win_rate: float | None = None,
     watchlist: bool = False,
+    style: StyleTag = "balanced",
 ) -> None:
     session.add(
         Security(
@@ -55,6 +58,7 @@ def _seed_symbol(
             list_status="listed",
             is_st=False,
             market_cap=market_cap,
+            style_tag=style,
         )
     )
     session.add(
@@ -279,14 +283,124 @@ def test_missing_local_bars_stays_null_and_never_invents_forecast(tmp_path: Path
     assert available.p_up_20d is not None
 
 
-def test_style_and_missing_factor_inputs_raise_actionable_chinese_errors(
+def test_style_filter_requires_current_daily_snapshot_and_filters_real_tags(
     tmp_path: Path,
 ) -> None:
     with _session(tmp_path) as session:
-        with pytest.raises(ScreeningFilterError, match=r"P2\.2-S4"):
+        _seed_symbol(
+            session,
+            "000051",
+            score=90,
+            volatility_z=-1,
+            style="growth",
+            watchlist=True,
+        )
+        _seed_symbol(
+            session,
+            "000052",
+            score=80,
+            volatility_z=1,
+            style="balanced",
+            watchlist=True,
+        )
+        session.add(
+            StyleDaily(
+                trade_date=TRADE_DATE - timedelta(days=1),
+                growth_pct=0.25,
+                value_pct=0.25,
+                defensive_pct=0.25,
+                balanced_pct=0.25,
+            )
+        )
+        session.commit()
+
+        with pytest.raises(ScreeningUnavailableError, match="compute_style_daily"):
             run_factor_screen(
                 session,
                 ScreeningRequest(universe="all", style="growth"),
             )
-        with pytest.raises(ScreeningUnavailableError, match="compute_factors"):
-            run_factor_screen(session, ScreeningRequest(universe="all"))
+
+        session.add(
+            StyleDaily(
+                trade_date=TRADE_DATE,
+                growth_pct=0.5,
+                value_pct=0.0,
+                defensive_pct=0.0,
+                balanced_pct=0.5,
+                source_fingerprint=style_source_fingerprint(session, TRADE_DATE),
+            )
+        )
+        session.commit()
+        response = run_factor_screen(
+            session,
+            ScreeningRequest(universe="all", style="growth"),
+        )
+        watchlist_response = run_factor_screen(
+            session,
+            ScreeningRequest(universe="watchlist", style="growth"),
+        )
+
+    assert [item.symbol for item in response.candidates] == ["000051"]
+    assert response.candidates[0].style == "growth"
+    assert watchlist_response.requested == 2
+    assert [item.symbol for item in watchlist_response.candidates] == ["000051"]
+    assert watchlist_response.candidates[0].style == "growth"
+
+    with _session(tmp_path) as session:
+        factor = (
+            session.query(FactorValue)
+            .filter_by(
+                symbol="000051",
+                trade_date=TRADE_DATE,
+                factor="volatility_20d",
+            )
+            .one()
+        )
+        factor.zscore = 0.25
+        session.commit()
+        with pytest.raises(ScreeningUnavailableError, match="compute_style_daily"):
+            run_factor_screen(
+                session,
+                ScreeningRequest(universe="all", style="growth"),
+            )
+
+
+def test_missing_factor_inputs_raise_actionable_chinese_error(tmp_path: Path) -> None:
+    with (
+        _session(tmp_path) as session,
+        pytest.raises(ScreeningUnavailableError, match="compute_factors"),
+    ):
+        run_factor_screen(session, ScreeningRequest(universe="all"))
+
+
+def test_style_filter_rejects_inputs_changed_during_screen(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    with _session(tmp_path) as session:
+        _seed_symbol(session, "000061", score=90, volatility_z=0.0, style="growth")
+        session.flush()
+        fingerprint = style_source_fingerprint(session, TRADE_DATE)
+        session.add(
+            StyleDaily(
+                trade_date=TRADE_DATE,
+                growth_pct=1.0,
+                value_pct=0.0,
+                defensive_pct=0.0,
+                balanced_pct=0.0,
+                source_fingerprint=fingerprint,
+            )
+        )
+        session.commit()
+        fingerprints = iter((fingerprint, "f" * 64))
+        monkeypatch.setattr(
+            screening_v2,
+            "style_source_fingerprint",
+            lambda *_args: next(fingerprints),
+        )
+
+        with pytest.raises(ScreeningUnavailableError, match="筛选期间发生变化"):
+            run_factor_screen(
+                session,
+                ScreeningRequest(universe="all", style="growth"),
+            )

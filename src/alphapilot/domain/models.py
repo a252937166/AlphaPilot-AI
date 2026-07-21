@@ -48,6 +48,9 @@ class TradeSide(StrEnum):
     SELL = "SELL"
 
 
+StyleTag = Literal["growth", "value", "defensive", "balanced"]
+
+
 class HorizonForecast(BaseModel):
     horizon_days: int
     p_up: float = Field(ge=0, le=1)
@@ -73,7 +76,7 @@ class ScreeningRequest(BaseModel):
     universe: Literal["all", "watchlist", "custom"] = "all"
     symbols: list[str] | None = Field(default=None, max_length=500)
     industries: list[str] | None = Field(default=None, max_length=100)
-    style: Literal["growth", "value", "defensive", "balanced"] | None = None
+    style: StyleTag | None = None
     risk_level: Literal["low", "mid", "high"] | None = None
     min_market_cap: float | None = Field(default=None, ge=0)
     top_n: int = Field(default=50, ge=1, le=100)
@@ -97,7 +100,7 @@ class ScreeningRequest(BaseModel):
         if self.universe != "custom":
             return None
         if self.style is not None:
-            return "风格筛选将在 P2.2-S4 完成后启用；请暂时移除 style 参数后重试。"
+            return "custom 兼容模式不支持 style；请改用 all 或 watchlist 股票池。"
         unsupported: list[str] = []
         if self.industries is not None:
             unsupported.append("industries")
@@ -135,7 +138,7 @@ class ScreeningCandidate(BaseModel):
     confidence_20d: float | None = Field(default=None, ge=0, le=1)
     display_name: str | None = None
     industry: str | None = None
-    style: Literal["growth", "value", "defensive", "balanced"] | None = None
+    style: StyleTag | None = None
     risk_level: Literal["low", "mid", "high"] | None = None
     market_cap: float | None = None
     trade_date: date | None = None
@@ -153,6 +156,33 @@ class ScreeningResponse(BaseModel):
     succeeded: int
     failed: dict[str, str]
     candidates: list[ScreeningCandidate]
+
+
+class StyleDailyPoint(BaseModel):
+    trade_date: date
+    growth_pct: float = Field(ge=0, le=1)
+    value_pct: float = Field(ge=0, le=1)
+    defensive_pct: float = Field(ge=0, le=1)
+    balanced_pct: float = Field(ge=0, le=1)
+    model_version: str
+
+
+class StyleDailyResponse(BaseModel):
+    requested_days: int = Field(ge=1)
+    available_days: int = Field(ge=0)
+    series: list[StyleDailyPoint]
+
+
+class StyleExposureSlice(BaseModel):
+    style: StyleTag
+    count: int = Field(ge=0)
+    pct: float = Field(ge=0, le=1)
+
+
+class StyleExposureResponse(BaseModel):
+    run_id: int = Field(ge=1)
+    total_candidates: int = Field(ge=0)
+    exposure: list[StyleExposureSlice]
 
 
 class StockAlert(BaseModel):
