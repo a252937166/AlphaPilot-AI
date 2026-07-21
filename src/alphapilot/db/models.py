@@ -274,6 +274,39 @@ class CalendarEvent(Base):
     available_time: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 
+class DomainEvent(Base):
+    """Normalized event stream consumed by monitoring, insights, and review flows."""
+
+    __tablename__ = "events"
+    __table_args__ = (
+        UniqueConstraint("source_ref", name="uq_events_source_ref"),
+        Index("ix_events_symbol_occurred", "symbol", "occurred_at"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    symbol: Mapped[str | None] = mapped_column(String(24), index=True, nullable=True)
+    event_type: Mapped[str] = mapped_column(String(32), index=True)
+    direction: Mapped[float] = mapped_column(Float, default=0.0)
+    strength: Mapped[float] = mapped_column(Float, default=0.5)
+    title: Mapped[str] = mapped_column(Text)
+    summary: Mapped[str | None] = mapped_column(Text, nullable=True)
+    source_ref: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    occurred_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+    ingested_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class MarketRegimeState(Base):
+    """Last observed benchmark regime used to detect actual state transitions."""
+
+    __tablename__ = "market_regime_states"
+
+    symbol: Mapped[str] = mapped_column(String(24), primary_key=True)
+    regime: Mapped[str] = mapped_column(String(32))
+    confidence: Mapped[float] = mapped_column(Float)
+    as_of: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
 class DailyReport(Base):
     __tablename__ = "daily_reports"
 
