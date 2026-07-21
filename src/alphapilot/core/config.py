@@ -35,6 +35,7 @@ class Settings(BaseSettings):
     )
     snapshot_provider_chain: list[str] = Field(default_factory=lambda: ["futu", "akshare"])
     universe_file: str = "config/universe.example.yaml"
+    factor_weights_file: str = "config/factor_weights.yaml"
 
     # cninfo / 深证信 WebAPI. Credentials must come from the local .env or the
     # process environment only; they are never committed to the repository.
