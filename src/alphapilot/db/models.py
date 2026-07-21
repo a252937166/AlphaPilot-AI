@@ -134,6 +134,27 @@ class ForecastSnapshot(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 
+class ThesisTransition(Base):
+    """Auditable watchlist thesis-state change tied to one evidence snapshot."""
+
+    __tablename__ = "thesis_transitions"
+    __table_args__ = (
+        UniqueConstraint("trigger_ref", name="uq_thesis_transition_ref"),
+        Index("ix_thesis_transition_symbol_created", "symbol", "created_at"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    symbol: Mapped[str] = mapped_column(String(24), index=True)
+    from_state: Mapped[str] = mapped_column(String(16))
+    to_state: Mapped[str] = mapped_column(String(16))
+    reason: Mapped[str] = mapped_column(Text)
+    trigger_ref: Mapped[str] = mapped_column(String(128))
+    model_version: Mapped[str] = mapped_column(String(32), default="thesis-drift-v1.0.0")
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, index=True
+    )
+
+
 class AlertRecord(Base):
     __tablename__ = "alerts"
     __table_args__ = (Index("ix_alerts_created", "created_at"),)
