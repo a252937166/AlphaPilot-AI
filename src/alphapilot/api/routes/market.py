@@ -22,6 +22,7 @@ from alphapilot.domain.models import RegimeResult
 from alphapilot.futu.client import FutuClient, FutuClientError
 from alphapilot.prediction.regime import MarketRegimeClassifier
 from alphapilot.services import market_data
+from alphapilot.services.cross_market import cross_market_snapshot
 from alphapilot.services.sectors import SectorServiceError, market_breadth_from_sample
 
 router = APIRouter(prefix="/v1/market", tags=["market"])
@@ -78,6 +79,13 @@ def market_regime(
         return MarketRegimeClassifier().classify(symbol, bars)
     except (DataProviderError, ValueError) as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+@router.get("/cross")
+def market_cross(
+    client: FutuClient = Depends(futu_client_dependency),
+) -> dict[str, Any]:
+    return cross_market_snapshot(client)
 
 
 @router.get("/indices")
