@@ -18,7 +18,6 @@ from alphapilot.db.engine import get_session
 from alphapilot.db.models import SectorConstituent, SectorFlowDaily
 from alphapilot.futu.client import FutuClient, get_futu_client
 from alphapilot.jobs.registry import JobSpec, register
-from alphapilot.services.market_data import latest_trade_date
 
 logger = logging.getLogger(__name__)
 MARKET_TIMEZONE = ZoneInfo("Asia/Shanghai")
@@ -45,6 +44,29 @@ def _finite(value: object) -> float | None:
     except (TypeError, ValueError):
         return None
     return number if math.isfinite(number) else None
+
+
+def _market_today() -> date:
+    return datetime.now(MARKET_TIMEZONE).date()
+
+
+def _cn_trade_day(client: FutuClient, target: date) -> date | None:
+    """Resolve the requested CN trade day from OpenD, never from stale local bars."""
+
+    value = target.isoformat()
+    calendar = client.quote_call_raw(
+        "request_trading_days",
+        args=["CN", value, value],
+    )
+    if not isinstance(calendar, list):
+        raise DataProviderError("Futu trading calendar returned an invalid payload")
+    for raw in calendar:
+        if not isinstance(raw, Mapping):
+            continue
+        raw_date = str(raw.get("time") or "").strip()
+        if raw_date == value:
+            return target
+    return None
 
 
 def _is_a_share_code(code: str) -> bool:
@@ -235,11 +257,22 @@ def _find_field(columns: set[str], candidates: tuple[str, ...]) -> str | None:
     return next((candidate for candidate in candidates if candidate in columns), None)
 
 
+def _provider_trade_date(value: object) -> date | None:
+    try:
+        timestamp = pd.Timestamp(str(value))
+    except (TypeError, ValueError):
+        return None
+    if pd.isna(timestamp):
+        return None
+    return timestamp.date()
+
+
 def _snapshot_flow_rows(
     plates: Mapping[str, dict[str, Any]],
     quote_map: Mapping[str, Mapping[str, Any]],
     net_field: str,
     main_field: str | None,
+    trade_day: date,
 ) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
     for plate_code, info in plates.items():
@@ -248,6 +281,8 @@ def _snapshot_flow_rows(
         for code in info["constituents"]:
             quote = quote_map.get(str(code))
             if quote is None:
+                continue
+            if _provider_trade_date(quote.get("update_time")) != trade_day:
                 continue
             net = _finite(quote.get(net_field))
             if net is not None:
@@ -268,10 +303,23 @@ def _snapshot_flow_rows(
     return rows
 
 
-def _latest_capital_flow(frame: pd.DataFrame) -> tuple[float, float | None]:
+def _latest_capital_flow(
+    frame: pd.DataFrame,
+    trade_day: date,
+) -> tuple[float, float | None]:
     if frame.empty or "in_flow" not in frame.columns:
         raise DataProviderError("Futu capital flow returned no in_flow data")
-    record = {str(key): value for key, value in frame.iloc[-1].to_dict().items()}
+    if "capital_flow_item_time" not in frame.columns:
+        raise DataProviderError("Futu capital flow returned no item timestamp")
+    fresh_records = [
+        {str(key): value for key, value in raw.items()}
+        for raw in frame.to_dict(orient="records")
+        if _provider_trade_date(raw.get("capital_flow_item_time")) == trade_day
+    ]
+    if not fresh_records:
+        raise DataProviderError(f"Futu capital flow has no rows for {trade_day.isoformat()}")
+    fresh_records.sort(key=lambda item: str(item.get("capital_flow_item_time") or ""))
+    record = fresh_records[-1]
     net = _finite(record.get("in_flow"))
     if net is None:
         raise DataProviderError("Futu capital flow latest in_flow is invalid")
@@ -289,6 +337,7 @@ def _futu_top5_flow_rows(
     plates: Mapping[str, dict[str, Any]],
     quote_map: Mapping[str, Mapping[str, Any]],
     *,
+    trade_day: date,
     pause_seconds: float,
 ) -> tuple[list[dict[str, Any]], list[dict[str, str]], int]:
     selected_by_plate: dict[str, list[str]] = {}
@@ -310,7 +359,7 @@ def _futu_top5_flow_rows(
             frame = client.quote_call_raw("get_capital_flow", args=[code])
             if not isinstance(frame, pd.DataFrame):
                 raise DataProviderError("invalid Futu capital-flow payload")
-            values[code] = _latest_capital_flow(frame)
+            values[code] = _latest_capital_flow(frame, trade_day)
         except Exception as exc:
             failures.append({"symbol": code, "error": f"{type(exc).__name__}: {exc}"[:500]})
         finally:
@@ -376,6 +425,19 @@ def sync_sector_flows(
 
     started = monotonic()
     client = get_futu_client()
+    requested_date = _market_today()
+    trade_day = _cn_trade_day(client, requested_date)
+    if trade_day is None:
+        return {
+            "trade_date": None,
+            "requested_date": requested_date.isoformat(),
+            "source": None,
+            "rows": 0,
+            "inserted": 0,
+            "updated": 0,
+            "skipped": "non_trading_day",
+            "duration_seconds": round(monotonic() - started, 2),
+        }
     plates = _cached_plates()
     all_codes = list(
         dict.fromkeys(str(code) for info in plates.values() for code in info["constituents"])
@@ -395,7 +457,7 @@ def sync_sector_flows(
     source = ""
 
     if net_field is not None:
-        rows = _snapshot_flow_rows(plates, quote_map, net_field, main_field)
+        rows = _snapshot_flow_rows(plates, quote_map, net_field, main_field, trade_day)
         if rows:
             source = "futu-snapshot"
         else:
@@ -430,6 +492,7 @@ def sync_sector_flows(
                 client,
                 plates,
                 quote_map,
+                trade_day=trade_day,
                 pause_seconds=pause_seconds,
             )
             source = "futu-top5"
@@ -438,11 +501,10 @@ def sync_sector_flows(
 
     if not rows:
         raise DataProviderError("no sector flow rows could be produced")
-    with get_session() as session:
-        trade_day = latest_trade_date(session)
     inserted, updated = _persist_flow_rows(rows, trade_day)
     return {
         "trade_date": trade_day.isoformat(),
+        "requested_date": requested_date.isoformat(),
         "source": source,
         "rows": len(rows),
         "inserted": inserted,
@@ -455,6 +517,7 @@ def sync_sector_flows(
         "failure_count": len(failures),
         "failures": failures[:20],
         "warnings": warnings,
+        "skipped": None,
         "duration_seconds": round(monotonic() - started, 2),
     }
 

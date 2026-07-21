@@ -134,6 +134,7 @@ def test_sync_sector_flows_uses_snapshot_field_when_available(
                 [
                     {
                         "code": code,
+                        "update_time": "2026-07-21 15:00:00",
                         "net_inflow": 100.0,
                         "main_inflow": 60.0,
                         "total_market_val": 1_000.0,
@@ -144,6 +145,8 @@ def test_sync_sector_flows_uses_snapshot_field_when_available(
 
     monkeypatch.setattr(sectors_sync, "get_session", local_session)
     monkeypatch.setattr(sectors_sync, "get_futu_client", SnapshotFlowClient)
+    monkeypatch.setattr(sectors_sync, "_market_today", lambda: date(2026, 7, 21))
+    monkeypatch.setattr(sectors_sync, "_cn_trade_day", lambda _client, target: target)
     monkeypatch.setattr(
         sectors_sync,
         "_eastmoney_sector_flows",
@@ -211,6 +214,7 @@ def test_sync_sector_flows_falls_back_to_deduplicated_futu_top5(
                 [
                     {
                         "in_flow": 10.0,
+                        "capital_flow_item_time": "2026-07-21 15:00:00",
                         "main_in_flow": "N/A",
                         "super_in_flow": 2.0,
                         "big_in_flow": 3.0,
@@ -221,6 +225,8 @@ def test_sync_sector_flows_falls_back_to_deduplicated_futu_top5(
     client = CapitalFlowClient()
     monkeypatch.setattr(sectors_sync, "get_session", local_session)
     monkeypatch.setattr(sectors_sync, "get_futu_client", lambda: client)
+    monkeypatch.setattr(sectors_sync, "_market_today", lambda: date(2026, 7, 21))
+    monkeypatch.setattr(sectors_sync, "_cn_trade_day", lambda _client, target: target)
     monkeypatch.setattr(
         sectors_sync,
         "_eastmoney_sector_flows",
@@ -238,6 +244,50 @@ def test_sync_sector_flows_falls_back_to_deduplicated_futu_top5(
         assert flow.net_inflow == 50.0
         assert flow.main_inflow == 25.0
         assert flow.source == "futu-top5"
+
+
+def test_sector_flow_rejects_stale_provider_rows_and_sorts_latest() -> None:
+    trade_day = date(2026, 7, 21)
+    stale = pd.DataFrame(
+        [
+            {
+                "in_flow": 10.0,
+                "capital_flow_item_time": "2026-07-18 15:00:00",
+            }
+        ]
+    )
+    with pytest.raises(DataProviderError, match="has no rows for 2026-07-21"):
+        sectors_sync._latest_capital_flow(stale, trade_day)
+
+    unsorted = pd.DataFrame(
+        [
+            {
+                "in_flow": 20.0,
+                "main_in_flow": 12.0,
+                "capital_flow_item_time": "2026-07-21 15:00:00",
+            },
+            {
+                "in_flow": 10.0,
+                "main_in_flow": 6.0,
+                "capital_flow_item_time": "2026-07-21 14:59:00",
+            },
+        ]
+    )
+    assert sectors_sync._latest_capital_flow(unsorted, trade_day) == (20.0, 12.0)
+
+    rows = sectors_sync._snapshot_flow_rows(
+        {"SH.LIST0001": {"constituents": ["SH.600000"]}},
+        {
+            "SH.600000": {
+                "update_time": "2026-07-18 15:00:00",
+                "net_inflow": 100.0,
+            }
+        },
+        "net_inflow",
+        None,
+        trade_day,
+    )
+    assert rows == []
 
 
 def test_sector_strength_prefers_fresh_db_and_sorts_top30_by_turnover(

@@ -253,6 +253,29 @@ class SectorFlowDaily(Base):
     source: Mapped[str] = mapped_column(String(16))
 
 
+class SectorForecast(Base):
+    """Daily cross-sectional sector forecast with real rolling outcomes."""
+
+    __tablename__ = "sector_forecasts"
+    __table_args__ = (
+        UniqueConstraint("plate_code", "trade_date", "horizon", name="uq_sector_fc"),
+        Index("ix_sector_fc_date_horizon", "trade_date", "horizon"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    plate_code: Mapped[str] = mapped_column(String(24), index=True)
+    plate_name: Mapped[str] = mapped_column(String(64))
+    trade_date: Mapped[date] = mapped_column(Date, index=True)
+    horizon: Mapped[int] = mapped_column(Integer)
+    score: Mapped[float] = mapped_column(Float)
+    expected_excess: Mapped[float | None] = mapped_column(Float, nullable=True)
+    win_rate: Mapped[float | None] = mapped_column(Float, nullable=True)
+    lifecycle: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    rsi14: Mapped[float | None] = mapped_column(Float, nullable=True)
+    reversal_score: Mapped[float | None] = mapped_column(Float, nullable=True)
+    model_version: Mapped[str] = mapped_column(String(32), default="sector-fc-v1.0.0")
+
+
 class CalendarEvent(Base):
     """Point-in-time stock event used by the product calendar and future backtests."""
 
