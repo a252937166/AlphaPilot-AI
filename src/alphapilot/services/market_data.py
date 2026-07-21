@@ -2,7 +2,8 @@ from __future__ import annotations
 
 from contextlib import suppress
 from datetime import UTC, date, datetime, timedelta
-from typing import TypedDict
+from math import isfinite
+from typing import Any, TypedDict
 
 import pandas as pd
 from sqlalchemy import select
@@ -34,6 +35,21 @@ class BarsResult(TypedDict):
     warnings: list[str]
 
 
+def _finite_float(value: Any, field: str) -> float:
+    number = float(value)
+    if not isfinite(number):
+        raise ValueError(f"daily bar {field} must be finite")
+    return number
+
+
+def _finite_float_or_zero(value: Any) -> float:
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return 0.0
+    return number if isfinite(number) else 0.0
+
+
 def save_bars(session: Session, symbol: str, frame: pd.DataFrame, source: str) -> int:
     """Insert missing daily bars; existing (symbol, date) rows are left untouched."""
     if frame.empty:
@@ -55,12 +71,12 @@ def save_bars(session: Session, symbol: str, frame: pd.DataFrame, source: str) -
             DailyBar(
                 symbol=symbol,
                 trade_date=trade_date,
-                open=float(record["open"]),
-                high=float(record["high"]),
-                low=float(record["low"]),
-                close=float(record["close"]),
-                volume=float(record["volume"]),
-                amount=float(record.get("amount") or 0.0),
+                open=_finite_float(record["open"], "open"),
+                high=_finite_float(record["high"], "high"),
+                low=_finite_float(record["low"], "low"),
+                close=_finite_float(record["close"], "close"),
+                volume=_finite_float_or_zero(record.get("volume")),
+                amount=_finite_float_or_zero(record.get("amount")),
                 source=source,
             )
         )
