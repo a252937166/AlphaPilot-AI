@@ -20,6 +20,7 @@ from alphapilot.db.models import CalendarEvent
 from alphapilot.domain.models import StockAlert, StockForecast
 from alphapilot.prediction.baseline import BaselineForecastEngine
 from alphapilot.services import disclosures as disclosure_service
+from alphapilot.services import stock_scores as stock_score_service
 from alphapilot.services.market_data import get_bars_with_cache
 from alphapilot.services.watchlist import normalize_symbol
 
@@ -135,6 +136,23 @@ def stock_calendar(
     }
 
 
+@router.get("/{symbol}/score")
+def stock_score(
+    symbol: str,
+    session: Session = Depends(db_session_dependency),
+) -> dict[str, Any]:
+    code = normalize_symbol(symbol)
+    if len(code) != 6 or not code.isdigit():
+        raise HTTPException(status_code=422, detail="股票代码必须是 6 位数字。")
+    payload = stock_score_service.latest_score_payload(session, code)
+    if payload is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"暂无 {code} 的最新五维评分，请先运行 compute_factors。",
+        )
+    return payload
+
+
 @router.get("/{symbol}/overview")
 def stock_overview(
     symbol: str,
@@ -170,6 +188,7 @@ def stock_overview(
         except CninfoError:
             security = None
     disclosures = disclosure_service.list_disclosures(session, code, limit=10)
+    score = stock_score_service.latest_score_payload(session, code)
 
     return {
         "symbol": code,
@@ -178,4 +197,8 @@ def stock_overview(
         "forecast": forecast.model_dump(mode="json"),
         "alert": alert.model_dump(mode="json"),
         "disclosures": disclosures,
+        "score": score,
+        "score_error": (
+            None if score is not None else "暂无最新五维评分，请先运行 compute_factors。"
+        ),
     }

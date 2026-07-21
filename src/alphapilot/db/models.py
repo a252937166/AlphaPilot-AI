@@ -6,6 +6,7 @@ from typing import Any, ClassVar
 from sqlalchemy import (
     JSON,
     Boolean,
+    CheckConstraint,
     Date,
     DateTime,
     Float,
@@ -407,6 +408,45 @@ class CompositeScore(Base):
     score: Mapped[float] = mapped_column(Float)
     win_rate_20d: Mapped[float | None] = mapped_column(Float, nullable=True)
     factors: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    model_version: Mapped[str] = mapped_column(String(32))
+
+
+class StockScore(Base):
+    """Daily five-dimension stock score derived from PIT factor z-scores."""
+
+    __tablename__ = "stock_scores"
+    __table_args__ = (
+        UniqueConstraint("symbol", "trade_date", name="uq_stock_score"),
+        Index("ix_stock_score_date", "trade_date"),
+        CheckConstraint("tech >= 0 AND tech <= 10", name="ck_stock_score_tech"),
+        CheckConstraint("capital >= 0 AND capital <= 10", name="ck_stock_score_capital"),
+        CheckConstraint(
+            "fundamental >= 0 AND fundamental <= 10",
+            name="ck_stock_score_fundamental",
+        ),
+        CheckConstraint(
+            "valuation >= 0 AND valuation <= 10",
+            name="ck_stock_score_valuation",
+        ),
+        CheckConstraint(
+            "sentiment >= 0 AND sentiment <= 10",
+            name="ck_stock_score_sentiment",
+        ),
+        CheckConstraint(
+            "composite >= 0 AND composite <= 10",
+            name="ck_stock_score_composite",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    symbol: Mapped[str] = mapped_column(String(24), index=True)
+    trade_date: Mapped[date] = mapped_column(Date)
+    tech: Mapped[float] = mapped_column(Float)
+    capital: Mapped[float] = mapped_column(Float)
+    fundamental: Mapped[float] = mapped_column(Float)
+    valuation: Mapped[float] = mapped_column(Float)
+    sentiment: Mapped[float] = mapped_column(Float)
+    composite: Mapped[float] = mapped_column(Float)
     model_version: Mapped[str] = mapped_column(String(32))
 
 
