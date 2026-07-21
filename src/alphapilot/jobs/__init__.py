@@ -11,6 +11,7 @@ def register_builtin_jobs() -> None:
     from alphapilot.jobs.factors import register_factor_job
     from alphapilot.jobs.financials import register_financials_job
     from alphapilot.jobs.market_poll import register_market_poll_job
+    from alphapilot.jobs.score_outcomes import register_score_outcomes_job
     from alphapilot.jobs.sector_forecast import register_sector_forecast_job
     from alphapilot.jobs.sectors_sync import register_sector_jobs
     from alphapilot.jobs.style import register_style_job
@@ -25,3 +26,4 @@ def register_builtin_jobs() -> None:
     register_market_poll_job()
     register_sector_jobs()
     register_sector_forecast_job()
+    register_score_outcomes_job()

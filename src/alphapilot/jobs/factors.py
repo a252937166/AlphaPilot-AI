@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 import math
-from datetime import date, datetime
+from collections.abc import Mapping
+from datetime import UTC, date, datetime, time
 from time import monotonic
 from typing import Any
 from zoneinfo import ZoneInfo
@@ -18,6 +19,7 @@ from alphapilot.db.models import (
     DailyBar,
     FactorValue,
     JobRun,
+    ScoreOutcomeStat,
     Security,
     StockScore,
 )
@@ -28,6 +30,13 @@ from alphapilot.engines.factors import (
     load_weights,
     zscore_cross_section,
 )
+from alphapilot.engines.score_outcomes import (
+    HORIZON,
+    score_decile,
+)
+from alphapilot.engines.score_outcomes import (
+    MODEL_VERSION as SCORE_OUTCOME_MODEL_VERSION,
+)
 from alphapilot.engines.stock_score import compute_stock_scores
 from alphapilot.jobs.registry import JobExecutionError, JobSpec, register
 
@@ -36,8 +45,12 @@ MIN_INPUT_COVERAGE = 0.90
 INSERT_BATCH_SIZE = 5_000
 
 
+def _utc_now() -> datetime:
+    return datetime.now(UTC)
+
+
 def _market_today() -> date:
-    return datetime.now(MARKET_TIMEZONE).date()
+    return _utc_now().astimezone(MARKET_TIMEZONE).date()
 
 
 def _finite_or_none(value: object) -> float | None:
@@ -107,6 +120,46 @@ def _daily_bars_running(session: Session) -> bool:
     )
 
 
+def _outcome_win_rates(
+    session: Session,
+    *,
+    trade_date: date,
+    score_model_version: str,
+) -> dict[int, float]:
+    """Load only score calibration that was available by the target date."""
+
+    scheduled_cutoff = datetime.combine(
+        trade_date,
+        time(19, 30),
+        tzinfo=MARKET_TIMEZONE,
+    ).astimezone(UTC)
+    now = _utc_now()
+    availability_cutoff = (
+        now if trade_date == now.astimezone(MARKET_TIMEZONE).date() else scheduled_cutoff
+    )
+    rows = session.scalars(
+        select(ScoreOutcomeStat).where(
+            ScoreOutcomeStat.score_model_version == score_model_version,
+            ScoreOutcomeStat.model_version == SCORE_OUTCOME_MODEL_VERSION,
+            ScoreOutcomeStat.horizon == HORIZON,
+            ScoreOutcomeStat.as_of_date <= trade_date,
+            ScoreOutcomeStat.samples > 0,
+            ScoreOutcomeStat.win_rate.is_not(None),
+        )
+    ).all()
+    rates: dict[int, float] = {}
+    for row in rows:
+        updated_at = row.updated_at
+        if updated_at.tzinfo is None:
+            updated_at = updated_at.replace(tzinfo=UTC)
+        if updated_at.astimezone(UTC) > availability_cutoff:
+            continue
+        value = _finite_or_none(row.win_rate)
+        if value is not None and 0.0 <= value <= 1.0:
+            rates[row.decile] = value
+    return rates
+
+
 def _factor_records(
     raw: pd.DataFrame,
     standardized: pd.DataFrame,
@@ -137,6 +190,7 @@ def _composite_records(
     *,
     trade_date: date,
     model_version: str,
+    win_rates_by_decile: Mapping[int, float],
 ) -> list[dict[str, Any]]:
     records: list[dict[str, Any]] = []
     for symbol, raw_score in scores.items():
@@ -151,7 +205,7 @@ def _composite_records(
                 "symbol": str(symbol),
                 "trade_date": trade_date,
                 "score": score,
-                "win_rate_20d": None,
+                "win_rate_20d": win_rates_by_decile.get(score_decile(score)),
                 "factors": factors,
                 "model_version": model_version,
             }
@@ -241,6 +295,11 @@ def compute_factors(trade_date: date | None = None) -> dict[str, Any]:
             )
         standardized = zscore_cross_section(raw)
         scores = composite(standardized, weight_config.weights)
+        outcome_win_rates = _outcome_win_rates(
+            session,
+            trade_date=target_date,
+            score_model_version=score_model_version,
+        )
         factor_records = _factor_records(
             raw,
             standardized,
@@ -252,6 +311,7 @@ def compute_factors(trade_date: date | None = None) -> dict[str, Any]:
             scores,
             trade_date=target_date,
             model_version=score_model_version,
+            win_rates_by_decile=outcome_win_rates,
         )
         stock_score_frame = compute_stock_scores(standardized)
         stock_score_records = _stock_score_records(
@@ -319,6 +379,7 @@ def compute_factors(trade_date: date | None = None) -> dict[str, Any]:
         "sector_flow_days": int(raw.attrs.get("sector_flow_days", 0)),
         "active_weights": active_weights,
         "model_version": score_model_version,
+        "outcome_win_rate_deciles": sorted(outcome_win_rates),
         "top5": top5,
         "duration_seconds": round(monotonic() - started, 2),
     }

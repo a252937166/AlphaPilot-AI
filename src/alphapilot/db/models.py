@@ -166,6 +166,9 @@ class AlertRecord(Base):
     urgency: Mapped[str] = mapped_column(String(16))
     confidence: Mapped[float] = mapped_column(Float)
     suggested_position_change: Mapped[float] = mapped_column(Float, default=0.0)
+    target_low: Mapped[float | None] = mapped_column(Float, nullable=True)
+    target_high: Mapped[float | None] = mapped_column(Float, nullable=True)
+    suggested_notional: Mapped[float | None] = mapped_column(Float, nullable=True)
     reasons: Mapped[list[Any]] = mapped_column(JSON, default=list)
     invalidation: Mapped[str | None] = mapped_column(Text)
     model_version: Mapped[str | None] = mapped_column(String(64))
@@ -451,6 +454,42 @@ class CompositeScore(Base):
     win_rate_20d: Mapped[float | None] = mapped_column(Float, nullable=True)
     factors: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
     model_version: Mapped[str] = mapped_column(String(32))
+
+
+class ScoreOutcomeStat(Base):
+    """Calibrated 20-session hit rate for one composite-score decile."""
+
+    __tablename__ = "score_outcome_stats"
+    __table_args__ = (
+        UniqueConstraint(
+            "score_model_version",
+            "decile",
+            "horizon",
+            name="uq_sos",
+        ),
+        CheckConstraint("decile >= 1 AND decile <= 10", name="ck_sos_decile"),
+        CheckConstraint("horizon > 0", name="ck_sos_horizon"),
+        CheckConstraint("samples >= 0", name="ck_sos_samples"),
+        CheckConstraint(
+            "positive_samples >= 0 AND positive_samples <= samples",
+            name="ck_sos_positive_samples",
+        ),
+        CheckConstraint(
+            "win_rate IS NULL OR (win_rate >= 0 AND win_rate <= 1)",
+            name="ck_sos_rate",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    decile: Mapped[int] = mapped_column(Integer)
+    horizon: Mapped[int] = mapped_column(Integer, default=20)
+    samples: Mapped[int] = mapped_column(Integer, default=0)
+    positive_samples: Mapped[int] = mapped_column(Integer, default=0)
+    win_rate: Mapped[float | None] = mapped_column(Float, nullable=True)
+    score_model_version: Mapped[str] = mapped_column(String(32))
+    model_version: Mapped[str] = mapped_column(String(32), default="score-outcome-v1.0.0")
+    as_of_date: Mapped[date] = mapped_column(Date)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 
 class StockScore(Base):

@@ -22,6 +22,7 @@ from alphapilot.db.models import (
     FactorValue,
     FinancialIndicator,
     JobRun,
+    ScoreOutcomeStat,
     SectorConstituent,
     SectorFlowDaily,
     SectorSnapshot,
@@ -33,6 +34,12 @@ from alphapilot.engines.factors import (
     composite,
     compute_factors_for_date,
     zscore_cross_section,
+)
+from alphapilot.engines.score_outcomes import (
+    MODEL_VERSION as SCORE_OUTCOME_MODEL_VERSION,
+)
+from alphapilot.engines.score_outcomes import (
+    score_decile,
 )
 from alphapilot.jobs import factors as factor_job
 from alphapilot.jobs.registry import JOBS, JobExecutionError
@@ -439,12 +446,31 @@ def test_factor_job_replaces_same_day_rows_and_reports_coverage(
             # integration fixture focused on the three eligible securities.
             Security.__table__.delete().where(Security.symbol.in_(["600999", "000999", "600888"]))
         )
+        session.add_all(
+            ScoreOutcomeStat(
+                decile=decile,
+                horizon=20,
+                samples=10,
+                positive_samples=decile,
+                win_rate=decile / 10,
+                score_model_version="factor-score-v1.0.0",
+                model_version=SCORE_OUTCOME_MODEL_VERSION,
+                as_of_date=TARGET_DATE,
+                updated_at=datetime(2026, 7, 21, 11, 0, tzinfo=UTC),
+            )
+            for decile in range(1, 11)
+        )
 
     monkeypatch.setattr(factor_job, "get_session", local_session)
     monkeypatch.setattr(
         factor_job,
         "get_settings",
         lambda: SimpleNamespace(factor_weights_file=str(weights_path)),
+    )
+    monkeypatch.setattr(
+        factor_job,
+        "_utc_now",
+        lambda: datetime(2026, 7, 21, 14, 0, tzinfo=UTC),
     )
 
     first = factor_job.compute_factors(TARGET_DATE)
@@ -479,11 +505,17 @@ def test_factor_job_replaces_same_day_rows_and_reports_coverage(
     assert first["composite_rows"] == 3
     assert first["coverage"]["momentum_20d"] == {"count": 3, "ratio": 1.0}
     assert first["sector_flow_days"] == 5
+    assert first["outcome_win_rate_deciles"] == list(range(1, 11))
     assert second["symbols"] == 3
+    assert second["outcome_win_rate_deciles"] == list(range(1, 11))
 
     with local_session() as session:
         assert session.scalar(select(func.count()).select_from(FactorValue)) == 3 * len(FACTOR_SET)
         assert session.scalar(select(func.count()).select_from(CompositeScore)) == 3
+        current_scores = session.scalars(select(CompositeScore)).all()
+        assert all(row.win_rate_20d is not None for row in current_scores)
+        for row in current_scores:
+            assert row.win_rate_20d == pytest.approx(score_decile(row.score) / 10)
         assert (
             session.scalar(
                 select(func.count())
@@ -492,6 +524,117 @@ def test_factor_job_replaces_same_day_rows_and_reports_coverage(
             )
             == 0
         )
+
+
+def test_outcome_win_rates_enforces_engine_version_and_1930_pit_cutoff(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    engine = create_engine(f"sqlite:///{tmp_path / 'factor-outcome-pit.db'}")
+    Base.metadata.create_all(engine)
+    historical_date = TARGET_DATE - timedelta(days=1)
+    with Session(engine) as session:
+        session.add_all(
+            [
+                ScoreOutcomeStat(
+                    decile=1,
+                    horizon=20,
+                    samples=10,
+                    positive_samples=1,
+                    win_rate=0.1,
+                    score_model_version="factor-score-v1.0.0",
+                    model_version=SCORE_OUTCOME_MODEL_VERSION,
+                    as_of_date=historical_date,
+                    updated_at=datetime(2026, 7, 20, 11, 29, tzinfo=UTC),
+                ),
+                ScoreOutcomeStat(
+                    decile=2,
+                    horizon=20,
+                    samples=10,
+                    positive_samples=2,
+                    win_rate=0.2,
+                    score_model_version="factor-score-v1.0.0",
+                    model_version=SCORE_OUTCOME_MODEL_VERSION,
+                    as_of_date=historical_date,
+                    updated_at=datetime(2026, 7, 20, 11, 31, tzinfo=UTC),
+                ),
+                ScoreOutcomeStat(
+                    decile=3,
+                    horizon=20,
+                    samples=10,
+                    positive_samples=3,
+                    win_rate=0.3,
+                    score_model_version="factor-score-v1.0.0",
+                    model_version="score-outcome-v0.9.0",
+                    as_of_date=historical_date,
+                    updated_at=datetime(2026, 7, 20, 11, 0, tzinfo=UTC),
+                ),
+            ]
+        )
+        session.commit()
+
+        monkeypatch.setattr(
+            factor_job,
+            "_utc_now",
+            lambda: datetime(2026, 7, 21, 14, 0, tzinfo=UTC),
+        )
+
+        rates = factor_job._outcome_win_rates(
+            session,
+            trade_date=historical_date,
+            score_model_version="factor-score-v1.0.0",
+        )
+
+    assert rates == {1: 0.1}
+
+
+def test_outcome_win_rates_keep_same_day_2000_state_when_now_is_2200(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    engine = create_engine(f"sqlite:///{tmp_path / 'factor-outcome-current.db'}")
+    Base.metadata.create_all(engine)
+    with Session(engine) as session:
+        session.add_all(
+            [
+                ScoreOutcomeStat(
+                    decile=1,
+                    horizon=20,
+                    samples=10,
+                    positive_samples=6,
+                    win_rate=0.6,
+                    score_model_version="factor-score-v1.0.0",
+                    model_version=SCORE_OUTCOME_MODEL_VERSION,
+                    as_of_date=TARGET_DATE,
+                    updated_at=datetime(2026, 7, 21, 12, 0, tzinfo=UTC),
+                ),
+                ScoreOutcomeStat(
+                    decile=2,
+                    horizon=20,
+                    samples=10,
+                    positive_samples=7,
+                    win_rate=0.7,
+                    score_model_version="factor-score-v1.0.0",
+                    model_version="score-outcome-v0.9.0",
+                    as_of_date=TARGET_DATE,
+                    updated_at=datetime(2026, 7, 21, 12, 0, tzinfo=UTC),
+                ),
+            ]
+        )
+        session.commit()
+        monkeypatch.setattr(
+            factor_job,
+            "_utc_now",
+            lambda: datetime(2026, 7, 21, 14, 0, tzinfo=UTC),
+        )
+
+        rates = factor_job._outcome_win_rates(
+            session,
+            trade_date=TARGET_DATE,
+            score_model_version="factor-score-v1.0.0",
+        )
+
+    assert rates == {1: 0.6}
 
 
 def test_factor_job_skips_implicit_stale_market_date_without_rewriting(

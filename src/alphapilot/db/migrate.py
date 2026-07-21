@@ -19,6 +19,9 @@ MIGRATIONS: list[tuple[str, str, str]] = [
     ("screening_runs", "universe", "TEXT DEFAULT 'custom'"),
     ("screening_runs", "filters", "JSON DEFAULT '{}'"),
     ("style_daily", "source_fingerprint", "TEXT DEFAULT ''"),
+    ("alerts", "target_low", "FLOAT"),
+    ("alerts", "target_high", "FLOAT"),
+    ("alerts", "suggested_notional", "FLOAT"),
 ]
 
 _IDENTIFIER = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import UTC, date, datetime, timedelta
+from math import copysign, isfinite
 from typing import Any
 from zoneinfo import ZoneInfo
 
@@ -8,10 +9,12 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from alphapilot.alerts.service import AlertService
+from alphapilot.core.config import get_settings
 from alphapilot.core.timeutil import iso_utc
 from alphapilot.data.base import DataProviderError, MarketDataProvider
 from alphapilot.db.models import (
     AlertRecord,
+    DailyBar,
     ForecastSnapshot,
     ThesisTransition,
     WatchlistItem,
@@ -115,6 +118,100 @@ def persist_forecast(session: Session, forecast: StockForecast) -> ForecastSnaps
     return snapshot
 
 
+def _finite_float(value: object) -> float | None:
+    if isinstance(value, bool):
+        return None
+    try:
+        number = float(str(value))
+    except (TypeError, ValueError):
+        return None
+    return number if isfinite(number) else None
+
+
+def _snapshot_last_prices(
+    provider: MarketDataProvider,
+    symbols: list[str],
+) -> dict[str, float]:
+    if not symbols:
+        return {}
+    try:
+        frame = provider.get_snapshot(symbols)
+        raw_records = frame.to_dict(orient="records")
+    except Exception:
+        return {}
+    prices: dict[str, float] = {}
+    for raw_record in raw_records:
+        record = {str(key): value for key, value in raw_record.items()}
+        symbol = normalize_symbol(str(record.get("symbol", "")))
+        last = _finite_float(record.get("last"))
+        if len(symbol) == 6 and last is not None and last > 0:
+            prices[symbol] = last
+    return prices
+
+
+def _latest_close(
+    session: Session,
+    symbol: str,
+    cutoff: date,
+) -> float | None:
+    value = session.scalar(
+        select(DailyBar.close)
+        .where(
+            DailyBar.symbol == symbol,
+            DailyBar.trade_date <= cutoff,
+            DailyBar.close > 0,
+        )
+        .order_by(DailyBar.trade_date.desc(), DailyBar.id.desc())
+        .limit(1)
+    )
+    close = _finite_float(value)
+    return close if close is not None and close > 0 else None
+
+
+def _alert_targets_and_notional(
+    forecast: StockForecast,
+    *,
+    last_price: float | None,
+    position_change: float,
+    demo_equity: float,
+) -> tuple[float | None, float | None, float | None, list[str]]:
+    warnings: list[str] = []
+    horizon = forecast.horizons.get("20d")
+    q10 = _finite_float(horizon.q10) if horizon is not None else None
+    q90 = _finite_float(horizon.q90) if horizon is not None else None
+    valid_interval = bool(
+        last_price is not None
+        and last_price > 0
+        and q10 is not None
+        and q90 is not None
+        and q10 > -1.0
+        and q10 < q90
+    )
+    target_low: float | None = None
+    target_high: float | None = None
+    if valid_interval:
+        assert last_price is not None and q10 is not None and q90 is not None
+        low = last_price * (1.0 + q10)
+        high = last_price * (1.0 + q90)
+        if isfinite(low) and isfinite(high) and 0 < low < high:
+            target_low, target_high = low, high
+    if target_low is None or target_high is None:
+        warnings.append("缺少有效现价或20日分位区间，目标价暂不可用。")
+
+    if position_change == 0:
+        suggested_notional: float | None = 0.0
+    else:
+        volatility = _finite_float(forecast.features.get("volatility_20d"))
+        if volatility is None or volatility < 0:
+            suggested_notional = None
+            warnings.append("缺少有效20日波动率，建议金额暂不可用。")
+        else:
+            scale = 1.0 if volatility == 0 else min(1.0, 0.3 / volatility)
+            magnitude = demo_equity * abs(position_change) * scale
+            suggested_notional = copysign(magnitude, position_change)
+    return target_low, target_high, suggested_notional, warnings
+
+
 def refresh_alerts(
     session: Session,
     provider: MarketDataProvider,
@@ -124,9 +221,12 @@ def refresh_alerts(
     """Recompute forecasts for tracked symbols, persist forecasts and alerts."""
     items = list_items(session)
     targets = symbols or [item.symbol for item in items]
+    snapshot_prices = _snapshot_last_prices(provider, targets)
+    demo_equity = get_settings().demo_equity
     alert_service = AlertService()
     created: list[AlertRecord] = []
     for symbol in targets:
+        normalized_symbol = normalize_symbol(symbol)
         try:
             forecast = forecast_for_symbol(session, provider, symbol)
         except (DataProviderError, ValueError):
@@ -134,13 +234,34 @@ def refresh_alerts(
             continue
         persist_forecast(session, forecast)
         alert = alert_service.evaluate(forecast)
+        last_price = snapshot_prices.get(normalized_symbol)
+        used_close_fallback = last_price is None
+        if used_close_fallback:
+            last_price = _latest_close(
+                session,
+                normalized_symbol,
+                forecast.as_of.date(),
+            )
+        target_low, target_high, suggested_notional, enrichment_warnings = (
+            _alert_targets_and_notional(
+                forecast,
+                last_price=last_price,
+                position_change=alert.suggested_position_change,
+                demo_equity=demo_equity,
+            )
+        )
+        if used_close_fallback and last_price is not None:
+            enrichment_warnings.append("实时快照不可用，目标区间按最新日线收盘价计算。")
         record = AlertRecord(
             symbol=alert.symbol,
             action=alert.action.value,
             urgency=alert.urgency.value,
             confidence=alert.confidence,
             suggested_position_change=alert.suggested_position_change,
-            reasons=list(alert.reasons),
+            target_low=target_low,
+            target_high=target_high,
+            suggested_notional=suggested_notional,
+            reasons=[*alert.reasons, *enrichment_warnings],
             invalidation=alert.invalidation,
             model_version=alert.model_version,
             as_of=alert.as_of,
