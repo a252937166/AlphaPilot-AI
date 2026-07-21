@@ -18,7 +18,8 @@ from sqlalchemy.orm import Session
 from alphapilot.data.base import DataProviderError
 from alphapilot.data.sina_provider import SinaDailyBarProvider
 from alphapilot.db.engine import get_session
-from alphapilot.db.models import MarketSnapshotAgg, Security, WatchlistItem
+from alphapilot.db.models import MarketSentiment, MarketSnapshotAgg, Security, WatchlistItem
+from alphapilot.engines.sentiment import compute as compute_sentiment
 from alphapilot.futu.client import FutuClient, get_futu_client
 from alphapilot.jobs.registry import JobSpec, register
 from alphapilot.services.events import emit
@@ -261,10 +262,7 @@ def _emit_capital_anomalies(
         reasons: list[str] = []
         if abs(quote.change_pct) >= CAPITAL_PRICE_ANOMALY_PCT:
             reasons.append(f"涨跌幅 {quote.change_pct:+.2f}%")
-        if (
-            quote.turnover_rate is not None
-            and quote.turnover_rate >= CAPITAL_TURNOVER_ANOMALY_PCT
-        ):
+        if quote.turnover_rate is not None and quote.turnover_rate >= CAPITAL_TURNOVER_ANOMALY_PCT:
             reasons.append(f"换手率 {quote.turnover_rate:.2f}%")
         if not reasons:
             continue
@@ -272,9 +270,7 @@ def _emit_capital_anomalies(
         direction = max(-1.0, min(1.0, quote.change_pct / 10.0))
         price_strength = min(1.0, abs(quote.change_pct) / 10.0)
         turnover_strength = (
-            min(1.0, quote.turnover_rate / 20.0)
-            if quote.turnover_rate is not None
-            else 0.0
+            min(1.0, quote.turnover_rate / 20.0) if quote.turnover_rate is not None else 0.0
         )
         emit(
             session,
@@ -289,6 +285,41 @@ def _emit_capital_anomalies(
         )
         candidates += 1
     return candidates
+
+
+def _persist_sentiment(
+    session: Session,
+    snapshot: MarketSnapshotAgg,
+    payload: Mapping[str, Any],
+) -> MarketSentiment:
+    if snapshot.id is None:
+        raise ValueError("市场快照尚未 flush，无法绑定情绪记录。")
+    subs = payload.get("subs")
+    details = payload.get("details")
+    if not isinstance(subs, Mapping) or not isinstance(details, Mapping):
+        raise ValueError("市场情绪输出缺少可持久化的子分或审计详情。")
+    values = {
+        "ts": snapshot.ts,
+        "score": float(payload["score"]),
+        "breadth_sub": float(subs["breadth"]),
+        "limitup_sub": float(subs["limitup"]),
+        "volume_sub": float(subs["volume"]),
+        "volatility_sub": float(subs["volatility"]),
+        "label": str(payload["label"]),
+        "model_version": str(payload["model_version"]),
+        "details": dict(details),
+    }
+    row = session.scalar(
+        select(MarketSentiment).where(MarketSentiment.source_snapshot_id == int(snapshot.id))
+    )
+    if row is None:
+        row = MarketSentiment(source_snapshot_id=int(snapshot.id), **values)
+        session.add(row)
+    else:
+        for field, value in values.items():
+            setattr(row, field, value)
+    session.flush()
+    return row
 
 
 def poll_market_snapshot(force: bool = False) -> dict[str, Any]:
@@ -384,6 +415,19 @@ def poll_market_snapshot(force: bool = False) -> dict[str, Any]:
     )
     with get_session() as session:
         session.add(aggregate)
+        session.flush()
+        sentiment = compute_sentiment(
+            session,
+            aggregate,
+            source_context={
+                "zt_source": zt_source,
+                "limit_up_pool_size": limit_up_pool_size,
+                "limit_up_threshold": len(threshold_limit_up),
+                "quoted": len(quotes),
+                "universe": len(metadata),
+            },
+        )
+        sentiment_row = _persist_sentiment(session, aggregate, sentiment)
         securities = session.scalars(select(Security).where(Security.symbol.in_(quotes))).all()
         for security in securities:
             quote = quotes[security.symbol]
@@ -427,6 +471,8 @@ def poll_market_snapshot(force: bool = False) -> dict[str, Any]:
         "limit_up_pool_size": limit_up_pool_size,
         "limit_up_threshold": len(threshold_limit_up),
         "capital_anomaly_candidates": capital_anomalies,
+        "sentiment_id": sentiment_row.id,
+        "sentiment": sentiment,
         "warnings": warnings,
         "duration_seconds": round(monotonic() - started, 2),
     }

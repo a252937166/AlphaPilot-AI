@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Mapping
 from datetime import UTC, date, datetime, time, timedelta
 from typing import Any
 from zoneinfo import ZoneInfo
@@ -17,8 +18,9 @@ from alphapilot.api.dependencies import (
 from alphapilot.core.config import Settings
 from alphapilot.core.timeutil import iso_utc
 from alphapilot.data.base import DataProviderError
-from alphapilot.db.models import MarketSnapshotAgg
+from alphapilot.db.models import MarketSentiment, MarketSnapshotAgg
 from alphapilot.domain.models import RegimeResult
+from alphapilot.engines.sentiment import liquidity_label, money_effect_label
 from alphapilot.futu.client import FutuClient, FutuClientError
 from alphapilot.prediction.regime import MarketRegimeClassifier
 from alphapilot.services import market_data
@@ -169,6 +171,83 @@ def market_breadth_full(
             ),
         )
     return _serialize_full_breadth(latest, previous)
+
+
+@router.get("/sentiment")
+def market_sentiment(
+    session: Session = Depends(db_session_dependency),
+) -> dict[str, Any]:
+    row = session.scalars(
+        select(MarketSentiment)
+        .order_by(MarketSentiment.ts.desc(), MarketSentiment.id.desc())
+        .limit(1)
+    ).first()
+    if row is None:
+        raise HTTPException(
+            status_code=404,
+            detail="暂无市场情绪数据，请先运行全市场快照任务。",
+        )
+    latest_snapshot_id = session.scalar(
+        select(MarketSnapshotAgg.id)
+        .order_by(MarketSnapshotAgg.ts.desc(), MarketSnapshotAgg.id.desc())
+        .limit(1)
+    )
+    if latest_snapshot_id != row.source_snapshot_id:
+        raise HTTPException(
+            status_code=503,
+            detail="市场情绪尚未与最新全市场快照同步，请重新运行全市场快照任务。",
+        )
+
+    details = dict(row.details) if isinstance(row.details, Mapping) else {}
+    components_value = details.get("components")
+    components = dict(components_value) if isinstance(components_value, Mapping) else {}
+    history_samples = {
+        str(name): int(component.get("historical_samples", 0))
+        for name, component in components.items()
+        if isinstance(component, Mapping)
+    }
+    sample_sizes = {
+        str(name): int(component.get("sample_size", 0))
+        for name, component in components.items()
+        if isinstance(component, Mapping)
+    }
+    degraded_value = details.get("degraded_components")
+    missing_value = details.get("missing_inputs")
+    degraded_components = (
+        [str(item) for item in degraded_value]
+        if isinstance(degraded_value, list)
+        else ["audit_details"]
+    )
+    missing_inputs = (
+        [str(item) for item in missing_value]
+        if isinstance(missing_value, list)
+        else ["audit_details"]
+    )
+    subs = {
+        "breadth": row.breadth_sub,
+        "limitup": row.limitup_sub,
+        "volume": row.volume_sub,
+        "volatility": row.volatility_sub,
+    }
+    return {
+        "score": row.score,
+        "label": row.label,
+        "subs": subs,
+        "money_effect": money_effect_label(row.limitup_sub),
+        "liquidity": liquidity_label(row.volume_sub),
+        "as_of": iso_utc(row.ts),
+        "model_version": row.model_version,
+        "source_snapshot_id": row.source_snapshot_id,
+        "inputs": components,
+        "history_samples": history_samples,
+        "sample_sizes": sample_sizes,
+        "degraded_components": degraded_components,
+        "missing_inputs": missing_inputs,
+        "degraded": bool(degraded_components),
+        "degradation_reason": details.get("degradation_reason"),
+        "weights": details.get("weights", {}),
+        "source": details.get("source", {}),
+    }
 
 
 @router.get("/intraday")
