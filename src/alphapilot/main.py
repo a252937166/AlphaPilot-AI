@@ -24,6 +24,7 @@ from alphapilot.core.config import get_settings
 from alphapilot.core.logging import configure_logging
 from alphapilot.db.engine import get_session, init_db
 from alphapilot.futu.client import get_futu_client
+from alphapilot.jobs import register_builtin_jobs
 from alphapilot.jobs.scheduler import shutdown_scheduler, start_scheduler
 from alphapilot.services.watchlist import seed_default_watchlist
 
@@ -43,6 +44,7 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
         get_futu_client().close()
 
 
+register_builtin_jobs()
 settings = get_settings()
 app = FastAPI(
     title="AlphaPilot AI",

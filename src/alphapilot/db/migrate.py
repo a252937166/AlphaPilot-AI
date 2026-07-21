@@ -4,7 +4,18 @@ import re
 
 from sqlalchemy import Engine, inspect, text
 
-MIGRATIONS: list[tuple[str, str, str]] = []
+MIGRATIONS: list[tuple[str, str, str]] = [
+    ("securities", "industry_csrc", "TEXT"),
+    ("securities", "industry_futu", "TEXT"),
+    ("securities", "is_st", "BOOLEAN DEFAULT FALSE"),
+    ("securities", "list_status", "TEXT"),
+    ("securities", "market_cap", "FLOAT"),
+    ("securities", "float_cap", "FLOAT"),
+    ("securities", "pe_ttm", "FLOAT"),
+    ("securities", "pb", "FLOAT"),
+    ("securities", "turnover_rate", "FLOAT"),
+    ("securities", "snapshot_at", "TIMESTAMP"),
+]
 
 _IDENTIFIER = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 
