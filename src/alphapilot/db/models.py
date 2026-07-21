@@ -222,6 +222,34 @@ class MarketSnapshotAgg(Base):
     source: Mapped[str] = mapped_column(String(16), default="futu")
 
 
+class SectorConstituent(Base):
+    """Persisted Futu industry-plate membership, refreshed weekly."""
+
+    __tablename__ = "sector_constituents"
+    __table_args__ = (UniqueConstraint("plate_code", "symbol", name="uq_sector_member"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    plate_code: Mapped[str] = mapped_column(String(24), index=True)
+    plate_name: Mapped[str] = mapped_column(String(64))
+    symbol: Mapped[str] = mapped_column(String(24), index=True)
+    name: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    refreshed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class SectorFlowDaily(Base):
+    """Daily plate-level fund-flow aggregate with explicit source provenance."""
+
+    __tablename__ = "sector_flow_daily"
+    __table_args__ = (UniqueConstraint("plate_code", "trade_date", name="uq_sector_flow"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    plate_code: Mapped[str] = mapped_column(String(24), index=True)
+    trade_date: Mapped[date] = mapped_column(Date)
+    net_inflow: Mapped[float | None] = mapped_column(Float, nullable=True)
+    main_inflow: Mapped[float | None] = mapped_column(Float, nullable=True)
+    source: Mapped[str] = mapped_column(String(16))
+
+
 class DailyReport(Base):
     __tablename__ = "daily_reports"
 

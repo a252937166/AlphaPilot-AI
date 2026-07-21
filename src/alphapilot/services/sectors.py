@@ -1,22 +1,23 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
+from math import isfinite
 from threading import Lock
 from typing import Any
 
 import pandas as pd
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from alphapilot.core.timeutil import iso_utc
-from alphapilot.db.models import SectorSnapshot
+from alphapilot.db.engine import get_session
+from alphapilot.db.models import SectorConstituent, SectorSnapshot
 from alphapilot.futu.client import FutuClient, FutuClientError
 
-# get_plate_stock allows 10 calls per 30 seconds, so constituents are cached
-# per process and only the single snapshot request repeats on refresh.
-MAX_PLATES = 10
+FALLBACK_MAX_PLATES = 10
 MAX_CONSTITUENTS_PER_PLATE = 30
-SNAPSHOT_LIMIT = 400
+SNAPSHOT_BATCH_SIZE = 400
+FRESH_CONSTITUENT_DAYS = 7
 _plate_cache_lock = Lock()
 _plate_constituents: dict[str, dict[str, Any]] = {}
 
@@ -25,14 +26,59 @@ class SectorServiceError(RuntimeError):
     pass
 
 
-def _load_plate_constituents(client: FutuClient) -> dict[str, dict[str, Any]]:
+def _utc(value: datetime) -> datetime:
+    return (value.replace(tzinfo=UTC) if value.tzinfo is None else value).astimezone(UTC)
+
+
+def _number(value: object, default: float = 0.0) -> float:
+    try:
+        result = float(str(value))
+    except (TypeError, ValueError):
+        return default
+    return result if isfinite(result) else default
+
+
+def _db_plate_constituents(session: Session) -> dict[str, dict[str, Any]]:
+    cutoff = datetime.now(UTC) - timedelta(days=FRESH_CONSTITUENT_DAYS)
+    latest = session.scalar(select(func.max(SectorConstituent.refreshed_at)))
+    if not isinstance(latest, datetime):
+        return {}
+    if _utc(latest) < cutoff:
+        return {}
+    rows = session.scalars(
+        select(SectorConstituent)
+        .where(SectorConstituent.refreshed_at >= cutoff)
+        .order_by(SectorConstituent.plate_code, SectorConstituent.symbol)
+    ).all()
+    plates: dict[str, dict[str, Any]] = {}
+    for row in rows:
+        info = plates.setdefault(
+            row.plate_code,
+            {"plate_name": row.plate_name, "constituents": []},
+        )
+        info["constituents"].append({"code": row.symbol, "name": row.name or row.symbol})
+    return plates
+
+
+def _load_plate_constituents(
+    client: FutuClient,
+    session: Session | None = None,
+) -> dict[str, dict[str, Any]]:
+    if session is not None:
+        persisted = _db_plate_constituents(session)
+    else:
+        with get_session() as local_session:
+            persisted = _db_plate_constituents(local_session)
+    if persisted:
+        return persisted
+
     with _plate_cache_lock:
         if _plate_constituents:
             return _plate_constituents
         plates = client.quote_call_raw("get_plate_list", args=["SH", "INDUSTRY"])
         if not isinstance(plates, pd.DataFrame) or plates.empty:
             raise SectorServiceError("Futu returned no industry plate list.")
-        selected = plates.head(MAX_PLATES)
+        selected = plates.head(FALLBACK_MAX_PLATES)
         for record in selected.to_dict(orient="records"):
             plate_code = str(record.get("code"))
             plate_name = str(record.get("plate_name"))
@@ -56,10 +102,21 @@ def _load_plate_constituents(client: FutuClient) -> dict[str, dict[str, Any]]:
 
 
 def _sample_snapshot(client: FutuClient, codes: list[str]) -> pd.DataFrame:
-    """One snapshot request with change_pct derived from prev_close_price."""
-    snapshot = client.quote_call_raw("get_market_snapshot", args=[codes])
-    if not isinstance(snapshot, pd.DataFrame) or snapshot.empty:
+    """Fetch snapshot batches and derive change from last/previous close."""
+
+    unique_codes = list(dict.fromkeys(codes))
+    frames: list[pd.DataFrame] = []
+    for offset in range(0, len(unique_codes), SNAPSHOT_BATCH_SIZE):
+        snapshot = client.quote_call_raw(
+            "get_market_snapshot",
+            args=[unique_codes[offset : offset + SNAPSHOT_BATCH_SIZE]],
+        )
+        if not isinstance(snapshot, pd.DataFrame) or snapshot.empty:
+            raise SectorServiceError("Futu snapshot returned no rows for sampling.")
+        frames.append(snapshot)
+    if not frames:
         raise SectorServiceError("Futu snapshot returned no rows for sampling.")
+    snapshot = pd.concat(frames, ignore_index=True)
     snapshot = snapshot.copy()
     if "prev_close_price" in snapshot.columns:
         last = pd.to_numeric(snapshot["last_price"], errors="coerce")
@@ -70,33 +127,32 @@ def _sample_snapshot(client: FutuClient, codes: list[str]) -> pd.DataFrame:
     return snapshot
 
 
-def compute_sector_strength(client: FutuClient) -> list[dict[str, Any]]:
-    """Sampled sector strength: average constituent move, breadth and turnover.
+def compute_sector_strength(
+    client: FutuClient,
+    session: Session | None = None,
+) -> list[dict[str, Any]]:
+    """Rank all cached industry plates using their 30 most-traded members."""
 
-    This is an observable heuristic ranking, not a calibrated forecast; the
-    sampling caps keep every refresh within one Futu snapshot request.
-    """
-    plates = _load_plate_constituents(client)
+    plates = _load_plate_constituents(client, session)
     all_codes: list[str] = []
     for info in plates.values():
         all_codes.extend(item["code"] for item in info["constituents"])
-    all_codes = list(dict.fromkeys(all_codes))[:SNAPSHOT_LIMIT]
+    all_codes = list(dict.fromkeys(all_codes))
 
     snapshot = _sample_snapshot(client, all_codes)
-    quotes = {
-        str(row.get("code")): row
-        for row in snapshot.to_dict(orient="records")
-    }
+    quotes = {str(row.get("code")): row for row in snapshot.to_dict(orient="records")}
 
     results: list[dict[str, Any]] = []
     for plate_code, info in plates.items():
         rows = [quotes[item["code"]] for item in info["constituents"] if item["code"] in quotes]
+        rows.sort(key=lambda row: _number(row.get("turnover")), reverse=True)
+        rows = rows[:MAX_CONSTITUENTS_PER_PLATE]
         if not rows:
             continue
-        changes = [float(row.get("change_pct") or 0.0) for row in rows]
-        turnovers = [float(row.get("turnover") or 0.0) for row in rows]
+        changes = [_number(row.get("change_pct")) for row in rows]
+        turnovers = [_number(row.get("turnover")) for row in rows]
         up_count = sum(1 for value in changes if value > 0)
-        leader = max(rows, key=lambda row: float(row.get("change_pct") or 0.0))
+        leader = max(rows, key=lambda row: _number(row.get("change_pct")))
         avg_change = sum(changes) / len(changes)
         breadth = up_count / len(changes)
         # 0-10 heuristic strength blending move and breadth.
@@ -112,7 +168,7 @@ def compute_sector_strength(client: FutuClient) -> list[dict[str, Any]]:
                 "strength": round(strength, 2),
                 "leader_code": str(leader.get("code")),
                 "leader_name": str(leader.get("name") or leader.get("stock_name") or ""),
-                "leader_change_pct": round(float(leader.get("change_pct") or 0.0), 3),
+                "leader_change_pct": round(_number(leader.get("change_pct")), 3),
             }
         )
     results.sort(key=lambda item: item["strength"], reverse=True)
@@ -127,7 +183,7 @@ def market_breadth_from_sample(client: FutuClient) -> dict[str, Any]:
     codes: list[str] = []
     for info in plates.values():
         codes.extend(item["code"] for item in info["constituents"])
-    codes = list(dict.fromkeys(codes))[:SNAPSHOT_LIMIT]
+    codes = list(dict.fromkeys(codes))[:SNAPSHOT_BATCH_SIZE]
     snapshot = _sample_snapshot(client, codes)
     changes = pd.to_numeric(snapshot["change_pct"], errors="coerce").dropna()
     return {
@@ -160,7 +216,7 @@ def get_sector_strength(
         return {"as_of": iso_utc(latest.as_of), "cached": True, "sectors": latest.payload}
 
     try:
-        sectors = compute_sector_strength(client)
+        sectors = compute_sector_strength(client, session)
     except (FutuClientError, SectorServiceError) as exc:
         if latest is not None:
             return {
