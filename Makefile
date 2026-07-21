@@ -1,4 +1,4 @@
-.PHONY: install install-all run test lint format typecheck web docker-up docker-down bundle
+.PHONY: install install-all run test lint format typecheck web futu-start futu-stop docker-up docker-down bundle
 
 install:
 	python -m pip install -e ".[dev]"
@@ -7,7 +7,7 @@ install-all:
 	python -m pip install -e ".[cn-data,futu,ml,db,dev]"
 
 run:
-	uvicorn alphapilot.main:app --reload --host 0.0.0.0 --port 8000
+	uvicorn alphapilot.main:app --reload --host 127.0.0.1 --port 8000
 
 test:
 	pytest
@@ -24,6 +24,12 @@ typecheck:
 
 web:
 	cd apps/web && npm install && npm run dev
+
+futu-start:
+	./scripts/start_futu_opend.sh
+
+futu-stop:
+	./scripts/stop_futu_opend.sh
 
 docker-up:
 	docker compose up --build

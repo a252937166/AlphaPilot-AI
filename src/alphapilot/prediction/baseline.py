@@ -66,11 +66,11 @@ class BaselineForecastEngine:
     def forecast(self, symbol: str, bars: pd.DataFrame, provider: str) -> StockForecast:
         features = compute_technical_features(bars)
         warnings = [
-            "This is a transparent baseline for pipeline validation, not a production alpha model."
+            "当前为验证工程链路的透明基线模型，非可交易的生产级 Alpha 模型。"
         ]
         if len(bars) < 120:
             warnings.append(
-                "History is shorter than 120 observations; medium-horizon reliability is reduced."
+                "历史样本少于120根K线，中期预测可靠性下降。"
             )
         as_of_value = pd.to_datetime(bars.sort_values("date").iloc[-1]["date"], utc=True)
         as_of = as_of_value.to_pydatetime() if not pd.isna(as_of_value) else datetime.now(UTC)

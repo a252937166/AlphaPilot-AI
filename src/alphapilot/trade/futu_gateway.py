@@ -8,7 +8,7 @@ class TradingDisabledError(RuntimeError):
 
 
 class FutuTradeGateway:
-    """Execution boundary. Order submission is intentionally not exposed in the MVP API."""
+    """Execution boundary for the audited, disabled-by-default Futu trade surface."""
 
     def __init__(self, settings: Settings):
         self.settings = settings
@@ -22,10 +22,12 @@ class FutuTradeGateway:
     def execution_status(self) -> dict[str, object]:
         return {
             "futu_trade_enabled": self.settings.futu_enable_trade,
+            "futu_trade_query_enabled": self.settings.futu_enable_trade_query,
             "live_trading_enabled": self.settings.live_trading_enabled,
-            "order_submission_endpoint_exposed": False,
+            "order_submission_endpoint_exposed": True,
+            "unlock_trade_endpoint_exposed": False,
             "message": (
-                "MVP evaluates trade proposals only; order submission requires a later "
-                "audited gateway."
+                "Futu trade calls are audited and disabled by default; unlock_trade is never "
+                "exposed and real orders require both live flags and per-request confirmation."
             ),
         }

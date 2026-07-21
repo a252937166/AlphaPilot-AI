@@ -1,145 +1,127 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { onMounted, onUnmounted, ref } from 'vue'
+import { useRouter } from 'vue-router'
+import {
+  Activity,
+  Bell,
+  CandlestickChart,
+  ClipboardCheck,
+  Grid3x3,
+  LayoutDashboard,
+  Radar,
+  Search,
+  Sparkles,
+  Star,
+} from 'lucide-vue-next'
+import { api } from './api'
 
-type Candidate = {
-  rank: number
-  symbol: string
-  score: number
-  p_up_5d: number
-  p_up_20d: number
-  expected_return_20d: number
-  confidence_20d: number
-  reasons: string[]
+const router = useRouter()
+const search = ref('')
+const searchInput = ref<HTMLInputElement | null>(null)
+const healthy = ref(false)
+const providerLabel = ref('—')
+const futuHealthy = ref(false)
+const today = new Date().toLocaleDateString('zh-CN', {
+  month: '2-digit',
+  day: '2-digit',
+  weekday: 'short',
+})
+
+const NAV = [
+  { name: 'overview', path: '/', label: '总览', icon: LayoutDashboard },
+  { name: 'screening', path: '/screening', label: 'AI选股', icon: Sparkles },
+  { name: 'stock', path: '/stock', label: '个股分析', icon: CandlestickChart },
+  { name: 'watchlist', path: '/watchlist', label: '自选追踪', icon: Star },
+  { name: 'sectors', path: '/sectors', label: '板块预测', icon: Grid3x3 },
+  { name: 'market', path: '/market', label: '大盘监控', icon: Radar },
+  { name: 'alerts', path: '/alerts', label: '交易提醒', icon: Bell },
+  { name: 'review', path: '/review', label: 'AI复盘', icon: ClipboardCheck },
+]
+
+function goSearch() {
+  const symbol = search.value.trim()
+  if (!symbol) return
+  router.push(`/stock/${symbol}`)
+  search.value = ''
+  searchInput.value?.blur()
 }
 
-const apiBase = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000'
-const symbols = ref('600000,000001,000333,600519,300750,601318')
-const provider = ref('mock')
-const loading = ref(false)
-const error = ref('')
-const health = ref<Record<string, unknown> | null>(null)
-const candidates = ref<Candidate[]>([])
-const generatedAt = ref('')
-
-const requestedSymbols = computed(() =>
-  symbols.value.split(',').map((item) => item.trim()).filter(Boolean),
-)
-
-async function loadHealth() {
-  const response = await fetch(`${apiBase}/health`)
-  health.value = await response.json()
-}
-
-async function runScreen() {
-  loading.value = true
-  error.value = ''
-  try {
-    const response = await fetch(`${apiBase}/v1/screens/run`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        symbols: requestedSymbols.value,
-        top_n: Math.min(20, requestedSymbols.value.length),
-        provider: provider.value,
-      }),
-    })
-    const body = await response.json()
-    if (!response.ok) throw new Error(body.detail || '选股请求失败')
-    candidates.value = body.candidates
-    generatedAt.value = body.generated_at
-  } catch (cause) {
-    error.value = cause instanceof Error ? cause.message : String(cause)
-  } finally {
-    loading.value = false
+function onGlobalKey(event: KeyboardEvent) {
+  if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
+    event.preventDefault()
+    searchInput.value?.focus()
   }
 }
 
 onMounted(async () => {
+  window.addEventListener('keydown', onGlobalKey)
   try {
-    await loadHealth()
-    await runScreen()
-  } catch (cause) {
-    error.value = cause instanceof Error ? cause.message : String(cause)
+    const health = await api.health()
+    healthy.value = health.status === 'ok'
+    providerLabel.value = health.default_data_provider
+    futuHealthy.value = Boolean(health.futu?.healthy)
+  } catch {
+    healthy.value = false
   }
 })
+
+onUnmounted(() => window.removeEventListener('keydown', onGlobalKey))
 </script>
 
 <template>
-  <main>
-    <header class="hero">
-      <div>
-        <p class="eyebrow">PROBABILISTIC MARKET INTELLIGENCE</p>
-        <h1>AlphaPilot AI</h1>
-        <p class="subtitle">自动选股、持续追踪、板块预测、大盘监控与受控交易辅助。</p>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="brand">
+        <span class="logo"><Activity :size="15" :stroke-width="2.4" /></span>
+        <span>AlphaPilot <span class="ai">AI</span></span>
       </div>
-      <div class="status-card">
-        <span class="status-dot" />
-        <strong>{{ health ? 'API Online' : 'Connecting' }}</strong>
-        <small>实盘下单默认关闭</small>
+      <router-link
+        v-for="item in NAV"
+        :key="item.name"
+        :to="item.path"
+        custom
+        v-slot="{ navigate, isActive }"
+      >
+        <div
+          class="nav-item"
+          :class="{ active: isActive || (item.name === 'stock' && $route.name === 'stock') }"
+          @click="navigate"
+        >
+          <span class="icon"><component :is="item.icon" :size="15" :stroke-width="1.8" /></span>
+          <span>{{ item.label }}</span>
+        </div>
+      </router-link>
+      <div class="sidebar-foot">
+        <b>研究模式</b><br />
+        实盘交易硬禁用，所有预测仅供工程验证，不构成投资建议。
       </div>
-    </header>
+    </aside>
 
-    <section class="controls panel">
-      <label>
-        股票代码，以逗号分隔
-        <textarea v-model="symbols" rows="3" />
-      </label>
-      <label>
-        数据源
-        <select v-model="provider">
-          <option value="mock">Mock（离线）</option>
-          <option value="akshare">AKShare</option>
-          <option value="futu">富途 OpenD</option>
-        </select>
-      </label>
-      <button :disabled="loading || requestedSymbols.length === 0" @click="runScreen">
-        {{ loading ? '计算中…' : '运行 AI 选股' }}
-      </button>
-    </section>
-
-    <p v-if="error" class="error">{{ error }}</p>
-
-    <section class="metrics">
-      <article class="metric panel">
-        <span>候选股票</span><strong>{{ candidates.length }}</strong>
-      </article>
-      <article class="metric panel">
-        <span>数据源</span><strong>{{ provider }}</strong>
-      </article>
-      <article class="metric panel">
-        <span>更新时间</span><strong>{{ generatedAt ? new Date(generatedAt).toLocaleString() : '—' }}</strong>
-      </article>
-    </section>
-
-    <section class="panel table-panel">
-      <div class="section-heading">
-        <div><p class="eyebrow">SCREENING RESULT</p><h2>预测候选池</h2></div>
-        <span>透明基线模型，仅验证工程链路</span>
-      </div>
-      <div class="table-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th>排名</th><th>代码</th><th>综合分</th><th>5日上涨概率</th>
-              <th>20日上涨概率</th><th>20日期望收益</th><th>置信度</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="item in candidates" :key="item.symbol">
-              <td>#{{ item.rank }}</td>
-              <td><strong>{{ item.symbol }}</strong></td>
-              <td>{{ item.score.toFixed(1) }}</td>
-              <td>{{ (item.p_up_5d * 100).toFixed(1) }}%</td>
-              <td>{{ (item.p_up_20d * 100).toFixed(1) }}%</td>
-              <td :class="item.expected_return_20d >= 0 ? 'positive' : 'negative'">
-                {{ (item.expected_return_20d * 100).toFixed(2) }}%
-              </td>
-              <td>{{ (item.confidence_20d * 100).toFixed(1) }}%</td>
-            </tr>
-            <tr v-if="!candidates.length"><td colspan="7" class="empty">暂无结果</td></tr>
-          </tbody>
-        </table>
-      </div>
-    </section>
-  </main>
+    <div class="main-area">
+      <header class="topbar">
+        <div class="search-box">
+          <Search :size="13" :stroke-width="2" />
+          <input
+            ref="searchInput"
+            v-model="search"
+            placeholder="搜索代码，如 600519"
+            @keyup.enter="goSearch"
+          />
+          <kbd>⌘K</kbd>
+        </div>
+        <div class="spacer" />
+        <div class="status-cluster">
+          <span class="item mono">A股 · {{ today }}</span>
+          <span class="sep" />
+          <span class="item">数据源 <span class="mono" style="color: var(--text-1)">{{ providerLabel }}</span></span>
+          <span class="sep" />
+          <span class="item"><span class="status-dot" :class="{ ok: futuHealthy }" />Futu</span>
+          <span class="item"><span class="status-dot" :class="{ ok: healthy }" />API</span>
+        </div>
+      </header>
+      <main class="page">
+        <router-view />
+      </main>
+    </div>
+  </div>
 </template>

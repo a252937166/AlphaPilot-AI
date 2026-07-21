@@ -23,29 +23,29 @@ class MarketRegimeClassifier:
         if volatility > 0.50 and abs(features["return_1d"]) > 0.035:
             regime = MarketRegime.EVENT_SHOCK
             confidence = min(0.9, 0.55 + volatility * 0.3)
-            explanation.append("Short-term move and annualized volatility indicate an event shock.")
+            explanation.append("短期波动幅度与年化波动率显示事件冲击特征。")
         elif m20 > 0.05 and m60 > 0.08 and drawdown > -0.06:
             regime = MarketRegime.TREND_UP
             confidence = 0.55 + min(0.3, (m20 + m60) * 0.8)
-            explanation.append("20-day and 60-day momentum are both positive.")
+            explanation.append("20日与60日动量同时为正。")
         elif m20 < -0.05 and m60 < -0.08:
             regime = MarketRegime.TREND_DOWN
             confidence = 0.55 + min(0.3, abs(m20 + m60) * 0.8)
-            explanation.append("20-day and 60-day momentum are both negative.")
+            explanation.append("20日与60日动量同时为负。")
         elif m20 > 0.02 and features["price_position_60d"] > 0.65:
             regime = MarketRegime.RISK_ON
             confidence = 0.58
             explanation.append(
-                "Price is in the upper part of its 60-day range with positive momentum."
+                "价格处于60日区间上沿且动量为正。"
             )
         elif drawdown < -0.12 or volatility > 0.42:
             regime = MarketRegime.RISK_OFF
             confidence = 0.62
-            explanation.append("Drawdown or volatility is elevated.")
+            explanation.append("回撤或波动率处于高位。")
         else:
             regime = MarketRegime.RANGE
             confidence = 0.52 + min(0.15, abs(m20) * 2)
-            explanation.append("Momentum is insufficient for a stable directional regime.")
+            explanation.append("动量不足以形成稳定的方向性状态。")
 
         as_of_value = pd.to_datetime(bars.sort_values("date").iloc[-1]["date"], utc=True)
         as_of = as_of_value.to_pydatetime() if not pd.isna(as_of_value) else datetime.now(UTC)

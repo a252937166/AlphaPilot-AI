@@ -16,18 +16,39 @@ class Settings(BaseSettings):
 
     app_env: str = "development"
     log_level: str = "INFO"
-    default_data_provider: str = "mock"
+    default_data_provider: str = "auto"
     api_cors_origins: list[str] = Field(
         default_factory=lambda: ["http://127.0.0.1:5173", "http://localhost:5173"]
     )
 
-    database_url: str = "postgresql+psycopg://alphapilot:alphapilot@127.0.0.1:5432/alphapilot"
+    # SQLite works out of the box; point at PostgreSQL via ALPHAPILOT_DATABASE_URL
+    # (for example postgresql+psycopg://alphapilot:alphapilot@127.0.0.1:5432/alphapilot).
+    database_url: str = "sqlite:///data/alphapilot.db"
+    database_echo: bool = False
     redis_url: str = "redis://127.0.0.1:6379/0"
+    scheduler_enabled: bool = False
+
+    # Failover order used by the "auto" composite provider.
+    daily_bars_provider_chain: list[str] = Field(
+        default_factory=lambda: ["baostock", "akshare", "futu"]
+    )
+    snapshot_provider_chain: list[str] = Field(default_factory=lambda: ["futu", "akshare"])
+    universe_file: str = "config/universe.example.yaml"
+
+    # cninfo / 深证信 WebAPI. Credentials must come from the local .env or the
+    # process environment only; they are never committed to the repository.
+    cninfo_access_key: str | None = None
+    cninfo_access_secret: str | None = None
+    cninfo_base_url: str = "https://webapi.cninfo.com.cn"
+    cninfo_announcement_base_url: str = "http://www.cninfo.com.cn"
 
     futu_host: str = "127.0.0.1"
     futu_port: int = 11111
     futu_enable_quote: bool = True
+    futu_enable_trade_query: bool = False
+    futu_enable_account_mutation: bool = False
     futu_enable_trade: bool = False
+    futu_security_firm: str = "FUTUSECURITIES"
 
     trading_mode: str = "research"
     live_trading_enabled: bool = False
@@ -44,9 +65,14 @@ class Settings(BaseSettings):
     llm_api_key: str | None = None
     llm_model: str | None = None
 
-    @field_validator("api_cors_origins", mode="before")
+    @field_validator(
+        "api_cors_origins",
+        "daily_bars_provider_chain",
+        "snapshot_provider_chain",
+        mode="before",
+    )
     @classmethod
-    def split_origins(cls, value: object) -> object:
+    def split_csv(cls, value: object) -> object:
         if isinstance(value, str):
             return [item.strip() for item in value.split(",") if item.strip()]
         return value
