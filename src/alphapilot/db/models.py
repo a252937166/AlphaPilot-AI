@@ -247,6 +247,48 @@ class MarketSnapshotAgg(Base):
     source: Mapped[str] = mapped_column(String(16), default="futu")
 
 
+class MarketSentiment(Base):
+    """Auditable intraday sentiment derived from one full-market snapshot."""
+
+    __tablename__ = "market_sentiment"
+    __table_args__ = (
+        UniqueConstraint("source_snapshot_id", name="uq_market_sentiment_snapshot"),
+        Index("ix_market_sentiment_ts", "ts"),
+        CheckConstraint("score >= 0 AND score <= 100", name="ck_market_sentiment_score"),
+        CheckConstraint(
+            "breadth_sub >= 0 AND breadth_sub <= 100",
+            name="ck_market_sentiment_breadth",
+        ),
+        CheckConstraint(
+            "limitup_sub >= 0 AND limitup_sub <= 100",
+            name="ck_market_sentiment_limitup",
+        ),
+        CheckConstraint(
+            "volume_sub >= 0 AND volume_sub <= 100",
+            name="ck_market_sentiment_volume",
+        ),
+        CheckConstraint(
+            "volatility_sub >= 0 AND volatility_sub <= 100",
+            name="ck_market_sentiment_volatility",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    source_snapshot_id: Mapped[int] = mapped_column(
+        Integer,
+        ForeignKey("market_snapshot_agg.id"),
+    )
+    ts: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    score: Mapped[float] = mapped_column(Float)
+    breadth_sub: Mapped[float] = mapped_column(Float)
+    limitup_sub: Mapped[float] = mapped_column(Float)
+    volume_sub: Mapped[float] = mapped_column(Float)
+    volatility_sub: Mapped[float] = mapped_column(Float)
+    label: Mapped[str] = mapped_column(String(16))
+    model_version: Mapped[str] = mapped_column(String(32))
+    details: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+
+
 class SectorConstituent(Base):
     """Persisted Futu industry-plate membership, refreshed weekly."""
 

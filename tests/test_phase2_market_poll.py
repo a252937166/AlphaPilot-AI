@@ -9,11 +9,11 @@ from typing import Any
 import pandas as pd
 import pytest
 from fastapi import HTTPException
-from sqlalchemy import create_engine, select
+from sqlalchemy import create_engine, func, select
 from sqlalchemy.orm import Session
 
 from alphapilot.api.routes.market import market_breadth_full
-from alphapilot.db.models import Base, MarketSnapshotAgg, Security
+from alphapilot.db.models import Base, MarketSentiment, MarketSnapshotAgg, Security
 from alphapilot.jobs import market_poll
 from alphapilot.jobs.registry import JOBS
 
@@ -126,6 +126,9 @@ def test_poll_market_snapshot_aggregates_and_updates_master(
     assert stats["futu_returned"] == 99
     assert stats["sina_returned"] == 1
     assert stats["zt_source"] == "eastmoney-pool"
+    assert stats["sentiment_id"] is not None
+    assert stats["sentiment"]["model_version"] == "sentiment-v1.0.0"
+    assert stats["sentiment"]["source_snapshot_id"] == stats["aggregate_id"]
     with local_session() as session:
         aggregate = session.scalar(select(MarketSnapshotAgg))
         assert aggregate is not None
@@ -138,6 +141,13 @@ def test_poll_market_snapshot_aggregates_and_updates_master(
         assert aggregate.up_gt4 == 4
         assert aggregate.down_gt4 == 1
         assert aggregate.source == "futu+sina"
+        sentiment = session.scalar(select(MarketSentiment))
+        assert sentiment is not None
+        assert sentiment.source_snapshot_id == aggregate.id
+        assert sentiment.ts == aggregate.ts
+        assert sentiment.model_version == "sentiment-v1.0.0"
+        assert sentiment.details["source"]["quoted"] == 100
+        assert sentiment.details["source"]["universe"] == 100
         security = session.get(Security, "600000")
         assert security is not None
         assert security.market_cap == 1_000_000_000.0
@@ -213,3 +223,117 @@ def test_market_poll_job_registration_is_opt_in_every_sixty_seconds() -> None:
     spec = JOBS["poll_market_snapshot"]
     assert spec.enabled_key == "market_poll_enabled"
     assert spec.trigger.interval.total_seconds() == 60
+
+
+def _sentiment_payload(score: float, label: str) -> dict[str, Any]:
+    return {
+        "score": score,
+        "label": label,
+        "model_version": "sentiment-v1.0.0",
+        "subs": {
+            "breadth": score,
+            "limitup": 50.0,
+            "volume": 50.0,
+            "volatility": 50.0,
+        },
+        "details": {
+            "weights": {
+                "breadth": 0.30,
+                "limitup": 0.25,
+                "volume": 0.25,
+                "volatility": 0.20,
+            },
+            "components": {},
+            "degraded_components": [],
+            "missing_inputs": [],
+        },
+    }
+
+
+def test_persist_sentiment_upserts_one_row_per_source_snapshot(tmp_path: Path) -> None:
+    engine = create_engine(f"sqlite:///{tmp_path / 'sentiment-upsert.db'}")
+    Base.metadata.create_all(engine)
+    with Session(engine) as session:
+        snapshot = MarketSnapshotAgg(
+            ts=datetime(2026, 7, 21, 7, 0, tzinfo=UTC),
+            advancers=60,
+            decliners=40,
+            unchanged=0,
+            limit_up=10,
+            limit_down=0,
+            broken_boards=2,
+            up_gt4=0,
+            down_gt4=0,
+            total_amount=100.0,
+            avg_change_pct=0.0,
+            median_change_pct=0.0,
+            source="test",
+        )
+        session.add(snapshot)
+        session.flush()
+
+        first = market_poll._persist_sentiment(
+            session,
+            snapshot,
+            _sentiment_payload(50.0, "中性"),
+        )
+        second = market_poll._persist_sentiment(
+            session,
+            snapshot,
+            _sentiment_payload(65.0, "偏强"),
+        )
+
+        assert first.id == second.id
+        assert session.scalar(select(func.count()).select_from(MarketSentiment)) == 1
+        assert second.score == pytest.approx(65.0)
+        assert second.label == "偏强"
+        assert second.breadth_sub == pytest.approx(65.0)
+
+
+def test_poll_rolls_back_snapshot_when_sentiment_persistence_fails(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    engine = create_engine(f"sqlite:///{tmp_path / 'market-poll-rollback.db'}")
+    Base.metadata.create_all(engine)
+    local_session = _local_session(engine)
+    with local_session() as session:
+        session.add_all(
+            Security(
+                symbol=f"{600000 + index:06d}",
+                board="主板",
+                is_st=False,
+            )
+            for index in range(100)
+        )
+
+    class FakeFutuClient:
+        def quote_call_raw(
+            self,
+            method: str,
+            args: list[Any] | None = None,
+            kwargs: Any = None,
+        ) -> pd.DataFrame:
+            del kwargs
+            assert method == "get_market_snapshot"
+            assert args is not None
+            return pd.DataFrame([_futu_record(str(code)) for code in args[0]])
+
+    def fail_sentiment(*_args: Any, **_kwargs: Any) -> dict[str, Any]:
+        raise RuntimeError("injected sentiment failure")
+
+    monkeypatch.setattr(market_poll, "get_session", local_session)
+    monkeypatch.setattr(market_poll, "get_futu_client", FakeFutuClient)
+    monkeypatch.setattr(market_poll, "sleep", lambda _seconds: None)
+    monkeypatch.setattr(market_poll, "_load_eastmoney_limit_up_codes", lambda _date: set())
+    monkeypatch.setattr(market_poll, "compute_sentiment", fail_sentiment)
+
+    with pytest.raises(RuntimeError, match="injected sentiment failure"):
+        market_poll.poll_market_snapshot(force=True)
+
+    with local_session() as session:
+        assert session.scalar(select(func.count()).select_from(MarketSnapshotAgg)) == 0
+        assert session.scalar(select(func.count()).select_from(MarketSentiment)) == 0
+        securities = session.scalars(select(Security)).all()
+        assert len(securities) == 100
+        assert all(security.snapshot_at is None for security in securities)
