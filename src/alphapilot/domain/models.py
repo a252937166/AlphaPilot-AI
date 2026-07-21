@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime
 from enum import StrEnum
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field, model_validator
 
@@ -70,15 +70,55 @@ class StockForecast(BaseModel):
 
 
 class ScreeningRequest(BaseModel):
-    symbols: list[str] = Field(min_length=1, max_length=500)
-    top_n: int = Field(default=20, ge=1, le=100)
+    universe: Literal["all", "watchlist", "custom"] = "all"
+    symbols: list[str] | None = Field(default=None, max_length=500)
+    industries: list[str] | None = Field(default=None, max_length=100)
+    style: Literal["growth", "value", "defensive", "balanced"] | None = None
+    risk_level: Literal["low", "mid", "high"] | None = None
+    min_market_cap: float | None = Field(default=None, ge=0)
+    top_n: int = Field(default=50, ge=1, le=100)
+    sort_by: Literal["score", "expected_return", "win_rate"] = "score"
     provider: str | None = None
     lookback_days: int = Field(default=220, ge=80, le=1500)
 
+    @model_validator(mode="before")
+    @classmethod
+    def preserve_legacy_symbols_mode(cls, value: Any) -> Any:
+        if not isinstance(value, dict):
+            return value
+        inferred = dict(value)
+        if "universe" not in inferred and "symbols" in inferred:
+            inferred["universe"] = "custom"
+        if inferred.get("universe") == "custom" and "top_n" not in inferred:
+            inferred["top_n"] = 20
+        return inferred
+
+    def custom_filter_error(self) -> str | None:
+        if self.universe != "custom":
+            return None
+        if self.style is not None:
+            return "风格筛选将在 P2.2-S4 完成后启用；请暂时移除 style 参数后重试。"
+        unsupported: list[str] = []
+        if self.industries is not None:
+            unsupported.append("industries")
+        if self.risk_level is not None:
+            unsupported.append("risk_level")
+        if self.min_market_cap is not None:
+            unsupported.append("min_market_cap")
+        if self.sort_by != "score":
+            unsupported.append("sort_by")
+        if unsupported:
+            fields = "、".join(unsupported)
+            return f"custom 兼容模式不支持 {fields}；请改用 all 或 watchlist 股票池。"
+        return None
+
     @model_validator(mode="after")
     def validate_top_n(self) -> ScreeningRequest:
-        if self.top_n > len(self.symbols):
-            self.top_n = len(self.symbols)
+        if self.universe == "custom":
+            if not self.symbols:
+                raise ValueError("自定义股票池至少需要一个股票代码。")
+            if self.top_n > len(self.symbols):
+                self.top_n = len(self.symbols)
         return self
 
 
@@ -86,13 +126,21 @@ class ScreeningCandidate(BaseModel):
     rank: int
     symbol: str
     score: float = Field(ge=0, le=100)
-    trend_score: float = Field(ge=0, le=100)
-    risk_score: float = Field(ge=0, le=100)
-    quality_placeholder_score: float = Field(ge=0, le=100)
-    p_up_5d: float = Field(ge=0, le=1)
-    p_up_20d: float = Field(ge=0, le=1)
-    expected_return_20d: float
-    confidence_20d: float = Field(ge=0, le=1)
+    trend_score: float | None = Field(default=None, ge=0, le=100)
+    risk_score: float | None = Field(default=None, ge=0, le=100)
+    quality_placeholder_score: float | None = Field(default=None, ge=0, le=100)
+    p_up_5d: float | None = Field(default=None, ge=0, le=1)
+    p_up_20d: float | None = Field(default=None, ge=0, le=1)
+    expected_return_20d: float | None = None
+    confidence_20d: float | None = Field(default=None, ge=0, le=1)
+    display_name: str | None = None
+    industry: str | None = None
+    style: Literal["growth", "value", "defensive", "balanced"] | None = None
+    risk_level: Literal["low", "mid", "high"] | None = None
+    market_cap: float | None = None
+    trade_date: date | None = None
+    win_rate_20d: float | None = Field(default=None, ge=0, le=1)
+    forecast_source: str | None = None
     reasons: list[str]
     warnings: list[str] = Field(default_factory=list)
 

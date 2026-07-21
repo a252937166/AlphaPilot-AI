@@ -156,6 +156,8 @@ class ScreeningRun(Base):
     __tablename__ = "screening_runs"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    universe: Mapped[str] = mapped_column(String(24), default="custom")
+    filters: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
     provider: Mapped[str] = mapped_column(String(24))
     model_version: Mapped[str] = mapped_column(String(64))
     requested: Mapped[int] = mapped_column(Integer)
