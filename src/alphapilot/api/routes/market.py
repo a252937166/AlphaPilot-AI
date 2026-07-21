@@ -1,9 +1,11 @@
 from __future__ import annotations
 
-from datetime import date, timedelta
+from datetime import UTC, date, datetime, time, timedelta
 from typing import Any
+from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from alphapilot.api.dependencies import (
@@ -13,7 +15,9 @@ from alphapilot.api.dependencies import (
     settings_dependency,
 )
 from alphapilot.core.config import Settings
+from alphapilot.core.timeutil import iso_utc
 from alphapilot.data.base import DataProviderError
+from alphapilot.db.models import MarketSnapshotAgg
 from alphapilot.domain.models import RegimeResult
 from alphapilot.futu.client import FutuClient
 from alphapilot.prediction.regime import MarketRegimeClassifier
@@ -21,6 +25,42 @@ from alphapilot.services import market_data
 from alphapilot.services.sectors import SectorServiceError, market_breadth_from_sample
 
 router = APIRouter(prefix="/v1/market", tags=["market"])
+MARKET_TIMEZONE = ZoneInfo("Asia/Shanghai")
+
+
+def _as_utc(value: datetime) -> datetime:
+    return (value.replace(tzinfo=UTC) if value.tzinfo is None else value).astimezone(UTC)
+
+
+def _serialize_full_breadth(
+    latest: MarketSnapshotAgg,
+    previous: MarketSnapshotAgg | None,
+) -> dict[str, Any]:
+    amount_delta = latest.total_amount - previous.total_amount if previous is not None else None
+    amount_delta_pct = (
+        amount_delta / previous.total_amount * 100
+        if amount_delta is not None and previous is not None and previous.total_amount > 0
+        else None
+    )
+    return {
+        "ts": iso_utc(latest.ts),
+        "advancers": latest.advancers,
+        "decliners": latest.decliners,
+        "unchanged": latest.unchanged,
+        "limit_up": latest.limit_up,
+        "limit_down": latest.limit_down,
+        "broken_boards": latest.broken_boards,
+        "up_gt4": latest.up_gt4,
+        "down_gt4": latest.down_gt4,
+        "total_amount": latest.total_amount,
+        "avg_change_pct": latest.avg_change_pct,
+        "median_change_pct": latest.median_change_pct,
+        "source": latest.source,
+        "prior_ts": iso_utc(previous.ts) if previous is not None else None,
+        "prior_total_amount": previous.total_amount if previous is not None else None,
+        "amount_delta": amount_delta,
+        "amount_delta_pct": amount_delta_pct,
+    }
 
 
 @router.get("/regime", response_model=RegimeResult)
@@ -69,3 +109,54 @@ def market_breadth(
         return market_breadth_from_sample(client)
     except (SectorServiceError, Exception) as exc:
         raise HTTPException(status_code=503, detail=f"breadth unavailable: {exc}") from exc
+
+
+@router.get("/breadth-full")
+def market_breadth_full(
+    session: Session = Depends(db_session_dependency),
+) -> dict[str, Any]:
+    latest = session.scalars(
+        select(MarketSnapshotAgg)
+        .order_by(MarketSnapshotAgg.ts.desc(), MarketSnapshotAgg.id.desc())
+        .limit(1)
+    ).first()
+    if latest is None:
+        raise HTTPException(
+            status_code=404,
+            detail="暂无全市场宽度数据，请先运行全市场快照任务。",
+        )
+
+    latest_utc = _as_utc(latest.ts)
+    latest_local = latest_utc.astimezone(MARKET_TIMEZONE)
+    local_day_start = datetime.combine(
+        latest_local.date(), time.min, tzinfo=MARKET_TIMEZONE
+    ).astimezone(UTC)
+    prior_candidates = session.scalars(
+        select(MarketSnapshotAgg)
+        .where(MarketSnapshotAgg.ts < local_day_start)
+        .order_by(MarketSnapshotAgg.ts.desc(), MarketSnapshotAgg.id.desc())
+        .limit(1000)
+    ).all()
+    previous: MarketSnapshotAgg | None = None
+    if prior_candidates:
+        prior_day = max(
+            _as_utc(item.ts).astimezone(MARKET_TIMEZONE).date() for item in prior_candidates
+        )
+        same_day = [
+            item
+            for item in prior_candidates
+            if _as_utc(item.ts).astimezone(MARKET_TIMEZONE).date() == prior_day
+        ]
+        target_seconds = latest_local.hour * 3600 + latest_local.minute * 60 + latest_local.second
+        previous = min(
+            same_day,
+            key=lambda item: abs(
+                (
+                    _as_utc(item.ts).astimezone(MARKET_TIMEZONE).hour * 3600
+                    + _as_utc(item.ts).astimezone(MARKET_TIMEZONE).minute * 60
+                    + _as_utc(item.ts).astimezone(MARKET_TIMEZONE).second
+                )
+                - target_seconds
+            ),
+        )
+    return _serialize_full_breadth(latest, previous)

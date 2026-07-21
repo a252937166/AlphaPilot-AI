@@ -38,7 +38,13 @@ def list_runs(
 
 
 @router.post("/{name}/run")
-def trigger_job(name: str) -> dict[str, Any]:
+def trigger_job(
+    name: str,
+    force: bool = Query(default=False),
+) -> dict[str, Any]:
     if name not in JOBS:
         raise HTTPException(status_code=404, detail=f"未注册任务：{name}")
-    return {"run": _serialize(run_job(name))}
+    if force and name != "poll_market_snapshot":
+        raise HTTPException(status_code=400, detail=f"任务 {name} 不支持 force 参数")
+    kwargs = {"force": True} if force else {}
+    return {"run": _serialize(run_job(name, **kwargs))}

@@ -1,18 +1,24 @@
 from __future__ import annotations
 
-from datetime import date
+import re
+from datetime import UTC, date, datetime
 from time import monotonic, sleep
 from typing import Any
+from zoneinfo import ZoneInfo
 
+import httpx
 import pandas as pd
 
 from alphapilot.data.base import DataProviderError
 
 
 class SinaDailyBarProvider:
-    """Unadjusted daily bars from Sina, restricted to BaoStock's BSE gap."""
+    """Sina daily bars and the BSE snapshots missing from Futu OpenD."""
 
     name = "sina"
+    _snapshot_url = "https://hq.sinajs.cn/list="
+    _snapshot_pattern = re.compile(r'^var hq_str_(bj\d{6})="(.*)";$')
+    _market_timezone = ZoneInfo("Asia/Shanghai")
 
     def __init__(self, min_interval_seconds: float = 1.0) -> None:
         self.min_interval_seconds = max(0.0, min_interval_seconds)
@@ -37,9 +43,7 @@ class SinaDailyBarProvider:
 
     def _throttle(self) -> None:
         if self._last_request_started is not None:
-            remaining = self.min_interval_seconds - (
-                monotonic() - self._last_request_started
-            )
+            remaining = self.min_interval_seconds - (monotonic() - self._last_request_started)
             if remaining > 0:
                 sleep(remaining)
         self._last_request_started = monotonic()
@@ -89,6 +93,72 @@ class SinaDailyBarProvider:
         return result
 
     def get_snapshot(self, symbols: list[str]) -> pd.DataFrame:
-        raise DataProviderError(
-            "Sina fallback is daily-history only; route snapshots to Futu."
-        )
+        if not symbols:
+            raise DataProviderError("Sina snapshot requires at least one symbol")
+
+        codes = [self._symbol(symbol) for symbol in symbols]
+        records: list[dict[str, Any]] = []
+        headers = {
+            "Referer": "https://finance.sina.com.cn/",
+            "User-Agent": "Mozilla/5.0 (compatible; AlphaPilot-AI/0.2)",
+        }
+        for offset in range(0, len(codes), 200):
+            self._throttle()
+            batch = codes[offset : offset + 200]
+            try:
+                response = httpx.get(
+                    f"{self._snapshot_url}{','.join(batch)}",
+                    headers=headers,
+                    timeout=5.0,
+                )
+                response.raise_for_status()
+            except httpx.HTTPError as exc:
+                raise DataProviderError(f"Sina BSE snapshot failed: {exc}") from exc
+
+            text = response.content.decode("gb18030", errors="replace")
+            for line in text.splitlines():
+                match = self._snapshot_pattern.match(line.strip())
+                if match is None:
+                    continue
+                fields = match.group(2).split(",")
+                if len(fields) < 10 or not fields[0].strip():
+                    continue
+                quote_time = datetime.now(UTC)
+                if len(fields) > 31 and fields[30] and fields[31]:
+                    try:
+                        local_time = datetime.fromisoformat(f"{fields[30]}T{fields[31]}").replace(
+                            tzinfo=self._market_timezone
+                        )
+                        quote_time = local_time.astimezone(UTC)
+                    except ValueError:
+                        pass
+                records.append(
+                    {
+                        "symbol": match.group(1)[2:],
+                        "name": fields[0].strip(),
+                        "open_price": fields[1],
+                        "prev_close_price": fields[2],
+                        "last_price": fields[3],
+                        "high_price": fields[4],
+                        "low_price": fields[5],
+                        "volume": fields[8],
+                        "turnover": fields[9],
+                        "suspension": False,
+                        "as_of": quote_time,
+                    }
+                )
+
+        if not records:
+            raise DataProviderError("Sina returned no valid BSE snapshots")
+        frame = pd.DataFrame.from_records(records)
+        for column in (
+            "open_price",
+            "prev_close_price",
+            "last_price",
+            "high_price",
+            "low_price",
+            "volume",
+            "turnover",
+        ):
+            frame[column] = pd.to_numeric(frame[column], errors="coerce")
+        return frame

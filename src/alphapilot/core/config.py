@@ -27,6 +27,7 @@ class Settings(BaseSettings):
     database_echo: bool = False
     redis_url: str = "redis://127.0.0.1:6379/0"
     scheduler_enabled: bool = False
+    market_poll_enabled: bool = False
 
     # Failover order used by the "auto" composite provider.
     daily_bars_provider_chain: list[str] = Field(

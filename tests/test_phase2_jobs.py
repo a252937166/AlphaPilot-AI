@@ -38,3 +38,19 @@ def test_run_job_records_stats() -> None:
     assert record.stats == {"processed": 3}
     assert record.finished_at is not None
     assert record.error is None
+
+
+def test_run_job_passes_explicit_kwargs() -> None:
+    name = "test_phase2_force"
+
+    def task(*, force: bool = False) -> dict[str, Any]:
+        return {"force": force}
+
+    register(JobSpec(name=name, func=task, trigger=IntervalTrigger(hours=1)))
+    try:
+        record = run_job(name, force=True)
+    finally:
+        JOBS.pop(name, None)
+
+    assert record.status == "ok"
+    assert record.stats == {"force": True}

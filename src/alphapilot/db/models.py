@@ -201,6 +201,27 @@ class SectorSnapshot(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 
+class MarketSnapshotAgg(Base):
+    """Minute-level full-market breadth and liquidity aggregate."""
+
+    __tablename__ = "market_snapshot_agg"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    ts: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+    advancers: Mapped[int] = mapped_column(Integer)
+    decliners: Mapped[int] = mapped_column(Integer)
+    unchanged: Mapped[int] = mapped_column(Integer)
+    limit_up: Mapped[int] = mapped_column(Integer)
+    limit_down: Mapped[int] = mapped_column(Integer)
+    broken_boards: Mapped[int] = mapped_column(Integer)
+    up_gt4: Mapped[int] = mapped_column(Integer)
+    down_gt4: Mapped[int] = mapped_column(Integer)
+    total_amount: Mapped[float] = mapped_column(Float)
+    avg_change_pct: Mapped[float] = mapped_column(Float)
+    median_change_pct: Mapped[float] = mapped_column(Float)
+    source: Mapped[str] = mapped_column(String(16), default="futu")
+
+
 class DailyReport(Base):
     __tablename__ = "daily_reports"
 
