@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Iterator
 from contextlib import contextmanager
-from datetime import date
+from datetime import date, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -11,9 +11,10 @@ import pytest
 from sqlalchemy import create_engine, func, select
 from sqlalchemy.orm import Session
 
-from alphapilot.data.base import DataProviderError
+from alphapilot.data.base import DataProviderError, EmptyDailyBarsError
 from alphapilot.db.models import Base, DailyBar, Security
 from alphapilot.jobs import daily_bars
+from alphapilot.jobs.registry import JOBS, JobExecutionError
 
 
 def _frame(
@@ -98,9 +99,15 @@ def test_sync_daily_bars_routes_bse_and_resumes(
     )
     monkeypatch.setattr(
         daily_bars,
-        "_latest_provider_trade_date",
+        "_probe_provider_trade_window",
         lambda provider, _benchmark, _requested_end: (
-            baostock_end if provider.name == "baostock" else requested_end
+            daily_bars._ProviderTradeWindow(
+                probed_from=requested_end - timedelta(days=10),
+                latest=baostock_end if provider.name == "baostock" else requested_end,
+                available_dates=frozenset(
+                    {baostock_end if provider.name == "baostock" else requested_end}
+                ),
+            )
         ),
     )
     monkeypatch.setattr(daily_bars, "BaoStockMarketDataProvider", FakeBaoStock)
@@ -154,10 +161,197 @@ def test_sync_daily_bars_stops_after_twenty_consecutive_failures(
     )
     monkeypatch.setattr(
         daily_bars,
-        "_latest_provider_trade_date",
-        lambda _provider, _benchmark, requested_end: requested_end,
+        "_probe_provider_trade_window",
+        lambda _provider, _benchmark, requested_end: daily_bars._ProviderTradeWindow(
+            probed_from=requested_end - timedelta(days=10),
+            latest=requested_end,
+            available_dates=frozenset({requested_end}),
+        ),
     )
     monkeypatch.setattr(daily_bars, "BaoStockMarketDataProvider", FailingProvider)
 
-    with pytest.raises(DataProviderError, match="20 consecutive failures"):
+    with pytest.raises(JobExecutionError, match="20 consecutive failures") as caught:
         daily_bars.sync_daily_bars(lookback_days=10, batch_size=5)
+
+    assert caught.value.stats["processed"] == 20
+    assert caught.value.stats["failed_count"] == 20
+    assert caught.value.stats["rows_inserted"] == 0
+    assert len(caught.value.stats["failed"]) == 20
+    assert caught.value.stats["not_published"] == 0
+
+
+def test_latest_trade_day_empty_is_not_published_across_weekend(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    engine = create_engine(f"sqlite:///{tmp_path / 'not-published.db'}")
+    Base.metadata.create_all(engine)
+    local_session = _local_session(engine)
+    previous_trade_day = date(2026, 7, 17)
+    latest_trade_day = date(2026, 7, 20)
+    with local_session() as session:
+        for index in range(20):
+            symbol = f"{600000 + index:06d}"
+            session.add(Security(symbol=symbol, board="主板"))
+            session.add(
+                DailyBar(
+                    symbol=symbol,
+                    trade_date=previous_trade_day,
+                    open=10,
+                    high=11,
+                    low=9,
+                    close=10.5,
+                    volume=1000,
+                    amount=10000,
+                    source="seed",
+                )
+            )
+
+    class NotPublishedProvider:
+        name = "baostock"
+
+        def get_daily_bars(self, symbol: str, _start: date, _end: date) -> pd.DataFrame:
+            raise EmptyDailyBarsError(f"not published: {symbol}")
+
+    monkeypatch.setattr(daily_bars, "get_session", local_session)
+    monkeypatch.setattr(
+        daily_bars, "latest_trade_date", lambda _session: latest_trade_day
+    )
+    monkeypatch.setattr(
+        daily_bars,
+        "_probe_provider_trade_window",
+        lambda _provider, _benchmark, _requested_end: daily_bars._ProviderTradeWindow(
+            probed_from=date(2026, 7, 10),
+            latest=latest_trade_day,
+            available_dates=frozenset({previous_trade_day, latest_trade_day}),
+        ),
+    )
+    monkeypatch.setattr(
+        daily_bars, "BaoStockMarketDataProvider", NotPublishedProvider
+    )
+
+    stats = daily_bars.sync_daily_bars(lookback_days=10, batch_size=5)
+
+    assert stats["processed"] == 20
+    assert stats["not_published"] == 20
+    assert stats["failed_count"] == 0
+    assert stats["failed"] == []
+    assert stats["done"] == 0
+    assert stats["skipped"] == 0
+
+
+def test_latest_trade_day_transport_error_remains_a_failure(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    engine = create_engine(f"sqlite:///{tmp_path / 'latest-transport-error.db'}")
+    Base.metadata.create_all(engine)
+    local_session = _local_session(engine)
+    previous_trade_day = date(2026, 7, 17)
+    latest_trade_day = date(2026, 7, 20)
+    with local_session() as session:
+        session.add(Security(symbol="600000", board="主板"))
+        session.add(
+            DailyBar(
+                symbol="600000",
+                trade_date=previous_trade_day,
+                open=10,
+                high=11,
+                low=9,
+                close=10.5,
+                volume=1000,
+                amount=10000,
+                source="seed",
+            )
+        )
+
+    class OfflineProvider:
+        name = "baostock"
+
+        def get_daily_bars(self, symbol: str, _start: date, _end: date) -> pd.DataFrame:
+            raise DataProviderError(f"offline: {symbol}")
+
+    monkeypatch.setattr(daily_bars, "get_session", local_session)
+    monkeypatch.setattr(
+        daily_bars, "latest_trade_date", lambda _session: latest_trade_day
+    )
+    monkeypatch.setattr(
+        daily_bars,
+        "_probe_provider_trade_window",
+        lambda _provider, _benchmark, _requested_end: daily_bars._ProviderTradeWindow(
+            probed_from=date(2026, 7, 10),
+            latest=latest_trade_day,
+            available_dates=frozenset({previous_trade_day, latest_trade_day}),
+        ),
+    )
+    monkeypatch.setattr(daily_bars, "BaoStockMarketDataProvider", OfflineProvider)
+
+    stats = daily_bars.sync_daily_bars(lookback_days=10, batch_size=1)
+
+    assert stats["processed"] == 1
+    assert stats["not_published"] == 0
+    assert stats["failed_count"] == 1
+    assert stats["failed"][0]["error"].startswith("DataProviderError: offline")
+
+
+def test_historical_empty_ranges_remain_circuit_breaker_failures(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    engine = create_engine(f"sqlite:///{tmp_path / 'historical-empty.db'}")
+    Base.metadata.create_all(engine)
+    local_session = _local_session(engine)
+    latest_trade_day = date(2026, 7, 20)
+    with local_session() as session:
+        session.add_all(
+            [Security(symbol=f"{600000 + index:06d}", board="主板") for index in range(20)]
+        )
+
+    class EmptyHistoryProvider:
+        name = "baostock"
+
+        def get_daily_bars(self, symbol: str, _start: date, _end: date) -> pd.DataFrame:
+            raise EmptyDailyBarsError(f"empty history: {symbol}")
+
+    monkeypatch.setattr(daily_bars, "get_session", local_session)
+    monkeypatch.setattr(
+        daily_bars, "latest_trade_date", lambda _session: latest_trade_day
+    )
+    monkeypatch.setattr(
+        daily_bars,
+        "_probe_provider_trade_window",
+        lambda _provider, _benchmark, _requested_end: daily_bars._ProviderTradeWindow(
+            probed_from=date(2026, 7, 10),
+            latest=latest_trade_day,
+            available_dates=frozenset(
+                {
+                    date(2026, 7, 10),
+                    date(2026, 7, 13),
+                    date(2026, 7, 14),
+                    date(2026, 7, 15),
+                    date(2026, 7, 16),
+                    date(2026, 7, 17),
+                    latest_trade_day,
+                }
+            ),
+        ),
+    )
+    monkeypatch.setattr(daily_bars, "BaoStockMarketDataProvider", EmptyHistoryProvider)
+
+    with pytest.raises(JobExecutionError, match="20 consecutive failures") as caught:
+        daily_bars.sync_daily_bars(lookback_days=10, batch_size=5)
+
+    assert caught.value.stats["processed"] == 20
+    assert caught.value.stats["failed_count"] == 20
+    assert caught.value.stats["not_published"] == 0
+    assert all(
+        row["error"].startswith("EmptyDailyBarsError:")
+        for row in caught.value.stats["failed"]
+    )
+
+
+def test_daily_bars_cron_runs_at_1840() -> None:
+    daily_bars.register_daily_bars_job()
+    try:
+        trigger = JOBS["sync_daily_bars"].trigger
+        assert "hour='18'" in str(trigger)
+        assert "minute='40'" in str(trigger)
+    finally:
+        JOBS.pop("sync_daily_bars", None)

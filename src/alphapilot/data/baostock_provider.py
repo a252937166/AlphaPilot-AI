@@ -7,7 +7,7 @@ from typing import Any
 
 import pandas as pd
 
-from alphapilot.data.base import DataProviderError
+from alphapilot.data.base import DataProviderError, EmptyDailyBarsError
 
 # BaoStock keeps one global socket per process, so calls are serialized.
 _baostock_lock = Lock()
@@ -78,7 +78,7 @@ class BaoStockMarketDataProvider:
                 rows.append(rs.get_row_data())
 
         if not rows:
-            raise DataProviderError(f"BaoStock returned no daily bars for {code}")
+            raise EmptyDailyBarsError(f"BaoStock returned no daily bars for {code}")
         frame = pd.DataFrame(
             rows, columns=["date", "open", "high", "low", "close", "volume", "amount"]
         )
@@ -92,7 +92,7 @@ class BaoStockMarketDataProvider:
             .reset_index(drop=True)
         )
         if result.empty:
-            raise DataProviderError(f"BaoStock returned no valid daily bars for {code}")
+            raise EmptyDailyBarsError(f"BaoStock returned no valid daily bars for {code}")
         return result
 
     def get_stock_universe(self, trade_date: date) -> pd.DataFrame:

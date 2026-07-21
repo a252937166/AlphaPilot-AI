@@ -10,6 +10,10 @@ class DataProviderError(RuntimeError):
     """Raised when a market-data provider cannot satisfy a request."""
 
 
+class EmptyDailyBarsError(DataProviderError):
+    """Raised when a valid daily-bar request returns no usable rows."""
+
+
 class MarketDataProvider(Protocol):
     name: str
 

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+from dataclasses import dataclass, field
 from datetime import date, timedelta
 from time import monotonic
 from typing import Any
@@ -11,14 +12,87 @@ from apscheduler.triggers.cron import CronTrigger
 from sqlalchemy import func, select
 
 from alphapilot.data.baostock_provider import BaoStockMarketDataProvider
-from alphapilot.data.base import DataProviderError, MarketDataProvider
+from alphapilot.data.base import (
+    DataProviderError,
+    EmptyDailyBarsError,
+    MarketDataProvider,
+)
 from alphapilot.data.sina_provider import SinaDailyBarProvider
 from alphapilot.db.engine import get_session
 from alphapilot.db.models import DailyBar, Security
-from alphapilot.jobs.registry import JobSpec, register
+from alphapilot.jobs.registry import JobExecutionError, JobSpec, register
 from alphapilot.services.market_data import latest_trade_date, save_bars
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass(slots=True)
+class _SyncProgress:
+    started: float
+    total: int
+    latest_trade_date: date
+    provider_trade_dates: dict[str, date]
+    provider_probe_starts: dict[str, date]
+    processed: int = 0
+    done: int = 0
+    skipped: int = 0
+    not_published: int = 0
+    failed_count: int = 0
+    rows_inserted: int = 0
+    failures: list[dict[str, str]] = field(default_factory=list)
+    source_counts: dict[str, int] = field(default_factory=dict)
+
+    def record_failure(self, symbol: str, exc: Exception) -> None:
+        self.failed_count += 1
+        if len(self.failures) < 20:
+            self.failures.append(
+                {
+                    "symbol": symbol,
+                    "error": f"{type(exc).__name__}: {exc}"[:500],
+                }
+            )
+
+    def as_dict(self) -> dict[str, Any]:
+        return {
+            "total": self.total,
+            "processed": self.processed,
+            "done": self.done,
+            "skipped": self.skipped,
+            "not_published": self.not_published,
+            "failed": list(self.failures),
+            "failed_count": self.failed_count,
+            "rows_inserted": self.rows_inserted,
+            "latest_trade_date": self.latest_trade_date.isoformat(),
+            "provider_trade_dates": {
+                source: trade_date.isoformat()
+                for source, trade_date in self.provider_trade_dates.items()
+            },
+            "provider_probe_starts": {
+                source: probe_start.isoformat()
+                for source, probe_start in self.provider_probe_starts.items()
+            },
+            "source_counts": dict(self.source_counts),
+            "duration_seconds": round(monotonic() - self.started, 2),
+        }
+
+
+@dataclass(frozen=True, slots=True)
+class _ProviderTradeWindow:
+    probed_from: date
+    latest: date
+    available_dates: frozenset[date]
+
+    def contains_only_latest(self, start: date) -> bool:
+        """Return true only when the probed calendar proves one expected trade day."""
+
+        if start < self.probed_from:
+            return False
+        expected = {
+            trade_date
+            for trade_date in self.available_dates
+            if start <= trade_date <= self.latest
+        }
+        return expected == {self.latest}
 
 
 def _is_bse(symbol: str, board: str | None) -> bool:
@@ -34,24 +108,32 @@ def _provider_for(
     return sina if _is_bse(symbol, board) else baostock
 
 
-def _latest_provider_trade_date(
+def _probe_provider_trade_window(
     provider: MarketDataProvider, benchmark_symbol: str, requested_end: date
-) -> date:
+) -> _ProviderTradeWindow:
     """Probe each source so an upstream EOD lag is not treated as mass failure."""
 
+    probed_from = requested_end - timedelta(days=10)
     frame = provider.get_daily_bars(
-        benchmark_symbol, requested_end - timedelta(days=10), requested_end
+        benchmark_symbol, probed_from, requested_end
     )
-    available = [
+    available = {
         pd.Timestamp(value).date()
         for value in frame["date"]
         if not pd.isna(value)
-    ]
+    }
     if not available:
         raise DataProviderError(
             f"{provider.name} benchmark probe returned no valid dates"
         )
-    return min(max(available), requested_end)
+    latest = min(max(available), requested_end)
+    return _ProviderTradeWindow(
+        probed_from=probed_from,
+        latest=latest,
+        available_dates=frozenset(
+            trade_date for trade_date in available if trade_date <= latest
+        ),
+    )
 
 
 def sync_daily_bars(lookback_days: int = 450, batch_size: int = 200) -> dict[str, Any]:
@@ -65,13 +147,7 @@ def sync_daily_bars(lookback_days: int = 450, batch_size: int = 200) -> dict[str
     started = monotonic()
     baostock = BaoStockMarketDataProvider()
     sina = SinaDailyBarProvider()
-    done = 0
-    skipped = 0
-    failed_count = 0
     consecutive_failures = 0
-    rows_inserted = 0
-    failures: list[dict[str, str]] = []
-    source_counts: dict[str, int] = {}
 
     with get_session() as session:
         securities = session.execute(
@@ -87,14 +163,29 @@ def sync_daily_bars(lookback_days: int = 450, batch_size: int = 200) -> dict[str
             if isinstance(trade_date, date)
         }
         end = latest_trade_date(session)
-        provider_trade_dates = {
-            baostock.name: _latest_provider_trade_date(baostock, "SH.000001", end),
-            sina.name: _latest_provider_trade_date(sina, "920000", end),
+        provider_windows = {
+            baostock.name: _probe_provider_trade_window(baostock, "SH.000001", end),
+            sina.name: _probe_provider_trade_window(sina, "920000", end),
         }
+        provider_trade_dates = {
+            source: window.latest for source, window in provider_windows.items()
+        }
+        progress = _SyncProgress(
+            started=started,
+            total=len(securities),
+            latest_trade_date=end,
+            provider_trade_dates=provider_trade_dates,
+            provider_probe_starts={
+                source: window.probed_from
+                for source, window in provider_windows.items()
+            },
+        )
 
         for processed, (symbol, board) in enumerate(securities, start=1):
+            progress.processed = processed
             provider = _provider_for(symbol, board, baostock, sina)
-            provider_end = provider_trade_dates[provider.name]
+            provider_window = provider_windows[provider.name]
+            provider_end = provider_window.latest
             last_date = latest_by_symbol.get(symbol)
             start = (
                 last_date + timedelta(days=1)
@@ -102,34 +193,45 @@ def sync_daily_bars(lookback_days: int = 450, batch_size: int = 200) -> dict[str
                 else provider_end - timedelta(days=lookback_days)
             )
             if start > provider_end:
-                skipped += 1
+                progress.skipped += 1
                 consecutive_failures = 0
             else:
+                failure: Exception | None = None
                 try:
                     frame = provider.get_daily_bars(symbol, start, provider_end)
+                    if frame.empty:
+                        raise EmptyDailyBarsError(
+                            f"{provider.name} returned no daily bars for {symbol}"
+                        )
                     with session.begin_nested():
                         inserted = save_bars(session, symbol, frame, provider.name)
-                    rows_inserted += inserted
-                    done += 1
-                    source_counts[provider.name] = source_counts.get(provider.name, 0) + 1
+                    progress.rows_inserted += inserted
+                    progress.done += 1
+                    progress.source_counts[provider.name] = (
+                        progress.source_counts.get(provider.name, 0) + 1
+                    )
                     consecutive_failures = 0
+                except EmptyDailyBarsError as exc:
+                    if last_date is not None and provider_window.contains_only_latest(start):
+                        progress.not_published += 1
+                        consecutive_failures = 0
+                    else:
+                        failure = exc
                 except Exception as exc:
-                    failed_count += 1
+                    failure = exc
+
+                if failure is not None:
+                    progress.record_failure(symbol, failure)
                     consecutive_failures += 1
-                    if len(failures) < 20:
-                        failures.append(
-                            {
-                                "symbol": symbol,
-                                "error": f"{type(exc).__name__}: {exc}"[:500],
-                            }
-                        )
                     if consecutive_failures >= 20:
                         session.commit()
-                        raise DataProviderError(
+                        raise JobExecutionError(
                             "daily bar sync stopped after 20 consecutive failures; "
-                            f"processed={processed}, rows_inserted={rows_inserted}, "
-                            f"last_symbol={symbol}"
-                        ) from exc
+                            f"processed={processed}, "
+                            f"rows_inserted={progress.rows_inserted}, "
+                            f"last_symbol={symbol}",
+                            stats=progress.as_dict(),
+                        ) from failure
 
             if processed % batch_size == 0:
                 session.commit()
@@ -138,27 +240,13 @@ def sync_daily_bars(lookback_days: int = 450, batch_size: int = 200) -> dict[str
                     "daily bar sync progress processed=%s total=%s rows=%s failed=%s",
                     processed,
                     len(securities),
-                    rows_inserted,
-                    failed_count,
+                    progress.rows_inserted,
+                    progress.failed_count,
                 )
 
         session.commit()
 
-    return {
-        "total": len(securities),
-        "done": done,
-        "skipped": skipped,
-        "failed": failures,
-        "failed_count": failed_count,
-        "rows_inserted": rows_inserted,
-        "latest_trade_date": end.isoformat(),
-        "provider_trade_dates": {
-            source: trade_date.isoformat()
-            for source, trade_date in provider_trade_dates.items()
-        },
-        "source_counts": source_counts,
-        "duration_seconds": round(monotonic() - started, 2),
-    }
+    return progress.as_dict()
 
 
 def register_daily_bars_job() -> None:
@@ -168,8 +256,8 @@ def register_daily_bars_job() -> None:
             func=sync_daily_bars,
             trigger=CronTrigger(
                 day_of_week="mon-fri",
-                hour=17,
-                minute=30,
+                hour=18,
+                minute=40,
                 timezone=ZoneInfo("Asia/Shanghai"),
             ),
         )

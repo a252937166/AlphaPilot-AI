@@ -7,7 +7,7 @@ import pandas as pd
 import pytest
 
 from alphapilot.data.baostock_provider import BaoStockMarketDataProvider
-from alphapilot.data.base import DataProviderError
+from alphapilot.data.base import DataProviderError, EmptyDailyBarsError
 from alphapilot.data.mock import MockMarketDataProvider
 from alphapilot.data.router import FailoverMarketDataProvider
 from alphapilot.data.sina_provider import SinaDailyBarProvider
@@ -30,6 +30,54 @@ def test_baostock_symbol_normalization() -> None:
     assert BaoStockMarketDataProvider._code("sz.399006".upper()) == "sz.399006"
     with pytest.raises(DataProviderError):
         BaoStockMarketDataProvider._code("HK.00700")
+
+
+def test_baostock_distinguishes_empty_bars_from_query_failures(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class Result:
+        error_code = "0"
+        error_msg = ""
+
+        def next(self) -> bool:
+            return False
+
+    class BaoStockModule:
+        result = Result()
+
+        @classmethod
+        def query_history_k_data_plus(cls, *_args: object, **_kwargs: object) -> Result:
+            return cls.result
+
+    provider = BaoStockMarketDataProvider()
+    monkeypatch.setattr("alphapilot.data.baostock_provider._logged_in", True)
+    monkeypatch.setattr(provider, "_module", lambda: BaoStockModule)
+
+    with pytest.raises(EmptyDailyBarsError, match="returned no daily bars"):
+        provider.get_daily_bars("600000", date(2026, 7, 20), date(2026, 7, 20))
+
+    BaoStockModule.result.error_code = "1"
+    BaoStockModule.result.error_msg = "upstream unavailable"
+    with pytest.raises(DataProviderError, match="query failed") as caught:
+        provider.get_daily_bars("600000", date(2026, 7, 20), date(2026, 7, 20))
+    assert not isinstance(caught.value, EmptyDailyBarsError)
+
+
+def test_sina_invalid_payload_is_not_classified_as_empty(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class AkShareModule:
+        @staticmethod
+        def stock_zh_a_daily(**_kwargs: object) -> dict[str, object]:
+            return {"unexpected": "payload"}
+
+    provider = SinaDailyBarProvider(min_interval_seconds=0)
+    monkeypatch.setattr(provider, "_module", lambda: AkShareModule)
+    monkeypatch.setattr("alphapilot.data.sina_provider.sleep", lambda _seconds: None)
+
+    with pytest.raises(DataProviderError, match="failed") as caught:
+        provider.get_daily_bars("920000", date(2026, 7, 20), date(2026, 7, 20))
+    assert not isinstance(caught.value, EmptyDailyBarsError)
 
 
 def test_failover_uses_next_provider_and_records_errors() -> None:
