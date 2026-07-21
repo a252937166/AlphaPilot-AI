@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 from alphapilot.cninfo.client import CninfoClient, CninfoError
 from alphapilot.core.timeutil import iso_utc
 from alphapilot.db.models import Disclosure, Security
+from alphapilot.services.events import emit
 from alphapilot.services.watchlist import normalize_symbol
 
 
@@ -24,15 +25,17 @@ def sync_disclosures(
     end = date.today()
     start = end - timedelta(days=days)
     fetched = client.announcements(code, start, end)
-    existing_urls = set(
-        session.scalars(select(Disclosure.url).where(Disclosure.symbol == code))
-    )
+    existing_by_url = {
+        row.url: row
+        for row in session.scalars(
+            select(Disclosure).where(Disclosure.symbol == code)
+        ).all()
+    }
     inserted = 0
     for item in fetched:
-        if item["url"] in existing_urls:
-            continue
-        session.add(
-            Disclosure(
+        disclosure = existing_by_url.get(item["url"])
+        if disclosure is None:
+            disclosure = Disclosure(
                 symbol=code,
                 title=item["title"],
                 url=item["url"],
@@ -40,8 +43,21 @@ def sync_disclosures(
                 published_at=item.get("published_at"),
                 source="cninfo",
             )
+            session.add(disclosure)
+            session.flush()
+            existing_by_url[disclosure.url] = disclosure
+            inserted += 1
+        emit(
+            session,
+            symbol=code,
+            event_type="disclosure",
+            title=disclosure.title,
+            direction=0.0,
+            strength=0.5,
+            summary=disclosure.category,
+            source_ref=f"disclosure:{disclosure.id}",
+            occurred_at=disclosure.published_at or disclosure.ingested_at,
         )
-        inserted += 1
     return {"symbol": code, "fetched": len(fetched), "inserted": inserted}
 
 

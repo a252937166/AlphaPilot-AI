@@ -8,6 +8,7 @@ from alphapilot.api.routes import (
     alerts,
     dashboard,
     disclosures,
+    events,
     futu,
     health,
     jobs,
@@ -73,6 +74,7 @@ app.include_router(sectors.router)
 app.include_router(watchlist.router)
 app.include_router(alerts.router)
 app.include_router(disclosures.router)
+app.include_router(events.router)
 app.include_router(reports.router)
 app.include_router(scenarios.router)
 app.include_router(trades.router)

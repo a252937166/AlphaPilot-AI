@@ -13,13 +13,15 @@ import httpx
 import pandas as pd
 from apscheduler.triggers.interval import IntervalTrigger
 from sqlalchemy import select
+from sqlalchemy.orm import Session
 
 from alphapilot.data.base import DataProviderError
 from alphapilot.data.sina_provider import SinaDailyBarProvider
 from alphapilot.db.engine import get_session
-from alphapilot.db.models import MarketSnapshotAgg, Security
+from alphapilot.db.models import MarketSnapshotAgg, Security, WatchlistItem
 from alphapilot.futu.client import FutuClient, get_futu_client
 from alphapilot.jobs.registry import JobSpec, register
+from alphapilot.services.events import emit
 
 MARKET_TIMEZONE = ZoneInfo("Asia/Shanghai")
 MARKET_OPEN = time(9, 25)
@@ -27,6 +29,8 @@ MARKET_CLOSE = time(15, 5)
 FUTU_BATCH_SIZE = 400
 FUTU_MAX_REQUESTS = 50
 LIMIT_TOLERANCE_PCT = 0.2
+CAPITAL_PRICE_ANOMALY_PCT = 7.0
+CAPITAL_TURNOVER_ANOMALY_PCT = 10.0
 
 
 @dataclass(frozen=True, slots=True)
@@ -242,6 +246,51 @@ def _normalize_quotes(
     return quotes
 
 
+def _emit_capital_anomalies(
+    session: Session,
+    quotes: Mapping[str, NormalizedQuote],
+    watchlist_symbols: set[str],
+    occurred_at: datetime,
+) -> int:
+    """Emit at most one auditable intraday anomaly per tracked symbol and day."""
+
+    candidates = 0
+    local_day = occurred_at.astimezone(MARKET_TIMEZONE).date().isoformat()
+    for symbol in sorted(watchlist_symbols.intersection(quotes)):
+        quote = quotes[symbol]
+        reasons: list[str] = []
+        if abs(quote.change_pct) >= CAPITAL_PRICE_ANOMALY_PCT:
+            reasons.append(f"涨跌幅 {quote.change_pct:+.2f}%")
+        if (
+            quote.turnover_rate is not None
+            and quote.turnover_rate >= CAPITAL_TURNOVER_ANOMALY_PCT
+        ):
+            reasons.append(f"换手率 {quote.turnover_rate:.2f}%")
+        if not reasons:
+            continue
+
+        direction = max(-1.0, min(1.0, quote.change_pct / 10.0))
+        price_strength = min(1.0, abs(quote.change_pct) / 10.0)
+        turnover_strength = (
+            min(1.0, quote.turnover_rate / 20.0)
+            if quote.turnover_rate is not None
+            else 0.0
+        )
+        emit(
+            session,
+            symbol=symbol,
+            event_type="capital_anomaly",
+            title=f"{symbol} 盘中资金异动",
+            direction=direction,
+            strength=max(price_strength, turnover_strength),
+            summary="，".join(reasons),
+            source_ref=f"market-snapshot:{local_day}:{symbol}:capital-anomaly",
+            occurred_at=occurred_at,
+        )
+        candidates += 1
+    return candidates
+
+
 def poll_market_snapshot(force: bool = False) -> dict[str, Any]:
     """Collect full-market breadth, persist one aggregate, and refresh valuations."""
 
@@ -254,6 +303,7 @@ def poll_market_snapshot(force: bool = False) -> dict[str, Any]:
         rows = session.execute(
             select(Security.symbol, Security.board, Security.is_st).order_by(Security.symbol)
         ).all()
+        watchlist_symbols = set(session.scalars(select(WatchlistItem.symbol)).all())
     metadata = {
         str(symbol): SecurityMeta(
             symbol=str(symbol),
@@ -348,6 +398,12 @@ def poll_market_snapshot(force: bool = False) -> dict[str, Any]:
             if quote.turnover_rate is not None:
                 security.turnover_rate = quote.turnover_rate
             security.snapshot_at = as_of
+        capital_anomalies = _emit_capital_anomalies(
+            session,
+            quotes,
+            watchlist_symbols,
+            as_of,
+        )
         session.flush()
         aggregate_id = aggregate.id
 
@@ -370,6 +426,7 @@ def poll_market_snapshot(force: bool = False) -> dict[str, Any]:
         "zt_source": zt_source,
         "limit_up_pool_size": limit_up_pool_size,
         "limit_up_threshold": len(threshold_limit_up),
+        "capital_anomaly_candidates": capital_anomalies,
         "warnings": warnings,
         "duration_seconds": round(monotonic() - started, 2),
     }
