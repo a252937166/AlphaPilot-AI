@@ -19,6 +19,7 @@ from alphapilot.db.models import (
     FactorValue,
     JobRun,
     Security,
+    StockScore,
 )
 from alphapilot.engines.factors import (
     FACTOR_SET,
@@ -27,6 +28,7 @@ from alphapilot.engines.factors import (
     load_weights,
     zscore_cross_section,
 )
+from alphapilot.engines.stock_score import compute_stock_scores
 from alphapilot.jobs.registry import JobExecutionError, JobSpec, register
 
 MARKET_TIMEZONE = ZoneInfo("Asia/Shanghai")
@@ -157,9 +159,38 @@ def _composite_records(
     return records
 
 
+def _stock_score_records(
+    scores: pd.DataFrame,
+    *,
+    trade_date: date,
+) -> list[dict[str, Any]]:
+    records: list[dict[str, Any]] = []
+    numeric_fields = (
+        "tech",
+        "capital",
+        "fundamental",
+        "valuation",
+        "sentiment",
+        "composite",
+    )
+    for symbol, row in scores.iterrows():
+        values = {field: _finite_or_none(row[field]) for field in numeric_fields}
+        if any(value is None for value in values.values()):
+            raise ValueError(f"{symbol} 的个股五维评分包含非有限值。")
+        records.append(
+            {
+                "symbol": str(symbol),
+                "trade_date": trade_date,
+                **values,
+                "model_version": str(row["model_version"]),
+            }
+        )
+    return records
+
+
 def _insert_batches(
     session: Session,
-    model: type[FactorValue] | type[CompositeScore],
+    model: type[FactorValue] | type[CompositeScore] | type[StockScore],
     records: list[dict[str, Any]],
 ) -> None:
     for offset in range(0, len(records), INSERT_BATCH_SIZE):
@@ -222,6 +253,11 @@ def compute_factors(trade_date: date | None = None) -> dict[str, Any]:
             trade_date=target_date,
             model_version=score_model_version,
         )
+        stock_score_frame = compute_stock_scores(standardized)
+        stock_score_records = _stock_score_records(
+            stock_score_frame,
+            trade_date=target_date,
+        )
         if len(composite_records) / int(readiness["universe"]) < MIN_INPUT_COVERAGE:
             raise JobExecutionError(
                 "综合评分覆盖率低于 90% 完成阈值。",
@@ -231,11 +267,23 @@ def compute_factors(trade_date: date | None = None) -> dict[str, Any]:
                     "reason": "composite_coverage_below_floor",
                 },
             )
+        if len(stock_score_records) != len(composite_records):
+            raise JobExecutionError(
+                "个股五维评分与综合评分行数不一致，原子写入已停止。",
+                stats={
+                    **readiness,
+                    "composite_rows": len(composite_records),
+                    "stock_score_rows": len(stock_score_records),
+                    "reason": "stock_score_row_mismatch",
+                },
+            )
 
         session.execute(delete(FactorValue).where(FactorValue.trade_date == target_date))
         session.execute(delete(CompositeScore).where(CompositeScore.trade_date == target_date))
+        session.execute(delete(StockScore).where(StockScore.trade_date == target_date))
         _insert_batches(session, FactorValue, factor_records)
         _insert_batches(session, CompositeScore, composite_records)
+        _insert_batches(session, StockScore, stock_score_records)
 
     coverage = {
         factor: {
@@ -260,6 +308,13 @@ def compute_factors(trade_date: date | None = None) -> dict[str, Any]:
         "symbols": len(composite_records),
         "factor_rows": len(factor_records),
         "composite_rows": len(composite_records),
+        "stock_score_rows": len(stock_score_records),
+        "stock_score_model_versions": sorted(
+            {str(record["model_version"]) for record in stock_score_records}
+        ),
+        "stock_score_factor_coverage": stock_score_frame.attrs["factor_coverage"],
+        "stock_score_full_rows": stock_score_frame.attrs["full_rows"],
+        "stock_score_neutral_rows": stock_score_frame.attrs["neutral_rows"],
         "coverage": coverage,
         "sector_flow_days": int(raw.attrs.get("sector_flow_days", 0)),
         "active_weights": active_weights,
