@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import date
+from typing import ClassVar
 
 import httpx
 import pandas as pd
@@ -61,6 +62,189 @@ def test_baostock_distinguishes_empty_bars_from_query_failures(
     with pytest.raises(DataProviderError, match="query failed") as caught:
         provider.get_daily_bars("600000", date(2026, 7, 20), date(2026, 7, 20))
     assert not isinstance(caught.value, EmptyDailyBarsError)
+
+
+def test_baostock_quarterly_financials_queries_all_datasets(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class Result:
+        error_code = "0"
+        error_msg = ""
+
+        def __init__(self, fields: list[str], rows: list[list[str]]) -> None:
+            self.fields = fields
+            self._rows = iter(rows)
+            self._current: list[str] = []
+
+        def next(self) -> bool:
+            try:
+                self._current = next(self._rows)
+            except StopIteration:
+                return False
+            return True
+
+        def get_row_data(self) -> list[str]:
+            return self._current
+
+    class BaoStockModule:
+        calls: ClassVar[list[tuple[str, dict[str, object]]]] = []
+
+        @classmethod
+        def _query(cls, dataset: str, kwargs: dict[str, object]) -> Result:
+            cls.calls.append((dataset, kwargs))
+            if dataset == "cash_flow":
+                return Result(["code", "statDate", "CFOToNP"], [])
+            return Result(
+                ["code", "statDate", "value"],
+                [["sh.600519", "2025-12-31", dataset]],
+            )
+
+        @classmethod
+        def query_profit_data(cls, **kwargs: object) -> Result:
+            return cls._query("profit", kwargs)
+
+        @classmethod
+        def query_growth_data(cls, **kwargs: object) -> Result:
+            return cls._query("growth", kwargs)
+
+        @classmethod
+        def query_cash_flow_data(cls, **kwargs: object) -> Result:
+            return cls._query("cash_flow", kwargs)
+
+        @classmethod
+        def query_balance_data(cls, **kwargs: object) -> Result:
+            return cls._query("balance", kwargs)
+
+    provider = BaoStockMarketDataProvider()
+    monkeypatch.setattr("alphapilot.data.baostock_provider._logged_in", True)
+    monkeypatch.setattr(provider, "_module", lambda: BaoStockModule)
+
+    frames = provider.get_quarterly_financials("600519", 2025, 4)
+
+    assert list(frames) == ["profit", "growth", "cash_flow", "balance"]
+    assert frames["profit"].iloc[0]["value"] == "profit"
+    assert frames["growth"].iloc[0]["value"] == "growth"
+    assert frames["cash_flow"].empty
+    assert list(frames["cash_flow"].columns) == ["code", "statDate", "CFOToNP"]
+    assert frames["balance"].iloc[0]["value"] == "balance"
+    assert BaoStockModule.calls == [
+        (dataset, {"code": "sh.600519", "year": 2025, "quarter": 4})
+        for dataset in ["profit", "growth", "cash_flow", "balance"]
+    ]
+
+    BaoStockModule.calls.clear()
+    profit = provider.get_quarterly_profit("600519", 2024, 4)
+    assert profit.iloc[0]["value"] == "profit"
+    assert BaoStockModule.calls == [("profit", {"code": "sh.600519", "year": 2024, "quarter": 4})]
+
+
+def test_baostock_quarterly_financials_surfaces_query_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class Result:
+        error_code = "1"
+        error_msg = "upstream unavailable"
+        fields: ClassVar[tuple[str, ...]] = ()
+
+    class BaoStockModule:
+        @staticmethod
+        def query_profit_data(**_kwargs: object) -> Result:
+            return Result()
+
+    provider = BaoStockMarketDataProvider()
+    monkeypatch.setattr("alphapilot.data.baostock_provider._logged_in", True)
+    monkeypatch.setattr(provider, "_module", lambda: BaoStockModule)
+
+    with pytest.raises(
+        DataProviderError,
+        match=r"profit query failed for sh\.600519/2025Q4: upstream unavailable",
+    ):
+        provider.get_quarterly_financials("600519", 2025, 4)
+
+
+def test_baostock_quarterly_financials_relogs_once_after_expired_session(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class Result:
+        fields: ClassVar[tuple[str, str]] = ("code", "statDate")
+
+        def __init__(self, error_code: str = "0", error_msg: str = "") -> None:
+            self.error_code = error_code
+            self.error_msg = error_msg
+            self._pending = error_code == "0"
+
+        def next(self) -> bool:
+            if self._pending:
+                self._pending = False
+                return True
+            return False
+
+        @staticmethod
+        def get_row_data() -> list[str]:
+            return ["sh.600519", "2025-12-31"]
+
+    class BaoStockModule:
+        login_calls = 0
+        query_calls: ClassVar[dict[str, int]] = {
+            "profit": 0,
+            "growth": 0,
+            "cash_flow": 0,
+            "balance": 0,
+        }
+
+        @classmethod
+        def login(cls) -> Result:
+            cls.login_calls += 1
+            return Result()
+
+        @classmethod
+        def _query(cls, dataset: str) -> Result:
+            cls.query_calls[dataset] += 1
+            if dataset == "profit" and cls.query_calls[dataset] == 1:
+                return Result("10001001", "用户未登录")
+            return Result()
+
+        @classmethod
+        def query_profit_data(cls, **_kwargs: object) -> Result:
+            return cls._query("profit")
+
+        @classmethod
+        def query_growth_data(cls, **_kwargs: object) -> Result:
+            return cls._query("growth")
+
+        @classmethod
+        def query_cash_flow_data(cls, **_kwargs: object) -> Result:
+            return cls._query("cash_flow")
+
+        @classmethod
+        def query_balance_data(cls, **_kwargs: object) -> Result:
+            return cls._query("balance")
+
+    provider = BaoStockMarketDataProvider()
+    monkeypatch.setattr("alphapilot.data.baostock_provider._logged_in", True)
+    monkeypatch.setattr(provider, "_module", lambda: BaoStockModule)
+
+    frames = provider.get_quarterly_financials("600519", 2025, 4)
+
+    assert all(not frame.empty for frame in frames.values())
+    assert BaoStockModule.login_calls == 1
+    assert BaoStockModule.query_calls == {
+        "profit": 2,
+        "growth": 1,
+        "cash_flow": 1,
+        "balance": 1,
+    }
+
+
+def test_baostock_quarterly_financials_validates_period_and_rejects_bse() -> None:
+    provider = BaoStockMarketDataProvider()
+
+    with pytest.raises(ValueError, match="year/quarter is out of range"):
+        provider.get_quarterly_financials("600519", 2025, 5)
+    with pytest.raises(ValueError, match="year/quarter is out of range"):
+        provider.get_quarterly_financials("600519", 1989, 4)
+    with pytest.raises(DataProviderError, match="do not support symbol: 920000"):
+        provider.get_quarterly_financials("920000", 2025, 4)
 
 
 def test_sina_invalid_payload_is_not_classified_as_empty(

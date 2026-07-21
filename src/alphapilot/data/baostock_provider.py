@@ -13,6 +13,13 @@ from alphapilot.data.base import DataProviderError, EmptyDailyBarsError
 _baostock_lock = Lock()
 _logged_in = False
 
+_FINANCIAL_QUERIES = {
+    "profit": "query_profit_data",
+    "growth": "query_growth_data",
+    "cash_flow": "query_cash_flow_data",
+    "balance": "query_balance_data",
+}
+
 
 class BaoStockMarketDataProvider:
     """A-share daily history from BaoStock; it has no real-time snapshot."""
@@ -128,6 +135,76 @@ class BaoStockMarketDataProvider:
         if not rows:
             raise DataProviderError("BaoStock returned no stock industries")
         return pd.DataFrame(rows, columns=columns)
+
+    def _get_quarterly_financial_frames(
+        self,
+        symbol: str,
+        year: int,
+        quarter: int,
+        datasets: tuple[str, ...],
+    ) -> dict[str, pd.DataFrame]:
+        global _logged_in
+
+        if year < 1990 or quarter not in {1, 2, 3, 4}:
+            raise ValueError("financial year/quarter is out of range")
+        digits = "".join(character for character in symbol if character.isdigit())
+        if len(digits) != 6 or digits.startswith(("4", "8", "92")):
+            raise DataProviderError(
+                f"BaoStock quarterly financials do not support symbol: {symbol}"
+            )
+
+        bs = self._module()
+        code = self._code(symbol)
+        frames: dict[str, pd.DataFrame] = {}
+        with _baostock_lock:
+            self._ensure_login(bs)
+            for dataset in datasets:
+                method_name = _FINANCIAL_QUERIES[dataset]
+                query = getattr(bs, method_name, None)
+                if not callable(query):
+                    raise DataProviderError(
+                        f"BaoStock module is missing financial query: {method_name}"
+                    )
+                result = query(code=code, year=year, quarter=quarter)
+                if result.error_code != "0" and (
+                    result.error_code == "10001001" or "未登录" in str(result.error_msg)
+                ):
+                    _logged_in = False
+                    self._ensure_login(bs)
+                    result = query(code=code, year=year, quarter=quarter)
+                if result.error_code != "0":
+                    raise DataProviderError(
+                        f"BaoStock {dataset} query failed for {code}/{year}Q{quarter}: "
+                        f"{result.error_msg}"
+                    )
+                rows: list[list[str]] = []
+                while result.next():
+                    rows.append(result.get_row_data())
+                columns = [str(field) for field in result.fields]
+                frames[dataset] = pd.DataFrame(rows, columns=columns)
+        return frames
+
+    def get_quarterly_financials(
+        self, symbol: str, year: int, quarter: int
+    ) -> dict[str, pd.DataFrame]:
+        """Return BaoStock's four quarterly financial datasets under one socket lock."""
+
+        return self._get_quarterly_financial_frames(
+            symbol,
+            year,
+            quarter,
+            tuple(_FINANCIAL_QUERIES),
+        )
+
+    def get_quarterly_profit(self, symbol: str, year: int, quarter: int) -> pd.DataFrame:
+        """Return only the profit dataset for prior-year revenue derivation."""
+
+        return self._get_quarterly_financial_frames(
+            symbol,
+            year,
+            quarter,
+            ("profit",),
+        )["profit"]
 
     def get_dividend_data(self, symbol: str, year: int) -> pd.DataFrame:
         """Return one report year's dividend records, including empty results."""
