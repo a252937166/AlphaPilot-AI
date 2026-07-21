@@ -20,6 +20,8 @@ from alphapilot.futu.client import (
 
 router = APIRouter(prefix="/v1/futu", tags=["futu"])
 
+_HTTP_PRIVATE_TRADE_METHODS = frozenset({"get_acc_list"})
+
 
 class FutuQuoteCallRequest(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
@@ -77,6 +79,10 @@ def futu_trade_call(
     client: FutuClient = Depends(futu_client_dependency),
 ) -> dict[str, Any]:
     try:
+        if method in _HTTP_PRIVATE_TRADE_METHODS:
+            raise FutuMethodNotAllowedError(
+                "富途账户发现仅供内部使用，请改用 /v1/portfolio/account。"
+            )
         return client.trade_call(
             context_kind,
             method,

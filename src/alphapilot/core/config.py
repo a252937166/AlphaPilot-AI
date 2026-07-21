@@ -54,6 +54,9 @@ class Settings(BaseSettings):
 
     trading_mode: str = "research"
     live_trading_enabled: bool = False
+    paper_trading_enabled: bool = False
+    trading_halted: bool = False
+    demo_equity: float = Field(default=1_000_000.0, gt=0)
     min_trade_confidence: float = 0.68
     max_single_position_pct: float = 0.10
     max_sector_position_pct: float = 0.30
