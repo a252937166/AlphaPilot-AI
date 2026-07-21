@@ -38,6 +38,96 @@ const FEATURE_LABELS: Record<string, string> = {
   volume_ratio_5_20: '量比 5/20',
 }
 
+type KlineBar = {
+  date?: unknown
+  open?: unknown
+  close?: unknown
+  low?: unknown
+  high?: unknown
+  volume?: unknown
+  amount?: unknown
+}
+
+type TooltipPoint = {
+  dataIndex?: number
+}
+
+function finiteNumber(value: unknown): number | null {
+  const number = Number(value)
+  return value === null || value === undefined || !Number.isFinite(number) ? null : number
+}
+
+function tradeDateLabel(value: unknown): string {
+  const dateText = String(value ?? '').slice(0, 10)
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateText)
+  if (!match) return '交易日期未知'
+  const parsed = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]))
+  const weekdays = ['周日', '周一', '周二', '周三', '周四', '周五', '周六']
+  return `${dateText} · ${weekdays[parsed.getDay()]}`
+}
+
+function signedPrice(value: number | null): string {
+  if (value === null) return '—'
+  return `${value > 0 ? '+' : ''}${fmtNum(value, 2)}`
+}
+
+function tooltipMetric(label: string, value: string): string {
+  return `<div style="display:flex;align-items:baseline;justify-content:space-between;gap:12px">
+    <span style="color:${CHART_COLORS.text3};font-size:11px">${label}</span>
+    <span style="color:#eef2fa;font-size:12px;font-weight:600;font-variant-numeric:tabular-nums">${value}</span>
+  </div>`
+}
+
+function formatKlineTooltip(
+  params: TooltipPoint | TooltipPoint[],
+  sourceBars: KlineBar[],
+  averages: Record<string, (number | null)[]>,
+): string {
+  const points = Array.isArray(params) ? params : [params]
+  const dataIndex = points.find((point) => Number.isInteger(point?.dataIndex))?.dataIndex
+  if (dataIndex === undefined) return ''
+
+  const bar = sourceBars[dataIndex]
+  if (!bar) return ''
+  const open = finiteNumber(bar.open)
+  const close = finiteNumber(bar.close)
+  const low = finiteNumber(bar.low)
+  const high = finiteNumber(bar.high)
+  const previousClose = dataIndex > 0 ? finiteNumber(sourceBars[dataIndex - 1]?.close) : null
+  const change = close !== null && previousClose !== null ? close - previousClose : null
+  const changePct = change !== null && previousClose ? (change / previousClose) * 100 : null
+  const amplitude = high !== null && low !== null && previousClose ? ((high - low) / previousClose) * 100 : null
+  const trendColor = change === null || change === 0 ? CHART_COLORS.text2 : change > 0 ? CHART_COLORS.up : CHART_COLORS.down
+  const changeLabel = change === null ? '首个交易日' : `${signedPrice(change)} · ${fmtPct(changePct)}`
+  const volume = finiteNumber(bar.volume)
+  const amount = finiteNumber(bar.amount)
+
+  return `<div style="min-width:304px;padding:12px 14px;font-family:-apple-system,BlinkMacSystemFont,'PingFang SC','Microsoft YaHei',sans-serif">
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px;padding-bottom:10px;border-bottom:1px solid ${CHART_COLORS.line1}">
+      <div>
+        <div style="color:#eef2fa;font-size:13px;font-weight:650;letter-spacing:.01em">${tradeDateLabel(bar.date)}</div>
+        <div style="margin-top:2px;color:${CHART_COLORS.text3};font-size:10px">日 K 线</div>
+      </div>
+      <div style="color:${trendColor};font-size:12px;font-weight:650;font-variant-numeric:tabular-nums;white-space:nowrap">${changeLabel}</div>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));column-gap:22px;row-gap:7px;padding:10px 0">
+      ${tooltipMetric('开盘', fmtNum(open, 2))}
+      ${tooltipMetric('最高', fmtNum(high, 2))}
+      ${tooltipMetric('收盘', fmtNum(close, 2))}
+      ${tooltipMetric('最低', fmtNum(low, 2))}
+      ${tooltipMetric('前收', fmtNum(previousClose, 2))}
+      ${tooltipMetric('振幅', amplitude === null ? '—' : fmtPct(amplitude))}
+      ${tooltipMetric('成交量', volume === null ? '—' : `${fmtAmount(volume)}股`)}
+      ${tooltipMetric('成交额', amount === null ? '—' : fmtAmount(amount))}
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;padding-top:10px;border-top:1px solid ${CHART_COLORS.line1}">
+      <div style="color:${CHART_COLORS.warn};font-size:10px">MA5 <span style="display:block;margin-top:2px;color:#eef2fa;font-size:11px;font-weight:600;font-variant-numeric:tabular-nums">${fmtNum(averages.MA5?.[dataIndex], 2)}</span></div>
+      <div style="color:${CHART_COLORS.cyan};font-size:10px">MA20 <span style="display:block;margin-top:2px;color:#eef2fa;font-size:11px;font-weight:600;font-variant-numeric:tabular-nums">${fmtNum(averages.MA20?.[dataIndex], 2)}</span></div>
+      <div style="color:${CHART_COLORS.purple};font-size:10px">MA60 <span style="display:block;margin-top:2px;color:#eef2fa;font-size:11px;font-weight:600;font-variant-numeric:tabular-nums">${fmtNum(averages.MA60?.[dataIndex], 2)}</span></div>
+    </div>
+  </div>`
+}
+
 function movingAverage(values: number[], window: number): (number | null)[] {
   return values.map((_, index) => {
     if (index < window - 1) return null
@@ -51,6 +141,11 @@ const klineOption = computed(() => {
   const dates = bars.value.map((bar) => bar.date)
   const ohlc = bars.value.map((bar) => [bar.open, bar.close, bar.low, bar.high])
   const closes = bars.value.map((bar) => Number(bar.close))
+  const averages = {
+    MA5: movingAverage(closes, 5),
+    MA20: movingAverage(closes, 20),
+    MA60: movingAverage(closes, 60),
+  }
   const volumes = bars.value.map((bar) => ({
     value: bar.volume,
     itemStyle: {
@@ -60,7 +155,21 @@ const klineOption = computed(() => {
   }))
   return {
     animation: false,
-    tooltip: { trigger: 'axis', ...tooltipStyle },
+    tooltip: {
+      trigger: 'axis',
+      ...tooltipStyle,
+      confine: true,
+      padding: 0,
+      axisPointer: {
+        type: 'cross',
+        lineStyle: { color: 'rgba(148,163,198,.55)', type: 'dashed' },
+        crossStyle: { color: 'rgba(148,163,198,.55)', type: 'dashed' },
+        label: { show: false },
+      },
+      extraCssText: 'border-radius:10px;box-shadow:0 16px 44px rgba(0,0,0,.52);overflow:hidden;',
+      formatter: (params: TooltipPoint | TooltipPoint[]) =>
+        formatKlineTooltip(params, bars.value, averages),
+    },
     legend: {
       data: ['MA5', 'MA20', 'MA60'],
       textStyle: { color: CHART_COLORS.text3, fontSize: 10 },
@@ -103,9 +212,9 @@ const klineOption = computed(() => {
           borderColor0: CHART_COLORS.down,
         },
       },
-      { name: 'MA5', type: 'line', data: movingAverage(closes, 5), symbol: 'none', lineStyle: { width: 1, color: CHART_COLORS.warn } },
-      { name: 'MA20', type: 'line', data: movingAverage(closes, 20), symbol: 'none', lineStyle: { width: 1, color: CHART_COLORS.cyan } },
-      { name: 'MA60', type: 'line', data: movingAverage(closes, 60), symbol: 'none', lineStyle: { width: 1, color: CHART_COLORS.purple } },
+      { name: 'MA5', type: 'line', data: averages.MA5, symbol: 'none', lineStyle: { width: 1, color: CHART_COLORS.warn } },
+      { name: 'MA20', type: 'line', data: averages.MA20, symbol: 'none', lineStyle: { width: 1, color: CHART_COLORS.cyan } },
+      { name: 'MA60', type: 'line', data: averages.MA60, symbol: 'none', lineStyle: { width: 1, color: CHART_COLORS.purple } },
       { name: '成交量', type: 'bar', xAxisIndex: 1, yAxisIndex: 1, data: volumes },
     ],
   }
@@ -216,7 +325,9 @@ watch(symbol, load)
         <div class="panel">
           <div class="panel-title">
             价格走势 · 日K
-            <span class="extra mono">{{ forecast?.provider }} · {{ bars.length }} bars</span>
+            <span class="extra mono">
+              {{ bars[0]?.date }} → {{ bars[bars.length - 1]?.date }} · {{ forecast?.provider }} · {{ bars.length }} 个交易日
+            </span>
           </div>
           <EChart v-if="bars.length" :option="klineOption" height="360px" />
           <div v-else class="empty-hint">无K线数据</div>
