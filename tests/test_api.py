@@ -3,6 +3,7 @@ from __future__ import annotations
 from collections.abc import Iterator
 from typing import Any
 
+import pandas as pd
 import pytest
 from fastapi.testclient import TestClient
 
@@ -186,3 +187,56 @@ def test_disclosure_status_endpoint() -> None:
     response = client.get("/v1/disclosures/status")
     assert response.status_code == 200
     assert "configured" in response.json()
+
+
+def test_market_intraday_returns_normalized_index_points() -> None:
+    class IntradayFutuClient(StubFutuClient):
+        def quote_call_raw(self, method: str, args: Any = None, kwargs: Any = None) -> Any:
+            del kwargs
+            if method == "subscribe":
+                return None
+            assert method == "get_rt_data"
+            return pd.DataFrame(
+                [
+                    {
+                        "time": "2026-07-21 09:30:00",
+                        "cur_price": 3800.5,
+                        "avg_price": 3800.5,
+                        "volume": 1000,
+                        "is_blank": False,
+                        "code": args[0],
+                    }
+                ]
+            )
+
+    app.dependency_overrides[futu_client_dependency] = IntradayFutuClient
+    response = client.get(
+        "/v1/market/intraday",
+        params={"symbols": "SH.000001,SZ.399001"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["SH.000001"][0] == {
+        "time": "2026-07-21 09:30:00",
+        "price": 3800.5,
+        "avg_price": 3800.5,
+        "volume": 1000.0,
+    }
+
+
+def test_market_intraday_rejects_non_core_symbol_without_subscribing() -> None:
+    response = client.get(
+        "/v1/market/intraday",
+        params={"symbols": "SH.000001,HK.00700"},
+    )
+    assert response.status_code == 422
+    assert "仅支持" in response.json()["detail"]
+
+
+def test_market_intraday_explains_futu_unavailability() -> None:
+    response = client.get(
+        "/v1/market/intraday",
+        params={"symbols": "SH.000001"},
+    )
+    assert response.status_code == 503
+    assert "请确认 Futu OpenD" in response.json()["detail"]
