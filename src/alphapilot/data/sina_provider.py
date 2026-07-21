@@ -9,7 +9,7 @@ from zoneinfo import ZoneInfo
 import httpx
 import pandas as pd
 
-from alphapilot.data.base import DataProviderError
+from alphapilot.data.base import DataProviderError, EmptyDailyBarsError
 
 
 class SinaDailyBarProvider:
@@ -62,10 +62,22 @@ class SinaDailyBarProvider:
                     end_date=end.strftime("%Y%m%d"),
                     adjust="",
                 )
-                if not isinstance(candidate, pd.DataFrame) or candidate.empty:
-                    raise DataProviderError(f"Sina returned no daily bars for {sina_symbol}")
+                if not isinstance(candidate, pd.DataFrame):
+                    raise DataProviderError(
+                        f"Sina returned an invalid daily-bar payload for {sina_symbol}"
+                    )
+                if candidate.empty:
+                    raise EmptyDailyBarsError(
+                        f"Sina returned no daily bars for {sina_symbol}"
+                    )
                 frame = candidate
                 break
+            except EmptyDailyBarsError as exc:
+                last_error = str(exc)
+                if attempt < 2:
+                    sleep(float(attempt + 1))
+                else:
+                    raise
             except Exception as exc:  # upstream emits several requests/JSON exception types
                 last_error = str(exc)
                 if attempt < 2:
@@ -89,7 +101,9 @@ class SinaDailyBarProvider:
             .reset_index(drop=True)
         )
         if result.empty:
-            raise DataProviderError(f"Sina returned no valid daily bars for {sina_symbol}")
+            raise EmptyDailyBarsError(
+                f"Sina returned no valid daily bars for {sina_symbol}"
+            )
         return result
 
     def get_snapshot(self, symbols: list[str]) -> pd.DataFrame:
