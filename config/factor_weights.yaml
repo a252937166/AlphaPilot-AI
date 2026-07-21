@@ -1,0 +1,11 @@
+version: v1.0.0
+profile: default
+weights:
+  net_profit_yoy: 0.20
+  pe_percentile: -0.18
+  revenue_yoy: 0.16
+  net_inflow_5d: 0.14
+  momentum_20d: 0.12
+  sector_strength: 0.08
+  ocf_to_profit: 0.07
+  turnover_change_5d: 0.05

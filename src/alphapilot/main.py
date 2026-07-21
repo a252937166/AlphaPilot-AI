@@ -9,6 +9,7 @@ from alphapilot.api.routes import (
     dashboard,
     disclosures,
     events,
+    factors,
     futu,
     health,
     jobs,
@@ -67,6 +68,7 @@ app.add_middleware(
 app.include_router(health.router)
 app.include_router(jobs.router)
 app.include_router(dashboard.router)
+app.include_router(factors.router)
 app.include_router(stocks.router)
 app.include_router(screens.router)
 app.include_router(market.router)

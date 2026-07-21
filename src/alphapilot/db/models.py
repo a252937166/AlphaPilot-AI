@@ -330,6 +330,39 @@ class FinancialIndicator(Base):
     payload: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
 
 
+class FactorValue(Base):
+    """Point-in-time cross-sectional factor observation for one security."""
+
+    __tablename__ = "factor_values"
+    __table_args__ = (
+        UniqueConstraint("symbol", "trade_date", "factor", name="uq_factor"),
+        Index("ix_factor_date", "factor", "trade_date"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    symbol: Mapped[str] = mapped_column(String(24), index=True)
+    trade_date: Mapped[date] = mapped_column(Date)
+    factor: Mapped[str] = mapped_column(String(32))
+    raw: Mapped[float | None] = mapped_column(Float, nullable=True)
+    zscore: Mapped[float | None] = mapped_column(Float, nullable=True)
+    model_version: Mapped[str] = mapped_column(String(32), default="factor-v1.0.0")
+
+
+class CompositeScore(Base):
+    """Daily 0-100 stock score with its auditable factor inputs."""
+
+    __tablename__ = "composite_scores"
+    __table_args__ = (UniqueConstraint("symbol", "trade_date", name="uq_comp_score"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    symbol: Mapped[str] = mapped_column(String(24), index=True)
+    trade_date: Mapped[date] = mapped_column(Date, index=True)
+    score: Mapped[float] = mapped_column(Float)
+    win_rate_20d: Mapped[float | None] = mapped_column(Float, nullable=True)
+    factors: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    model_version: Mapped[str] = mapped_column(String(32))
+
+
 class DailyReport(Base):
     __tablename__ = "daily_reports"
 
