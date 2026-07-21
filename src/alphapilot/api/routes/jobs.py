@@ -31,10 +31,33 @@ def list_runs(
     limit: int = Query(default=50, ge=1, le=200),
     session: Session = Depends(db_session_dependency),
 ) -> dict[str, Any]:
-    rows = session.scalars(
+    recent = session.scalars(
         select(JobRun).order_by(JobRun.started_at.desc(), JobRun.id.desc()).limit(limit)
     ).all()
-    return {"runs": [_serialize(row) for row in rows]}
+    latest_by_job = [
+        row
+        for name in sorted(JOBS)
+        if (
+            row := session.scalars(
+                select(JobRun)
+                .where(JobRun.job_name == name)
+                .order_by(JobRun.started_at.desc(), JobRun.id.desc())
+                .limit(1)
+            ).first()
+        )
+        is not None
+    ]
+    latest_by_job.sort(key=lambda row: (row.started_at, row.id), reverse=True)
+    selected = latest_by_job[:limit]
+    selected_ids = {row.id for row in selected}
+    for row in recent:
+        if len(selected) >= limit:
+            break
+        if row.id not in selected_ids:
+            selected.append(row)
+            selected_ids.add(row.id)
+    selected.sort(key=lambda row: (row.started_at, row.id), reverse=True)
+    return {"runs": [_serialize(row) for row in selected]}
 
 
 @router.post("/{name}/run")
