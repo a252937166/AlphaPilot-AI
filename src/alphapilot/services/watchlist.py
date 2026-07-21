@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import UTC, date, datetime, timedelta
 from typing import Any
+from zoneinfo import ZoneInfo
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -9,8 +10,14 @@ from sqlalchemy.orm import Session
 from alphapilot.alerts.service import AlertService
 from alphapilot.core.timeutil import iso_utc
 from alphapilot.data.base import DataProviderError, MarketDataProvider
-from alphapilot.db.models import AlertRecord, ForecastSnapshot, WatchlistItem
+from alphapilot.db.models import (
+    AlertRecord,
+    ForecastSnapshot,
+    ThesisTransition,
+    WatchlistItem,
+)
 from alphapilot.domain.models import StockForecast
+from alphapilot.engines.thesis_drift import THESIS_STATES, evaluate
 from alphapilot.prediction.baseline import BaselineForecastEngine
 from alphapilot.services.market_data import get_bars_with_cache
 
@@ -21,6 +28,7 @@ DEFAULT_WATCHLIST: list[dict[str, str]] = [
     {"symbol": "600000", "display_name": "浦发银行", "group_name": "watch"},
     {"symbol": "000333", "display_name": "美的集团", "group_name": "watch"},
 ]
+MARKET_TIMEZONE = ZoneInfo("Asia/Shanghai")
 
 
 def normalize_symbol(symbol: str) -> str:
@@ -46,9 +54,7 @@ def seed_default_watchlist(session: Session) -> None:
 
 
 def list_items(session: Session) -> list[WatchlistItem]:
-    return list(
-        session.scalars(select(WatchlistItem).order_by(WatchlistItem.created_at)).all()
-    )
+    return list(session.scalars(select(WatchlistItem).order_by(WatchlistItem.created_at)).all())
 
 
 def upsert_item(session: Session, payload: dict[str, Any]) -> WatchlistItem:
@@ -67,7 +73,6 @@ def upsert_item(session: Session, payload: dict[str, Any]) -> WatchlistItem:
         "risks",
         "invalidation_rules",
         "initial_confidence",
-        "thesis_state",
     ):
         if field in payload and payload[field] is not None:
             setattr(item, field, payload[field])
@@ -103,9 +108,7 @@ def persist_forecast(session: Session, forecast: StockForecast) -> ForecastSnaps
         as_of=forecast.as_of,
         provider=forecast.provider,
         model_version=forecast.model_version,
-        horizons={
-            key: value.model_dump(mode="json") for key, value in forecast.horizons.items()
-        },
+        horizons={key: value.model_dump(mode="json") for key, value in forecast.horizons.items()},
         features=forecast.features,
     )
     session.add(snapshot)
@@ -127,6 +130,7 @@ def refresh_alerts(
         try:
             forecast = forecast_for_symbol(session, provider, symbol)
         except (DataProviderError, ValueError):
+            evaluate(session, symbol, event_only=True, created_alerts=created)
             continue
         persist_forecast(session, forecast)
         alert = alert_service.evaluate(forecast)
@@ -144,6 +148,8 @@ def refresh_alerts(
         )
         session.add(record)
         created.append(record)
+        session.flush()
+        evaluate(session, symbol, created_alerts=created)
     return created
 
 
@@ -153,6 +159,59 @@ def latest_alert_by_symbol(session: Session) -> dict[str, AlertRecord]:
     for record in records:
         latest[record.symbol] = record
     return latest
+
+
+def watchlist_summary(
+    session: Session,
+    *,
+    now: datetime | None = None,
+) -> dict[str, Any]:
+    """Return current counts and transitions from seven Shanghai calendar dates."""
+
+    counts = {state: 0 for state in THESIS_STATES}
+    for state in session.scalars(select(WatchlistItem.thesis_state)).all():
+        if state in counts:
+            counts[state] += 1
+    current_time = now or datetime.now(UTC)
+    if current_time.tzinfo is None:
+        current_time = current_time.replace(tzinfo=UTC)
+    current_time = current_time.astimezone(UTC)
+    local_today = current_time.astimezone(MARKET_TIMEZONE).date()
+    local_start = datetime.combine(
+        local_today - timedelta(days=6),
+        datetime.min.time(),
+        tzinfo=MARKET_TIMEZONE,
+    )
+    utc_start = local_start.astimezone(UTC)
+    transitions = session.scalars(
+        select(ThesisTransition)
+        .where(
+            ThesisTransition.created_at >= utc_start,
+            ThesisTransition.created_at <= current_time,
+        )
+        .order_by(ThesisTransition.created_at, ThesisTransition.id)
+    ).all()
+    daily_counts = {
+        local_today - timedelta(days=offset): {state: 0 for state in THESIS_STATES}
+        for offset in range(6, -1, -1)
+    }
+    for transition in transitions:
+        created_at = transition.created_at
+        if created_at.tzinfo is None:
+            created_at = created_at.replace(tzinfo=UTC)
+        local_date = created_at.astimezone(MARKET_TIMEZONE).date()
+        if local_date in daily_counts and transition.to_state in THESIS_STATES:
+            daily_counts[local_date][transition.to_state] += 1
+    return {
+        **counts,
+        "transitions_7d": [
+            {
+                "date": local_date.isoformat(),
+                **state_counts,
+            }
+            for local_date, state_counts in daily_counts.items()
+        ],
+    }
 
 
 def tracked_overview(
@@ -187,9 +246,7 @@ def tracked_overview(
         last_price = quote.get("last")
         cost = item.cost_price
         pnl_pct = (
-            (float(last_price) / float(cost) - 1) * 100
-            if last_price is not None and cost
-            else None
+            (float(last_price) / float(cost) - 1) * 100 if last_price is not None and cost else None
         )
         rows.append(
             {

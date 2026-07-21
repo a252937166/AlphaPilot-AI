@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 from sqlalchemy.orm import Session
 
 from alphapilot.api.dependencies import db_session_dependency, get_provider
@@ -14,6 +14,8 @@ router = APIRouter(prefix="/v1/watchlist", tags=["watchlist"])
 
 
 class WatchlistUpsertRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     symbol: str = Field(min_length=2, max_length=24)
     group_name: str | None = Field(default=None, max_length=32)
     display_name: str | None = Field(default=None, max_length=64)
@@ -24,7 +26,14 @@ class WatchlistUpsertRequest(BaseModel):
     risks: list[str] | None = None
     invalidation_rules: list[str] | None = None
     initial_confidence: float | None = Field(default=None, ge=0, le=1)
-    thesis_state: str | None = Field(default=None, max_length=24)
+    thesis_state: str | None = None
+
+    @field_validator("thesis_state")
+    @classmethod
+    def reject_manual_thesis_state(cls, value: str | None) -> str | None:
+        if value is not None:
+            raise ValueError("投资逻辑状态由漂移引擎自动维护，不允许手工修改。")
+        return value
 
 
 def _item_payload(item: Any) -> dict[str, Any]:
@@ -56,9 +65,7 @@ def upsert_watchlist(
     request: WatchlistUpsertRequest,
     session: Session = Depends(db_session_dependency),
 ) -> dict[str, Any]:
-    item = watchlist_service.upsert_item(
-        session, request.model_dump(exclude_none=True)
-    )
+    item = watchlist_service.upsert_item(session, request.model_dump(exclude_none=True))
     session.flush()
     return {"item": _item_payload(item)}
 
@@ -82,3 +89,10 @@ def track_watchlist(
     selected = get_provider(provider)
     rows = watchlist_service.tracked_overview(session, selected)
     return {"rows": rows, "count": len(rows)}
+
+
+@router.get("/summary")
+def watchlist_summary(
+    session: Session = Depends(db_session_dependency),
+) -> dict[str, Any]:
+    return watchlist_service.watchlist_summary(session)
