@@ -16,39 +16,39 @@ class AlertService:
             urgency = AlertUrgency.MEDIUM
             change = 0.10
             reasons = [
-                "Medium-horizon upward probability crossed the candidate threshold.",
-                "Short and medium horizons are directionally aligned.",
+                "20日上涨概率越过买入候选阈值。",
+                "5日与20日预测方向一致。",
             ]
             invalidation = (
-                "Cancel when 20-day p_up falls below 0.55 or the investment thesis is invalidated."
+                "当20日上涨概率跌破0.55或投资逻辑失效时取消。"
             )
         elif h20.p_up <= 0.35 or h5.p_up <= 0.38:
             action = AlertAction.REDUCE
             urgency = AlertUrgency.HIGH
             change = -0.25
             reasons = [
-                "Forecast distribution shifted materially to the downside.",
-                "Risk review is required before maintaining or adding exposure.",
+                "预测分布显著转向下行。",
+                "维持或增加仓位前需先复核风险。",
             ]
-            invalidation = "Reassess when both 5-day and 20-day p_up recover above 0.50."
+            invalidation = "当5日与20日上涨概率均回升至0.50以上时重新评估。"
         elif h20.confidence < 0.35:
             action = AlertAction.REVIEW_REQUIRED
             urgency = AlertUrgency.MEDIUM
             change = 0.0
-            reasons = ["Model confidence is too low for an automated directional action."]
-            invalidation = "Resolve data quality issues or wait for a higher-confidence forecast."
+            reasons = ["模型置信度过低，不适合自动给出方向性建议。"]
+            invalidation = "先解决数据质量问题，或等待更高置信度的预测。"
         elif h20.p_up >= 0.56:
             action = AlertAction.WATCH
             urgency = AlertUrgency.LOW
             change = 0.0
-            reasons = ["Forecast is constructive but below the buy-candidate threshold."]
-            invalidation = "Remove from watch when 20-day p_up falls below 0.48."
+            reasons = ["预测偏积极，但尚未达到买入候选阈值。"]
+            invalidation = "当20日上涨概率跌破0.48时移出观察。"
         else:
             action = AlertAction.HOLD
             urgency = AlertUrgency.LOW
             change = 0.0
-            reasons = ["No material threshold has been crossed."]
-            invalidation = "Re-evaluate after a new event, material price move or model update."
+            reasons = ["未触发任何关键阈值。"]
+            invalidation = "出现新事件、显著价格变动或模型更新后重新评估。"
 
         return StockAlert(
             symbol=forecast.symbol,

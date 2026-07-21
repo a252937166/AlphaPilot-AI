@@ -40,11 +40,11 @@ def test_research_mode_rejects_execution() -> None:
     settings = Settings()
     decision = TradeGuardrails(settings).evaluate(_proposal(TradingMode.RESEARCH), _portfolio())
     assert decision.approved is False
-    assert any("does not permit" in reason for reason in decision.reasons)
+    assert any("不允许执行订单" in reason for reason in decision.reasons)
 
 
 def test_paper_mode_still_needs_gateway_flag() -> None:
     settings = Settings(futu_enable_trade=False)
     decision = TradeGuardrails(settings).evaluate(_proposal(TradingMode.PAPER_AUTO), _portfolio())
     assert decision.approved is False
-    assert any("gateway is disabled" in reason for reason in decision.reasons)
+    assert any("交易网关已被配置禁用" in reason for reason in decision.reasons)

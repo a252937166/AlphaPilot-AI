@@ -4,22 +4,49 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from alphapilot.api.routes import health, market, scenarios, screens, stocks, trades
+from alphapilot.api.routes import (
+    alerts,
+    dashboard,
+    disclosures,
+    futu,
+    health,
+    jobs,
+    market,
+    reports,
+    scenarios,
+    screens,
+    sectors,
+    stocks,
+    trades,
+    watchlist,
+)
 from alphapilot.core.config import get_settings
 from alphapilot.core.logging import configure_logging
+from alphapilot.db.engine import get_session, init_db
+from alphapilot.futu.client import get_futu_client
+from alphapilot.jobs.scheduler import shutdown_scheduler, start_scheduler
+from alphapilot.services.watchlist import seed_default_watchlist
 
 
 @asynccontextmanager
 async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     settings = get_settings()
     configure_logging(settings.log_level)
-    yield
+    init_db(settings)
+    with get_session() as session:
+        seed_default_watchlist(session)
+    start_scheduler(settings)
+    try:
+        yield
+    finally:
+        shutdown_scheduler()
+        get_futu_client().close()
 
 
 settings = get_settings()
 app = FastAPI(
     title="AlphaPilot AI",
-    version="0.1.0",
+    version="0.2.0",
     description=(
         "Probabilistic stock research and trading-assistance foundation. "
         "Live order execution is disabled in the MVP."
@@ -35,8 +62,16 @@ app.add_middleware(
 )
 
 app.include_router(health.router)
+app.include_router(jobs.router)
+app.include_router(dashboard.router)
 app.include_router(stocks.router)
 app.include_router(screens.router)
 app.include_router(market.router)
+app.include_router(sectors.router)
+app.include_router(watchlist.router)
+app.include_router(alerts.router)
+app.include_router(disclosures.router)
+app.include_router(reports.router)
 app.include_router(scenarios.router)
 app.include_router(trades.router)
+app.include_router(futu.router)

@@ -1,0 +1,125 @@
+from __future__ import annotations
+
+from datetime import UTC, date, datetime, timedelta
+from typing import Any
+
+from sqlalchemy import select
+from sqlalchemy.orm import Session
+
+from alphapilot.cninfo.client import CninfoClient, CninfoError
+from alphapilot.core.timeutil import iso_utc
+from alphapilot.db.models import Disclosure, Security
+from alphapilot.services.watchlist import normalize_symbol
+
+
+def sync_disclosures(
+    session: Session,
+    client: CninfoClient,
+    symbol: str,
+    *,
+    days: int = 45,
+) -> dict[str, Any]:
+    """Pull recent announcements from cninfo and upsert them by (symbol, url)."""
+    code = normalize_symbol(symbol)
+    end = date.today()
+    start = end - timedelta(days=days)
+    fetched = client.announcements(code, start, end)
+    existing_urls = set(
+        session.scalars(select(Disclosure.url).where(Disclosure.symbol == code))
+    )
+    inserted = 0
+    for item in fetched:
+        if item["url"] in existing_urls:
+            continue
+        session.add(
+            Disclosure(
+                symbol=code,
+                title=item["title"],
+                url=item["url"],
+                category=item.get("category"),
+                published_at=item.get("published_at"),
+                source="cninfo",
+            )
+        )
+        inserted += 1
+    return {"symbol": code, "fetched": len(fetched), "inserted": inserted}
+
+
+def list_disclosures(
+    session: Session,
+    symbol: str | None = None,
+    *,
+    limit: int = 50,
+) -> list[dict[str, Any]]:
+    query = select(Disclosure).order_by(Disclosure.published_at.desc()).limit(limit)
+    if symbol:
+        query = query.where(Disclosure.symbol == normalize_symbol(symbol))
+    rows = session.scalars(query).all()
+    return [
+        {
+            "id": row.id,
+            "symbol": row.symbol,
+            "title": row.title,
+            "url": row.url,
+            "category": row.category,
+            "published_at": iso_utc(row.published_at),
+            "source": row.source,
+        }
+        for row in rows
+    ]
+
+
+def enrich_security(
+    session: Session,
+    client: CninfoClient,
+    symbol: str,
+) -> Security:
+    """Refresh the security-master row from the cninfo company profile."""
+    code = normalize_symbol(symbol)
+    profile = client.stock_profile(code)
+    security = session.get(Security, code)
+    if security is None:
+        security = Security(symbol=code)
+        session.add(security)
+    security.name = profile.get("name") or security.name
+    security.board = profile.get("board") or security.board
+    security.listed_date = profile.get("listed_date") or security.listed_date
+    security.status = profile.get("status") or security.status
+    security.profile = profile.get("raw") or {}
+    security.updated_at = datetime.now(UTC)
+    return security
+
+
+def get_security(session: Session, symbol: str) -> dict[str, Any] | None:
+    row = session.get(Security, normalize_symbol(symbol))
+    if row is None:
+        return None
+    return {
+        "symbol": row.symbol,
+        "name": row.name,
+        "board": row.board,
+        "industry": row.industry,
+        "listed_date": row.listed_date,
+        "status": row.status,
+        "updated_at": iso_utc(row.updated_at),
+    }
+
+
+def safe_sync_symbol(
+    session: Session,
+    client: CninfoClient,
+    symbol: str,
+) -> dict[str, Any]:
+    """Best-effort profile + announcement sync; never raises to the caller."""
+    result: dict[str, Any] = {"symbol": normalize_symbol(symbol)}
+    try:
+        enrich_security(session, client, symbol)
+        result["profile"] = "ok"
+    except CninfoError as exc:
+        result["profile"] = f"error: {exc}"
+    try:
+        sync = sync_disclosures(session, client, symbol)
+        result["disclosures"] = sync
+    except CninfoError as exc:
+        result["disclosures"] = f"error: {exc}"
+    return result

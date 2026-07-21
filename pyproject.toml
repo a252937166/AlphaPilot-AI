@@ -16,10 +16,12 @@ dependencies = [
   "pydantic>=2.11,<3",
   "pydantic-settings>=2.10,<3",
   "pandas>=2.2,<3",
-  "numpy>=1.26,<3",
+  "numpy>=1.26,<2.5",
   "httpx>=0.28,<1",
   "PyYAML>=6.0,<7",
   "tenacity>=9.0,<10",
+  "SQLAlchemy>=2.0,<3",
+  "APScheduler>=3.10,<4",
 ]
 
 [project.optional-dependencies]
@@ -35,7 +37,6 @@ ml = [
   "lightgbm>=4.6,<5",
 ]
 db = [
-  "SQLAlchemy>=2.0,<3",
   "psycopg[binary]>=3.2,<4",
   "redis>=6.0,<7",
 ]
@@ -65,7 +66,8 @@ src = ["src", "tests"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "B", "UP", "SIM", "RUF"]
-ignore = ["B008"]
+# B008: FastAPI Depends() in defaults; RUF001-003: CJK punctuation in UI strings.
+ignore = ["B008", "RUF001", "RUF002", "RUF003"]
 
 [tool.mypy]
 python_version = "3.11"
