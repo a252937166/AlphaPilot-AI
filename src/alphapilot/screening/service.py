@@ -19,12 +19,16 @@ class ScreeningService:
         self.engine = engine
 
     def run(self, request: ScreeningRequest) -> ScreeningResponse:
+        filter_error = request.custom_filter_error()
+        if filter_error is not None:
+            raise ValueError(filter_error)
         end = date.today()
         start = end - timedelta(days=int(request.lookback_days * 1.7))
         raw_candidates: list[ScreeningCandidate] = []
         failed: dict[str, str] = {}
+        symbols = request.symbols or []
 
-        for symbol in request.symbols:
+        for symbol in symbols:
             try:
                 bars = self.provider.get_daily_bars(symbol, start, end)
                 forecast = self.engine.forecast(symbol, bars, self.provider.name)
@@ -38,9 +42,9 @@ class ScreeningService:
                 score = 0.60 * trend_score + 0.25 * risk_score + 0.15 * quality_placeholder
 
                 reasons = [
-                    f"20-day upward probability is {h20.p_up:.1%}.",
-                    f"20-day expected return is {h20.expected_return:.2%}.",
-                    f"20-day annualized realized volatility is {volatility:.1%}.",
+                    f"20 日上涨概率为 {h20.p_up:.1%}。",
+                    f"20 日预期收益为 {h20.expected_return:.2%}。",
+                    f"20 日年化实现波动率为 {volatility:.1%}。",
                 ]
                 raw_candidates.append(
                     ScreeningCandidate(
@@ -58,8 +62,8 @@ class ScreeningService:
                         warnings=forecast.warnings,
                     )
                 )
-            except Exception as exc:  # one symbol must not abort a market-wide screen
-                failed[symbol] = str(exc)
+            except Exception:  # one symbol must not abort a market-wide screen
+                failed[symbol] = "该标的选股计算失败，请检查股票代码和行情数据。"
 
         ordered = sorted(raw_candidates, key=lambda item: item.score, reverse=True)[: request.top_n]
         candidates = [
@@ -69,7 +73,7 @@ class ScreeningService:
             generated_at=datetime.now(UTC),
             provider=self.provider.name,
             model_version=self.engine.model_version,
-            requested=len(request.symbols),
+            requested=len(symbols),
             succeeded=len(raw_candidates),
             failed=failed,
             candidates=candidates,
