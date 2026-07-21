@@ -7,6 +7,7 @@ from typing import TypedDict
 import pandas as pd
 from sqlalchemy import select
 from sqlalchemy.orm import Session
+from sqlalchemy.sql import func
 
 from alphapilot.core.config import Settings
 from alphapilot.data.baostock_provider import BaoStockMarketDataProvider
@@ -65,6 +66,20 @@ def save_bars(session: Session, symbol: str, frame: pd.DataFrame, source: str) -
         )
         inserted += 1
     return inserted
+
+
+def latest_trade_date(session: Session) -> date:
+    """Return the newest cached benchmark date or the latest weekday fallback."""
+
+    cached = session.scalar(
+        select(func.max(DailyBar.trade_date)).where(DailyBar.symbol == "SH.000001")
+    )
+    if isinstance(cached, date):
+        return cached
+    candidate = date.today()
+    while candidate.weekday() >= 5:
+        candidate -= timedelta(days=1)
+    return candidate
 
 
 def load_bars(session: Session, symbol: str, start: date, end: date) -> pd.DataFrame:

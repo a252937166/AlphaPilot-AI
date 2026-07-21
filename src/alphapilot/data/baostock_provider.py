@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import date
 from threading import Lock
+from time import sleep
 from typing import Any
 
 import pandas as pd
@@ -46,10 +47,16 @@ class BaoStockMarketDataProvider:
         global _logged_in
         if _logged_in:
             return
-        result = bs.login()
-        if result.error_code != "0":
-            raise DataProviderError(f"BaoStock login failed: {result.error_msg}")
-        _logged_in = True
+        last_error = "unknown error"
+        for attempt in range(3):
+            result = bs.login()
+            if result.error_code == "0":
+                _logged_in = True
+                return
+            last_error = str(result.error_msg)
+            if attempt < 2:
+                sleep(float(attempt + 1))
+        raise DataProviderError(f"BaoStock login failed after 3 attempts: {last_error}")
 
     def get_daily_bars(self, symbol: str, start: date, end: date) -> pd.DataFrame:
         bs = self._module()
@@ -84,6 +91,42 @@ class BaoStockMarketDataProvider:
         if result.empty:
             raise DataProviderError(f"BaoStock returned no valid daily bars for {code}")
         return result
+
+    def get_stock_universe(self, trade_date: date) -> pd.DataFrame:
+        """Return BaoStock's active security list for an actual trading day."""
+
+        bs = self._module()
+        with _baostock_lock:
+            self._ensure_login(bs)
+            rs = bs.query_all_stock(day=trade_date.isoformat())
+            if rs.error_code != "0":
+                raise DataProviderError(f"BaoStock universe query failed: {rs.error_msg}")
+            rows: list[list[str]] = []
+            while rs.next():
+                rows.append(rs.get_row_data())
+            columns = [str(field) for field in rs.fields]
+        if not rows:
+            raise DataProviderError(
+                f"BaoStock returned no securities for {trade_date.isoformat()}"
+            )
+        return pd.DataFrame(rows, columns=columns)
+
+    def get_stock_industries(self) -> pd.DataFrame:
+        """Return the current CSRC industry mapping through the shared connection."""
+
+        bs = self._module()
+        with _baostock_lock:
+            self._ensure_login(bs)
+            rs = bs.query_stock_industry()
+            if rs.error_code != "0":
+                raise DataProviderError(f"BaoStock industry query failed: {rs.error_msg}")
+            rows: list[list[str]] = []
+            while rs.next():
+                rows.append(rs.get_row_data())
+            columns = [str(field) for field in rs.fields]
+        if not rows:
+            raise DataProviderError("BaoStock returned no stock industries")
+        return pd.DataFrame(rows, columns=columns)
 
     def get_snapshot(self, symbols: list[str]) -> pd.DataFrame:
         raise DataProviderError(
