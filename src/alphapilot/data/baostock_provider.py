@@ -109,9 +109,7 @@ class BaoStockMarketDataProvider:
                 rows.append(rs.get_row_data())
             columns = [str(field) for field in rs.fields]
         if not rows:
-            raise DataProviderError(
-                f"BaoStock returned no securities for {trade_date.isoformat()}"
-            )
+            raise DataProviderError(f"BaoStock returned no securities for {trade_date.isoformat()}")
         return pd.DataFrame(rows, columns=columns)
 
     def get_stock_industries(self) -> pd.DataFrame:
@@ -129,6 +127,46 @@ class BaoStockMarketDataProvider:
             columns = [str(field) for field in rs.fields]
         if not rows:
             raise DataProviderError("BaoStock returned no stock industries")
+        return pd.DataFrame(rows, columns=columns)
+
+    def get_dividend_data(self, symbol: str, year: int) -> pd.DataFrame:
+        """Return one report year's dividend records, including empty results."""
+
+        bs = self._module()
+        code = self._code(symbol)
+        with _baostock_lock:
+            self._ensure_login(bs)
+            rs = bs.query_dividend_data(code=code, year=str(year), yearType="report")
+            if rs.error_code != "0":
+                raise DataProviderError(
+                    f"BaoStock dividend query failed for {code}/{year}: {rs.error_msg}"
+                )
+            rows: list[list[str]] = []
+            while rs.next():
+                rows.append(rs.get_row_data())
+            columns = [str(field) for field in rs.fields]
+        return pd.DataFrame(rows, columns=columns)
+
+    def get_forecast_reports(self, symbol: str, start: date, end: date) -> pd.DataFrame:
+        """Return BaoStock earnings-preview publications for a bounded period."""
+
+        bs = self._module()
+        code = self._code(symbol)
+        with _baostock_lock:
+            self._ensure_login(bs)
+            rs = bs.query_forecast_report(
+                code=code,
+                start_date=start.isoformat(),
+                end_date=end.isoformat(),
+            )
+            if rs.error_code != "0":
+                raise DataProviderError(
+                    f"BaoStock forecast query failed for {code}: {rs.error_msg}"
+                )
+            rows: list[list[str]] = []
+            while rs.next():
+                rows.append(rs.get_row_data())
+            columns = [str(field) for field in rs.fields]
         return pd.DataFrame(rows, columns=columns)
 
     def get_snapshot(self, symbols: list[str]) -> pd.DataFrame:

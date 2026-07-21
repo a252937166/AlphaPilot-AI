@@ -250,6 +250,30 @@ class SectorFlowDaily(Base):
     source: Mapped[str] = mapped_column(String(16))
 
 
+class CalendarEvent(Base):
+    """Point-in-time stock event used by the product calendar and future backtests."""
+
+    __tablename__ = "calendar_events"
+    __table_args__ = (
+        UniqueConstraint(
+            "symbol",
+            "event_type",
+            "event_date",
+            "title",
+            name="uq_calendar",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    symbol: Mapped[str] = mapped_column(String(24), index=True)
+    event_type: Mapped[str] = mapped_column(String(24))
+    event_date: Mapped[date] = mapped_column(Date, index=True)
+    title: Mapped[str] = mapped_column(Text)
+    payload: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    source: Mapped[str] = mapped_column(String(24))
+    available_time: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
 class DailyReport(Base):
     __tablename__ = "daily_reports"
 
