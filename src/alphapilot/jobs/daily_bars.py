@@ -3,13 +3,14 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass, field
 from datetime import date, timedelta
-from time import monotonic
+from time import monotonic, sleep
 from typing import Any
 from zoneinfo import ZoneInfo
 
 import pandas as pd
 from apscheduler.triggers.cron import CronTrigger
 from sqlalchemy import func, select
+from sqlalchemy.exc import OperationalError
 
 from alphapilot.data.baostock_provider import BaoStockMarketDataProvider
 from alphapilot.data.base import (
@@ -17,6 +18,7 @@ from alphapilot.data.base import (
     EmptyDailyBarsError,
     MarketDataProvider,
 )
+from alphapilot.data.provenance import AUDITED_DAILY_BAR_SOURCES
 from alphapilot.data.sina_provider import SinaDailyBarProvider
 from alphapilot.db.engine import get_session
 from alphapilot.db.models import DailyBar, Security
@@ -24,6 +26,8 @@ from alphapilot.jobs.registry import JobExecutionError, JobSpec, register
 from alphapilot.services.market_data import latest_trade_date, save_bars
 
 logger = logging.getLogger(__name__)
+
+_SQLITE_LOCK_RETRY_DELAYS = (0.5, 1.5, 3.0)
 
 
 @dataclass(slots=True)
@@ -108,6 +112,43 @@ def _provider_for(
     return sina if _is_bse(symbol, board) else baostock
 
 
+def _is_sqlite_write_lock(exc: Exception) -> bool:
+    return isinstance(exc, OperationalError) and "database is locked" in str(exc).lower()
+
+
+def _save_bars_with_lock_retry(
+    symbol: str,
+    frame: pd.DataFrame,
+    source: str,
+) -> int:
+    """Retry SQLite writes in fresh transactions without refetching market data."""
+
+    retry_count = 0
+    while True:
+        try:
+            # A WAL read transaction can fail its write upgrade with
+            # SQLITE_BUSY_SNAPSHOT. Retrying a savepoint in that same Session
+            # cannot refresh the snapshot, so every attempt gets a short,
+            # independently committed write transaction.
+            with get_session() as write_session:
+                return save_bars(write_session, symbol, frame, source)
+        except OperationalError as exc:
+            if not _is_sqlite_write_lock(exc) or retry_count >= len(
+                _SQLITE_LOCK_RETRY_DELAYS
+            ):
+                raise
+            delay = _SQLITE_LOCK_RETRY_DELAYS[retry_count]
+            retry_count += 1
+            logger.warning(
+                "daily bars SQLite lock symbol=%s retry=%s/%s delay=%ss",
+                symbol,
+                retry_count,
+                len(_SQLITE_LOCK_RETRY_DELAYS),
+                delay,
+            )
+            sleep(delay)
+
+
 def _probe_provider_trade_window(
     provider: MarketDataProvider, benchmark_symbol: str, requested_end: date
 ) -> _ProviderTradeWindow:
@@ -137,7 +178,7 @@ def _probe_provider_trade_window(
 
 
 def sync_daily_bars(lookback_days: int = 450, batch_size: int = 200) -> dict[str, Any]:
-    """Incrementally sync every listed A-share with bounded, committed batches."""
+    """Incrementally sync every listed A-share with short committed writes."""
 
     if lookback_days <= 0:
         raise ValueError("lookback_days must be positive")
@@ -149,6 +190,9 @@ def sync_daily_bars(lookback_days: int = 450, batch_size: int = 200) -> dict[str
     sina = SinaDailyBarProvider()
     consecutive_failures = 0
 
+    # Take one short metadata snapshot, then release it before any provider I/O
+    # or writes. This prevents a long-lived WAL read snapshot from poisoning a
+    # later write upgrade after another scheduler job commits.
     with get_session() as session:
         securities = session.execute(
             select(Security.symbol, Security.board).order_by(Security.symbol)
@@ -156,75 +200,78 @@ def sync_daily_bars(lookback_days: int = 450, batch_size: int = 200) -> dict[str
         latest_by_symbol = {
             str(symbol): trade_date
             for symbol, trade_date in session.execute(
-                select(DailyBar.symbol, func.max(DailyBar.trade_date)).group_by(
-                    DailyBar.symbol
-                )
+                select(DailyBar.symbol, func.max(DailyBar.trade_date))
+                .where(DailyBar.source.in_(AUDITED_DAILY_BAR_SOURCES))
+                .group_by(DailyBar.symbol)
             ).all()
             if isinstance(trade_date, date)
         }
         end = latest_trade_date(session)
-        provider_windows = {
-            baostock.name: _probe_provider_trade_window(baostock, "SH.000001", end),
-            sina.name: _probe_provider_trade_window(sina, "920000", end),
-        }
-        provider_trade_dates = {
-            source: window.latest for source, window in provider_windows.items()
-        }
-        progress = _SyncProgress(
-            started=started,
-            total=len(securities),
-            latest_trade_date=end,
-            provider_trade_dates=provider_trade_dates,
-            provider_probe_starts={
-                source: window.probed_from
-                for source, window in provider_windows.items()
-            },
+
+    provider_windows = {
+        baostock.name: _probe_provider_trade_window(baostock, "SH.000001", end),
+        sina.name: _probe_provider_trade_window(sina, "920000", end),
+    }
+    provider_trade_dates = {
+        source: window.latest for source, window in provider_windows.items()
+    }
+    progress = _SyncProgress(
+        started=started,
+        total=len(securities),
+        latest_trade_date=end,
+        provider_trade_dates=provider_trade_dates,
+        provider_probe_starts={
+            source: window.probed_from for source, window in provider_windows.items()
+        },
+    )
+
+    for processed, (symbol, board) in enumerate(securities, start=1):
+        progress.processed = processed
+        provider = _provider_for(symbol, board, baostock, sina)
+        provider_window = provider_windows[provider.name]
+        provider_end = provider_window.latest
+        last_date = latest_by_symbol.get(symbol)
+        start = (
+            last_date + timedelta(days=1)
+            if last_date is not None
+            else provider_end - timedelta(days=lookback_days)
         )
-
-        for processed, (symbol, board) in enumerate(securities, start=1):
-            progress.processed = processed
-            provider = _provider_for(symbol, board, baostock, sina)
-            provider_window = provider_windows[provider.name]
-            provider_end = provider_window.latest
-            last_date = latest_by_symbol.get(symbol)
-            start = (
-                last_date + timedelta(days=1)
-                if last_date is not None
-                else provider_end - timedelta(days=lookback_days)
-            )
-            if start > provider_end:
-                progress.skipped += 1
-                consecutive_failures = 0
-            else:
-                failure: Exception | None = None
-                try:
-                    frame = provider.get_daily_bars(symbol, start, provider_end)
-                    if frame.empty:
-                        raise EmptyDailyBarsError(
-                            f"{provider.name} returned no daily bars for {symbol}"
-                        )
-                    with session.begin_nested():
-                        inserted = save_bars(session, symbol, frame, provider.name)
-                    progress.rows_inserted += inserted
-                    progress.done += 1
-                    progress.source_counts[provider.name] = (
-                        progress.source_counts.get(provider.name, 0) + 1
+        if start > provider_end:
+            progress.skipped += 1
+            consecutive_failures = 0
+        else:
+            failure: Exception | None = None
+            sqlite_lock_failure = False
+            try:
+                frame = provider.get_daily_bars(symbol, start, provider_end)
+                if frame.empty:
+                    raise EmptyDailyBarsError(
+                        f"{provider.name} returned no daily bars for {symbol}"
                     )
+                inserted = _save_bars_with_lock_retry(symbol, frame, provider.name)
+                progress.rows_inserted += inserted
+                progress.done += 1
+                progress.source_counts[provider.name] = (
+                    progress.source_counts.get(provider.name, 0) + 1
+                )
+                consecutive_failures = 0
+            except EmptyDailyBarsError as exc:
+                if last_date is not None and provider_window.contains_only_latest(start):
+                    progress.not_published += 1
                     consecutive_failures = 0
-                except EmptyDailyBarsError as exc:
-                    if last_date is not None and provider_window.contains_only_latest(start):
-                        progress.not_published += 1
-                        consecutive_failures = 0
-                    else:
-                        failure = exc
-                except Exception as exc:
+                else:
                     failure = exc
+            except Exception as exc:
+                failure = exc
+                sqlite_lock_failure = _is_sqlite_write_lock(exc)
 
-                if failure is not None:
-                    progress.record_failure(symbol, failure)
+            if failure is not None:
+                progress.record_failure(symbol, failure)
+                if sqlite_lock_failure:
+                    consecutive_failures = 0
+                else:
                     consecutive_failures += 1
                     if consecutive_failures >= 20:
-                        session.commit()
                         raise JobExecutionError(
                             "daily bar sync stopped after 20 consecutive failures; "
                             f"processed={processed}, "
@@ -233,18 +280,14 @@ def sync_daily_bars(lookback_days: int = 450, batch_size: int = 200) -> dict[str
                             stats=progress.as_dict(),
                         ) from failure
 
-            if processed % batch_size == 0:
-                session.commit()
-                session.expunge_all()
-                logger.info(
-                    "daily bar sync progress processed=%s total=%s rows=%s failed=%s",
-                    processed,
-                    len(securities),
-                    progress.rows_inserted,
-                    progress.failed_count,
-                )
-
-        session.commit()
+        if processed % batch_size == 0:
+            logger.info(
+                "daily bar sync progress processed=%s total=%s rows=%s failed=%s",
+                processed,
+                len(securities),
+                progress.rows_inserted,
+                progress.failed_count,
+            )
 
     return progress.as_dict()
 

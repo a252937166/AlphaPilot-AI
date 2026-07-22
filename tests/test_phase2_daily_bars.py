@@ -9,9 +9,12 @@ from typing import Any
 import pandas as pd
 import pytest
 from sqlalchemy import create_engine, func, select
+from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session
 
+from alphapilot.core.config import Settings
 from alphapilot.data.base import DataProviderError, EmptyDailyBarsError
+from alphapilot.db.engine import _build_engine
 from alphapilot.db.models import Base, DailyBar, Security
 from alphapilot.jobs import daily_bars
 from alphapilot.jobs.registry import JOBS, JobExecutionError
@@ -49,6 +52,146 @@ def _local_session(engine: Any) -> Any:
     return local_session
 
 
+def _locked_error() -> OperationalError:
+    return OperationalError(
+        "INSERT INTO daily_bars (...) VALUES (...)",
+        {},
+        RuntimeError("database is locked"),
+    )
+
+
+def test_sqlite_engine_waits_for_concurrent_writers(tmp_path: Path) -> None:
+    engine = _build_engine(
+        Settings(database_url=f"sqlite:///{tmp_path / 'busy-timeout.db'}")
+    )
+    try:
+        with engine.connect() as connection:
+            assert connection.exec_driver_sql("PRAGMA busy_timeout").scalar_one() == 15000
+    finally:
+        engine.dispose()
+
+
+def test_sync_daily_bars_retries_sqlite_lock_without_refetching_or_failure(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    engine = create_engine(f"sqlite:///{tmp_path / 'lock-retry.db'}")
+    Base.metadata.create_all(engine)
+    local_session = _local_session(engine)
+    opened_sessions: list[Session] = []
+
+    @contextmanager
+    def tracked_session() -> Iterator[Session]:
+        with local_session() as session:
+            opened_sessions.append(session)
+            yield session
+
+    target = date(2026, 7, 22)
+    with local_session() as session:
+        session.add(Security(symbol="600000", board="主板"))
+
+    provider_calls = 0
+    save_calls = 0
+    delays: list[float] = []
+
+    class Provider:
+        name = "baostock"
+
+        def get_daily_bars(self, _symbol: str, _start: date, finish: date) -> pd.DataFrame:
+            nonlocal provider_calls
+            provider_calls += 1
+            return _frame(finish, 10)
+
+    real_save_bars = daily_bars.save_bars
+
+    def locked_once(
+        session: Session, symbol: str, frame: pd.DataFrame, source: str
+    ) -> int:
+        nonlocal save_calls
+        save_calls += 1
+        if save_calls == 1:
+            raise _locked_error()
+        return real_save_bars(session, symbol, frame, source)
+
+    monkeypatch.setattr(daily_bars, "get_session", tracked_session)
+    monkeypatch.setattr(daily_bars, "latest_trade_date", lambda _session: target)
+    monkeypatch.setattr(
+        daily_bars,
+        "_probe_provider_trade_window",
+        lambda _provider, _benchmark, requested_end: daily_bars._ProviderTradeWindow(
+            probed_from=requested_end - timedelta(days=10),
+            latest=requested_end,
+            available_dates=frozenset({requested_end}),
+        ),
+    )
+    monkeypatch.setattr(daily_bars, "BaoStockMarketDataProvider", Provider)
+    monkeypatch.setattr(daily_bars, "save_bars", locked_once)
+    monkeypatch.setattr(daily_bars, "sleep", delays.append)
+
+    stats = daily_bars.sync_daily_bars(lookback_days=10, batch_size=1)
+
+    assert stats["done"] == 1
+    assert stats["failed_count"] == 0
+    assert stats["rows_inserted"] == 1
+    assert provider_calls == 1
+    assert save_calls == 2
+    assert delays == [0.5]
+    assert len(opened_sessions) == 3
+    assert len({id(session) for session in opened_sessions}) == 3
+
+
+def test_sqlite_lock_failures_do_not_trip_data_provider_circuit_breaker(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    engine = create_engine(f"sqlite:///{tmp_path / 'lock-no-breaker.db'}")
+    Base.metadata.create_all(engine)
+    local_session = _local_session(engine)
+    target = date(2026, 7, 22)
+    with local_session() as session:
+        session.add_all(
+            [Security(symbol=f"{600000 + index:06d}", board="主板") for index in range(39)]
+        )
+
+    class Provider:
+        name = "baostock"
+
+        def get_daily_bars(self, symbol: str, _start: date, finish: date) -> pd.DataFrame:
+            if symbol != "600019":
+                raise DataProviderError(f"offline: {symbol}")
+            return _frame(finish, 10)
+
+    save_calls = 0
+    delays: list[float] = []
+
+    def permanently_locked(*_args: object) -> int:
+        nonlocal save_calls
+        save_calls += 1
+        raise _locked_error()
+
+    monkeypatch.setattr(daily_bars, "get_session", local_session)
+    monkeypatch.setattr(daily_bars, "latest_trade_date", lambda _session: target)
+    monkeypatch.setattr(
+        daily_bars,
+        "_probe_provider_trade_window",
+        lambda _provider, _benchmark, requested_end: daily_bars._ProviderTradeWindow(
+            probed_from=requested_end - timedelta(days=10),
+            latest=requested_end,
+            available_dates=frozenset({requested_end}),
+        ),
+    )
+    monkeypatch.setattr(daily_bars, "BaoStockMarketDataProvider", Provider)
+    monkeypatch.setattr(daily_bars, "save_bars", permanently_locked)
+    monkeypatch.setattr(daily_bars, "sleep", delays.append)
+
+    stats = daily_bars.sync_daily_bars(lookback_days=10, batch_size=5)
+
+    assert stats["processed"] == 39
+    assert stats["failed_count"] == 39
+    assert stats["done"] == 0
+    assert "database is locked" in stats["failed"][19]["error"]
+    assert save_calls == 4
+    assert delays == [0.5, 1.5, 3.0]
+
+
 def test_sync_daily_bars_routes_bse_and_resumes(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
@@ -72,7 +215,18 @@ def test_sync_daily_bars_routes_bse_and_resumes(
                     close=10.5,
                     volume=1000,
                     amount=10000,
-                    source="seed",
+                    source="baostock",
+                ),
+                DailyBar(
+                    symbol="600001",
+                    trade_date=baostock_end,
+                    open=1,
+                    high=1,
+                    low=1,
+                    close=1,
+                    volume=1,
+                    amount=1,
+                    source="mock",
                 ),
             ]
         )
@@ -134,6 +288,8 @@ def test_sync_daily_bars_routes_bse_and_resumes(
             select(DailyBar).where(DailyBar.symbol == "600001")
         )
         assert no_trade is not None
+        assert no_trade.source == "baostock"
+        assert no_trade.close == pytest.approx(10.5)
         assert no_trade.volume == 0
         assert no_trade.amount == 0
 
@@ -202,7 +358,7 @@ def test_latest_trade_day_empty_is_not_published_across_weekend(
                     close=10.5,
                     volume=1000,
                     amount=10000,
-                    source="seed",
+                    source="baostock",
                 )
             )
 
@@ -259,7 +415,7 @@ def test_latest_trade_day_transport_error_remains_a_failure(
                 close=10.5,
                 volume=1000,
                 amount=10000,
-                source="seed",
+                source="baostock",
             )
         )
 

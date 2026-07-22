@@ -31,6 +31,10 @@ def _build_engine(settings: Settings) -> Engine:
         @event.listens_for(engine, "connect")
         def _set_sqlite_pragma(dbapi_connection: object, _record: object) -> None:
             cursor = dbapi_connection.cursor()  # type: ignore[attr-defined]
+            # WAL lets readers coexist with a writer, but SQLite still serializes
+            # concurrent writers. Give scheduler/API transactions time to finish
+            # beyond the driver's short default before returning SQLITE_BUSY.
+            cursor.execute("PRAGMA busy_timeout=15000")
             cursor.execute("PRAGMA journal_mode=WAL")
             cursor.execute("PRAGMA foreign_keys=ON")
             cursor.close()
