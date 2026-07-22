@@ -17,7 +17,14 @@ from sqlalchemy.orm import Session
 from alphapilot.api.dependencies import db_session_dependency, futu_client_dependency
 from alphapilot.api.routes import trades
 from alphapilot.core.config import Settings
-from alphapilot.db.models import Base, BrokerOrder, Security, TradeProposalRecord
+from alphapilot.db.models import (
+    AlertRecord,
+    Base,
+    BrokerOrder,
+    ForecastSnapshot,
+    Security,
+    TradeProposalRecord,
+)
 from alphapilot.futu.client import FutuClient, FutuSDKError, FutuUnavailableError
 from alphapilot.services import executor
 from alphapilot.services.runtime_flags import set_trading_halted
@@ -189,6 +196,47 @@ def _settings(**overrides: Any) -> Settings:
     return Settings(**values)
 
 
+def _trade_source(
+    session: Session,
+    *,
+    source_key: str,
+    side: str = "BUY",
+) -> AlertRecord:
+    source_created_at = datetime.now(UTC)
+    source_as_of = source_created_at
+    model_version = f"fixture-{source_key}"[:64]
+    action = "BUY_CANDIDATE" if side == "BUY" else "REDUCE"
+    suggested_notional = 1_000_000_000.0 if side == "BUY" else -1_000_000_000.0
+    source = AlertRecord(
+        symbol="600000",
+        action=action,
+        urgency="MEDIUM",
+        confidence=0.9,
+        suggested_position_change=0.1 if side == "BUY" else -0.1,
+        target_low=9.0,
+        target_high=11.0,
+        suggested_notional=suggested_notional,
+        reasons=["执行器测试的可审计方向提醒"],
+        invalidation="测试失效条件",
+        model_version=model_version,
+        as_of=source_as_of,
+        expires_at=source_created_at + timedelta(days=2),
+        created_at=source_created_at,
+    )
+    snapshot = ForecastSnapshot(
+        symbol="600000",
+        as_of=source_as_of,
+        provider="baostock",
+        model_version=model_version,
+        horizons={},
+        features={},
+        created_at=source_created_at,
+    )
+    session.add_all([snapshot, source])
+    session.flush()
+    return source
+
+
 def _record(
     session: Session,
     *,
@@ -200,6 +248,8 @@ def _record(
     mode: str = "confirm_to_trade",
     as_of: datetime | None = None,
 ) -> TradeProposalRecord:
+    source = _trade_source(session, source_key=proposal_id, side=side)
+    model_version = str(source.model_version)
     payload = {
         "proposal_id": proposal_id,
         "idempotency_key": f"key-{proposal_id}",
@@ -209,11 +259,13 @@ def _record(
         "estimated_notional": estimated_notional,
         "confidence": 0.9,
         "market_data_as_of": (as_of or datetime.now(UTC)).isoformat(),
-        "model_version": "fixture-v1.0.0",
+        "model_version": model_version,
         "mode": mode,
+        "source_alert_id": source.id,
     }
     record = TradeProposalRecord(
         proposal_id=proposal_id,
+        idempotency_key=f"key-{proposal_id}",
         symbol="600000",
         side=side,
         quantity=quantity,
@@ -223,6 +275,7 @@ def _record(
         status=status,
         proposal=payload,
         risk_decision={"approved": True},
+        source_alert_id=source.id,
     )
     session.add(record)
     session.commit()
@@ -348,6 +401,63 @@ def test_execute_rejects_invalid_state_or_live_mode_before_order(
         executor.execute_proposal(session, _as_futu(client), record)
 
     assert client.place_count == 0
+
+
+@pytest.mark.parametrize("case", ["expired", "mock"])
+def test_execute_rechecks_alert_expiry_and_provenance_before_any_broker_call(
+    monkeypatch: pytest.MonkeyPatch,
+    session: Session,
+    case: str,
+) -> None:
+    monkeypatch.setattr(executor, "get_settings", lambda: _settings())
+    record = _record(session, proposal_id=f"source-{case}")
+    assert record.source_alert_id is not None
+    source = session.get(AlertRecord, record.source_alert_id)
+    assert source is not None
+    if case == "expired":
+        source.expires_at = datetime.now(UTC) - timedelta(seconds=1)
+    else:
+        snapshot = session.scalar(
+            select(ForecastSnapshot).where(
+                ForecastSnapshot.symbol == source.symbol,
+                ForecastSnapshot.as_of == source.as_of,
+                ForecastSnapshot.model_version == source.model_version,
+            )
+        )
+        assert snapshot is not None
+        snapshot.provider = "mock"
+    session.commit()
+    client = StubExecutionClient()
+
+    with pytest.raises(executor.ExecutionConflict, match="来源提醒校验未通过"):
+        executor.execute_proposal(session, _as_futu(client), record)
+
+    assert client.calls == []
+
+
+def test_execute_rechecks_live_notional_against_source_before_order_mutation(
+    monkeypatch: pytest.MonkeyPatch,
+    session: Session,
+) -> None:
+    monkeypatch.setattr(executor, "get_settings", lambda: _settings())
+    record = _record(session, proposal_id="source-live-notional", estimated_notional=1_000)
+    assert record.source_alert_id is not None
+    source = session.get(AlertRecord, record.source_alert_id)
+    assert source is not None
+    source.suggested_notional = 1_000
+    session.commit()
+    client = StubExecutionClient(last=20.0)
+
+    with pytest.raises(executor.ExecutionConflict, match="执行前来源提醒校验未通过"):
+        executor.execute_proposal(session, _as_futu(client), record)
+
+    assert client.place_count == 0
+    assert {call["method"] for call in client.calls} <= {
+        "get_acc_list",
+        "accinfo_query",
+        "position_list_query",
+        "order_list_query",
+    }
 
 
 def test_execution_risk_uses_live_limit_not_reported_notional_and_persists_failure(
@@ -515,6 +625,11 @@ def test_execute_and_orders_http_endpoints_return_persisted_simulate_order(
 
     app.dependency_overrides[db_session_dependency] = override_session
     app.dependency_overrides[futu_client_dependency] = lambda: _as_futu(broker_client)
+    with Session(engine) as setup:
+        source = _trade_source(setup, source_key="api-proposal")
+        source_id = source.id
+        source_model_version = str(source.model_version)
+        setup.commit()
     proposal = {
         "proposal": {
             "proposal_id": "api-proposal",
@@ -525,8 +640,9 @@ def test_execute_and_orders_http_endpoints_return_persisted_simulate_order(
             "estimated_notional": 1_010,
             "confidence": 0.9,
             "market_data_as_of": datetime.now(UTC).isoformat(),
-            "model_version": "fixture-v1.0.0",
+            "model_version": source_model_version,
             "mode": "confirm_to_trade",
+            "source_alert_id": source_id,
         },
         "portfolio": {
             "equity": 1_000_000,

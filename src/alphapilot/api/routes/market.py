@@ -31,6 +31,30 @@ from alphapilot.services.sectors import SectorServiceError, market_breadth_from_
 router = APIRouter(prefix="/v1/market", tags=["market"])
 MARKET_TIMEZONE = ZoneInfo("Asia/Shanghai")
 INDEX_INTRADAY_SYMBOLS = {entry["symbol"] for entry in market_data.INDEX_SYMBOLS}
+MAX_INTRADAY_SYMBOLS = 5
+
+
+def _normalize_intraday_symbol(value: str) -> str | None:
+    raw = value.strip().upper()
+    if raw in INDEX_INTRADAY_SYMBOLS:
+        return raw
+    if "." in raw:
+        market, digits = raw.split(".", 1)
+        if market not in {"SH", "SZ"}:
+            return None
+    else:
+        market = ""
+        digits = raw
+    if len(digits) != 6 or not digits.isdigit():
+        return None
+    # The current Futu/Sina routing has no audited BSE RT_DATA source. Do not
+    # silently reinterpret BSE or B-share codes as Shanghai/Shenzhen A shares.
+    if digits.startswith(("4", "8", "9")):
+        return None
+    expected_market = "SH" if digits.startswith(("5", "6")) else "SZ"
+    if market and market != expected_market:
+        return None
+    return f"{expected_market}.{digits}"
 
 
 def _as_utc(value: datetime) -> datetime:
@@ -272,26 +296,32 @@ def market_monitor_feed(
 def market_intraday(
     symbols: str = Query(
         default="SH.000001,SZ.399001",
-        description="逗号分隔的核心指数富途代码，最多 5 个。",
+        description="逗号分隔的核心指数或沪深个股代码，最多 5 个。",
     ),
     client: FutuClient = Depends(futu_client_dependency),
 ) -> dict[str, list[dict[str, Any]]]:
-    requested = list(
-        dict.fromkeys(item.strip().upper() for item in symbols.split(",") if item.strip())
-    )
-    unsupported = [symbol for symbol in requested if symbol not in INDEX_INTRADAY_SYMBOLS]
-    if not requested:
-        raise HTTPException(status_code=422, detail="请至少指定一个指数代码。")
-    if len(requested) > len(INDEX_INTRADAY_SYMBOLS) or unsupported:
-        allowed = ", ".join(sorted(INDEX_INTRADAY_SYMBOLS))
+    raw_requested = [item.strip() for item in symbols.split(",") if item.strip()]
+    if not raw_requested:
+        raise HTTPException(status_code=422, detail="请至少指定一个指数或沪深个股代码。")
+    normalized = [_normalize_intraday_symbol(item) for item in raw_requested]
+    unsupported = [
+        item
+        for item, normalized_item in zip(raw_requested, normalized, strict=True)
+        if normalized_item is None
+    ]
+    requested = list(dict.fromkeys(item for item in normalized if item is not None))
+    if len(requested) > MAX_INTRADAY_SYMBOLS or unsupported:
         raise HTTPException(
             status_code=422,
-            detail=f"仅支持最多 5 个核心指数；不支持 {unsupported}。可选：{allowed}",
+            detail=(
+                "仅支持最多 5 个核心指数或沪深 A 股；"
+                f"不支持 {unsupported or '超出数量上限'}。"
+            ),
         )
     try:
         return market_data.index_intraday(client, requested)
     except (FutuClientError, DataProviderError, ValueError) as exc:
         raise HTTPException(
             status_code=503,
-            detail=f"指数分时暂不可用，请确认 Futu OpenD 已启动并具备行情权限：{exc}",
+            detail=f"分时行情暂不可用，请确认 Futu OpenD 已启动并具备行情权限：{exc}",
         ) from exc

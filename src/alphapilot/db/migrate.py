@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import re
 
 from sqlalchemy import Engine, inspect, text
@@ -86,4 +87,71 @@ def run_migrations(engine: Engine) -> list[str]:
     for table, column, ddl_type in MIGRATIONS:
         if ensure_column(engine, table, column, ddl_type):
             applied.append(f"{table}.{column}")
+    if inspect(engine).has_table("trade_proposals"):
+        if ensure_column(engine, "trade_proposals", "idempotency_key", "TEXT"):
+            applied.append("trade_proposals.idempotency_key")
+        if _ensure_trade_proposal_idempotency(engine):
+            applied.append("trade_proposals.idempotency_unique")
     return applied
+
+
+def _proposal_key(raw: object, proposal_id: str) -> str:
+    payload: object = raw
+    if isinstance(raw, str):
+        try:
+            payload = json.loads(raw)
+        except json.JSONDecodeError:
+            payload = None
+    if isinstance(payload, dict):
+        value = payload.get("idempotency_key")
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+    return proposal_id
+
+
+def _ensure_trade_proposal_idempotency(engine: Engine) -> bool:
+    """Backfill legacy keys and create the DB-level concurrency boundary."""
+
+    changed = False
+    with engine.begin() as connection:
+        rows = connection.execute(
+            text(
+                "SELECT id, proposal_id, proposal, idempotency_key "
+                "FROM trade_proposals ORDER BY id"
+            )
+        ).mappings()
+        used: set[str] = set()
+        for row in rows:
+            proposal_id = str(row["proposal_id"])
+            candidate = _proposal_key(row["proposal"], proposal_id)
+            if candidate in used:
+                candidate = proposal_id
+            if candidate in used:
+                candidate = f"legacy-{row['id']}-{proposal_id}"
+            used.add(candidate)
+            if row["idempotency_key"] != candidate:
+                connection.execute(
+                    text(
+                        "UPDATE trade_proposals SET idempotency_key = :key WHERE id = :id"
+                    ),
+                    {"key": candidate, "id": row["id"]},
+                )
+                changed = True
+        inspector = inspect(connection)
+        index_exists = any(
+            item.get("name") == "uq_trade_proposals_idempotency_key"
+            for item in inspector.get_indexes("trade_proposals")
+        )
+        constraint_exists = any(
+            item.get("column_names") == ["idempotency_key"]
+            for item in inspector.get_unique_constraints("trade_proposals")
+        )
+        if not index_exists and not constraint_exists:
+            connection.execute(
+                text(
+                    "CREATE UNIQUE INDEX uq_trade_proposals_idempotency_key "
+                    "ON trade_proposals (idempotency_key)"
+                )
+            )
+            changed = True
+    return changed

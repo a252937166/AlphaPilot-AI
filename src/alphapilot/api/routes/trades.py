@@ -5,21 +5,27 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
-from sqlalchemy import select
+from sqlalchemy import or_, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from alphapilot.api.dependencies import db_session_dependency, futu_client_dependency
 from alphapilot.core.config import get_settings
 from alphapilot.core.timeutil import iso_utc
-from alphapilot.db.models import AlertRecord, BrokerOrder, TradeProposalRecord
+from alphapilot.db.models import BrokerOrder, TradeProposalRecord
 from alphapilot.domain.models import PortfolioState, RiskDecision, TradeProposal
 from alphapilot.futu.client import FutuClient
 from alphapilot.risk.guardrails import TradeGuardrails
+from alphapilot.services.alert_provenance import (
+    AlertSourceError,
+    validate_trade_alert_source,
+)
 from alphapilot.services.executor import (
     ExecutionBlocked,
     ExecutionConflict,
     ExecutionRejected,
     ExecutionUnavailable,
+    build_portfolio_state,
     execute_proposal,
     paper_execution_guard,
 )
@@ -31,7 +37,20 @@ orders_router = APIRouter(prefix="/v1/orders", tags=["paper-orders"])
 
 class TradeEvaluationRequest(BaseModel):
     proposal: TradeProposal
-    portfolio: PortfolioState
+    portfolio: PortfolioState | None = None
+
+
+def _portfolio_for_request(
+    request: TradeEvaluationRequest,
+    session: Session,
+    client: FutuClient,
+) -> PortfolioState:
+    try:
+        return build_portfolio_state(session, client, request.proposal)
+    except ExecutionConflict as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except ExecutionUnavailable as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
 
 
 def _set_halt_state(session: Session, halted: bool) -> dict[str, Any]:
@@ -46,8 +65,17 @@ def _set_halt_state(session: Session, halted: bool) -> dict[str, Any]:
 
 
 @router.post("/evaluate", response_model=RiskDecision)
-def evaluate_trade(request: TradeEvaluationRequest) -> RiskDecision:
-    return TradeGuardrails(get_settings()).evaluate(request.proposal, request.portfolio)
+def evaluate_trade(
+    request: TradeEvaluationRequest,
+    session: Session = Depends(db_session_dependency),
+    client: FutuClient = Depends(futu_client_dependency),
+) -> RiskDecision:
+    try:
+        validate_trade_alert_source(session, request.proposal)
+    except AlertSourceError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    portfolio = _portfolio_for_request(request, session, client)
+    return TradeGuardrails(get_settings()).evaluate(request.proposal, portfolio)
 
 
 @router.post("/halt")
@@ -72,6 +100,7 @@ def _proposal_payload(record: TradeProposalRecord) -> dict[str, Any]:
     return {
         "id": record.id,
         "proposal_id": record.proposal_id,
+        "idempotency_key": record.idempotency_key,
         "symbol": record.symbol,
         "side": record.side,
         "quantity": record.quantity,
@@ -111,34 +140,31 @@ def _order_payload(order: BrokerOrder) -> dict[str, Any]:
 def create_proposal(
     request: TradeEvaluationRequest,
     session: Session = Depends(db_session_dependency),
+    client: FutuClient = Depends(futu_client_dependency),
 ) -> dict[str, Any]:
     """Evaluate and persist a proposal; execution stays disabled by default."""
-    decision = TradeGuardrails(get_settings()).evaluate(request.proposal, request.portfolio)
     existing = session.scalars(
         select(TradeProposalRecord).where(
-            TradeProposalRecord.proposal_id == request.proposal.proposal_id
+            or_(
+                TradeProposalRecord.proposal_id == request.proposal.proposal_id,
+                TradeProposalRecord.idempotency_key == request.proposal.idempotency_key,
+            )
         )
     ).first()
     if existing is not None:
         raise HTTPException(
-            status_code=409, detail=f"Proposal {request.proposal.proposal_id} already exists"
+            status_code=409,
+            detail="相同 proposal_id 或 idempotency_key 的提案已存在。",
         )
-    source_alert_id = request.proposal.source_alert_id
-    if source_alert_id is not None:
-        source_alert = session.get(AlertRecord, source_alert_id)
-        if source_alert is None:
-            raise HTTPException(status_code=422, detail=f"来源提醒 {source_alert_id} 不存在。")
-        proposal_symbol = (
-            request.proposal.symbol.strip().upper().removeprefix("SH.").removeprefix("SZ.")
-        )
-        alert_symbol = source_alert.symbol.strip().upper().removeprefix("SH.").removeprefix("SZ.")
-        if proposal_symbol != alert_symbol:
-            raise HTTPException(
-                status_code=422,
-                detail=f"来源提醒 {source_alert_id} 与提案股票不一致。",
-            )
+    try:
+        evidence = validate_trade_alert_source(session, request.proposal)
+    except AlertSourceError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    portfolio = _portfolio_for_request(request, session, client)
+    decision = TradeGuardrails(get_settings()).evaluate(request.proposal, portfolio)
     record = TradeProposalRecord(
         proposal_id=request.proposal.proposal_id,
+        idempotency_key=request.proposal.idempotency_key,
         symbol=request.proposal.symbol,
         side=request.proposal.side.value,
         quantity=request.proposal.quantity,
@@ -148,10 +174,17 @@ def create_proposal(
         status="pending" if decision.approved else "rejected_by_risk",
         proposal=request.proposal.model_dump(mode="json"),
         risk_decision=decision.model_dump(mode="json"),
-        source_alert_id=source_alert_id,
+        source_alert_id=evidence.alert.id,
     )
     session.add(record)
-    session.flush()
+    try:
+        session.flush()
+    except IntegrityError as exc:
+        session.rollback()
+        raise HTTPException(
+            status_code=409,
+            detail="相同 proposal_id 或 idempotency_key 的提案已存在。",
+        ) from exc
     return {
         "proposal": _proposal_payload(record),
         "risk_decision": decision.model_dump(mode="json"),

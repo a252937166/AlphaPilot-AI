@@ -7,7 +7,7 @@ from typing import Any
 
 import pandas as pd
 
-from alphapilot.data.base import DataProviderError, EmptyDailyBarsError
+from alphapilot.data.base import BarFrequency, DataProviderError, EmptyDailyBarsError
 
 # BaoStock keeps one global socket per process, so calls are serialized.
 _baostock_lock = Lock()
@@ -66,6 +66,17 @@ class BaoStockMarketDataProvider:
         raise DataProviderError(f"BaoStock login failed after 3 attempts: {last_error}")
 
     def get_daily_bars(self, symbol: str, start: date, end: date) -> pd.DataFrame:
+        return self.get_bars(symbol, start, end, "d")
+
+    def get_bars(
+        self,
+        symbol: str,
+        start: date,
+        end: date,
+        frequency: BarFrequency,
+    ) -> pd.DataFrame:
+        if frequency not in {"d", "w", "m"}:
+            raise ValueError(f"Unsupported BaoStock bar frequency: {frequency}")
         bs = self._module()
         code = self._code(symbol)
         with _baostock_lock:
@@ -75,7 +86,7 @@ class BaoStockMarketDataProvider:
                 "date,open,high,low,close,volume,amount",
                 start_date=start.isoformat(),
                 end_date=end.isoformat(),
-                frequency="d",
+                frequency=frequency,
                 adjustflag="3",  # unadjusted, matching the AKShare adapter
             )
             if rs.error_code != "0":
@@ -85,7 +96,8 @@ class BaoStockMarketDataProvider:
                 rows.append(rs.get_row_data())
 
         if not rows:
-            raise EmptyDailyBarsError(f"BaoStock returned no daily bars for {code}")
+            label = {"d": "daily", "w": "weekly", "m": "monthly"}[frequency]
+            raise EmptyDailyBarsError(f"BaoStock returned no {label} bars for {code}")
         frame = pd.DataFrame(
             rows, columns=["date", "open", "high", "low", "close", "volume", "amount"]
         )
@@ -99,7 +111,8 @@ class BaoStockMarketDataProvider:
             .reset_index(drop=True)
         )
         if result.empty:
-            raise EmptyDailyBarsError(f"BaoStock returned no valid daily bars for {code}")
+            label = {"d": "daily", "w": "weekly", "m": "monthly"}[frequency]
+            raise EmptyDailyBarsError(f"BaoStock returned no valid {label} bars for {code}")
         return result
 
     def get_stock_universe(self, trade_date: date) -> pd.DataFrame:

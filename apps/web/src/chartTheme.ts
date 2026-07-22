@@ -10,7 +10,7 @@ export const CHART_COLORS = {
   purple: '#a78bfa',
   slate: '#94a3b8',
   text2: '#9aa7c4',
-  text3: '#5f6c8c',
+  text3: '#7d89a8',
   line1: 'rgba(148,163,198,0.10)',
   line2: 'rgba(148,163,198,0.18)',
 }
