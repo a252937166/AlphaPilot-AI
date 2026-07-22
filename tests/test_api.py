@@ -140,6 +140,7 @@ def test_daily_report_generate_and_get() -> None:
     body = generated.json()
     assert body["ai_summary"]["text"]
     assert "forecast_hit_stats" in body
+    assert "signal_attribution" in body
 
     fetched = client.get("/v1/reports/daily")
     assert fetched.status_code == 200

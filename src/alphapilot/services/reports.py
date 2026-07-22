@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import UTC, date, datetime, timedelta
 from typing import Any
+from zoneinfo import ZoneInfo
 
 import pandas as pd
 from sqlalchemy import select
@@ -13,8 +14,11 @@ from alphapilot.data.base import MarketDataProvider
 from alphapilot.db.models import AlertRecord, DailyReport, ForecastSnapshot
 from alphapilot.services import market_data
 from alphapilot.services.ai_text import compose_market_summary
+from alphapilot.services.alert_outcomes import build_signal_attribution
 from alphapilot.services.disclosures import list_disclosures
 from alphapilot.services.watchlist import list_items, tracked_overview
+
+MARKET_TIMEZONE = ZoneInfo("Asia/Shanghai")
 
 
 def _forecast_hit_stats(session: Session, symbol_bars: dict[str, pd.DataFrame]) -> dict[str, Any]:
@@ -91,14 +95,19 @@ def generate_daily_report(
         key=lambda row: float(row["change_pct"]),
         reverse=True,
     )
-    day_start = datetime(target_date.year, target_date.month, target_date.day, tzinfo=UTC)
+    day_start = datetime.combine(target_date, datetime.min.time(), tzinfo=MARKET_TIMEZONE)
+    day_end = day_start + timedelta(days=1)
     todays_alerts = session.scalars(
         select(AlertRecord)
-        .where(AlertRecord.created_at >= day_start)
+        .where(
+            AlertRecord.created_at >= day_start.astimezone(UTC),
+            AlertRecord.created_at < day_end.astimezone(UTC),
+        )
         .order_by(AlertRecord.created_at.desc())
         .limit(30)
     ).all()
     disclosures = list_disclosures(session, None, limit=15)
+    signal_attribution = build_signal_attribution(session, target_date)
 
     summary_context = {
         "indices": indices,
@@ -116,6 +125,7 @@ def generate_daily_report(
         "watchlist_gainers": gainers[:5],
         "watchlist_losers": gainers[-5:][::-1] if gainers else [],
         "forecast_hit_stats": hit_stats,
+        "signal_attribution": signal_attribution,
         "alerts": [
             {
                 "id": record.id,
