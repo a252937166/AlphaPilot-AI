@@ -17,6 +17,7 @@ PURPOSE_TIMEOUT_SECONDS: dict[str, float] = {
     "event_extract": 30.0,
     "stock_insight": 60.0,
     "market_feed_polish": 30.0,
+    "review_advice": 45.0,
 }
 
 
