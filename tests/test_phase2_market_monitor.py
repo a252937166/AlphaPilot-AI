@@ -508,7 +508,7 @@ def test_monitor_feed_api_returns_envelope_and_validates_limit(tmp_path: Path) -
         session.add(
             _capital_event(
                 symbol="600519",
-                ts=_utc_at(datetime.now(MARKET_TIMEZONE).date(), 11, 0),
+                ts=datetime.now(UTC),
                 suffix="api",
             )
         )
