@@ -75,7 +75,9 @@ class CninfoClient:
             payload = response.json()
             token = payload.get("access_token")
             if not token:
-                raise CninfoError(f"cninfo token response missing access_token: {payload}")
+                # OAuth responses may contain other credentials even when the
+                # expected field is absent. Never copy the payload into errors.
+                raise CninfoError("cninfo token response missing access_token")
             self._token = str(token)
             self._token_expires_at = monotonic() + float(payload.get("expires_in", 1800))
             return self._token
