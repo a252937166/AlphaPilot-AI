@@ -1,5 +1,23 @@
 const BASE = '/api'
 
+export type NotificationKind = 'alert' | 'event' | 'job' | 'system'
+export type NotificationLevel = 'info' | 'warn' | 'error'
+
+export interface NotificationItem {
+  id: number
+  kind: NotificationKind
+  ref_id: string
+  title: string
+  body: string
+  level: NotificationLevel
+  read_at: string | null
+  created_at: string
+}
+
+export interface NotificationListResponse {
+  notifications: NotificationItem[]
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(BASE + path, {
     headers: { 'Content-Type': 'application/json' },
@@ -41,6 +59,18 @@ export const api = {
   alerts: (limit = 60) => request<any>(`/v1/alerts?limit=${limit}`),
   refreshAlerts: () => request<any>('/v1/alerts/refresh', { method: 'POST' }),
   ackAlert: (id: number) => request<any>(`/v1/alerts/${id}/acknowledge`, { method: 'POST' }),
+
+  notifications: (unreadOnly = false, limit = 100) =>
+    request<NotificationListResponse>(
+      `/v1/notifications?unread_only=${unreadOnly}&limit=${limit}`,
+    ),
+  notificationUnreadCount: () =>
+    request<{ unread_count: number }>('/v1/notifications/unread-count'),
+  readNotifications: (body: { ids: number[] } | { all: true }) =>
+    request<{ updated: number; unread_count: number }>('/v1/notifications/read', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
 
   sectors: (refresh = false) => request<any>(`/v1/sectors/strength?refresh=${refresh}`),
   marketRegime: () => request<any>('/v1/market/regime?symbol=SH.000001'),

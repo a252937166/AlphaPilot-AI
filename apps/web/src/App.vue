@@ -14,6 +14,7 @@ import {
   Star,
 } from 'lucide-vue-next'
 import { api } from './api'
+import NotificationBell from './components/NotificationBell.vue'
 
 const router = useRouter()
 const search = ref('')
@@ -79,17 +80,12 @@ onUnmounted(() => window.removeEventListener('keydown', onGlobalKey))
         v-for="item in NAV"
         :key="item.name"
         :to="item.path"
-        custom
-        v-slot="{ navigate, isActive }"
+        class="nav-item"
+        :class="{ active: $route.name === item.name }"
+        :aria-label="item.label"
       >
-        <div
-          class="nav-item"
-          :class="{ active: isActive || (item.name === 'stock' && $route.name === 'stock') }"
-          @click="navigate"
-        >
-          <span class="icon"><component :is="item.icon" :size="15" :stroke-width="1.8" /></span>
-          <span>{{ item.label }}</span>
-        </div>
+        <span class="icon"><component :is="item.icon" :size="15" :stroke-width="1.8" /></span>
+        <span class="nav-label">{{ item.label }}</span>
       </router-link>
       <div class="sidebar-foot">
         <b>研究模式</b><br />
@@ -111,13 +107,14 @@ onUnmounted(() => window.removeEventListener('keydown', onGlobalKey))
         </div>
         <div class="spacer" />
         <div class="status-cluster">
-          <span class="item mono">A股 · {{ today }}</span>
+          <span class="item mono market-date">A股 · {{ today }}</span>
           <span class="sep" />
-          <span class="item">数据源 <span class="mono" style="color: var(--text-1)">{{ providerLabel }}</span></span>
+          <span class="item provider-status">数据源 <span class="mono" style="color: var(--text-1)">{{ providerLabel }}</span></span>
           <span class="sep" />
           <span class="item"><span class="status-dot" :class="{ ok: futuHealthy }" />Futu</span>
           <span class="item"><span class="status-dot" :class="{ ok: healthy }" />API</span>
         </div>
+        <NotificationBell />
       </header>
       <main class="page">
         <router-view />
