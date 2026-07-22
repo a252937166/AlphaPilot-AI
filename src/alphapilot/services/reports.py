@@ -115,7 +115,7 @@ def generate_daily_report(
         "hit_stats": {key: hit_stats[key] for key in ("evaluated", "hit_rate")},
         "alert_count": len(todays_alerts),
     }
-    ai_summary = compose_market_summary(settings, summary_context)
+    ai_summary = compose_market_summary(settings, summary_context, session)
 
     payload: dict[str, Any] = {
         "report_date": target_date.isoformat(),

@@ -690,6 +690,33 @@ class JobRun(Base):
     error: Mapped[str | None] = mapped_column(Text, nullable=True)
 
 
+class LLMCall(Base):
+    """One audit row for each logical LLM request, including failed requests."""
+
+    __tablename__ = "llm_calls"
+    __table_args__ = (
+        CheckConstraint("latency_ms >= 0", name="ck_llm_calls_latency_nonnegative"),
+        CheckConstraint(
+            "prompt_tokens IS NULL OR prompt_tokens >= 0",
+            name="ck_llm_calls_prompt_tokens_nonnegative",
+        ),
+        CheckConstraint(
+            "completion_tokens IS NULL OR completion_tokens >= 0",
+            name="ck_llm_calls_completion_tokens_nonnegative",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    purpose: Mapped[str] = mapped_column(String(64), index=True)
+    model: Mapped[str] = mapped_column(String(128))
+    ok: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    latency_ms: Mapped[int] = mapped_column(Integer, nullable=False)
+    prompt_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    completion_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
 class RuntimeFlag(Base):
     """A persisted operator safety switch that survives API restarts."""
 

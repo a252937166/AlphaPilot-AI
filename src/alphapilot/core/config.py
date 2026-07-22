@@ -68,7 +68,8 @@ class Settings(BaseSettings):
 
     llm_base_url: str | None = None
     llm_api_key: str | None = None
-    llm_model: str | None = None
+    llm_model: str = "qwen3.6-flash"
+    llm_purpose_models: dict[str, str] = Field(default_factory=dict)
 
     @field_validator(
         "api_cors_origins",

@@ -165,6 +165,7 @@ def overview(
             "breadth": breadth,
             "watchlist_count": len(watchlist),
         },
+        session,
     )
 
     return {
