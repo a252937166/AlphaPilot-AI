@@ -116,6 +116,15 @@ const HORIZON_CARDS = [
   { label: '20 日', key: '20d' },
 ]
 
+async function scrollToRequestedEventSection(): Promise<void> {
+  if (route.hash !== '#stock-events') return
+  await nextTick()
+  const target = document.getElementById('stock-events')
+  if (!target) return
+  const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  target.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'start' })
+}
+
 const SCORE_KEYS = [
   { key: 'tech', label: '技术' },
   { key: 'capital', label: '资金' },
@@ -437,6 +446,20 @@ function calendarKind(eventType: string): StockEventFilter | 'other' {
   return 'other'
 }
 
+function eventDisplayDate(value: string): string {
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return value
+  const parsed = new Date(value)
+  if (Number.isNaN(parsed.getTime())) return fmtDate(value)
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Shanghai',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(parsed)
+  const byType = Object.fromEntries(parts.map((part) => [part.type, part.value]))
+  return `${byType.year}-${byType.month}-${byType.day}`
+}
+
 const allEvents = computed<EventItem[]>(() => {
   const disclosures = (overview.value?.disclosures ?? []).map((item) => ({
     key: `disclosure-${item.id}`,
@@ -651,6 +674,7 @@ async function load(): Promise<void> {
     if (epoch !== loadEpoch || requestedSymbol !== symbol.value) return
     if (response.symbol !== requestedSymbol) throw new Error(`个股响应串线：期望 ${requestedSymbol}，实际 ${response.symbol}`)
     overview.value = response
+    await scrollToRequestedEventSection()
   } catch (exc: any) {
     if (epoch === loadEpoch && requestedSymbol === symbol.value) {
       error.value = String(exc?.message || exc)
@@ -879,6 +903,10 @@ function gotoAlerts(): void {
 
 onMounted(load)
 watch(symbol, load)
+watch(
+  () => route.hash,
+  () => void scrollToRequestedEventSection(),
+)
 onBeforeUnmount(() => {
   loadEpoch += 1
   chartEpoch += 1
@@ -1095,7 +1123,7 @@ onBeforeUnmount(() => {
             <div v-if="calendarLoading && !calendarEvents.length" class="skeleton event-skeleton" />
             <ul v-if="filteredEvents.length" class="timeline event-list">
               <li v-for="item in filteredEvents" :key="item.key">
-                <div class="event-date mono">{{ fmtDate(item.date) }}</div>
+                <div class="event-date mono">{{ eventDisplayDate(item.date) }}</div>
                 <div class="event-copy">
                   <div><span class="badge" :class="eventBadge(item)">{{ eventLabel(item) }}</span><span class="event-source">{{ item.source }}</span></div>
                   <a v-if="item.url" :href="item.url" target="_blank" rel="noopener">{{ item.title }}</a>
@@ -1428,6 +1456,10 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: center;
   gap: 9px;
+}
+
+.events-panel {
+  scroll-margin-top: calc(var(--topbar-h) + var(--s3));
 }
 
 .chart-title-row {

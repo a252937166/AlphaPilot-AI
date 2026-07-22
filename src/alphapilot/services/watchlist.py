@@ -1,11 +1,11 @@
 from __future__ import annotations
 
-from datetime import UTC, date, datetime, timedelta
+from datetime import UTC, date, datetime, time, timedelta
 from math import copysign, isfinite
-from typing import Any
+from typing import Any, Literal, TypedDict
 from zoneinfo import ZoneInfo
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from alphapilot.alerts.service import AlertService
@@ -14,8 +14,11 @@ from alphapilot.core.timeutil import iso_utc
 from alphapilot.data.base import DataProviderError, MarketDataProvider
 from alphapilot.db.models import (
     AlertRecord,
+    CalendarEvent,
     DailyBar,
+    DomainEvent,
     ForecastSnapshot,
+    Security,
     ThesisTransition,
     WatchlistItem,
 )
@@ -33,6 +36,28 @@ DEFAULT_WATCHLIST: list[dict[str, str]] = [
     {"symbol": "000333", "display_name": "美的集团", "group_name": "watch"},
 ]
 MARKET_TIMEZONE = ZoneInfo("Asia/Shanghai")
+RECENT_EVENT_LIMIT = 3
+CALENDAR_EVENT_TYPES = frozenset(
+    {
+        "dividend",
+        "earnings_preview",
+        "earnings_report",
+        "meeting",
+        "unlock",
+    }
+)
+
+
+class RecentEventPayload(TypedDict):
+    id: int
+    event_type: str
+    category: Literal["announcement", "calendar", "capital"]
+    title: str
+    summary: str | None
+    source_ref: str | None
+    direction: float | None
+    strength: float | None
+    occurred_at: str
 
 
 def normalize_symbol(symbol: str) -> str:
@@ -221,7 +246,7 @@ def refresh_alerts(
 ) -> list[AlertRecord]:
     """Recompute forecasts for tracked symbols, persist forecasts and alerts."""
     items = list_items(session)
-    targets = symbols or [item.symbol for item in items]
+    targets = [item.symbol for item in items] if symbols is None else symbols
     snapshot_prices = _snapshot_last_prices(provider, targets)
     demo_equity = get_settings().demo_equity
     alert_service = AlertService()
@@ -282,6 +307,176 @@ def latest_alert_by_symbol(session: Session) -> dict[str, AlertRecord]:
     for record in records:
         latest[record.symbol] = record
     return latest
+
+
+def _event_category(
+    event_type: str,
+) -> Literal["announcement", "calendar", "capital"] | None:
+    if event_type == "disclosure":
+        return "announcement"
+    if event_type == "capital_anomaly":
+        return "capital"
+    if event_type in CALENDAR_EVENT_TYPES:
+        return "calendar"
+    return None
+
+
+def _as_utc(value: datetime) -> datetime:
+    if value.tzinfo is None:
+        return value.replace(tzinfo=UTC)
+    return value.astimezone(UTC)
+
+
+def _recent_events_by_symbol(
+    session: Session,
+    symbols: list[str],
+) -> dict[str, list[RecentEventPayload]]:
+    """Return the newest three product-relevant events per symbol.
+
+    Normalized announcements and capital anomalies live in ``events`` while the
+    production calendar sync persists scheduled events in ``calendar_events``.
+    Both sources are queried in batches and merged before the per-symbol limit is
+    applied so the UI never fabricates calendar events or lets unrelated domain
+    events displace the three supported product categories.
+    """
+
+    grouped: dict[str, list[RecentEventPayload]] = {symbol: [] for symbol in symbols}
+    if not symbols:
+        return grouped
+    ranked_domain_events = (
+        select(
+            DomainEvent.id.label("event_id"),
+            func.row_number()
+            .over(
+                partition_by=DomainEvent.symbol,
+                order_by=(DomainEvent.occurred_at.desc(), DomainEvent.id.desc()),
+            )
+            .label("event_rank"),
+        )
+        .where(
+            DomainEvent.symbol.in_(symbols),
+            DomainEvent.event_type.in_({"disclosure", "capital_anomaly", *CALENDAR_EVENT_TYPES}),
+        )
+        .subquery()
+    )
+    domain_events = session.scalars(
+        select(DomainEvent)
+        .join(ranked_domain_events, ranked_domain_events.c.event_id == DomainEvent.id)
+        .where(ranked_domain_events.c.event_rank <= RECENT_EVENT_LIMIT)
+        .order_by(
+            DomainEvent.symbol,
+            DomainEvent.occurred_at.desc(),
+            DomainEvent.id.desc(),
+        )
+    ).all()
+    ranked_calendar_events = (
+        select(
+            CalendarEvent.id.label("event_id"),
+            func.row_number()
+            .over(
+                partition_by=CalendarEvent.symbol,
+                order_by=(CalendarEvent.event_date.desc(), CalendarEvent.id.desc()),
+            )
+            .label("event_rank"),
+        )
+        .where(CalendarEvent.symbol.in_(symbols))
+        .subquery()
+    )
+    calendar_events = session.scalars(
+        select(CalendarEvent)
+        .join(ranked_calendar_events, ranked_calendar_events.c.event_id == CalendarEvent.id)
+        .where(ranked_calendar_events.c.event_rank <= RECENT_EVENT_LIMIT)
+        .order_by(
+            CalendarEvent.symbol,
+            CalendarEvent.event_date.desc(),
+            CalendarEvent.id.desc(),
+        )
+    ).all()
+
+    candidates: dict[str, list[tuple[datetime, int, RecentEventPayload]]] = {
+        symbol: [] for symbol in symbols
+    }
+    for domain_event in domain_events:
+        if domain_event.symbol is None or domain_event.symbol not in grouped:
+            continue
+        category = _event_category(domain_event.event_type)
+        if category is None:
+            continue
+        event_time = _as_utc(domain_event.occurred_at)
+        occurred_at = iso_utc(event_time)
+        if occurred_at is None:
+            continue
+        candidates[domain_event.symbol].append(
+            (
+                event_time,
+                domain_event.id,
+                {
+                    "id": domain_event.id,
+                    "event_type": domain_event.event_type,
+                    "category": category,
+                    "title": domain_event.title,
+                    "summary": domain_event.summary,
+                    "source_ref": domain_event.source_ref,
+                    "direction": domain_event.direction,
+                    "strength": domain_event.strength,
+                    "occurred_at": occurred_at,
+                },
+            )
+        )
+
+    for calendar_event in calendar_events:
+        if calendar_event.symbol not in grouped:
+            continue
+        event_time = datetime.combine(
+            calendar_event.event_date,
+            time.min,
+            tzinfo=MARKET_TIMEZONE,
+        ).astimezone(UTC)
+        occurred_at = iso_utc(event_time)
+        if occurred_at is None:
+            continue
+        candidates[calendar_event.symbol].append(
+            (
+                event_time,
+                calendar_event.id,
+                {
+                    "id": calendar_event.id,
+                    "event_type": calendar_event.event_type,
+                    "category": "calendar",
+                    "title": calendar_event.title,
+                    "summary": None,
+                    "source_ref": f"calendar:{calendar_event.id}",
+                    "direction": None,
+                    "strength": None,
+                    "occurred_at": occurred_at,
+                },
+            )
+        )
+
+    for symbol, rows in candidates.items():
+        rows.sort(key=lambda row: (row[0], row[1]), reverse=True)
+        grouped[symbol] = [row[2] for row in rows[:RECENT_EVENT_LIMIT]]
+    return grouped
+
+
+def _industries_by_symbol(session: Session, symbols: list[str]) -> dict[str, str]:
+    securities = session.scalars(select(Security).where(Security.symbol.in_(symbols))).all()
+    industries: dict[str, str] = {}
+    for security in securities:
+        industry = next(
+            (
+                value.strip()
+                for value in (
+                    security.industry_csrc,
+                    security.industry_futu,
+                    security.industry,
+                )
+                if value and value.strip()
+            ),
+            "未分类",
+        )
+        industries[security.symbol] = industry
+    return industries
 
 
 def watchlist_summary(
@@ -354,7 +549,10 @@ def tracked_overview(
     except (DataProviderError, Exception):
         quotes = {}
 
+    symbols = [item.symbol for item in items]
     alerts = latest_alert_by_symbol(session)
+    recent_events = _recent_events_by_symbol(session, symbols)
+    industries = _industries_by_symbol(session, symbols)
     rows: list[dict[str, Any]] = []
     for item in items:
         forecast = session.scalars(
@@ -376,6 +574,7 @@ def tracked_overview(
                 "symbol": item.symbol,
                 "display_name": item.display_name,
                 "group_name": item.group_name,
+                "industry": industries.get(item.symbol, "未分类"),
                 "cost_price": item.cost_price,
                 "quantity": item.quantity,
                 "thesis": item.thesis,
@@ -390,6 +589,7 @@ def tracked_overview(
                 "alert_action": alert.action if alert else None,
                 "alert_urgency": alert.urgency if alert else None,
                 "alert_confidence": alert.confidence if alert else None,
+                "recent_events": recent_events[item.symbol],
             }
         )
     return rows

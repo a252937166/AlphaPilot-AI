@@ -683,6 +683,57 @@ def test_successful_refresh_returns_regular_and_drift_alert_without_duplicate_dr
     assert session.scalar(select(func.count()).select_from(AlertRecord)) == 3
 
 
+def test_scoped_refresh_changes_summary_only_for_selected_symbol(
+    session: Session,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _seed_watchlist(session)
+    _seed_watchlist(session, symbol="300750")
+    _seed_market_calendar(session)
+    _seed_forecast(session, trade_date=TRADING_DATES[0], p_up=0.40)
+    session.commit()
+    refresh_time = datetime.now(UTC) + timedelta(minutes=1)
+    monkeypatch.setattr(thesis_drift, "_now", lambda: refresh_time)
+    requested: list[str] = []
+
+    def selected_forecast(
+        _session: Session,
+        _provider: MockMarketDataProvider,
+        symbol: str,
+    ) -> StockForecast:
+        requested.append(symbol)
+        return _latest_stock_forecast()
+
+    monkeypatch.setattr(watchlist_service, "forecast_for_symbol", selected_forecast)
+    before = watchlist_service.watchlist_summary(session, now=refresh_time)
+
+    watchlist_service.refresh_alerts(
+        session,
+        MockMarketDataProvider(),
+        symbols=[SYMBOL],
+    )
+    session.flush()
+    after = watchlist_service.watchlist_summary(
+        session,
+        now=refresh_time + timedelta(seconds=1),
+    )
+
+    assert requested == [SYMBOL]
+    assert before["strengthened"] == 0
+    assert before["unchanged"] == 2
+    assert after["strengthened"] == 1
+    assert after["unchanged"] == 1
+    assert sum(day["strengthened"] for day in after["transitions_7d"]) == 1
+    assert (
+        session.scalar(
+            select(func.count())
+            .select_from(ForecastSnapshot)
+            .where(ForecastSnapshot.symbol == "300750")
+        )
+        == 0
+    )
+
+
 def test_summary_api_returns_current_counts_daily_transition_buckets_and_422(
     engine: Engine,
     monkeypatch: pytest.MonkeyPatch,

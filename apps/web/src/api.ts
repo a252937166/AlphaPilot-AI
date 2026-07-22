@@ -147,6 +147,121 @@ export interface AlertListResponse {
   alerts: AlertItem[]
 }
 
+export interface AlertRefreshResponse {
+  created: AlertItem[]
+}
+
+export type ThesisState = 'strengthened' | 'unchanged' | 'weakened'
+
+export interface WatchlistTransitionPoint {
+  date: string
+  strengthened: number
+  unchanged: number
+  weakened: number
+}
+
+export interface WatchlistSummaryResponse {
+  strengthened: number
+  unchanged: number
+  weakened: number
+  transitions_7d: WatchlistTransitionPoint[]
+}
+
+export type WatchlistEventCategory = 'announcement' | 'calendar' | 'capital' | 'other'
+
+export interface WatchlistRecentEvent {
+  id: number
+  event_type: string
+  category: WatchlistEventCategory
+  title: string
+  summary: string | null
+  source_ref: string | null
+  direction: number | null
+  strength: number | null
+  occurred_at: string
+}
+
+export interface WatchlistTrackRow {
+  symbol: string
+  display_name: string | null
+  group_name: string | null
+  industry: string | null
+  cost_price: number | null
+  quantity: number | null
+  thesis: string | null
+  thesis_state: ThesisState
+  last: number | null
+  change_pct: number | null
+  pnl_pct: number | null
+  p_up_20d: number | null
+  expected_return_20d: number | null
+  confidence_20d: number | null
+  forecast_as_of: string | null
+  alert_action: string | null
+  alert_urgency: string | null
+  alert_confidence: number | null
+  recent_events: WatchlistRecentEvent[]
+}
+
+export interface WatchlistTrackResponse {
+  rows: WatchlistTrackRow[]
+  count: number
+}
+
+export interface WatchlistUpsertRequest {
+  symbol: string
+  group_name?: string
+  display_name?: string
+  cost_price?: number
+  quantity?: number
+}
+
+export interface WatchlistItemResponse {
+  item: {
+    symbol: string
+    group_name: string | null
+    display_name: string | null
+    cost_price: number | null
+    quantity: number | null
+    thesis: string | null
+    thesis_state: ThesisState
+    created_at: string
+    updated_at: string
+  }
+}
+
+export interface PortfolioPosition {
+  symbol: string
+  qty: number
+  mv: number
+  industry: string
+}
+
+export interface PortfolioIndustrySlice {
+  industry: string
+  market_value: number
+  weight: number
+}
+
+export interface PortfolioOverviewResponse {
+  available: boolean
+  snapshot: {
+    trade_date: string
+    total_value: number
+    cash: number
+    positions: PortfolioPosition[]
+    source: string
+  } | null
+  market_value: number
+  account_market_value: number
+  market_value_gap: number
+  industry_distribution: PortfolioIndustrySlice[]
+  missing_industry_count: number
+  valuation_basis: 'futu_sim_market_value' | null
+  valuation_basis_label: string | null
+  warning: string | null
+}
+
 export type StockBarFrequency = 'd' | 'w' | 'm'
 export type StockSignalMarker = 'B' | 'S'
 export type StockEventFilter = 'all' | 'disclosure' | 'earnings_preview' | 'unlock' | 'dividend'
@@ -554,14 +669,24 @@ export const api = {
     ),
 
   watchlist: () => request<any>('/v1/watchlist'),
-  watchlistTrack: () => request<any>('/v1/watchlist/track'),
-  watchlistUpsert: (body: Record<string, unknown>) =>
-    request<any>('/v1/watchlist', { method: 'POST', body: JSON.stringify(body) }),
+  watchlistTrack: () => request<WatchlistTrackResponse>('/v1/watchlist/track'),
+  watchlistSummary: () => request<WatchlistSummaryResponse>('/v1/watchlist/summary'),
+  watchlistUpsert: (body: WatchlistUpsertRequest) =>
+    request<WatchlistItemResponse>('/v1/watchlist', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
   watchlistDelete: (symbol: string) =>
-    request<any>(`/v1/watchlist/${symbol}`, { method: 'DELETE' }),
+    request<{ removed: string }>(`/v1/watchlist/${symbol}`, { method: 'DELETE' }),
+
+  portfolioOverview: () => request<PortfolioOverviewResponse>('/v1/portfolio/overview'),
 
   alerts: (limit = 60) => request<AlertListResponse>(`/v1/alerts?limit=${limit}`),
-  refreshAlerts: () => request<any>('/v1/alerts/refresh', { method: 'POST' }),
+  refreshAlerts: (symbols?: string[]) =>
+    request<AlertRefreshResponse>('/v1/alerts/refresh', {
+      method: 'POST',
+      ...(symbols !== undefined ? { body: JSON.stringify({ symbols }) } : {}),
+    }),
   ackAlert: (id: number) => request<any>(`/v1/alerts/${id}/acknowledge`, { method: 'POST' }),
 
   notifications: (unreadOnly = false, limit = 100) =>

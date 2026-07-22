@@ -2,7 +2,12 @@
 import { computed } from 'vue'
 import EChart from './EChart.vue'
 
-const props = defineProps<{ data: number[]; color?: string; height?: string }>()
+const props = defineProps<{
+  data: number[]
+  color?: string
+  height?: string
+  ariaLabel?: string
+}>()
 
 const option = computed(() => ({
   animation: false,
@@ -34,5 +39,9 @@ const option = computed(() => ({
 </script>
 
 <template>
-  <EChart :option="option" :height="props.height || '42px'" />
+  <EChart
+    :option="option"
+    :height="props.height || '42px'"
+    :aria-label="props.ariaLabel"
+  />
 </template>
