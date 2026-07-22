@@ -183,7 +183,7 @@ def _screen_rows(
         )
         if not industries:
             raise ScreeningFilterError("行业筛选不能为空，请选择至少一个有效行业。")
-        statement = statement.where(Security.industry_csrc.in_(industries))
+        statement = statement.where(func.trim(Security.industry_csrc).in_(industries))
     if request.min_market_cap is not None:
         statement = statement.where(Security.market_cap >= request.min_market_cap)
     if request.style is not None:
@@ -217,7 +217,11 @@ def _screen_rows(
                 win_rate_20d=_finite_or_none(record.win_rate_20d),
                 model_version=str(record.model_version),
                 display_name=str(record.name) if record.name is not None else None,
-                industry=(str(record.industry_csrc) if record.industry_csrc is not None else None),
+                industry=(
+                    str(record.industry_csrc).strip()
+                    if record.industry_csrc is not None
+                    else None
+                ),
                 style=_style_or_none(record.style_tag) if style_is_current else None,
                 market_cap=_finite_or_none(record.market_cap),
                 volatility_z=_finite_or_none(record.zscore),
@@ -226,7 +230,7 @@ def _screen_rows(
     return rows
 
 
-def _latest_expected_returns(session: Session) -> dict[str, float]:
+def _latest_expected_returns(session: Session, horizon_days: Literal[5, 20]) -> dict[str, float]:
     latest = (
         select(
             ForecastSnapshot.symbol.label("symbol"),
@@ -248,7 +252,7 @@ def _latest_expected_returns(session: Session) -> dict[str, float]:
     for symbol, horizons in records:
         if not isinstance(horizons, Mapping):
             continue
-        horizon = horizons.get("20d")
+        horizon = horizons.get(f"{horizon_days}d")
         if not isinstance(horizon, Mapping):
             continue
         expected_return = _finite_or_none(horizon.get("expected_return"))
@@ -361,7 +365,9 @@ def _enrich_candidates(
         risk_score: float | None = None
         p_up_5d: float | None = None
         p_up_20d: float | None = None
+        expected_return_5d: float | None = None
         expected_return_20d: float | None = None
+        confidence_5d: float | None = None
         confidence_20d: float | None = None
         forecast_source: str | None = None
         frame = frames.get(row.symbol)
@@ -376,13 +382,16 @@ def _enrich_candidates(
             risk_score = _clamp_score(100 - volatility * 110)
             p_up_5d = horizon_5d.p_up
             p_up_20d = horizon_20d.p_up
+            expected_return_5d = horizon_5d.expected_return
             expected_return_20d = horizon_20d.expected_return
+            confidence_5d = horizon_5d.confidence
             confidence_20d = horizon_20d.confidence
             forecast_source = forecast.provider
+            selected_horizon = horizon_5d if request.horizon_days == 5 else horizon_20d
             reasons.extend(
                 [
-                    f"20 日上涨概率为 {horizon_20d.p_up:.1%}。",
-                    f"20 日预期收益为 {horizon_20d.expected_return:.2%}。",
+                    f"{request.horizon_days} 日上涨概率为 {selected_horizon.p_up:.1%}。",
+                    f"{request.horizon_days} 日预期收益为 {selected_horizon.expected_return:.2%}。",
                 ]
             )
             warnings.extend(forecast.warnings)
@@ -401,7 +410,9 @@ def _enrich_candidates(
                 quality_placeholder_score=None,
                 p_up_5d=p_up_5d,
                 p_up_20d=p_up_20d,
+                expected_return_5d=expected_return_5d,
                 expected_return_20d=expected_return_20d,
+                confidence_5d=confidence_5d,
                 confidence_20d=confidence_20d,
                 display_name=row.display_name,
                 industry=row.industry,
@@ -417,12 +428,20 @@ def _enrich_candidates(
         )
 
     if request.sort_by == "expected_return":
-        candidates.sort(
-            key=lambda item: (
-                item.expected_return_20d is not None,
-                item.expected_return_20d if item.expected_return_20d is not None else float("-inf"),
+        def expected_sort_key(item: ScreeningCandidate) -> tuple[bool, float, float]:
+            value = (
+                item.expected_return_5d
+                if request.horizon_days == 5
+                else item.expected_return_20d
+            )
+            return (
+                value is not None,
+                value if value is not None else float("-inf"),
                 item.score,
-            ),
+            )
+
+        candidates.sort(
+            key=expected_sort_key,
             reverse=True,
         )
     return [
@@ -492,7 +511,9 @@ def run_factor_screen(session: Session, request: ScreeningRequest) -> ScreeningR
         style_is_current=style_is_current,
     )
     persisted_expected = (
-        _latest_expected_returns(session) if request.sort_by == "expected_return" else {}
+        _latest_expected_returns(session, request.horizon_days)
+        if request.sort_by == "expected_return"
+        else {}
     )
     selected = _preselect(rows, request, persisted_expected)
     candidates, failed = _enrich_candidates(session, selected, request, thresholds)

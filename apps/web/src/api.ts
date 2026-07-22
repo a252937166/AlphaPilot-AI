@@ -42,17 +42,95 @@ export interface ScreenDiffResponse {
   stayed: number
 }
 
+export type StyleTag = 'growth' | 'value' | 'defensive' | 'balanced'
+export type RiskLevel = 'low' | 'mid' | 'high'
+export type ScreenSort = 'score' | 'expected_return' | 'win_rate'
+
+export interface ScreenFilter {
+  universe: 'all' | 'watchlist' | 'custom'
+  symbols?: string[] | null
+  industries?: string[] | null
+  style?: StyleTag | null
+  risk_level?: RiskLevel | null
+  min_market_cap?: number | null
+  top_n: number
+  sort_by: ScreenSort
+  horizon_days: 5 | 20
+  provider?: string | null
+  lookback_days?: number
+}
+
 export interface ScreenCandidateSummary {
+  rank: number
   symbol: string
   score: number
+  trend_score: number | null
+  risk_score: number | null
+  quality_placeholder_score: number | null
+  p_up_5d: number | null
+  p_up_20d: number | null
+  expected_return_5d: number | null
+  expected_return_20d: number | null
+  confidence_5d: number | null
+  confidence_20d: number | null
+  display_name: string | null
+  industry: string | null
+  style: StyleTag | null
+  risk_level: RiskLevel | null
+  market_cap: number | null
+  trade_date: string | null
+  win_rate_20d: number | null
+  forecast_source: string | null
+  reasons: string[]
+  warnings: string[]
   [key: string]: unknown
 }
 
 export interface LatestScreenResponse {
   id: number
+  universe: string
+  filters: Record<string, unknown>
+  provider: string
+  model_version: string
+  requested: number
+  succeeded: number
+  failed: Record<string, string>
   candidates: ScreenCandidateSummary[]
   created_at: string
-  [key: string]: unknown
+}
+
+export interface PersistedScreeningResponse {
+  run_id: number
+  generated_at: string
+  provider: string
+  model_version: string
+  requested: number
+  succeeded: number
+  failed: Record<string, string>
+  candidates: ScreenCandidateSummary[]
+}
+
+export interface FactorWeightsResponse {
+  version: string
+  profile: string
+  weights: Record<string, number>
+}
+
+export interface StyleExposureSlice {
+  style: StyleTag
+  count: number
+  pct: number
+}
+
+export interface StyleExposureResponse {
+  run_id: number
+  total_candidates: number
+  exposure: StyleExposureSlice[]
+}
+
+export interface IndustriesResponse {
+  count: number
+  industries: string[]
 }
 
 export interface AlertItem {
@@ -151,10 +229,19 @@ export const api = {
   dashboard: () => request<any>('/v1/dashboard/overview'),
 
   screenUniverse: () => request<{ symbols: string[] }>('/v1/screens/universe'),
-  runScreen: (body: { symbols: string[]; top_n: number; provider?: string | null }) =>
-    request<any>('/v1/screens/run', { method: 'POST', body: JSON.stringify(body) }),
+  runScreen: (body: ScreenFilter) =>
+    request<PersistedScreeningResponse>('/v1/screens/run', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
   latestScreen: () => request<LatestScreenResponse>('/v1/screens/latest'),
   screenDiff: () => request<ScreenDiffResponse>('/v1/screens/diff'),
+  screenStyleExposure: (runId?: number) =>
+    request<StyleExposureResponse>(
+      `/v1/screens/style-exposure${runId ? `?run_id=${runId}` : ''}`,
+    ),
+  factorWeights: () => request<FactorWeightsResponse>('/v1/factors/weights'),
+  metaIndustries: () => request<IndustriesResponse>('/v1/meta/industries'),
 
   stockOverview: (symbol: string) => request<any>(`/v1/stocks/${symbol}/overview`),
   stockBars: (symbol: string, days = 120) =>

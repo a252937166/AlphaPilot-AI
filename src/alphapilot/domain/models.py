@@ -81,6 +81,7 @@ class ScreeningRequest(BaseModel):
     min_market_cap: float | None = Field(default=None, ge=0)
     top_n: int = Field(default=50, ge=1, le=100)
     sort_by: Literal["score", "expected_return", "win_rate"] = "score"
+    horizon_days: Literal[5, 20] = 20
     provider: str | None = None
     lookback_days: int = Field(default=220, ge=80, le=1500)
 
@@ -134,7 +135,9 @@ class ScreeningCandidate(BaseModel):
     quality_placeholder_score: float | None = Field(default=None, ge=0, le=100)
     p_up_5d: float | None = Field(default=None, ge=0, le=1)
     p_up_20d: float | None = Field(default=None, ge=0, le=1)
+    expected_return_5d: float | None = None
     expected_return_20d: float | None = None
+    confidence_5d: float | None = Field(default=None, ge=0, le=1)
     confidence_20d: float | None = Field(default=None, ge=0, le=1)
     display_name: str | None = None
     industry: str | None = None
@@ -156,6 +159,10 @@ class ScreeningResponse(BaseModel):
     succeeded: int
     failed: dict[str, str]
     candidates: list[ScreeningCandidate]
+
+
+class PersistedScreeningResponse(ScreeningResponse):
+    run_id: int = Field(ge=1)
 
 
 class StyleDailyPoint(BaseModel):
