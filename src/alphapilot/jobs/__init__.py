@@ -9,6 +9,7 @@ def register_builtin_jobs() -> None:
     from alphapilot.jobs.alert_outcomes import register_alert_outcomes_job
     from alphapilot.jobs.calendar_sync import register_calendar_job
     from alphapilot.jobs.daily_bars import register_daily_bars_job
+    from alphapilot.jobs.event_backfill import register_event_backfill_job
     from alphapilot.jobs.factors import register_factor_job
     from alphapilot.jobs.financials import register_financials_job
     from alphapilot.jobs.market_poll import register_market_poll_job
@@ -23,6 +24,7 @@ def register_builtin_jobs() -> None:
     register_universe_job()
     register_calendar_job()
     register_daily_bars_job()
+    register_event_backfill_job()
     register_financials_job()
     register_factor_job()
     register_style_job()

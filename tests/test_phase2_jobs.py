@@ -1,17 +1,24 @@
 from __future__ import annotations
 
+from collections.abc import Iterator
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import contextmanager
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
 from threading import Event, Lock
 from typing import Any
 
+import pytest
 from apscheduler.triggers.interval import IntervalTrigger
 from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.orm import Session
 
 from alphapilot.api.routes.jobs import list_runs
+from alphapilot.core.config import Settings
 from alphapilot.db.migrate import ensure_column
-from alphapilot.db.models import Base, JobRun
+from alphapilot.db.models import Base, Disclosure, DomainEvent, JobRun
+from alphapilot.jobs import event_backfill
+from alphapilot.jobs import scheduler as scheduler_module
 from alphapilot.jobs.registry import (
     JOBS,
     JobExecutionError,
@@ -19,6 +26,7 @@ from alphapilot.jobs.registry import (
     register,
     run_job,
 )
+from alphapilot.services.event_extract import DisclosureExtraction
 
 
 def test_ensure_column_is_idempotent(tmp_path: Any) -> None:
@@ -187,3 +195,210 @@ def test_job_runs_window_keeps_latest_audit_for_each_registered_job(tmp_path: An
 
     assert len(payload["runs"]) == 10
     assert set(names) <= {row["job_name"] for row in payload["runs"]}
+
+
+def test_backfill_events_processes_only_missing_or_legacy_rows(
+    tmp_path: Path,
+    monkeypatch: Any,
+) -> None:
+    engine = create_engine(f"sqlite:///{tmp_path / 'event-backfill.db'}")
+    Base.metadata.create_all(engine)
+    published_at = datetime(2026, 7, 22, 1, tzinfo=UTC)
+    with Session(engine) as session:
+        missing = Disclosure(
+            symbol="600519",
+            title="重大项目中标公告",
+            url="https://example.test/missing.pdf",
+            published_at=published_at,
+        )
+        legacy = Disclosure(
+            symbol="600519",
+            title="交易所问询函公告",
+            url="https://example.test/legacy.pdf",
+            published_at=published_at,
+        )
+        normalized = Disclosure(
+            symbol="600519",
+            title="股份回购公告",
+            url="https://example.test/normalized.pdf",
+            published_at=published_at,
+        )
+        session.add_all([missing, legacy, normalized])
+        session.flush()
+        session.add_all(
+            [
+                DomainEvent(
+                    symbol=legacy.symbol,
+                    event_type="disclosure",
+                    title=legacy.title,
+                    direction=0.0,
+                    strength=0.5,
+                    source_ref=f"disclosure:{legacy.id}",
+                    occurred_at=published_at,
+                ),
+                DomainEvent(
+                    symbol=normalized.symbol,
+                    event_type="disclosure",
+                    title=normalized.title,
+                    direction=0.5,
+                    strength=0.5,
+                    summary="buyback｜规则识别回购公告",
+                    source_ref=f"disclosure:{normalized.id}",
+                    occurred_at=published_at,
+                ),
+            ]
+        )
+        session.commit()
+    active_sessions = 0
+
+    @contextmanager
+    def local_session() -> Iterator[Session]:
+        nonlocal active_sessions
+        active_sessions += 1
+        session = Session(engine)
+        try:
+            yield session
+            session.commit()
+        except Exception:
+            session.rollback()
+            raise
+        finally:
+            session.close()
+            active_sessions -= 1
+
+    calls: list[str] = []
+
+    def fake_classify(title: str) -> DisclosureExtraction:
+        # The row snapshot session must be closed before an LLM wait starts.
+        assert active_sessions == 0
+        calls.append(title)
+        is_contract = "中标" in title
+        return DisclosureExtraction(
+            subtype="contract" if is_contract else "regulation",
+            direction=0.5 if is_contract else -0.5,
+            strength=0.5,
+            summary="重大项目中标" if is_contract else "交易所问询",
+            source_quote="中标" if is_contract else "问询",
+            source="llm" if is_contract else "rule",
+        )
+
+    monkeypatch.setattr(event_backfill, "get_session", local_session)
+    monkeypatch.setattr(event_backfill, "classify_disclosure", fake_classify)
+
+    first = event_backfill.backfill_events()
+    second = event_backfill.backfill_events()
+
+    assert first == {
+        "total": 3,
+        "pending": 2,
+        "scanned": 2,
+        "extracted": 2,
+        "llm": 1,
+        "fallback": 1,
+        "failed": 0,
+        "skipped": 1,
+        "failures": [],
+        "duration_seconds": first["duration_seconds"],
+    }
+    assert second["pending"] == 0
+    assert second["scanned"] == 0
+    assert second["skipped"] == 3
+    assert calls == ["重大项目中标公告", "交易所问询函公告"]
+
+
+def test_backfill_events_raises_with_partial_stats_when_any_row_fails(
+    tmp_path: Path,
+    monkeypatch: Any,
+) -> None:
+    engine = create_engine(f"sqlite:///{tmp_path / 'event-backfill-failed.db'}")
+    Base.metadata.create_all(engine)
+    with Session(engine) as session:
+        session.add(
+            Disclosure(
+                symbol="600519",
+                title="重大项目中标公告",
+                url="https://example.test/failed.pdf",
+                published_at=datetime(2026, 7, 22, 1, tzinfo=UTC),
+            )
+        )
+        session.commit()
+
+    opened_sessions = 0
+
+    @contextmanager
+    def local_session() -> Iterator[Session]:
+        nonlocal opened_sessions
+        opened_sessions += 1
+        current_session = opened_sessions
+        with Session(engine) as session:
+            try:
+                yield session
+                if current_session == 3:
+                    session.rollback()
+                    raise RuntimeError("commit failed")
+                session.commit()
+            except Exception:
+                session.rollback()
+                raise
+
+    def fake_classification(title: str) -> DisclosureExtraction:
+        return DisclosureExtraction(
+            subtype="contract",
+            direction=0.5,
+            strength=0.5,
+            summary=f"测试分类：{title}",
+            source_quote="中标",
+            source="llm",
+        )
+
+    monkeypatch.setattr(event_backfill, "get_session", local_session)
+    monkeypatch.setattr(event_backfill, "classify_disclosure", fake_classification)
+
+    with pytest.raises(JobExecutionError, match="公告事件回填失败 1 条") as caught:
+        event_backfill.backfill_events()
+
+    assert caught.value.stats["pending"] == 1
+    assert caught.value.stats["scanned"] == 1
+    assert caught.value.stats["extracted"] == 0
+    assert caught.value.stats["llm"] == 0
+    assert caught.value.stats["fallback"] == 0
+    assert caught.value.stats["failed"] == 1
+    assert caught.value.stats["failures"] == [
+        {
+            "disclosure_id": 1,
+            "error": "RuntimeError: commit failed",
+        }
+    ]
+
+
+def test_event_backfill_job_is_registered_as_manual_only() -> None:
+    previous = JOBS.get("backfill_events")
+    try:
+        event_backfill.register_event_backfill_job()
+        spec = JOBS["backfill_events"]
+        assert spec.func is event_backfill.backfill_events
+        assert spec.trigger is None
+    finally:
+        if previous is None:
+            JOBS.pop("backfill_events", None)
+        else:
+            JOBS["backfill_events"] = previous
+
+
+def test_scheduler_skips_manual_only_jobs() -> None:
+    original_jobs = dict(JOBS)
+
+    def task() -> dict[str, Any]:
+        return {}
+
+    JOBS.clear()
+    register(JobSpec(name="scheduled", func=task, trigger=IntervalTrigger(hours=1)))
+    register(JobSpec(name="manual", func=task, trigger=None))
+    try:
+        scheduler = scheduler_module.start_scheduler(Settings(scheduler_enabled=True))
+        assert scheduler is not None
+        assert {job.id for job in scheduler.get_jobs()} == {"scheduled"}
+    finally:
+        scheduler_module.shutdown_scheduler()
+        JOBS.clear()
+        JOBS.update(original_jobs)
