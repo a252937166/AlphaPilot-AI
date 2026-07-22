@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from datetime import UTC, date, datetime, time, timedelta
+from math import isfinite
 from typing import Any
 from zoneinfo import ZoneInfo
 
@@ -20,7 +21,11 @@ from alphapilot.core.timeutil import iso_utc
 from alphapilot.data.base import DataProviderError
 from alphapilot.db.models import MarketSentiment, MarketSnapshotAgg
 from alphapilot.domain.models import RegimeResult
-from alphapilot.engines.sentiment import liquidity_label, money_effect_label
+from alphapilot.engines.sentiment import (
+    liquidity_label,
+    money_effect_label,
+    risk_hint_label,
+)
 from alphapilot.futu.client import FutuClient, FutuClientError
 from alphapilot.prediction.regime import MarketRegimeClassifier
 from alphapilot.services import market_data
@@ -32,6 +37,8 @@ router = APIRouter(prefix="/v1/market", tags=["market"])
 MARKET_TIMEZONE = ZoneInfo("Asia/Shanghai")
 INDEX_INTRADAY_SYMBOLS = {entry["symbol"] for entry in market_data.INDEX_SYMBOLS}
 MAX_INTRADAY_SYMBOLS = 5
+INDEX_BAR_FIELDS = ("open", "high", "low", "close", "volume", "amount")
+MAX_PRIOR_TIME_GAP_SECONDS = 90.0
 
 
 def _normalize_intraday_symbol(value: str) -> str | None:
@@ -61,11 +68,50 @@ def _as_utc(value: datetime) -> datetime:
     return (value.replace(tzinfo=UTC) if value.tzinfo is None else value).astimezone(UTC)
 
 
+def _finite_number(value: object) -> float | None:
+    if value is None or isinstance(value, bool):
+        return None
+    try:
+        number = float(str(value))
+    except (TypeError, ValueError):
+        return None
+    return number if isfinite(number) else None
+
+
+def _local_seconds_since_midnight(value: datetime) -> float:
+    local = _as_utc(value).astimezone(MARKET_TIMEZONE)
+    return local.hour * 3600 + local.minute * 60 + local.second + local.microsecond / 1_000_000
+
+
+def _serialize_index_bar(record: Mapping[object, Any]) -> dict[str, Any] | None:
+    """Serialize one audited index bar without inventing missing OHLCVA values."""
+
+    date_value = record.get("date")
+    if date_value is None:
+        return None
+    values = {field: _finite_number(record.get(field)) for field in INDEX_BAR_FIELDS}
+    if any(value is None for value in values.values()):
+        return None
+    return {"date": str(date_value)[:10], **values}
+
+
 def _serialize_full_breadth(
     latest: MarketSnapshotAgg,
     previous: MarketSnapshotAgg | None,
 ) -> dict[str, Any]:
-    amount_delta = latest.total_amount - previous.total_amount if previous is not None else None
+    prior_time_gap_seconds = (
+        abs(_local_seconds_since_midnight(latest.ts) - _local_seconds_since_midnight(previous.ts))
+        if previous is not None
+        else None
+    )
+    prior_comparable = (
+        prior_time_gap_seconds is not None and prior_time_gap_seconds <= MAX_PRIOR_TIME_GAP_SECONDS
+    )
+    amount_delta = (
+        latest.total_amount - previous.total_amount
+        if previous is not None and prior_comparable
+        else None
+    )
     amount_delta_pct = (
         amount_delta / previous.total_amount * 100
         if amount_delta is not None and previous is not None and previous.total_amount > 0
@@ -94,6 +140,8 @@ def _serialize_full_breadth(
         "prior_broken_boards": previous.broken_boards if previous is not None else None,
         "prior_avg_change_pct": previous.avg_change_pct if previous is not None else None,
         "prior_total_amount": previous.total_amount if previous is not None else None,
+        "prior_time_gap_seconds": prior_time_gap_seconds,
+        "prior_comparable": prior_comparable,
         "amount_delta": amount_delta,
         "amount_delta_pct": amount_delta_pct,
     }
@@ -133,10 +181,12 @@ def market_indices(
     series: dict[str, list[dict[str, Any]]] = {}
     for symbol, frame in history.items():
         tail = frame.tail(history_days)
-        series[symbol] = [
-            {"date": str(record["date"])[:10], "close": record["close"]}
-            for record in tail.to_dict(orient="records")
-        ]
+        points: list[dict[str, Any]] = []
+        for record in tail.to_dict(orient="records"):
+            point = _serialize_index_bar(record)
+            if point is not None:
+                points.append(point)
+        series[symbol] = points
     return {
         "quotes": quotes,
         "series": series,
@@ -190,17 +240,10 @@ def market_breadth_full(
             for item in prior_candidates
             if _as_utc(item.ts).astimezone(MARKET_TIMEZONE).date() == prior_day
         ]
-        target_seconds = latest_local.hour * 3600 + latest_local.minute * 60 + latest_local.second
+        target_seconds = _local_seconds_since_midnight(latest.ts)
         previous = min(
             same_day,
-            key=lambda item: abs(
-                (
-                    _as_utc(item.ts).astimezone(MARKET_TIMEZONE).hour * 3600
-                    + _as_utc(item.ts).astimezone(MARKET_TIMEZONE).minute * 60
-                    + _as_utc(item.ts).astimezone(MARKET_TIMEZONE).second
-                )
-                - target_seconds
-            ),
+            key=lambda item: abs(_local_seconds_since_midnight(item.ts) - target_seconds),
         )
     return _serialize_full_breadth(latest, previous)
 
@@ -255,6 +298,19 @@ def market_sentiment(
         if isinstance(missing_value, list)
         else ["audit_details"]
     )
+
+    def component_is_degraded(name: str) -> bool:
+        component = components.get(name)
+        component_flagged = isinstance(component, Mapping) and component.get("degraded") is True
+        return (
+            name in degraded_components
+            or "audit_details" in degraded_components
+            or component_flagged
+        )
+
+    limitup_baseline_degraded = component_is_degraded("limitup")
+    volume_baseline_degraded = component_is_degraded("volume")
+    volatility_baseline_degraded = component_is_degraded("volatility")
     subs = {
         "breadth": row.breadth_sub,
         "limitup": row.limitup_sub,
@@ -265,8 +321,18 @@ def market_sentiment(
         "score": row.score,
         "label": row.label,
         "subs": subs,
-        "money_effect": money_effect_label(row.limitup_sub),
-        "liquidity": liquidity_label(row.volume_sub),
+        "money_effect": money_effect_label(
+            row.limitup_sub,
+            degraded=limitup_baseline_degraded,
+        ),
+        "liquidity": liquidity_label(
+            row.volume_sub,
+            degraded=volume_baseline_degraded,
+        ),
+        "risk_hint": risk_hint_label(
+            row.volatility_sub,
+            degraded=volatility_baseline_degraded,
+        ),
         "as_of": iso_utc(row.ts),
         "model_version": row.model_version,
         "source_snapshot_id": row.source_snapshot_id,
@@ -314,8 +380,7 @@ def market_intraday(
         raise HTTPException(
             status_code=422,
             detail=(
-                "仅支持最多 5 个核心指数或沪深 A 股；"
-                f"不支持 {unsupported or '超出数量上限'}。"
+                f"仅支持最多 5 个核心指数或沪深 A 股；不支持 {unsupported or '超出数量上限'}。"
             ),
         )
     try:

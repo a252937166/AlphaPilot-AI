@@ -433,7 +433,11 @@ def sentiment_label(score: float) -> str:
     return "过热"
 
 
-def money_effect_label(score: float) -> str:
+def money_effect_label(score: float, *, degraded: bool = False) -> str:
+    """Describe limit-up ecology only when its input has a real baseline."""
+
+    if degraded:
+        return "涨停生态历史基线不足，赚钱效应暂不可用"
     labels = {
         "冰点": "赚钱效应低迷",
         "偏弱": "赚钱效应偏弱",
@@ -444,7 +448,11 @@ def money_effect_label(score: float) -> str:
     return labels[sentiment_label(score)]
 
 
-def liquidity_label(score: float) -> str:
+def liquidity_label(score: float, *, degraded: bool = False) -> str:
+    """Describe turnover conditions only when their input has a real baseline."""
+
+    if degraded:
+        return "量能历史基线不足，资金面暂不可用"
     labels = {
         "冰点": "资金面明显缩量",
         "偏弱": "资金面偏弱",
@@ -453,6 +461,28 @@ def liquidity_label(score: float) -> str:
         "过热": "资金面显著放量",
     }
     return labels[sentiment_label(score)]
+
+
+def risk_hint_label(volatility_sub: float, *, degraded: bool) -> str:
+    """Return an honest risk label for the volatility component.
+
+    ``volatility_sub`` is a safety-oriented score: a lower value means the
+    current rolling volatility ranks higher against history. A degraded
+    component is neutral-filled by the sentiment engine, so its placeholder
+    score must never be presented as a real risk conclusion.
+    """
+
+    if degraded:
+        return "波动率历史基线不足，风险提示暂不可用"
+    if volatility_sub < 30.0:
+        return "波动风险较高"
+    if volatility_sub < 45.0:
+        return "波动风险偏高"
+    if volatility_sub < 60.0:
+        return "波动风险中等"
+    if volatility_sub <= 75.0:
+        return "波动风险偏低"
+    return "波动风险较低"
 
 
 def compute(
@@ -575,8 +605,14 @@ def compute(
         "score": score,
         "label": sentiment_label(score),
         "subs": subs,
-        "money_effect": money_effect_label(limitup_sub),
-        "liquidity": liquidity_label(volume_sub),
+        "money_effect": money_effect_label(
+            limitup_sub,
+            degraded=bool(limitup_details["degraded"]),
+        ),
+        "liquidity": liquidity_label(
+            volume_sub,
+            degraded=bool(volume_details["degraded"]),
+        ),
         "model_version": MODEL_VERSION,
         "details": details,
     }

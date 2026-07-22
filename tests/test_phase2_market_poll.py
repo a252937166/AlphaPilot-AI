@@ -198,7 +198,7 @@ def test_breadth_full_uses_nearest_prior_trading_day_time(tmp_path: Path) -> Non
             [
                 aggregate(datetime(2026, 7, 20, 2, 0, tzinfo=UTC), 100.0),
                 aggregate(datetime(2026, 7, 20, 2, 1, tzinfo=UTC), 120.0),
-                aggregate(datetime(2026, 7, 21, 2, 0, 40, tzinfo=UTC), 150.0),
+                aggregate(datetime(2026, 7, 21, 2, 2, 30, tzinfo=UTC), 150.0),
             ]
         )
 
@@ -212,8 +212,61 @@ def test_breadth_full_uses_nearest_prior_trading_day_time(tmp_path: Path) -> Non
     assert payload["prior_broken_boards"] == 20
     assert payload["prior_avg_change_pct"] == 0.5
     assert payload["prior_total_amount"] == 120.0
+    assert payload["prior_time_gap_seconds"] == 90.0
+    assert payload["prior_comparable"] is True
     assert payload["amount_delta"] == 30.0
     assert payload["amount_delta_pct"] == 25.0
+
+
+def test_breadth_full_keeps_non_comparable_prior_for_audit_without_delta(
+    tmp_path: Path,
+) -> None:
+    engine = create_engine(f"sqlite:///{tmp_path / 'breadth-gap.db'}")
+    Base.metadata.create_all(engine)
+    with Session(engine) as session:
+        session.add_all(
+            [
+                MarketSnapshotAgg(
+                    ts=datetime(2026, 7, 20, 1, 58, tzinfo=UTC),
+                    advancers=2800,
+                    decliners=2100,
+                    unchanged=100,
+                    limit_up=70,
+                    limit_down=8,
+                    broken_boards=30,
+                    up_gt4=250,
+                    down_gt4=120,
+                    total_amount=120.0,
+                    avg_change_pct=0.3,
+                    median_change_pct=0.1,
+                    source="test",
+                ),
+                MarketSnapshotAgg(
+                    ts=datetime(2026, 7, 21, 2, 0, tzinfo=UTC),
+                    advancers=3000,
+                    decliners=2000,
+                    unchanged=100,
+                    limit_up=80,
+                    limit_down=5,
+                    broken_boards=20,
+                    up_gt4=300,
+                    down_gt4=100,
+                    total_amount=150.0,
+                    avg_change_pct=0.5,
+                    median_change_pct=0.2,
+                    source="test",
+                ),
+            ]
+        )
+        session.commit()
+        payload = market_breadth_full(session)
+
+    assert payload["prior_ts"] == "2026-07-20T01:58:00+00:00"
+    assert payload["prior_total_amount"] == 120.0
+    assert payload["prior_time_gap_seconds"] == 120.0
+    assert payload["prior_comparable"] is False
+    assert payload["amount_delta"] is None
+    assert payload["amount_delta_pct"] is None
 
 
 def test_breadth_full_returns_null_prior_fields_without_prior_day(tmp_path: Path) -> None:
@@ -251,6 +304,8 @@ def test_breadth_full_returns_null_prior_fields_without_prior_day(tmp_path: Path
         "prior_total_amount",
     ):
         assert payload[field] is None
+    assert payload["prior_time_gap_seconds"] is None
+    assert payload["prior_comparable"] is False
     assert payload["amount_delta"] is None
     assert payload["amount_delta_pct"] is None
 

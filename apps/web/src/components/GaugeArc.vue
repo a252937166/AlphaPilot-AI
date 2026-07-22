@@ -7,7 +7,8 @@ const props = defineProps<{
   value: number | null | undefined // 0..1
   label?: string
   size?: string
-  format?: 'score10' | 'percent'
+  format?: 'score10' | 'score100' | 'percent'
+  ariaLabel?: string
 }>()
 
 const score = computed(() => {
@@ -61,24 +62,35 @@ const option = computed(() => {
           valueAnimation: false,
           formatter: (value: number) => {
             if (score.value === null) return '—'
-            return props.format === 'percent' ? `${Math.round(value)}%` : (value / 10).toFixed(1)
+            if (props.format === 'percent') return `${Math.round(value)}%`
+            if (props.format === 'score100') return String(Math.round(value))
+            return (value / 10).toFixed(1)
           },
           color: '#eef2fa',
-          fontSize: 15,
+          fontSize: props.format === 'score100' ? 32 : 15,
           fontWeight: 700,
           fontFamily: "ui-monospace,'SF Mono',Menlo,monospace",
-          offsetCenter: [0, 8],
+          offsetCenter: [0, props.format === 'score100' ? 4 : 8],
         },
         data: [{ value: pct }],
       },
     ],
   }
 })
+
+const accessibleLabel = computed(() => {
+  if (props.ariaLabel) return props.ariaLabel
+  const prefix = props.label || '评分'
+  if (score.value === null) return `${prefix}暂无数据`
+  if (props.format === 'percent') return `${prefix}${Math.round(score.value * 100)}%`
+  if (props.format === 'score100') return `${prefix}${Math.round(score.value * 100)}分`
+  return `${prefix}${(score.value * 10).toFixed(1)}分`
+})
 </script>
 
 <template>
   <div style="display: grid; place-items: center">
-    <EChart :option="option" :height="props.size || '78px'" />
+    <EChart :option="option" :height="props.size || '78px'" :aria-label="accessibleLabel" />
     <div v-if="props.label" class="xs dim" style="margin-top: -12px">{{ props.label }}</div>
   </div>
 </template>

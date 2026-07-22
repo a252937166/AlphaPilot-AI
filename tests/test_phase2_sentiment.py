@@ -19,6 +19,9 @@ from alphapilot.engines.sentiment import (
     _percentile_rank,
     clear_sentiment_cache,
     compute,
+    liquidity_label,
+    money_effect_label,
+    risk_hint_label,
     sentiment_label,
 )
 
@@ -165,6 +168,32 @@ def test_sentiment_label_boundaries(score: float, expected: str) -> None:
     assert sentiment_label(score) == expected
 
 
+@pytest.mark.parametrize(
+    ("score", "expected"),
+    [
+        (29.999, "波动风险较高"),
+        (30.0, "波动风险偏高"),
+        (44.999, "波动风险偏高"),
+        (45.0, "波动风险中等"),
+        (59.999, "波动风险中等"),
+        (60.0, "波动风险偏低"),
+        (75.0, "波动风险偏低"),
+        (75.001, "波动风险较低"),
+    ],
+)
+def test_risk_hint_label_boundaries(score: float, expected: str) -> None:
+    assert risk_hint_label(score, degraded=False) == expected
+
+
+def test_risk_hint_label_never_uses_a_placeholder_score_as_a_conclusion() -> None:
+    assert risk_hint_label(100.0, degraded=True) == "波动率历史基线不足，风险提示暂不可用"
+
+
+def test_degraded_component_labels_never_interpret_placeholder_scores() -> None:
+    assert money_effect_label(100.0, degraded=True) == "涨停生态历史基线不足，赚钱效应暂不可用"
+    assert liquidity_label(100.0, degraded=True) == "量能历史基线不足，资金面暂不可用"
+
+
 def test_daily_close_selector_uses_last_row_in_shanghai_close_window() -> None:
     first_day = date(2026, 7, 20)
     second_day = date(2026, 7, 21)
@@ -230,6 +259,7 @@ def test_fixed_weight_score_keeps_neutral_slots_for_degraded_components(
     assert set(details["degraded_components"]) == {"volume", "volatility"}
     assert details["components"]["volume"]["mode"] == "close_to_close"
     assert details["components"]["volume"]["available"] is False
+    assert payload["liquidity"] == "量能历史基线不足，资金面暂不可用"
 
 
 def test_off_hours_snapshot_does_not_fabricate_volume_comparison(tmp_path: Path) -> None:
@@ -343,6 +373,8 @@ def test_incomplete_and_future_index_bars_are_excluded(tmp_path: Path) -> None:
         payload = compute(session, current)
 
     volatility = payload["details"]["components"]["volatility"]
+    assert payload["details"]["components"]["limitup"]["degraded"] is True
+    assert payload["money_effect"] == "涨停生态历史基线不足，赚钱效应暂不可用"
     assert payload["subs"]["volatility"] == pytest.approx(50.0)
     assert volatility["index_symbol"] == "SH.000001"
     assert volatility["latest_complete_trade_date"] == "2026-01-20"
@@ -493,7 +525,80 @@ def test_market_sentiment_api_returns_latest_persisted_row_with_utc_timestamp(
     assert payload["degraded"] is True
     assert payload["degraded_components"] == ["volume"]
     assert payload["money_effect"] == "赚钱效应较强"
-    assert payload["liquidity"] == "资金面偏强"
+    assert payload["liquidity"] == "量能历史基线不足，资金面暂不可用"
+    assert payload["risk_hint"] == "波动风险较低"
+
+
+def test_market_sentiment_api_marks_degraded_volatility_risk_as_unavailable(
+    tmp_path: Path,
+) -> None:
+    engine = create_engine(f"sqlite:///{tmp_path / 'sentiment-risk-degraded.db'}")
+    Base.metadata.create_all(engine)
+    with Session(engine) as session:
+        snapshot = _snapshot(ts=datetime(2026, 7, 21, 7, 1, tzinfo=UTC))
+        session.add(snapshot)
+        session.flush()
+        session.add(
+            _sentiment_row(
+                source_snapshot_id=snapshot.id,
+                ts=snapshot.ts,
+                volatility_sub=100.0,
+                details={
+                    "components": {
+                        "volatility": {
+                            "sample_size": 0,
+                            "historical_samples": 0,
+                            "degraded": True,
+                        }
+                    },
+                    "degraded_components": ["volatility"],
+                    "missing_inputs": ["volatility"],
+                },
+            )
+        )
+        session.commit()
+
+    with Session(engine) as session:
+        payload = market_sentiment(session)
+
+    assert payload["subs"]["volatility"] == 100.0
+    assert payload["risk_hint"] == "波动率历史基线不足，风险提示暂不可用"
+
+
+def test_market_sentiment_api_marks_degraded_limitup_effect_as_unavailable(
+    tmp_path: Path,
+) -> None:
+    engine = create_engine(f"sqlite:///{tmp_path / 'sentiment-limitup-degraded.db'}")
+    Base.metadata.create_all(engine)
+    with Session(engine) as session:
+        snapshot = _snapshot(ts=datetime(2026, 7, 21, 7, 1, tzinfo=UTC))
+        session.add(snapshot)
+        session.flush()
+        session.add(
+            _sentiment_row(
+                source_snapshot_id=snapshot.id,
+                ts=snapshot.ts,
+                limitup_sub=100.0,
+                details={
+                    "components": {
+                        "limitup": {
+                            "sample_size": 1,
+                            "historical_samples": 0,
+                            "degraded": True,
+                        }
+                    },
+                    "degraded_components": ["limitup"],
+                    "missing_inputs": [],
+                },
+            )
+        )
+        session.commit()
+
+    with Session(engine) as session:
+        payload = market_sentiment(session)
+
+    assert payload["subs"]["limitup"] == 100.0
+    assert payload["money_effect"] == "涨停生态历史基线不足，赚钱效应暂不可用"
 
 
 def test_market_sentiment_api_rejects_a_stale_row(tmp_path: Path) -> None:
