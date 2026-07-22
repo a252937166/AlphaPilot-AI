@@ -15,6 +15,11 @@ os.environ["ALPHAPILOT_DATABASE_URL"] = f"sqlite:///{_tmpdir}/test.db"
 os.environ["ALPHAPILOT_DEFAULT_DATA_PROVIDER"] = "mock"
 os.environ["ALPHAPILOT_SCHEDULER_ENABLED"] = "false"
 os.environ["ALPHAPILOT_MARKET_POLL_ENABLED"] = "false"
+# Unit and API tests must never inherit the developer's real local LLM credentials.
+os.environ["ALPHAPILOT_LLM_BASE_URL"] = ""
+os.environ["ALPHAPILOT_LLM_API_KEY"] = ""
+os.environ["ALPHAPILOT_LLM_MODEL"] = "qwen3.6-flash"
+os.environ["ALPHAPILOT_LLM_PURPOSE_MODELS"] = "{}"
 
 import pytest  # noqa: E402
 

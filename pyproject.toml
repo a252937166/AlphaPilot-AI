@@ -18,6 +18,7 @@ dependencies = [
   "pandas>=2.2,<3",
   "numpy>=1.26,<2.5",
   "httpx>=0.28,<1",
+  "jsonschema>=4,<5",
   "PyYAML>=6.0,<7",
   "tenacity>=9.0,<10",
   "SQLAlchemy>=2.0,<3",
