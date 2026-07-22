@@ -12,6 +12,10 @@ import pandas as pd
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from alphapilot.data.provenance import (
+    AUDITED_DAILY_BAR_SOURCES,
+    AUDITED_SECTOR_FLOW_SOURCES,
+)
 from alphapilot.db.models import DailyBar, SectorConstituent, SectorFlowDaily
 
 HORIZONS = (5, 10, 20)
@@ -82,6 +86,8 @@ def _benchmark_dates(session: Session, target_date: date) -> list[date]:
             .where(
                 DailyBar.symbol == "SH.000001",
                 DailyBar.trade_date <= target_date,
+                DailyBar.source.in_(AUDITED_DAILY_BAR_SOURCES),
+                DailyBar.close > 0,
             )
             .distinct()
             .order_by(DailyBar.trade_date.desc())
@@ -115,6 +121,8 @@ def _input_signature(session: Session, dates: list[date]) -> tuple[Any, ...]:
         ).where(
             DailyBar.trade_date.in_(dates),
             func.length(DailyBar.symbol) == 6,
+            DailyBar.source.in_(AUDITED_DAILY_BAR_SOURCES),
+            DailyBar.close > 0,
         )
     ).one()
     bind = session.get_bind()
@@ -166,6 +174,7 @@ def _load_bars(session: Session, dates: list[date]) -> pd.DataFrame:
         .where(
             DailyBar.trade_date.in_(dates),
             func.length(DailyBar.symbol) == 6,
+            DailyBar.source.in_(AUDITED_DAILY_BAR_SOURCES),
         )
         .order_by(DailyBar.symbol, DailyBar.trade_date)
     )
@@ -306,6 +315,7 @@ def _attach_flows(session: Session, panel: pd.DataFrame) -> tuple[pd.DataFrame, 
         .where(
             SectorFlowDaily.trade_date >= first_date,
             SectorFlowDaily.trade_date <= last_date,
+            SectorFlowDaily.source.in_(AUDITED_SECTOR_FLOW_SOURCES),
         )
         .order_by(SectorFlowDaily.plate_code, SectorFlowDaily.trade_date)
     )

@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import re
 
-from sqlalchemy import Engine, inspect, text
+from sqlalchemy import Engine, Index, MetaData, Table, inspect, text
 
 MIGRATIONS: list[tuple[str, str, str]] = [
     ("securities", "industry_csrc", "TEXT"),
@@ -23,6 +23,10 @@ MIGRATIONS: list[tuple[str, str, str]] = [
     ("alerts", "target_low", "FLOAT"),
     ("alerts", "target_high", "FLOAT"),
     ("alerts", "suggested_notional", "FLOAT"),
+]
+
+INDEX_MIGRATIONS: list[tuple[str, str, tuple[str, ...]]] = [
+    ("daily_bars", "ix_daily_bars_trade_date_symbol", ("trade_date", "symbol")),
 ]
 
 _IDENTIFIER = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
@@ -80,13 +84,65 @@ def ensure_column(engine: Engine, table: str, column: str, ddl_type: str) -> boo
     return True
 
 
+def ensure_index(
+    engine: Engine,
+    table: str,
+    index_name: str,
+    columns: tuple[str, ...],
+) -> bool:
+    """Create one named index safely and report whether the schema changed."""
+
+    table = _validated_identifier(table)
+    index_name = _validated_identifier(index_name)
+    columns = tuple(_validated_identifier(column) for column in columns)
+    if not columns or len(set(columns)) != len(columns):
+        raise ValueError("index columns must be non-empty and unique")
+
+    inspector = inspect(engine)
+    if not inspector.has_table(table):
+        raise ValueError(f"table does not exist: {table}")
+    available_columns = {str(item["name"]) for item in inspector.get_columns(table)}
+    missing = [column for column in columns if column not in available_columns]
+    if missing:
+        raise ValueError(f"index columns do not exist on {table}: {missing}")
+    existing_indexes = inspector.get_indexes(table)
+    for item in existing_indexes:
+        if item.get("name") != index_name:
+            continue
+        existing_columns = tuple(str(column) for column in item.get("column_names") or ())
+        if existing_columns != columns:
+            raise ValueError(
+                f"index {index_name} already exists with columns {existing_columns}, "
+                f"expected {columns}"
+            )
+        return False
+    if any(
+        tuple(str(column) for column in item.get("column_names") or ()) == columns
+        and not bool(item.get("dialect_options"))
+        for item in existing_indexes
+    ):
+        return False
+
+    metadata = MetaData()
+    reflected = Table(table, metadata, autoload_with=engine)
+    index = Index(index_name, *(reflected.c[column] for column in columns))
+    with engine.begin() as connection:
+        index.create(bind=connection, checkfirst=True)
+    return True
+
+
 def run_migrations(engine: Engine) -> list[str]:
-    """Apply the centrally registered idempotent column migrations."""
+    """Apply the centrally registered idempotent column and index migrations."""
 
     applied: list[str] = []
     for table, column, ddl_type in MIGRATIONS:
         if ensure_column(engine, table, column, ddl_type):
             applied.append(f"{table}.{column}")
+    for table, index_name, columns in INDEX_MIGRATIONS:
+        if inspect(engine).has_table(table) and ensure_index(
+            engine, table, index_name, columns
+        ):
+            applied.append(f"{table}.{index_name}")
     if inspect(engine).has_table("trade_proposals"):
         if ensure_column(engine, "trade_proposals", "idempotency_key", "TEXT"):
             applied.append("trade_proposals.idempotency_key")

@@ -15,7 +15,7 @@ from sqlalchemy.orm import Session
 
 from alphapilot.api.routes.jobs import list_runs
 from alphapilot.core.config import Settings
-from alphapilot.db.migrate import ensure_column
+from alphapilot.db.migrate import ensure_column, ensure_index, run_migrations
 from alphapilot.db.models import Base, Disclosure, DomainEvent, JobRun
 from alphapilot.jobs import event_backfill
 from alphapilot.jobs import scheduler as scheduler_module
@@ -39,6 +39,92 @@ def test_ensure_column_is_idempotent(tmp_path: Any) -> None:
     assert {column["name"] for column in inspect(engine).get_columns("sample")} == {
         "id",
         "label",
+    }
+
+
+def test_daily_bar_trade_date_index_migration_is_existing_safe_and_idempotent(
+    tmp_path: Path,
+) -> None:
+    engine = create_engine(f"sqlite:///{tmp_path / 'daily-bar-index.db'}")
+    Base.metadata.create_all(engine)
+    expected = ("trade_date", "symbol")
+
+    indexes = {
+        str(item["name"]): tuple(str(column) for column in item["column_names"])
+        for item in inspect(engine).get_indexes("daily_bars")
+    }
+    assert indexes["ix_daily_bars_trade_date_symbol"] == expected
+    assert (
+        ensure_index(
+            engine,
+            "daily_bars",
+            "ix_daily_bars_trade_date_symbol",
+            expected,
+        )
+        is False
+    )
+
+    with engine.begin() as connection:
+        connection.execute(text("DROP INDEX ix_daily_bars_trade_date_symbol"))
+    assert "daily_bars.ix_daily_bars_trade_date_symbol" in run_migrations(engine)
+    assert run_migrations(engine) == []
+
+    with engine.connect() as connection:
+        plan = connection.execute(
+            text(
+                "EXPLAIN QUERY PLAN SELECT count(DISTINCT symbol) FROM daily_bars "
+                "WHERE trade_date = :trade_date AND length(symbol) = 6 "
+                "AND source != 'mock' AND close > 0"
+            ),
+            {"trade_date": "2026-07-21"},
+        ).all()
+    assert any(
+        "ix_daily_bars_trade_date_symbol" in str(row[-1]) and "SEARCH" in str(row[-1])
+        for row in plan
+    )
+
+
+def test_ensure_index_rejects_an_existing_name_with_wrong_columns(tmp_path: Path) -> None:
+    engine = create_engine(f"sqlite:///{tmp_path / 'wrong-index.db'}")
+    with engine.begin() as connection:
+        connection.execute(text("CREATE TABLE sample (first TEXT, second TEXT)"))
+        connection.execute(text("CREATE INDEX ix_sample_pair ON sample (second, first)"))
+
+    with pytest.raises(ValueError, match="already exists with columns"):
+        ensure_index(engine, "sample", "ix_sample_pair", ("first", "second"))
+
+
+def test_ensure_index_accepts_equivalent_columns_under_an_existing_name(
+    tmp_path: Path,
+) -> None:
+    engine = create_engine(f"sqlite:///{tmp_path / 'equivalent-index.db'}")
+    with engine.begin() as connection:
+        connection.execute(text("CREATE TABLE sample (first TEXT, second TEXT)"))
+        connection.execute(text("CREATE INDEX ix_legacy_pair ON sample (first, second)"))
+
+    assert ensure_index(engine, "sample", "ix_new_pair", ("first", "second")) is False
+    assert {str(item["name"]) for item in inspect(engine).get_indexes("sample")} == {
+        "ix_legacy_pair"
+    }
+
+
+def test_ensure_index_does_not_treat_a_partial_index_as_equivalent(
+    tmp_path: Path,
+) -> None:
+    engine = create_engine(f"sqlite:///{tmp_path / 'partial-index.db'}")
+    with engine.begin() as connection:
+        connection.execute(text("CREATE TABLE sample (first TEXT, second TEXT)"))
+        connection.execute(
+            text(
+                "CREATE INDEX ix_partial_pair ON sample (first, second) "
+                "WHERE first IS NOT NULL"
+            )
+        )
+
+    assert ensure_index(engine, "sample", "ix_full_pair", ("first", "second")) is True
+    assert {str(item["name"]) for item in inspect(engine).get_indexes("sample")} == {
+        "ix_full_pair",
+        "ix_partial_pair",
     }
 
 

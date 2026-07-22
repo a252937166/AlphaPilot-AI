@@ -10,20 +10,23 @@ from typing import Any
 import pandas as pd
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine, func, inspect, select
+from sqlalchemy import create_engine, delete, func, inspect, select
 from sqlalchemy.orm import Session
 
 from alphapilot.api.dependencies import db_session_dependency
 from alphapilot.db.models import (
     Base,
     DailyBar,
+    JobRun,
     SectorConstituent,
     SectorFlowDaily,
     SectorForecast,
+    SectorSnapshot,
 )
 from alphapilot.engines.sector_forecast import (
     MODEL_VERSION,
     NO_FLOW_MODEL_VERSION,
+    SectorForecastError,
     build_sector_index,
     classify_lifecycle,
     clear_sector_index_cache,
@@ -90,7 +93,7 @@ def _seed_toy_market(engine: Any, *, with_flow: bool = False) -> date:
                     close=benchmark,
                     volume=1.0,
                     amount=1.0,
-                    source="test",
+                    source="baostock",
                 )
             )
             for plate_index, (plate_code, _, symbols, path) in enumerate(plates):
@@ -112,7 +115,7 @@ def _seed_toy_market(engine: Any, *, with_flow: bool = False) -> date:
                             close=close,
                             volume=1_000.0,
                             amount=close * 1_000.0,
-                            source="test",
+                            source="baostock",
                         )
                     )
                 if with_flow and trade_day in dates[-84:]:
@@ -122,7 +125,7 @@ def _seed_toy_market(engine: Any, *, with_flow: bool = False) -> date:
                             trade_date=trade_day,
                             net_inflow=(plate_index + 1) * 1_000_000.0 * (1.0 + index / 100.0),
                             main_inflow=None,
-                            source="test",
+                            source="futu-top5",
                         )
                     )
         session.commit()
@@ -241,6 +244,23 @@ def test_real_price_backtest_degrades_without_inventing_flow(tmp_path: Path) -> 
         assert 0.0 <= validation["win_rate"] <= 1.0
 
 
+@pytest.mark.parametrize("source", ["test", "mock-fallback"])
+def test_sector_forecast_rejects_untrusted_daily_bar_sources(
+    tmp_path: Path,
+    source: str,
+) -> None:
+    engine = create_engine(f"sqlite:///{tmp_path / f'untrusted-{source}.db'}")
+    target = _seed_toy_market(engine)
+    with Session(engine) as session:
+        for row in session.scalars(select(DailyBar)):
+            row.source = source
+        session.commit()
+    clear_sector_index_cache()
+
+    with Session(engine) as session, pytest.raises(SectorForecastError, match="交易日历只有 0 日"):
+        compute_sector_forecasts(session, target)
+
+
 def test_full_flow_model_requires_complete_auditable_history(tmp_path: Path) -> None:
     engine = create_engine(f"sqlite:///{tmp_path / 'sector-full-flow.db'}")
     target = _seed_toy_market(engine, with_flow=True)
@@ -281,7 +301,10 @@ def test_job_is_idempotent_and_api_exposes_truthful_degradation(
     app.dependency_overrides[db_session_dependency] = override_session
     try:
         client = TestClient(app)
-        forecast = client.get("/v1/sectors/forecast?horizon=5")
+        forecasts = {
+            horizon: client.get(f"/v1/sectors/forecast?horizon={horizon}")
+            for horizon in (5, 10, 20)
+        }
         lifecycle = client.get("/v1/sectors/lifecycle")
         overbought = client.get("/v1/sectors/overbought")
         reversal = client.get("/v1/sectors/reversal")
@@ -289,10 +312,28 @@ def test_job_is_idempotent_and_api_exposes_truthful_degradation(
     finally:
         app.dependency_overrides.pop(db_session_dependency, None)
 
-    assert forecast.status_code == 200
+    assert all(response.status_code == 200 for response in forecasts.values())
+    forecast = forecasts[5]
     assert forecast.json()["count"] == 3
     assert forecast.json()["model_version"] == NO_FLOW_MODEL_VERSION
     assert "未补零" in forecast.json()["degraded_reason"]
+    assert all(
+        row["win_rate"] is not None
+        for response in forecasts.values()
+        for row in response.json()["rows"]
+    )
+    assert len(
+        {
+            round(float(response.json()["rows"][0]["expected_excess"]), 8)
+            for response in forecasts.values()
+        }
+    ) == 3
+    assert all(
+        row["net_inflow_5d"] is None and row["flow_coverage_days"] == 0
+        for row in forecast.json()["rows"]
+    )
+    assert forecast.json()["input_trade_date"] == target.isoformat()
+    assert forecast.json()["stale"] is False
     assert lifecycle.status_code == 200
     assert sum(lifecycle.json()["counts"].values()) == 3
     assert overbought.status_code == 200
@@ -301,6 +342,609 @@ def test_job_is_idempotent_and_api_exposes_truthful_degradation(
     assert reversal.json()["rows"] == []
     assert "flow_turn_z" in reversal.json()["reason"]
     assert invalid.status_code == 422
+
+
+def test_forecast_api_exposes_complete_flow_window_and_audited_leader(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    engine = create_engine(f"sqlite:///{tmp_path / 'sector-enriched.db'}")
+    target = _seed_toy_market(engine, with_flow=True)
+    local_session = _session_factory(engine)
+    clear_sector_index_cache()
+    monkeypatch.setattr(sector_job, "get_session", local_session)
+    monkeypatch.setattr(sector_job, "_market_today", lambda: target)
+    sector_job.compute_sector_forecast()
+    snapshot_time = datetime(2026, 7, 21, 8, 0, tzinfo=UTC)
+    with Session(engine) as session:
+        session.add(
+            SectorSnapshot(
+                as_of=snapshot_time,
+                source="futu",
+                payload=[
+                    {
+                        "plate_code": "SH.LISTA",
+                        "leader_code": "SH.600001",
+                        "leader_name": "上行龙头",
+                        "leader_change_pct": 2.5,
+                    }
+                ],
+            )
+        )
+        session.commit()
+
+    def override_session() -> Iterator[Session]:
+        with Session(engine, expire_on_commit=False) as session:
+            yield session
+
+    app.dependency_overrides[db_session_dependency] = override_session
+    try:
+        response = TestClient(app).get("/v1/sectors/forecast?horizon=20")
+    finally:
+        app.dependency_overrides.pop(db_session_dependency, None)
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["flow_as_of"] == target.isoformat()
+    assert payload["flow_window_days"] == 5
+    assert payload["strength_as_of"] == snapshot_time.isoformat()
+    assert all(row["flow_coverage_days"] == 5 for row in payload["rows"])
+    assert all(row["net_inflow_5d"] is not None for row in payload["rows"])
+    assert {row["flow_source"] for row in payload["rows"]} == {"futu-top5"}
+    enriched = next(row for row in payload["rows"] if row["plate_code"] == "SH.LISTA")
+    assert enriched["leader_code"] == "600001"
+    assert enriched["leader_name"] == "上行龙头"
+    assert enriched["leader_change_pct"] == pytest.approx(2.5)
+
+
+def test_forecast_api_serves_explicit_stale_snapshot_only_for_partial_latest_day(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    engine = create_engine(f"sqlite:///{tmp_path / 'sector-partial-latest.db'}")
+    target = _seed_toy_market(engine)
+    next_day = target + timedelta(days=1)
+    local_session = _session_factory(engine)
+    clear_sector_index_cache()
+    monkeypatch.setattr(sector_job, "get_session", local_session)
+    monkeypatch.setattr(sector_job, "_market_today", lambda: target)
+    sector_job.compute_sector_forecast()
+    with Session(engine) as session:
+        session.add_all(
+            [
+                DailyBar(
+                    symbol="SH.000001",
+                    trade_date=next_day,
+                    open=3_001.0,
+                    high=3_001.0,
+                    low=3_001.0,
+                    close=3_001.0,
+                    volume=1.0,
+                    amount=1.0,
+                    source="baostock",
+                ),
+                DailyBar(
+                    symbol="600001",
+                    trade_date=next_day,
+                    open=101.0,
+                    high=101.0,
+                    low=101.0,
+                    close=101.0,
+                    volume=1.0,
+                    amount=1.0,
+                    source="baostock",
+                ),
+            ]
+        )
+        session.add_all(
+            SectorForecast(
+                plate_code="SH.LISTA",
+                plate_name="坏截面",
+                trade_date=next_day,
+                horizon=horizon,
+                score=99.0,
+                model_version=NO_FLOW_MODEL_VERSION,
+            )
+            for horizon in (5, 10, 20)
+        )
+        session.commit()
+
+    def override_session() -> Iterator[Session]:
+        with Session(engine, expire_on_commit=False) as session:
+            yield session
+
+    app.dependency_overrides[db_session_dependency] = override_session
+    try:
+        client = TestClient(app)
+        partial = client.get("/v1/sectors/forecast?horizon=5")
+        with Session(engine) as session:
+            session.execute(
+                delete(SectorForecast).where(SectorForecast.trade_date == next_day)
+            )
+            for symbol in ("600002", "000001", "000002", "300001", "300002"):
+                session.add(
+                    DailyBar(
+                        symbol=symbol,
+                        trade_date=next_day,
+                        open=101.0,
+                        high=101.0,
+                        low=101.0,
+                        close=101.0,
+                        volume=1.0,
+                        amount=1.0,
+                        source="baostock",
+                    )
+                )
+            session.commit()
+        complete = client.get("/v1/sectors/forecast?horizon=5")
+    finally:
+        app.dependency_overrides.pop(db_session_dependency, None)
+
+    assert partial.status_code == 200
+    assert partial.json()["as_of"] == target.isoformat()
+    assert partial.json()["input_trade_date"] == next_day.isoformat()
+    assert partial.json()["stale"] is True
+    assert partial.json()["ignored_forecast_dates"] == [next_day.isoformat()]
+    assert partial.json()["input_coverage"] == {
+        "latest_symbol_count": 1,
+        "forecast_symbol_count": 6,
+        "reference_trade_date": target.isoformat(),
+        "reference_symbol_count": 6,
+        "ratio": pytest.approx(1 / 6, abs=1e-6),
+        "minimum_ratio": 0.8,
+    }
+    assert "未将部分截面当作新预测" in partial.json()["warning"]
+    assert complete.status_code == 503
+    assert "最新完整交易日日线" in complete.json()["detail"]
+
+
+def test_sector_forecast_job_rejects_partial_same_day_before_write(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    engine = create_engine(f"sqlite:///{tmp_path / 'sector-partial-job.db'}")
+    target = _seed_toy_market(engine)
+    next_day = target + timedelta(days=1)
+    with Session(engine) as session:
+        session.add_all(
+            [
+                DailyBar(
+                    symbol="SH.000001",
+                    trade_date=next_day,
+                    open=3_001.0,
+                    high=3_001.0,
+                    low=3_001.0,
+                    close=3_001.0,
+                    volume=1.0,
+                    amount=1.0,
+                    source="baostock",
+                ),
+                DailyBar(
+                    symbol="600001",
+                    trade_date=next_day,
+                    open=101.0,
+                    high=101.0,
+                    low=101.0,
+                    close=101.0,
+                    volume=1.0,
+                    amount=1.0,
+                    source="baostock",
+                ),
+            ]
+        )
+        session.commit()
+    local_session = _session_factory(engine)
+    monkeypatch.setattr(sector_job, "get_session", local_session)
+    monkeypatch.setattr(sector_job, "_market_today", lambda: next_day)
+
+    with pytest.raises(JobExecutionError, match="覆盖不足 80%") as caught:
+        sector_job.compute_sector_forecast()
+    assert caught.value.stats["skipped"] == "incomplete_daily_bars"
+    assert caught.value.stats["input_coverage"]["ratio"] == pytest.approx(1 / 6, abs=1e-6)
+    with Session(engine) as session:
+        assert session.scalar(
+            select(func.count()).select_from(SectorForecast).where(
+                SectorForecast.trade_date == next_day
+            )
+        ) == 0
+
+
+def test_consecutive_partial_days_cannot_validate_each_other(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    engine = create_engine(f"sqlite:///{tmp_path / 'sector-consecutive-partial.db'}")
+    complete_day = _seed_toy_market(engine)
+    partial_days = [complete_day + timedelta(days=offset) for offset in range(1, 9)]
+    final_partial = partial_days[-1]
+    with Session(engine) as session:
+        for trade_day in partial_days:
+            session.add_all(
+                [
+                    DailyBar(
+                        symbol="SH.000001",
+                        trade_date=trade_day,
+                        open=3_001.0,
+                        high=3_001.0,
+                        low=3_001.0,
+                        close=3_001.0,
+                        volume=1.0,
+                        amount=1.0,
+                        source="baostock",
+                    ),
+                    DailyBar(
+                        symbol="600001",
+                        trade_date=trade_day,
+                        open=101.0,
+                        high=101.0,
+                        low=101.0,
+                        close=101.0,
+                        volume=1.0,
+                        amount=1.0,
+                        source="baostock",
+                    ),
+                ]
+            )
+        session.commit()
+
+    local_session = _session_factory(engine)
+    monkeypatch.setattr(sector_job, "get_session", local_session)
+    monkeypatch.setattr(sector_job, "_market_today", lambda: final_partial)
+
+    with pytest.raises(JobExecutionError, match="覆盖不足 80%") as caught:
+        sector_job.compute_sector_forecast()
+
+    coverage = caught.value.stats["input_coverage"]
+    assert coverage["symbol_count"] == 1
+    assert coverage["reference_trade_date"] == complete_day.isoformat()
+    assert coverage["reference_symbol_count"] == 6
+    assert coverage["ratio"] == pytest.approx(1 / 6, abs=1e-6)
+    with Session(engine) as session:
+        assert session.scalar(
+            select(func.count()).select_from(SectorForecast).where(
+                SectorForecast.trade_date == final_partial
+            )
+        ) == 0
+
+
+def test_service_rejects_consecutive_partial_days_as_a_complete_forecast(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    engine = create_engine(f"sqlite:///{tmp_path / 'sector-partial-service.db'}")
+    complete_day = _seed_toy_market(engine)
+    local_session = _session_factory(engine)
+    clear_sector_index_cache()
+    monkeypatch.setattr(sector_job, "get_session", local_session)
+    monkeypatch.setattr(sector_job, "_market_today", lambda: complete_day)
+    sector_job.compute_sector_forecast()
+    first_partial = complete_day + timedelta(days=1)
+    second_partial = complete_day + timedelta(days=2)
+    with Session(engine) as session:
+        for trade_day in (first_partial, second_partial):
+            session.add_all(
+                [
+                    DailyBar(
+                        symbol="SH.000001",
+                        trade_date=trade_day,
+                        open=3_001.0,
+                        high=3_001.0,
+                        low=3_001.0,
+                        close=3_001.0,
+                        volume=1.0,
+                        amount=1.0,
+                        source="baostock",
+                    ),
+                    DailyBar(
+                        symbol="600001",
+                        trade_date=trade_day,
+                        open=101.0,
+                        high=101.0,
+                        low=101.0,
+                        close=101.0,
+                        volume=1.0,
+                        amount=1.0,
+                        source="baostock",
+                    ),
+                ]
+            )
+        session.add_all(
+            SectorForecast(
+                plate_code="SH.LISTA",
+                plate_name="连续残缺坏截面",
+                trade_date=second_partial,
+                horizon=horizon,
+                score=99.0,
+                model_version=NO_FLOW_MODEL_VERSION,
+            )
+            for horizon in (5, 10, 20)
+        )
+        session.commit()
+
+    def override_session() -> Iterator[Session]:
+        with Session(engine, expire_on_commit=False) as session:
+            yield session
+
+    app.dependency_overrides[db_session_dependency] = override_session
+    try:
+        response = TestClient(app).get("/v1/sectors/forecast?horizon=5")
+    finally:
+        app.dependency_overrides.pop(db_session_dependency, None)
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["as_of"] == complete_day.isoformat()
+    assert payload["input_trade_date"] == second_partial.isoformat()
+    assert payload["stale"] is True
+    assert payload["ignored_forecast_dates"] == [second_partial.isoformat()]
+    assert payload["input_coverage"]["reference_trade_date"] == complete_day.isoformat()
+    assert payload["input_coverage"]["reference_symbol_count"] == 6
+    assert payload["input_coverage"]["ratio"] == pytest.approx(1 / 6, abs=1e-6)
+
+
+def test_sector_flow_window_uses_exact_recent_benchmark_sessions(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    engine = create_engine(f"sqlite:///{tmp_path / 'sector-flow-window.db'}")
+    target = _seed_toy_market(engine)
+    local_session = _session_factory(engine)
+    clear_sector_index_cache()
+    monkeypatch.setattr(sector_job, "get_session", local_session)
+    monkeypatch.setattr(sector_job, "_market_today", lambda: target)
+    sector_job.compute_sector_forecast()
+    dates = [value.date() for value in pd.bdate_range(end=target, periods=35)]
+    with Session(engine) as session:
+        for trade_day in (dates[0], dates[1], dates[2], dates[-2], dates[-1]):
+            session.add(
+                SectorFlowDaily(
+                    plate_code="SH.LISTA",
+                    trade_date=trade_day,
+                    net_inflow=1_000.0,
+                    source="futu-top5",
+                )
+            )
+        for trade_day in dates[-5:]:
+            session.add(
+                SectorFlowDaily(
+                    plate_code="SH.LISTB",
+                    trade_date=trade_day,
+                    net_inflow=9_999.0,
+                    source="test",
+                )
+            )
+        session.commit()
+
+    def override_session() -> Iterator[Session]:
+        with Session(engine, expire_on_commit=False) as session:
+            yield session
+
+    app.dependency_overrides[db_session_dependency] = override_session
+    try:
+        response = TestClient(app).get("/v1/sectors/forecast?horizon=5")
+    finally:
+        app.dependency_overrides.pop(db_session_dependency, None)
+
+    assert response.status_code == 200
+    row = next(item for item in response.json()["rows"] if item["plate_code"] == "SH.LISTA")
+    assert row["flow_coverage_days"] == 2
+    assert row["net_inflow_5d"] is None
+    rejected = next(
+        item for item in response.json()["rows"] if item["plate_code"] == "SH.LISTB"
+    )
+    assert rejected["flow_coverage_days"] == 0
+    assert rejected["net_inflow_5d"] is None
+
+
+def test_sector_leaders_use_forecast_cutoff_and_exclude_invalid_correlations(
+    tmp_path: Path,
+) -> None:
+    engine = create_engine(f"sqlite:///{tmp_path / 'sector-leaders.db'}")
+    Base.metadata.create_all(engine)
+    target = date(2026, 7, 21)
+    dates = [value.date() for value in pd.bdate_range(end=target, periods=21)]
+    symbols = ("600001", "600002", "600003", "600004", "600005", "600006")
+    leader_returns = [0.008 + (index % 4) * 0.002 for index in range(20)]
+    mean_leader = sum(leader_returns) / len(leader_returns)
+    return_paths = {
+        "600001": leader_returns,
+        "600002": [0.004 + 0.7 * (value - mean_leader) for value in leader_returns],
+        "600003": [0.002 - 0.3 * (value - mean_leader) for value in leader_returns],
+        "600004": [0.0] * 20,
+        "600005": [0.003 + 0.5 * (value - mean_leader) for value in leader_returns],
+        "600006": [
+            0.003 + 0.4 * (value - mean_leader) + (0.0005 if index % 2 else -0.0005)
+            for index, value in enumerate(leader_returns)
+        ],
+    }
+    with Session(engine) as session:
+        session.add_all(
+            SectorConstituent(
+                plate_code="SH.BKTEST",
+                plate_name="测试板块",
+                symbol=f"SH.{symbol}",
+                name=f"股票{symbol}",
+                refreshed_at=datetime(2026, 7, 20, 8, 0, tzinfo=UTC),
+            )
+            for symbol in symbols
+        )
+        session.add_all(
+            [
+                SectorConstituent(
+                    plate_code="SH.BKEMPTY",
+                    plate_name="空预测板块",
+                    symbol="SH.601001",
+                    refreshed_at=datetime(2026, 7, 20, 8, 0, tzinfo=UTC),
+                ),
+                SectorConstituent(
+                    plate_code="SH.BKEMPTY",
+                    plate_name="空预测板块",
+                    symbol="SH.601002",
+                    refreshed_at=datetime(2026, 7, 20, 8, 0, tzinfo=UTC),
+                ),
+            ]
+        )
+        session.add_all(
+            SectorForecast(
+                plate_code="SH.BKTEST",
+                plate_name="测试板块",
+                trade_date=target,
+                horizon=horizon,
+                score=88.0,
+                expected_excess=0.02,
+                win_rate=0.65,
+                model_version=MODEL_VERSION,
+            )
+            for horizon in (5, 10, 20)
+        )
+        for index, trade_day in enumerate(dates):
+            benchmark = 3_000.0 * 1.001**index
+            session.add(
+                DailyBar(
+                    symbol="SH.000001",
+                    trade_date=trade_day,
+                    open=benchmark,
+                    high=benchmark,
+                    low=benchmark,
+                    close=benchmark,
+                    volume=1.0,
+                    amount=1.0,
+                    source="baostock",
+                )
+            )
+        for symbol in symbols:
+            close = 100.0
+            closes = [close]
+            for daily_return in return_paths[symbol]:
+                close *= 1.0 + daily_return
+                closes.append(close)
+            for index, (trade_day, value) in enumerate(zip(dates, closes, strict=True)):
+                source = (
+                    "mock-fallback" if symbol == "600005" and index == 10 else "baostock"
+                )
+                session.add(
+                    DailyBar(
+                        symbol=symbol,
+                        trade_date=trade_day,
+                        open=value,
+                        high=value,
+                        low=value,
+                        close=value,
+                        volume=1.0,
+                        amount=1.0,
+                        source=source,
+                    )
+                )
+        future = target + timedelta(days=1)
+        session.add_all(
+            [
+                DailyBar(
+                    symbol="SH.000001",
+                    trade_date=future,
+                    open=3_999.0,
+                    high=3_999.0,
+                    low=3_999.0,
+                    close=3_999.0,
+                    volume=1.0,
+                    amount=1.0,
+                    source="baostock",
+                ),
+                DailyBar(
+                    symbol="600003",
+                    trade_date=future,
+                    open=999.0,
+                    high=999.0,
+                    low=999.0,
+                    close=999.0,
+                    volume=1.0,
+                    amount=1.0,
+                    source="baostock",
+                ),
+            ]
+        )
+        session.commit()
+
+    def override_session() -> Iterator[Session]:
+        with Session(engine, expire_on_commit=False) as session:
+            yield session
+
+    app.dependency_overrides[db_session_dependency] = override_session
+    try:
+        client = TestClient(app)
+        response = client.get("/v1/sectors/SH.BKTEST/leaders")
+        unknown = client.get("/v1/sectors/SH.BKMISSING/leaders")
+        unavailable = client.get("/v1/sectors/SH.BKEMPTY/leaders")
+        invalid = client.get("/v1/sectors/not-a-plate/leaders")
+    finally:
+        app.dependency_overrides.pop(db_session_dependency, None)
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["as_of"] == target.isoformat()
+    assert payload["lookback_sessions"] == 20
+    assert payload["method"] == "pearson-daily-return"
+    assert payload["source"] == "daily_bars"
+    assert payload["sources"] == ["baostock"]
+    assert payload["mock_excluded"] is True
+    assert payload["leader"]["symbol"] == "600001"
+    assert payload["rows"][0]["symbol"] == "600002"
+    assert payload["rows"][0]["correlation"] == pytest.approx(1.0)
+    assert all(row["observations"] == 20 for row in payload["rows"])
+    assert {row["symbol"] for row in payload["rows"]}.isdisjoint({"600004", "600005"})
+    assert unknown.status_code == 404
+    assert unavailable.status_code == 503
+    assert invalid.status_code == 422
+
+
+def test_sector_forecast_stale_upstream_lease_is_reported_not_blocking(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    engine = create_engine(f"sqlite:///{tmp_path / 'sector-stale-upstream.db'}")
+    target = _seed_toy_market(engine)
+    fixed_now = datetime(2026, 7, 22, 12, 0, tzinfo=UTC)
+    local_session = _session_factory(engine)
+    with Session(engine) as session:
+        stale = JobRun(
+            job_name="sync_sector_flows",
+            status="running",
+            stats={},
+            started_at=fixed_now - timedelta(hours=6),
+        )
+        session.add(stale)
+        session.commit()
+        stale_id = stale.id
+    clear_sector_index_cache()
+    monkeypatch.setattr(sector_job, "get_session", local_session)
+    monkeypatch.setattr(sector_job, "_market_today", lambda: target)
+    monkeypatch.setattr(sector_job, "_job_now", lambda: fixed_now)
+
+    stats = sector_job.compute_sector_forecast()
+
+    assert stats["rows"] == 9
+    assert stats["warning_count"] == 1
+    assert stats["stale_upstream_runs"] == [
+        {
+            "id": stale_id,
+            "job_name": "sync_sector_flows",
+            "started_at": (fixed_now - timedelta(hours=6)).isoformat(),
+            "age_seconds": 21_600.0,
+        }
+    ]
+    with Session(engine) as session:
+        session.add(
+            JobRun(
+                job_name="sync_sector_flows",
+                status="running",
+                stats={},
+                started_at=fixed_now - timedelta(minutes=10),
+            )
+        )
+        session.commit()
+    with pytest.raises(JobExecutionError, match="板块预测已延后") as caught:
+        sector_job.compute_sector_forecast()
+    assert caught.value.stats["running_jobs"] == ["sync_sector_flows"]
+    assert len(caught.value.stats["stale_upstream_runs"]) == 1
 
 
 def test_job_skips_stale_bars_and_rejects_inputs_changed_during_compute(

@@ -21,13 +21,16 @@ from alphapilot.data.base import (
 )
 from alphapilot.data.futu_provider import FutuMarketDataProvider
 from alphapilot.data.mock import MockMarketDataProvider
+from alphapilot.data.provenance import (
+    AUDITED_DAILY_BAR_SOURCES,
+    AUDITED_SECTOR_FLOW_SOURCES,
+)
 from alphapilot.db.models import DailyBar
 from alphapilot.futu.client import FutuClient
 
+__all__ = ["AUDITED_DAILY_BAR_SOURCES", "AUDITED_SECTOR_FLOW_SOURCES"]
+
 BAR_COLUMNS = ["date", "open", "high", "low", "close", "volume", "amount"]
-AUDITED_DAILY_BAR_SOURCES = frozenset(
-    {"akshare", "baostock", "futu", "futu-close", "sina"}
-)
 _intraday_subscription_lock = RLock()
 _intraday_cleanup_lock = RLock()
 _intraday_cleanup_timers: dict[tuple[int, tuple[str, ...]], Timer] = {}

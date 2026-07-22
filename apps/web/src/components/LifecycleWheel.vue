@@ -268,6 +268,7 @@ onBeforeUnmount(() => disposeChart())
 }
 
 .stage-tab {
+  min-height: 28px;
   border: 0;
   border-radius: var(--r-sm);
   padding: 4px 6px;

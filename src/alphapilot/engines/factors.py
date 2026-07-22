@@ -9,10 +9,11 @@ from zoneinfo import ZoneInfo
 
 import numpy as np
 import pandas as pd
-import yaml  # type: ignore[import-untyped]
+import yaml
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from alphapilot.data.provenance import AUDITED_SECTOR_FLOW_SOURCES
 from alphapilot.db.models import (
     DailyBar,
     FinancialIndicator,
@@ -341,7 +342,10 @@ def _sector_flow_values(
             SectorFlowDaily.trade_date,
             SectorFlowDaily.net_inflow,
             SectorFlowDaily.source,
-        ).where(SectorFlowDaily.trade_date.in_(required_dates))
+        ).where(
+            SectorFlowDaily.trade_date.in_(required_dates),
+            SectorFlowDaily.source.in_(AUDITED_SECTOR_FLOW_SOURCES),
+        )
     ).all()
     if not rows:
         return {}, 0, []
