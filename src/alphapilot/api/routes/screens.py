@@ -11,8 +11,8 @@ from alphapilot.core.timeutil import iso_utc
 from alphapilot.data.base import DataProviderError
 from alphapilot.db.models import ScreeningRun
 from alphapilot.domain.models import (
+    PersistedScreeningResponse,
     ScreeningRequest,
-    ScreeningResponse,
     StyleExposureResponse,
     StyleExposureSlice,
     StyleTag,
@@ -66,16 +66,17 @@ def _screen_filters(request: ScreeningRequest) -> dict[str, Any]:
         "min_market_cap": request.min_market_cap,
         "top_n": request.top_n,
         "sort_by": request.sort_by,
+        "horizon_days": request.horizon_days,
         "provider": request.provider,
         "lookback_days": request.lookback_days,
     }
 
 
-@router.post("/run", response_model=ScreeningResponse)
+@router.post("/run", response_model=PersistedScreeningResponse)
 def run_screen(
     request: ScreeningRequest,
     session: Session = Depends(db_session_dependency),
-) -> ScreeningResponse:
+) -> PersistedScreeningResponse:
     if request.universe == "custom":
         filter_error = request.custom_filter_error()
         if filter_error is not None:
@@ -95,19 +96,22 @@ def run_screen(
             raise HTTPException(status_code=422, detail=str(exc)) from exc
         except ScreeningUnavailableError as exc:
             raise HTTPException(status_code=503, detail=str(exc)) from exc
-    session.add(
-        ScreeningRun(
-            universe=request.universe,
-            filters=_screen_filters(request),
-            provider=response.provider,
-            model_version=response.model_version,
-            requested=response.requested,
-            succeeded=response.succeeded,
-            failed=response.failed,
-            candidates=[item.model_dump(mode="json") for item in response.candidates],
-        )
+    record = ScreeningRun(
+        universe=request.universe,
+        filters=_screen_filters(request),
+        provider=response.provider,
+        model_version=response.model_version,
+        requested=response.requested,
+        succeeded=response.succeeded,
+        failed=response.failed,
+        candidates=[item.model_dump(mode="json") for item in response.candidates],
     )
-    return response
+    session.add(record)
+    session.flush()
+    return PersistedScreeningResponse(
+        run_id=record.id,
+        **response.model_dump(),
+    )
 
 
 @router.get("/universe")
@@ -152,6 +156,12 @@ def _candidate_symbols(candidates: list[Any]) -> list[str]:
     return symbols
 
 
+def _normalized_filters(value: object) -> dict[str, Any]:
+    filters = dict(value) if isinstance(value, dict) else {}
+    filters.setdefault("horizon_days", 20)
+    return filters
+
+
 @router.get("/diff")
 def screen_diff(session: Session = Depends(db_session_dependency)) -> dict[str, Any]:
     current = session.scalars(
@@ -162,7 +172,7 @@ def screen_diff(session: Session = Depends(db_session_dependency)) -> dict[str, 
     if current is None:
         raise HTTPException(status_code=404, detail="暂无选股运行记录，无法比较变化。")
 
-    current_filters = current.filters if isinstance(current.filters, dict) else {}
+    current_filters = _normalized_filters(current.filters)
     prior_runs = session.scalars(
         select(ScreeningRun)
         .where(
@@ -175,7 +185,7 @@ def screen_diff(session: Session = Depends(db_session_dependency)) -> dict[str, 
         (
             run
             for run in prior_runs
-            if (run.filters if isinstance(run.filters, dict) else {}) == current_filters
+            if _normalized_filters(run.filters) == current_filters
         ),
         None,
     )

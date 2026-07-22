@@ -48,7 +48,7 @@ def test_screening_run_context_migration_upgrades_existing_schema(tmp_path: Path
 def _seed_screening_data(session: Session) -> None:
     trade_dates = [stamp.date() for stamp in pd.bdate_range(end=TARGET_DATE, periods=61)]
     securities = [
-        ("600001", "测试一", "制造业", 100.0, 98.0, -1.0, 1.0, "growth"),
+        ("600001", "测试一", " 制造业 ", 100.0, 98.0, -1.0, 1.0, "growth"),
         ("600002", "测试二", "制造业", 200.0, 88.0, 0.0, 0.0, "value"),
         ("600003", "测试三", "金融业", 300.0, 78.0, 1.0, -1.0, "defensive"),
     ]
@@ -192,6 +192,11 @@ def test_full_market_screen_api_persists_and_diffs(tmp_path: Path) -> None:
             json={"universe": "all", "top_n": 2, "style": "value"},
         )
         style_exposure = client.get("/v1/screens/style-exposure")
+        industries_response = client.get("/v1/meta/industries")
+        industry_response = client.post(
+            "/v1/screens/run",
+            json={"universe": "all", "top_n": 10, "industries": ["制造业"]},
+        )
     finally:
         app.dependency_overrides.pop(db_session_dependency, None)
 
@@ -202,11 +207,15 @@ def test_full_market_screen_api_persists_and_diffs(tmp_path: Path) -> None:
     assert len(body["candidates"]) == 2
     assert [item["symbol"] for item in body["candidates"]] == ["600001", "600002"]
     assert all(item["p_up_20d"] is not None for item in body["candidates"])
+    assert all(item["expected_return_5d"] is not None for item in body["candidates"])
+    assert all(item["confidence_5d"] is not None for item in body["candidates"])
     forecast_sources = [item["forecast_source"] for item in body["candidates"]]
     assert forecast_sources == ["daily_bars-cache", "daily_bars-cache"]
 
     assert first_diff.status_code == 200
+    assert body["run_id"] == first_diff.json()["current_run_id"]
     assert first_diff.json()["baseline_missing"] is True
+    assert first_diff.json()["filters"]["horizon_days"] == 20
     assert first_diff.json()["new"] == ["600001", "600002"]
     assert custom.status_code == 200
     assert custom_filter_error.status_code == 422
@@ -231,3 +240,14 @@ def test_full_market_screen_api_persists_and_diffs(tmp_path: Path) -> None:
         "count": 1,
         "pct": 1.0,
     }
+    assert style_response.json()["run_id"] == style_exposure.json()["run_id"]
+    assert industries_response.status_code == 200
+    assert industries_response.json() == {
+        "count": 2,
+        "industries": ["制造业", "金融业"],
+    }
+    assert industry_response.status_code == 200
+    assert industry_response.json()["candidates"]
+    assert {
+        item["industry"] for item in industry_response.json()["candidates"]
+    } == {"制造业"}

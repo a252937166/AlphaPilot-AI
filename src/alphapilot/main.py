@@ -14,6 +14,7 @@ from alphapilot.api.routes import (
     health,
     jobs,
     market,
+    meta,
     notifications,
     portfolio,
     reports,
@@ -78,6 +79,7 @@ app.include_router(stocks.router)
 app.include_router(screens.router)
 app.include_router(style.router)
 app.include_router(market.router)
+app.include_router(meta.router)
 app.include_router(notifications.router)
 app.include_router(portfolio.router)
 app.include_router(sectors.router)

@@ -7,12 +7,17 @@ const props = defineProps<{
   value: number | null | undefined // 0..1
   label?: string
   size?: string
+  format?: 'score10' | 'percent'
 }>()
 
-const score = computed(() => Math.max(0, Math.min(1, Number(props.value) || 0)))
+const score = computed(() => {
+  if (props.value === null || props.value === undefined) return null
+  const value = Number(props.value)
+  return Number.isFinite(value) ? Math.max(0, Math.min(1, value)) : null
+})
 
 const option = computed(() => {
-  const pct = score.value * 100
+  const pct = (score.value ?? 0) * 100
   return {
     animation: false,
     series: [
@@ -54,7 +59,10 @@ const option = computed(() => {
         pointer: { show: false },
         detail: {
           valueAnimation: false,
-          formatter: (value: number) => (value / 10).toFixed(1),
+          formatter: (value: number) => {
+            if (score.value === null) return '—'
+            return props.format === 'percent' ? `${Math.round(value)}%` : (value / 10).toFixed(1)
+          },
           color: '#eef2fa',
           fontSize: 15,
           fontWeight: 700,

@@ -259,6 +259,64 @@ def test_expected_return_preselection_uses_persisted_forecast_when_present(
     assert [item.symbol for item in response.candidates] == ["000032"]
 
 
+def test_expected_return_sort_honors_five_and_twenty_day_periods(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    with _session(tmp_path) as session:
+        _seed_symbol(session, "000033", score=90, volatility_z=-1)
+        _seed_symbol(session, "000034", score=80, volatility_z=1)
+        session.commit()
+
+        original = BaselineForecastEngine.forecast
+
+        def period_forecast(
+            engine: BaselineForecastEngine,
+            symbol: str,
+            bars: pd.DataFrame,
+            provider: str,
+        ) -> StockForecast:
+            forecast = original(engine, symbol, bars, provider)
+            horizons = dict(forecast.horizons)
+            short_return, long_return = (
+                (0.20, -0.20) if symbol == "000033" else (-0.10, 0.10)
+            )
+            horizons["5d"] = horizons["5d"].model_copy(
+                update={"expected_return": short_return}
+            )
+            horizons["20d"] = horizons["20d"].model_copy(
+                update={"expected_return": long_return}
+            )
+            return forecast.model_copy(update={"horizons": horizons})
+
+        monkeypatch.setattr(BaselineForecastEngine, "forecast", period_forecast)
+        short = run_factor_screen(
+            session,
+            ScreeningRequest(
+                universe="all",
+                sort_by="expected_return",
+                horizon_days=5,
+                top_n=2,
+            ),
+        )
+        long = run_factor_screen(
+            session,
+            ScreeningRequest(
+                universe="all",
+                sort_by="expected_return",
+                horizon_days=20,
+                top_n=2,
+            ),
+        )
+
+    assert [item.symbol for item in short.candidates] == ["000033", "000034"]
+    assert [item.symbol for item in long.candidates] == ["000034", "000033"]
+    assert short.candidates[0].expected_return_5d == pytest.approx(0.20)
+    assert short.candidates[0].expected_return_20d == pytest.approx(-0.20)
+    assert short.candidates[0].confidence_5d is not None
+    assert short.candidates[0].confidence_20d is not None
+
+
 def test_missing_local_bars_stays_null_and_never_invents_forecast(tmp_path: Path) -> None:
     with _session(tmp_path) as session:
         _seed_symbol(session, "000041", score=90, volatility_z=-1, bars=10)
@@ -274,7 +332,9 @@ def test_missing_local_bars_stays_null_and_never_invents_forecast(tmp_path: Path
     available = next(item for item in response.candidates if item.symbol == "000042")
     assert missing.p_up_5d is None
     assert missing.p_up_20d is None
+    assert missing.expected_return_5d is None
     assert missing.expected_return_20d is None
+    assert missing.confidence_5d is None
     assert missing.confidence_20d is None
     assert missing.quality_placeholder_score is None
     assert missing.forecast_source is None
