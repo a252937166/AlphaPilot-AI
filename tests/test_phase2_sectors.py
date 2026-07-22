@@ -368,21 +368,21 @@ def test_sector_strength_enriches_latest_real_flow_without_mutating_cache(
                     trade_date=date(2026, 7, 20),
                     net_inflow=10.0,
                     main_inflow=5.0,
-                    source="old",
+                    source="futu-top5",
                 ),
                 SectorFlowDaily(
                     plate_code="SH.LIST0001",
                     trade_date=date(2026, 7, 21),
                     net_inflow=20.0,
                     main_inflow=None,
-                    source="latest",
+                    source="futu-top5",
                 ),
                 SectorFlowDaily(
                     plate_code="SH.LIST0002",
                     trade_date=date(2026, 7, 20),
                     net_inflow=99.0,
                     main_inflow=88.0,
-                    source="stale-cross-section",
+                    source="futu-top5",
                 ),
             ]
         )
@@ -399,7 +399,7 @@ def test_sector_strength_enriches_latest_real_flow_without_mutating_cache(
     assert first["net_inflow"] == 20.0
     assert first["main_inflow"] is None
     assert first["flow_trade_date"] == "2026-07-21"
-    assert first["flow_source"] == "latest"
+    assert first["flow_source"] == "futu-top5"
     assert second["net_inflow"] is None
     assert second["main_inflow"] is None
     assert second["flow_trade_date"] is None
@@ -431,7 +431,7 @@ def test_sector_strength_enriches_stale_fallback_without_mutating_cache(
                 trade_date=date(2026, 7, 21),
                 net_inflow=-12.0,
                 main_inflow=-4.0,
-                source="test-flow",
+                source="futu-top5",
             )
         )
         session.commit()
@@ -469,7 +469,7 @@ def test_sector_strength_enriches_new_compute_but_persists_raw_snapshot(
                 trade_date=date(2026, 7, 21),
                 net_inflow=42.0,
                 main_inflow=21.0,
-                source="test-flow",
+                source="futu-top5",
             )
         )
         session.commit()

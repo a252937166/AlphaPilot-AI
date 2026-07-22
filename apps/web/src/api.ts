@@ -562,6 +562,91 @@ export interface SectorStrengthResponse {
   sectors: SectorStrengthItem[]
 }
 
+export type SectorHorizon = 5 | 10 | 20
+export type SectorLifecycle = 'boom' | 'rising' | 'decline' | 'bottoming' | 'recovery'
+
+export interface SectorForecastRow {
+  rank: number
+  plate_code: string
+  plate_name: string
+  trade_date: string
+  horizon: SectorHorizon
+  score: number | null
+  expected_excess: number | null
+  win_rate: number | null
+  lifecycle: SectorLifecycle | null
+  rsi14: number | null
+  reversal_score: number | null
+  model_version: string
+  net_inflow: number | null
+  net_inflow_5d: number | null
+  flow_coverage_days: number
+  flow_source: string | null
+  leader_code: string | null
+  leader_name: string | null
+  leader_change_pct: number | null
+}
+
+export interface SectorForecastResponse {
+  as_of: string
+  horizon: SectorHorizon
+  model_version: string
+  flow_mode: 'full' | 'no-flow'
+  backtest_scope: 'fixed-current-membership'
+  degraded_reason: string | null
+  available: boolean
+  count: number
+  rows: SectorForecastRow[]
+  flow_as_of: string | null
+  flow_window_days: number
+  strength_as_of: string | null
+  input_trade_date: string | null
+  input_coverage: {
+    latest_symbol_count: number
+    forecast_symbol_count: number
+    reference_trade_date: string
+    reference_symbol_count: number
+    ratio: number
+    minimum_ratio: number
+  } | null
+  ignored_forecast_dates: string[]
+  stale: boolean
+  warning: string | null
+  reason?: string
+  counts?: Record<SectorLifecycle | 'unclassified', number>
+}
+
+export interface SectorLeaderItem {
+  rank: number
+  symbol: string
+  name: string | null
+  correlation: number
+  return_20d: number
+  observations?: number
+}
+
+export interface SectorLeadersResponse {
+  plate_code: string
+  plate_name: string
+  as_of: string
+  lookback_sessions: number
+  method: 'pearson-daily-return'
+  source: string
+  sources: string[]
+  mock_excluded: boolean
+  membership_scope: 'fixed-current-membership'
+  membership_refreshed_at: string
+  constituent_count: number
+  eligible_members: number
+  leader: {
+    symbol: string
+    name: string | null
+    return_20d: number
+  }
+  count: number
+  rows: SectorLeaderItem[]
+}
+
 export interface MarketBreadthFullResponse {
   ts: string
   advancers: number
@@ -703,6 +788,18 @@ export const api = {
 
   sectors: (refresh = false) =>
     request<SectorStrengthResponse>(`/v1/sectors/strength?refresh=${refresh}`),
+  sectorForecast: (horizon: SectorHorizon) =>
+    request<SectorForecastResponse>(`/v1/sectors/forecast?horizon=${horizon}`),
+  sectorLifecycle: (horizon: SectorHorizon) =>
+    request<SectorForecastResponse>(`/v1/sectors/lifecycle?horizon=${horizon}`),
+  sectorOverbought: (horizon: SectorHorizon) =>
+    request<SectorForecastResponse>(`/v1/sectors/overbought?horizon=${horizon}`),
+  sectorReversal: (horizon: SectorHorizon) =>
+    request<SectorForecastResponse>(`/v1/sectors/reversal?horizon=${horizon}`),
+  sectorLeaders: (plateCode: string) =>
+    request<SectorLeadersResponse>(
+      `/v1/sectors/${encodeURIComponent(plateCode)}/leaders`,
+    ),
   styleDaily: (days = 60) => request<StyleDailyResponse>(`/v1/style/daily?days=${days}`),
   marketRegime: () => request<any>('/v1/market/regime?symbol=SH.000001'),
   marketIndices: (days = 60) => request<any>(`/v1/market/indices?history_days=${days}`),

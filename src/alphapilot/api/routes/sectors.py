@@ -3,14 +3,16 @@ from __future__ import annotations
 from enum import IntEnum
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Path, Query
 from sqlalchemy.orm import Session
 
 from alphapilot.api.dependencies import db_session_dependency, futu_client_dependency
 from alphapilot.futu.client import FutuClient
 from alphapilot.services.sectors import (
+    SectorNotFoundError,
     SectorServiceError,
     get_sector_forecast_view,
+    get_sector_leaders,
     get_sector_strength,
 )
 
@@ -75,5 +77,22 @@ def sector_reversal(
 ) -> dict[str, Any]:
     try:
         return get_sector_forecast_view(session, horizon=int(horizon), view="reversal")
+    except SectorServiceError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+
+@router.get("/{plate_code}/leaders")
+def sector_leaders(
+    plate_code: str = Path(
+        min_length=5,
+        max_length=24,
+        pattern=r"^(SH|SZ)\.[A-Z0-9]+$",
+    ),
+    session: Session = Depends(db_session_dependency),
+) -> dict[str, Any]:
+    try:
+        return get_sector_leaders(session, plate_code=plate_code)
+    except SectorNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
     except SectorServiceError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc

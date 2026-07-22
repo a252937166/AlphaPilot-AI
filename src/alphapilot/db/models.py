@@ -63,6 +63,7 @@ class DailyBar(Base):
     __table_args__ = (
         UniqueConstraint("symbol", "trade_date", name="uq_daily_bars_symbol_date"),
         Index("ix_daily_bars_symbol_date", "symbol", "trade_date"),
+        Index("ix_daily_bars_trade_date_symbol", "trade_date", "symbol"),
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
