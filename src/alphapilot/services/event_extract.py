@@ -3,11 +3,12 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from typing import Any, Literal
+from typing import Any, Literal, cast
 
 from jsonschema import ValidationError, validate
 from sqlalchemy import select
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
+from sqlalchemy.engine import CursorResult
 from sqlalchemy.orm import Session
 
 from alphapilot.core.config import Settings
@@ -15,6 +16,7 @@ from alphapilot.db.models import Disclosure, DomainEvent
 from alphapilot.llm.client import LLMUnavailable, chat_json
 from alphapilot.llm.prompts import EVENT_EXTRACT
 from alphapilot.services.events import emit
+from alphapilot.services.notifications import push_event
 
 EVENT_SUBTYPES = frozenset(
     {
@@ -197,9 +199,9 @@ def persist_disclosure_event(
     source_ref = f"disclosure:{disclosure.id}"
     subtype_label = EVENT_SUBTYPE_LABELS[extraction.subtype]
     event_summary = f"{subtype_label}｜{extraction.summary}"
-    event = session.scalar(
-        select(DomainEvent).where(DomainEvent.source_ref == source_ref).limit(1)
-    )
+    event = session.scalar(select(DomainEvent).where(DomainEvent.source_ref == source_ref).limit(1))
+    previous_strength = event.strength if event is not None else None
+    created = False
     occurred_at = disclosure.published_at or disclosure.ingested_at or datetime.now(UTC)
     if event is None:
         values: dict[str, Any] = {
@@ -221,12 +223,11 @@ def persist_disclosure_event(
                 .values(**values)
                 .on_conflict_do_nothing(index_elements=["source_ref"])
             )
-            session.execute(statement)
+            result = cast(CursorResult[Any], session.execute(statement))
+            created = result.rowcount == 1
             session.flush()
             event = session.scalar(
-                select(DomainEvent)
-                .where(DomainEvent.source_ref == source_ref)
-                .limit(1)
+                select(DomainEvent).where(DomainEvent.source_ref == source_ref).limit(1)
             )
         else:
             event = emit(session, **values)
@@ -242,6 +243,11 @@ def persist_disclosure_event(
     event.occurred_at = occurred_at
     event.__dict__["_extraction_source"] = extraction.source
     session.flush()
+    crossed_notification_threshold = (
+        previous_strength is not None and previous_strength < 0.6 and event.strength >= 0.6
+    )
+    if created or crossed_notification_threshold:
+        push_event(session, event)
     return event
 
 

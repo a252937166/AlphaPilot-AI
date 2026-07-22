@@ -683,6 +683,33 @@ class StyleDaily(Base):
     source_fingerprint: Mapped[str] = mapped_column(String(64), default="")
 
 
+class Notification(Base):
+    """One idempotent user-facing notice for a persisted domain artifact."""
+
+    __tablename__ = "notifications"
+    __table_args__ = (
+        UniqueConstraint("kind", "ref_id", name="uq_notifications_kind_ref"),
+        CheckConstraint(
+            "kind IN ('alert', 'event', 'job', 'system')",
+            name="ck_notifications_kind",
+        ),
+        CheckConstraint(
+            "level IN ('info', 'warn', 'error')",
+            name="ck_notifications_level",
+        ),
+        Index("ix_notifications_read_created", "read_at", "created_at"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    kind: Mapped[str] = mapped_column(String(16))
+    ref_id: Mapped[str] = mapped_column(String(128))
+    title: Mapped[str] = mapped_column(Text)
+    body: Mapped[str] = mapped_column(Text)
+    level: Mapped[str] = mapped_column(String(16), default="info")
+    read_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
 class DailyReport(Base):
     __tablename__ = "daily_reports"
 

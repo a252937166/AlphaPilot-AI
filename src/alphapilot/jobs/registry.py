@@ -10,6 +10,7 @@ from apscheduler.triggers.interval import IntervalTrigger
 
 from alphapilot.db.engine import get_session
 from alphapilot.db.models import JobRun, utcnow
+from alphapilot.services.notifications import push_job_failure
 
 
 @dataclass(frozen=True, slots=True)
@@ -68,6 +69,7 @@ def _run_job_locked(name: str, spec: JobSpec, kwargs: dict[str, Any]) -> JobRun:
             failed.finished_at = utcnow()
             failed.error = f"{type(exc).__name__}: {exc}"[:4000]
             failed.stats = dict(exc.stats) if isinstance(exc, JobExecutionError) else {}
+            push_job_failure(session, failed)
         return failed
 
     with get_session() as session:
