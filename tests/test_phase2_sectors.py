@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Iterator
 from contextlib import contextmanager
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -17,10 +17,12 @@ from alphapilot.db.models import (
     DailyBar,
     SectorConstituent,
     SectorFlowDaily,
+    SectorSnapshot,
 )
 from alphapilot.jobs import sectors_sync
 from alphapilot.jobs.registry import JOBS
-from alphapilot.services.sectors import compute_sector_strength
+from alphapilot.services import sectors as sector_service
+from alphapilot.services.sectors import compute_sector_strength, get_sector_strength
 
 
 def _local_session(engine: Any) -> Any:
@@ -340,6 +342,152 @@ def test_sector_strength_prefers_fresh_db_and_sorts_top30_by_turnover(
     assert len(result) == 1
     assert result[0]["sampled"] == 30
     assert result[0]["leader_code"] == codes[-1]
+
+
+def test_sector_strength_enriches_latest_real_flow_without_mutating_cache(
+    tmp_path: Path,
+) -> None:
+    engine = create_engine(f"sqlite:///{tmp_path / 'sector-strength-flow.db'}")
+    Base.metadata.create_all(engine)
+    cached_payload = [
+        {"plate_code": "SH.LIST0001", "plate_name": "板块一", "strength": 8.0},
+        {"plate_code": "SH.LIST0002", "plate_name": "板块二", "strength": 4.0},
+    ]
+    with Session(engine) as session:
+        session.add(
+            SectorSnapshot(
+                as_of=datetime.now(UTC),
+                payload=cached_payload,
+                source="test",
+            )
+        )
+        session.add_all(
+            [
+                SectorFlowDaily(
+                    plate_code="SH.LIST0001",
+                    trade_date=date(2026, 7, 20),
+                    net_inflow=10.0,
+                    main_inflow=5.0,
+                    source="old",
+                ),
+                SectorFlowDaily(
+                    plate_code="SH.LIST0001",
+                    trade_date=date(2026, 7, 21),
+                    net_inflow=20.0,
+                    main_inflow=None,
+                    source="latest",
+                ),
+                SectorFlowDaily(
+                    plate_code="SH.LIST0002",
+                    trade_date=date(2026, 7, 20),
+                    net_inflow=99.0,
+                    main_inflow=88.0,
+                    source="stale-cross-section",
+                ),
+            ]
+        )
+        session.commit()
+
+        class NoCallClient:
+            def quote_call_raw(self, *_args: Any, **_kwargs: Any) -> pd.DataFrame:
+                raise AssertionError("fresh cache must not call Futu")
+
+        payload = get_sector_strength(session, NoCallClient())  # type: ignore[arg-type]
+        persisted = session.scalar(select(SectorSnapshot))
+
+    first, second = payload["sectors"]
+    assert first["net_inflow"] == 20.0
+    assert first["main_inflow"] is None
+    assert first["flow_trade_date"] == "2026-07-21"
+    assert first["flow_source"] == "latest"
+    assert second["net_inflow"] is None
+    assert second["main_inflow"] is None
+    assert second["flow_trade_date"] is None
+    assert second["flow_source"] is None
+    assert persisted is not None
+    assert persisted.payload == cached_payload
+
+
+def test_sector_strength_enriches_stale_fallback_without_mutating_cache(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    engine = create_engine(f"sqlite:///{tmp_path / 'sector-strength-stale.db'}")
+    Base.metadata.create_all(engine)
+    cached_payload = [
+        {"plate_code": "SH.LIST0001", "plate_name": "板块一", "strength": 7.0}
+    ]
+    with Session(engine) as session:
+        session.add(
+            SectorSnapshot(
+                as_of=datetime.now(UTC) - timedelta(minutes=10),
+                payload=cached_payload,
+                source="test",
+            )
+        )
+        session.add(
+            SectorFlowDaily(
+                plate_code="SH.LIST0001",
+                trade_date=date(2026, 7, 21),
+                net_inflow=-12.0,
+                main_inflow=-4.0,
+                source="test-flow",
+            )
+        )
+        session.commit()
+        monkeypatch.setattr(
+            sector_service,
+            "compute_sector_strength",
+            lambda *_args: (_ for _ in ()).throw(
+                sector_service.SectorServiceError("offline")
+            ),
+        )
+
+        payload = get_sector_strength(session, object())  # type: ignore[arg-type]
+        persisted = session.scalar(select(SectorSnapshot))
+
+    assert payload["stale"] is True
+    assert payload["sectors"][0]["net_inflow"] == -12.0
+    assert payload["sectors"][0]["flow_trade_date"] == "2026-07-21"
+    assert persisted is not None
+    assert persisted.payload == cached_payload
+
+
+def test_sector_strength_enriches_new_compute_but_persists_raw_snapshot(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    engine = create_engine(f"sqlite:///{tmp_path / 'sector-strength-new.db'}")
+    Base.metadata.create_all(engine)
+    computed_payload = [
+        {"plate_code": "SH.LIST0001", "plate_name": "板块一", "strength": 9.0}
+    ]
+    with Session(engine) as session:
+        session.add(
+            SectorFlowDaily(
+                plate_code="SH.LIST0001",
+                trade_date=date(2026, 7, 21),
+                net_inflow=42.0,
+                main_inflow=21.0,
+                source="test-flow",
+            )
+        )
+        session.commit()
+        monkeypatch.setattr(
+            sector_service,
+            "compute_sector_strength",
+            lambda *_args: computed_payload,
+        )
+
+        payload = get_sector_strength(session, object())  # type: ignore[arg-type]
+        session.flush()
+        persisted = session.scalar(select(SectorSnapshot))
+
+    assert payload["cached"] is False
+    assert payload["sectors"][0]["net_inflow"] == 42.0
+    assert payload["sectors"][0]["main_inflow"] == 21.0
+    assert persisted is not None
+    assert persisted.payload == computed_payload
 
 
 def test_sector_jobs_are_registered_with_expected_schedules() -> None:
