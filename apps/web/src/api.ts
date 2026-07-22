@@ -647,6 +647,79 @@ export interface SectorLeadersResponse {
   rows: SectorLeaderItem[]
 }
 
+export type MarketRegime =
+  | 'risk_on'
+  | 'risk_off'
+  | 'trend_up'
+  | 'trend_down'
+  | 'range'
+  | 'event_shock'
+
+export interface MarketRegimeResponse {
+  symbol: string
+  regime: MarketRegime
+  confidence: number
+  as_of: string
+  features: Record<string, number>
+  explanation: string[]
+}
+
+export interface MarketSentimentResponse {
+  score: number
+  label: string
+  subs: {
+    breadth: number
+    limitup: number
+    volume: number
+    volatility: number
+  }
+  money_effect: string
+  liquidity: string
+  risk_hint: string
+  as_of: string
+  model_version: string
+  source_snapshot_id: number
+  inputs: Record<string, Record<string, unknown>>
+  history_samples: Record<string, number>
+  sample_sizes: Record<string, number>
+  degraded_components: string[]
+  missing_inputs: string[]
+  degraded: boolean
+  degradation_reason: string | null
+  weights: Record<string, number>
+  source: Record<string, unknown>
+}
+
+export interface MarketIndexSymbol {
+  symbol: string
+  name: string
+}
+
+export interface MarketIndexQuote extends MarketIndexSymbol {
+  last: number | null
+  change_pct: number | null
+  amount: number | null
+  as_of: string | null
+}
+
+export interface MarketIndexDailyPoint {
+  date: string
+  open: number
+  high: number
+  low: number
+  close: number
+  volume: number | null
+  amount: number | null
+}
+
+export interface MarketIndicesResponse {
+  quotes: MarketIndexQuote[]
+  series: Record<string, MarketIndexDailyPoint[]>
+  symbols: MarketIndexSymbol[]
+}
+
+export type MarketIntradayResponse = Record<string, StockIntradayPoint[]>
+
 export interface MarketBreadthFullResponse {
   ts: string
   advancers: number
@@ -655,7 +728,12 @@ export interface MarketBreadthFullResponse {
   limit_up: number
   limit_down: number
   broken_boards: number
+  up_gt4: number
+  down_gt4: number
+  total_amount: number
   avg_change_pct: number
+  median_change_pct: number
+  source: string
   prior_ts: string | null
   prior_advancers: number | null
   prior_decliners: number | null
@@ -664,6 +742,43 @@ export interface MarketBreadthFullResponse {
   prior_limit_down: number | null
   prior_broken_boards: number | null
   prior_avg_change_pct: number | null
+  prior_total_amount: number | null
+  prior_time_gap_seconds: number | null
+  prior_comparable: boolean
+  amount_delta: number | null
+  amount_delta_pct: number | null
+}
+
+export type MarketMonitorLevel = 'info' | 'warn'
+
+export interface MarketMonitorFeedItem {
+  ts: string
+  text: string
+  level: MarketMonitorLevel
+}
+
+export interface MarketMonitorFeedResponse {
+  count: number
+  items: MarketMonitorFeedItem[]
+}
+
+export interface CrossMarketDatum {
+  name?: string
+  value?: number | null
+  last?: number | null
+  daily_balance?: number | null
+  change_pct?: number | null
+  contract?: string
+  as_of: string | null
+  source: string | null
+  note?: string
+}
+
+export interface CrossMarketResponse {
+  fx_usdcny: CrossMarketDatum
+  us_futures: CrossMarketDatum
+  commodities: CrossMarketDatum
+  northbound: CrossMarketDatum
 }
 
 export interface JobRunItem {
@@ -801,10 +916,20 @@ export const api = {
       `/v1/sectors/${encodeURIComponent(plateCode)}/leaders`,
     ),
   styleDaily: (days = 60) => request<StyleDailyResponse>(`/v1/style/daily?days=${days}`),
-  marketRegime: () => request<any>('/v1/market/regime?symbol=SH.000001'),
-  marketIndices: (days = 60) => request<any>(`/v1/market/indices?history_days=${days}`),
+  marketRegime: () =>
+    request<MarketRegimeResponse>('/v1/market/regime?symbol=SH.000001'),
+  marketSentiment: () => request<MarketSentimentResponse>('/v1/market/sentiment'),
+  marketIndices: (days = 60) =>
+    request<MarketIndicesResponse>(`/v1/market/indices?history_days=${days}`),
+  marketIntraday: (symbol = 'SH.000001') =>
+    request<MarketIntradayResponse>(
+      `/v1/market/intraday?symbols=${encodeURIComponent(symbol)}`,
+    ),
   marketBreadth: () => request<any>('/v1/market/breadth'),
   marketBreadthFull: () => request<MarketBreadthFullResponse>('/v1/market/breadth-full'),
+  marketMonitorFeed: (limit = 20) =>
+    request<MarketMonitorFeedResponse>(`/v1/market/monitor-feed?limit=${limit}`),
+  marketCross: () => request<CrossMarketResponse>('/v1/market/cross'),
   jobRuns: (limit = 50) => request<JobRunsResponse>(`/v1/jobs/runs?limit=${limit}`),
 
   disclosures: (symbol: string, sync = false) =>
