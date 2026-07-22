@@ -5,7 +5,12 @@ from datetime import date
 
 import pandas as pd
 
-from alphapilot.data.base import DataProviderError, MarketDataProvider
+from alphapilot.data.base import (
+    BarFrequency,
+    DataProviderError,
+    MarketDataProvider,
+    PeriodicMarketDataProvider,
+)
 
 
 class FailoverMarketDataProvider:
@@ -57,6 +62,30 @@ class FailoverMarketDataProvider:
             self.bars_chain,
             lambda provider: provider.get_daily_bars(symbol, start, end),
             f"daily bars {symbol}",
+        )
+        self.last_bars_source = source
+        return frame
+
+    def get_bars(
+        self,
+        symbol: str,
+        start: date,
+        end: date,
+        frequency: BarFrequency,
+    ) -> pd.DataFrame:
+        """Walk only providers with an audited native frequency implementation."""
+
+        def fetch(provider: MarketDataProvider) -> pd.DataFrame:
+            if not isinstance(provider, PeriodicMarketDataProvider):
+                raise DataProviderError(
+                    f"{provider.name} does not provide native {frequency} bars"
+                )
+            return provider.get_bars(symbol, start, end, frequency)
+
+        source, frame = self._walk(
+            self.bars_chain,
+            fetch,
+            f"{frequency} bars {symbol}",
         )
         self.last_bars_source = source
         return frame

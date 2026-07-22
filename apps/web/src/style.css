@@ -27,7 +27,7 @@
   /* ink */
   --text-1: #eef2fa;
   --text-2: #9aa7c4;
-  --text-3: #5f6c8c;
+  --text-3: #7d89a8;
 
   /* single accent + data semantics */
   --accent: #3b82f6;
@@ -754,6 +754,18 @@ button {
 .btn.primary:hover {
   filter: brightness(1.12);
   box-shadow: 0 0 22px rgba(37, 99, 235, 0.5);
+}
+
+.btn.danger {
+  border-color: rgba(248, 113, 113, 0.48);
+  background: rgba(248, 113, 113, 0.08);
+  color: #fca5a5;
+}
+
+.btn.danger:hover {
+  border-color: rgba(248, 113, 113, 0.72);
+  background: rgba(248, 113, 113, 0.14);
+  color: #fecaca;
 }
 
 .btn.ghost {

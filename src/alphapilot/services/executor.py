@@ -26,6 +26,10 @@ from alphapilot.futu.client import (
     FutuSDKError,
 )
 from alphapilot.risk.guardrails import TradeGuardrails
+from alphapilot.services.alert_provenance import (
+    AlertSourceError,
+    validate_trade_alert_source,
+)
 from alphapilot.services.broker import (
     BrokerError,
     fetch_account_funds,
@@ -87,10 +91,22 @@ def _proposal(record: TradeProposalRecord) -> TradeProposal:
 
     if (
         proposal.proposal_id != record.proposal_id
+        or (
+            record.idempotency_key is not None
+            and proposal.idempotency_key != record.idempotency_key
+        )
         or proposal.symbol != record.symbol
         or proposal.side.value != record.side
         or not isclose(proposal.quantity, record.quantity, rel_tol=0.0, abs_tol=1e-9)
+        or not isclose(
+            proposal.estimated_notional,
+            record.estimated_notional,
+            rel_tol=0.0,
+            abs_tol=1e-9,
+        )
+        or not isclose(proposal.confidence, record.confidence, rel_tol=0.0, abs_tol=1e-9)
         or proposal.mode.value != record.mode
+        or proposal.source_alert_id != record.source_alert_id
     ):
         raise ExecutionConflict("提案载荷与持久化索引字段不一致，已拒绝执行。")
     if proposal.mode not in _ALLOWED_PAPER_MODES:
@@ -234,6 +250,29 @@ def _portfolio_state(
     )
 
 
+def build_portfolio_state(
+    session: Session,
+    client: FutuClient,
+    proposal: TradeProposal,
+) -> PortfolioState:
+    """Build a real SIMULATE risk snapshot using read-only broker queries only.
+
+    This helper intentionally does not inspect execution switches, reserve an
+    order, or call the broker mutation surface. ``execute_proposal`` still
+    performs an independent fresh risk check immediately before submission.
+    """
+
+    symbol, _code = _symbol_code(proposal.symbol)
+    quantity = _rounded_quantity(proposal.quantity)
+    return _portfolio_state(
+        session,
+        client,
+        symbol=symbol,
+        side=proposal.side.value,
+        rounded_qty=quantity,
+    )
+
+
 def _response_records(response: object) -> list[dict[str, Any]]:
     if not isinstance(response, Mapping):
         raise ExecutionUnavailable("富途下单结果格式异常，订单状态待对账。")
@@ -345,6 +384,10 @@ def execute_proposal(
             raise ExecutionConflict(f"提案状态为 {record.status}，不是可执行的 approved。")
 
         proposal = _proposal(record)
+        try:
+            validate_trade_alert_source(session, proposal)
+        except AlertSourceError as exc:
+            raise ExecutionConflict(f"来源提醒校验未通过：{exc}") from exc
         symbol, code = _symbol_code(proposal.symbol)
         quantity = _rounded_quantity(proposal.quantity)
         try:
@@ -369,6 +412,10 @@ def execute_proposal(
                 "estimated_notional": price * quantity,
             }
         )
+        try:
+            validate_trade_alert_source(session, execution_proposal)
+        except AlertSourceError as exc:
+            raise ExecutionConflict(f"执行前来源提醒校验未通过：{exc}") from exc
         decision = TradeGuardrails(settings).evaluate(execution_proposal, portfolio)
         # Re-read after slow market/account queries so a newly committed halt is
         # observed before any local reservation or broker mutation.

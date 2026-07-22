@@ -2,6 +2,12 @@
 import { computed, onMounted, ref } from 'vue'
 import { AlertTriangle, Check, Play, X, Zap } from 'lucide-vue-next'
 import { api } from '../api'
+import type {
+  PersistedTradeProposal,
+  StockOverviewResponse,
+  TradeProposalInput,
+  TradeRiskDecision,
+} from '../api'
 import { actionMeta, fmtNum, fmtPct, fmtTime } from '../format'
 import ConfRing from '../components/ConfRing.vue'
 
@@ -13,7 +19,12 @@ const proposals = ref<any[]>([])
 const filter = ref('ALL')
 const selected = ref<any>(null)
 const riskChecking = ref(false)
-const riskDecision = ref<any>(null)
+const riskDecision = ref<TradeRiskDecision | null>(null)
+const evaluatedProposal = ref<TradeProposalInput | null>(null)
+const proposalCreating = ref(false)
+const proposalFeedback = ref('')
+const proposalFeedbackOk = ref(false)
+let selectionEpoch = 0
 
 const FILTERS = [
   { key: 'ALL', label: '全部' },
@@ -30,13 +41,118 @@ const visibleAlerts = computed(() =>
     : alerts.value.filter((alert) => alert.action === filter.value),
 )
 
-const DEMO_PORTFOLIO = {
-  equity: 1_000_000,
-  cash: 500_000,
-  daily_pnl_pct: 0,
-  current_position_pct: 0.05,
-  sector_position_pct: 0.12,
-  open_orders_for_symbol: 0,
+const BUY_ACTIONS = new Set(['BUY_CANDIDATE', 'ADD'])
+const SELL_ACTIONS = new Set(['REDUCE', 'EXIT', 'STOP'])
+
+function finiteNumber(value: unknown): number | null {
+  if (value === null || value === undefined || value === '' || typeof value === 'boolean') {
+    return null
+  }
+  const number = typeof value === 'number' ? value : Number(value)
+  return Number.isFinite(number) ? number : null
+}
+
+function proposalSide(action: unknown): 'BUY' | 'SELL' | null {
+  const normalized = String(action || '').toUpperCase()
+  if (BUY_ACTIONS.has(normalized)) return 'BUY'
+  if (SELL_ACTIONS.has(normalized)) return 'SELL'
+  return null
+}
+
+function proposalPreconditions(alert: any, overview: StockOverviewResponse): string[] {
+  const reasons: string[] = []
+  const side = proposalSide(alert.action)
+  const quote = overview.quote
+  const last = finiteNumber(quote?.last)
+  const confidence = finiteNumber(alert.confidence)
+  const suggestedNotional = finiteNumber(alert.suggested_notional)
+  const targetLow = finiteNumber(alert.target_low)
+  const targetHigh = finiteNumber(alert.target_high)
+  const quoteSource = String(quote?.source || '').trim().toLowerCase()
+
+  if (!side) reasons.push('该提醒不是可生成交易提案的方向性信号。')
+  if (last === null || last <= 0) reasons.push('缺少可审计的实时价格。')
+  if (!quote?.as_of) reasons.push('行情时间缺失，不能用本机时间代替。')
+  if (!quoteSource || quoteSource.includes('mock') || quoteSource === 'unavailable') {
+    reasons.push('当前报价没有可审计的真实行情来源。')
+  }
+  if (confidence === null || confidence < 0 || confidence > 1) {
+    reasons.push('来源提醒缺少有效置信度。')
+  }
+  if (!String(alert.model_version || '').trim()) reasons.push('来源提醒缺少模型版本。')
+  if (suggestedNotional === null || suggestedNotional === 0) {
+    reasons.push('来源提醒没有有效建议金额。')
+  } else if (
+    (side === 'BUY' && suggestedNotional < 0) ||
+    (side === 'SELL' && suggestedNotional > 0)
+  ) {
+    reasons.push('来源提醒的建议金额方向与交易动作不一致。')
+  }
+  if (targetLow === null || targetHigh === null || targetLow <= 0 || targetHigh <= targetLow) {
+    reasons.push('来源提醒缺少有效目标区间。')
+  } else if (last !== null && (targetHigh < last * 0.5 || targetLow > last * 1.5)) {
+    reasons.push('来源提醒的目标区间与当前真实价格不在同一量级。')
+  }
+
+  const expiresAt = Date.parse(String(alert.expires_at || ''))
+  if (!Number.isFinite(expiresAt) || expiresAt <= Date.now()) {
+    reasons.push('来源提醒已过期或缺少有效期。')
+  }
+  if (
+    last !== null &&
+    last > 0 &&
+    suggestedNotional !== null &&
+    Math.floor(Math.abs(suggestedNotional) / last / 100) * 100 < 100
+  ) {
+    reasons.push('建议金额不足一手，不能强制放大到 100 股。')
+  }
+  return reasons
+}
+
+function buildProposal(alert: any, overview: StockOverviewResponse): TradeProposalInput | null {
+  const side = proposalSide(alert.action)
+  const last = finiteNumber(overview.quote?.last)
+  const confidence = finiteNumber(alert.confidence)
+  const suggestedNotional = finiteNumber(alert.suggested_notional)
+  const marketDataAsOf = overview.quote?.as_of
+  const modelVersion = String(alert.model_version || '').trim()
+  const alertId = Number(alert.id)
+  if (
+    !side ||
+    last === null ||
+    last <= 0 ||
+    confidence === null ||
+    suggestedNotional === null ||
+    !marketDataAsOf ||
+    !modelVersion ||
+    !Number.isInteger(alertId) ||
+    alertId <= 0
+  ) {
+    return null
+  }
+  const quantity = Math.floor(Math.abs(suggestedNotional) / last / 100) * 100
+  if (quantity < 100) return null
+  const proposalId = `alert-${alertId}-${side.toLowerCase()}`
+  return {
+    proposal_id: proposalId,
+    idempotency_key: proposalId,
+    symbol: overview.symbol || String(alert.symbol),
+    side,
+    quantity,
+    estimated_notional: Number((quantity * last).toFixed(2)),
+    confidence,
+    market_data_as_of: marketDataAsOf,
+    model_version: modelVersion,
+    mode: 'confirm_to_trade',
+    source_alert_id: alertId,
+    metadata: {
+      source: 'alerts-view',
+      source_suggested_notional: suggestedNotional,
+      quote_source: overview.quote?.source,
+      target_low: alert.target_low,
+      target_high: alert.target_high,
+    },
+  }
 }
 
 async function load() {
@@ -46,7 +162,10 @@ async function load() {
     const [alertData, proposalData] = await Promise.all([api.alerts(80), api.proposals()])
     alerts.value = alertData.alerts || []
     proposals.value = proposalData.proposals || []
-    if (!selected.value && alerts.value.length) select(alerts.value[0])
+    if (alerts.value.length) {
+      const current = alerts.value.find((alert) => alert.id === selected.value?.id)
+      void select(current || alerts.value[0])
+    }
   } catch (exc: any) {
     error.value = String(exc.message || exc)
   } finally {
@@ -67,32 +186,42 @@ async function refresh() {
 }
 
 async function select(alert: any) {
+  const epoch = ++selectionEpoch
+  proposalCreating.value = false
   selected.value = alert
   riskDecision.value = null
+  evaluatedProposal.value = null
+  proposalFeedback.value = ''
+  proposalFeedbackOk.value = false
   riskChecking.value = true
   try {
-    const change = Number(alert.suggested_position_change || 0)
-    const notional = Math.max(10_000, Math.abs(change) * DEMO_PORTFOLIO.equity)
-    riskDecision.value = await api.evaluateTrade({
-      proposal: {
-        proposal_id: `ui-${alert.id}-${Date.now()}`,
-        idempotency_key: `ui-${alert.id}`,
-        symbol: alert.symbol,
-        side: change >= 0 ? 'BUY' : 'SELL',
-        quantity: 100,
-        estimated_notional: notional,
-        confidence: alert.confidence,
-        market_data_as_of: new Date().toISOString(),
-        model_version: alert.model_version || 'unknown',
-        mode: 'confirm_to_trade',
-        source_alert_id: String(alert.id),
-      },
-      portfolio: DEMO_PORTFOLIO,
-    })
+    const overview = await api.stockOverview(String(alert.symbol))
+    if (epoch !== selectionEpoch) return
+    const preconditions = proposalPreconditions(alert, overview)
+    const proposal = buildProposal(alert, overview)
+    if (preconditions.length || !proposal) {
+      riskDecision.value = {
+        approved: false,
+        reasons: preconditions.length ? preconditions : ['无法由当前真实行情构造交易提案。'],
+        evaluated_at: '',
+        requires_human_confirmation: true,
+      }
+      return
+    }
+    evaluatedProposal.value = proposal
+    const decision = await api.evaluateTrade({ proposal })
+    if (epoch !== selectionEpoch) return
+    riskDecision.value = decision
   } catch (exc: any) {
-    riskDecision.value = { approved: false, reasons: [String(exc.message || exc)] }
+    if (epoch !== selectionEpoch) return
+    riskDecision.value = {
+      approved: false,
+      reasons: [String(exc.message || exc)],
+      evaluated_at: '',
+      requires_human_confirmation: true,
+    }
   } finally {
-    riskChecking.value = false
+    if (epoch === selectionEpoch) riskChecking.value = false
   }
 }
 
@@ -106,30 +235,67 @@ async function ack(alert: any) {
 }
 
 async function createProposal() {
-  if (!selected.value) return
-  const alert = selected.value
-  const change = Number(alert.suggested_position_change || 0)
+  const proposal = evaluatedProposal.value
+  if (!proposal || !riskDecision.value?.approved || proposalCreating.value) return
+  const epoch = selectionEpoch
+  proposalCreating.value = true
+  proposalFeedback.value = ''
+  proposalFeedbackOk.value = false
   try {
-    await api.createProposal({
-      proposal: {
-        proposal_id: `alert-${alert.id}-${Date.now()}`,
-        idempotency_key: `alert-${alert.id}-${new Date().toISOString().slice(0, 10)}`,
-        symbol: alert.symbol,
-        side: change >= 0 ? 'BUY' : 'SELL',
-        quantity: 100,
-        estimated_notional: Math.max(10_000, Math.abs(change) * DEMO_PORTFOLIO.equity),
-        confidence: alert.confidence,
-        market_data_as_of: new Date().toISOString(),
-        model_version: alert.model_version || 'unknown',
-        mode: 'confirm_to_trade',
-        source_alert_id: String(alert.id),
-      },
-      portfolio: DEMO_PORTFOLIO,
-    })
-    const proposalData = await api.proposals()
-    proposals.value = proposalData.proposals || []
+    const result = await api.createProposal({ proposal })
+    if (epoch !== selectionEpoch) return
+    riskDecision.value = result.risk_decision
+    proposals.value = [
+      result.proposal,
+      ...proposals.value.filter((item) => item.id !== result.proposal.id),
+    ]
+    if (!result.risk_decision.approved || result.proposal.status !== 'pending') {
+      proposalFeedback.value =
+        result.risk_decision.reasons.join('；') || `提案状态为 ${result.proposal.status}。`
+      return
+    }
+    proposalFeedbackOk.value = true
+    proposalFeedback.value = '提案已入库，等待人工确认。'
+    try {
+      const proposalData = await api.proposals()
+      if (epoch === selectionEpoch) proposals.value = proposalData.proposals || []
+    } catch (listExc: any) {
+      if (epoch === selectionEpoch) {
+        proposalFeedback.value = `提案已入库，审计列表暂未刷新：${String(listExc?.message || listExc)}`
+      }
+    }
   } catch (exc: any) {
-    error.value = String(exc.message || exc)
+    if (Number(exc?.status) === 409) {
+      let proposalData: Awaited<ReturnType<typeof api.proposals>>
+      try {
+        proposalData = await api.proposals()
+      } catch (listExc: any) {
+        if (epoch === selectionEpoch) {
+          proposalFeedback.value = `提案可能已存在，但审计列表刷新失败：${String(listExc?.message || listExc)}`
+        }
+        return
+      }
+      if (epoch !== selectionEpoch) return
+      proposals.value = proposalData.proposals || []
+      const existing = proposals.value.find(
+        (item: PersistedTradeProposal) =>
+          item.proposal_id === proposal.proposal_id
+          || item.idempotency_key === proposal.idempotency_key,
+      )
+      if (existing) {
+        proposalFeedbackOk.value = existing.status === 'pending'
+        proposalFeedback.value =
+          existing.status === 'pending'
+            ? '相同提醒的提案已存在，仍在等待人工确认。'
+            : `相同提醒的提案已存在，当前状态：${(STATUS_META[existing.status] || { label: existing.status }).label}。`
+      } else {
+        proposalFeedback.value = String(exc.message || exc)
+      }
+    } else if (epoch === selectionEpoch) {
+      proposalFeedback.value = String(exc.message || exc)
+    }
+  } finally {
+    if (epoch === selectionEpoch) proposalCreating.value = false
   }
 }
 
@@ -156,7 +322,7 @@ onMounted(load)
 </script>
 
 <template>
-  <div>
+  <div class="alerts-page">
     <div class="page-head">
       <h1>交易提醒 / AI执行</h1>
       <span class="sub">结构化提醒 → 风控校验 → 人工确认（执行默认禁用）</span>
@@ -186,7 +352,7 @@ onMounted(load)
       </button>
     </div>
 
-    <div class="grid" style="grid-template-columns: minmax(0, 1fr) 320px 300px; align-items: start">
+    <div class="grid alerts-layout">
       <!-- 提醒列表 -->
       <div class="panel" style="padding: 6px">
         <div v-if="visibleAlerts.length">
@@ -195,18 +361,23 @@ onMounted(load)
             :key="alert.id"
             class="alert-row"
             :class="{ selected: selected?.id === alert.id }"
-            @click="select(alert)"
           >
-            <span class="xs dim mono" style="width: 36px">{{ fmtTime(alert.created_at).slice(-8, -3) }}</span>
-            <span class="badge" :class="actionMeta(alert.action).cls">{{ actionMeta(alert.action).label }}</span>
-            <div style="flex: 1; min-width: 0">
-              <div class="num" style="font-weight: 600; font-size: 12.5px">{{ alert.symbol }}</div>
-              <div class="xs dim" style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis">
-                {{ (alert.reasons || [])[0] }}
-              </div>
-            </div>
-            <ConfRing :value="alert.confidence" :size="32" />
-            <button v-if="!alert.acknowledged" class="btn ghost xs" style="padding: 2px 8px" @click.stop="ack(alert)">
+            <button
+              type="button"
+              class="alert-select"
+              :aria-pressed="selected?.id === alert.id"
+              :aria-label="`查看 ${alert.symbol} ${actionMeta(alert.action).label} 提醒`"
+              @click="select(alert)"
+            >
+              <span class="xs dim mono alert-time">{{ fmtTime(alert.created_at).slice(-8, -3) }}</span>
+              <span class="badge" :class="actionMeta(alert.action).cls">{{ actionMeta(alert.action).label }}</span>
+              <span class="alert-copy">
+                <span class="num alert-symbol">{{ alert.symbol }}</span>
+                <span class="xs dim alert-reason">{{ (alert.reasons || [])[0] }}</span>
+              </span>
+              <ConfRing :value="alert.confidence" :size="32" />
+            </button>
+            <button v-if="!alert.acknowledged" class="btn ghost xs" style="padding: 2px 8px" @click="ack(alert)">
               知悉
             </button>
             <span v-else class="xs dim">已读</span>
@@ -217,7 +388,7 @@ onMounted(load)
 
       <!-- 风控 -->
       <div class="panel">
-        <div class="panel-title">风控校验 <span class="extra">演示组合 ¥1,000,000</span></div>
+        <div class="panel-title">风控校验 <span class="extra">SIMULATE 账户实时组合</span></div>
         <template v-if="selected">
           <div style="margin-bottom: 10px; display: flex; align-items: center; gap: 8px">
             <b class="num">{{ selected.symbol }}</b>
@@ -243,11 +414,19 @@ onMounted(load)
             <button
               class="btn primary"
               style="width: 100%; margin-top: 12px"
-              :disabled="!riskDecision.approved"
+              :disabled="!riskDecision.approved || !evaluatedProposal || proposalCreating"
               @click="createProposal"
             >
-              <Play :size="12" /> 生成交易提案
+              <Play :size="12" /> {{ proposalCreating ? '入库校验中…' : '生成交易提案' }}
             </button>
+            <div
+              v-if="proposalFeedback"
+              class="banner"
+              :class="proposalFeedbackOk ? '' : 'error'"
+              style="margin-top: 8px"
+            >
+              {{ proposalFeedback }}
+            </div>
             <div class="xs dim" style="margin-top: 6px; text-align: center">提案仅入库审计，不提交真实订单</div>
           </template>
         </template>
@@ -282,7 +461,8 @@ onMounted(load)
     <!-- 提案流水 -->
     <div class="panel" style="margin-top: 12px; padding-bottom: 6px">
       <div class="panel-title">交易提案审计流水 <span class="extra">执行网关默认禁用</span></div>
-      <table class="tbl" v-if="proposals.length">
+      <div v-if="proposals.length" class="table-scroll" tabindex="0" aria-label="交易提案审计流水，可横向滚动">
+      <table class="tbl">
         <thead>
           <tr>
             <th>时间</th><th>标的</th><th>方向</th><th class="r">数量</th><th class="r">金额</th>
@@ -314,6 +494,7 @@ onMounted(load)
           </tr>
         </tbody>
       </table>
+      </div>
       <div v-else class="empty-hint">暂无提案记录</div>
     </div>
   </div>
@@ -329,6 +510,42 @@ onMounted(load)
   cursor: pointer;
   border: 1px solid transparent;
   transition: background var(--t-fast), border-color var(--t-fast);
+}
+.alert-select {
+  min-width: 0;
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.alert-select:focus-visible {
+  outline: 2px solid var(--line-focus);
+  outline-offset: 3px;
+  border-radius: var(--r-sm);
+}
+.alert-time {
+  width: 36px;
+  flex: none;
+}
+.alert-copy {
+  min-width: 0;
+  flex: 1;
+  display: grid;
+}
+.alert-symbol {
+  font-size: 12.5px;
+  font-weight: 600;
+}
+.alert-reason {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .alert-row:hover {
   background: rgba(148, 163, 198, 0.05);
@@ -346,5 +563,39 @@ onMounted(load)
 }
 .check-row:last-of-type {
   border-bottom: none;
+}
+.alerts-layout {
+  grid-template-columns: minmax(340px, 1fr) minmax(270px, 320px) minmax(250px, 300px);
+  align-items: start;
+}
+.table-scroll {
+  max-width: 100%;
+  overflow-x: auto;
+}
+.table-scroll .tbl {
+  min-width: 780px;
+}
+@media (max-width: 1220px) {
+  .alerts-layout {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .alerts-layout > :first-child {
+    grid-column: 1 / -1;
+  }
+}
+@media (max-width: 700px) {
+  .alerts-layout {
+    grid-template-columns: 1fr;
+  }
+  .alerts-layout > :first-child {
+    grid-column: auto;
+  }
+  .alert-row,
+  .alert-select {
+    gap: 7px;
+  }
+  .alert-time {
+    display: none;
+  }
 }
 </style>

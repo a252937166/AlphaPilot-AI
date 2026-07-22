@@ -120,6 +120,21 @@ def test_stock_bars_endpoint() -> None:
     assert len(body["bars"]) > 30
     assert {"date", "open", "close"} <= set(body["bars"][0])
 
+    weekly = client.get(
+        "/v1/stocks/600519/bars",
+        params={"provider": "mock", "days": 60, "freq": "w"},
+    )
+    assert weekly.status_code == 200
+    assert weekly.json()["frequency"] == "w"
+    assert 1 < len(weekly.json()["bars"]) <= 60
+    assert "该来源日线聚合" in weekly.json()["warnings"][0]
+
+    invalid = client.get(
+        "/v1/stocks/600519/bars",
+        params={"provider": "mock", "days": 60, "freq": "quarter"},
+    )
+    assert invalid.status_code == 422
+
 
 def test_dashboard_overview_degrades_without_futu() -> None:
     response = client.get("/v1/dashboard/overview", params={"provider": "mock"})
@@ -147,7 +162,7 @@ def test_daily_report_generate_and_get() -> None:
     assert fetched.json()["report_date"] == body["report_date"]
 
 
-def test_trade_proposal_flow_records_but_never_executes() -> None:
+def test_trade_proposal_without_audited_alert_is_rejected_before_broker() -> None:
     payload = {
         "proposal": {
             "proposal_id": "test-prop-1",
@@ -171,17 +186,8 @@ def test_trade_proposal_flow_records_but_never_executes() -> None:
         },
     }
     created = client.post("/v1/trades/proposals", json=payload)
-    assert created.status_code == 200
-
-    listed = client.get("/v1/trades/proposals")
-    records = listed.json()["proposals"]
-    target = next(item for item in records if item["proposal_id"] == "test-prop-1")
-
-    if target["status"] == "pending":
-        approved = client.post(f"/v1/trades/proposals/{target['id']}/approve")
-        assert approved.status_code == 200
-        # Execution is disabled by default, so approval records intent only.
-        assert approved.json()["proposal"]["status"] == "approved_no_execution"
+    assert created.status_code == 422
+    assert "必须绑定一条可审计的方向性提醒" in created.json()["detail"]
 
 
 def test_disclosure_status_endpoint() -> None:
@@ -194,7 +200,7 @@ def test_market_intraday_returns_normalized_index_points() -> None:
     class IntradayFutuClient(StubFutuClient):
         def quote_call_raw(self, method: str, args: Any = None, kwargs: Any = None) -> Any:
             del kwargs
-            if method == "subscribe":
+            if method in {"subscribe", "unsubscribe"}:
                 return None
             assert method == "get_rt_data"
             return pd.DataFrame(
@@ -225,6 +231,44 @@ def test_market_intraday_returns_normalized_index_points() -> None:
     }
 
 
+def test_market_intraday_accepts_and_normalizes_an_a_share_symbol() -> None:
+    class IntradayStockFutuClient(StubFutuClient):
+        def __init__(self) -> None:
+            self.subscribed: list[str] = []
+            self.unsubscribed: list[str] = []
+
+        def quote_call_raw(self, method: str, args: Any = None, kwargs: Any = None) -> Any:
+            del kwargs
+            if method == "subscribe":
+                self.subscribed = list(args[0])
+                return None
+            if method == "unsubscribe":
+                self.unsubscribed = list(args[0])
+                return None
+            assert method == "get_rt_data"
+            assert args == ["SH.600519"]
+            return pd.DataFrame(
+                [
+                    {
+                        "time": "2026-07-22 09:30:00",
+                        "cur_price": 1_300.0,
+                        "avg_price": 1_300.0,
+                        "volume": 100.0,
+                        "is_blank": False,
+                    }
+                ]
+            )
+
+    intraday = IntradayStockFutuClient()
+    app.dependency_overrides[futu_client_dependency] = lambda: intraday
+    response = client.get("/v1/market/intraday", params={"symbols": "600519"})
+
+    assert response.status_code == 200
+    assert intraday.subscribed == ["SH.600519"]
+    assert intraday.unsubscribed == ["SH.600519"]
+    assert response.json()["SH.600519"][0]["price"] == pytest.approx(1_300.0)
+
+
 def test_market_intraday_rejects_non_core_symbol_without_subscribing() -> None:
     response = client.get(
         "/v1/market/intraday",
@@ -232,6 +276,13 @@ def test_market_intraday_rejects_non_core_symbol_without_subscribing() -> None:
     )
     assert response.status_code == 422
     assert "仅支持" in response.json()["detail"]
+
+    bse = client.get(
+        "/v1/market/intraday",
+        params={"symbols": "920000"},
+    )
+    assert bse.status_code == 422
+    assert "仅支持" in bse.json()["detail"]
 
 
 def test_market_intraday_explains_futu_unavailability() -> None:

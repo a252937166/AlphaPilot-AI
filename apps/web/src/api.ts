@@ -147,6 +147,280 @@ export interface AlertListResponse {
   alerts: AlertItem[]
 }
 
+export type StockBarFrequency = 'd' | 'w' | 'm'
+export type StockSignalMarker = 'B' | 'S'
+export type StockEventFilter = 'all' | 'disclosure' | 'earnings_preview' | 'unlock' | 'dividend'
+
+export interface StockQuote {
+  last: number | null
+  change_pct: number | null
+  open: number | null
+  high: number | null
+  low: number | null
+  volume: number | null
+  amount: number | null
+  turnover_rate: number | null
+  pe_ttm: number | null
+  market_cap: number | null
+  float_cap: number | null
+  pb: number | null
+  as_of: string | null
+  fundamentals_as_of: string | null
+  source: string
+  ohlc_source: string
+  ohlc_trade_date: string | null
+}
+
+export interface StockSecurity {
+  symbol?: string
+  name?: string | null
+  board?: string | null
+  listed_date?: string | null
+  status?: string | null
+  [key: string]: unknown
+}
+
+export interface StockHorizonForecast {
+  horizon_days: number
+  p_up: number
+  expected_return: number
+  q10: number
+  q50: number
+  q90: number
+  confidence: number
+}
+
+export interface StockForecastPayload {
+  symbol: string
+  as_of: string
+  provider: string
+  model_version: string
+  data_points: number
+  features: Record<string, number>
+  horizons: Record<string, StockHorizonForecast>
+  warnings: string[]
+}
+
+export interface StockAlertPayload {
+  action: string
+  urgency: string
+  confidence: number
+  suggested_position_change: number
+  reasons: string[]
+  invalidation: string
+  model_version: string
+  as_of: string
+  expires_at: string
+}
+
+export interface StockScoreRadarItem {
+  key: string
+  name: string
+  value: number
+  max: number
+  available_inputs: number
+  required_inputs: number
+  degraded: boolean
+}
+
+export interface StockScorePayload {
+  symbol: string
+  trade_date: string
+  tech: number
+  capital: number
+  fundamental: number
+  valuation: number
+  sentiment: number
+  composite: number
+  model_version: string
+  dimension_weights: Record<string, number>
+  radar: StockScoreRadarItem[]
+  inputs: Record<
+    string,
+    { raw: number | null; zscore: number | null; available: boolean; model_version: string | null }
+  >
+  missing_factors: string[]
+  degraded_dimensions: string[]
+  input_coverage: number
+  degraded: boolean
+  degradation_reason: string | null
+}
+
+export interface StockDisclosure {
+  id: number
+  title: string
+  url: string | null
+  published_at: string
+  [key: string]: unknown
+}
+
+export interface StockOverviewResponse {
+  symbol: string
+  security: StockSecurity | null
+  quote: StockQuote | null
+  forecast: StockForecastPayload
+  alert: StockAlertPayload
+  disclosures: StockDisclosure[]
+  score: StockScorePayload | null
+  score_error: string | null
+}
+
+export interface StockBar {
+  date: string
+  open: number
+  high: number
+  low: number
+  close: number
+  volume: number | null
+  amount: number | null
+}
+
+export interface StockBarsResponse {
+  symbol: string
+  freq?: StockBarFrequency
+  frequency?: StockBarFrequency
+  source: string
+  warnings: string[]
+  bars: StockBar[]
+}
+
+export interface StockSignalItem {
+  id: number
+  symbol: string
+  action: string
+  marker: StockSignalMarker
+  confidence: number
+  target_low: number | null
+  target_high: number | null
+  suggested_notional: number | null
+  reasons: string[]
+  invalidation: string | null
+  model_version: string | null
+  expires_at: string | null
+  forecast_snapshot_id: number
+  forecast_provider: string
+  trade_eligible: boolean
+  trade_date: string
+  close: number | null
+  close_source: string | null
+  as_of: string | null
+  created_at: string
+}
+
+export interface StockSignalsResponse {
+  symbol: string
+  from: string | null
+  to: string | null
+  count: number
+  excluded_count: number
+  warnings: string[]
+  signals: StockSignalItem[]
+}
+
+export interface StockInsightDriver {
+  text: string
+  tag: '利多' | '利空' | '中性'
+  source_ref: string
+}
+
+export interface StockInsightResponse {
+  symbol: string
+  generated_at: string
+  core_view: string
+  drivers: StockInsightDriver[]
+  model_version: string
+  source: 'llm' | 'rule' | string
+}
+
+export interface StockCalendarEvent {
+  id: number
+  symbol: string
+  event_type: 'earnings_preview' | 'unlock' | 'dividend' | string
+  event_date: string
+  title: string
+  payload: Record<string, unknown>
+  source: string
+  available_time: string
+}
+
+export interface StockCalendarResponse {
+  symbol: string
+  from: string
+  to: string
+  days: number
+  events: StockCalendarEvent[]
+}
+
+export interface StockIntradayPoint {
+  time: string
+  price: number
+  avg_price: number | null
+  volume: number | null
+}
+
+export type StockIntradayResponse = Record<string, StockIntradayPoint[]>
+
+export interface TradeProposalInput {
+  proposal_id: string
+  idempotency_key: string
+  symbol: string
+  side: 'BUY' | 'SELL'
+  quantity: number
+  estimated_notional: number
+  confidence: number
+  market_data_as_of: string
+  model_version: string
+  mode: 'confirm_to_trade'
+  source_alert_id?: number | null
+  metadata?: Record<string, unknown>
+}
+
+export interface TradeProposalRequest {
+  proposal: TradeProposalInput
+  portfolio?: {
+    equity: number
+    cash: number
+    daily_pnl_pct: number
+    current_position_pct: number
+    sector_position_pct: number
+    open_orders_for_symbol: number
+  }
+}
+
+export interface TradeRiskDecision {
+  approved: boolean
+  reasons: string[]
+  evaluated_at: string
+  requires_human_confirmation: boolean
+}
+
+export interface PersistedTradeProposal {
+  id: number
+  proposal_id: string
+  idempotency_key: string | null
+  symbol: string
+  side: 'BUY' | 'SELL'
+  quantity: number
+  estimated_notional: number
+  confidence: number
+  mode: string
+  status: string
+  source_alert_id: number | null
+  proposal: TradeProposalInput
+  risk_decision: TradeRiskDecision
+  created_at: string
+  reviewed_at: string | null
+}
+
+export interface CreateTradeProposalResponse {
+  proposal: PersistedTradeProposal
+  risk_decision: TradeRiskDecision
+}
+
+export interface TradeProposalListResponse {
+  proposals: PersistedTradeProposal[]
+}
+
 export interface SectorStrengthItem {
   plate_code: string
   plate_name: string
@@ -206,6 +480,16 @@ export interface JobRunsResponse {
   runs: JobRunItem[]
 }
 
+export class ApiError extends Error {
+  constructor(
+    readonly status: number,
+    message: string,
+  ) {
+    super(message)
+    this.name = 'ApiError'
+  }
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(BASE + path, {
     headers: { 'Content-Type': 'application/json' },
@@ -219,7 +503,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     } catch {
       /* keep status text */
     }
-    throw new Error(detail)
+    throw new ApiError(response.status, detail)
   }
   return response.json() as Promise<T>
 }
@@ -243,9 +527,31 @@ export const api = {
   factorWeights: () => request<FactorWeightsResponse>('/v1/factors/weights'),
   metaIndustries: () => request<IndustriesResponse>('/v1/meta/industries'),
 
-  stockOverview: (symbol: string) => request<any>(`/v1/stocks/${symbol}/overview`),
-  stockBars: (symbol: string, days = 120) =>
-    request<any>(`/v1/stocks/${symbol}/bars?days=${days}`),
+  stockOverview: (symbol: string) =>
+    request<StockOverviewResponse>(`/v1/stocks/${encodeURIComponent(symbol)}/overview`),
+  stockBars: (symbol: string, days = 160, freq: StockBarFrequency = 'd') =>
+    request<StockBarsResponse>(
+      `/v1/stocks/${encodeURIComponent(symbol)}/bars?days=${days}&freq=${freq}`,
+    ),
+  stockSignals: (symbol: string, start?: string, end?: string) => {
+    const params = new URLSearchParams()
+    if (start) params.set('start', start)
+    if (end) params.set('end', end)
+    const query = params.size ? `?${params.toString()}` : ''
+    return request<StockSignalsResponse>(
+      `/v1/stocks/${encodeURIComponent(symbol)}/signals${query}`,
+    )
+  },
+  stockInsight: (symbol: string) =>
+    request<StockInsightResponse>(`/v1/stocks/${encodeURIComponent(symbol)}/insight`),
+  stockCalendar: (symbol: string, days = 90) =>
+    request<StockCalendarResponse>(
+      `/v1/stocks/${encodeURIComponent(symbol)}/calendar?days=${days}`,
+    ),
+  stockIntraday: (symbol: string) =>
+    request<StockIntradayResponse>(
+      `/v1/market/intraday?symbols=${encodeURIComponent(symbol)}`,
+    ),
 
   watchlist: () => request<any>('/v1/watchlist'),
   watchlistTrack: () => request<any>('/v1/watchlist/track'),
@@ -287,11 +593,17 @@ export const api = {
   dailyReport: () => request<any>('/v1/reports/daily'),
   generateDailyReport: () => request<any>('/v1/reports/daily/generate', { method: 'POST' }),
 
-  evaluateTrade: (body: Record<string, unknown>) =>
-    request<any>('/v1/trades/evaluate', { method: 'POST', body: JSON.stringify(body) }),
-  proposals: () => request<any>('/v1/trades/proposals'),
-  createProposal: (body: Record<string, unknown>) =>
-    request<any>('/v1/trades/proposals', { method: 'POST', body: JSON.stringify(body) }),
+  evaluateTrade: (body: TradeProposalRequest) =>
+    request<TradeRiskDecision>('/v1/trades/evaluate', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  proposals: () => request<TradeProposalListResponse>('/v1/trades/proposals'),
+  createProposal: (body: TradeProposalRequest) =>
+    request<CreateTradeProposalResponse>('/v1/trades/proposals', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
   approveProposal: (id: number) =>
     request<any>(`/v1/trades/proposals/${id}/approve`, { method: 'POST' }),
   rejectProposal: (id: number) =>

@@ -235,9 +235,16 @@ class TradeProposalRecord(Base):
     """Proposal + risk decision + review state for the execution workflow."""
 
     __tablename__ = "trade_proposals"
+    __table_args__ = (
+        UniqueConstraint(
+            "idempotency_key",
+            name="uq_trade_proposals_idempotency_key",
+        ),
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     proposal_id: Mapped[str] = mapped_column(String(64), unique=True)
+    idempotency_key: Mapped[str | None] = mapped_column(String(128), nullable=True)
     symbol: Mapped[str] = mapped_column(String(24))
     side: Mapped[str] = mapped_column(String(8))
     quantity: Mapped[float] = mapped_column(Float)

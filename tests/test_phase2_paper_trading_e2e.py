@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Iterator
 from contextlib import contextmanager
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from typing import Any, cast
 
@@ -22,6 +22,7 @@ from alphapilot.db.models import (
     AlertRecord,
     Base,
     BrokerOrder,
+    ForecastSnapshot,
     PortfolioSnapshot,
     Security,
     TradeProposalRecord,
@@ -176,20 +177,34 @@ def test_alert_to_filled_paper_order_and_next_day_attribution_is_offline(
     app.dependency_overrides[futu_client_dependency] = lambda: _as_futu(broker)
 
     with session_scope() as session:
+        source_time = datetime.now(UTC)
         alert = AlertRecord(
             symbol="600000",
             action="BUY_CANDIDATE",
             urgency="HIGH",
-            confidence=0.90,
-            suggested_position_change=0.01,
-            suggested_notional=1_010.0,
+                confidence=0.90,
+                suggested_position_change=0.01,
+                target_low=9.0,
+                target_high=11.0,
+                suggested_notional=1_010.0,
             reasons=["离线端到端提醒"],
             model_version="paper-e2e-v1",
-            as_of=datetime.now(UTC),
+            as_of=source_time,
+            expires_at=source_time + timedelta(days=2),
+            created_at=source_time,
         )
         session.add_all(
             [
                 Security(symbol="600000", industry_csrc="J66货币金融服务"),
+                ForecastSnapshot(
+                    symbol="600000",
+                    as_of=source_time,
+                    provider="baostock",
+                    model_version="paper-e2e-v1",
+                    horizons={},
+                    features={},
+                    created_at=source_time,
+                ),
                 alert,
             ]
         )
