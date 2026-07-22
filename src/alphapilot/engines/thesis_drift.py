@@ -18,6 +18,7 @@ from alphapilot.db.models import (
     WatchlistItem,
 )
 from alphapilot.services.events import emit
+from alphapilot.services.notifications import push_alert
 
 MODEL_VERSION = "thesis-drift-v1.0.0"
 THESIS_STATES = ("strengthened", "unchanged", "weakened")
@@ -318,6 +319,8 @@ def evaluate(
         now=now,
     )
     session.add(alert)
+    session.flush()
+    push_alert(session, alert)
     if created_alerts is not None:
         created_alerts.append(alert)
     return to_state, reason

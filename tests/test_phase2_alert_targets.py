@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 
 from alphapilot.api.routes.alerts import _alert_payload
 from alphapilot.db.migrate import run_migrations
-from alphapilot.db.models import AlertRecord, Base, DailyBar, WatchlistItem
+from alphapilot.db.models import AlertRecord, Base, DailyBar, Notification, WatchlistItem
 from alphapilot.domain.models import HorizonForecast, StockForecast
 from alphapilot.services import watchlist as watchlist_service
 
@@ -205,6 +205,12 @@ def test_refresh_prefers_snapshot_price_and_exposes_enrichment_in_api_payload(
     assert record.target_low == pytest.approx(108.0)
     assert record.target_high == pytest.approx(144.0)
     assert record.suggested_notional == pytest.approx(100_000.0)
+    notification = session.scalar(
+        select(Notification).where(Notification.ref_id == f"alert:{record.id}")
+    )
+    assert notification is not None
+    assert notification.kind == "alert"
+    assert notification.title == "600519 · 买入候选"
     payload = _alert_payload(record)
     assert payload["target_low"] == pytest.approx(108.0)
     assert payload["target_high"] == pytest.approx(144.0)

@@ -23,6 +23,7 @@ from alphapilot.domain.models import StockForecast
 from alphapilot.engines.thesis_drift import THESIS_STATES, evaluate
 from alphapilot.prediction.baseline import BaselineForecastEngine
 from alphapilot.services.market_data import get_bars_with_cache
+from alphapilot.services.notifications import push_alert
 
 DEFAULT_WATCHLIST: list[dict[str, str]] = [
     {"symbol": "600519", "display_name": "贵州茅台", "group_name": "core"},
@@ -270,6 +271,7 @@ def refresh_alerts(
         session.add(record)
         created.append(record)
         session.flush()
+        push_alert(session, record)
         evaluate(session, symbol, created_alerts=created)
     return created
 

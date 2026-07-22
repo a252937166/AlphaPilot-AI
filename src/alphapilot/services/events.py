@@ -6,6 +6,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from alphapilot.db.models import DomainEvent
+from alphapilot.services.notifications import push_event
 
 
 def emit(
@@ -45,4 +46,5 @@ def emit(
     )
     session.add(event)
     session.flush()
+    push_event(session, event)
     return event
