@@ -118,16 +118,9 @@ def get_simulate_account(client: FutuClient, market: str = "CN") -> dict[str, An
 def fetch_positions(client: FutuClient) -> list[dict[str, Any]]:
     """Return normalized positions from the CN simulated securities account."""
 
-    account = get_simulate_account(client)
-    response = client.trade_call(
-        "security",
-        "position_list_query",
-        kwargs={"acc_id": account["acc_id"]},
-        market="CN",
-        environment="SIMULATE",
-    )
+    records = _position_records(client)
     positions: list[dict[str, Any]] = []
-    for row in _records(response, "模拟持仓查询"):
+    for row in records:
         cost_price = (
             _optional_number(row.get("cost_price"), "cost_price")
             if row.get("cost_price_valid") is not False
@@ -151,6 +144,78 @@ def fetch_positions(client: FutuClient) -> list[dict[str, Any]]:
     return positions
 
 
+def _position_records(client: FutuClient) -> list[dict[str, Any]]:
+    account = get_simulate_account(client)
+    response = client.trade_call(
+        "security",
+        "position_list_query",
+        kwargs={"acc_id": account["acc_id"], "refresh_cache": True},
+        market="CN",
+        environment="SIMULATE",
+    )
+    return _records(response, "模拟持仓查询")
+
+
+def fetch_risk_positions(client: FutuClient) -> list[dict[str, Any]]:
+    """Return the non-public position fields required for execution-time risk checks."""
+
+    positions: list[dict[str, Any]] = []
+    for row in _position_records(client):
+        positions.append(
+            {
+                "symbol": _symbol(row.get("code")),
+                "qty": _required_number(row.get("qty"), "qty"),
+                "market_val": _required_number(row.get("market_val"), "market_val"),
+                "today_pl_val": _required_number(row.get("today_pl_val"), "today_pl_val"),
+            }
+        )
+    positions.sort(key=lambda item: str(item["symbol"]))
+    return positions
+
+
+_TERMINAL_ORDER_STATUSES = frozenset(
+    {
+        "CANCELLED_ALL",
+        "CANCELLED_PART",
+        "DELETED",
+        "DISABLED",
+        "FAILED",
+        "FILLED_ALL",
+        "FILL_CANCELLED",
+        "SUBMIT_FAILED",
+    }
+)
+
+
+def fetch_open_order_count(client: FutuClient, symbol: str) -> int:
+    """Count real Futu SIMULATE orders that can still affect one symbol."""
+
+    code = f"{'SH' if symbol.startswith(('5', '6', '9')) else 'SZ'}.{symbol}"
+    account = get_simulate_account(client)
+    response = client.trade_call(
+        "security",
+        "order_list_query",
+        kwargs={
+            "acc_id": account["acc_id"],
+            "code": code,
+            "refresh_cache": True,
+        },
+        market="CN",
+        environment="SIMULATE",
+    )
+    count = 0
+    for row in _records(response, "模拟委托查询"):
+        order_code = str(row.get("code") or "").strip().upper()
+        if order_code and order_code != code:
+            continue
+        status = str(row.get("order_status") or "").strip().upper()
+        if not status:
+            raise BrokerError("富途模拟委托缺少订单状态。")
+        if status not in _TERMINAL_ORDER_STATUSES:
+            count += 1
+    return count
+
+
 def fetch_account_funds(client: FutuClient) -> dict[str, Any]:
     """Return cash and asset totals from the CN simulated securities account."""
 
@@ -158,7 +223,7 @@ def fetch_account_funds(client: FutuClient) -> dict[str, Any]:
     response = client.trade_call(
         "security",
         "accinfo_query",
-        kwargs={"acc_id": account["acc_id"]},
+        kwargs={"acc_id": account["acc_id"], "refresh_cache": True},
         market="CN",
         environment="SIMULATE",
     )

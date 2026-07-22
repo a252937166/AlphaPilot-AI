@@ -205,8 +205,8 @@ def test_positions_and_funds_are_normalized_without_demo_fallback() -> None:
     for call in client.calls:
         assert call["market"] == "CN"
         assert call["environment"] == "SIMULATE"
-    assert client.calls[1]["kwargs"] == {"acc_id": 77}
-    assert client.calls[2]["kwargs"] == {"acc_id": 77}
+    assert client.calls[1]["kwargs"] == {"acc_id": 77, "refresh_cache": True}
+    assert client.calls[2]["kwargs"] == {"acc_id": 77, "refresh_cache": True}
 
 
 def test_broker_rejects_non_finite_funds_instead_of_returning_invalid_json() -> None:
@@ -251,15 +251,35 @@ def test_portfolio_account_api_returns_chinese_503_when_query_is_disabled() -> N
     assert response.json() == {"detail": "富途模拟账户只读查询未启用。"}
 
 
-def test_generic_futu_http_route_cannot_expose_account_ids() -> None:
+@pytest.mark.parametrize("method", ["get_acc_list", "position_list_query"])
+def test_generic_futu_http_route_keeps_account_queries_private(method: str) -> None:
     client = StubBrokerClient(accounts=[_account(987654321)])
 
     with _futu_api(client) as api:
         response = api.post(
-            "/v1/futu/trade/security/get_acc_list",
+            f"/v1/futu/trade/security/{method}",
             json={"market": "CN", "environment": "SIMULATE"},
         )
 
     assert response.status_code == 403
-    assert response.json() == {"detail": "富途账户发现仅供内部使用，请改用 /v1/portfolio/account。"}
+    assert response.json() == {
+        "detail": "富途账户与持仓查询仅供内部使用，请改用 /v1/portfolio/account。"
+    }
+    assert client.calls == []
+
+
+@pytest.mark.parametrize("method", ["place_order", "change_order", "cancel_all_order"])
+def test_generic_futu_http_route_blocks_trade_mutations_before_client_call(method: str) -> None:
+    client = StubBrokerClient()
+
+    with _futu_api(client) as api:
+        response = api.post(
+            f"/v1/futu/trade/security/{method}",
+            json={"market": "CN", "environment": "SIMULATE"},
+        )
+
+    assert response.status_code == 403
+    assert response.json() == {
+        "detail": "通用富途 HTTP 路由禁止交易写操作，请使用受控的模拟交易执行接口。"
+    }
     assert client.calls == []

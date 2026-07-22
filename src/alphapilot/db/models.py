@@ -216,6 +216,57 @@ class TradeProposalRecord(Base):
     reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
+class BrokerOrder(Base):
+    """One auditable SIMULATE broker order for an approved trade proposal."""
+
+    __tablename__ = "broker_orders"
+    __table_args__ = (
+        UniqueConstraint("proposal_id", name="uq_broker_orders_proposal"),
+        UniqueConstraint("futu_order_id", name="uq_broker_orders_futu_order"),
+        CheckConstraint(
+            "environment = 'SIMULATE'",
+            name="ck_broker_orders_environment",
+        ),
+        CheckConstraint(
+            "status IN ('submitting', 'submitted', 'filled', 'partial', 'cancelled', 'failed')",
+            name="ck_broker_orders_status",
+        ),
+        CheckConstraint("qty > 0", name="ck_broker_orders_qty"),
+        CheckConstraint(
+            "price IS NULL OR price > 0",
+            name="ck_broker_orders_price",
+        ),
+        CheckConstraint(
+            "filled_qty >= 0 AND filled_qty <= qty",
+            name="ck_broker_orders_filled_qty",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    proposal_id: Mapped[str] = mapped_column(
+        String(64),
+        ForeignKey("trade_proposals.proposal_id"),
+        index=True,
+    )
+    futu_order_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    symbol: Mapped[str] = mapped_column(String(24))
+    side: Mapped[str] = mapped_column(String(8))
+    order_type: Mapped[str] = mapped_column(String(16), default="MARKET")
+    price: Mapped[float | None] = mapped_column(Float, nullable=True)
+    qty: Mapped[float] = mapped_column(Float)
+    status: Mapped[str] = mapped_column(String(24), default="submitting")
+    filled_qty: Mapped[float] = mapped_column(Float, default=0.0)
+    avg_fill_price: Mapped[float | None] = mapped_column(Float, nullable=True)
+    environment: Mapped[str] = mapped_column(String(12), default="SIMULATE")
+    error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=utcnow,
+        onupdate=utcnow,
+    )
+
+
 class SectorSnapshot(Base):
     """Sampled sector strength snapshot computed from constituent quotes."""
 
