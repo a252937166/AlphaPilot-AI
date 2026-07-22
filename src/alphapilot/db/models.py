@@ -267,6 +267,39 @@ class BrokerOrder(Base):
     )
 
 
+class PortfolioSnapshot(Base):
+    """One end-of-day valuation snapshot of the Futu SIMULATE portfolio."""
+
+    __tablename__ = "portfolio_snapshots"
+    __table_args__ = (
+        CheckConstraint("total_value > 0", name="ck_portfolio_snapshot_total_value"),
+        CheckConstraint("cash >= 0", name="ck_portfolio_snapshot_cash"),
+        CheckConstraint(
+            "daily_return IS NULL OR daily_return > -1",
+            name="ck_portfolio_snapshot_daily_return",
+        ),
+        CheckConstraint(
+            "benchmark_return IS NULL OR benchmark_return > -1",
+            name="ck_portfolio_snapshot_benchmark_return",
+        ),
+        CheckConstraint(
+            "drawdown IS NULL OR (drawdown >= -1 AND drawdown <= 0)",
+            name="ck_portfolio_snapshot_drawdown",
+        ),
+        CheckConstraint("source = 'futu-sim'", name="ck_portfolio_snapshot_source"),
+    )
+
+    trade_date: Mapped[date] = mapped_column(Date, primary_key=True)
+    total_value: Mapped[float] = mapped_column(Float)
+    cash: Mapped[float] = mapped_column(Float)
+    positions: Mapped[list[Any]] = mapped_column(JSON, default=list)
+    daily_return: Mapped[float | None] = mapped_column(Float, nullable=True)
+    benchmark_return: Mapped[float | None] = mapped_column(Float, nullable=True)
+    excess_return: Mapped[float | None] = mapped_column(Float, nullable=True)
+    drawdown: Mapped[float | None] = mapped_column(Float, nullable=True)
+    source: Mapped[str] = mapped_column(String(16), default="futu-sim")
+
+
 class SectorSnapshot(Base):
     """Sampled sector strength snapshot computed from constituent quotes."""
 
