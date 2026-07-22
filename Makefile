@@ -1,4 +1,4 @@
-.PHONY: install install-all run test lint format typecheck web futu-start futu-stop docker-up docker-down bundle
+.PHONY: install install-all run test lint format typecheck web api-start api-stop api-restart api-status futu-start futu-stop docker-up docker-down bundle
 
 install:
 	python -m pip install -e ".[dev]"
@@ -24,6 +24,18 @@ typecheck:
 
 web:
 	cd apps/web && npm install && npm run dev
+
+api-start:
+	./scripts/start_api_launchd.sh
+
+api-stop:
+	./scripts/stop_api_launchd.sh
+
+api-restart:
+	./scripts/restart_api_launchd.sh
+
+api-status:
+	./scripts/status_api_launchd.sh
 
 futu-start:
 	./scripts/start_futu_opend.sh
