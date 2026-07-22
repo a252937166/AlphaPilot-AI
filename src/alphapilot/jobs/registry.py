@@ -16,7 +16,7 @@ from alphapilot.db.models import JobRun, utcnow
 class JobSpec:
     name: str
     func: Callable[..., dict[str, Any]]
-    trigger: CronTrigger | IntervalTrigger
+    trigger: CronTrigger | IntervalTrigger | None
     enabled_key: str | None = None
 
 

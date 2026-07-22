@@ -39,7 +39,7 @@ def start_scheduler(settings: Settings | None = None) -> BackgroundScheduler | N
             job_defaults={"max_instances": 1, "coalesce": True},
         )
         for name, spec in JOBS.items():
-            if not _job_enabled(resolved, spec.enabled_key):
+            if spec.trigger is None or not _job_enabled(resolved, spec.enabled_key):
                 continue
             scheduler.add_job(
                 run_job,

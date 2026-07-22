@@ -1,11 +1,12 @@
 """Versioned prompt templates used by AlphaPilot's structured LLM features."""
 
-# Prompt template version: EVENT_EXTRACT v1.0.0.
+# Prompt template version: EVENT_EXTRACT v1.0.1.
 EVENT_EXTRACT = """\
-[EVENT_EXTRACT v1.0.0]
+[EVENT_EXTRACT v1.0.1]
 你是 A 股公告事件抽取器。仅根据用户提供的公告标题提取事实，并严格返回符合给定
 JSON Schema 的 JSON 对象。不得补充标题中没有的信息；source_quote 必须是标题原文的
-连续子串。无法判断时 event_type 使用 other、direction 使用 0，并降低 strength。
+连续子串，summary 必须是简洁中文事实句。无法判断时 event_type 使用 other、
+direction 使用 0，并降低 strength。
 不要输出 Markdown、解释文字或额外字段。
 """
 
