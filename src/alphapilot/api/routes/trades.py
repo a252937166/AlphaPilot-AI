@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 from alphapilot.api.dependencies import db_session_dependency, futu_client_dependency
 from alphapilot.core.config import get_settings
 from alphapilot.core.timeutil import iso_utc
-from alphapilot.db.models import BrokerOrder, TradeProposalRecord
+from alphapilot.db.models import AlertRecord, BrokerOrder, TradeProposalRecord
 from alphapilot.domain.models import PortfolioState, RiskDecision, TradeProposal
 from alphapilot.futu.client import FutuClient
 from alphapilot.risk.guardrails import TradeGuardrails
@@ -79,6 +79,7 @@ def _proposal_payload(record: TradeProposalRecord) -> dict[str, Any]:
         "confidence": record.confidence,
         "mode": record.mode,
         "status": record.status,
+        "source_alert_id": record.source_alert_id,
         "proposal": record.proposal,
         "risk_decision": record.risk_decision,
         "created_at": iso_utc(record.created_at),
@@ -122,6 +123,20 @@ def create_proposal(
         raise HTTPException(
             status_code=409, detail=f"Proposal {request.proposal.proposal_id} already exists"
         )
+    source_alert_id = request.proposal.source_alert_id
+    if source_alert_id is not None:
+        source_alert = session.get(AlertRecord, source_alert_id)
+        if source_alert is None:
+            raise HTTPException(status_code=422, detail=f"来源提醒 {source_alert_id} 不存在。")
+        proposal_symbol = (
+            request.proposal.symbol.strip().upper().removeprefix("SH.").removeprefix("SZ.")
+        )
+        alert_symbol = source_alert.symbol.strip().upper().removeprefix("SH.").removeprefix("SZ.")
+        if proposal_symbol != alert_symbol:
+            raise HTTPException(
+                status_code=422,
+                detail=f"来源提醒 {source_alert_id} 与提案股票不一致。",
+            )
     record = TradeProposalRecord(
         proposal_id=request.proposal.proposal_id,
         symbol=request.proposal.symbol,
@@ -133,6 +148,7 @@ def create_proposal(
         status="pending" if decision.approved else "rejected_by_risk",
         proposal=request.proposal.model_dump(mode="json"),
         risk_decision=decision.model_dump(mode="json"),
+        source_alert_id=source_alert_id,
     )
     session.add(record)
     session.flush()
