@@ -107,6 +107,52 @@ class StubExecutionClient:
         return {"ok": True, "data": {"records": records}}
 
 
+class ReconcilesDuringPlaceClient(StubExecutionClient):
+    def __init__(self, engine: Engine, proposal_id: str) -> None:
+        super().__init__()
+        self.engine = engine
+        self.proposal_id = proposal_id
+
+    def trade_call(
+        self,
+        context_kind: str,
+        method: str,
+        *,
+        args: list[Any] | None = None,
+        kwargs: dict[str, Any] | None = None,
+        market: str = "HK",
+        environment: str = "SIMULATE",
+        confirmation: str | None = None,
+    ) -> dict[str, Any]:
+        response = super().trade_call(
+            context_kind,
+            method,
+            args=args,
+            kwargs=kwargs,
+            market=market,
+            environment=environment,
+            confirmation=confirmation,
+        )
+        if method == "place_order":
+            with Session(self.engine) as reconciliation:
+                order = reconciliation.scalar(
+                    select(BrokerOrder).where(BrokerOrder.proposal_id == self.proposal_id)
+                )
+                proposal = reconciliation.scalar(
+                    select(TradeProposalRecord).where(
+                        TradeProposalRecord.proposal_id == self.proposal_id
+                    )
+                )
+                assert order is not None and proposal is not None
+                order.futu_order_id = "paper-order-1"
+                order.status = "filled"
+                order.filled_qty = order.qty
+                order.avg_fill_price = 10.05
+                proposal.status = "executed"
+                reconciliation.commit()
+        return response
+
+
 def _as_futu(client: StubExecutionClient) -> FutuClient:
     return cast(FutuClient, client)
 
@@ -209,6 +255,26 @@ def test_execute_submits_simulate_order_with_live_risk_and_is_idempotent(
     assert place_call["kwargs"]["qty"] == pytest.approx(200.0)
     assert len(str(place_call["kwargs"]["remark"]).encode("utf-8")) <= 64
     assert all(call["environment"] == "SIMULATE" for call in client.calls)
+
+
+def test_reconciliation_during_place_response_never_regresses_terminal_order(
+    monkeypatch: pytest.MonkeyPatch,
+    engine: Engine,
+) -> None:
+    monkeypatch.setattr(executor, "get_settings", lambda: _settings())
+    proposal_id = "reconciled-during-place"
+    with Session(engine, expire_on_commit=False) as session:
+        record = _record(session, proposal_id=proposal_id)
+        client = ReconcilesDuringPlaceClient(engine, proposal_id)
+
+        order = executor.execute_proposal(session, _as_futu(client), record)
+
+        assert order.status == "filled"
+        assert order.futu_order_id == "paper-order-1"
+        assert order.filled_qty == pytest.approx(order.qty)
+        assert order.avg_fill_price == pytest.approx(10.05)
+        assert record.status == "executed"
+        assert client.place_count == 1
 
 
 @pytest.mark.parametrize(
