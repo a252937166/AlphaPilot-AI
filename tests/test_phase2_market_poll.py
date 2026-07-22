@@ -204,9 +204,55 @@ def test_breadth_full_uses_nearest_prior_trading_day_time(tmp_path: Path) -> Non
 
     with local_session() as session:
         payload = market_breadth_full(session)
+    assert payload["prior_advancers"] == 3000
+    assert payload["prior_decliners"] == 2000
+    assert payload["prior_unchanged"] == 100
+    assert payload["prior_limit_up"] == 80
+    assert payload["prior_limit_down"] == 5
+    assert payload["prior_broken_boards"] == 20
+    assert payload["prior_avg_change_pct"] == 0.5
     assert payload["prior_total_amount"] == 120.0
     assert payload["amount_delta"] == 30.0
     assert payload["amount_delta_pct"] == 25.0
+
+
+def test_breadth_full_returns_null_prior_fields_without_prior_day(tmp_path: Path) -> None:
+    engine = create_engine(f"sqlite:///{tmp_path / 'breadth-no-prior.db'}")
+    Base.metadata.create_all(engine)
+    with Session(engine) as session:
+        session.add(
+            MarketSnapshotAgg(
+                ts=datetime(2026, 7, 21, 2, 0, tzinfo=UTC),
+                advancers=3000,
+                decliners=2000,
+                unchanged=100,
+                limit_up=80,
+                limit_down=5,
+                broken_boards=20,
+                up_gt4=300,
+                down_gt4=100,
+                total_amount=120.0,
+                avg_change_pct=0.5,
+                median_change_pct=0.2,
+                source="test",
+            )
+        )
+        session.commit()
+        payload = market_breadth_full(session)
+
+    for field in (
+        "prior_advancers",
+        "prior_decliners",
+        "prior_unchanged",
+        "prior_limit_up",
+        "prior_limit_down",
+        "prior_broken_boards",
+        "prior_avg_change_pct",
+        "prior_total_amount",
+    ):
+        assert payload[field] is None
+    assert payload["amount_delta"] is None
+    assert payload["amount_delta_pct"] is None
 
 
 def test_breadth_full_404_has_actionable_message(tmp_path: Path) -> None:

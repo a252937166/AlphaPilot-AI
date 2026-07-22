@@ -8,6 +8,7 @@ export const CHART_COLORS = {
   down: '#f87171',
   warn: '#fbbf24',
   purple: '#a78bfa',
+  slate: '#94a3b8',
   text2: '#9aa7c4',
   text3: '#5f6c8c',
   line1: 'rgba(148,163,198,0.10)',

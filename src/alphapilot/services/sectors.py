@@ -11,7 +11,13 @@ from sqlalchemy.orm import Session
 
 from alphapilot.core.timeutil import iso_utc
 from alphapilot.db.engine import get_session
-from alphapilot.db.models import DailyBar, SectorConstituent, SectorForecast, SectorSnapshot
+from alphapilot.db.models import (
+    DailyBar,
+    SectorConstituent,
+    SectorFlowDaily,
+    SectorForecast,
+    SectorSnapshot,
+)
 from alphapilot.futu.client import FutuClient, FutuClientError
 
 FALLBACK_MAX_PLATES = 10
@@ -299,6 +305,50 @@ def market_breadth_from_sample(client: FutuClient) -> dict[str, Any]:
     }
 
 
+def _with_latest_sector_flows(
+    session: Session,
+    sectors: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Attach the latest persisted flow per plate without mutating cached JSON."""
+
+    plate_codes = {
+        str(item.get("plate_code") or "").strip()
+        for item in sectors
+        if isinstance(item, dict)
+    }
+    plate_codes.discard("")
+    latest_trade_date = session.scalar(
+        select(func.max(SectorFlowDaily.trade_date)).where(
+            SectorFlowDaily.plate_code.in_(plate_codes)
+        )
+    )
+    rows = (
+        session.scalars(
+            select(SectorFlowDaily).where(
+                SectorFlowDaily.plate_code.in_(plate_codes),
+                SectorFlowDaily.trade_date == latest_trade_date,
+            )
+        ).all()
+        if latest_trade_date is not None
+        else []
+    )
+    by_plate = {row.plate_code: row for row in rows}
+    enriched: list[dict[str, Any]] = []
+    for item in sectors:
+        result = dict(item)
+        flow = by_plate.get(str(item.get("plate_code") or ""))
+        result.update(
+            {
+                "net_inflow": flow.net_inflow if flow is not None else None,
+                "main_inflow": flow.main_inflow if flow is not None else None,
+                "flow_trade_date": flow.trade_date.isoformat() if flow is not None else None,
+                "flow_source": flow.source if flow is not None else None,
+            }
+        )
+        enriched.append(result)
+    return enriched
+
+
 def get_sector_strength(
     session: Session,
     client: FutuClient,
@@ -316,7 +366,11 @@ def get_sector_strength(
         and latest.as_of.replace(tzinfo=latest.as_of.tzinfo or UTC)
         > now - timedelta(seconds=max_age_seconds)
     ):
-        return {"as_of": iso_utc(latest.as_of), "cached": True, "sectors": latest.payload}
+        return {
+            "as_of": iso_utc(latest.as_of),
+            "cached": True,
+            "sectors": _with_latest_sector_flows(session, latest.payload),
+        }
 
     try:
         sectors = compute_sector_strength(client, session)
@@ -327,9 +381,13 @@ def get_sector_strength(
                 "cached": True,
                 "stale": True,
                 "error": str(exc),
-                "sectors": latest.payload,
+                "sectors": _with_latest_sector_flows(session, latest.payload),
             }
         raise SectorServiceError(f"Sector strength unavailable: {exc}") from exc
 
     session.add(SectorSnapshot(as_of=now, payload=sectors, source="futu"))
-    return {"as_of": now.isoformat(), "cached": False, "sectors": sectors}
+    return {
+        "as_of": now.isoformat(),
+        "cached": False,
+        "sectors": _with_latest_sector_flows(session, sectors),
+    }
