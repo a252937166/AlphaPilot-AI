@@ -261,7 +261,7 @@ class TradeProposal(BaseModel):
     market_data_as_of: datetime
     model_version: str
     mode: TradingMode
-    source_alert_id: str | None = None
+    source_alert_id: int | None = Field(default=None, gt=0)
     metadata: dict[str, Any] = Field(default_factory=dict)
 
 
