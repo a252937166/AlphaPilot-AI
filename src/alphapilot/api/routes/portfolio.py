@@ -2,11 +2,17 @@ from __future__ import annotations
 
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy.orm import Session
 
-from alphapilot.api.dependencies import futu_client_dependency
+from alphapilot.api.dependencies import db_session_dependency, futu_client_dependency
 from alphapilot.futu.client import FutuClient, FutuClientError, FutuFeatureDisabledError
 from alphapilot.services.broker import BrokerError, fetch_account_funds, fetch_positions
+from alphapilot.services.portfolio import (
+    PortfolioServiceError,
+    get_portfolio_attribution,
+    get_portfolio_overview,
+)
 
 router = APIRouter(prefix="/v1/portfolio", tags=["portfolio"])
 
@@ -36,3 +42,24 @@ def portfolio_account(
         **funds,
         "positions": positions,
     }
+
+
+@router.get("/overview")
+def portfolio_overview(
+    session: Session = Depends(db_session_dependency),
+) -> dict[str, Any]:
+    try:
+        return get_portfolio_overview(session)
+    except PortfolioServiceError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+
+@router.get("/attribution")
+def portfolio_attribution(
+    days: int = Query(default=60, ge=1, le=365),
+    session: Session = Depends(db_session_dependency),
+) -> dict[str, Any]:
+    try:
+        return get_portfolio_attribution(session, days)
+    except PortfolioServiceError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
