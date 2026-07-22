@@ -10,6 +10,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from alphapilot.api.dependencies import futu_client_dependency
 from alphapilot.futu.client import (
+    TRADE_MUTATION_METHODS,
     FutuCallValidationError,
     FutuClient,
     FutuFeatureDisabledError,
@@ -20,7 +21,7 @@ from alphapilot.futu.client import (
 
 router = APIRouter(prefix="/v1/futu", tags=["futu"])
 
-_HTTP_PRIVATE_TRADE_METHODS = frozenset({"get_acc_list"})
+_HTTP_PRIVATE_TRADE_METHODS = frozenset({"get_acc_list", "position_list_query"})
 
 
 class FutuQuoteCallRequest(BaseModel):
@@ -79,9 +80,13 @@ def futu_trade_call(
     client: FutuClient = Depends(futu_client_dependency),
 ) -> dict[str, Any]:
     try:
+        if method in TRADE_MUTATION_METHODS:
+            raise FutuMethodNotAllowedError(
+                "通用富途 HTTP 路由禁止交易写操作，请使用受控的模拟交易执行接口。"
+            )
         if method in _HTTP_PRIVATE_TRADE_METHODS:
             raise FutuMethodNotAllowedError(
-                "富途账户发现仅供内部使用，请改用 /v1/portfolio/account。"
+                "富途账户与持仓查询仅供内部使用，请改用 /v1/portfolio/account。"
             )
         return client.trade_call(
             context_kind,
