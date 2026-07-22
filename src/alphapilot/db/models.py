@@ -653,6 +653,22 @@ class StockScore(Base):
     model_version: Mapped[str] = mapped_column(String(32))
 
 
+class StockInsight(Base):
+    """Cached, evidence-grounded stock interpretation for the product UI."""
+
+    __tablename__ = "stock_insights"
+    __table_args__ = (
+        CheckConstraint("source IN ('rule', 'llm')", name="ck_stock_insight_source"),
+    )
+
+    symbol: Mapped[str] = mapped_column(String(24), primary_key=True)
+    generated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    core_view: Mapped[str] = mapped_column(Text)
+    drivers: Mapped[list[Any]] = mapped_column(JSON, default=list)
+    model_version: Mapped[str] = mapped_column(String(64))
+    source: Mapped[str] = mapped_column(String(16))
+
+
 class StyleDaily(Base):
     """Turnover-weighted daily market style distribution."""
 

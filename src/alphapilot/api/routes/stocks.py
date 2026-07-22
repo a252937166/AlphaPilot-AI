@@ -20,6 +20,7 @@ from alphapilot.db.models import CalendarEvent
 from alphapilot.domain.models import StockAlert, StockForecast
 from alphapilot.prediction.baseline import BaselineForecastEngine
 from alphapilot.services import disclosures as disclosure_service
+from alphapilot.services import insight as insight_service
 from alphapilot.services import stock_scores as stock_score_service
 from alphapilot.services.market_data import get_bars_with_cache
 from alphapilot.services.watchlist import normalize_symbol
@@ -151,6 +152,19 @@ def stock_score(
             detail=f"暂无 {code} 的最新五维评分，请先运行 compute_factors。",
         )
     return payload
+
+
+@router.get("/{symbol}/insight")
+def stock_insight(
+    symbol: str,
+    force: bool = Query(default=False),
+    session: Session = Depends(db_session_dependency),
+) -> dict[str, Any]:
+    try:
+        insight = insight_service.get_or_build(session, symbol, force=force)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return insight_service.insight_payload(insight)
 
 
 @router.get("/{symbol}/overview")
