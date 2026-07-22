@@ -58,12 +58,14 @@ def compose_market_summary(settings: Settings, context: dict[str, Any]) -> dict[
                     },
                 ],
                 "temperature": 0.3,
+                # Qwen3 系思考型模型必须显式关闭 thinking，否则响应时间不可控。
+                "enable_thinking": False,
             }
             response = httpx.post(
                 settings.llm_base_url.rstrip("/") + "/chat/completions",
                 json=payload,
                 headers={"Authorization": f"Bearer {settings.llm_api_key}"},
-                timeout=12.0,
+                timeout=45.0,
             )
             response.raise_for_status()
             text = response.json()["choices"][0]["message"]["content"].strip()
