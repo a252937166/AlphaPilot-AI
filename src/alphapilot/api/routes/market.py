@@ -25,6 +25,7 @@ from alphapilot.futu.client import FutuClient, FutuClientError
 from alphapilot.prediction.regime import MarketRegimeClassifier
 from alphapilot.services import market_data
 from alphapilot.services.cross_market import cross_market_snapshot
+from alphapilot.services.market_monitor import build_feed
 from alphapilot.services.sectors import SectorServiceError, market_breadth_from_sample
 
 router = APIRouter(prefix="/v1/market", tags=["market"])
@@ -248,6 +249,16 @@ def market_sentiment(
         "weights": details.get("weights", {}),
         "source": details.get("source", {}),
     }
+
+
+@router.get("/monitor-feed")
+def market_monitor_feed(
+    limit: int = Query(default=20, ge=1, le=100),
+    session: Session = Depends(db_session_dependency),
+    settings: Settings = Depends(settings_dependency),
+) -> dict[str, Any]:
+    items = build_feed(session, limit=limit, settings=settings)
+    return {"count": len(items), "items": items}
 
 
 @router.get("/intraday")
