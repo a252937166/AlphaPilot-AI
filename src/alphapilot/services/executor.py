@@ -33,6 +33,7 @@ from alphapilot.services.broker import (
     fetch_risk_positions,
     get_simulate_account,
 )
+from alphapilot.services.runtime_flags import trading_is_halted
 
 
 class ExecutionBlocked(RuntimeError):
@@ -67,14 +68,14 @@ def paper_execution_guard() -> Iterator[None]:
         yield
 
 
-def _require_switches(settings: Settings) -> None:
+def _require_switches(session: Session, settings: Settings) -> None:
     if not settings.paper_trading_enabled:
         raise ExecutionBlocked("模拟交易执行器未启用。")
     if not settings.futu_enable_trade:
         raise ExecutionBlocked("富途模拟交易写入开关未启用。")
     if not settings.futu_enable_trade_query:
         raise ExecutionBlocked("富途模拟账户只读查询未启用。")
-    if settings.trading_halted:
+    if trading_is_halted(session, settings):
         raise ExecutionBlocked("交易 Kill Switch 已开启，拒绝提交新单。", halted=True)
 
 
@@ -335,9 +336,8 @@ def execute_proposal(
     """Submit one guarded A-share order to Futu's SIMULATE environment only."""
 
     settings = get_settings()
-    _require_switches(settings)
-
     with paper_execution_guard():
+        _require_switches(session, settings)
         existing = _existing_order(session, record.proposal_id)
         if existing is not None and existing.status != "failed":
             return existing
@@ -370,6 +370,9 @@ def execute_proposal(
             }
         )
         decision = TradeGuardrails(settings).evaluate(execution_proposal, portfolio)
+        # Re-read after slow market/account queries so a newly committed halt is
+        # observed before any local reservation or broker mutation.
+        _require_switches(session, settings)
         risk_payload = dict(record.risk_decision or {})
         risk_payload["execution"] = decision.model_dump(mode="json")
         record.risk_decision = risk_payload

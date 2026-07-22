@@ -21,7 +21,9 @@ from alphapilot.services.executor import (
     ExecutionRejected,
     ExecutionUnavailable,
     execute_proposal,
+    paper_execution_guard,
 )
+from alphapilot.services.runtime_flags import set_trading_halted
 
 router = APIRouter(prefix="/v1/trades", tags=["trading-risk"])
 orders_router = APIRouter(prefix="/v1/orders", tags=["paper-orders"])
@@ -32,9 +34,38 @@ class TradeEvaluationRequest(BaseModel):
     portfolio: PortfolioState
 
 
+def _set_halt_state(session: Session, halted: bool) -> dict[str, Any]:
+    with paper_execution_guard():
+        row = set_trading_halted(session, halted)
+        session.commit()
+    return {
+        "trading_halted": row.value,
+        "source": "runtime_flags",
+        "updated_at": iso_utc(row.updated_at),
+    }
+
+
 @router.post("/evaluate", response_model=RiskDecision)
 def evaluate_trade(request: TradeEvaluationRequest) -> RiskDecision:
     return TradeGuardrails(get_settings()).evaluate(request.proposal, request.portfolio)
+
+
+@router.post("/halt")
+def halt_trading(
+    session: Session = Depends(db_session_dependency),
+) -> dict[str, Any]:
+    """Persistently block every new simulated submission after this call returns."""
+
+    return _set_halt_state(session, True)
+
+
+@router.post("/resume")
+def resume_trading(
+    session: Session = Depends(db_session_dependency),
+) -> dict[str, Any]:
+    """Clear the persisted block; all independent paper switches still apply."""
+
+    return _set_halt_state(session, False)
 
 
 def _proposal_payload(record: TradeProposalRecord) -> dict[str, Any]:
