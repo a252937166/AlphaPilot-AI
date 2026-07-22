@@ -178,6 +178,44 @@ class AlertRecord(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 
+class AlertOutcome(Base):
+    """Auditable five-session result for one persisted stock alert."""
+
+    __tablename__ = "alert_outcomes"
+    __table_args__ = (
+        CheckConstraint("horizon_days > 0", name="ck_alert_outcome_horizon"),
+        CheckConstraint(
+            "maturity_date > origin_date",
+            name="ck_alert_outcome_date_order",
+        ),
+        CheckConstraint(
+            "realized_return IS NULL OR realized_return > -1",
+            name="ck_alert_outcome_realized_return",
+        ),
+    )
+
+    alert_id: Mapped[int] = mapped_column(
+        Integer,
+        ForeignKey("alerts.id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    horizon_days: Mapped[int] = mapped_column(Integer, default=5)
+    origin_date: Mapped[date] = mapped_column(Date)
+    maturity_date: Mapped[date] = mapped_column(Date)
+    realized_return: Mapped[float | None] = mapped_column(Float, nullable=True)
+    hit: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    contribution: Mapped[float | None] = mapped_column(Float, nullable=True)
+    model_version: Mapped[str] = mapped_column(
+        String(32),
+        default="signal-attribution-v1.0.0",
+    )
+    evaluated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=utcnow,
+        index=True,
+    )
+
+
 class ScreeningRun(Base):
     __tablename__ = "screening_runs"
 
