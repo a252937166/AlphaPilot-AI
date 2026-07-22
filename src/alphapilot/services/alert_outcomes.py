@@ -380,8 +380,11 @@ def _prior_hit_rate(session: Session, target_date: date) -> tuple[str | None, fl
     return previous.report_date, rate
 
 
-def build_signal_attribution(session: Session, target_date: date) -> dict[str, Any]:
-    """Build report-ready hit/miss attribution with no future-report leakage."""
+def list_signal_outcome_rows(
+    session: Session,
+    target_date: date,
+) -> list[dict[str, Any]]:
+    """Return validated five-session outcomes visible by one report date."""
 
     cutoff = datetime.combine(target_date, time.max, tzinfo=MARKET_TIMEZONE).astimezone(UTC)
     joined = session.execute(
@@ -389,11 +392,17 @@ def build_signal_attribution(session: Session, target_date: date) -> dict[str, A
         .join(AlertOutcome, AlertOutcome.alert_id == AlertRecord.id)
         .order_by(AlertOutcome.evaluated_at, AlertOutcome.alert_id)
     ).all()
-    rows = [
+    return [
         _outcome_payload(alert, outcome)
         for alert, outcome in joined
         if isinstance(outcome.evaluated_at, datetime) and _as_utc(outcome.evaluated_at) <= cutoff
     ]
+
+
+def build_signal_attribution(session: Session, target_date: date) -> dict[str, Any]:
+    """Build report-ready hit/miss attribution with no future-report leakage."""
+
+    rows = list_signal_outcome_rows(session, target_date)
     directional = [row for row in rows if isinstance(row["hit"], bool)]
     hits = [row for row in directional if row["hit"] is True]
     misses = [row for row in directional if row["hit"] is False]
