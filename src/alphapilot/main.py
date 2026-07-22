@@ -30,6 +30,7 @@ from alphapilot.db.engine import get_session, init_db
 from alphapilot.futu.client import get_futu_client
 from alphapilot.jobs import register_builtin_jobs
 from alphapilot.jobs.scheduler import shutdown_scheduler, start_scheduler
+from alphapilot.services.runtime_flags import initialize_runtime_flags
 from alphapilot.services.watchlist import seed_default_watchlist
 
 
@@ -39,6 +40,7 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     configure_logging(settings.log_level)
     init_db(settings)
     with get_session() as session:
+        initialize_runtime_flags(session, settings)
         seed_default_watchlist(session)
     start_scheduler(settings)
     try:

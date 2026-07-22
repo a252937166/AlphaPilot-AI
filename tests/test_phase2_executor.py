@@ -20,6 +20,7 @@ from alphapilot.core.config import Settings
 from alphapilot.db.models import Base, BrokerOrder, Security, TradeProposalRecord
 from alphapilot.futu.client import FutuClient, FutuSDKError, FutuUnavailableError
 from alphapilot.services import executor
+from alphapilot.services.runtime_flags import set_trading_halted
 
 
 class StubExecutionClient:
@@ -304,11 +305,9 @@ def test_execute_halt_is_a_distinct_block_and_never_returns_existing_order(
     monkeypatch: pytest.MonkeyPatch,
     session: Session,
 ) -> None:
-    monkeypatch.setattr(
-        executor,
-        "get_settings",
-        lambda: _settings(trading_halted=True),
-    )
+    monkeypatch.setattr(executor, "get_settings", lambda: _settings())
+    set_trading_halted(session, True)
+    session.commit()
     record = _record(session, proposal_id="halted", status="executing")
     session.add(
         BrokerOrder(
@@ -563,10 +562,14 @@ def test_execute_and_orders_http_endpoints_return_persisted_simulate_order(
         late_reject = api.post(f"/v1/trades/proposals/{record_id}/reject")
         assert late_reject.status_code == 409
         assert "executing" in late_reject.json()["detail"]
-        settings.trading_halted = True
+        halt_response = api.post("/v1/trades/halt")
+        assert halt_response.status_code == 200
+        assert halt_response.json()["trading_halted"] is True
         halted = api.post(f"/v1/trades/proposals/{record_id}/execute")
         assert halted.status_code == 423
-        settings.trading_halted = False
+        resume_response = api.post("/v1/trades/resume")
+        assert resume_response.status_code == 200
+        assert resume_response.json()["trading_halted"] is False
         settings.paper_trading_enabled = False
         disabled = api.post(f"/v1/trades/proposals/{record_id}/execute")
         assert disabled.status_code == 403

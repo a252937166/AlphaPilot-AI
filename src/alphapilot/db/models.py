@@ -688,3 +688,17 @@ class JobRun(Base):
     status: Mapped[str] = mapped_column(String(16), default="running")
     stats: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
     error: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+
+class RuntimeFlag(Base):
+    """A persisted operator safety switch that survives API restarts."""
+
+    __tablename__ = "runtime_flags"
+
+    key: Mapped[str] = mapped_column(String(64), primary_key=True)
+    value: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=utcnow,
+        onupdate=utcnow,
+    )
