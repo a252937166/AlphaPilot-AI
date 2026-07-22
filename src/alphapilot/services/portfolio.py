@@ -285,6 +285,8 @@ def get_portfolio_overview(session: Session) -> dict[str, Any]:
         return {
             "available": False,
             "snapshot": None,
+            "valuation_basis": None,
+            "valuation_basis_label": None,
             "market_value": 0.0,
             "account_market_value": 0.0,
             "market_value_gap": 0.0,
@@ -329,6 +331,8 @@ def get_portfolio_overview(session: Session) -> dict[str, Any]:
         raise PortfolioServiceError("组合快照数据源不是 futu-sim。")
     return {
         "available": True,
+        "valuation_basis": "futu_sim_market_value",
+        "valuation_basis_label": "富途模拟账户持仓市值",
         "snapshot": {
             "trade_date": snapshot.trade_date.isoformat(),
             "total_value": total_value,

@@ -164,6 +164,8 @@ def test_snapshot_metrics_overview_and_attribution_use_only_real_aligned_rows(
 
         overview = get_portfolio_overview(session)
         assert overview["available"] is True
+        assert overview["valuation_basis"] == "futu_sim_market_value"
+        assert overview["valuation_basis_label"] == "富途模拟账户持仓市值"
         assert overview["market_value"] == pytest.approx(100.0)
         assert overview["missing_industry_count"] == 1
         assert overview["industry_distribution"] == [
@@ -706,6 +708,8 @@ def test_portfolio_api_empty_state_and_persisted_views_never_depend_on_opend(
     assert empty_overview.status_code == 200
     assert empty_overview.json()["available"] is False
     assert empty_overview.json()["snapshot"] is None
+    assert empty_overview.json()["valuation_basis"] is None
+    assert empty_overview.json()["valuation_basis_label"] is None
     assert empty_attribution.status_code == 200
     assert empty_attribution.json()["dates"] == []
     assert invalid_days.status_code == 422
