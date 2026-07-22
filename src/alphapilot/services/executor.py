@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 import hashlib
-from collections.abc import Mapping
+from collections.abc import Iterator, Mapping
+from contextlib import contextmanager
 from decimal import ROUND_CEILING, ROUND_FLOOR, Decimal
 from math import floor, isclose, isfinite
 from threading import RLock
@@ -56,6 +57,14 @@ class ExecutionRejected(RuntimeError):
 
 _EXECUTION_LOCK = RLock()
 _ALLOWED_PAPER_MODES = frozenset({TradingMode.CONFIRM_TO_TRADE, TradingMode.PAPER_AUTO})
+
+
+@contextmanager
+def paper_execution_guard() -> Iterator[None]:
+    """Serialize submission and reconciliation in the process-local scheduler."""
+
+    with _EXECUTION_LOCK:
+        yield
 
 
 def _require_switches(settings: Settings) -> None:
@@ -261,9 +270,31 @@ def _validated_futu_order_id(
     return order_id
 
 
-def _remark(proposal_id: str) -> str:
+def proposal_remark(proposal_id: str) -> str:
+    """Return the stable broker remark used to reconcile uncertain submissions."""
+
     digest = hashlib.sha256(proposal_id.encode("utf-8")).hexdigest()[:32]
     return f"alphapilot:{digest}"
+
+
+def _submission_was_reconciled(
+    session: Session,
+    order: BrokerOrder,
+    record: TradeProposalRecord,
+    *,
+    expected_futu_order_id: str | None = None,
+) -> bool:
+    """Refresh stale ORM state and refuse to overwrite broker-side progress."""
+
+    session.refresh(order)
+    session.refresh(record)
+    if (
+        expected_futu_order_id is not None
+        and order.futu_order_id is not None
+        and order.futu_order_id != expected_futu_order_id
+    ):
+        raise ExecutionUnavailable("下单回包与已对账的富途订单号不一致，已保留对账结果。")
+    return order.status != "submitting" or order.futu_order_id is not None or order.filled_qty > 0
 
 
 def _existing_order(session: Session, proposal_id: str) -> BrokerOrder | None:
@@ -306,7 +337,7 @@ def execute_proposal(
     settings = get_settings()
     _require_switches(settings)
 
-    with _EXECUTION_LOCK:
+    with paper_execution_guard():
         existing = _existing_order(session, record.proposal_id)
         if existing is not None and existing.status != "failed":
             return existing
@@ -393,7 +424,7 @@ def execute_proposal(
                     "trd_side": proposal.side.value,
                     "order_type": "NORMAL",
                     "acc_id": account["acc_id"],
-                    "remark": _remark(record.proposal_id),
+                    "remark": proposal_remark(record.proposal_id),
                 },
                 market="CN",
                 environment="SIMULATE",
@@ -404,26 +435,40 @@ def execute_proposal(
             FutuMethodNotAllowedError,
             FutuSDKError,
         ) as exc:
+            if _submission_was_reconciled(session, order, record):
+                return order
             order.status = "failed"
             order.error = str(exc)
             record.status = "exec_failed"
             session.commit()
             raise ExecutionRejected(f"富途拒绝模拟委托：{exc}") from exc
         except FutuClientError as exc:
+            if _submission_was_reconciled(session, order, record):
+                return order
             order.error = "下单结果不确定，禁止自动重试，等待订单对账。"
             session.commit()
             raise ExecutionUnavailable(order.error) from exc
 
         try:
-            order.futu_order_id = _validated_futu_order_id(
+            futu_order_id = _validated_futu_order_id(
                 response,
                 code=code,
                 side=proposal.side.value,
             )
         except ExecutionUnavailable as exc:
+            if _submission_was_reconciled(session, order, record):
+                return order
             order.error = str(exc)
             session.commit()
             raise
+        if _submission_was_reconciled(
+            session,
+            order,
+            record,
+            expected_futu_order_id=futu_order_id,
+        ):
+            return order
+        order.futu_order_id = futu_order_id
         order.status = "submitted"
         order.error = None
         record.status = "executing"
