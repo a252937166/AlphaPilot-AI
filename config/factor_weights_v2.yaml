@@ -1,0 +1,40 @@
+version: v2.0.0
+profile: train_ic_ir_once
+signal_id: composite-v2
+method: signed_train_ic_ir_l1
+train_window:
+  start: '2025-04-28'
+  end: '2026-03-11'
+generated_at: '2026-07-23T17:15:52.323180+00:00'
+horizon: 20d
+rebalance_freq: 20d
+correlation_threshold: 0.8
+factor_ic_ir:
+  momentum_20d: -0.5366535019644655
+  momentum_60d: -0.23697052996425974
+  volatility_20d: -0.5120930274885346
+  turnover_change_5d: -0.33227581091719566
+  net_inflow_5d: null
+  roe: null
+  net_profit_yoy: null
+  ocf_to_profit: null
+  debt_ratio: null
+  revenue_yoy: null
+  pe_percentile: null
+  pb_percentile: null
+  sector_strength: null
+redundancy_groups: []
+weights:
+  momentum_20d: -0.33167853320239526
+  momentum_60d: -0.14645956376512062
+  volatility_20d: -0.3164989394438307
+  turnover_change_5d: -0.20536296358865344
+  net_inflow_5d: 0.0
+  roe: 0.0
+  net_profit_yoy: 0.0
+  ocf_to_profit: 0.0
+  debt_ratio: 0.0
+  revenue_yoy: 0.0
+  pe_percentile: 0.0
+  pb_percentile: 0.0
+  sector_strength: 0.0
