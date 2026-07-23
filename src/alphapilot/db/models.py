@@ -681,9 +681,7 @@ class StockInsight(Base):
     """Cached, evidence-grounded stock interpretation for the product UI."""
 
     __tablename__ = "stock_insights"
-    __table_args__ = (
-        CheckConstraint("source IN ('rule', 'llm')", name="ck_stock_insight_source"),
-    )
+    __table_args__ = (CheckConstraint("source IN ('rule', 'llm')", name="ck_stock_insight_source"),)
 
     symbol: Mapped[str] = mapped_column(String(24), primary_key=True)
     generated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
@@ -829,6 +827,51 @@ class FactorICStat(Base):
     ic_positive_ratio: Mapped[float | None] = mapped_column(Float, nullable=True)
     long_short: Mapped[float | None] = mapped_column(Float, nullable=True)
     n_periods: Mapped[int] = mapped_column(Integer, default=0)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=utcnow,
+        onupdate=utcnow,
+    )
+
+
+class FactorCorrelationStat(Base):
+    """One reliable factor-correlation cell for a fixed research window."""
+
+    __tablename__ = "factor_correlation_stats"
+    __table_args__ = (
+        UniqueConstraint(
+            "left_factor",
+            "right_factor",
+            "sample_tag",
+            "start_date",
+            "end_date",
+            name="uq_factor_corr_sample_window",
+        ),
+        CheckConstraint(
+            "sample_tag IN ('train', 'test', 'full')",
+            name="ck_factor_corr_sample_tag",
+        ),
+        CheckConstraint("n_periods >= 3", name="ck_factor_corr_n_periods"),
+        CheckConstraint(
+            "correlation >= -1 AND correlation <= 1",
+            name="ck_factor_corr_range",
+        ),
+        Index(
+            "ix_factor_corr_sample_window",
+            "sample_tag",
+            "start_date",
+            "end_date",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    left_factor: Mapped[str] = mapped_column(String(32))
+    right_factor: Mapped[str] = mapped_column(String(32))
+    sample_tag: Mapped[str] = mapped_column(String(16))
+    start_date: Mapped[date] = mapped_column(Date)
+    end_date: Mapped[date] = mapped_column(Date)
+    correlation: Mapped[float] = mapped_column(Float)
+    n_periods: Mapped[int] = mapped_column(Integer)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default=utcnow,

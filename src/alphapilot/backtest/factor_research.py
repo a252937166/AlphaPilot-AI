@@ -7,7 +7,7 @@ from typing import Any, Literal
 
 import numpy as np
 import pandas as pd
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
 from alphapilot.backtest.metrics import (
@@ -18,7 +18,7 @@ from alphapilot.backtest.metrics import (
 )
 from alphapilot.backtest.pit import factor_zscores, forward_return
 from alphapilot.data.provenance import AUDITED_DAILY_BAR_SOURCES
-from alphapilot.db.models import DailyBar, FactorICStat
+from alphapilot.db.models import DailyBar, FactorCorrelationStat, FactorICStat
 from alphapilot.engines.factors import FACTOR_SET
 
 _GROUP_COUNT = 10
@@ -262,7 +262,7 @@ def factor_correlation(
     """Average cross-sectional factor correlations over fixed 20-day decisions."""
 
     calendar = _calendar(session, start, end)
-    decision_dates = calendar[::_REBALANCE_DAYS["20d"]]
+    decision_dates = calendar[:: _REBALANCE_DAYS["20d"]]
     factor_count = len(FACTOR_SET)
     correlation_sum = np.zeros((factor_count, factor_count), dtype=float)
     period_counts = np.zeros((factor_count, factor_count), dtype=int)
@@ -324,16 +324,65 @@ def factor_correlation(
     return result
 
 
+def persist_factor_correlation(
+    session: Session,
+    corr: pd.DataFrame,
+    *,
+    sample_tag: Literal["train", "test", "full"],
+    start: date,
+    end: date,
+) -> int:
+    """Replace one correlation snapshot with its reliable upper-triangle cells."""
+
+    if sample_tag not in _SAMPLE_TAGS:
+        raise ValueError("sample_tag must be one of train/test/full")
+    normalized = corr.reindex(index=FACTOR_SET, columns=FACTOR_SET)
+    pair_periods = corr.attrs.get("pair_periods", {})
+    if not isinstance(pair_periods, dict):
+        raise ValueError("corr is missing pair_periods audit metadata")
+
+    session.execute(
+        delete(FactorCorrelationStat).where(
+            FactorCorrelationStat.sample_tag == sample_tag,
+            FactorCorrelationStat.start_date == start,
+            FactorCorrelationStat.end_date == end,
+        )
+    )
+    stored = 0
+    for left_index, left in enumerate(FACTOR_SET):
+        for right in FACTOR_SET[left_index:]:
+            value = _finite_or_none(normalized.at[left, right])
+            column = pair_periods.get(right, {})
+            raw_periods = column.get(left) if isinstance(column, dict) else None
+            n_periods = (
+                int(raw_periods)
+                if isinstance(raw_periods, (int, float)) and math.isfinite(float(raw_periods))
+                else 0
+            )
+            if value is None or n_periods < 3:
+                continue
+            session.add(
+                FactorCorrelationStat(
+                    left_factor=left,
+                    right_factor=right,
+                    sample_tag=sample_tag,
+                    start_date=start,
+                    end_date=end,
+                    correlation=value,
+                    n_periods=n_periods,
+                )
+            )
+            stored += 1
+    session.flush()
+    return stored
+
+
 def _redundancy_components(
     pairs: list[tuple[str, str]],
 ) -> list[set[str]]:
     components: list[set[str]] = []
     for left, right in pairs:
-        matches = [
-            component
-            for component in components
-            if left in component or right in component
-        ]
+        matches = [component for component in components if left in component or right in component]
         if not matches:
             components.append({left, right})
             continue
@@ -358,10 +407,7 @@ def classify_factors(ic_table: pd.DataFrame, corr: pd.DataFrame) -> dict[str, An
     missing = sorted(required.difference(ic_table.columns))
     if missing:
         raise ValueError(f"ic_table missing columns: {missing}")
-    rows = {
-        str(row["factor"]): row
-        for row in ic_table.to_dict(orient="records")
-    }
+    rows = {str(row["factor"]): row for row in ic_table.to_dict(orient="records")}
 
     factors: dict[str, dict[str, Any]] = {}
     for factor in FACTOR_SET:
@@ -432,11 +478,7 @@ def classify_factors(ic_table: pd.DataFrame, corr: pd.DataFrame) -> dict[str, An
     redundancy_groups: list[dict[str, Any]] = []
     for component in _redundancy_components(graph_edges):
         ordered = sorted(component)
-        candidates = [
-            factor
-            for factor in ordered
-            if factors[factor]["ic_ir"] is not None
-        ]
+        candidates = [factor for factor in ordered if factors[factor]["ic_ir"] is not None]
         retained = (
             max(
                 candidates,

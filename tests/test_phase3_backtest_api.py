@@ -25,9 +25,7 @@ END = date(2026, 1, 6)
 @pytest.fixture
 def audited_range() -> Iterator[None]:
     with get_session() as session:
-        for running in session.scalars(
-            select(BacktestRun).where(BacktestRun.status == "running")
-        ):
+        for running in session.scalars(select(BacktestRun).where(BacktestRun.status == "running")):
             running.status = "failed"
             running.error = "test cleanup"
         security = session.get(Security, "699991")
@@ -45,9 +43,7 @@ def audited_range() -> Iterator[None]:
                 )
             )
         existing_dates = set(
-            session.scalars(
-                select(DailyBar.trade_date).where(DailyBar.symbol == "699991")
-            )
+            session.scalars(select(DailyBar.trade_date).where(DailyBar.symbol == "699991"))
         )
         for trade_date in (START, END):
             if trade_date not in existing_dates:
@@ -66,9 +62,7 @@ def audited_range() -> Iterator[None]:
                 )
     yield
     with get_session() as session:
-        for running in session.scalars(
-            select(BacktestRun).where(BacktestRun.status == "running")
-        ):
+        for running in session.scalars(select(BacktestRun).where(BacktestRun.status == "running")):
             running.status = "failed"
             running.error = "test cleanup"
 
@@ -156,9 +150,48 @@ def test_post_v2_test_window_uses_frozen_split_and_weights(
     assert run["end_date"] == test_end.isoformat()
     assert run["rebalance_freq"] == "20d"
     assert run["params"]["weight_version"] == "v2.0.0"
-    assert sum(abs(value) for value in run["params"]["weights"].values()) == (
-        pytest.approx(1.0)
+    assert sum(abs(value) for value in run["params"]["weights"].values()) == (pytest.approx(1.0))
+
+
+def test_factor_diagnosis_static_routes_are_not_shadowed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        backtest_routes,
+        "factor_ic_report",
+        lambda _session, sample_tag: {
+            "available": False,
+            "sample_tag": sample_tag,
+            "factors": [],
+        },
     )
+    monkeypatch.setattr(
+        backtest_routes,
+        "factor_diagnosis_report",
+        lambda _session, sample_tag: {
+            "available": False,
+            "sample": {"tag": sample_tag},
+        },
+    )
+    monkeypatch.setattr(
+        backtest_routes,
+        "compare_backtests",
+        lambda _session, v1_id, v2_id: {
+            "v1": v1_id,
+            "v2": v2_id,
+        },
+    )
+
+    ic = client.get("/v1/backtest/factors/ic")
+    diagnosis = client.get("/v1/backtest/factors/diagnosis")
+    comparison = client.get("/v1/backtest/compare", params={"v1": 9, "v2": 8})
+
+    assert ic.status_code == 200
+    assert ic.json()["sample_tag"] == "full"
+    assert diagnosis.status_code == 200
+    assert diagnosis.json()["sample"]["tag"] == "full"
+    assert comparison.status_code == 200
+    assert comparison.json() == {"v1": 9, "v2": 8}
 
 
 def test_orphaned_background_run_expires_instead_of_blocking_queue(
@@ -227,10 +260,7 @@ def _completed_run() -> int:
                     benchmark_nav=1.0 + index * 0.005,
                     market_nav=1.0 + index * 0.003,
                     n_eligible=100,
-                    group_returns=[
-                        -0.005 + group_index * 0.001
-                        for group_index in range(10)
-                    ],
+                    group_returns=[-0.005 + group_index * 0.001 for group_index in range(10)],
                 )
             )
         session.flush()
