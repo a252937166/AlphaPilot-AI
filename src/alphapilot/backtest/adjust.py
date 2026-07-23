@@ -25,6 +25,7 @@ TUSHARE_API_URL = "http://api.tushare.pro"
 _REQUEST_TIMEOUT_SECONDS = 30.0
 _REQUEST_RETRY_DELAYS = (1.0, 3.0, 10.0)
 _REQUEST_INTERVAL_SECONDS = 0.12
+_PROVIDER_FACTOR_SOURCES = frozenset({"baostock-hfq", "sina-hfq"})
 
 
 class TushareAPIError(RuntimeError):
@@ -341,9 +342,17 @@ def sync_adj_factors(
 
     for index, (symbol, first_bar, last_bar) in enumerate(windows, start=1):
         stats["processed"] = index
-        latest_factor = session.scalar(
-            select(func.max(AdjFactor.trade_date)).where(AdjFactor.symbol == symbol)
-        )
+        latest_row = session.execute(
+            select(
+                AdjFactor.trade_date,
+                AdjFactor.source,
+            )
+            .where(AdjFactor.symbol == symbol)
+            .order_by(AdjFactor.trade_date.desc(), AdjFactor.id.desc())
+            .limit(1)
+        ).first()
+        latest_factor = latest_row[0] if latest_row is not None else None
+        existing_source = str(latest_row[1]) if latest_row is not None else None
         if isinstance(latest_factor, date):
             start = (
                 latest_factor
@@ -358,7 +367,39 @@ def sync_adj_factors(
 
         try:
             source = "tushare"
-            if tushare_rate_limited:
+            if existing_source in _PROVIDER_FACTOR_SOURCES:
+                parsed, source = _provider_adj_rows(
+                    session,
+                    symbol,
+                    start,
+                    last_bar,
+                    baostock,
+                    sina,
+                )
+                if source != existing_source:
+                    raise TushareAPIError(
+                        f"复权因子来源不一致：symbol={symbol}, "
+                        f"existing={existing_source}, resolved={source}"
+                    )
+            elif existing_source == "tushare":
+                if tushare_rate_limited:
+                    raise TushareAPIError(
+                        f"{symbol} 历史因子来自 Tushare，当前频控下拒绝跨源拼接。",
+                        code=40203,
+                    )
+                try:
+                    frame = _call_adj_factor(token, symbol, start, last_bar)
+                except TushareAPIError as exc:
+                    if exc.rate_limited:
+                        tushare_rate_limited = True
+                        stats["tushare_rate_limited"] = True
+                    raise
+                parsed = _parse_adj_rows(frame, symbol)
+            elif existing_source is not None:
+                raise TushareAPIError(
+                    f"不支持的既有复权因子来源：symbol={symbol}, source={existing_source}"
+                )
+            elif tushare_rate_limited:
                 parsed, source = _provider_adj_rows(
                     session,
                     symbol,
