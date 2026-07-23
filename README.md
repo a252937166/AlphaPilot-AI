@@ -6,7 +6,7 @@
 
 ## 当前状态
 
-当前为 **v0.4.1 P3-M1 严格回测 + 受控模拟自动交易版**：
+当前为 **v0.5.0 P3-M2 因子诊断 + 样本外重构验证版**：
 
 - 数据底座：全市场证券主档与日线、盘中分钟聚合、事件日历/事件总线、可审计调度、
   断点续传、数据源熔断，以及覆盖全部审计日线的复权因子；
@@ -18,10 +18,13 @@
   统计降级；
 - 严格回测：PIT 数据截断、T 日决策/T+1 开盘成交、涨跌停/停牌/T+1 约束、全成本、
   沪深300与复权等权市场双基准，以及可复现参数快照；
-- 首次结论：`composite-v1` 在 261 个有效交易日内五项 Alpha 证据门全部失败；扣成本多头
-  累计 `-19.40%`，同期沪深300 `+20.56%`、等权市场 `+7.94%`。未做事后调参；
-- 产品界面：Vue 3 + ECharts 的 9 个真实产品页、通知中心、日期/来源/模型口径和中文降级；
-- 质量门：strict mypy、Ruff、597 项离线 pytest、前端类型检查与生产构建。
+- 因子诊断：13 因子 full 窗 IC/t 统计、方向源码审计、相关矩阵、train-only IC_IR 定权，
+  以及冻结 test 窗的 v1/v2 同协议对照；
+- 样本外结论：`composite-v2` test IC 为 `+0.0357`，但 t=`1.669` 不显著；扣成本多头
+  `-18.53%`、相对等权 `-1.10pp`，因此预注册裁定为“❌ 仍失败”。权重未在 test 后调整；
+- 产品界面：Vue 3 + ECharts 的 9 个真实产品页、“因子诊断”研究 tab、通知中心、
+  日期/来源/模型口径和中文降级；
+- 质量门：strict mypy、Ruff、609 项离线 pytest、前端类型检查与生产构建。
 
 **实盘交易保持硬禁用。** REAL 路径同时要求
 `futu_enable_trade + live_trading_enabled + confirmation="SUBMIT_REAL_ORDER"`，
@@ -161,8 +164,10 @@ ALPHAPILOT_LIVE_TRADING_ENABLED=false
 委托，并重新执行全部风控。盘外、节假日、陈旧行情、Kill Switch 或任一门禁不满足时只记录
 JobRun，不提交订单。
 
-该模式用于持续验证模拟策略，不代表已获得可交易 Alpha。P3-M1 首次严格回测结论仍为负面；
-REAL 路径和 `unlock_trade` 安全边界没有因模拟自动化而放宽。
+该模式用于持续验证模拟策略，不代表已获得可交易 Alpha。P3-M2 样本外重构仍未通过，
+当前研究里程碑必须保持 `ALPHAPILOT_TRADING_MODE=research` 与
+`ALPHAPILOT_PAPER_AUTO_TRADING_ENABLED=false`；`composite-v2` 未经 M3 多年 PIT 样本确认前
+不得恢复自动模拟盘。REAL 路径和 `unlock_trade` 安全边界没有因模拟自动化而放宽。
 
 ## LLM 配置与降级
 
@@ -177,7 +182,8 @@ ALPHAPILOT_LLM_PURPOSE_MODELS={"stock_insight":"qwen3.7-plus"}
 
 Qwen 是当前部署，但业务层不写死供应商名称；兼容相同 HTTP 契约的模型可以通过 URL、key 和
 模型名切换。当前请求为 Qwen 保留 `enable_thinking=false`。Claude CLI、Codex CLI 等进程式
-后端仍需要独立 transport adapter、沙箱、超时和审计设计，计划放在 P3，v0.3 不宣称已支持。
+后端仍需要独立 transport adapter、沙箱、超时和审计设计，留待后续独立里程碑；v0.5 不宣称
+已支持。
 
 没有 LLM 配置时，总览/解读/监测/复盘继续返回规则、模板或统计结果并标注 `source`；没有
 Futu/OpenD 时，缓存模块保留日期与来源，实时模块返回中文原因，不用随机数或昨日值冒充实时值。
@@ -213,6 +219,8 @@ Futu/OpenD 时，缓存模块保留日期与来源，实时模块返回中文原
 | GET/POST | `/v1/reports/daily` (+`/generate`) | 日报、信号/组合归因和 `sector_call_excess` |
 | POST | `/v1/backtest/run` | 创建只读 PIT 回测；异步执行并返回可轮询 run |
 | GET | `/v1/backtest`、`/{id}`、`/{id}/daily`、`/{id}/report` | 回测档案、状态、日序列和诚实结论 |
+| GET | `/v1/backtest/factors/ic`、`/factors/diagnosis` | 持久化单因子 IC 与 13 因子方向/相关/权重诊断 |
+| GET | `/v1/backtest/compare?v1=&v2=` | 仅比较同 test 协议的 v1/v2，并按预注册三档门裁定 |
 | POST | `/v1/scenarios/run` | 运行本地多智能体情景模拟 |
 | GET | `/v1/futu/status` / `/capabilities` | OpenD 状态与能力目录 |
 | POST | `/v1/futu/quote/{method}` | 调用受审计的行情、筛选或订阅方法 |
@@ -230,7 +238,7 @@ src/alphapilot/services/     服务层：行情缓存、自选追踪、板块、
 src/alphapilot/features/     特征工程
 src/alphapilot/prediction/   概率预测和市场状态
 src/alphapilot/screening/    自动选股
-src/alphapilot/backtest/     复权、PIT、成交约束、walk-forward、指标与结论报告
+src/alphapilot/backtest/     复权、PIT、成交约束、IC/相关诊断、train 定权、回测与结论报告
 src/alphapilot/alerts/       自动提醒规则
 src/alphapilot/scenario/     MiroFish 式情景模拟契约
 src/alphapilot/risk/         交易风控门禁
@@ -273,8 +281,11 @@ make futu-stop
 
 ## 下一步
 
-P3-M1 的铁律、逐步证据和首次负面 Alpha 结论见
-[`docs/phase3/01_P3.1_backtest_framework.md`](docs/phase3/01_P3.1_backtest_framework.md)。
-后续候选包括预先注册的样本外因子重做/ML walk-forward、PIT 查询批量化、可恢复任务队列、
+P3-M1 的严格回测证据见
+[`docs/phase3/01_P3.1_backtest_framework.md`](docs/phase3/01_P3.1_backtest_framework.md)，
+P3-M2 的 13 因子诊断、train-only 重构与样本外失败结论见
+[`docs/phase3/02_P3.2_factor_diagnosis_and_rebuild.md`](docs/phase3/02_P3.2_factor_diagnosis_and_rebuild.md)。
+下一研究里程碑应先补多年 PIT 历史和新的 alpha 来源，再预注册 M3 walk-forward；不得在本次
+91 日 test 窗继续调参。基础设施候选包括 PIT 查询批量化、可恢复任务队列、
 PostgreSQL/TimescaleDB 迁移、多 transport LLM 适配器和完整身份边界；长期任务池见
 [`docs/BACKLOG.md`](docs/BACKLOG.md)。

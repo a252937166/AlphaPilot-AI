@@ -1,5 +1,34 @@
 # Changelog
 
+## 0.5.0 - 2026-07-24
+
+- Added the P3-M2 single-factor research layer for all 13 runtime factors:
+  strict-PIT Rank IC, IC_IR, t-statistics, layered returns, decay and persisted
+  fixed-window correlation evidence. Missing historical inputs remain null.
+- Audited every factor formula and all four observed negative directions against
+  `engines/factors.py`. No sign implementation bug was found; four price/volume
+  factors had weak negative evidence and nine factors lacked testable historical
+  cross-sections. No reliable `|correlation| > 0.8` pair was present.
+- Split the fixed 301-session research window into disjoint 210-session train and
+  91-session test periods. Generated `composite-v2` once from signed train IC_IR,
+  L1-normalized the weights and added tests proving the rebuild cannot read test
+  dates. The frozen weights were not changed after evaluation.
+- Completed exact-protocol test-window v1/v2 backtests. v2 Rank IC improved from
+  -0.0178 to +0.0357 but remained statistically insignificant (`t=1.669`); its
+  costed long return was -18.53%, 1.10 percentage points below the equal-weight
+  market and 3.53 points below v1. The pre-registered outcome is therefore
+  “failed”, not a claimed strategy improvement.
+- Added factor-IC, full-diagnosis and strict v1/v2 comparison APIs plus the
+  “因子诊断” research tab with IC bars, correlation heatmap, frozen-weight
+  comparison, test NAV curves, source-direction audit and prominent one-year
+  weak-evidence limits. Desktop/responsive and API-down Chinese degradation
+  acceptance completed with zero application console errors.
+- Kept M2 isolated from proposals, orders and execution. Acceptance ran in
+  `research` mode with `paper_auto=false` and REAL disabled; composite-v2 is not
+  eligible for automatic simulated trading before multi-year M3 confirmation.
+  The suite now contains 609 offline tests plus strict mypy, Ruff and the
+  production frontend build.
+
 ## 0.4.1 - 2026-07-23
 
 - Corrected the acceptance-only decision that had stopped after one Futu paper
