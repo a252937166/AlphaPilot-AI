@@ -16,6 +16,7 @@ from sqlalchemy.orm import Session
 
 from alphapilot.api.dependencies import db_session_dependency, settings_dependency
 from alphapilot.db.models import (
+    AdjFactor,
     Base,
     CompositeScore,
     DailyBar,
@@ -97,22 +98,34 @@ def _add_bars(
 ) -> None:
     selected_dates = dates or _trade_dates()
     assert len(selected_dates) == len(closes) == len(amounts) == len(volumes)
-    session.add_all(
-        DailyBar(
-            symbol=symbol,
-            trade_date=trade_day,
-            open=close,
-            high=close,
-            low=close,
-            close=close,
-            volume=volume,
-            amount=amount,
-            source="test",
+    for trade_day, close, amount, volume in zip(
+        selected_dates,
+        closes,
+        amounts,
+        volumes,
+        strict=True,
+    ):
+        session.add(
+            DailyBar(
+                symbol=symbol,
+                trade_date=trade_day,
+                open=close,
+                high=close,
+                low=close,
+                close=close,
+                volume=volume,
+                amount=amount,
+                source="baostock",
+            )
         )
-        for trade_day, close, amount, volume in zip(
-            selected_dates, closes, amounts, volumes, strict=True
+        session.add(
+            AdjFactor(
+                symbol=symbol,
+                trade_date=trade_day,
+                adj_factor=1.0,
+                source="test",
+            )
         )
-    )
 
 
 def _seed_engine_inputs(session: Session) -> None:
@@ -152,6 +165,7 @@ def _seed_engine_inputs(session: Session) -> None:
                 board="主板",
                 is_st=True,
                 list_status="listed",
+                snapshot_at=snapshot_at,
             ),
             Security(
                 symbol="000999",
@@ -244,7 +258,7 @@ def _seed_engine_inputs(session: Session) -> None:
                 metric="roe",
                 value=0.90,
                 source="test",
-                available_time=datetime(2026, 7, 22, tzinfo=UTC),
+                available_time=datetime(2026, 7, 21, 12, tzinfo=UTC),
             ),
             SectorConstituent(
                 plate_code="SH.LIST0001",
@@ -257,6 +271,12 @@ def _seed_engine_inputs(session: Session) -> None:
                 plate_name="深市行业",
                 symbol="SZ.000001",
                 refreshed_at=snapshot_at,
+            ),
+            SectorConstituent(
+                plate_code="SH.LIST0001",
+                plate_name="未来行业映射",
+                symbol="SZ.300001",
+                refreshed_at=datetime(2026, 7, 22, 8, tzinfo=UTC),
             ),
         ]
     )
@@ -302,6 +322,14 @@ def _seed_engine_inputs(session: Session) -> None:
                 payload=[
                     {"plate_code": "SH.LIST0001", "strength": 8.0},
                     {"plate_code": "SH.LIST0002", "strength": 6.0},
+                ],
+                source="test",
+            ),
+            SectorSnapshot(
+                as_of=datetime(2026, 7, 21, 12, tzinfo=UTC),
+                payload=[
+                    {"plate_code": "SH.LIST0001", "strength": 88.0},
+                    {"plate_code": "SH.LIST0002", "strength": 88.0},
                 ],
                 source="test",
             ),
@@ -429,6 +457,8 @@ def test_compute_factors_obeys_price_pit_valuation_and_sector_semantics(
     assert frame.attrs["sector_flow_days"] == 5
     assert frame.loc["600000", "sector_strength"] == pytest.approx(8.0)
     assert frame.loc["000001", "sector_strength"] == pytest.approx(6.0)
+    assert pd.isna(frame.loc["300001", "sector_strength"])
+    assert frame.attrs["adjustment_factor_missing_rows"] == 0
 
 
 def test_factor_job_replaces_same_day_rows_and_reports_coverage(
@@ -767,6 +797,24 @@ def test_factor_job_rejects_partial_market_and_running_daily_sync(
     assert str(running.value) == "日线同步任务仍在运行，因子计算已延后。"
     assert running.value.stats["reason"] == "daily_bars_running"
     assert running.value.stats["input_coverage"] == 1.0
+
+    with local_session() as session:
+        daily_run = session.scalars(
+            select(JobRun).where(JobRun.job_name == "sync_daily_bars")
+        ).one()
+        daily_run.status = "ok"
+        session.add(
+            JobRun(
+                job_name="sync_adj_factors",
+                status="running",
+                stats={},
+            )
+        )
+
+    with pytest.raises(JobExecutionError) as factors_running:
+        factor_job.compute_factors(TARGET_DATE)
+    assert str(factors_running.value) == "复权因子同步任务仍在运行，因子计算已延后。"
+    assert factors_running.value.stats["reason"] == "adjustment_factors_running"
 
 
 def test_factor_job_cron_is_after_daily_bar_sync() -> None:

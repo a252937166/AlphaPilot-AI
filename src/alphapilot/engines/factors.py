@@ -1,8 +1,9 @@
 from __future__ import annotations
 
+import logging
 from collections.abc import Mapping
 from dataclasses import dataclass
-from datetime import UTC, date, datetime, time, timedelta
+from datetime import UTC, date, datetime, time
 from math import isfinite
 from pathlib import Path
 from zoneinfo import ZoneInfo
@@ -13,8 +14,12 @@ import yaml
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from alphapilot.data.provenance import AUDITED_SECTOR_FLOW_SOURCES
+from alphapilot.data.provenance import (
+    AUDITED_DAILY_BAR_SOURCES,
+    AUDITED_SECTOR_FLOW_SOURCES,
+)
 from alphapilot.db.models import (
+    AdjFactor,
     DailyBar,
     FinancialIndicator,
     SectorConstituent,
@@ -22,6 +27,8 @@ from alphapilot.db.models import (
     SectorSnapshot,
     Security,
 )
+
+logger = logging.getLogger(__name__)
 
 FACTOR_SET = [
     "momentum_20d",
@@ -42,6 +49,7 @@ FINANCIAL_FACTORS = frozenset(
     {"roe", "net_profit_yoy", "ocf_to_profit", "debt_ratio", "revenue_yoy"}
 )
 MARKET_TIMEZONE = ZoneInfo("Asia/Shanghai")
+FACTOR_DECISION_TIME = time(19, 30)
 PRICE_SESSION_COUNT = 90
 _DEFAULT_WEIGHTS_FILE = Path(__file__).resolve().parents[3] / "config" / "factor_weights.yaml"
 
@@ -110,12 +118,14 @@ def _utc(value: datetime) -> datetime:
     return value.astimezone(UTC)
 
 
-def _local_day_bounds(trade_date: date) -> tuple[datetime, datetime]:
+def _decision_window(trade_date: date) -> tuple[datetime, datetime]:
     start = datetime.combine(trade_date, time.min, tzinfo=MARKET_TIMEZONE).astimezone(UTC)
-    end = datetime.combine(
-        trade_date + timedelta(days=1), time.min, tzinfo=MARKET_TIMEZONE
+    cutoff = datetime.combine(
+        trade_date,
+        FACTOR_DECISION_TIME,
+        tzinfo=MARKET_TIMEZONE,
     ).astimezone(UTC)
-    return start, end
+    return start, cutoff
 
 
 def _symbol_digits(value: object) -> str | None:
@@ -133,6 +143,7 @@ def _trading_dates(session: Session, trade_date: date) -> list[date]:
             .where(
                 DailyBar.symbol == "SH.000001",
                 DailyBar.trade_date <= trade_date,
+                DailyBar.source.in_(AUDITED_DAILY_BAR_SOURCES),
             )
             .order_by(DailyBar.trade_date.desc())
             .limit(PRICE_SESSION_COUNT)
@@ -145,6 +156,7 @@ def _trading_dates(session: Session, trade_date: date) -> list[date]:
                 .join(Security, Security.symbol == DailyBar.symbol)
                 .where(
                     DailyBar.trade_date <= trade_date,
+                    DailyBar.source.in_(AUDITED_DAILY_BAR_SOURCES),
                     Security.market == "CN",
                     Security.list_status == "listed",
                 )
@@ -159,21 +171,28 @@ def _trading_dates(session: Session, trade_date: date) -> list[date]:
     return sorted(item for item in dates if isinstance(item, date))
 
 
-def _eligible_securities(session: Session, trade_date: date) -> tuple[pd.DataFrame, int]:
+def _eligible_securities(
+    session: Session,
+    trade_date: date,
+    day_start: datetime,
+    decision_cutoff: datetime,
+) -> tuple[pd.DataFrame, int]:
     rows = session.execute(
         select(
             Security.symbol,
             Security.pe_ttm,
             Security.pb,
             Security.snapshot_at,
+            Security.is_st,
         )
         .join(
             DailyBar,
             (DailyBar.symbol == Security.symbol) & (DailyBar.trade_date == trade_date),
         )
         .where(
+            Security.market == "CN",
             Security.list_status == "listed",
-            Security.is_st.is_(False),
+            DailyBar.source.in_(AUDITED_DAILY_BAR_SOURCES),
             DailyBar.close > 0,
             DailyBar.volume > 0,
             DailyBar.amount > 0,
@@ -182,16 +201,29 @@ def _eligible_securities(session: Session, trade_date: date) -> tuple[pd.DataFra
     ).all()
     universe = int(
         session.scalar(
-            select(func.count()).select_from(Security).where(Security.list_status == "listed")
+            select(func.count())
+            .select_from(Security)
+            .where(
+                Security.market == "CN",
+                Security.list_status == "listed",
+            )
         )
         or 0
     )
     frame = pd.DataFrame(
         rows,
-        columns=["symbol", "pe_ttm", "pb", "snapshot_at"],
+        columns=["symbol", "pe_ttm", "pb", "snapshot_at", "is_st"],
     )
     if not frame.empty:
         frame["symbol"] = frame["symbol"].astype(str)
+        frame["st_status_known"] = frame["snapshot_at"].map(
+            lambda value: (
+                isinstance(value, datetime)
+                and day_start <= _utc(value) <= decision_cutoff
+            )
+        )
+        known_st = frame["st_status_known"] & frame["is_st"].fillna(False).astype(bool)
+        frame = frame.loc[~known_st].copy()
     return frame, universe
 
 
@@ -199,7 +231,7 @@ def _load_bar_factors(
     session: Session,
     symbols: set[str],
     trading_dates: list[date],
-) -> tuple[pd.DataFrame, int]:
+) -> tuple[pd.DataFrame, int, int]:
     result = pd.DataFrame(
         index=pd.Index(sorted(symbols), name="symbol"),
         columns=[
@@ -211,7 +243,7 @@ def _load_bar_factors(
         dtype=float,
     )
     if not symbols or not trading_dates:
-        return result, 0
+        return result, 0, 0
 
     statement = select(
         DailyBar.symbol,
@@ -219,21 +251,38 @@ def _load_bar_factors(
         DailyBar.close,
         DailyBar.volume,
         DailyBar.amount,
-    ).where(DailyBar.trade_date.in_(trading_dates))
+        AdjFactor.adj_factor,
+    ).outerjoin(
+        AdjFactor,
+        (AdjFactor.symbol == DailyBar.symbol)
+        & (AdjFactor.trade_date == DailyBar.trade_date),
+    ).where(
+        DailyBar.trade_date.in_(trading_dates),
+        DailyBar.symbol.in_(symbols),
+        DailyBar.source.in_(AUDITED_DAILY_BAR_SOURCES),
+    )
     bars = pd.read_sql_query(statement, session.connection())
     if bars.empty:
-        return result, 0
+        return result, 0, 0
     bars["symbol"] = bars["symbol"].astype(str)
-    bars = bars[bars["symbol"].isin(symbols)].copy()
-    if bars.empty:
-        return result, 0
     bars["trade_date"] = pd.to_datetime(bars["trade_date"], errors="coerce").dt.date
     bars = bars.dropna(subset=["trade_date"])
-    for column in ("close", "volume", "amount"):
+    for column in ("close", "volume", "amount", "adj_factor"):
         bars[column] = pd.to_numeric(bars[column], errors="coerce")
+    missing_adjustments = int(bars["adj_factor"].isna().sum())
+    if missing_adjustments:
+        logger.warning(
+            "因子计算有 %s 行审计日线缺少复权因子，按 S1 契约以 1.0 降级。",
+            missing_adjustments,
+        )
+    bars["adjusted_close"] = bars["close"] * bars["adj_factor"].fillna(1.0)
 
     calendar = pd.Index(trading_dates, name="trade_date")
-    close_raw = bars.pivot(index="trade_date", columns="symbol", values="close").reindex(calendar)
+    close_raw = bars.pivot(
+        index="trade_date",
+        columns="symbol",
+        values="adjusted_close",
+    ).reindex(calendar)
     close = close_raw.ffill()
     volume = (
         bars.pivot(index="trade_date", columns="symbol", values="volume")
@@ -271,7 +320,7 @@ def _load_bar_factors(
         result.loc[turnover_change.index, "turnover_change_5d"] = turnover_change
 
     result = result.replace([np.inf, -np.inf], np.nan)
-    return result, len(bars)
+    return result, len(bars), missing_adjustments
 
 
 def _load_financial_factors(
@@ -291,7 +340,7 @@ def _load_financial_factors(
         .where(
             FinancialIndicator.metric.in_(FINANCIAL_FACTORS),
             FinancialIndicator.value.is_not(None),
-            FinancialIndicator.available_time < cutoff,
+            FinancialIndicator.available_time <= cutoff,
         )
         .order_by(
             FinancialIndicator.symbol,
@@ -308,7 +357,7 @@ def _load_financial_factors(
         metric = str(metric_value)
         if symbol not in symbols or metric in latest.get(symbol, {}):
             continue
-        if not isinstance(available_time, datetime) or _utc(available_time) >= cutoff:
+        if not isinstance(available_time, datetime) or _utc(available_time) > cutoff:
             continue
         number = _finite(value)
         if number is None:
@@ -318,9 +367,17 @@ def _load_financial_factors(
     return latest, selected
 
 
-def _sector_memberships(session: Session) -> dict[str, list[str]]:
+def _sector_memberships(
+    session: Session,
+    cutoff: datetime,
+) -> dict[str, list[str]]:
     memberships: dict[str, list[str]] = {}
-    rows = session.execute(select(SectorConstituent.symbol, SectorConstituent.plate_code)).all()
+    rows = session.execute(
+        select(
+            SectorConstituent.symbol,
+            SectorConstituent.plate_code,
+        ).where(SectorConstituent.refreshed_at <= cutoff)
+    ).all()
     for raw_symbol, raw_plate_code in rows:
         symbol = _symbol_digits(raw_symbol)
         plate_code = str(raw_plate_code).strip()
@@ -382,7 +439,7 @@ def _sector_strength_values(
         select(SectorSnapshot)
         .where(
             SectorSnapshot.as_of >= day_start,
-            SectorSnapshot.as_of < day_end,
+            SectorSnapshot.as_of <= day_end,
         )
         .order_by(SectorSnapshot.as_of.desc(), SectorSnapshot.id.desc())
         .limit(1)
@@ -418,7 +475,13 @@ def _map_sector_values(
 def compute_factors_for_date(session: Session, trade_date: date) -> pd.DataFrame:
     """Build a point-in-time factor-wide frame for eligible target-day securities."""
 
-    security_frame, universe = _eligible_securities(session, trade_date)
+    day_start, decision_cutoff = _decision_window(trade_date)
+    security_frame, universe = _eligible_securities(
+        session,
+        trade_date,
+        day_start,
+        decision_cutoff,
+    )
     symbols = set(security_frame.get("symbol", pd.Series(dtype=str)).astype(str))
     frame = pd.DataFrame(
         index=pd.Index(sorted(symbols), name="symbol"),
@@ -426,14 +489,17 @@ def compute_factors_for_date(session: Session, trade_date: date) -> pd.DataFrame
         dtype=float,
     )
     trading_dates = _trading_dates(session, trade_date)
-    bar_factors, price_rows = _load_bar_factors(session, symbols, trading_dates)
+    bar_factors, price_rows, missing_adjustments = _load_bar_factors(
+        session,
+        symbols,
+        trading_dates,
+    )
     frame.update(bar_factors)
 
-    day_start, day_end = _local_day_bounds(trade_date)
     financials, financial_selected = _load_financial_factors(
         session,
         symbols,
-        day_end,
+        decision_cutoff,
     )
     for symbol, metrics in financials.items():
         for metric, value in metrics.items():
@@ -441,7 +507,10 @@ def compute_factors_for_date(session: Session, trade_date: date) -> pd.DataFrame
 
     if not security_frame.empty:
         snapshot_is_current = security_frame["snapshot_at"].map(
-            lambda value: isinstance(value, datetime) and day_start <= _utc(value) < day_end
+            lambda value: (
+                isinstance(value, datetime)
+                and day_start <= _utc(value) <= decision_cutoff
+            )
         )
         for column, factor in (("pe_ttm", "pe_percentile"), ("pb", "pb_percentile")):
             values = pd.to_numeric(security_frame[column], errors="coerce")
@@ -450,7 +519,7 @@ def compute_factors_for_date(session: Session, trade_date: date) -> pd.DataFrame
             percentiles.index = security_frame["symbol"].astype(str)
             frame.loc[percentiles.index, factor] = percentiles
 
-    memberships = _sector_memberships(session)
+    memberships = _sector_memberships(session, decision_cutoff)
     required_flow_dates = trading_dates[-5:] if len(trading_dates) >= 5 else []
     plate_flows, sector_flow_days, sector_flow_sources = _sector_flow_values(
         session,
@@ -462,7 +531,7 @@ def compute_factors_for_date(session: Session, trade_date: date) -> pd.DataFrame
     plate_strength, sector_snapshot_as_of = _sector_strength_values(
         session,
         day_start,
-        day_end,
+        decision_cutoff,
     )
     for symbol, value in _map_sector_values(symbols, memberships, plate_strength).items():
         frame.at[symbol, "sector_strength"] = value
@@ -470,13 +539,21 @@ def compute_factors_for_date(session: Session, trade_date: date) -> pd.DataFrame
     frame = frame.replace([np.inf, -np.inf], np.nan)
     factor_coverage = {factor: int(frame[factor].notna().sum()) for factor in FACTOR_SET}
     frame.attrs = {
-        "model_version": "factor-v1.0.0",
+        "model_version": "factor-v1.1.0",
         "trade_date": trade_date.isoformat(),
+        "decision_cutoff": decision_cutoff.isoformat(),
         "universe": universe,
         "eligible": len(frame),
+        "st_status_known": int(
+            security_frame.get(
+                "st_status_known",
+                pd.Series(dtype=bool),
+            ).sum()
+        ),
         "eligibility_ratio": round(len(frame) / universe, 6) if universe else 0.0,
         "trading_sessions": len(trading_dates),
         "price_rows": price_rows,
+        "adjustment_factor_missing_rows": missing_adjustments,
         "financial_values": financial_selected,
         "sector_membership_symbols": len(memberships),
         "sector_flow_days": sector_flow_days,
