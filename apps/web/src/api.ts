@@ -1007,6 +1007,182 @@ export interface JobRunsResponse {
   runs: JobRunItem[]
 }
 
+export type BacktestRunStatus = 'running' | 'completed' | 'failed'
+
+export interface BacktestCostModel {
+  commission_bps: number
+  commission_min: number
+  stamp_duty_bps: number
+  transfer_bps: number
+  slippage_bps: number
+}
+
+export interface BacktestRunRequest {
+  name?: string
+  signal_id: 'composite-v1'
+  start_date?: string | null
+  end_date?: string | null
+  rebalance_freq: '5d' | '10d' | '20d'
+  top_pct: number
+  initial_capital: number
+  cost_model: BacktestCostModel
+}
+
+export interface BacktestRunRecord {
+  id: number
+  name: string
+  signal_id: string
+  start_date: string
+  end_date: string
+  rebalance_freq: string
+  top_pct: number
+  params: Record<string, any>
+  status: BacktestRunStatus
+  error: string | null
+  summary: Record<string, any>
+  created_at: string
+  report_available: boolean
+}
+
+export interface BacktestRunResponse {
+  run: BacktestRunRecord
+}
+
+export interface BacktestStartResponse extends BacktestRunResponse {
+  message: string
+}
+
+export interface BacktestListResponse {
+  runs: BacktestRunRecord[]
+}
+
+export interface BacktestDailyResponse {
+  run_id: number
+  status: BacktestRunStatus
+  dates: string[]
+  nav: number[]
+  benchmark_nav: number[]
+  market_nav: number[]
+  rank_ic: Array<number | null>
+  long_ret: Array<number | null>
+  ls_ret: Array<number | null>
+  turnover: Array<number | null>
+  n_eligible: number[]
+  group_returns: Array<Array<number | null>>
+}
+
+export interface BacktestMetricSet {
+  observations: number
+  total_return: number | null
+  ann_return: number | null
+  ann_volatility: number | null
+  sharpe: number | null
+  max_drawdown: number | null
+  calmar: number | null
+}
+
+export interface BacktestLimitation {
+  code: string
+  severity: 'high' | 'medium' | 'low'
+  text: string
+}
+
+export type BacktestReportRun = Omit<
+  BacktestRunRecord,
+  'error' | 'summary' | 'report_available'
+>
+
+export interface BacktestReportResponse {
+  run: BacktestReportRun
+  generated_at: string
+  coverage: {
+    trading_days: number
+    requested_first_trade_date: string
+    requested_last_trade_date: string
+    first_execution_date: string | null
+    effective_start_date: string
+    effective_trading_days: number
+    warmup_days_excluded_from_performance: number
+    rank_ic_days: number
+    rank_ic_unavailable_days: number
+    day_errors: Array<Record<string, string>>
+    missing_benchmark_days: number
+  }
+  rank_ic: {
+    samples: number
+    mean: number | null
+    std: number | null
+    ic_ir: number | null
+    t_stat: number | null
+    positive_ratio: number | null
+  }
+  layers: {
+    labels: string[]
+    mean_daily_returns: Array<number | null>
+    observations: number[]
+    top_minus_bottom: number | null
+    monotonic_rank_ic: number | null
+    strictly_monotonic: boolean
+  }
+  net_long_performance: BacktestMetricSet
+  long_short_gross_diagnostic: {
+    available: boolean
+    costed: false
+    tradable: false
+    label?: string
+    metrics?: BacktestMetricSet
+    warning?: string
+    reason?: string
+  }
+  benchmarks: {
+    csi300: BacktestMetricSet
+    equal_weight_market: BacktestMetricSet
+    excess_total_return: {
+      vs_csi300: number | null
+      vs_equal_weight_market: number | null
+    }
+  }
+  turnover: {
+    trading_days: number
+    rebalance_days: number
+    total: number
+    mean_rebalance: number | null
+    median_rebalance: number | null
+    max: number | null
+    annualized: number | null
+  }
+  costs: {
+    total: number
+    initial_capital: number
+    to_initial_capital: number | null
+    total_traded: number
+    bps_of_traded_notional: number | null
+  }
+  probability_calibration: {
+    available: boolean
+    reason?: string
+    samples?: number
+    brier_score?: number | null
+    curve?: Array<{
+      bin: number
+      lower: number
+      upper: number
+      count: number
+      predicted_mean: number | null
+      actual_rate: number | null
+    }>
+  }
+  conclusion: {
+    status: 'alpha_supported_in_sample' | 'no_reliable_alpha_evidence'
+    alpha_supported: boolean
+    headline: string
+    gates: Record<string, boolean>
+    failed_gates: string[]
+    policy: string
+  }
+  limitations: BacktestLimitation[]
+}
+
 export class ApiError extends Error {
   constructor(
     readonly status: number,
@@ -1145,6 +1321,20 @@ export const api = {
     request<MarketMonitorFeedResponse>(`/v1/market/monitor-feed?limit=${limit}`),
   marketCross: () => request<CrossMarketResponse>('/v1/market/cross'),
   jobRuns: (limit = 50) => request<JobRunsResponse>(`/v1/jobs/runs?limit=${limit}`),
+
+  backtests: (limit = 50) =>
+    request<BacktestListResponse>(`/v1/backtest?limit=${limit}`),
+  backtest: (id: number) =>
+    request<BacktestRunResponse>(`/v1/backtest/${id}`),
+  startBacktest: (body: BacktestRunRequest) =>
+    request<BacktestStartResponse>('/v1/backtest/run', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  backtestDaily: (id: number) =>
+    request<BacktestDailyResponse>(`/v1/backtest/${id}/daily`),
+  backtestReport: (id: number) =>
+    request<BacktestReportResponse>(`/v1/backtest/${id}/report`),
 
   disclosures: (symbol: string, sync = false) =>
     request<any>(`/v1/disclosures/${symbol}?sync=${sync}`),

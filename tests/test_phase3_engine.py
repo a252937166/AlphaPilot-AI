@@ -16,6 +16,7 @@ from alphapilot.backtest.engine import (
     _Portfolio,
     _Position,
     _prices_for_date,
+    create_backtest_run,
     run_backtest,
 )
 from alphapilot.db.models import (
@@ -346,5 +347,43 @@ def test_one_execution_failure_rolls_back_day_and_later_rebalance_continues(
         assert run.summary["day_errors"][0]["stage"] == "execution"
         assert run.summary["final_nav"] < 1.0
         assert calls == 2
+    finally:
+        session.close()
+
+
+def test_precreated_run_is_pollable_and_reused_by_async_execution(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    dates = [stamp.date() for stamp in pd.bdate_range("2026-07-01", periods=2)]
+    session = _session(tmp_path)
+    try:
+        _seed(
+            session,
+            dates,
+            {"600001": [10.0, 10.1], "600002": [10.0, 10.0]},
+        )
+        monkeypatch.setattr(
+            engine_module,
+            "signal_scores",
+            lambda _session, as_of, _weights: _scores(as_of, dates[0]),
+        )
+        cfg = BacktestConfig(
+            start_date=dates[0],
+            end_date=dates[-1],
+            top_pct=0.5,
+            weights={"momentum_20d": 1.0},
+        )
+
+        run_id = create_backtest_run(session, cfg)
+        queued = session.get(BacktestRun, run_id)
+
+        assert queued is not None
+        assert queued.status == "running"
+        assert run_backtest(session, cfg, run_id=run_id) == run_id
+        completed = session.get(BacktestRun, run_id)
+        assert completed is not None
+        assert completed.status == "completed"
+        assert session.query(BacktestRun).count() == 1
     finally:
         session.close()

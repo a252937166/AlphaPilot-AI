@@ -7,6 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from alphapilot import __version__
 from alphapilot.api.routes import (
     alerts,
+    backtest,
     dashboard,
     disclosures,
     events,
@@ -74,6 +75,7 @@ app.add_middleware(
 
 app.include_router(health.router)
 app.include_router(jobs.router)
+app.include_router(backtest.router)
 app.include_router(dashboard.router)
 app.include_router(factors.router)
 app.include_router(stocks.router)

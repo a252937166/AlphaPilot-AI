@@ -6,6 +6,7 @@ import {
   Bell,
   CandlestickChart,
   ClipboardCheck,
+  FlaskConical,
   Grid3x3,
   LayoutDashboard,
   Radar,
@@ -37,6 +38,7 @@ const NAV = [
   { name: 'market', path: '/market', label: '大盘监控', icon: Radar },
   { name: 'alerts', path: '/alerts', label: '交易提醒', icon: Bell },
   { name: 'review', path: '/review', label: 'AI复盘', icon: ClipboardCheck },
+  { name: 'backtest', path: '/backtest', label: '策略研究', icon: FlaskConical },
 ]
 
 function goSearch() {

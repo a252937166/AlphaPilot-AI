@@ -507,10 +507,12 @@ def _params_snapshot(
     }
 
 
-def run_backtest(session: Session, cfg: BacktestConfig) -> int:
-    """Run a deterministic PIT walk-forward simulation and return its run id."""
-
-    weights, weight_version = _resolved_weights(cfg)
+def _create_backtest_run(
+    session: Session,
+    cfg: BacktestConfig,
+    weights: Mapping[str, float],
+    weight_version: str,
+) -> int:
     run = BacktestRun(
         name=cfg.name.strip(),
         signal_id=cfg.signal_id,
@@ -524,7 +526,48 @@ def run_backtest(session: Session, cfg: BacktestConfig) -> int:
     )
     session.add(run)
     session.commit()
-    run_id = int(run.id)
+    return int(run.id)
+
+
+def create_backtest_run(session: Session, cfg: BacktestConfig) -> int:
+    """Persist a pollable ``running`` row before asynchronous execution."""
+
+    weights, weight_version = _resolved_weights(cfg)
+    return _create_backtest_run(
+        session,
+        cfg,
+        weights,
+        weight_version,
+    )
+
+
+def run_backtest(
+    session: Session,
+    cfg: BacktestConfig,
+    *,
+    run_id: int | None = None,
+) -> int:
+    """Run a deterministic PIT walk-forward simulation and return its run id."""
+
+    weights, weight_version = _resolved_weights(cfg)
+    expected_params = _params_snapshot(cfg, weights, weight_version)
+    if run_id is None:
+        run_id = _create_backtest_run(
+            session,
+            cfg,
+            weights,
+            weight_version,
+        )
+    else:
+        queued = session.get(BacktestRun, run_id)
+        if queued is None:
+            raise ValueError(f"backtest run not found: {run_id}")
+        if queued.status != "running":
+            raise ValueError(
+                f"backtest run is not queued: id={run_id}, status={queued.status}"
+            )
+        if queued.params != expected_params:
+            raise ValueError(f"backtest run parameters do not match: {run_id}")
 
     try:
         calendar = _trading_calendar(session, cfg.start_date, cfg.end_date)
