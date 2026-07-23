@@ -308,6 +308,8 @@ def _upsert_adj_rows(
 def sync_adj_factors(
     session: Session,
     symbols: Sequence[str] | None = None,
+    *,
+    refresh_latest: bool = False,
 ) -> dict[str, Any]:
     """Incrementally sync adjustment factors for securities with local daily bars."""
 
@@ -330,6 +332,7 @@ def sync_adj_factors(
         "primary_source": "tushare",
         "source_counts": {},
         "tushare_rate_limited": False,
+        "refresh_latest": refresh_latest,
     }
     target_symbols = {symbol for symbol, _, _ in windows}
     baostock = BaoStockMarketDataProvider()
@@ -341,11 +344,14 @@ def sync_adj_factors(
         latest_factor = session.scalar(
             select(func.max(AdjFactor.trade_date)).where(AdjFactor.symbol == symbol)
         )
-        start = (
-            latest_factor + timedelta(days=1)
-            if isinstance(latest_factor, date)
-            else first_bar
-        )
+        if isinstance(latest_factor, date):
+            start = (
+                latest_factor
+                if refresh_latest and latest_factor == last_bar
+                else latest_factor + timedelta(days=1)
+            )
+        else:
+            start = first_bar
         if start > last_bar:
             stats["skipped"] += 1
             continue
