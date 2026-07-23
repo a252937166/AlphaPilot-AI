@@ -79,6 +79,22 @@ class DailyBar(Base):
     ingested_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 
+class AdjFactor(Base):
+    """Sourced daily adjustment factor used to reconstruct adjusted prices."""
+
+    __tablename__ = "adj_factors"
+    __table_args__ = (
+        UniqueConstraint("symbol", "trade_date", name="uq_adj"),
+        Index("ix_adj_symbol_date", "symbol", "trade_date"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    symbol: Mapped[str] = mapped_column(String(24), index=True)
+    trade_date: Mapped[date] = mapped_column(Date)
+    adj_factor: Mapped[float] = mapped_column(Float)
+    source: Mapped[str] = mapped_column(String(16), default="tushare")
+
+
 class Disclosure(Base):
     """Company announcement pulled from cninfo."""
 
