@@ -34,9 +34,11 @@ def _daily_bars_running() -> bool:
         )
 
 
-def _wait_for_daily_bars() -> float:
+def _wait_for_daily_bars() -> tuple[float, bool]:
     started = monotonic()
+    did_wait = False
     while _daily_bars_running():
+        did_wait = True
         waited = monotonic() - started
         if waited >= _DAILY_BAR_WAIT_TIMEOUT_SECONDS:
             raise JobExecutionError(
@@ -47,17 +49,17 @@ def _wait_for_daily_bars() -> float:
                 },
             )
         sleep(_DAILY_BAR_POLL_SECONDS)
-    return monotonic() - started
+    return monotonic() - started, did_wait
 
 
 def sync_adj_factors_job() -> dict[str, Any]:
     """Run the incremental, source-audited adjustment-factor sync."""
 
-    waited = _wait_for_daily_bars()
+    waited, did_wait = _wait_for_daily_bars()
     with get_session() as session:
         stats = sync_adj_factors(
             session,
-            refresh_latest=waited >= _DAILY_BAR_POLL_SECONDS,
+            refresh_latest=did_wait,
         )
     stats["waited_for_daily_bars_seconds"] = round(waited, 2)
     return stats
