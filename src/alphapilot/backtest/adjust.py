@@ -221,13 +221,13 @@ def _provider_adj_rows(
 ) -> tuple[list[tuple[date, float]], str]:
     provider: BaoStockMarketDataProvider | SinaDailyBarProvider
     source: str
-    if symbol.startswith(("4", "8", "92")):
+    is_bse = symbol.startswith(("4", "8", "92"))
+    if is_bse:
         provider = sina
         source = "sina-hfq"
     else:
         provider = baostock
         source = "baostock-hfq"
-    adjusted = provider.get_adjusted_closes(symbol, start, end)
     local = pd.DataFrame(
         session.execute(
             select(DailyBar.trade_date, DailyBar.close)
@@ -243,6 +243,70 @@ def _provider_adj_rows(
     )
     if local.empty:
         return [], source
+    if is_bse:
+        events = sina.get_adjustment_factors(symbol, end)
+        local_dates = local[["date"]].copy()
+        local_dates["date"] = pd.to_datetime(
+            local_dates["date"],
+            errors="coerce",
+        )
+        factor_events = events.copy()
+        factor_events["date"] = pd.to_datetime(
+            factor_events["date"],
+            errors="coerce",
+        )
+        factor_events["adj_factor"] = pd.to_numeric(
+            factor_events["adj_factor"],
+            errors="coerce",
+        )
+        factor_events = factor_events.dropna().sort_values("date")
+        scale = 1.0
+        previous = session.execute(
+            select(
+                AdjFactor.trade_date,
+                AdjFactor.adj_factor,
+            )
+            .where(
+                AdjFactor.symbol == symbol,
+                AdjFactor.trade_date < start,
+            )
+            .order_by(AdjFactor.trade_date.desc(), AdjFactor.id.desc())
+            .limit(1)
+        ).first()
+        if previous is not None:
+            prior_events = factor_events.loc[
+                factor_events["date"] <= pd.Timestamp(previous[0]),
+                "adj_factor",
+            ]
+            if not prior_events.empty:
+                event_factor = float(prior_events.iloc[-1])
+                stored_factor = float(previous[1])
+                if (
+                    math.isfinite(event_factor)
+                    and event_factor > 0
+                    and math.isfinite(stored_factor)
+                    and stored_factor > 0
+                ):
+                    scale = stored_factor / event_factor
+        merged_factors = pd.merge_asof(
+            local_dates.dropna().sort_values("date"),
+            factor_events,
+            on="date",
+            direction="backward",
+        )
+        factor_rows = [
+            (
+                record["date"].date(),
+                float(record["adj_factor"]) * scale,
+            )
+            for record in merged_factors.to_dict(orient="records")
+            if isinstance(record["date"], pd.Timestamp)
+            and math.isfinite(float(record["adj_factor"]))
+            and float(record["adj_factor"]) > 0
+        ]
+        return factor_rows, source
+
+    adjusted = provider.get_adjusted_closes(symbol, start, end)
     normalized = adjusted[["date", "close"]].copy()
     normalized["date"] = pd.to_datetime(normalized["date"], errors="coerce").dt.date
     normalized["adjusted_close"] = pd.to_numeric(
@@ -254,7 +318,7 @@ def _provider_adj_rows(
         on="date",
         how="inner",
     )
-    rows: list[tuple[date, float]] = []
+    adjusted_rows: list[tuple[date, float]] = []
     for record in merged.to_dict(orient="records"):
         trade_date = record["date"]
         raw_close = float(record["raw_close"])
@@ -266,8 +330,8 @@ def _provider_adj_rows(
             and raw_close > 0
             and adjusted_close > 0
         ):
-            rows.append((trade_date, adjusted_close / raw_close))
-    return rows, source
+            adjusted_rows.append((trade_date, adjusted_close / raw_close))
+    return adjusted_rows, source
 
 
 def _upsert_adj_rows(

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import re
 from datetime import UTC, date, datetime
 from time import monotonic, sleep
@@ -17,6 +18,7 @@ class SinaDailyBarProvider:
 
     name = "sina"
     _snapshot_url = "https://hq.sinajs.cn/list="
+    _hfq_factor_url = "https://finance.sina.com.cn/realstock/company/{}/hfq.js"
     _snapshot_pattern = re.compile(r'^var hq_str_(bj\d{6})="(.*)";$')
     _market_timezone = ZoneInfo("Asia/Shanghai")
 
@@ -62,6 +64,78 @@ class SinaDailyBarProvider:
         return self._get_daily_bars(symbol, start, end, adjust="hfq")[
             ["date", "close"]
         ].copy()
+
+    def get_adjustment_factors(
+        self,
+        symbol: str,
+        end: date,
+    ) -> pd.DataFrame:
+        """Fetch bounded-time Sina HFQ factor events without AKShare's unbounded I/O."""
+
+        sina_symbol = self._symbol(symbol)
+        self._throttle()
+        try:
+            with httpx.Client(
+                timeout=10.0,
+                follow_redirects=True,
+                trust_env=False,
+            ) as client:
+                response = client.get(
+                    self._hfq_factor_url.format(sina_symbol),
+                    headers={
+                        "Referer": "https://finance.sina.com.cn/",
+                        "User-Agent": "Mozilla/5.0 (compatible; AlphaPilot-AI/0.3)",
+                    },
+                )
+                response.raise_for_status()
+        except httpx.HTTPError as exc:
+            raise DataProviderError(
+                f"Sina HFQ factor request failed for {sina_symbol}: "
+                f"{type(exc).__name__}"
+            ) from exc
+
+        first_line = response.text.splitlines()[0] if response.text else ""
+        _, separator, payload_text = first_line.partition("=")
+        if not separator:
+            raise DataProviderError(
+                f"Sina HFQ factor payload is invalid for {sina_symbol}"
+            )
+        try:
+            payload = json.loads(payload_text.rstrip(";"))
+            items = payload["data"]
+        except (json.JSONDecodeError, KeyError, TypeError) as exc:
+            raise DataProviderError(
+                f"Sina HFQ factor payload is invalid for {sina_symbol}"
+            ) from exc
+        if not isinstance(items, list) or not items:
+            raise EmptyDailyBarsError(
+                f"Sina returned no HFQ factors for {sina_symbol}"
+            )
+        frame = pd.DataFrame(items)
+        if not {"d", "f"}.issubset(frame.columns):
+            raise DataProviderError(
+                f"Sina HFQ factor payload is missing fields for {sina_symbol}"
+            )
+        frame["date"] = pd.to_datetime(frame["d"], errors="coerce").dt.date
+        frame["adj_factor"] = pd.to_numeric(frame["f"], errors="coerce")
+        result = (
+            frame.loc[
+                frame["date"].map(
+                    lambda value: isinstance(value, date) and value <= end
+                )
+                & frame["adj_factor"].gt(0),
+                ["date", "adj_factor"],
+            ]
+            .dropna()
+            .sort_values("date")
+            .drop_duplicates("date", keep="last")
+            .reset_index(drop=True)
+        )
+        if result.empty:
+            raise EmptyDailyBarsError(
+                f"Sina returned no usable HFQ factors for {sina_symbol}"
+            )
+        return result
 
     def _get_daily_bars(
         self,
