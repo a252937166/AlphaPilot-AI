@@ -394,6 +394,133 @@ def test_tushare_history_rate_limit_never_crosses_factor_scale(
         session.close()
 
 
+def test_sync_adj_factors_uses_sina_factor_events_for_bse(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    session = _session(tmp_path)
+    try:
+        session.add(Security(symbol="920079", market="CN"))
+        session.add_all(
+            [
+                _bar("920079", date(2026, 7, 21), 10.0),
+                _bar("920079", date(2026, 7, 22), 9.0),
+            ]
+        )
+        session.commit()
+
+        def rate_limited(*_args: object, **_kwargs: object) -> pd.DataFrame:
+            raise adjust.TushareAPIError(
+                "Tushare adj_factor 返回错误 code=40203：频率超限",
+                code=40203,
+            )
+
+        class Sina:
+            def __init__(self, min_interval_seconds: float) -> None:
+                assert min_interval_seconds == 0.25
+
+            def get_adjustment_factors(
+                self,
+                _symbol: str,
+                _end: date,
+            ) -> pd.DataFrame:
+                return pd.DataFrame(
+                    [
+                        {"date": date(1900, 1, 1), "adj_factor": 1.0},
+                        {"date": date(2026, 7, 22), "adj_factor": 1.1},
+                    ]
+                )
+
+        monkeypatch.setattr(adjust, "tushare_call", rate_limited)
+        monkeypatch.setattr(
+            adjust,
+            "get_settings",
+            lambda: Settings(tushare_token="token"),
+        )
+        monkeypatch.setattr(adjust, "SinaDailyBarProvider", Sina)
+        monkeypatch.setattr(adjust, "sleep", lambda _seconds: None)
+
+        stats = adjust.sync_adj_factors(session)
+
+        rows = session.scalars(
+            select(AdjFactor).order_by(AdjFactor.trade_date)
+        ).all()
+        assert [(row.trade_date, row.adj_factor) for row in rows] == [
+            (date(2026, 7, 21), 1.0),
+            (date(2026, 7, 22), 1.1),
+        ]
+        assert stats["source_counts"] == {"sina-hfq": 1}
+        assert stats["rows_inserted"] == 2
+    finally:
+        session.close()
+
+
+def test_sina_event_factors_are_anchored_to_existing_history(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    session = _session(tmp_path)
+    first = date(2026, 7, 21)
+    second = date(2026, 7, 22)
+    try:
+        session.add_all(
+            [
+                Security(symbol="920000", market="CN"),
+                _bar("920000", first, 10.0),
+                _bar("920000", second, 10.0),
+                AdjFactor(
+                    symbol="920000",
+                    trade_date=first,
+                    adj_factor=1.1,
+                    source="sina-hfq",
+                ),
+            ]
+        )
+        session.commit()
+
+        class Sina:
+            def __init__(self, min_interval_seconds: float) -> None:
+                assert min_interval_seconds == 0.25
+
+            def get_adjustment_factors(
+                self,
+                symbol: str,
+                end: date,
+            ) -> pd.DataFrame:
+                assert (symbol, end) == ("920000", second)
+                return pd.DataFrame(
+                    [{"date": date(1900, 1, 1), "adj_factor": 1.2}]
+                )
+
+        monkeypatch.setattr(adjust, "SinaDailyBarProvider", Sina)
+        monkeypatch.setattr(
+            adjust,
+            "get_settings",
+            lambda: Settings(tushare_token="token"),
+        )
+        monkeypatch.setattr(
+            adjust,
+            "tushare_call",
+            lambda *_args, **_kwargs: pytest.fail(
+                "已有 sina-hfq 历史时不得切换 Tushare 标尺"
+            ),
+        )
+        monkeypatch.setattr(adjust, "sleep", lambda _seconds: None)
+
+        stats = adjust.sync_adj_factors(session)
+
+        latest = (
+            session.query(AdjFactor)
+            .filter(AdjFactor.trade_date == second)
+            .one()
+        )
+        assert latest.adj_factor == pytest.approx(1.1)
+        assert latest.source == "sina-hfq"
+        assert stats["failed_count"] == 0
+    finally:
+        session.close()
+
+
 def test_adjusted_returns_remove_split_jump_and_mark_fallback(
     tmp_path: Path,
 ) -> None:

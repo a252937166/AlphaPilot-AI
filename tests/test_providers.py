@@ -264,6 +264,56 @@ def test_sina_invalid_payload_is_not_classified_as_empty(
     assert not isinstance(caught.value, EmptyDailyBarsError)
 
 
+def test_sina_hfq_factors_use_bounded_direct_http(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured: dict[str, object] = {}
+    payload = (
+        'var bj920079hfq={"total":3,"data":['
+        '{"d":"2026-07-24","f":"1.2000000000000000"},'
+        '{"d":"2026-07-22","f":"1.1000000000000000"},'
+        '{"d":"1900-01-01","f":"1.0000000000000000"}]};'
+    )
+
+    class Client:
+        def __init__(self, **kwargs: object) -> None:
+            captured["client_kwargs"] = kwargs
+
+        def __enter__(self) -> Client:
+            return self
+
+        def __exit__(self, *_args: object) -> None:
+            return None
+
+        def get(self, url: str, **_kwargs: object) -> httpx.Response:
+            captured["url"] = url
+            return httpx.Response(
+                200,
+                text=payload,
+                request=httpx.Request("GET", url),
+            )
+
+    monkeypatch.setattr(httpx, "Client", Client)
+
+    frame = SinaDailyBarProvider(min_interval_seconds=0).get_adjustment_factors(
+        "920079",
+        date(2026, 7, 23),
+    )
+
+    assert captured["client_kwargs"] == {
+        "timeout": 10.0,
+        "follow_redirects": True,
+        "trust_env": False,
+    }
+    assert captured["url"] == (
+        "https://finance.sina.com.cn/realstock/company/bj920079/hfq.js"
+    )
+    assert frame.to_dict(orient="records") == [
+        {"date": date(1900, 1, 1), "adj_factor": 1.0},
+        {"date": date(2026, 7, 22), "adj_factor": 1.1},
+    ]
+
+
 def test_failover_uses_next_provider_and_records_errors() -> None:
     router = FailoverMarketDataProvider(
         bars_chain=[BrokenProvider(), MockMarketDataProvider()],
