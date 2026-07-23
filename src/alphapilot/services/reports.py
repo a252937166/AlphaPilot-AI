@@ -6,6 +6,7 @@ from collections import defaultdict
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
 from math import floor, isfinite
+from statistics import median
 from typing import Any
 from zoneinfo import ZoneInfo
 
@@ -16,15 +17,22 @@ from sqlalchemy.orm import Session
 from alphapilot.core.config import Settings
 from alphapilot.core.timeutil import iso_utc
 from alphapilot.data.base import MarketDataProvider
+from alphapilot.data.provenance import AUDITED_DAILY_BAR_SOURCES
 from alphapilot.db.models import (
     AlertRecord,
+    DailyBar,
     DailyReport,
     DomainEvent,
     FactorValue,
     ForecastSnapshot,
     SectorConstituent,
+    SectorForecast,
 )
-from alphapilot.engines.sector_forecast import normalize_constituent_symbol
+from alphapilot.engines.sector_forecast import (
+    MIN_ACTIVE_MEMBERS,
+    MIN_MEMBER_COVERAGE,
+    normalize_constituent_symbol,
+)
 from alphapilot.llm.client import LLMUnavailable, chat_json
 from alphapilot.llm.prompts import REVIEW_ADVICE
 from alphapilot.services import market_data
@@ -69,6 +77,8 @@ _EVENT_TYPE_STYLE = {
     "market_regime_change": ("市场状态", "purple"),
     "thesis_shift": ("逻辑变化", "red"),
 }
+_SECTOR_CALL_HORIZON = 5
+_SECTOR_CALL_TOP_N = 3
 
 
 @dataclass(frozen=True)
@@ -543,6 +553,199 @@ def build_event_timeline(
     }
 
 
+def _unavailable_sector_call_excess(
+    warning: str,
+    *,
+    forecast_date: date | None = None,
+    outcome_date: date | None = None,
+) -> dict[str, Any]:
+    return {
+        "available": False,
+        "average_excess": None,
+        "sample_count": 0,
+        "top_n": _SECTOR_CALL_TOP_N,
+        "horizon": _SECTOR_CALL_HORIZON,
+        "forecast_date": forecast_date.isoformat() if forecast_date else None,
+        "outcome_date": outcome_date.isoformat() if outcome_date else None,
+        "all_sector_median_return": None,
+        "total_sector_count": 0,
+        "top3": [],
+        "warning": warning,
+        "method": "next_session_equal_weight_return_vs_all_sector_median",
+        "membership_basis": "current_snapshot",
+    }
+
+
+def _sector_returns_between(
+    session: Session,
+    plate_codes: set[str],
+    origin_date: date,
+    outcome_date: date,
+) -> dict[str, float]:
+    """Calculate two-session sector returns without rebuilding the 120-day panel."""
+
+    member_symbols: dict[str, set[str]] = defaultdict(set)
+    for plate_code, raw_symbol in session.execute(
+        select(SectorConstituent.plate_code, SectorConstituent.symbol).where(
+            SectorConstituent.plate_code.in_(sorted(plate_codes))
+        )
+    ):
+        symbol = normalize_constituent_symbol(raw_symbol)
+        if symbol is not None:
+            member_symbols[str(plate_code)].add(symbol)
+
+    symbols = sorted({symbol for members in member_symbols.values() for symbol in members})
+    if not symbols:
+        return {}
+    closes: dict[tuple[str, date], float] = {}
+    for raw_symbol, trade_date, raw_close in session.execute(
+        select(DailyBar.symbol, DailyBar.trade_date, DailyBar.close).where(
+            DailyBar.symbol.in_(symbols),
+            DailyBar.trade_date.in_((origin_date, outcome_date)),
+            DailyBar.source.in_(AUDITED_DAILY_BAR_SOURCES),
+            DailyBar.close > 0,
+        )
+    ):
+        close = _finite_float(raw_close)
+        if close is not None:
+            closes[(str(raw_symbol), trade_date)] = close
+
+    returns: dict[str, float] = {}
+    for plate_code in sorted(plate_codes):
+        members = member_symbols.get(plate_code, set())
+        active_returns: list[float] = []
+        for symbol in members:
+            origin_close = closes.get((symbol, origin_date))
+            outcome_close = closes.get((symbol, outcome_date))
+            if origin_close is None or outcome_close is None or origin_close <= 0:
+                continue
+            active_returns.append(outcome_close / origin_close - 1.0)
+        coverage = len(active_returns) / len(members) if members else 0.0
+        if (
+            len(active_returns) < MIN_ACTIVE_MEMBERS
+            or coverage < MIN_MEMBER_COVERAGE
+        ):
+            continue
+        returns[plate_code] = sum(active_returns) / len(active_returns)
+    return returns
+
+
+def build_sector_call_excess(
+    session: Session,
+    target_date: date,
+) -> dict[str, Any]:
+    """Evaluate the latest fully matured 5-day sector forecast cross-section.
+
+    The realized outcome is the next trading session's equal-weight sector
+    return.  The benchmark is the median realized return of the same complete
+    forecast cross-section, so a partial current-day bar cache cannot leak into
+    the report.
+    """
+
+    forecast_dates = list(
+        session.scalars(
+            select(SectorForecast.trade_date)
+            .where(
+                SectorForecast.horizon == _SECTOR_CALL_HORIZON,
+                SectorForecast.trade_date < target_date,
+            )
+            .distinct()
+            .order_by(SectorForecast.trade_date.desc())
+        ).all()
+    )
+    if not forecast_dates:
+        return _unavailable_sector_call_excess("暂无早于报告日的 5 日板块预测截面。")
+
+    benchmark_dates = list(
+        session.scalars(
+            select(DailyBar.trade_date)
+            .where(
+                DailyBar.symbol == "SH.000001",
+                DailyBar.trade_date <= target_date,
+                DailyBar.source.in_(AUDITED_DAILY_BAR_SOURCES),
+                DailyBar.close > 0,
+            )
+            .distinct()
+            .order_by(DailyBar.trade_date)
+        ).all()
+    )
+    last_forecast_date: date | None = None
+    last_outcome_date: date | None = None
+    for forecast_date in forecast_dates:
+        outcome_date = next(
+            (candidate for candidate in benchmark_dates if candidate > forecast_date),
+            None,
+        )
+        if outcome_date is None:
+            continue
+        last_forecast_date = forecast_date
+        last_outcome_date = outcome_date
+
+        forecasts = list(
+            session.scalars(
+                select(SectorForecast)
+                .where(
+                    SectorForecast.trade_date == forecast_date,
+                    SectorForecast.horizon == _SECTOR_CALL_HORIZON,
+                )
+                .order_by(SectorForecast.score.desc(), SectorForecast.plate_code)
+            ).all()
+        )
+        ranked = [row for row in forecasts if _finite_float(row.score) is not None]
+        if len(ranked) != len(forecasts) or len(ranked) < _SECTOR_CALL_TOP_N:
+            continue
+
+        forecast_codes = {row.plate_code for row in ranked}
+        actual_by_code = _sector_returns_between(
+            session,
+            forecast_codes,
+            forecast_date,
+            outcome_date,
+        )
+        if not forecast_codes or not forecast_codes.issubset(actual_by_code):
+            # A benchmark tick can arrive before the full A-share close cache.
+            # Do not bias the median by silently dropping those missing plates.
+            continue
+
+        all_returns = [actual_by_code[code] for code in sorted(forecast_codes)]
+        benchmark_return = median(all_returns)
+        top_rows: list[dict[str, Any]] = []
+        for rank, forecast in enumerate(ranked[:_SECTOR_CALL_TOP_N], start=1):
+            actual_return = actual_by_code[forecast.plate_code]
+            top_rows.append(
+                {
+                    "rank": rank,
+                    "plate_code": forecast.plate_code,
+                    "plate_name": forecast.plate_name,
+                    "score": round(float(forecast.score), 6),
+                    "actual_return": round(actual_return, 8),
+                    "excess_return": round(actual_return - benchmark_return, 8),
+                }
+            )
+        average_excess = sum(float(row["excess_return"]) for row in top_rows) / len(top_rows)
+        return {
+            "available": True,
+            "average_excess": round(average_excess, 8),
+            "sample_count": len(top_rows),
+            "top_n": _SECTOR_CALL_TOP_N,
+            "horizon": _SECTOR_CALL_HORIZON,
+            "forecast_date": forecast_date.isoformat(),
+            "outcome_date": outcome_date.isoformat(),
+            "all_sector_median_return": round(benchmark_return, 8),
+            "total_sector_count": len(all_returns),
+            "top3": top_rows,
+            "warning": None,
+            "method": "next_session_equal_weight_return_vs_all_sector_median",
+            "membership_basis": "current_snapshot",
+        }
+
+    return _unavailable_sector_call_excess(
+        "尚无完整的次交易日板块收益截面，未使用盘中或残缺日线计算。",
+        forecast_date=last_forecast_date,
+        outcome_date=last_outcome_date,
+    )
+
+
 def _forecast_hit_stats(session: Session, symbol_bars: dict[str, pd.DataFrame]) -> dict[str, Any]:
     """Score persisted 1d forecasts against realized next-day returns."""
     snapshots = session.scalars(
@@ -630,6 +833,7 @@ def generate_daily_report(
     signal_attribution = build_signal_attribution(session, target_date)
     improvement_suggestions = build_improvement_suggestions(session, settings, target_date)
     event_timeline = build_event_timeline(session, target_date)
+    sector_call_excess = build_sector_call_excess(session, target_date)
 
     summary_context = {
         "indices": indices,
@@ -650,6 +854,7 @@ def generate_daily_report(
         "signal_attribution": signal_attribution,
         "improvement_suggestions": improvement_suggestions,
         "event_timeline": event_timeline,
+        "sector_call_excess": sector_call_excess,
         "alerts": [
             {
                 "id": record.id,

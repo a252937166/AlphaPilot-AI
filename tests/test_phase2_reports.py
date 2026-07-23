@@ -23,11 +23,13 @@ from alphapilot.db.models import (
     AlertOutcome,
     AlertRecord,
     Base,
+    DailyBar,
     DailyReport,
     DomainEvent,
     FactorValue,
     LLMCall,
     SectorConstituent,
+    SectorForecast,
     Security,
 )
 from alphapilot.llm import client as llm_client
@@ -628,6 +630,173 @@ def test_event_timeline_empty_state(engine: Engine) -> None:
     }
 
 
+def _benchmark_bar(trade_date: date) -> DailyBar:
+    return DailyBar(
+        symbol="SH.000001",
+        trade_date=trade_date,
+        open=3000.0,
+        high=3010.0,
+        low=2990.0,
+        close=3005.0,
+        volume=1.0,
+        amount=1.0,
+        source="futu",
+    )
+
+
+def _seed_sector_forecasts(session: Session, trade_date: date) -> None:
+    session.add_all(
+        [
+            SectorForecast(
+                plate_code=f"SH.BK{index:04d}",
+                plate_name=f"板块{index}",
+                trade_date=trade_date,
+                horizon=5,
+                score=score,
+                model_version="sector-fc-v1.0.0",
+            )
+            for index, score in enumerate((100.0, 90.0, 80.0, 70.0), start=1)
+        ]
+    )
+
+
+def _stock_bar(symbol: str, trade_date: date, close: float) -> DailyBar:
+    return DailyBar(
+        symbol=symbol,
+        trade_date=trade_date,
+        open=close,
+        high=close,
+        low=close,
+        close=close,
+        volume=1.0,
+        amount=1.0,
+        source="akshare",
+    )
+
+
+def _seed_sector_outcome_inputs(
+    session: Session,
+    origin_date: date,
+    outcome_date: date,
+    *,
+    complete_sectors: int = 4,
+) -> None:
+    sector_returns = (0.03, 0.01, -0.02, 0.0)
+    for sector_index, sector_return in enumerate(sector_returns, start=1):
+        for member_index in (1, 2):
+            symbol = f"600{sector_index}{member_index:02d}"
+            session.add(
+                SectorConstituent(
+                    plate_code=f"SH.BK{sector_index:04d}",
+                    plate_name=f"板块{sector_index}",
+                    symbol=f"SH.{symbol}",
+                    refreshed_at=_utc_at(outcome_date, 8),
+                )
+            )
+            session.add(_stock_bar(symbol, origin_date, 100.0))
+            if sector_index <= complete_sectors:
+                session.add(
+                    _stock_bar(
+                        symbol,
+                        outcome_date,
+                        100.0 * (1.0 + sector_return),
+                    )
+                )
+
+
+def test_sector_call_excess_uses_latest_complete_next_session(
+    engine: Engine,
+) -> None:
+    forecast_date = date(2026, 7, 21)
+    partial_origin = date(2026, 7, 22)
+    complete_outcome = date(2026, 7, 22)
+    partial_outcome = date(2026, 7, 23)
+    with Session(engine) as session:
+        _seed_sector_forecasts(session, forecast_date)
+        _seed_sector_forecasts(session, partial_origin)
+        _seed_sector_outcome_inputs(session, forecast_date, complete_outcome)
+        session.add_all([_benchmark_bar(complete_outcome), _benchmark_bar(partial_outcome)])
+        session.commit()
+        result = report_service.build_sector_call_excess(session, partial_outcome)
+
+    assert result == {
+        "available": True,
+        "average_excess": pytest.approx(0.00166667),
+        "sample_count": 3,
+        "top_n": 3,
+        "horizon": 5,
+        "forecast_date": "2026-07-21",
+        "outcome_date": "2026-07-22",
+        "all_sector_median_return": 0.005,
+        "total_sector_count": 4,
+        "top3": [
+            {
+                "rank": 1,
+                "plate_code": "SH.BK0001",
+                "plate_name": "板块1",
+                "score": 100.0,
+                "actual_return": 0.03,
+                "excess_return": 0.025,
+            },
+            {
+                "rank": 2,
+                "plate_code": "SH.BK0002",
+                "plate_name": "板块2",
+                "score": 90.0,
+                "actual_return": 0.01,
+                "excess_return": 0.005,
+            },
+            {
+                "rank": 3,
+                "plate_code": "SH.BK0003",
+                "plate_name": "板块3",
+                "score": 80.0,
+                "actual_return": -0.02,
+                "excess_return": -0.025,
+            },
+        ],
+        "warning": None,
+        "method": "next_session_equal_weight_return_vs_all_sector_median",
+        "membership_basis": "current_snapshot",
+    }
+
+
+def test_sector_call_excess_never_uses_same_day_or_partial_cross_section(
+    engine: Engine,
+) -> None:
+    forecast_date = date(2026, 7, 21)
+    outcome_date = forecast_date + timedelta(days=1)
+    with Session(engine) as session:
+        _seed_sector_forecasts(session, forecast_date)
+        session.add(_benchmark_bar(forecast_date))
+        session.commit()
+        no_next_day = report_service.build_sector_call_excess(session, outcome_date)
+
+    assert no_next_day["available"] is False
+    assert no_next_day["average_excess"] is None
+    assert no_next_day["sample_count"] == 0
+    assert no_next_day["forecast_date"] is None
+    assert no_next_day["outcome_date"] is None
+    assert "完整" in no_next_day["warning"]
+
+    with Session(engine) as session:
+        _seed_sector_outcome_inputs(
+            session,
+            forecast_date,
+            outcome_date,
+            complete_sectors=3,
+        )
+        session.add(_benchmark_bar(outcome_date))
+        session.commit()
+        partial = report_service.build_sector_call_excess(session, outcome_date)
+
+    assert partial["available"] is False
+    assert partial["forecast_date"] == forecast_date.isoformat()
+    assert partial["outcome_date"] == outcome_date.isoformat()
+    assert partial["total_sector_count"] == 0
+    assert "残缺日线" in partial["warning"]
+
+
 def test_report_api_post_get_upserts_and_persists_s5_fields(
     engine: Engine,
     monkeypatch: pytest.MonkeyPatch,
@@ -695,6 +864,21 @@ def test_report_api_post_get_upserts_and_persists_s5_fields(
         "items",
         "empty_reason",
         "timezone",
+    }
+    assert fetched.json()["sector_call_excess"] == {
+        "available": False,
+        "average_excess": None,
+        "sample_count": 0,
+        "top_n": 3,
+        "horizon": 5,
+        "forecast_date": None,
+        "outcome_date": None,
+        "all_sector_median_return": None,
+        "total_sector_count": 0,
+        "top3": [],
+        "warning": "暂无早于报告日的 5 日板块预测截面。",
+        "method": "next_session_equal_weight_return_vs_all_sector_median",
+        "membership_basis": "current_snapshot",
     }
     with Session(engine) as session:
         assert session.scalar(select(func.count()).select_from(DailyReport)) == 1
