@@ -266,6 +266,7 @@ def test_auto_paper_trade_executes_once_per_symbol_and_never_uses_real(
         assert proposal is not None
         assert proposal.source_alert_id is not None
         assert proposal.status == "executing"
+        assert proposal.created_at == MARKET_NOW.astimezone(UTC).replace(tzinfo=None)
         assert proposal.risk_decision["requires_human_confirmation"] is False
         assert proposal.quantity == pytest.approx(1_900)
         assert order is not None

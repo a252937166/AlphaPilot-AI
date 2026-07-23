@@ -343,6 +343,7 @@ def _persist_and_execute(
             proposal=proposal.model_dump(mode="json"),
             risk_decision=decision.model_dump(mode="json"),
             source_alert_id=evidence.alert.id,
+            created_at=now.astimezone(UTC),
             reviewed_at=now.astimezone(UTC),
         )
         session.add(record)
