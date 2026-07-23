@@ -607,9 +607,10 @@ def test_adjustment_job_waits_for_daily_bars_and_times_out(
     monkeypatch.setattr(backtest_jobs, "monotonic", lambda: next(clock))
     monkeypatch.setattr(backtest_jobs, "sleep", sleeps.append)
 
-    waited = backtest_jobs._wait_for_daily_bars()
+    waited, did_wait = backtest_jobs._wait_for_daily_bars()
 
     assert waited == pytest.approx(3.0)
+    assert did_wait is True
     assert sleeps == [5.0, 5.0]
 
     monkeypatch.setattr(backtest_jobs, "_daily_bars_running", lambda: True)
@@ -619,3 +620,16 @@ def test_adjustment_job_waits_for_daily_bars_and_times_out(
     with pytest.raises(JobExecutionError, match="超过 30 分钟") as caught:
         backtest_jobs._wait_for_daily_bars()
     assert caught.value.stats["reason"] == "daily_bars_wait_timeout"
+
+
+def test_adjustment_job_does_not_refresh_from_slow_status_query(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    clock = iter([0.0, 6.0])
+    monkeypatch.setattr(backtest_jobs, "_daily_bars_running", lambda: False)
+    monkeypatch.setattr(backtest_jobs, "monotonic", lambda: next(clock))
+
+    waited, did_wait = backtest_jobs._wait_for_daily_bars()
+
+    assert waited == pytest.approx(6.0)
+    assert did_wait is False
