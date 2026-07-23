@@ -6,17 +6,21 @@
 
 ## 当前状态
 
-当前为 **v0.3 二期版**：
+当前为 **v0.4 P3-M1 严格回测版**：
 
 - 数据底座：全市场证券主档与日线、盘中分钟聚合、事件日历/事件总线、可审计调度、
-  断点续传和数据源熔断；
+  断点续传、数据源熔断，以及覆盖全部审计日线的复权因子；
 - 引擎层：多因子、风格、板块预测与滚动胜率、五维评分、市场情绪、信号结果评估和
   投资逻辑漂移；
 - 模拟交易：风险校验 → 提案 → 人工确认 → 富途 `SIMULATE` 订单 → 回填 → 组合快照/归因；
 - AI 能力：事件抽取、个股解读、大盘摘要润色和复盘建议；无 LLM 时自动使用规则、模板或
   统计降级；
-- 产品界面：Vue 3 + ECharts 的 8 个真实产品页、通知中心、日期/来源/模型口径和中文降级；
-- 质量门：strict mypy、Ruff、540+ 离线 pytest 用例、前端类型检查与生产构建。
+- 严格回测：PIT 数据截断、T 日决策/T+1 开盘成交、涨跌停/停牌/T+1 约束、全成本、
+  沪深300与复权等权市场双基准，以及可复现参数快照；
+- 首次结论：`composite-v1` 在 261 个有效交易日内五项 Alpha 证据门全部失败；扣成本多头
+  累计 `-19.40%`，同期沪深300 `+20.56%`、等权市场 `+7.94%`。未做事后调参；
+- 产品界面：Vue 3 + ECharts 的 9 个真实产品页、通知中心、日期/来源/模型口径和中文降级；
+- 质量门：strict mypy、Ruff、590 项离线 pytest、前端类型检查与生产构建。
 
 **实盘交易保持硬禁用。** REAL 路径同时要求
 `futu_enable_trade + live_trading_enabled + confirmation="SUBMIT_REAL_ORDER"`，
@@ -91,6 +95,16 @@ ALPHAPILOT_DEFAULT_DATA_PROVIDER=auto
 
 > 注意：东方财富（AKShare 历史行情上游）会按出口 IP/TLS 指纹间歇性封锁请求，
 > 因此日线主源是 BaoStock；AKShare 作为备源保留。
+
+严格回测的复权因子可配置 Tushare token：
+
+```env
+ALPHAPILOT_TUSHARE_TOKEN=
+```
+
+低积分账号实测 `adj_factor` 可能只有每小时一次配额；同步器会明确记录配额错误，并按证券锁定
+BaoStock/Sina 后复权来源，绝不把不同绝对标尺的因子静默拼接。当前本地审计库复权证券和
+日线行覆盖率均为 100%。
 
 巨潮资讯（可选，公告接口无需凭据即可用；公司档案需要 WebAPI 凭据）：
 
@@ -171,6 +185,8 @@ Futu/OpenD 时，缓存模块保留日期与来源，实时模块返回中文原
 | POST | `/v1/trades/proposals/{id}/execute` | 人工确认后的 SIMULATE 执行；REAL 仍受三重门禁 |
 | GET | `/v1/disclosures/{symbol}` (+`/sync`) | 巨潮公告查询与同步 |
 | GET/POST | `/v1/reports/daily` (+`/generate`) | 日报、信号/组合归因和 `sector_call_excess` |
+| POST | `/v1/backtest/run` | 创建只读 PIT 回测；异步执行并返回可轮询 run |
+| GET | `/v1/backtest`、`/{id}`、`/{id}/daily`、`/{id}/report` | 回测档案、状态、日序列和诚实结论 |
 | POST | `/v1/scenarios/run` | 运行本地多智能体情景模拟 |
 | GET | `/v1/futu/status` / `/capabilities` | OpenD 状态与能力目录 |
 | POST | `/v1/futu/quote/{method}` | 调用受审计的行情、筛选或订阅方法 |
@@ -188,6 +204,7 @@ src/alphapilot/services/     服务层：行情缓存、自选追踪、板块、
 src/alphapilot/features/     特征工程
 src/alphapilot/prediction/   概率预测和市场状态
 src/alphapilot/screening/    自动选股
+src/alphapilot/backtest/     复权、PIT、成交约束、walk-forward、指标与结论报告
 src/alphapilot/alerts/       自动提醒规则
 src/alphapilot/scenario/     MiroFish 式情景模拟契约
 src/alphapilot/risk/         交易风控门禁
@@ -230,7 +247,8 @@ make futu-stop
 
 ## 下一步
 
-二期验收依据见 [`docs/PHASE2_DESIGN.md`](docs/PHASE2_DESIGN.md) 与
-[`docs/phase2/P2.4-S15_ACCEPTANCE_CHECKLIST.md`](docs/phase2/P2.4-S15_ACCEPTANCE_CHECKLIST.md)。
-P3 候选包括 PostgreSQL/TimescaleDB 迁移、多 transport LLM 适配器、完整身份边界、分板块独立
-胜率和性能/可访问性收口；长期任务池见 [`docs/BACKLOG.md`](docs/BACKLOG.md)。
+P3-M1 的铁律、逐步证据和首次负面 Alpha 结论见
+[`docs/phase3/01_P3.1_backtest_framework.md`](docs/phase3/01_P3.1_backtest_framework.md)。
+后续候选包括预先注册的样本外因子重做/ML walk-forward、PIT 查询批量化、可恢复任务队列、
+PostgreSQL/TimescaleDB 迁移、多 transport LLM 适配器和完整身份边界；长期任务池见
+[`docs/BACKLOG.md`](docs/BACKLOG.md)。
