@@ -211,7 +211,7 @@ def _limitations(
             "code": "probability_calibration_unavailable",
             "severity": "medium",
             "text": (
-                "composite-v1 是排序分而非上涨概率，不能计算概率校准；"
+                f"{run.signal_id} 是排序分而非上涨概率，不能计算概率校准；"
                 "没有将分数除以 100 冒充 p_up。"
             ),
         },
@@ -407,7 +407,8 @@ def generate_report(session: Session, run_id: int) -> dict[str, Any]:
         "probability_calibration": {
             "available": False,
             "reason": (
-                "composite-v1 输出排序分而非 p_up 概率；不把 0–100 分数伪装为概率。"
+                f"{run.signal_id} 输出排序分而非 p_up 概率；"
+                "不把 0–100 分数伪装为概率。"
             ),
         },
         "conclusion": _honest_conclusion(strategy, csi300, market, ic, layers),
