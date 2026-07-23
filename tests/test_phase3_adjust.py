@@ -14,8 +14,9 @@ from sqlalchemy.orm import Session
 from alphapilot.backtest import adjust
 from alphapilot.core.config import Settings
 from alphapilot.db.models import AdjFactor, Base, DailyBar, Security
+from alphapilot.jobs import backtest_jobs
 from alphapilot.jobs.backtest_jobs import register_backtest_jobs
-from alphapilot.jobs.registry import JOBS
+from alphapilot.jobs.registry import JOBS, JobExecutionError
 
 
 def _session(tmp_path: Path) -> Session:
@@ -223,6 +224,65 @@ def test_sync_adj_factors_falls_back_after_real_rate_limit(
         session.close()
 
 
+def test_sync_adj_factors_can_refresh_latest_bar_after_daily_sync(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    session = _session(tmp_path)
+    target = date(2026, 7, 22)
+    try:
+        session.add(Security(symbol="600519", market="CN"))
+        session.add(_bar("600519", target, 10.0))
+        session.add(
+            AdjFactor(
+                symbol="600519",
+                trade_date=target,
+                adj_factor=1.0,
+                source="tushare",
+            )
+        )
+        session.commit()
+        calls: list[dict[str, Any]] = []
+
+        def fake_call(
+            _token: str,
+            _api_name: str,
+            params: dict[str, Any],
+            _fields: str = "",
+        ) -> pd.DataFrame:
+            calls.append(params)
+            return pd.DataFrame(
+                [
+                    {
+                        "ts_code": "600519.SH",
+                        "trade_date": "20260722",
+                        "adj_factor": 1.2,
+                    }
+                ]
+            )
+
+        monkeypatch.setattr(adjust, "tushare_call", fake_call)
+        monkeypatch.setattr(
+            adjust,
+            "get_settings",
+            lambda: Settings(tushare_token="token"),
+        )
+        monkeypatch.setattr(adjust, "sleep", lambda _seconds: None)
+
+        stats = adjust.sync_adj_factors(session, refresh_latest=True)
+
+        factor = session.get(AdjFactor, 1)
+        assert factor is not None
+        assert factor.adj_factor == pytest.approx(1.2)
+        assert stats["refresh_latest"] is True
+        assert stats["rows_updated"] == 1
+        assert stats["skipped"] == 0
+        assert calls[0]["start_date"] == "20260722"
+        assert calls[0]["end_date"] == "20260722"
+    finally:
+        session.close()
+
+
 def test_adjusted_returns_remove_split_jump_and_mark_fallback(
     tmp_path: Path,
 ) -> None:
@@ -293,3 +353,31 @@ def test_adjustment_job_runs_at_1850() -> None:
             JOBS.pop("sync_adj_factors", None)
         else:
             JOBS["sync_adj_factors"] = original
+
+
+def test_adjustment_job_waits_for_daily_bars_and_times_out(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    states = iter([True, True, False])
+    clock = iter([0.0, 1.0, 2.0, 3.0])
+    sleeps: list[float] = []
+    monkeypatch.setattr(
+        backtest_jobs,
+        "_daily_bars_running",
+        lambda: next(states),
+    )
+    monkeypatch.setattr(backtest_jobs, "monotonic", lambda: next(clock))
+    monkeypatch.setattr(backtest_jobs, "sleep", sleeps.append)
+
+    waited = backtest_jobs._wait_for_daily_bars()
+
+    assert waited == pytest.approx(3.0)
+    assert sleeps == [5.0, 5.0]
+
+    monkeypatch.setattr(backtest_jobs, "_daily_bars_running", lambda: True)
+    timeout_clock = iter([0.0, 1800.0])
+    monkeypatch.setattr(backtest_jobs, "monotonic", lambda: next(timeout_clock))
+
+    with pytest.raises(JobExecutionError, match="超过 30 分钟") as caught:
+        backtest_jobs._wait_for_daily_bars()
+    assert caught.value.stats["reason"] == "daily_bars_wait_timeout"
