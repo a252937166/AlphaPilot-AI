@@ -49,6 +49,28 @@ class SinaDailyBarProvider:
         self._last_request_started = monotonic()
 
     def get_daily_bars(self, symbol: str, start: date, end: date) -> pd.DataFrame:
+        return self._get_daily_bars(symbol, start, end, adjust="")
+
+    def get_adjusted_closes(
+        self,
+        symbol: str,
+        start: date,
+        end: date,
+    ) -> pd.DataFrame:
+        """Return Sina/AKShare backward-adjusted closes for BSE symbols."""
+
+        return self._get_daily_bars(symbol, start, end, adjust="hfq")[
+            ["date", "close"]
+        ].copy()
+
+    def _get_daily_bars(
+        self,
+        symbol: str,
+        start: date,
+        end: date,
+        *,
+        adjust: str,
+    ) -> pd.DataFrame:
         ak = self._module()
         sina_symbol = self._symbol(symbol)
         last_error = "unknown error"
@@ -60,7 +82,7 @@ class SinaDailyBarProvider:
                     symbol=sina_symbol,
                     start_date=start.strftime("%Y%m%d"),
                     end_date=end.strftime("%Y%m%d"),
-                    adjust="",
+                    adjust=adjust,
                 )
                 if not isinstance(candidate, pd.DataFrame):
                     raise DataProviderError(

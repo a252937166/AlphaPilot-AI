@@ -68,6 +68,51 @@ class BaoStockMarketDataProvider:
     def get_daily_bars(self, symbol: str, start: date, end: date) -> pd.DataFrame:
         return self.get_bars(symbol, start, end, "d")
 
+    def get_adjusted_closes(
+        self,
+        symbol: str,
+        start: date,
+        end: date,
+    ) -> pd.DataFrame:
+        """Return stable backward-adjusted closes for factor reconstruction."""
+
+        bs = self._module()
+        code = self._code(symbol)
+        with _baostock_lock:
+            self._ensure_login(bs)
+            result = bs.query_history_k_data_plus(
+                code,
+                "date,close",
+                start_date=start.isoformat(),
+                end_date=end.isoformat(),
+                frequency="d",
+                adjustflag="1",
+            )
+            if result.error_code != "0":
+                raise DataProviderError(
+                    f"BaoStock adjusted-close query failed for {code}: {result.error_msg}"
+                )
+            rows: list[list[str]] = []
+            while result.next():
+                rows.append(result.get_row_data())
+        if not rows:
+            raise EmptyDailyBarsError(
+                f"BaoStock returned no adjusted closes for {code}"
+            )
+        frame = pd.DataFrame(rows, columns=["date", "close"])
+        frame["date"] = pd.to_datetime(frame["date"], errors="coerce")
+        frame["close"] = pd.to_numeric(frame["close"], errors="coerce")
+        parsed = (
+            frame.dropna(subset=["date", "close"])
+            .sort_values("date")
+            .reset_index(drop=True)
+        )
+        if parsed.empty:
+            raise EmptyDailyBarsError(
+                f"BaoStock returned no valid adjusted closes for {code}"
+            )
+        return parsed
+
     def get_bars(
         self,
         symbol: str,
