@@ -298,6 +298,36 @@ def test_run_records_severe_no_data_failure(tmp_path: Path) -> None:
         session.close()
 
 
+def test_composite_v2_loads_frozen_weight_snapshot(tmp_path: Path) -> None:
+    session = _session(tmp_path)
+    try:
+        cfg = BacktestConfig(
+            start_date=date(2026, 7, 1),
+            end_date=date(2026, 7, 2),
+            signal_id="composite-v2",
+            rebalance_freq="20d",
+        )
+
+        run_id = create_backtest_run(session, cfg)
+        run = session.get(BacktestRun, run_id)
+
+        assert run is not None
+        assert run.signal_id == "composite-v2"
+        assert run.params["weight_version"] == "v2.0.0"
+        assert run.params["weights"]["momentum_20d"] < 0
+        assert sum(abs(value) for value in run.params["weights"].values()) == (
+            pytest.approx(1.0)
+        )
+        with pytest.raises(ValueError, match="signal_id"):
+            BacktestConfig(
+                start_date=date(2026, 7, 1),
+                end_date=date(2026, 7, 2),
+                signal_id="future-model",
+            )
+    finally:
+        session.close()
+
+
 def test_one_execution_failure_rolls_back_day_and_later_rebalance_continues(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

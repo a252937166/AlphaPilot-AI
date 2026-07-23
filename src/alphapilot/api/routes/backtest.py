@@ -16,6 +16,7 @@ from alphapilot.backtest.engine import (
     run_backtest,
 )
 from alphapilot.backtest.report import generate_report
+from alphapilot.backtest.weights_rebuild import train_test_split
 from alphapilot.core.timeutil import iso_utc
 from alphapilot.data.provenance import AUDITED_DAILY_BAR_SOURCES
 from alphapilot.db.engine import get_session
@@ -39,8 +40,9 @@ class CostModelRequest(BaseModel):
 
 
 class BacktestRunRequest(BaseModel):
-    name: str = Field(default="composite-v1 基线回测", min_length=1, max_length=64)
-    signal_id: Literal["composite-v1"] = "composite-v1"
+    name: str | None = Field(default=None, min_length=1, max_length=64)
+    signal_id: Literal["composite-v1", "composite-v2"] = "composite-v1"
+    window: Literal["full", "train", "test"] | None = None
     start_date: date | None = None
     end_date: date | None = None
     rebalance_freq: Literal["5d", "10d", "20d"] = "5d"
@@ -115,12 +117,35 @@ def _available_range(session: Session) -> tuple[date, date]:
 
 
 def _request_config(
+    session: Session,
     body: BacktestRunRequest,
     available: tuple[date, date],
 ) -> BacktestConfig:
     available_start, available_end = available
-    start_date = body.start_date or available_start
-    end_date = body.end_date or available_end
+    if body.window is not None and (
+        body.start_date is not None or body.end_date is not None
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="window 与显式 start_date/end_date 不能同时使用。",
+        )
+    if body.window is None:
+        start_date = body.start_date or available_start
+        end_date = body.end_date or available_end
+    else:
+        try:
+            train_start, train_end, test_start, test_end = train_test_split(session)
+        except ValueError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=str(exc),
+            ) from exc
+        windows = {
+            "full": (train_start, test_end),
+            "train": (train_start, train_end),
+            "test": (test_start, test_end),
+        }
+        start_date, end_date = windows[body.window]
     if start_date < available_start or end_date > available_end:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
@@ -137,7 +162,7 @@ def _request_config(
     try:
         cost = CostModel(**body.cost_model.model_dump())
         return BacktestConfig(
-            name=body.name,
+            name=body.name or f"{body.signal_id} 回测",
             signal_id=body.signal_id,
             start_date=start_date,
             end_date=end_date,
@@ -186,7 +211,7 @@ def start_backtest(
             status_code=status.HTTP_409_CONFLICT,
             detail="已有回测正在运行；请等待完成后再启动新的全市场回测。",
         )
-    cfg = _request_config(body, _available_range(session))
+    cfg = _request_config(session, body, _available_range(session))
     run_id = create_backtest_run(session, cfg)
     background_tasks.add_task(_run_queued_backtest, run_id, cfg)
     queued = session.get(BacktestRun, run_id)

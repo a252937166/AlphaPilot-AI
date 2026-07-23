@@ -121,6 +121,46 @@ def test_post_run_queues_pollable_async_backtest(
     assert "已有回测正在运行" in duplicate.json()["detail"]
 
 
+def test_post_v2_test_window_uses_frozen_split_and_weights(
+    audited_range: None,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    del audited_range
+    monkeypatch.setattr(
+        backtest_routes,
+        "_run_queued_backtest",
+        lambda _run_id, _cfg: None,
+    )
+    test_start = END
+    test_end = END
+    monkeypatch.setattr(
+        backtest_routes,
+        "train_test_split",
+        lambda _session: (START, START, test_start, test_end),
+    )
+
+    response = client.post(
+        "/v1/backtest/run",
+        json={
+            "signal_id": "composite-v2",
+            "window": "test",
+            "rebalance_freq": "20d",
+        },
+    )
+
+    assert response.status_code == 202
+    run = response.json()["run"]
+    assert run["name"] == "composite-v2 回测"
+    assert run["signal_id"] == "composite-v2"
+    assert run["start_date"] == test_start.isoformat()
+    assert run["end_date"] == test_end.isoformat()
+    assert run["rebalance_freq"] == "20d"
+    assert run["params"]["weight_version"] == "v2.0.0"
+    assert sum(abs(value) for value in run["params"]["weights"].values()) == (
+        pytest.approx(1.0)
+    )
+
+
 def test_orphaned_background_run_expires_instead_of_blocking_queue(
     audited_range: None,
 ) -> None:
