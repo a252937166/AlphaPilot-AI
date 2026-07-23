@@ -48,6 +48,8 @@ def test_health() -> None:
     assert body["database"]["ok"] is True
     assert body["trading"]["order_submission_endpoint_exposed"] is True
     assert body["trading"]["unlock_trade_endpoint_exposed"] is False
+    assert body["trading"]["paper_auto_trading_enabled"] is False
+    assert body["trading"]["trading_mode"] == "research"
 
 
 def test_mock_screen_api_persists_run() -> None:

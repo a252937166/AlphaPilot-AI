@@ -15,6 +15,13 @@ os.environ["ALPHAPILOT_DATABASE_URL"] = f"sqlite:///{_tmpdir}/test.db"
 os.environ["ALPHAPILOT_DEFAULT_DATA_PROVIDER"] = "mock"
 os.environ["ALPHAPILOT_SCHEDULER_ENABLED"] = "false"
 os.environ["ALPHAPILOT_MARKET_POLL_ENABLED"] = "false"
+# Tests must never inherit any locally enabled paper or live execution switches.
+os.environ["ALPHAPILOT_FUTU_ENABLE_TRADE_QUERY"] = "false"
+os.environ["ALPHAPILOT_FUTU_ENABLE_TRADE"] = "false"
+os.environ["ALPHAPILOT_PAPER_TRADING_ENABLED"] = "false"
+os.environ["ALPHAPILOT_PAPER_AUTO_TRADING_ENABLED"] = "false"
+os.environ["ALPHAPILOT_TRADING_MODE"] = "research"
+os.environ["ALPHAPILOT_LIVE_TRADING_ENABLED"] = "false"
 # Unit and API tests must never inherit the developer's real local LLM credentials.
 os.environ["ALPHAPILOT_LLM_BASE_URL"] = ""
 os.environ["ALPHAPILOT_LLM_API_KEY"] = ""

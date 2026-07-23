@@ -23,6 +23,9 @@ class FutuTradeGateway:
         return {
             "futu_trade_enabled": self.settings.futu_enable_trade,
             "futu_trade_query_enabled": self.settings.futu_enable_trade_query,
+            "paper_trading_enabled": self.settings.paper_trading_enabled,
+            "paper_auto_trading_enabled": self.settings.paper_auto_trading_enabled,
+            "trading_mode": self.settings.trading_mode,
             "live_trading_enabled": self.settings.live_trading_enabled,
             "order_submission_endpoint_exposed": True,
             "unlock_trade_endpoint_exposed": False,

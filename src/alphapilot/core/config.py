@@ -56,6 +56,9 @@ class Settings(BaseSettings):
     trading_mode: str = "research"
     live_trading_enabled: bool = False
     paper_trading_enabled: bool = False
+    paper_auto_trading_enabled: bool = False
+    paper_auto_max_orders_per_day: int = Field(default=3, ge=1, le=20)
+    paper_auto_max_order_notional_pct: float = Field(default=0.02, gt=0, le=0.10)
     trading_halted: bool = False
     demo_equity: float = Field(default=1_000_000.0, gt=0)
     min_trade_confidence: float = 0.68

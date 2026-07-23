@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.4.1 - 2026-07-23
+
+- Corrected the acceptance-only decision that had stopped after one Futu paper
+  order. Added an opt-in `paper_auto_trade` job that refreshes audited watchlist
+  alerts at 09:35, 13:35 and 14:35 on CN trading days, creates `paper_auto`
+  proposals and submits eligible orders to Futu `SIMULATE`.
+- Kept automation fail-closed behind an explicit mode plus separate scheduler,
+  paper-trading, trade-query and trade-mutation gates. REAL must remain disabled;
+  Kill Switch, fresh market data, alert provenance, confidence, cash, position,
+  sector, open-order and broker-account checks still run before every order.
+- Bounded automatic activity to one attempt per symbol per day, at most three
+  submitted orders per day and 2% of current simulated equity per order. A
+  single run submits at most one order so broker fills and account state can
+  settle before the next scheduled decision.
+- Exposed automatic-paper status in `/health` and labelled automatic proposals
+  distinctly in the alert audit UI. Added offline coverage for scheduling,
+  duplicate prevention, stale quotes and SIMULATE-only broker mutation.
+
 ## 0.4.0 - 2026-07-23
 
 - Added the P3-M1 point-in-time backtest foundation: audited adjustment factors,
