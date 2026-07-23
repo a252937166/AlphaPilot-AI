@@ -798,6 +798,44 @@ class RuntimeFlag(Base):
     )
 
 
+class FactorICStat(Base):
+    """One auditable single-factor IC summary for a fixed sample window."""
+
+    __tablename__ = "factor_ic_stats"
+    __table_args__ = (
+        UniqueConstraint(
+            "factor",
+            "sample_tag",
+            "start_date",
+            "end_date",
+            name="uq_factor_ic_sample_window",
+        ),
+        CheckConstraint(
+            "sample_tag IN ('train', 'test', 'full')",
+            name="ck_factor_ic_sample_tag",
+        ),
+        CheckConstraint("n_periods >= 0", name="ck_factor_ic_n_periods"),
+        Index("ix_factor_ic_sample_window", "sample_tag", "start_date", "end_date"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    factor: Mapped[str] = mapped_column(String(32))
+    sample_tag: Mapped[str] = mapped_column(String(16))
+    start_date: Mapped[date] = mapped_column(Date)
+    end_date: Mapped[date] = mapped_column(Date)
+    ic_mean: Mapped[float | None] = mapped_column(Float, nullable=True)
+    ic_ir: Mapped[float | None] = mapped_column(Float, nullable=True)
+    t_stat: Mapped[float | None] = mapped_column(Float, nullable=True)
+    ic_positive_ratio: Mapped[float | None] = mapped_column(Float, nullable=True)
+    long_short: Mapped[float | None] = mapped_column(Float, nullable=True)
+    n_periods: Mapped[int] = mapped_column(Integer, default=0)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=utcnow,
+        onupdate=utcnow,
+    )
+
+
 class BacktestRun(Base):
     """One reproducible point-in-time backtest configuration and outcome."""
 

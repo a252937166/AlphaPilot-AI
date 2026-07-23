@@ -161,6 +161,45 @@ def _weight_mapping(
     return resolved
 
 
+def factor_zscores(session: Session, as_of: date) -> pd.DataFrame:
+    """Return strict PIT factor z-scores without imputing missing observations."""
+
+    universe = eligible_universe(session, as_of)
+    raw = compute_factors_for_date(session, as_of)
+    eligible_symbols = set(universe.get("symbol", pd.Series(dtype=str)).astype(str))
+    raw = raw.loc[raw.index.astype(str).isin(eligible_symbols)].copy()
+    factor_attrs = dict(raw.attrs)
+    if raw.empty:
+        raw.attrs = {
+            "as_of": as_of.isoformat(),
+            "has_survivorship_bias": True,
+            "survivorship_bias_warning": universe.attrs["survivorship_bias_warning"],
+            "st_history_warning": universe.attrs["st_history_warning"],
+            "eligible": len(universe),
+            "scored": 0,
+            "adjustment_factor_missing_rows": int(
+                factor_attrs.get("adjustment_factor_missing_rows", 0)
+            ),
+            "factor_attrs": factor_attrs,
+        }
+        return raw
+
+    standardized = zscore_cross_section(raw)
+    standardized.attrs = {
+        "as_of": as_of.isoformat(),
+        "has_survivorship_bias": True,
+        "survivorship_bias_warning": universe.attrs["survivorship_bias_warning"],
+        "st_history_warning": universe.attrs["st_history_warning"],
+        "eligible": len(universe),
+        "scored": len(standardized),
+        "adjustment_factor_missing_rows": int(
+            factor_attrs.get("adjustment_factor_missing_rows", 0)
+        ),
+        "factor_attrs": factor_attrs,
+    }
+    return standardized
+
+
 def signal_scores(
     session: Session,
     as_of: date,
@@ -168,42 +207,18 @@ def signal_scores(
 ) -> pd.Series:
     """Replay the composite signal using only inputs available by ``as_of``."""
 
-    universe = eligible_universe(session, as_of)
-    raw = compute_factors_for_date(session, as_of)
-    eligible_symbols = set(universe.get("symbol", pd.Series(dtype=str)).astype(str))
-    raw = raw.loc[raw.index.astype(str).isin(eligible_symbols)].copy()
-    if raw.empty:
+    standardized = factor_zscores(session, as_of)
+    if standardized.empty:
         result = pd.Series(dtype=float, name="score")
-        result.attrs = {
-            "as_of": as_of.isoformat(),
-            "has_survivorship_bias": True,
-            "survivorship_bias_warning": universe.attrs[
-                "survivorship_bias_warning"
-            ],
-            "st_history_warning": universe.attrs["st_history_warning"],
-            "eligible": len(universe),
-            "factor_attrs": dict(raw.attrs),
-        }
+        result.attrs = dict(standardized.attrs)
         return result
 
-    standardized = zscore_cross_section(raw)
     result = composite(standardized, _weight_mapping(weights))
     composite_attrs = dict(result.attrs)
-    factor_attrs = dict(raw.attrs)
     result.attrs = {
         **composite_attrs,
-        "as_of": as_of.isoformat(),
-        "has_survivorship_bias": True,
-        "survivorship_bias_warning": universe.attrs[
-            "survivorship_bias_warning"
-        ],
-        "st_history_warning": universe.attrs["st_history_warning"],
-        "eligible": len(universe),
+        **dict(standardized.attrs),
         "scored": len(result),
-        "adjustment_factor_missing_rows": int(
-            factor_attrs.get("adjustment_factor_missing_rows", 0)
-        ),
-        "factor_attrs": factor_attrs,
     }
     return result
 
