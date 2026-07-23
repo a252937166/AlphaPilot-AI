@@ -67,6 +67,14 @@ const selectedRow = computed(
 const strongestRows = computed(() => forecastRows.value.slice(0, 3))
 const overboughtRows = computed(() => overbought.value?.rows.slice(0, 3) ?? [])
 const reversalRows = computed(() => reversal.value?.rows.slice(0, 3) ?? [])
+const modelWinRate = computed(() => {
+  const values = forecastRows.value
+    .map((row) => finiteNumber(row.win_rate))
+    .filter((value): value is number => value !== null)
+  if (!values.length) return null
+  const first = values[0]
+  return values.every((value) => Math.abs(value - first) <= 1e-9) ? first : null
+})
 
 const maxFlowMagnitude = computed(() => {
   const values = forecastRows.value
@@ -465,7 +473,13 @@ onBeforeUnmount(() => {
               <strong>{{ horizon }}日板块预测排行</strong>
               <span>{{ forecast.count }} 个板块 · {{ forecast.model_version }}</span>
             </div>
-            <span class="as-of num">截面 {{ fmtDate(forecast.as_of) }}</span>
+            <div class="ranking-meta">
+              <span class="model-win-rate">
+                统一滚动胜率
+                <strong class="num">{{ fmtRatio(modelWinRate, 1) }}</strong>
+              </span>
+              <span class="as-of num">截面 {{ fmtDate(forecast.as_of) }}</span>
+            </div>
           </div>
 
           <div v-if="forecastRows.length" class="table-shell" tabindex="0" aria-label="板块预测排行榜，可横向滚动">
@@ -478,7 +492,6 @@ onBeforeUnmount(() => {
                   <th scope="col">热度 · 单日</th>
                   <th scope="col" class="r">资金流 5日</th>
                   <th scope="col">强度</th>
-                  <th scope="col" class="r">未来{{ horizon }}日胜率</th>
                   <th scope="col" class="r">预期超额</th>
                   <th scope="col">龙头股</th>
                 </tr>
@@ -527,7 +540,6 @@ onBeforeUnmount(() => {
                       <span class="score-bar" aria-hidden="true"><i :style="{ width: scoreWidth(row.score) }" /></span>
                     </div>
                   </td>
-                  <td class="r num">{{ fmtRatio(row.win_rate, 1) }}</td>
                   <td class="r num" :class="pctClass(row.expected_excess)">
                     {{ fmtPct(row.expected_excess, 2, false) }}
                   </td>
@@ -554,7 +566,7 @@ onBeforeUnmount(() => {
           <div v-else class="empty-hint">该周期没有可展示的预测行。</div>
 
           <footer class="data-footnote">
-            <span>胜率：过去滚动验证中进入 Top 20% 后跑赢截面中位数的比例</span>
+            <span>统一滚动胜率：过去验证中 Top 20% 组合跑赢截面中位数的比例；这是模型整体口径，不是分板块指标</span>
             <span v-if="forecast.flow_as_of">资金流截至 {{ fmtDate(forecast.flow_as_of) }}</span>
           </footer>
         </div>
@@ -998,6 +1010,27 @@ onBeforeUnmount(() => {
   font-weight: 400;
 }
 
+.ranking-meta {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  margin-left: auto;
+}
+
+.model-win-rate {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 5px;
+  color: var(--text-2);
+  font-size: 10.5px;
+  white-space: nowrap;
+}
+
+.model-win-rate strong {
+  color: var(--cyan);
+  font-size: 12px;
+}
+
 .table-shell {
   max-width: 100%;
   max-height: 506px;
@@ -1006,7 +1039,7 @@ onBeforeUnmount(() => {
 }
 
 .sector-table {
-  min-width: 980px;
+  min-width: 860px;
 }
 
 .sector-table th,

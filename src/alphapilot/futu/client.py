@@ -358,6 +358,25 @@ class FutuClient:
             ) from exc
         return futu
 
+    def _require_opend_tcp(self) -> None:
+        """Fail fast before the Futu SDK starts its own reconnect loop."""
+
+        if self._sdk_module_override is not None:
+            return
+        try:
+            with socket.create_connection(
+                (self.settings.futu_host, self.settings.futu_port),
+                timeout=0.35,
+            ):
+                return
+        except OSError as exc:
+            self.close()
+            raise FutuUnavailableError(
+                "无法连接 Futu OpenD"
+                f"（{self.settings.futu_host}:{self.settings.futu_port}），"
+                "请确认 OpenD 已启动。"
+            ) from exc
+
     def _ensure_quote_context(self) -> Any:
         if not self.settings.futu_enable_quote:
             raise FutuFeatureDisabledError("Futu quote access is disabled by configuration.")
@@ -435,6 +454,7 @@ class FutuClient:
         if max_queue_size < 1 or max_queue_size > 10_000:
             raise FutuCallValidationError("Event queue size must be between 1 and 10000.")
         with self._quote_lock:
+            self._require_opend_tcp()
             self._ensure_quote_context()
         event_queue: Queue[dict[str, Any]] = Queue(maxsize=max_queue_size)
         with self._event_lock:
@@ -598,6 +618,7 @@ class FutuClient:
         decoded_kwargs = {
             str(key): self._decode_value(item) for key, item in (kwargs or {}).items()
         }
+        self._require_opend_tcp()
         with self._quote_lock:
             context = self._ensure_quote_context()
             call_target = getattr(context, method, None)
@@ -632,6 +653,7 @@ class FutuClient:
             raise FutuCallValidationError(
                 f"Unknown Futu trade context {context_kind}; use security, future, or crypto."
             )
+        self._require_opend_tcp()
         futu = self._module()
         common_kwargs = {
             "host": self.settings.futu_host,

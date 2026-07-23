@@ -4,6 +4,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from alphapilot import __version__
 from alphapilot.api.routes import (
     alerts,
     dashboard,
@@ -56,10 +57,10 @@ register_builtin_jobs()
 settings = get_settings()
 app = FastAPI(
     title="AlphaPilot AI",
-    version="0.2.0",
+    version=__version__,
     description=(
-        "Probabilistic stock research and trading-assistance foundation. "
-        "Live order execution is disabled in the MVP."
+        "Probabilistic stock research, monitoring and SIMULATE-only "
+        "trading-assistance platform. Live order execution remains disabled."
     ),
     lifespan=lifespan,
 )

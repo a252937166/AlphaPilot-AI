@@ -10,6 +10,7 @@ from alphapilot.futu.client import (
     FutuClient,
     FutuFeatureDisabledError,
     FutuMethodNotAllowedError,
+    FutuUnavailableError,
 )
 
 
@@ -101,6 +102,10 @@ class FakeFutuModule:
     StockQuoteHandlerBase = FakeStockQuoteHandlerBase
 
 
+def refuse_tcp_connection(*_: Any, **__: Any) -> None:
+    raise ConnectionRefusedError("refused")
+
+
 def test_quote_call_serializes_dataframe_and_nan() -> None:
     client = FutuClient(Settings(), sdk_module=FakeFutuModule)
     result = client.quote_call("get_market_snapshot", args=[["HK.00700"]])
@@ -147,6 +152,23 @@ def test_internal_quote_method_is_not_exposed() -> None:
         client.quote_call("test_cmd", args=["help", {}])
 
 
+def test_quote_call_fails_fast_when_opend_tcp_is_unreachable(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client = FutuClient(Settings())
+    monkeypatch.setattr(client, "_module", lambda: FakeFutuModule)
+    monkeypatch.setattr(
+        "alphapilot.futu.client.socket.create_connection",
+        refuse_tcp_connection,
+    )
+    FakeQuoteContext.last_instance = None
+
+    with pytest.raises(FutuUnavailableError, match="无法连接 Futu OpenD"):
+        client.quote_call_raw("get_market_snapshot", args=[["HK.00700"]])
+
+    assert FakeQuoteContext.last_instance is None
+
+
 def test_account_mutation_is_disabled_by_default() -> None:
     client = FutuClient(Settings(), sdk_module=FakeFutuModule)
 
@@ -162,6 +184,23 @@ def test_trade_queries_are_a_separate_opt_in() -> None:
 
     with pytest.raises(FutuFeatureDisabledError):
         client.trade_call("security", "get_acc_list")
+
+
+def test_trade_query_fails_fast_when_opend_tcp_is_unreachable(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client = FutuClient(Settings(futu_enable_trade_query=True))
+    monkeypatch.setattr(client, "_module", lambda: FakeFutuModule)
+    monkeypatch.setattr(
+        "alphapilot.futu.client.socket.create_connection",
+        refuse_tcp_connection,
+    )
+    FakeTradeContext.last_instance = None
+
+    with pytest.raises(FutuUnavailableError, match="无法连接 Futu OpenD"):
+        client.trade_call("security", "get_acc_list")
+
+    assert FakeTradeContext.last_instance is None
 
 
 def test_simulated_order_can_run_only_after_trade_opt_in() -> None:

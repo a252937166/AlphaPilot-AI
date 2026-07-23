@@ -6,22 +6,21 @@
 
 ## 当前状态
 
-当前为 **v0.2 架构版**，在 Foundation 骨架上补齐了持久化、数据源故障转移、巨潮公告接入与完整多页面仪表盘：
+当前为 **v0.3 二期版**：
 
-- 统一市场数据 Provider 协议 + **auto 故障转移链**（日线 baostock→akshare→futu；快照 futu→akshare）；
-- Mock / AKShare / **BaoStock** / 富途四个数据源实现；
-- **巨潮资讯（深证信 WebAPI + 公开公告接口）**：公司档案与公告抓取入库（凭据仅存本地 `.env`）；
-- **SQLAlchemy 数据库层**（SQLite 开箱即用，可切 PostgreSQL）：证券主档、日线缓存、公告、自选/投资逻辑、预测快照、提醒、选股记录、交易提案、板块快照、复盘报告；
-- 富途 OpenD 全量行情/订阅桥接、证券/期货/加密交易查询及受控订单边界；
-- 透明基线预测 + 预测历史落库与 **1 日方向命中率评估**；
-- 自选追踪（信号/置信度/逻辑状态）与提醒持久化；
-- **板块强度引擎**（富途板块抽样 + 单次快照聚合）与样本市场宽度；
-- 大盘状态分类、每日自动复盘报告（可选 LLM 摘要，默认规则模板）；
-- 交易提案审计流水：风控校验 → 人工批准/拒绝（执行网关默认禁用）；
-- **Vue 3 多页面仪表盘**（vue-router + ECharts，按 `docs/AlphaPilot-AI-UI-16x9/` 设计稿实现 8 个页面）；
-- Docker、CI、测试（pytest 退出挂起已修复）、配置与项目路线文档。
+- 数据底座：全市场证券主档与日线、盘中分钟聚合、事件日历/事件总线、可审计调度、
+  断点续传和数据源熔断；
+- 引擎层：多因子、风格、板块预测与滚动胜率、五维评分、市场情绪、信号结果评估和
+  投资逻辑漂移；
+- 模拟交易：风险校验 → 提案 → 人工确认 → 富途 `SIMULATE` 订单 → 回填 → 组合快照/归因；
+- AI 能力：事件抽取、个股解读、大盘摘要润色和复盘建议；无 LLM 时自动使用规则、模板或
+  统计降级；
+- 产品界面：Vue 3 + ECharts 的 8 个真实产品页、通知中心、日期/来源/模型口径和中文降级；
+- 质量门：strict mypy、Ruff、540+ 离线 pytest 用例、前端类型检查与生产构建。
 
-**实盘交易默认硬禁用。** 当前代码不会在默认配置下提交真实订单。生产选股和交易前，必须完成 Point-in-Time 数据建设、滚动回测、概率校准、交易成本建模、券商授权和风险审批。
+**实盘交易保持硬禁用。** REAL 路径同时要求
+`futu_enable_trade + live_trading_enabled + confirmation="SUBMIT_REAL_ORDER"`，
+`unlock_trade` 永不通过 HTTP 暴露；默认配置不会提交真实订单。
 
 ## 产品原则
 
@@ -41,7 +40,8 @@ cp .env.example .env
 python -m venv .venv
 source .venv/bin/activate  # Windows: .venv\\Scripts\\activate
 pip install -e ".[dev]"
-uvicorn alphapilot.main:app --reload --host 127.0.0.1 --port 8000
+make api-start
+make api-status
 ```
 
 打开：
@@ -49,13 +49,9 @@ uvicorn alphapilot.main:app --reload --host 127.0.0.1 --port 8000
 - API 文档：`http://127.0.0.1:8000/docs`
 - 健康检查：`http://127.0.0.1:8000/health`
 
-离线选股示例：
-
-```bash
-curl -X POST http://127.0.0.1:8000/v1/screens/run \
-  -H 'Content-Type: application/json' \
-  -d '{"symbols":["600000","000001","000333","600519"],"top_n":3,"provider":"mock"}'
-```
+macOS 本地开发由 LaunchAgent `com.alphapilot.api` 设置 `KeepAlive=true`；改动后端后运行
+`make api-restart`。日志位置由 `make api-status` 输出。也可用 `make run` 启动前台开发进程，
+但不要和受管进程同时占用 8000 端口。
 
 ### 前端
 
@@ -66,6 +62,9 @@ npm run dev
 ```
 
 打开 `http://127.0.0.1:5173`。
+
+Apple Silicon 验收环境使用 arm64 Node 22；若本机有多套 Node，请先确认 `node -p process.arch`
+输出 `arm64`，再执行 `npm run build`。
 
 ### Docker Compose
 
@@ -125,29 +124,57 @@ ALPHAPILOT_FUTU_PORT=11111
 富途代码格式示例：`SH.600000`、`SZ.000001`、`HK.00700`、`US.AAPL`。
 完整接口、复杂参数和交易门禁见 [`docs/FUTU_INTEGRATION.md`](docs/FUTU_INTEGRATION.md)。
 
+## LLM 配置与降级
+
+LLM 客户端使用 provider-neutral 的 OpenAI-compatible HTTP 契约：
+
+```env
+ALPHAPILOT_LLM_BASE_URL=
+ALPHAPILOT_LLM_API_KEY=
+ALPHAPILOT_LLM_MODEL=qwen3.6-flash
+ALPHAPILOT_LLM_PURPOSE_MODELS={"stock_insight":"qwen3.7-plus"}
+```
+
+Qwen 是当前部署，但业务层不写死供应商名称；兼容相同 HTTP 契约的模型可以通过 URL、key 和
+模型名切换。当前请求为 Qwen 保留 `enable_thinking=false`。Claude CLI、Codex CLI 等进程式
+后端仍需要独立 transport adapter、沙箱、超时和审计设计，计划放在 P3，v0.3 不宣称已支持。
+
+没有 LLM 配置时，总览/解读/监测/复盘继续返回规则、模板或统计结果并标注 `source`；没有
+Futu/OpenD 时，缓存模块保留日期与来源，实时模块返回中文原因，不用随机数或昨日值冒充实时值。
+北向盘中数据因官方停发明确显示不可用；当前接口不提供跨日分时，5 日分时不做拼接伪造。
+
 ## API 概览
 
 | 方法 | 路径 | 作用 |
 |---|---|---|
 | GET | `/health` | 健康检查（DB、cninfo、Futu、交易开关） |
 | GET | `/v1/dashboard/overview` | 总览聚合：状态机+指数+板块+自选+提醒+AI摘要 |
-| POST | `/v1/screens/run` | 多股票自动评分和选股（结果落库） |
-| GET | `/v1/screens/latest` / `/universe` | 最近一次选股 / 默认股票池 |
-| GET | `/v1/stocks/{symbol}/forecast` | 单股 1/5/20 日概率预测 |
-| GET | `/v1/stocks/{symbol}/bars` | 日线（带 DB 缓存与来源标注） |
-| GET | `/v1/stocks/{symbol}/overview` | 报价+巨潮档案+预测+提醒+公告 |
-| GET/POST/DELETE | `/v1/watchlist` (+`/track`) | 自选 CRUD 与追踪增强视图 |
+| GET | `/v1/jobs/runs` | 调度任务运行、状态和 stats 审计 |
+| GET | `/v1/screens/latest`、`/diff`、`/style-exposure` | 最新选股、状态变化和风格暴露 |
+| POST | `/v1/screens/run` | 运行全市场/指定股票筛选并落库 |
+| GET | `/v1/factors/weights`、`/v1/style/daily` | 因子权重与每日风格分布 |
+| GET | `/v1/stocks/{symbol}/overview`、`/bars`、`/forecast` | 行情头、K 线和概率预测 |
+| GET | `/v1/stocks/{symbol}/score`、`/factors`、`/insight` | 五维评分、因子明细和 AI/规则解读 |
+| GET | `/v1/stocks/{symbol}/calendar`、`/signals` | 事件日历和可审计 B/S 信号 |
+| GET | `/v1/sectors/forecast`、`/lifecycle` | 多周期板块预测、整体滚动胜率和生命周期 |
+| GET | `/v1/sectors/overbought`、`/reversal`、`/{plate_code}/leaders` | 超买、反转和联动个股 |
+| GET | `/v1/market/intraday`、`/sentiment`、`/breadth-full` | 分时、情绪和全市场宽度 |
+| GET | `/v1/market/indices`、`/monitor-feed`、`/cross` | 指数、监测事实流和跨市场信号 |
+| GET/POST/DELETE | `/v1/watchlist`（含 `/track`、`/summary`） | 自选 CRUD、漂移追踪和汇总 |
 | GET/POST | `/v1/alerts` (+`/refresh`, `/{id}/acknowledge`) | 提醒查询/重算/确认 |
-| GET | `/v1/sectors/strength` | 板块抽样强度排名 |
-| GET | `/v1/market/regime` / `/indices` / `/breadth` | 大盘状态 / 指数 / 样本宽度 |
+| GET | `/v1/notifications`、`/unread-count` | 通知中心与未读数 |
+| POST | `/v1/notifications/read` | 标记通知已读 |
+| GET | `/v1/events` | 统一事件流 |
+| GET | `/v1/portfolio/account`、`/overview`、`/attribution` | 模拟账户、持仓和组合归因 |
+| GET | `/v1/trades/proposals`、`/v1/orders` | 提案与券商订单审计流水 |
+| POST | `/v1/trades/evaluate` | 只做风险预检，不创建提案 |
+| POST | `/v1/trades/proposals/{id}/execute` | 人工确认后的 SIMULATE 执行；REAL 仍受三重门禁 |
 | GET | `/v1/disclosures/{symbol}` (+`/sync`) | 巨潮公告查询与同步 |
-| GET/POST | `/v1/reports/daily` (+`/generate`) | 每日复盘报告 |
+| GET/POST | `/v1/reports/daily` (+`/generate`) | 日报、信号/组合归因和 `sector_call_excess` |
 | POST | `/v1/scenarios/run` | 运行本地多智能体情景模拟 |
-| POST | `/v1/trades/evaluate` / `/proposals` | 风控评估 / 提案审计流水与批准拒绝 |
 | GET | `/v1/futu/status` / `/capabilities` | OpenD 状态与能力目录 |
 | POST | `/v1/futu/quote/{method}` | 调用受审计的行情、筛选或订阅方法 |
 | POST | `/v1/futu/trade/{context}/{method}` | 调用受门禁保护的交易查询或变更方法 |
-| WS | `/v1/futu/stream` | 接收报价、K 线、逐笔、盘口和提醒等订阅推送 |
 
 ## 仓库结构
 
@@ -203,4 +230,7 @@ make futu-stop
 
 ## 下一步
 
-**二期开发详细设计已定稿：[`docs/PHASE2_DESIGN.md`](docs/PHASE2_DESIGN.md)**（对照 `docs/AlphaPilot-AI-UI-16x9/` 九张设计稿逐功能拆解：全市场数据底座、多因子/风格/板块预测/情绪引擎、Thesis 漂移、富途模拟交易闭环、LLM 事件抽取与解读、8 页前端二期，约 9 周四个里程碑）。长期任务池见 [`docs/BACKLOG.md`](docs/BACKLOG.md)。
+二期验收依据见 [`docs/PHASE2_DESIGN.md`](docs/PHASE2_DESIGN.md) 与
+[`docs/phase2/P2.4-S15_ACCEPTANCE_CHECKLIST.md`](docs/phase2/P2.4-S15_ACCEPTANCE_CHECKLIST.md)。
+P3 候选包括 PostgreSQL/TimescaleDB 迁移、多 transport LLM 适配器、完整身份边界、分板块独立
+胜率和性能/可访问性收口；长期任务池见 [`docs/BACKLOG.md`](docs/BACKLOG.md)。
