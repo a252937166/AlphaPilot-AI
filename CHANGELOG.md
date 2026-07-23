@@ -1,5 +1,37 @@
 # Changelog
 
+## 0.4.0 - 2026-07-23
+
+- Added the P3-M1 point-in-time backtest foundation: audited adjustment factors,
+  adjusted-price reconstruction, historical signal replay, A-share limit/T+1
+  execution constraints, full transaction costs and deterministic parameter
+  snapshots.
+- Audited and tightened the Phase 2 factor path at the 19:30 decision cutoff.
+  The static baseline is now `v1.1.0`; future financials, later same-day
+  snapshots, mock bars and cross-provider adjustment-factor splicing are
+  excluded.
+- Added walk-forward daily simulation, Rank IC/IC_IR, ten-layer returns,
+  performance/drawdown, turnover, cost, dual-benchmark and probability-
+  calibration diagnostics. Gross G10-G1 remains explicitly non-tradable and
+  uncosted because historical securities-lending data is unavailable.
+- Completed the first 301-trading-day `composite-v1` baseline. All five alpha
+  evidence gates failed: net long return was -19.40%, versus +20.56% for CSI 300
+  and +7.94% for the adjusted equal-weight market. The product reports this
+  negative finding without post-hoc tuning.
+- Added asynchronous backtest APIs and the ninth product page, “策略研究”,
+  with strict run configuration, global status polling, evidence gates,
+  strategy/benchmark and IC charts, layer returns, limitations and reproducible
+  run history. Desktop and responsive browser acceptance completed with zero
+  application console errors.
+- Verified 100% adjustment-factor coverage across 5,530 audited CN securities
+  and 1,637,490 audited daily-bar rows. The suite now contains 590 offline tests
+  plus strict mypy, Ruff and the production frontend build.
+- Kept backtesting isolated from proposals, orders and execution. REAL trading
+  remains disabled and `unlock_trade` remains unavailable over HTTP. The local
+  in-process backtest worker is not restart-resumable; orphaned runs fail
+  honestly after a one-hour lease, with a durable queue left to a later
+  infrastructure milestone.
+
 ## 0.3.0 - 2026-07-23
 
 - Added the Phase 2 data foundation: full-market security master and daily bars,

@@ -351,6 +351,18 @@ function updateRun(run: BacktestRunRecord) {
   else runs.value.unshift(run)
 }
 
+function strongestCompletedRun(items: BacktestRunRecord[]): BacktestRunRecord | null {
+  return items.reduce<BacktestRunRecord | null>((best, run) => {
+    if (run.status !== 'completed') return best
+    if (!best) return run
+    const tradingDays = Number(run.summary.trading_days ?? 0)
+    const bestTradingDays = Number(best.summary.trading_days ?? 0)
+    if (tradingDays > bestTradingDays) return run
+    if (tradingDays === bestTradingDays && run.id > best.id) return run
+    return best
+  }, null)
+}
+
 function clearPoll() {
   if (pollTimer !== undefined) {
     window.clearTimeout(pollTimer)
@@ -426,7 +438,7 @@ async function loadRuns() {
       ? response.runs.find((run) => run.id === selectedRun.value?.id)
       : null
     const preferred = current
-      ?? response.runs.find((run) => run.status === 'completed')
+      ?? strongestCompletedRun(response.runs)
       ?? response.runs[0]
     if (preferred) await selectRun(preferred.id)
   } catch (exc: unknown) {

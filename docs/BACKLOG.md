@@ -2,34 +2,36 @@
 
 ## P0 — Data integrity
 
-- [ ] Security master with exchange-normalized symbols.
+- [x] Security master with exchange-normalized symbols.
 - [ ] Trading calendar service.
 - [ ] Raw payload and content-hash storage.
-- [ ] Point-in-Time `available_time` model.
-- [ ] Corporate-action and adjustment-factor service.
+- [x] Financial Point-in-Time `available_time` cutoff at the actual decision time.
+- [x] Corporate-action and adjustment-factor service for the audited M1 universe.
 - [ ] Financial statement versioning and actual disclosure times.
 - [ ] Provider conflict quarantine.
 - [ ] Historical delisted-security coverage.
 
 ## P0 — Research and validation
 
-- [ ] Event-driven walk-forward backtester.
-- [ ] Transaction costs, slippage and limit-up/limit-down handling.
-- [ ] Factor library and neutralization.
-- [ ] Cross-sectional ranking baseline.
-- [ ] Calibration and Brier-score dashboard.
-- [ ] IC, turnover, drawdown and capacity metrics.
+- [x] Deterministic PIT walk-forward backtester for the static `composite-v1` signal.
+- [x] Transaction costs, slippage, T+1 and limit-up/limit-down handling.
+- [ ] Factor library neutralization and capacity-aware portfolio construction.
+- [x] Cross-sectional ranking baseline.
+- [x] Calibration/Brier infrastructure with an explicit unavailable state for non-probability signals.
+- [x] IC, IC_IR, layered returns, turnover and drawdown metrics.
+- [ ] Capacity metrics based on historical liquidity and market impact.
 - [ ] Market-regime stratified evaluation.
+- [ ] Pre-registered out-of-sample factor redesign or ML walk-forward after the failed M1 alpha gates.
 
 ## P1 — Product
 
-- [ ] Persistent watchlists and portfolios.
-- [ ] Investment-thesis object and version history.
-- [ ] Forecast drift triggers.
-- [ ] Sector prediction dashboard.
-- [ ] Market breadth and risk dashboard.
-- [ ] Pre-market and post-market reports.
-- [ ] Alert delivery and acknowledgment workflow.
+- [x] Persistent watchlists and portfolios.
+- [x] Investment-thesis object and version history.
+- [x] Forecast drift triggers.
+- [x] Sector prediction dashboard.
+- [x] Market breadth and risk dashboard.
+- [x] Pre-market and post-market reports.
+- [x] Alert delivery and acknowledgment workflow.
 
 ## P1 — AI and scenarios
 
@@ -42,10 +44,17 @@
 
 ## P2 — Trading
 
-- [ ] Account and position read-only sync.
-- [ ] Paper-order gateway.
-- [ ] Proposal approval and rejection UI.
-- [ ] Idempotent order state machine.
-- [ ] Order reconciliation and execution attribution.
-- [ ] Global kill switch and incident playbook.
+- [x] Account and position read-only sync.
+- [x] Paper-order gateway.
+- [x] Proposal approval and rejection UI.
+- [x] Idempotent order state machine.
+- [x] Order reconciliation and execution attribution.
+- [x] Global kill switch and incident playbook.
 - [ ] Limited live rollout only after governance approval.
+
+## P1 — Performance and infrastructure
+
+- [ ] Batch/cached PIT factor queries; the audited 301-day SQLite baseline currently takes about 38 minutes.
+- [ ] Durable, restart-resumable backtest queue with progress checkpoints and cancellation.
+- [ ] Route-level frontend code splitting; the production bundle still emits Vite's >500 kB warning.
+- [ ] PostgreSQL/TimescaleDB migration and concurrent-writer soak testing.
