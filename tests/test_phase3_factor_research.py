@@ -9,7 +9,12 @@ from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session
 
 from alphapilot.backtest import factor_research
-from alphapilot.backtest.factor_research import all_factors_ic, single_factor_ic
+from alphapilot.backtest.factor_research import (
+    all_factors_ic,
+    classify_factors,
+    factor_correlation,
+    single_factor_ic,
+)
 from alphapilot.db.models import (
     AdjFactor,
     Base,
@@ -177,3 +182,98 @@ def test_all_factors_reuses_each_pit_snapshot_and_upserts_full_stats(
         assert len(session.scalars(select(FactorICStat)).all()) == len(FACTOR_SET)
     finally:
         session.close()
+
+
+def test_factor_correlation_averages_fixed_decision_cross_sections(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    dates = [stamp.date() for stamp in pd.bdate_range("2026-01-01", periods=61)]
+    session = _session(tmp_path)
+    for trade_day in dates:
+        session.add(_bar("SH.000001", trade_day, 100.0))
+    session.commit()
+
+    calls: list[date] = []
+
+    def fake_scores(_session: Session, as_of: date) -> pd.DataFrame:
+        calls.append(as_of)
+        frame = pd.DataFrame(
+            index=["a", "b", "c", "d"],
+            columns=FACTOR_SET,
+            dtype=float,
+        )
+        frame["momentum_20d"] = [1.0, 2.0, 3.0, 4.0]
+        frame["momentum_60d"] = [2.0, 4.0, 6.0, 8.0]
+        frame["volatility_20d"] = [-1.0, -2.0, -3.0, -4.0]
+        frame["turnover_change_5d"] = [1.0, 4.0, 2.0, 3.0]
+        return frame
+
+    monkeypatch.setattr(factor_research, "factor_zscores", fake_scores)
+    try:
+        corr = factor_correlation(session, dates[0], dates[-1])
+
+        assert calls == [dates[0], dates[20], dates[40], dates[60]]
+        assert corr.at["momentum_20d", "momentum_60d"] == pytest.approx(1.0)
+        assert corr.at["momentum_20d", "volatility_20d"] == pytest.approx(-1.0)
+        assert pd.isna(corr.at["momentum_20d", "roe"])
+        assert corr.attrs["minimum_pair_periods"] == 3
+        assert any(
+            item["left"] == "momentum_20d"
+            and item["right"] == "momentum_60d"
+            for item in corr.attrs["redundant_pairs"]
+        )
+    finally:
+        session.close()
+
+
+def test_classify_factors_separates_significance_data_gaps_and_redundancy() -> None:
+    rows = [
+        {
+            "factor": factor,
+            "ic_mean": None,
+            "ic_ir": None,
+            "t_stat": None,
+            "n_periods": 0,
+        }
+        for factor in FACTOR_SET
+    ]
+    by_factor = {str(row["factor"]): row for row in rows}
+    by_factor["momentum_20d"].update(
+        ic_mean=0.10,
+        ic_ir=0.40,
+        t_stat=2.50,
+        n_periods=10,
+    )
+    by_factor["momentum_60d"].update(
+        ic_mean=-0.10,
+        ic_ir=-0.80,
+        t_stat=-3.00,
+        n_periods=10,
+    )
+    by_factor["volatility_20d"].update(
+        ic_mean=-0.02,
+        ic_ir=-0.10,
+        t_stat=-1.00,
+        n_periods=10,
+    )
+    corr = pd.DataFrame(
+        float("nan"),
+        index=FACTOR_SET,
+        columns=FACTOR_SET,
+    )
+    for factor in FACTOR_SET:
+        corr.at[factor, factor] = 1.0
+    corr.at["momentum_20d", "momentum_60d"] = 0.90
+    corr.at["momentum_60d", "momentum_20d"] = 0.90
+
+    diagnosis = classify_factors(pd.DataFrame(rows), corr)
+    factors = diagnosis["factors"]
+
+    assert factors["momentum_20d"]["classification"] == "significant_positive"
+    assert factors["momentum_60d"]["classification"] == "significant_reverse"
+    assert factors["volatility_20d"]["classification"] == "ineffective"
+    assert factors["roe"]["classification"] == "insufficient_data"
+    assert factors["momentum_20d"]["redundant"] is True
+    assert factors["momentum_20d"]["retained_factor"] == "momentum_60d"
+    assert factors["momentum_60d"]["redundant"] is False

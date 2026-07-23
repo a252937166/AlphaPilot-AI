@@ -5,6 +5,7 @@ from collections.abc import Iterable
 from datetime import date
 from typing import Any, Literal
 
+import numpy as np
 import pandas as pd
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -251,3 +252,216 @@ def all_factors_ic(
         end=end,
     )
     return table
+
+
+def factor_correlation(
+    session: Session,
+    start: date,
+    end: date,
+) -> pd.DataFrame:
+    """Average cross-sectional factor correlations over fixed 20-day decisions."""
+
+    calendar = _calendar(session, start, end)
+    decision_dates = calendar[::_REBALANCE_DAYS["20d"]]
+    factor_count = len(FACTOR_SET)
+    correlation_sum = np.zeros((factor_count, factor_count), dtype=float)
+    period_counts = np.zeros((factor_count, factor_count), dtype=int)
+
+    for decision_date in decision_dates:
+        frame = factor_zscores(session, decision_date).reindex(columns=FACTOR_SET)
+        if frame.empty:
+            continue
+        daily = frame.corr(method="pearson", min_periods=3).reindex(
+            index=FACTOR_SET,
+            columns=FACTOR_SET,
+        )
+        values = daily.to_numpy(dtype=float)
+        finite = np.isfinite(values)
+        correlation_sum[finite] += values[finite]
+        period_counts[finite] += 1
+
+    averages = np.full((factor_count, factor_count), np.nan, dtype=float)
+    reliable = period_counts >= 3
+    np.divide(
+        correlation_sum,
+        period_counts,
+        out=averages,
+        where=reliable,
+    )
+    result = pd.DataFrame(
+        averages,
+        index=FACTOR_SET,
+        columns=FACTOR_SET,
+        dtype=float,
+    )
+    count_table = pd.DataFrame(
+        period_counts,
+        index=FACTOR_SET,
+        columns=FACTOR_SET,
+        dtype=int,
+    )
+    redundant_pairs: list[dict[str, float | int | str]] = []
+    for left_index, left in enumerate(FACTOR_SET):
+        for right in FACTOR_SET[left_index + 1 :]:
+            value = _finite_or_none(result.at[left, right])
+            if value is not None and abs(value) > 0.8:
+                redundant_pairs.append(
+                    {
+                        "left": left,
+                        "right": right,
+                        "correlation": value,
+                        "n_periods": int(str(count_table.at[left, right])),
+                    }
+                )
+    result.attrs = {
+        "method": "mean_cross_sectional_pearson",
+        "rebalance": "20d",
+        "decision_dates": [value.isoformat() for value in decision_dates],
+        "minimum_pair_periods": 3,
+        "pair_periods": count_table.to_dict(),
+        "redundant_pairs": redundant_pairs,
+    }
+    return result
+
+
+def _redundancy_components(
+    pairs: list[tuple[str, str]],
+) -> list[set[str]]:
+    components: list[set[str]] = []
+    for left, right in pairs:
+        matches = [
+            component
+            for component in components
+            if left in component or right in component
+        ]
+        if not matches:
+            components.append({left, right})
+            continue
+        merged = {left, right}
+        for component in matches:
+            merged.update(component)
+            components.remove(component)
+        components.append(merged)
+    return components
+
+
+def classify_factors(ic_table: pd.DataFrame, corr: pd.DataFrame) -> dict[str, Any]:
+    """Classify evidence and resolve reliable |corr| > 0.8 redundancy groups."""
+
+    required = {
+        "factor",
+        "ic_mean",
+        "ic_ir",
+        "t_stat",
+        "n_periods",
+    }
+    missing = sorted(required.difference(ic_table.columns))
+    if missing:
+        raise ValueError(f"ic_table missing columns: {missing}")
+    rows = {
+        str(row["factor"]): row
+        for row in ic_table.to_dict(orient="records")
+    }
+
+    factors: dict[str, dict[str, Any]] = {}
+    for factor in FACTOR_SET:
+        row = rows.get(factor, {})
+        ic_mean = _finite_or_none(row.get("ic_mean"))
+        ic_ir = _finite_or_none(row.get("ic_ir"))
+        t_stat = _finite_or_none(row.get("t_stat"))
+        raw_periods = row.get("n_periods")
+        n_periods = (
+            int(raw_periods)
+            if isinstance(raw_periods, (int, float)) and math.isfinite(raw_periods)
+            else 0
+        )
+        if ic_mean is None or t_stat is None or n_periods < 2:
+            classification = "insufficient_data"
+            recommendation = "补齐历史 PIT 输入；当前权重置零，不翻转。"
+        elif abs(t_stat) < 2:
+            classification = "ineffective"
+            recommendation = "弱证据；由 train IC_IR 自然降权，不人工挑选。"
+        elif ic_mean > 0:
+            classification = "significant_positive"
+            recommendation = "保留正向定义，仍只允许 train IC_IR 定权。"
+        else:
+            classification = "significant_reverse"
+            recommendation = "先完成源码方向审计；确认无 bug 后才允许负权。"
+        direction = (
+            "positive"
+            if ic_mean is not None and ic_mean > 0
+            else "negative"
+            if ic_mean is not None and ic_mean < 0
+            else "unknown"
+        )
+        factors[factor] = {
+            "classification": classification,
+            "direction": direction,
+            "ic_mean": ic_mean,
+            "ic_ir": ic_ir,
+            "t_stat": t_stat,
+            "n_periods": n_periods,
+            "direction_audit_required": direction == "negative",
+            "recommendation": recommendation,
+            "economic_note": (
+                "负向结果须在报告中记录公式、预期方向与 bug 判断。"
+                if direction == "negative"
+                else "无负向符号审计要求。"
+            ),
+            "redundant": False,
+            "retained_factor": None,
+        }
+
+    normalized_corr = corr.reindex(index=FACTOR_SET, columns=FACTOR_SET)
+    redundant_pairs: list[dict[str, float | str]] = []
+    graph_edges: list[tuple[str, str]] = []
+    for left_index, left in enumerate(FACTOR_SET):
+        for right in FACTOR_SET[left_index + 1 :]:
+            value = _finite_or_none(normalized_corr.at[left, right])
+            if value is None or abs(value) <= 0.8:
+                continue
+            redundant_pairs.append(
+                {
+                    "left": left,
+                    "right": right,
+                    "correlation": value,
+                }
+            )
+            graph_edges.append((left, right))
+
+    redundancy_groups: list[dict[str, Any]] = []
+    for component in _redundancy_components(graph_edges):
+        ordered = sorted(component)
+        candidates = [
+            factor
+            for factor in ordered
+            if factors[factor]["ic_ir"] is not None
+        ]
+        retained = (
+            max(
+                candidates,
+                key=lambda factor: (
+                    abs(float(factors[factor]["ic_ir"])),
+                    -FACTOR_SET.index(factor),
+                ),
+            )
+            if candidates
+            else None
+        )
+        for factor in ordered:
+            factors[factor]["retained_factor"] = retained
+            factors[factor]["redundant"] = retained is not None and factor != retained
+        redundancy_groups.append(
+            {
+                "factors": ordered,
+                "retained_factor": retained,
+                "rule": "max_abs_train_or_sample_ic_ir",
+            }
+        )
+
+    return {
+        "factors": factors,
+        "redundant_pairs": redundant_pairs,
+        "redundancy_groups": redundancy_groups,
+        "threshold": 0.8,
+    }
