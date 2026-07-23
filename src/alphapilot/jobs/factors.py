@@ -13,6 +13,7 @@ from sqlalchemy import delete, func, insert, select
 from sqlalchemy.orm import Session
 
 from alphapilot.core.config import get_settings
+from alphapilot.data.provenance import AUDITED_DAILY_BAR_SOURCES
 from alphapilot.db.engine import get_session
 from alphapilot.db.models import (
     CompositeScore,
@@ -64,7 +65,12 @@ def _finite_or_none(value: object) -> float | None:
 def _market_coverage(session: Session, trade_date: date | None = None) -> dict[str, Any]:
     universe = int(
         session.scalar(
-            select(func.count()).select_from(Security).where(Security.list_status == "listed")
+            select(func.count())
+            .select_from(Security)
+            .where(
+                Security.market == "CN",
+                Security.list_status == "listed",
+            )
         )
         or 0
     )
@@ -74,7 +80,11 @@ def _market_coverage(session: Session, trade_date: date | None = None) -> dict[s
             select(func.max(DailyBar.trade_date))
             .select_from(DailyBar)
             .join(Security, Security.symbol == DailyBar.symbol)
-            .where(Security.list_status == "listed")
+            .where(
+                Security.market == "CN",
+                Security.list_status == "listed",
+                DailyBar.source.in_(AUDITED_DAILY_BAR_SOURCES),
+            )
         )
     if not isinstance(target, date):
         return {
@@ -90,8 +100,9 @@ def _market_coverage(session: Session, trade_date: date | None = None) -> dict[s
             .join(Security, Security.symbol == DailyBar.symbol)
             .where(
                 DailyBar.trade_date == target,
+                DailyBar.source.in_(AUDITED_DAILY_BAR_SOURCES),
+                Security.market == "CN",
                 Security.list_status == "listed",
-                Security.is_st.is_(False),
                 DailyBar.close > 0,
                 DailyBar.volume > 0,
                 DailyBar.amount > 0,
@@ -114,6 +125,19 @@ def _daily_bars_running(session: Session) -> bool:
             .select_from(JobRun)
             .where(
                 JobRun.job_name == "sync_daily_bars",
+                JobRun.status == "running",
+            )
+        )
+    )
+
+
+def _adjustment_factors_running(session: Session) -> bool:
+    return bool(
+        session.scalar(
+            select(func.count())
+            .select_from(JobRun)
+            .where(
+                JobRun.job_name == "sync_adj_factors",
                 JobRun.status == "running",
             )
         )
@@ -266,6 +290,11 @@ def compute_factors(trade_date: date | None = None) -> dict[str, Any]:
             raise JobExecutionError(
                 "日线同步任务仍在运行，因子计算已延后。",
                 stats={**readiness, "reason": "daily_bars_running"},
+            )
+        if _adjustment_factors_running(session):
+            raise JobExecutionError(
+                "复权因子同步任务仍在运行，因子计算已延后。",
+                stats={**readiness, "reason": "adjustment_factors_running"},
             )
         market_today = _market_today()
         if (

@@ -114,7 +114,7 @@ def _seed_job_universe(session: Session, trade_date: date) -> None:
                 close=close,
                 volume=100.0,
                 amount=close * 100.0,
-                source="test",
+                source="baostock",
             )
         )
 
