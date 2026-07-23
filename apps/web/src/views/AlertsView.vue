@@ -192,6 +192,12 @@ function clockLabel(value: string): string {
   return time ? time.split(':').slice(0, 2).join(':') : '—'
 }
 
+function proposalModeLabel(mode: string): string {
+  if (mode === 'paper_auto') return '模拟自动'
+  if (mode === 'confirm_to_trade') return '人工确认'
+  return mode
+}
+
 function proposalPreconditions(alert: AlertItem, overview: StockOverviewResponse): string[] {
   const reasons: string[] = []
   const side = proposalSide(alert.action)
@@ -841,7 +847,7 @@ onMounted(load)
                 </td>
                 <td class="r num">{{ fmtNum(proposal.quantity, 0) }}</td>
                 <td class="r num">¥{{ fmtNum(proposal.estimated_notional, 0) }}</td>
-                <td class="xs dim">{{ proposal.mode === 'confirm_to_trade' ? '人工确认' : proposal.mode }}</td>
+                <td class="xs dim">{{ proposalModeLabel(proposal.mode) }}</td>
                 <td>
                   <span class="badge" :class="proposalStatus(proposal.status).cls">
                     {{ proposalStatus(proposal.status).label }}

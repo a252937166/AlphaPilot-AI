@@ -6,13 +6,14 @@
 
 ## 当前状态
 
-当前为 **v0.4 P3-M1 严格回测版**：
+当前为 **v0.4.1 P3-M1 严格回测 + 受控模拟自动交易版**：
 
 - 数据底座：全市场证券主档与日线、盘中分钟聚合、事件日历/事件总线、可审计调度、
   断点续传、数据源熔断，以及覆盖全部审计日线的复权因子；
 - 引擎层：多因子、风格、板块预测与滚动胜率、五维评分、市场情绪、信号结果评估和
   投资逻辑漂移；
-- 模拟交易：风险校验 → 提案 → 人工确认 → 富途 `SIMULATE` 订单 → 回填 → 组合快照/归因；
+- 模拟交易：可审计提醒 → 风控提案 → 人工确认或受控 `paper_auto` → 富途 `SIMULATE`
+  订单 → 回填 → 组合快照/归因；
 - AI 能力：事件抽取、个股解读、大盘摘要润色和复盘建议；无 LLM 时自动使用规则、模板或
   统计降级；
 - 严格回测：PIT 数据截断、T 日决策/T+1 开盘成交、涨跌停/停牌/T+1 约束、全成本、
@@ -20,7 +21,7 @@
 - 首次结论：`composite-v1` 在 261 个有效交易日内五项 Alpha 证据门全部失败；扣成本多头
   累计 `-19.40%`，同期沪深300 `+20.56%`、等权市场 `+7.94%`。未做事后调参；
 - 产品界面：Vue 3 + ECharts 的 9 个真实产品页、通知中心、日期/来源/模型口径和中文降级；
-- 质量门：strict mypy、Ruff、590 项离线 pytest、前端类型检查与生产构建。
+- 质量门：strict mypy、Ruff、597 项离线 pytest、前端类型检查与生产构建。
 
 **实盘交易保持硬禁用。** REAL 路径同时要求
 `futu_enable_trade + live_trading_enabled + confirmation="SUBMIT_REAL_ORDER"`，
@@ -138,6 +139,31 @@ ALPHAPILOT_FUTU_PORT=11111
 富途代码格式示例：`SH.600000`、`SZ.000001`、`HK.00700`、`US.AAPL`。
 完整接口、复杂参数和交易门禁见 [`docs/FUTU_INTEGRATION.md`](docs/FUTU_INTEGRATION.md)。
 
+### 受控模拟自动交易
+
+默认仍关闭。启用时必须同时满足以下本地配置：
+
+```env
+ALPHAPILOT_SCHEDULER_ENABLED=true
+ALPHAPILOT_FUTU_ENABLE_TRADE_QUERY=true
+ALPHAPILOT_FUTU_ENABLE_TRADE=true
+ALPHAPILOT_PAPER_TRADING_ENABLED=true
+ALPHAPILOT_TRADING_MODE=paper_auto
+ALPHAPILOT_PAPER_AUTO_TRADING_ENABLED=true
+ALPHAPILOT_PAPER_AUTO_MAX_ORDERS_PER_DAY=3
+ALPHAPILOT_PAPER_AUTO_MAX_ORDER_NOTIONAL_PCT=0.02
+ALPHAPILOT_LIVE_TRADING_ENABLED=false
+```
+
+`paper_auto_trade` 在 A 股交易日 09:35、13:35、14:35 重算自选提醒，并且只处理最新、
+未过期、来源可审计、置信度达标且目标区间与实时价格同量级的方向性信号。同标的一天最多一次，
+单次任务最多提交一单，每日最多三单；每次下单前重新读取富途实时价格、模拟账户、持仓和未完成
+委托，并重新执行全部风控。盘外、节假日、陈旧行情、Kill Switch 或任一门禁不满足时只记录
+JobRun，不提交订单。
+
+该模式用于持续验证模拟策略，不代表已获得可交易 Alpha。P3-M1 首次严格回测结论仍为负面；
+REAL 路径和 `unlock_trade` 安全边界没有因模拟自动化而放宽。
+
 ## LLM 配置与降级
 
 LLM 客户端使用 provider-neutral 的 OpenAI-compatible HTTP 契约：
@@ -182,7 +208,7 @@ Futu/OpenD 时，缓存模块保留日期与来源，实时模块返回中文原
 | GET | `/v1/portfolio/account`、`/overview`、`/attribution` | 模拟账户、持仓和组合归因 |
 | GET | `/v1/trades/proposals`、`/v1/orders` | 提案与券商订单审计流水 |
 | POST | `/v1/trades/evaluate` | 只做风险预检，不创建提案 |
-| POST | `/v1/trades/proposals/{id}/execute` | 人工确认后的 SIMULATE 执行；REAL 仍受三重门禁 |
+| POST | `/v1/trades/proposals/{id}/execute` | 人工确认或调度器批准后的 SIMULATE 执行；REAL 仍受三重门禁 |
 | GET | `/v1/disclosures/{symbol}` (+`/sync`) | 巨潮公告查询与同步 |
 | GET/POST | `/v1/reports/daily` (+`/generate`) | 日报、信号/组合归因和 `sector_call_excess` |
 | POST | `/v1/backtest/run` | 创建只读 PIT 回测；异步执行并返回可轮询 run |

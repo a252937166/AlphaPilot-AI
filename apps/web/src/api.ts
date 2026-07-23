@@ -512,7 +512,7 @@ export interface TradeProposalInput {
   confidence: number
   market_data_as_of: string
   model_version: string
-  mode: 'confirm_to_trade'
+  mode: 'confirm_to_trade' | 'paper_auto'
   source_alert_id?: number | null
   metadata?: Record<string, unknown>
 }

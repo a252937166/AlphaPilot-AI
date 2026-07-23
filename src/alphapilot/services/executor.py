@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 from collections.abc import Iterator, Mapping
 from contextlib import contextmanager
+from datetime import datetime
 from decimal import ROUND_CEILING, ROUND_FLOOR, Decimal
 from math import floor, isclose, isfinite
 from threading import RLock
@@ -371,6 +372,8 @@ def execute_proposal(
     session: Session,
     client: FutuClient,
     record: TradeProposalRecord,
+    *,
+    now: datetime | None = None,
 ) -> BrokerOrder:
     """Submit one guarded A-share order to Futu's SIMULATE environment only."""
 
@@ -416,7 +419,11 @@ def execute_proposal(
             validate_trade_alert_source(session, execution_proposal)
         except AlertSourceError as exc:
             raise ExecutionConflict(f"执行前来源提醒校验未通过：{exc}") from exc
-        decision = TradeGuardrails(settings).evaluate(execution_proposal, portfolio)
+        decision = TradeGuardrails(settings).evaluate(
+            execution_proposal,
+            portfolio,
+            now=now,
+        )
         # Re-read after slow market/account queries so a newly committed halt is
         # observed before any local reservation or broker mutation.
         _require_switches(session, settings)
