@@ -13,12 +13,14 @@ from alphapilot.backtest.factor_research import (
     all_factors_ic,
     classify_factors,
     factor_correlation,
+    persist_factor_correlation,
     single_factor_ic,
 )
 from alphapilot.db.models import (
     AdjFactor,
     Base,
     DailyBar,
+    FactorCorrelationStat,
     FactorICStat,
     FinancialIndicator,
     Security,
@@ -219,10 +221,55 @@ def test_factor_correlation_averages_fixed_decision_cross_sections(
         assert pd.isna(corr.at["momentum_20d", "roe"])
         assert corr.attrs["minimum_pair_periods"] == 3
         assert any(
-            item["left"] == "momentum_20d"
-            and item["right"] == "momentum_60d"
+            item["left"] == "momentum_20d" and item["right"] == "momentum_60d"
             for item in corr.attrs["redundant_pairs"]
         )
+    finally:
+        session.close()
+
+
+def test_factor_correlation_snapshot_replaces_reliable_cells(
+    tmp_path: Path,
+) -> None:
+    session = _session(tmp_path)
+    corr = pd.DataFrame(
+        float("nan"),
+        index=FACTOR_SET,
+        columns=FACTOR_SET,
+    )
+    corr.at["momentum_20d", "momentum_20d"] = 1.0
+    corr.at["momentum_20d", "momentum_60d"] = 0.5
+    corr.at["momentum_60d", "momentum_20d"] = 0.5
+    corr.attrs["pair_periods"] = {
+        factor: {other: 0 for other in FACTOR_SET} for factor in FACTOR_SET
+    }
+    corr.attrs["pair_periods"]["momentum_20d"]["momentum_20d"] = 5
+    corr.attrs["pair_periods"]["momentum_60d"]["momentum_20d"] = 5
+    try:
+        stored = persist_factor_correlation(
+            session,
+            corr,
+            sample_tag="full",
+            start=date(2025, 1, 1),
+            end=date(2025, 12, 31),
+        )
+        session.commit()
+
+        assert stored == 2
+        rows = list(session.scalars(select(FactorCorrelationStat)))
+        assert len(rows) == 2
+        assert {row.n_periods for row in rows} == {5}
+
+        corr.at["momentum_20d", "momentum_60d"] = float("nan")
+        persist_factor_correlation(
+            session,
+            corr,
+            sample_tag="full",
+            start=date(2025, 1, 1),
+            end=date(2025, 12, 31),
+        )
+        session.commit()
+        assert len(session.scalars(select(FactorCorrelationStat)).all()) == 1
     finally:
         session.close()
 

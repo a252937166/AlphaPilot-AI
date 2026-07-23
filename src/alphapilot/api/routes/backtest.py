@@ -10,6 +10,11 @@ from sqlalchemy.orm import Session
 
 from alphapilot.api.dependencies import db_session_dependency
 from alphapilot.backtest.costs import CostModel
+from alphapilot.backtest.diagnosis import (
+    compare_backtests,
+    factor_diagnosis_report,
+    factor_ic_report,
+)
 from alphapilot.backtest.engine import (
     BacktestConfig,
     create_backtest_run,
@@ -83,10 +88,7 @@ def _expire_stale_runs(session: Session) -> int:
     )
     for run in stale:
         run.status = "failed"
-        run.error = (
-            "异步回测超过 1 小时未结束，已判定任务失联；"
-            "API 进程可能在运行期间重启。"
-        )
+        run.error = "异步回测超过 1 小时未结束，已判定任务失联；API 进程可能在运行期间重启。"
         run.summary = {
             "failure_stage": "background_lease",
             "error": run.error,
@@ -122,9 +124,7 @@ def _request_config(
     available: tuple[date, date],
 ) -> BacktestConfig:
     available_start, available_end = available
-    if body.window is not None and (
-        body.start_date is not None or body.end_date is not None
-    ):
+    if body.window is not None and (body.start_date is not None or body.end_date is not None):
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="window 与显式 start_date/end_date 不能同时使用。",
@@ -202,9 +202,7 @@ def start_backtest(
 ) -> dict[str, Any]:
     _expire_stale_runs(session)
     running = session.scalar(
-        select(func.count())
-        .select_from(BacktestRun)
-        .where(BacktestRun.status == "running")
+        select(func.count()).select_from(BacktestRun).where(BacktestRun.status == "running")
     )
     if running:
         raise HTTPException(
@@ -237,6 +235,34 @@ def list_backtests(
         )
     )
     return {"runs": [_serialize_run(row) for row in rows]}
+
+
+@router.get("/factors/ic")
+def get_factor_ic(
+    sample_tag: Literal["train", "test", "full"] = Query(default="full"),
+    session: Session = Depends(db_session_dependency),
+) -> dict[str, Any]:
+    return factor_ic_report(session, sample_tag)
+
+
+@router.get("/factors/diagnosis")
+def get_factor_diagnosis(
+    sample_tag: Literal["train", "test", "full"] = Query(default="full"),
+    session: Session = Depends(db_session_dependency),
+) -> dict[str, Any]:
+    return factor_diagnosis_report(session, sample_tag)
+
+
+@router.get("/compare")
+def get_backtest_comparison(
+    v1_id: int = Query(alias="v1", ge=1),
+    v2_id: int = Query(alias="v2", ge=1),
+    session: Session = Depends(db_session_dependency),
+) -> dict[str, Any]:
+    try:
+        return compare_backtests(session, v1_id, v2_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
 
 
 def _run_or_404(session: Session, run_id: int) -> BacktestRun:

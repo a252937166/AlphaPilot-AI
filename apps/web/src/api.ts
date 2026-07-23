@@ -1019,7 +1019,8 @@ export interface BacktestCostModel {
 
 export interface BacktestRunRequest {
   name?: string
-  signal_id: 'composite-v1'
+  signal_id: 'composite-v1' | 'composite-v2'
+  window?: 'full' | 'train' | 'test' | null
   start_date?: string | null
   end_date?: string | null
   rebalance_freq: '5d' | '10d' | '20d'
@@ -1183,6 +1184,168 @@ export interface BacktestReportResponse {
   limitations: BacktestLimitation[]
 }
 
+export type FactorClassification =
+  | 'significant_positive'
+  | 'significant_reverse'
+  | 'ineffective'
+  | 'insufficient_data'
+
+export interface FactorDirectionAudit {
+  formula: string
+  raw_direction: string
+  verdict: string
+  bug_found: boolean
+}
+
+export interface FactorDiagnosisItem {
+  factor: string
+  ic_mean: number | null
+  ic_ir: number | null
+  t_stat: number | null
+  ic_positive_ratio: number | null
+  long_short: number | null
+  n_periods: number
+  classification: FactorClassification
+  direction: 'positive' | 'negative' | 'unknown'
+  direction_audit_required: boolean
+  recommendation: string
+  economic_note: string
+  redundant: boolean
+  retained_factor: string | null
+  direction_audit: FactorDirectionAudit
+}
+
+export interface FactorICResponse {
+  available: boolean
+  sample_tag: 'train' | 'test' | 'full'
+  start_date: string | null
+  end_date: string | null
+  factor_count: number
+  available_count: number
+  factors: Array<{
+    factor: string
+    ic_mean: number | null
+    ic_ir: number | null
+    t_stat: number | null
+    ic_positive_ratio: number | null
+    long_short: number | null
+    n_periods: number
+  }>
+  limitations: string[]
+}
+
+export interface FactorDiagnosisResponse {
+  available: boolean
+  sample: {
+    tag: 'train' | 'test' | 'full'
+    start_date: string | null
+    end_date: string | null
+    factor_count: number
+    available_count: number
+    evidence_label: string
+  }
+  factors: FactorDiagnosisItem[]
+  classification_counts: Record<FactorClassification, number>
+  correlation: {
+    available: boolean
+    method: string
+    minimum_pair_periods: number
+    threshold: number
+    factors: string[]
+    values: Array<Array<number | null>>
+    n_periods: number[][]
+    available_cells: number
+    redundant_pairs: Array<{
+      left: string
+      right: string
+      correlation: number
+      n_periods: number
+    }>
+    limitation: string
+  }
+  redundancy_groups: Array<{
+    factors: string[]
+    retained_factor: string | null
+    rule: string
+  }>
+  weights: {
+    factors: string[]
+    v1: {
+      version: string
+      profile: string
+      weights: Record<string, number>
+    }
+    v2: {
+      version: string
+      profile: string
+      weights: Record<string, number>
+    }
+    delta: Record<string, number>
+    method: string
+    test_window_used_for_weights: boolean
+  }
+  source_audit: {
+    factor_source: string
+    audited_factor_count: number
+    calculation_bug_found: boolean
+    verdict: string
+  }
+  conclusion: {
+    status: string
+    headline: string
+    policy: string
+  }
+  limitations: string[]
+}
+
+export interface BacktestComparisonResponse {
+  protocol: {
+    start_date: string
+    end_date: string
+    rebalance_freq: string
+    top_pct: number
+    same_window_and_costs: boolean
+    weights_frozen_before_test: boolean
+  }
+  v1: {
+    run_id: number
+    signal_id: 'composite-v1'
+    rank_ic: BacktestReportResponse['rank_ic']
+    net_long: BacktestMetricSet
+    long_short_gross: BacktestReportResponse['long_short_gross_diagnostic']
+    benchmarks: BacktestReportResponse['benchmarks']
+    costs: BacktestReportResponse['costs']
+  }
+  v2: {
+    run_id: number
+    signal_id: 'composite-v2'
+    rank_ic: BacktestReportResponse['rank_ic']
+    net_long: BacktestMetricSet
+    long_short_gross: BacktestReportResponse['long_short_gross_diagnostic']
+    benchmarks: BacktestReportResponse['benchmarks']
+    costs: BacktestReportResponse['costs']
+  }
+  delta: {
+    rank_ic_mean: number | null
+    net_total_return: number | null
+  }
+  curve: {
+    dates: string[]
+    v1_nav: number[]
+    v2_nav: number[]
+    csi300_nav: number[]
+    market_nav: number[]
+  }
+  verdict: {
+    status: 'improved' | 'partial' | 'failed'
+    headline: string
+    significant_positive_ic: boolean
+    beats_equal_weight_market: boolean
+    policy: string
+  }
+  limitations: string[]
+}
+
 export class ApiError extends Error {
   constructor(
     readonly status: number,
@@ -1335,6 +1498,18 @@ export const api = {
     request<BacktestDailyResponse>(`/v1/backtest/${id}/daily`),
   backtestReport: (id: number) =>
     request<BacktestReportResponse>(`/v1/backtest/${id}/report`),
+  factorIC: (sampleTag: 'train' | 'test' | 'full' = 'full') =>
+    request<FactorICResponse>(
+      `/v1/backtest/factors/ic?sample_tag=${encodeURIComponent(sampleTag)}`,
+    ),
+  factorDiagnosis: (sampleTag: 'train' | 'test' | 'full' = 'full') =>
+    request<FactorDiagnosisResponse>(
+      `/v1/backtest/factors/diagnosis?sample_tag=${encodeURIComponent(sampleTag)}`,
+    ),
+  backtestCompare: (v1: number, v2: number) =>
+    request<BacktestComparisonResponse>(
+      `/v1/backtest/compare?v1=${encodeURIComponent(v1)}&v2=${encodeURIComponent(v2)}`,
+    ),
 
   disclosures: (symbol: string, sync = false) =>
     request<any>(`/v1/disclosures/${symbol}?sync=${sync}`),
