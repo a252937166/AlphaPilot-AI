@@ -283,6 +283,117 @@ def test_sync_adj_factors_can_refresh_latest_bar_after_daily_sync(
         session.close()
 
 
+def test_incremental_sync_preserves_each_symbols_factor_scale(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    session = _session(tmp_path)
+    first = date(2026, 7, 21)
+    second = date(2026, 7, 22)
+    try:
+        session.add_all(
+            [
+                Security(symbol="600519", market="CN"),
+                _bar("600519", first, 10.0),
+                _bar("600519", second, 10.0),
+                AdjFactor(
+                    symbol="600519",
+                    trade_date=first,
+                    adj_factor=1.0,
+                    source="baostock-hfq",
+                ),
+            ]
+        )
+        session.commit()
+
+        class BaoStock:
+            def get_adjusted_closes(
+                self,
+                symbol: str,
+                start: date,
+                end: date,
+            ) -> pd.DataFrame:
+                assert (symbol, start, end) == ("600519", second, second)
+                return pd.DataFrame([{"date": second, "close": 20.0}])
+
+        monkeypatch.setattr(adjust, "BaoStockMarketDataProvider", BaoStock)
+        monkeypatch.setattr(
+            adjust,
+            "get_settings",
+            lambda: Settings(tushare_token="token"),
+        )
+        monkeypatch.setattr(
+            adjust,
+            "tushare_call",
+            lambda *_args, **_kwargs: pytest.fail(
+                "已有 baostock-hfq 历史时不得切换 Tushare 标尺"
+            ),
+        )
+        monkeypatch.setattr(adjust, "sleep", lambda _seconds: None)
+
+        stats = adjust.sync_adj_factors(session)
+
+        factors = {
+            row.trade_date: (row.adj_factor, row.source)
+            for row in session.query(AdjFactor).order_by(AdjFactor.trade_date)
+        }
+        assert factors[second][0] == pytest.approx(2.0)
+        assert factors[second][1] == "baostock-hfq"
+        assert stats["source_counts"] == {"baostock-hfq": 1}
+    finally:
+        session.close()
+
+
+def test_tushare_history_rate_limit_never_crosses_factor_scale(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    session = _session(tmp_path)
+    first = date(2026, 7, 21)
+    second = date(2026, 7, 22)
+    try:
+        session.add_all(
+            [
+                Security(symbol="600519", market="CN"),
+                _bar("600519", first, 10.0),
+                _bar("600519", second, 10.0),
+                AdjFactor(
+                    symbol="600519",
+                    trade_date=first,
+                    adj_factor=1.0,
+                    source="tushare",
+                ),
+            ]
+        )
+        session.commit()
+
+        def rate_limited(*_args: object, **_kwargs: object) -> pd.DataFrame:
+            raise adjust.TushareAPIError(
+                "Tushare adj_factor 返回错误 code=40203：频率超限",
+                code=40203,
+            )
+
+        monkeypatch.setattr(adjust, "tushare_call", rate_limited)
+        monkeypatch.setattr(
+            adjust,
+            "get_settings",
+            lambda: Settings(tushare_token="token"),
+        )
+        monkeypatch.setattr(adjust, "sleep", lambda _seconds: None)
+
+        stats = adjust.sync_adj_factors(session)
+
+        rows = session.query(AdjFactor).order_by(AdjFactor.trade_date).all()
+        assert [(row.trade_date, row.source) for row in rows] == [
+            (first, "tushare")
+        ]
+        assert stats["failed_count"] == 1
+        assert stats["tushare_rate_limited"] is True
+        assert "TushareAPIError" in stats["failures"][0]["error"]
+    finally:
+        session.close()
+
+
 def test_adjusted_returns_remove_split_jump_and_mark_fallback(
     tmp_path: Path,
 ) -> None:
