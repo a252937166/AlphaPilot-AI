@@ -796,3 +796,52 @@ class RuntimeFlag(Base):
         default=utcnow,
         onupdate=utcnow,
     )
+
+
+class BacktestRun(Base):
+    """One reproducible point-in-time backtest configuration and outcome."""
+
+    __tablename__ = "backtest_runs"
+    __table_args__ = (
+        CheckConstraint("top_pct > 0 AND top_pct <= 1", name="ck_bt_run_top_pct"),
+        CheckConstraint(
+            "status IN ('running', 'completed', 'failed')",
+            name="ck_bt_run_status",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    name: Mapped[str] = mapped_column(String(64))
+    signal_id: Mapped[str] = mapped_column(String(64), default="composite-v1")
+    start_date: Mapped[date] = mapped_column(Date)
+    end_date: Mapped[date] = mapped_column(Date)
+    rebalance_freq: Mapped[str] = mapped_column(String(8), default="5d")
+    top_pct: Mapped[float] = mapped_column(Float, default=0.1)
+    params: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    status: Mapped[str] = mapped_column(String(16), default="running")
+    error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    summary: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class BacktestDaily(Base):
+    """Daily strategy, benchmark, cross-sectional, and turnover observations."""
+
+    __tablename__ = "backtest_daily"
+    __table_args__ = (
+        UniqueConstraint("run_id", "trade_date", name="uq_bt_daily_run_date"),
+        Index("ix_bt_daily", "run_id", "trade_date"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    run_id: Mapped[int] = mapped_column(ForeignKey("backtest_runs.id"))
+    trade_date: Mapped[date] = mapped_column(Date)
+    rank_ic: Mapped[float | None] = mapped_column(Float, nullable=True)
+    long_ret: Mapped[float | None] = mapped_column(Float, nullable=True)
+    ls_ret: Mapped[float | None] = mapped_column(Float, nullable=True)
+    turnover: Mapped[float | None] = mapped_column(Float, nullable=True)
+    nav: Mapped[float] = mapped_column(Float)
+    benchmark_nav: Mapped[float] = mapped_column(Float)
+    market_nav: Mapped[float] = mapped_column(Float)
+    n_eligible: Mapped[int] = mapped_column(Integer)
+    group_returns: Mapped[list[Any]] = mapped_column(JSON, default=list)
