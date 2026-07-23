@@ -11,6 +11,7 @@ import SectorsView from './views/SectorsView.vue'
 import MarketView from './views/MarketView.vue'
 import AlertsView from './views/AlertsView.vue'
 import ReviewView from './views/ReviewView.vue'
+import BacktestView from './views/BacktestView.vue'
 
 const router = createRouter({
   history: createWebHistory(),
@@ -23,6 +24,7 @@ const router = createRouter({
     { path: '/market', name: 'market', component: MarketView, meta: { title: '大盘监控' } },
     { path: '/alerts', name: 'alerts', component: AlertsView, meta: { title: '交易提醒' } },
     { path: '/review', name: 'review', component: ReviewView, meta: { title: 'AI复盘' } },
+    { path: '/backtest', name: 'backtest', component: BacktestView, meta: { title: '策略研究' } },
   ],
 })
 
