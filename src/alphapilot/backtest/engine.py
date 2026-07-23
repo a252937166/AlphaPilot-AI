@@ -16,6 +16,11 @@ from alphapilot.backtest.costs import (
     tradable_at_open,
     trade_cost,
 )
+from alphapilot.backtest.metrics import (
+    layered_returns,
+    long_short,
+    rank_ic,
+)
 from alphapilot.backtest.pit import signal_scores
 from alphapilot.data.provenance import AUDITED_DAILY_BAR_SOURCES
 from alphapilot.db.models import AdjFactor, BacktestDaily, BacktestRun, DailyBar
@@ -463,44 +468,20 @@ def _signal_diagnostics(
 ) -> tuple[float | None, list[float | None], float | None]:
     if scores is None or scores.empty or realized.empty:
         return None, [], None
-    score_values = pd.to_numeric(scores, errors="coerce").rename("score")
-    paired = pd.concat([score_values, realized], axis=1, join="inner").dropna()
-    if len(paired) < 2:
+    score_values = pd.to_numeric(scores, errors="coerce")
+    value = rank_ic(score_values, realized)
+    groups = layered_returns(score_values, realized, n=_GROUP_COUNT)
+    if all(not math.isfinite(group) for group in groups):
         return None, [], None
-    score_ranks = paired["score"].rank(method="average")
-    return_ranks = paired["return"].rank(method="average")
-    if score_ranks.nunique() > 1 and return_ranks.nunique() > 1:
-        ic = score_ranks.corr(return_ranks)
-        rank_ic = float(ic) if pd.notna(ic) and math.isfinite(float(ic)) else None
-    else:
-        rank_ic = None
-    ordered = (
-        paired.assign(_symbol=paired.index.astype(str))
-        .sort_values(["score", "_symbol"], kind="stable")
-        .drop(columns="_symbol")
+    stored_groups = [
+        group if math.isfinite(group) else None for group in groups
+    ]
+    spread = long_short(groups)
+    return (
+        value if math.isfinite(value) else None,
+        stored_groups,
+        spread if math.isfinite(spread) else None,
     )
-    group_ids = pd.Series(
-        [
-            min(
-                _GROUP_COUNT - 1,
-                index * _GROUP_COUNT // (len(ordered) - 1),
-            )
-            for index in range(len(ordered))
-        ],
-        index=ordered.index,
-    )
-    groups: list[float | None] = []
-    for group_id in range(_GROUP_COUNT):
-        group = ordered.loc[group_ids == group_id, "return"]
-        groups.append(float(group.mean()) if not group.empty else None)
-    low = groups[0]
-    high = groups[-1]
-    long_short = (
-        float(high - low)
-        if high is not None and low is not None
-        else None
-    )
-    return rank_ic, groups, long_short
 
 
 def _params_snapshot(
