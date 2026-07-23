@@ -137,10 +137,19 @@ export interface AlertItem {
   id: number
   symbol: string
   action: string
+  urgency: string
   confidence: number
+  suggested_position_change: number
+  target_low: number | null
+  target_high: number | null
+  suggested_notional: number | null
   reasons: string[]
+  invalidation: string | null
+  model_version: string | null
+  as_of: string | null
+  expires_at: string | null
+  acknowledged: boolean
   created_at: string
-  [key: string]: unknown
 }
 
 export interface AlertListResponse {
@@ -250,6 +259,10 @@ export interface PortfolioOverviewResponse {
     total_value: number
     cash: number
     positions: PortfolioPosition[]
+    daily_return?: number | null
+    benchmark_return?: number | null
+    excess_return?: number | null
+    drawdown?: number | null
     source: string
   } | null
   market_value: number
@@ -259,6 +272,20 @@ export interface PortfolioOverviewResponse {
   missing_industry_count: number
   valuation_basis: 'futu_sim_market_value' | null
   valuation_basis_label: string | null
+  warning: string | null
+}
+
+export interface PortfolioAttributionResponse {
+  available: boolean
+  requested_days: number
+  available_days: number
+  dates: string[]
+  nav: number[]
+  benchmark_nav: Array<number | null>
+  excess_cum: number | null
+  max_drawdown: number | null
+  benchmark_drawdown: number | null
+  benchmark_symbol: string
   warning: string | null
 }
 
@@ -534,6 +561,191 @@ export interface CreateTradeProposalResponse {
 
 export interface TradeProposalListResponse {
   proposals: PersistedTradeProposal[]
+}
+
+export interface BrokerOrder {
+  id: number
+  proposal_id: string
+  futu_order_id: string | null
+  symbol: string
+  side: 'BUY' | 'SELL'
+  order_type: string
+  price: number
+  qty: number
+  status: string
+  filled_qty: number
+  avg_fill_price: number | null
+  environment: string
+  error: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface BrokerOrderListResponse {
+  orders: BrokerOrder[]
+}
+
+export interface ExecuteTradeProposalResponse {
+  order: BrokerOrder
+  proposal: PersistedTradeProposal
+}
+
+export interface ForecastHitSample {
+  symbol: string
+  as_of: string
+  p_up_1d: number
+  realized_return_1d: number
+  hit: boolean
+}
+
+export interface ForecastHitStats {
+  evaluated: number
+  hits: number
+  hit_rate: number | null
+  samples: ForecastHitSample[]
+}
+
+export interface SignalAttributionRow {
+  alert_id: number
+  symbol: string
+  action: string
+  created_at: string
+  evidence_as_of: string | null
+  horizon_days: number
+  origin_date: string
+  maturity_date: string
+  realized_return: number
+  contribution: number
+  hit: boolean | null
+  evaluated_at: string
+  model_version: string
+}
+
+export interface SignalAttribution {
+  horizon_days: number
+  model_version: string
+  outcomes: number
+  directional_evaluated: number
+  hit_rate_directional: number | null
+  previous_report_date: string | null
+  previous_hit_rate_directional: number | null
+  hit_rate_change: number | null
+  hit_rate_change_pp: number | null
+  top_hits: SignalAttributionRow[]
+  top_misses: SignalAttributionRow[]
+  by_action: Record<string, {
+    outcomes: number
+    directional_evaluated: number
+    hits: number
+    hit_rate: number | null
+    contribution_total: number
+  }>
+}
+
+export interface ImprovementStatistic {
+  kind: 'statistic'
+  source: 'statistics'
+  source_label: string
+  ref: string
+  dimension: string
+  dimension_label: string
+  group: string
+  group_label: string
+  outcomes: number
+  directional_evaluated: number
+  hits: number
+  hit_rate: number | null
+  contribution_total: number
+  text: string
+}
+
+export interface ImprovementSuggestion {
+  kind: 'suggestion'
+  source: 'llm'
+  source_label: string
+  title: string
+  text: string
+  basis_refs: string[]
+  basis: ImprovementStatistic[]
+}
+
+export interface ImprovementSuggestions {
+  source: 'llm' | 'statistics' | string
+  source_label: string
+  suggestions: ImprovementSuggestion[]
+  statistics: ImprovementStatistic[]
+  empty_reason: string | null
+  fallback_reason: string | null
+  sector_membership_basis: string
+  volatility_basis: string
+  provider?: string | null
+  model?: string | null
+}
+
+export interface ReportEvent {
+  id: number
+  symbol: string | null
+  event_type: string
+  type_label: string
+  type_color: string
+  title: string
+  summary: string | null
+  direction: number | null
+  strength: number | null
+  occurred_at: string
+  source_ref: string | null
+}
+
+export interface ReportEventTimeline {
+  items: ReportEvent[]
+  empty_reason: string | null
+  timezone: string
+}
+
+export interface ReportAlert {
+  id: number
+  symbol: string
+  action: string
+  urgency: string
+  confidence: number
+  reasons: string[]
+  created_at: string
+}
+
+export interface SectorCallExcess {
+  available?: boolean
+  average_excess?: number | null
+  sample_count?: number
+  top3?: Array<Record<string, unknown>>
+  warning?: string | null
+}
+
+export interface DailyReportResponse {
+  report_date: string
+  generated_at: string
+  indices: Array<Record<string, unknown>>
+  watchlist: Array<Record<string, unknown>>
+  watchlist_gainers: Array<Record<string, unknown>>
+  watchlist_losers: Array<Record<string, unknown>>
+  forecast_hit_stats: ForecastHitStats
+  signal_attribution: SignalAttribution
+  improvement_suggestions: ImprovementSuggestions
+  event_timeline: ReportEventTimeline
+  sector_call_excess?: SectorCallExcess | null
+  alerts: ReportAlert[]
+  disclosures: Array<Record<string, unknown>>
+  ai_summary: {
+    source: string
+    text: string
+    provider?: string | null
+    model?: string | null
+  }
+  tomorrow_focus: Array<{
+    symbol: string
+    display_name?: string | null
+    reason: string
+  }>
+  disclaimer: string
 }
 
 export interface SectorStrengthItem {
@@ -880,6 +1092,8 @@ export const api = {
     request<{ removed: string }>(`/v1/watchlist/${symbol}`, { method: 'DELETE' }),
 
   portfolioOverview: () => request<PortfolioOverviewResponse>('/v1/portfolio/overview'),
+  portfolioAttribution: (days = 60) =>
+    request<PortfolioAttributionResponse>(`/v1/portfolio/attribution?days=${days}`),
 
   alerts: (limit = 60) => request<AlertListResponse>(`/v1/alerts?limit=${limit}`),
   refreshAlerts: (symbols?: string[]) =>
@@ -937,8 +1151,9 @@ export const api = {
   syncDisclosures: (symbol: string) =>
     request<any>(`/v1/disclosures/${symbol}/sync`, { method: 'POST' }),
 
-  dailyReport: () => request<any>('/v1/reports/daily'),
-  generateDailyReport: () => request<any>('/v1/reports/daily/generate', { method: 'POST' }),
+  dailyReport: () => request<DailyReportResponse>('/v1/reports/daily'),
+  generateDailyReport: () =>
+    request<DailyReportResponse>('/v1/reports/daily/generate', { method: 'POST' }),
 
   evaluateTrade: (body: TradeProposalRequest) =>
     request<TradeRiskDecision>('/v1/trades/evaluate', {
@@ -952,7 +1167,20 @@ export const api = {
       body: JSON.stringify(body),
     }),
   approveProposal: (id: number) =>
-    request<any>(`/v1/trades/proposals/${id}/approve`, { method: 'POST' }),
+    request<{ proposal: PersistedTradeProposal }>(
+      `/v1/trades/proposals/${id}/approve`,
+      { method: 'POST' },
+    ),
+  executeProposal: (id: number) =>
+    request<ExecuteTradeProposalResponse>(
+      `/v1/trades/proposals/${id}/execute`,
+      { method: 'POST' },
+    ),
   rejectProposal: (id: number) =>
-    request<any>(`/v1/trades/proposals/${id}/reject`, { method: 'POST' }),
+    request<{ proposal: PersistedTradeProposal }>(
+      `/v1/trades/proposals/${id}/reject`,
+      { method: 'POST' },
+    ),
+  orders: (limit = 100) =>
+    request<BrokerOrderListResponse>(`/v1/orders?limit=${limit}`),
 }
