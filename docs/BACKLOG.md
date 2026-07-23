@@ -21,7 +21,10 @@
 - [x] IC, IC_IR, layered returns, turnover and drawdown metrics.
 - [ ] Capacity metrics based on historical liquidity and market impact.
 - [ ] Market-regime stratified evaluation.
-- [ ] Pre-registered out-of-sample factor redesign or ML walk-forward after the failed M1 alpha gates.
+- [x] Pre-registered out-of-sample factor redesign after the failed M1 alpha gates
+  (M2 completed honestly: v2 remained insignificant and underperformed after costs).
+- [ ] Multi-year PIT history plus new alpha sources, followed by a pre-registered M3
+  walk-forward; do not reuse or retune the completed 91-day M2 test window.
 
 ## P1 — Product
 
