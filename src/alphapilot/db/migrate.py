@@ -27,6 +27,7 @@ MIGRATIONS: list[tuple[str, str, str]] = [
 
 INDEX_MIGRATIONS: list[tuple[str, str, tuple[str, ...]]] = [
     ("daily_bars", "ix_daily_bars_trade_date_symbol", ("trade_date", "symbol")),
+    ("valuation_daily", "ix_valuation_trade_date_symbol", ("trade_date", "symbol")),
 ]
 
 _IDENTIFIER = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
