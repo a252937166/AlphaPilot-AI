@@ -576,6 +576,7 @@ class ValuationDaily(Base):
     __table_args__ = (
         UniqueConstraint("symbol", "trade_date", name="uq_valuation_daily"),
         Index("ix_valuation_symbol_date", "symbol", "trade_date"),
+        Index("ix_valuation_trade_date_symbol", "trade_date", "symbol"),
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)

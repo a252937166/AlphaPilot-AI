@@ -28,9 +28,11 @@ from alphapilot.db.models import (
     SectorFlowDaily,
     SectorSnapshot,
     Security,
+    ValuationDaily,
 )
 from alphapilot.engines.factors import (
     FACTOR_SET,
+    _load_valuation_factors,
     _trading_dates,
     composite,
     compute_factors_for_date,
@@ -236,6 +238,33 @@ def _seed_engine_inputs(session: Session) -> None:
 
     session.add_all(
         [
+            ValuationDaily(
+                symbol="600000",
+                trade_date=TARGET_DATE,
+                pe_ttm=10.0,
+                pb_mrq=1.0,
+                ps_ttm=2.0,
+                source="em",
+                available_time=datetime(2026, 7, 21, 7, tzinfo=UTC),
+            ),
+            ValuationDaily(
+                symbol="000001",
+                trade_date=TARGET_DATE,
+                pe_ttm=20.0,
+                pb_mrq=2.0,
+                ps_ttm=3.0,
+                source="em",
+                available_time=datetime(2026, 7, 21, 7, tzinfo=UTC),
+            ),
+            ValuationDaily(
+                symbol="300001",
+                trade_date=TARGET_DATE,
+                pe_ttm=-5.0,
+                pb_mrq=0.0,
+                ps_ttm=1.0,
+                source="em",
+                available_time=datetime(2026, 7, 21, 7, tzinfo=UTC),
+            ),
             FinancialIndicator(
                 symbol="600000",
                 report_period="2025Q4",
@@ -423,6 +452,52 @@ def test_trading_dates_falls_back_when_benchmark_is_stale(tmp_path: Path) -> Non
     assert result[-1] == TARGET_DATE
 
 
+def test_load_valuation_factors_is_exact_day_and_pit_bounded(tmp_path: Path) -> None:
+    engine = create_engine(f"sqlite:///{tmp_path / 'valuation-pit.db'}")
+    Base.metadata.create_all(engine)
+    cutoff = datetime(2026, 7, 21, 11, 30, tzinfo=UTC)
+    with Session(engine) as session:
+        session.add_all(
+            [
+                ValuationDaily(
+                    symbol="600000",
+                    trade_date=TARGET_DATE,
+                    pe_ttm=10.0,
+                    pb_mrq=1.0,
+                    source="em",
+                    available_time=datetime(2026, 7, 21, 7, tzinfo=UTC),
+                ),
+                ValuationDaily(
+                    symbol="000001",
+                    trade_date=TARGET_DATE,
+                    pe_ttm=20.0,
+                    pb_mrq=2.0,
+                    source="em",
+                    available_time=datetime(2026, 7, 21, 12, tzinfo=UTC),
+                ),
+                ValuationDaily(
+                    symbol="300001",
+                    trade_date=TARGET_DATE - timedelta(days=1),
+                    pe_ttm=5.0,
+                    pb_mrq=0.5,
+                    source="em",
+                    available_time=datetime(2026, 7, 20, 7, tzinfo=UTC),
+                ),
+            ]
+        )
+        session.commit()
+
+        values, selected = _load_valuation_factors(
+            session,
+            {"600000", "000001", "300001"},
+            TARGET_DATE,
+            cutoff,
+        )
+
+    assert selected == 1
+    assert values == {"600000": {"pe_ttm": 10.0, "pb_mrq": 1.0}}
+
+
 def test_compute_factors_obeys_price_pit_valuation_and_sector_semantics(
     tmp_path: Path,
 ) -> None:
@@ -451,6 +526,7 @@ def test_compute_factors_obeys_price_pit_valuation_and_sector_semantics(
     assert pd.isna(frame.loc["300001", "pe_percentile"])
     assert frame.loc["600000", "pb_percentile"] == pytest.approx(0.5)
     assert pd.isna(frame.loc["300001", "pb_percentile"])
+    assert frame.attrs["valuation_values"] == 3
 
     assert frame.loc["600000", "net_inflow_5d"] == pytest.approx(15.0)
     assert pd.isna(frame.loc["000001", "net_inflow_5d"])

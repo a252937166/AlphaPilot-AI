@@ -26,6 +26,7 @@ from alphapilot.db.models import (
     SectorFlowDaily,
     SectorSnapshot,
     Security,
+    ValuationDaily,
 )
 
 logger = logging.getLogger(__name__)
@@ -180,8 +181,6 @@ def _eligible_securities(
     rows = session.execute(
         select(
             Security.symbol,
-            Security.pe_ttm,
-            Security.pb,
             Security.snapshot_at,
             Security.is_st,
         )
@@ -212,7 +211,7 @@ def _eligible_securities(
     )
     frame = pd.DataFrame(
         rows,
-        columns=["symbol", "pe_ttm", "pb", "snapshot_at", "is_st"],
+        columns=["symbol", "snapshot_at", "is_st"],
     )
     if not frame.empty:
         frame["symbol"] = frame["symbol"].astype(str)
@@ -367,6 +366,39 @@ def _load_financial_factors(
     return latest, selected
 
 
+def _load_valuation_factors(
+    session: Session,
+    symbols: set[str],
+    trade_date: date,
+    cutoff: datetime,
+) -> tuple[dict[str, dict[str, float | None]], int]:
+    """Load one decision day's PIT valuation cross-section without a history scan."""
+
+    rows = session.execute(
+        select(
+            ValuationDaily.symbol,
+            ValuationDaily.pe_ttm,
+            ValuationDaily.pb_mrq,
+            ValuationDaily.available_time,
+        ).where(
+            ValuationDaily.trade_date == trade_date,
+            ValuationDaily.available_time <= cutoff,
+        )
+    ).all()
+    latest: dict[str, dict[str, float | None]] = {}
+    for symbol_value, pe_ttm, pb_mrq, available_time in rows:
+        symbol = str(symbol_value)
+        if symbol not in symbols:
+            continue
+        if not isinstance(available_time, datetime) or _utc(available_time) > cutoff:
+            continue
+        latest[symbol] = {
+            "pe_ttm": _finite(pe_ttm),
+            "pb_mrq": _finite(pb_mrq),
+        }
+    return latest, len(latest)
+
+
 def _sector_memberships(
     session: Session,
     cutoff: datetime,
@@ -505,19 +537,26 @@ def compute_factors_for_date(session: Session, trade_date: date) -> pd.DataFrame
         for metric, value in metrics.items():
             frame.at[symbol, metric] = value
 
-    if not security_frame.empty:
-        snapshot_is_current = security_frame["snapshot_at"].map(
-            lambda value: (
-                isinstance(value, datetime)
-                and day_start <= _utc(value) <= decision_cutoff
-            )
+    valuations, valuation_selected = _load_valuation_factors(
+        session,
+        symbols,
+        trade_date,
+        decision_cutoff,
+    )
+    for column, factor in (
+        ("pe_ttm", "pe_percentile"),
+        ("pb_mrq", "pb_percentile"),
+    ):
+        values = pd.to_numeric(
+            pd.Series(
+                {symbol: item[column] for symbol, item in valuations.items()},
+                dtype=float,
+            ),
+            errors="coerce",
         )
-        for column, factor in (("pe_ttm", "pe_percentile"), ("pb", "pb_percentile")):
-            values = pd.to_numeric(security_frame[column], errors="coerce")
-            values = values.where(snapshot_is_current & (values > 0))
-            percentiles = values.rank(method="average", pct=True)
-            percentiles.index = security_frame["symbol"].astype(str)
-            frame.loc[percentiles.index, factor] = percentiles
+        values = values.where(values > 0)
+        percentiles = values.rank(method="average", pct=True)
+        frame.loc[percentiles.index, factor] = percentiles
 
     memberships = _sector_memberships(session, decision_cutoff)
     required_flow_dates = trading_dates[-5:] if len(trading_dates) >= 5 else []
@@ -555,6 +594,7 @@ def compute_factors_for_date(session: Session, trade_date: date) -> pd.DataFrame
         "price_rows": price_rows,
         "adjustment_factor_missing_rows": missing_adjustments,
         "financial_values": financial_selected,
+        "valuation_values": valuation_selected,
         "sector_membership_symbols": len(memberships),
         "sector_flow_days": sector_flow_days,
         "sector_flow_sources": sector_flow_sources,
