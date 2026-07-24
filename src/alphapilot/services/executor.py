@@ -388,7 +388,7 @@ def execute_proposal(
 
         proposal = _proposal(record)
         try:
-            validate_trade_alert_source(session, proposal)
+            validate_trade_alert_source(session, proposal, now=now)
         except AlertSourceError as exc:
             raise ExecutionConflict(f"来源提醒校验未通过：{exc}") from exc
         symbol, code = _symbol_code(proposal.symbol)
@@ -416,7 +416,7 @@ def execute_proposal(
             }
         )
         try:
-            validate_trade_alert_source(session, execution_proposal)
+            validate_trade_alert_source(session, execution_proposal, now=now)
         except AlertSourceError as exc:
             raise ExecutionConflict(f"执行前来源提醒校验未通过：{exc}") from exc
         decision = TradeGuardrails(settings).evaluate(

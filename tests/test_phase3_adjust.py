@@ -9,6 +9,7 @@ from typing import Any
 import pandas as pd
 import pytest
 from sqlalchemy import create_engine, select
+from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session
 
 from alphapilot.backtest import adjust
@@ -179,6 +180,75 @@ def test_sync_adj_factors_upserts_and_resumes(
         session.close()
 
 
+def test_sync_adj_factors_retries_sqlite_lock_without_refetching(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    session = _session(tmp_path)
+    try:
+        session.add(Security(symbol="600519", market="CN"))
+        session.add(_bar("600519", date(2026, 7, 22), 10.0))
+        session.commit()
+        provider_calls = 0
+        save_calls = 0
+        delays: list[float] = []
+
+        def fake_call(
+            _token: str,
+            _api_name: str,
+            _params: dict[str, Any],
+            _fields: str = "",
+        ) -> pd.DataFrame:
+            nonlocal provider_calls
+            provider_calls += 1
+            return pd.DataFrame(
+                [
+                    {
+                        "ts_code": "600519.SH",
+                        "trade_date": "20260722",
+                        "adj_factor": 1.1,
+                    }
+                ]
+            )
+
+        real_upsert = adjust._upsert_adj_rows
+
+        def locked_once(
+            current_session: Session,
+            symbol: str,
+            parsed: list[tuple[date, float]],
+            source: str,
+        ) -> tuple[int, int]:
+            nonlocal save_calls
+            save_calls += 1
+            if save_calls == 1:
+                raise OperationalError(
+                    "INSERT INTO adj_factors (...) VALUES (...)",
+                    {},
+                    RuntimeError("database is locked"),
+                )
+            return real_upsert(current_session, symbol, parsed, source)
+
+        monkeypatch.setattr(adjust, "tushare_call", fake_call)
+        monkeypatch.setattr(
+            adjust,
+            "get_settings",
+            lambda: Settings(tushare_token="token"),
+        )
+        monkeypatch.setattr(adjust, "_upsert_adj_rows", locked_once)
+        monkeypatch.setattr(adjust, "sleep", delays.append)
+
+        stats = adjust.sync_adj_factors(session)
+
+        assert provider_calls == 1
+        assert save_calls == 2
+        assert delays == [0.5]
+        assert stats["rows_inserted"] == 1
+        assert stats["failed_count"] == 0
+    finally:
+        session.close()
+
+
 def test_sync_adj_factors_falls_back_after_real_rate_limit(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
@@ -313,8 +383,13 @@ def test_incremental_sync_preserves_each_symbols_factor_scale(
                 start: date,
                 end: date,
             ) -> pd.DataFrame:
-                assert (symbol, start, end) == ("600519", second, second)
-                return pd.DataFrame([{"date": second, "close": 20.0}])
+                assert (symbol, start, end) == ("600519", first, second)
+                return pd.DataFrame(
+                    [
+                        {"date": first, "close": 10.0},
+                        {"date": second, "close": 20.0},
+                    ]
+                )
 
         monkeypatch.setattr(adjust, "BaoStockMarketDataProvider", BaoStock)
         monkeypatch.setattr(
@@ -340,6 +415,107 @@ def test_incremental_sync_preserves_each_symbols_factor_scale(
         assert factors[second][0] == pytest.approx(2.0)
         assert factors[second][1] == "baostock-hfq"
         assert stats["source_counts"] == {"baostock-hfq": 1}
+    finally:
+        session.close()
+
+
+def test_sync_adj_factors_backfills_before_existing_history_and_resumes(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    session = _session(tmp_path)
+    requested_start = date(2026, 7, 18)
+    first_existing = date(2026, 7, 20)
+    last_bar = date(2026, 7, 21)
+    try:
+        session.add(Security(symbol="600519", market="CN"))
+        session.add_all(
+            [
+                _bar("600519", trade_date, 10.0)
+                for trade_date in (
+                    requested_start,
+                    date(2026, 7, 19),
+                    first_existing,
+                    last_bar,
+                )
+            ]
+        )
+        session.add_all(
+            [
+                AdjFactor(
+                    symbol="600519",
+                    trade_date=trade_date,
+                    adj_factor=2.0,
+                    source="baostock-hfq",
+                )
+                for trade_date in (first_existing, last_bar)
+            ]
+        )
+        session.commit()
+        calls: list[tuple[str, date, date]] = []
+
+        class BaoStock:
+            def get_adjusted_closes(
+                self,
+                symbol: str,
+                start: date,
+                end: date,
+            ) -> pd.DataFrame:
+                calls.append((symbol, start, end))
+                return pd.DataFrame(
+                    [
+                        {"date": requested_start, "close": 40.0},
+                        {"date": date(2026, 7, 19), "close": 40.0},
+                        {"date": first_existing, "close": 40.0},
+                    ]
+                )
+
+        monkeypatch.setattr(adjust, "BaoStockMarketDataProvider", BaoStock)
+        monkeypatch.setattr(
+            adjust,
+            "get_settings",
+            lambda: Settings(tushare_token="token"),
+        )
+        monkeypatch.setattr(
+            adjust,
+            "tushare_call",
+            lambda *_args, **_kwargs: pytest.fail(
+                "已有 baostock-hfq 历史时不得切换 Tushare 标尺"
+            ),
+        )
+        monkeypatch.setattr(adjust, "sleep", lambda _seconds: None)
+
+        first = adjust.sync_adj_factors(
+            session,
+            start_date=requested_start,
+        )
+        second = adjust.sync_adj_factors(
+            session,
+            start_date=requested_start,
+        )
+
+        assert calls == [
+            (
+                "600519",
+                requested_start,
+                first_existing,
+            )
+        ]
+        assert first["requested_start_date"] == requested_start.isoformat()
+        assert first["historical_backfill_symbols"] == 1
+        assert first["rows_inserted"] == 2
+        assert first["failed_count"] == 0
+        assert second["rows_inserted"] == 0
+        assert second["skipped"] == 1
+        rows = session.scalars(
+            select(AdjFactor).order_by(AdjFactor.trade_date)
+        ).all()
+        assert [(row.trade_date, row.adj_factor, row.source) for row in rows] == [
+            (requested_start, 2.0, "baostock-hfq"),
+            (date(2026, 7, 19), 2.0, "baostock-hfq"),
+            (first_existing, 2.0, "baostock-hfq"),
+            (last_bar, 2.0, "baostock-hfq"),
+        ]
     finally:
         session.close()
 

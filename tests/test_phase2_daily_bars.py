@@ -294,6 +294,102 @@ def test_sync_daily_bars_routes_bse_and_resumes(
         assert no_trade.amount == 0
 
 
+def test_sync_daily_bars_backfills_before_existing_history_and_resumes(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    engine = create_engine(f"sqlite:///{tmp_path / 'daily-backfill.db'}")
+    Base.metadata.create_all(engine)
+    local_session = _local_session(engine)
+    requested_start = date(2026, 7, 18)
+    first_existing = date(2026, 7, 20)
+    provider_end = date(2026, 7, 21)
+    with local_session() as session:
+        session.add(Security(symbol="600000", board="主板"))
+        session.add_all(
+            [
+                DailyBar(
+                    symbol="600000",
+                    trade_date=trade_date,
+                    open=10,
+                    high=11,
+                    low=9,
+                    close=10.5,
+                    volume=1000,
+                    amount=10000,
+                    source="baostock",
+                )
+                for trade_date in (first_existing, provider_end)
+            ]
+        )
+
+    calls: list[tuple[date, date]] = []
+
+    class Provider:
+        name = "baostock"
+
+        def get_daily_bars(
+            self,
+            _symbol: str,
+            start: date,
+            finish: date,
+        ) -> pd.DataFrame:
+            calls.append((start, finish))
+            return pd.concat(
+                [_frame(start, 8), _frame(finish, 9)],
+                ignore_index=True,
+            )
+
+    monkeypatch.setattr(daily_bars, "get_session", local_session)
+    monkeypatch.setattr(
+        daily_bars,
+        "latest_trade_date",
+        lambda _session: provider_end,
+    )
+    monkeypatch.setattr(
+        daily_bars,
+        "_probe_provider_trade_window",
+        lambda _provider, _benchmark, requested_end: daily_bars._ProviderTradeWindow(
+            probed_from=requested_end - timedelta(days=10),
+            latest=requested_end,
+            available_dates=frozenset({requested_end}),
+        ),
+    )
+    monkeypatch.setattr(daily_bars, "BaoStockMarketDataProvider", Provider)
+
+    first = daily_bars.sync_daily_bars(
+        start_date=requested_start,
+        batch_size=1,
+    )
+    second = daily_bars.sync_daily_bars(
+        start_date=requested_start,
+        batch_size=1,
+    )
+
+    assert calls == [(requested_start, first_existing - timedelta(days=1))]
+    assert first["requested_start_date"] == requested_start.isoformat()
+    assert first["historical_backfill_symbols"] == 1
+    assert first["rows_inserted"] == 2
+    assert first["failed_count"] == 0
+    assert second["rows_inserted"] == 0
+    assert second["skipped"] == 1
+    with local_session() as session:
+        dates = session.scalars(
+            select(DailyBar.trade_date)
+            .where(DailyBar.symbol == "600000")
+            .order_by(DailyBar.trade_date)
+        ).all()
+        profile = session.scalar(
+            select(Security.profile).where(Security.symbol == "600000")
+        )
+    assert dates == [
+        requested_start,
+        first_existing - timedelta(days=1),
+        first_existing,
+        provider_end,
+    ]
+    assert profile["daily_bars_backfill_start"] == requested_start.isoformat()
+
+
 def test_sync_daily_bars_stops_after_twenty_consecutive_failures(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
