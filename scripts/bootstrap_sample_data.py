@@ -1,5 +1,5 @@
-from pathlib import Path
 from datetime import date
+from pathlib import Path
 
 from alphapilot.data.mock import MockMarketDataProvider
 
