@@ -569,6 +569,26 @@ class FinancialIndicator(Base):
     payload: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
 
 
+class ValuationDaily(Base):
+    """Point-in-time daily valuation ratios sourced after the market close."""
+
+    __tablename__ = "valuation_daily"
+    __table_args__ = (
+        UniqueConstraint("symbol", "trade_date", name="uq_valuation_daily"),
+        Index("ix_valuation_symbol_date", "symbol", "trade_date"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    symbol: Mapped[str] = mapped_column(String(24), index=True)
+    trade_date: Mapped[date] = mapped_column(Date)
+    pe_ttm: Mapped[float | None] = mapped_column(Float, nullable=True)
+    pb_mrq: Mapped[float | None] = mapped_column(Float, nullable=True)
+    ps_ttm: Mapped[float | None] = mapped_column(Float, nullable=True)
+    source: Mapped[str] = mapped_column(String(16), default="em")
+    available_time: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    ingested_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
 class FactorValue(Base):
     """Point-in-time cross-sectional factor observation for one security."""
 

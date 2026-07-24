@@ -22,6 +22,7 @@ def register_builtin_jobs() -> None:
     from alphapilot.jobs.sectors_sync import register_sector_jobs
     from alphapilot.jobs.style import register_style_job
     from alphapilot.jobs.universe import register_universe_job
+    from alphapilot.jobs.valuation_sync import register_valuation_jobs
 
     register_universe_job()
     register_calendar_job()
@@ -39,3 +40,4 @@ def register_builtin_jobs() -> None:
     register_sector_jobs()
     register_sector_forecast_job()
     register_score_outcomes_job()
+    register_valuation_jobs()
