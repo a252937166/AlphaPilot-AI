@@ -4,6 +4,7 @@ import json
 import re
 from datetime import UTC, date, datetime
 from time import monotonic, sleep
+from types import FunctionType
 from typing import Any
 from zoneinfo import ZoneInfo
 
@@ -11,6 +12,43 @@ import httpx
 import pandas as pd
 
 from alphapilot.data.base import DataProviderError, EmptyDailyBarsError
+
+
+class _DirectRequests:
+    """Minimal requests-compatible facade backed by a no-proxy HTTPX client."""
+
+    def __init__(self, client: httpx.Client) -> None:
+        self._client = client
+
+    def get(self, url: str, **kwargs: Any) -> httpx.Response:
+        response = self._client.get(url, **kwargs)
+        response.raise_for_status()
+        return response
+
+
+def _call_akshare_daily_direct(function: Any, **kwargs: str) -> Any:
+    """Call AKShare with an isolated direct transport without mutating globals."""
+
+    if not isinstance(function, FunctionType):
+        raise DataProviderError(
+            "AKShare daily-bar function cannot be safely isolated from proxies"
+        )
+    isolated_globals = dict(function.__globals__)
+    with httpx.Client(
+        timeout=10.0,
+        follow_redirects=True,
+        trust_env=False,
+    ) as client:
+        isolated_globals["requests"] = _DirectRequests(client)
+        isolated = FunctionType(
+            function.__code__,
+            isolated_globals,
+            name=function.__name__,
+            argdefs=function.__defaults__,
+            closure=function.__closure__,
+        )
+        isolated.__kwdefaults__ = function.__kwdefaults__
+        return isolated(**kwargs)
 
 
 class SinaDailyBarProvider:
@@ -152,7 +190,8 @@ class SinaDailyBarProvider:
         for attempt in range(3):
             self._throttle()
             try:
-                candidate = ak.stock_zh_a_daily(
+                candidate = _call_akshare_daily_direct(
+                    ak.stock_zh_a_daily,
                     symbol=sina_symbol,
                     start_date=start.strftime("%Y%m%d"),
                     end_date=end.strftime("%Y%m%d"),
@@ -220,6 +259,7 @@ class SinaDailyBarProvider:
                     f"{self._snapshot_url}{','.join(batch)}",
                     headers=headers,
                     timeout=5.0,
+                    trust_env=False,
                 )
                 response.raise_for_status()
             except httpx.HTTPError as exc:

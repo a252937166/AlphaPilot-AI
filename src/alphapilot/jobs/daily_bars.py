@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from time import monotonic, sleep
 from typing import Any
 from zoneinfo import ZoneInfo
@@ -36,6 +36,7 @@ _BACKFILL_PROFILE_KEY = "daily_bars_backfill_start"
 class _SyncProgress:
     started: float
     total: int
+    probe_ceiling: date
     latest_trade_date: date
     provider_trade_dates: dict[str, date]
     provider_probe_starts: dict[str, date]
@@ -49,6 +50,7 @@ class _SyncProgress:
     no_prior_history: int = 0
     failed_count: int = 0
     rows_inserted: int = 0
+    benchmark_rows_inserted: int = 0
     failures: list[dict[str, str]] = field(default_factory=list)
     source_counts: dict[str, int] = field(default_factory=dict)
 
@@ -72,6 +74,8 @@ class _SyncProgress:
             "failed": list(self.failures),
             "failed_count": self.failed_count,
             "rows_inserted": self.rows_inserted,
+            "benchmark_rows_inserted": self.benchmark_rows_inserted,
+            "probe_ceiling": self.probe_ceiling.isoformat(),
             "latest_trade_date": self.latest_trade_date.isoformat(),
             "provider_trade_dates": {
                 source: trade_date.isoformat()
@@ -99,6 +103,7 @@ class _ProviderTradeWindow:
     probed_from: date
     latest: date
     available_dates: frozenset[date]
+    benchmark_frame: pd.DataFrame | None = None
 
     def contains_only_latest(self, start: date) -> bool:
         """Return true only when the probed calendar proves one expected trade day."""
@@ -247,13 +252,48 @@ def _probe_provider_trade_window(
             f"{provider.name} benchmark probe returned no valid dates"
         )
     latest = min(max(available), requested_end)
+    normalized_dates = pd.to_datetime(frame["date"], errors="coerce").dt.date
+    benchmark_frame = frame.loc[
+        normalized_dates.map(
+            lambda value: isinstance(value, date) and value <= latest
+        )
+    ].copy()
     return _ProviderTradeWindow(
         probed_from=probed_from,
         latest=latest,
         available_dates=frozenset(
             trade_date for trade_date in available if trade_date <= latest
         ),
+        benchmark_frame=benchmark_frame,
     )
+
+
+def _latest_weekday(candidate: date) -> date:
+    while candidate.weekday() >= 5:
+        candidate -= timedelta(days=1)
+    return candidate
+
+
+def _daily_bar_probe_ceiling(
+    session: Session,
+    *,
+    today: date | None = None,
+) -> date:
+    """Advance provider discovery beyond a stale cached benchmark date."""
+
+    current = today or datetime.now(ZoneInfo("Asia/Shanghai")).date()
+    return max(latest_trade_date(session), _latest_weekday(current))
+
+
+def _persisted_benchmark_trade_date(*, fallback: date) -> date:
+    with get_session() as session:
+        persisted = session.scalar(
+            select(func.max(DailyBar.trade_date)).where(
+                DailyBar.symbol == "SH.000001",
+                DailyBar.source.in_(AUDITED_DAILY_BAR_SOURCES),
+            )
+        )
+    return persisted if isinstance(persisted, date) else fallback
 
 
 def sync_daily_bars(
@@ -298,7 +338,7 @@ def sync_daily_bars(
             ).all()
             if isinstance(first_date, date) and isinstance(last_date, date)
         }
-        end = latest_trade_date(session)
+        end = _daily_bar_probe_ceiling(session)
 
     if start_date is not None and start_date > end:
         raise ValueError("start_date must not be after the latest trade date")
@@ -313,12 +353,25 @@ def sync_daily_bars(
     progress = _SyncProgress(
         started=started,
         total=len(securities),
-        latest_trade_date=end,
+        probe_ceiling=end,
+        latest_trade_date=provider_windows[baostock.name].latest,
         provider_trade_dates=provider_trade_dates,
         provider_probe_starts={
             source: window.probed_from for source, window in provider_windows.items()
         },
         requested_start_date=start_date,
+    )
+    benchmark_frame = provider_windows[baostock.name].benchmark_frame
+    if benchmark_frame is not None and not benchmark_frame.empty:
+        benchmark_rows_inserted = _save_bars_with_lock_retry(
+            "SH.000001",
+            benchmark_frame,
+            baostock.name,
+        )
+        progress.benchmark_rows_inserted = benchmark_rows_inserted
+        progress.rows_inserted += benchmark_rows_inserted
+    progress.latest_trade_date = _persisted_benchmark_trade_date(
+        fallback=provider_windows[baostock.name].latest,
     )
 
     for processed, (symbol, board, profile) in enumerate(securities, start=1):

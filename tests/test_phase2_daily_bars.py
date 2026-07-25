@@ -71,6 +71,278 @@ def test_sqlite_engine_waits_for_concurrent_writers(tmp_path: Path) -> None:
         engine.dispose()
 
 
+def test_daily_bar_probe_ceiling_advances_past_stale_cached_benchmark(
+    tmp_path: Path,
+) -> None:
+    engine = create_engine(f"sqlite:///{tmp_path / 'probe-ceiling.db'}")
+    Base.metadata.create_all(engine)
+    local_session = _local_session(engine)
+    with local_session() as session:
+        session.add(
+            DailyBar(
+                symbol="SH.000001",
+                trade_date=date(2026, 7, 23),
+                open=10,
+                high=11,
+                low=9,
+                close=10.5,
+                volume=1000,
+                amount=10000,
+                source="baostock",
+            )
+        )
+
+    with local_session() as session:
+        assert daily_bars._daily_bar_probe_ceiling(
+            session,
+            today=date(2026, 7, 25),
+        ) == date(2026, 7, 24)
+
+
+def test_provider_lag_does_not_fabricate_probe_ceiling_date(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    engine = create_engine(f"sqlite:///{tmp_path / 'probe-provider-lag.db'}")
+    Base.metadata.create_all(engine)
+    local_session = _local_session(engine)
+    cached_date = date(2026, 7, 23)
+    probe_ceiling = date(2026, 7, 24)
+    with local_session() as session:
+        session.add(Security(symbol="600000", board="主板"))
+        session.add_all(
+            [
+                DailyBar(
+                    symbol=symbol,
+                    trade_date=cached_date,
+                    open=10,
+                    high=11,
+                    low=9,
+                    close=10.5,
+                    volume=1000,
+                    amount=10000,
+                    source="baostock",
+                )
+                for symbol in ("SH.000001", "600000")
+            ]
+        )
+
+    calls: list[tuple[str, str, date, date]] = []
+
+    class FakeBaoStock:
+        name = "baostock"
+
+        def get_daily_bars(
+            self, symbol: str, start: date, finish: date
+        ) -> pd.DataFrame:
+            calls.append((self.name, symbol, start, finish))
+            return _frame(cached_date, 10)
+
+    class FakeSina(FakeBaoStock):
+        name = "sina"
+
+        def get_daily_bars(
+            self, symbol: str, start: date, finish: date
+        ) -> pd.DataFrame:
+            calls.append((self.name, symbol, start, finish))
+            return _frame(probe_ceiling, 10)
+
+    real_probe_ceiling = daily_bars._daily_bar_probe_ceiling
+    monkeypatch.setattr(daily_bars, "get_session", local_session)
+    monkeypatch.setattr(
+        daily_bars,
+        "_daily_bar_probe_ceiling",
+        lambda session: real_probe_ceiling(
+            session,
+            today=date(2026, 7, 25),
+        ),
+    )
+    monkeypatch.setattr(daily_bars, "BaoStockMarketDataProvider", FakeBaoStock)
+    monkeypatch.setattr(daily_bars, "SinaDailyBarProvider", FakeSina)
+
+    stats = daily_bars.sync_daily_bars(lookback_days=10, batch_size=1)
+
+    assert stats["probe_ceiling"] == probe_ceiling.isoformat()
+    assert stats["latest_trade_date"] == cached_date.isoformat()
+    assert stats["provider_trade_dates"] == {
+        "baostock": cached_date.isoformat(),
+        "sina": probe_ceiling.isoformat(),
+    }
+    assert stats["benchmark_rows_inserted"] == 0
+    assert stats["done"] == 0
+    assert stats["skipped"] == 1
+    assert stats["rows_inserted"] == 0
+    assert calls == [
+        ("baostock", "SH.000001", date(2026, 7, 14), probe_ceiling),
+        ("sina", "920000", date(2026, 7, 14), probe_ceiling),
+    ]
+    with local_session() as session:
+        assert (
+            session.scalar(
+                select(func.count())
+                .select_from(DailyBar)
+                .where(DailyBar.trade_date == probe_ceiling)
+            )
+            == 0
+        )
+
+
+def test_provider_probe_persists_real_benchmark_bar(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    engine = create_engine(f"sqlite:///{tmp_path / 'probe-benchmark.db'}")
+    Base.metadata.create_all(engine)
+    local_session = _local_session(engine)
+    cached_date = date(2026, 7, 23)
+    provider_date = date(2026, 7, 24)
+    with local_session() as session:
+        session.add(Security(symbol="600000", board="主板"))
+        session.add_all(
+            [
+                DailyBar(
+                    symbol=symbol,
+                    trade_date=cached_date,
+                    open=10,
+                    high=11,
+                    low=9,
+                    close=10.5,
+                    volume=1000,
+                    amount=10000,
+                    source="baostock",
+                )
+                for symbol in ("SH.000001", "600000")
+            ]
+        )
+
+    class FakeBaoStock:
+        name = "baostock"
+
+        def get_daily_bars(
+            self, symbol: str, start: date, finish: date
+        ) -> pd.DataFrame:
+            if symbol == "SH.000001":
+                return _frame(provider_date, 11)
+            return _frame(provider_date, 10)
+
+    class FakeSina(FakeBaoStock):
+        name = "sina"
+
+        def get_daily_bars(
+            self, symbol: str, start: date, finish: date
+        ) -> pd.DataFrame:
+            if symbol == "920000":
+                return _frame(provider_date, 11)
+            return super().get_daily_bars(symbol, start, finish)
+
+    monkeypatch.setattr(daily_bars, "get_session", local_session)
+    monkeypatch.setattr(
+        daily_bars,
+        "_daily_bar_probe_ceiling",
+        lambda _session: provider_date,
+    )
+    monkeypatch.setattr(daily_bars, "BaoStockMarketDataProvider", FakeBaoStock)
+    monkeypatch.setattr(daily_bars, "SinaDailyBarProvider", FakeSina)
+
+    stats = daily_bars.sync_daily_bars(lookback_days=10, batch_size=1)
+
+    assert stats["probe_ceiling"] == provider_date.isoformat()
+    assert stats["latest_trade_date"] == provider_date.isoformat()
+    assert stats["benchmark_rows_inserted"] == 1
+    assert stats["rows_inserted"] == 2
+    with local_session() as session:
+        benchmark = session.scalar(
+            select(DailyBar).where(
+                DailyBar.symbol == "SH.000001",
+                DailyBar.trade_date == provider_date,
+            )
+        )
+        assert benchmark is not None
+        assert benchmark.source == "baostock"
+        assert benchmark.close == pytest.approx(11.5)
+
+
+def test_persisted_audited_benchmark_remains_authoritative_when_provider_lags(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    engine = create_engine(f"sqlite:///{tmp_path / 'persisted-benchmark.db'}")
+    Base.metadata.create_all(engine)
+    local_session = _local_session(engine)
+    provider_date = date(2026, 7, 23)
+    persisted_date = date(2026, 7, 24)
+    with local_session() as session:
+        session.add(Security(symbol="600000", board="主板"))
+        session.add_all(
+            [
+                DailyBar(
+                    symbol="SH.000001",
+                    trade_date=provider_date,
+                    open=10,
+                    high=11,
+                    low=9,
+                    close=10.5,
+                    volume=1000,
+                    amount=10000,
+                    source="baostock",
+                ),
+                DailyBar(
+                    symbol="SH.000001",
+                    trade_date=persisted_date,
+                    open=11,
+                    high=12,
+                    low=10,
+                    close=11.5,
+                    volume=1000,
+                    amount=10000,
+                    source="futu",
+                ),
+                DailyBar(
+                    symbol="600000",
+                    trade_date=provider_date,
+                    open=10,
+                    high=11,
+                    low=9,
+                    close=10.5,
+                    volume=1000,
+                    amount=10000,
+                    source="baostock",
+                ),
+            ]
+        )
+
+    class FakeBaoStock:
+        name = "baostock"
+
+        def get_daily_bars(
+            self, symbol: str, start: date, finish: date
+        ) -> pd.DataFrame:
+            return _frame(provider_date, 10)
+
+    class FakeSina(FakeBaoStock):
+        name = "sina"
+
+        def get_daily_bars(
+            self, symbol: str, start: date, finish: date
+        ) -> pd.DataFrame:
+            return _frame(persisted_date, 10)
+
+    monkeypatch.setattr(daily_bars, "get_session", local_session)
+    monkeypatch.setattr(
+        daily_bars,
+        "_daily_bar_probe_ceiling",
+        lambda _session: persisted_date,
+    )
+    monkeypatch.setattr(daily_bars, "BaoStockMarketDataProvider", FakeBaoStock)
+    monkeypatch.setattr(daily_bars, "SinaDailyBarProvider", FakeSina)
+
+    stats = daily_bars.sync_daily_bars(lookback_days=10, batch_size=1)
+
+    assert stats["provider_trade_dates"] == {
+        "baostock": provider_date.isoformat(),
+        "sina": persisted_date.isoformat(),
+    }
+    assert stats["latest_trade_date"] == persisted_date.isoformat()
+    assert stats["benchmark_rows_inserted"] == 0
+
+
 def test_sync_daily_bars_retries_sqlite_lock_without_refetching_or_failure(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
@@ -113,7 +385,7 @@ def test_sync_daily_bars_retries_sqlite_lock_without_refetching_or_failure(
         return real_save_bars(session, symbol, frame, source)
 
     monkeypatch.setattr(daily_bars, "get_session", tracked_session)
-    monkeypatch.setattr(daily_bars, "latest_trade_date", lambda _session: target)
+    monkeypatch.setattr(daily_bars, "_daily_bar_probe_ceiling", lambda _session: target)
     monkeypatch.setattr(
         daily_bars,
         "_probe_provider_trade_window",
@@ -135,8 +407,10 @@ def test_sync_daily_bars_retries_sqlite_lock_without_refetching_or_failure(
     assert provider_calls == 1
     assert save_calls == 2
     assert delays == [0.5]
-    assert len(opened_sessions) == 3
-    assert len({id(session) for session in opened_sessions}) == 3
+    # One metadata read, one post-write benchmark watermark read, then the
+    # failed and successful independent write attempts.
+    assert len(opened_sessions) == 4
+    assert len({id(session) for session in opened_sessions}) == 4
 
 
 def test_sqlite_lock_failures_do_not_trip_data_provider_circuit_breaker(
@@ -168,7 +442,7 @@ def test_sqlite_lock_failures_do_not_trip_data_provider_circuit_breaker(
         raise _locked_error()
 
     monkeypatch.setattr(daily_bars, "get_session", local_session)
-    monkeypatch.setattr(daily_bars, "latest_trade_date", lambda _session: target)
+    monkeypatch.setattr(daily_bars, "_daily_bar_probe_ceiling", lambda _session: target)
     monkeypatch.setattr(
         daily_bars,
         "_probe_provider_trade_window",
@@ -249,7 +523,7 @@ def test_sync_daily_bars_routes_bse_and_resumes(
 
     monkeypatch.setattr(daily_bars, "get_session", local_session)
     monkeypatch.setattr(
-        daily_bars, "latest_trade_date", lambda _session: requested_end
+        daily_bars, "_daily_bar_probe_ceiling", lambda _session: requested_end
     )
     monkeypatch.setattr(
         daily_bars,
@@ -342,7 +616,7 @@ def test_sync_daily_bars_backfills_before_existing_history_and_resumes(
     monkeypatch.setattr(daily_bars, "get_session", local_session)
     monkeypatch.setattr(
         daily_bars,
-        "latest_trade_date",
+        "_daily_bar_probe_ceiling",
         lambda _session: provider_end,
     )
     monkeypatch.setattr(
@@ -409,7 +683,9 @@ def test_sync_daily_bars_stops_after_twenty_consecutive_failures(
 
     monkeypatch.setattr(daily_bars, "get_session", local_session)
     monkeypatch.setattr(
-        daily_bars, "latest_trade_date", lambda _session: date(2026, 7, 20)
+        daily_bars,
+        "_daily_bar_probe_ceiling",
+        lambda _session: date(2026, 7, 20),
     )
     monkeypatch.setattr(
         daily_bars,
@@ -466,7 +742,7 @@ def test_latest_trade_day_empty_is_not_published_across_weekend(
 
     monkeypatch.setattr(daily_bars, "get_session", local_session)
     monkeypatch.setattr(
-        daily_bars, "latest_trade_date", lambda _session: latest_trade_day
+        daily_bars, "_daily_bar_probe_ceiling", lambda _session: latest_trade_day
     )
     monkeypatch.setattr(
         daily_bars,
@@ -523,7 +799,7 @@ def test_latest_trade_day_transport_error_remains_a_failure(
 
     monkeypatch.setattr(daily_bars, "get_session", local_session)
     monkeypatch.setattr(
-        daily_bars, "latest_trade_date", lambda _session: latest_trade_day
+        daily_bars, "_daily_bar_probe_ceiling", lambda _session: latest_trade_day
     )
     monkeypatch.setattr(
         daily_bars,
@@ -564,7 +840,7 @@ def test_historical_empty_ranges_remain_circuit_breaker_failures(
 
     monkeypatch.setattr(daily_bars, "get_session", local_session)
     monkeypatch.setattr(
-        daily_bars, "latest_trade_date", lambda _session: latest_trade_day
+        daily_bars, "_daily_bar_probe_ceiling", lambda _session: latest_trade_day
     )
     monkeypatch.setattr(
         daily_bars,
