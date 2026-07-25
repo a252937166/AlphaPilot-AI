@@ -19,6 +19,7 @@ build/
 secrets/
 
 # Data and models
+data/
 data/raw/
 data/interim/
 data/processed/
@@ -28,6 +29,12 @@ models/artifacts/
 *.feather
 *.duckdb
 *.db
+*.tar.gz
+*.tgz
+*.zip
+*.dmg
+*.pkg
+*.bin
 
 # Frontend
 apps/web/node_modules/
