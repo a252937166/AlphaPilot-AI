@@ -55,6 +55,31 @@ PIT_CHECKED_FIELDS = {
 PIT_NUMERIC_CHECKED_FIELDS = frozenset(
     {"close", "adj_factor", "value", "pe_ttm", "pb_mrq", "ps_ttm"}
 )
+PIT_NUMERIC_TOLERANCE_POLICY: dict[str, tuple[float, float]] = {
+    # (absolute tolerance, relative tolerance)
+    "close": (0.01, 0.0001),
+    "adj_factor": (0.001, 0.0001),
+    "value": (0.0001, 0.001),
+    "pe_ttm": (0.01, 0.0001),
+    "pb_mrq": (0.01, 0.0001),
+    "ps_ttm": (0.01, 0.0001),
+}
+PIT_ALLOWED_EXTERNAL_SOURCES_BY_TABLE: dict[str, frozenset[str]] = {
+    "daily_bars": frozenset(
+        {
+            "futu-unadjusted-day+futu-hfq-day",
+            "sina-unadjusted-day+sina-hfq-day",
+        }
+    ),
+    "financial_indicators": frozenset(
+        {
+            "eastmoney-f10-main-financial",
+            "tushare-fina-indicator",
+        }
+    ),
+    "valuation_daily": frozenset({"eastmoney-stock-value-em"}),
+}
+PIT_NON_HUMAN_REVIEWER_MARKERS = frozenset({"pending", "trial", "automated"})
 PIT_MISSING_EXTERNAL_VALUES = frozenset({"n/a", "na", "null", "none", "—"})
 EXTERNAL_PAIRING_SCHEMA: dict[str, Any] = {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -1774,6 +1799,12 @@ def _pit_samples(
         seed=seed + 2,
     )
     daily: list[dict[str, Any]] = []
+    daily_source_placeholders, daily_sources = _in_clause(
+        tuple(AUDITED_DAILY_BAR_SOURCES)
+    )
+    adj_source_placeholders, adj_sources = _in_clause(
+        tuple(AUDITED_ADJ_FACTOR_SOURCES)
+    )
     for row_id in daily_ids:
         row = _one(
             connection,
@@ -1788,7 +1819,41 @@ def _pit_samples(
             """,
             (row_id,),
         )
-        daily.append(dict(row))
+        sample = dict(row)
+        anchor = connection.execute(
+            f"""
+            SELECT bars.trade_date, factors.adj_factor
+            FROM daily_bars AS bars
+            JOIN adj_factors AS factors
+              ON factors.symbol = bars.symbol
+             AND factors.trade_date = bars.trade_date
+            WHERE bars.symbol = ?
+              AND bars.trade_date > ?
+              AND bars.source IN ({daily_source_placeholders})
+              AND factors.source IN ({adj_source_placeholders})
+              AND factors.adj_factor > 0
+            ORDER BY bars.trade_date DESC
+            LIMIT 1
+            """,
+            (
+                str(sample["symbol"]),
+                str(sample["trade_date"]),
+                *daily_sources,
+                *adj_sources,
+            ),
+        ).fetchone()
+        if anchor is None:
+            raise RuntimeError(
+                "daily PIT sample has no audited adjustment normalization anchor"
+            )
+        anchor_factor = float(anchor["adj_factor"])
+        if not isfinite(anchor_factor) or anchor_factor <= 0:
+            raise RuntimeError(
+                "daily PIT sample adjustment normalization anchor is invalid"
+            )
+        sample["adj_anchor_date"] = str(anchor["trade_date"])
+        sample["adj_anchor_factor"] = anchor_factor
+        daily.append(sample)
     financial = [
         dict(
             _one(
@@ -1931,6 +1996,11 @@ def _validate_checked_values(
                         f"external PIT pairing {table}.{field} external_value "
                         "must explicitly represent the missing external value"
                     )
+                if comparison.get("tolerance") != 0.0:
+                    raise ValueError(
+                        f"external PIT pairing {table}.{field} missing-value "
+                        "tolerance must be exactly zero"
+                    )
                 continue
             if (
                 isinstance(local_value, bool)
@@ -1962,9 +2032,20 @@ def _validate_checked_values(
                     f"external PIT pairing {table}.{field} tolerance "
                     "must be a finite non-negative number"
                 )
-            if abs(float(local_value) - float(external_value)) > float(
-                tolerance_value
-            ):
+            absolute_tolerance, relative_tolerance = PIT_NUMERIC_TOLERANCE_POLICY[
+                field
+            ]
+            expected_tolerance = max(
+                absolute_tolerance,
+                relative_tolerance
+                * max(abs(float(local_value)), abs(float(external_value))),
+            )
+            if float(tolerance_value) != expected_tolerance:
+                raise ValueError(
+                    f"external PIT pairing {table}.{field} tolerance "
+                    "does not match the fixed policy"
+                )
+            if abs(float(local_value) - float(external_value)) > expected_tolerance:
                 raise ValueError(
                     f"external PIT pairing {table}.{field} values exceed tolerance"
                 )
@@ -2032,7 +2113,21 @@ def _external_pairing_evidence(
         raise ValueError(f"non-finite JSON number is not allowed: {value}")
 
     try:
-        document = json.loads(content, parse_constant=reject_non_finite_json)
+        def reject_duplicate_json_keys(
+            pairs: list[tuple[str, Any]],
+        ) -> dict[str, Any]:
+            strict_object: dict[str, Any] = {}
+            for key, value in pairs:
+                if key in strict_object:
+                    raise ValueError(f"duplicate JSON key is not allowed: {key}")
+                strict_object[key] = value
+            return strict_object
+
+        document = json.loads(
+            content,
+            object_pairs_hook=reject_duplicate_json_keys,
+            parse_constant=reject_non_finite_json,
+        )
     except json.JSONDecodeError as exc:
         raise ValueError("external PIT pairing evidence must be strict JSON") from exc
     except ValueError as exc:
@@ -2050,8 +2145,16 @@ def _external_pairing_evidence(
     if not isinstance(document, dict):
         raise ValueError("external PIT pairing evidence root must be an object")
     reviewer_role = str(document["reviewer_role"]).strip()
-    if not reviewer_role:
-        raise ValueError("external PIT pairing reviewer_role must not be blank")
+    if (
+        not reviewer_role
+        or any(
+            marker in reviewer_role.casefold()
+            for marker in PIT_NON_HUMAN_REVIEWER_MARKERS
+        )
+    ):
+        raise ValueError(
+            "external PIT pairing reviewer_role must identify a human reviewer"
+        )
     reviewed_at_text = str(document["reviewed_at"]).strip()
     reviewed_at = _parse_datetime(reviewed_at_text)
     if (
@@ -2092,13 +2195,18 @@ def _external_pairing_evidence(
     for sample in raw_samples:
         if not isinstance(sample, dict):
             raise ValueError("external PIT pairing sample must be an object")
+        table = str(sample["table"])
         source = str(sample["external_source"]).strip()
-        if not source:
-            raise ValueError("external PIT pairing external_source must not be blank")
+        allowed_sources = PIT_ALLOWED_EXTERNAL_SOURCES_BY_TABLE.get(table, frozenset())
+        if source not in allowed_sources:
+            raise ValueError(
+                "external PIT pairing external_source is not on the audited "
+                f"non-BaoStock route for {table}: {source or '<blank>'}"
+            )
         key = sample["key"]
         if not isinstance(key, dict):
             raise ValueError("external PIT pairing sample key must be an object")
-        identity = _sample_identity(str(sample["table"]), key)
+        identity = _sample_identity(table, key)
         supplied.append(identity)
         evidence_by_identity[identity] = sample
     supplied_set = set(supplied)

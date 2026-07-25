@@ -1,0 +1,529 @@
+{
+  "approved": false,
+  "generated_at": "2026-07-25T20:59:45.557191+00:00",
+  "manifest_report": {
+    "basename": "P3.3-S6-preflight.json",
+    "sha256": "072610e25f9027769ec0f8bdcc7ec6c20ec37daa6d5c1f5ceef46881b67bd246"
+  },
+  "metadata_semantics": {
+    "external_provider_identity": "external_source",
+    "source_fields": "manifest_provenance_attestation_bound_by_manifest_sha256"
+  },
+  "mode": "trial",
+  "pit_manifest_schema_version": "p3.3-s6-local-pit-manifest-v1",
+  "pit_manifest_sha256": "85841b59f1102796a5942d32eb9df02d3fc313c80d5c04ceac9059a5d028b58d",
+  "purpose": "architect_review_only_not_accepted_by_s6",
+  "sample_size_per_table": 5,
+  "samples": [
+    {
+      "checked_values": {
+        "adj_factor": {
+          "external_value": 1.0212978865955713,
+          "local_value": 1.039872,
+          "pass": false,
+          "tolerance": 0.001
+        },
+        "adj_source": {
+          "external_value": "baostock-hfq",
+          "local_value": "baostock-hfq",
+          "pass": true
+        },
+        "close": {
+          "external_value": 20.34,
+          "local_value": 20.34,
+          "pass": true,
+          "tolerance": 0.01
+        },
+        "source": {
+          "external_value": "baostock",
+          "local_value": "baostock",
+          "pass": true
+        }
+      },
+      "external_source": "futu-unadjusted-day+futu-hfq-day",
+      "key": {
+        "symbol": "001260",
+        "trade_date": "2025-10-29"
+      },
+      "table": "daily_bars",
+      "verdict": "mismatch"
+    },
+    {
+      "checked_values": {
+        "adj_factor": {
+          "external_value": 5.527511575323547,
+          "local_value": 5.863797,
+          "pass": false,
+          "tolerance": 0.001
+        },
+        "adj_source": {
+          "external_value": "baostock-hfq",
+          "local_value": "baostock-hfq",
+          "pass": true
+        },
+        "close": {
+          "external_value": 10.74,
+          "local_value": 10.74,
+          "pass": true,
+          "tolerance": 0.01
+        },
+        "source": {
+          "external_value": "baostock",
+          "local_value": "baostock",
+          "pass": true
+        }
+      },
+      "external_source": "futu-unadjusted-day+futu-hfq-day",
+      "key": {
+        "symbol": "600648",
+        "trade_date": "2025-06-16"
+      },
+      "table": "daily_bars",
+      "verdict": "mismatch"
+    },
+    {
+      "checked_values": {
+        "adj_factor": {
+          "external_value": 9.386742771043817,
+          "local_value": 10.631079000000001,
+          "pass": false,
+          "tolerance": 0.0010631079000000003
+        },
+        "adj_source": {
+          "external_value": "baostock-hfq",
+          "local_value": "baostock-hfq",
+          "pass": true
+        },
+        "close": {
+          "external_value": 4.05,
+          "local_value": 4.05,
+          "pass": true,
+          "tolerance": 0.01
+        },
+        "source": {
+          "external_value": "baostock",
+          "local_value": "baostock",
+          "pass": true
+        }
+      },
+      "external_source": "futu-unadjusted-day+futu-hfq-day",
+      "key": {
+        "symbol": "600782",
+        "trade_date": "2026-01-30"
+      },
+      "table": "daily_bars",
+      "verdict": "mismatch"
+    },
+    {
+      "checked_values": {
+        "adj_factor": {
+          "external_value": 2.9956745104411784,
+          "local_value": 2.9898480000000003,
+          "pass": false,
+          "tolerance": 0.001
+        },
+        "adj_source": {
+          "external_value": "baostock-hfq",
+          "local_value": "baostock-hfq",
+          "pass": true
+        },
+        "close": {
+          "external_value": 30.54,
+          "local_value": 30.54,
+          "pass": true,
+          "tolerance": 0.01
+        },
+        "source": {
+          "external_value": "baostock",
+          "local_value": "baostock",
+          "pass": true
+        }
+      },
+      "external_source": "futu-unadjusted-day+futu-hfq-day",
+      "key": {
+        "symbol": "000831",
+        "trade_date": "2023-05-29"
+      },
+      "table": "daily_bars",
+      "verdict": "mismatch"
+    },
+    {
+      "checked_values": {
+        "adj_factor": {
+          "external_value": 1.3976175683948922,
+          "local_value": 1.41313,
+          "pass": false,
+          "tolerance": 0.001
+        },
+        "adj_source": {
+          "external_value": "baostock-hfq",
+          "local_value": "baostock-hfq",
+          "pass": true
+        },
+        "close": {
+          "external_value": 18.44,
+          "local_value": 18.44,
+          "pass": true,
+          "tolerance": 0.01
+        },
+        "source": {
+          "external_value": "baostock",
+          "local_value": "baostock",
+          "pass": true
+        }
+      },
+      "external_source": "futu-unadjusted-day+futu-hfq-day",
+      "key": {
+        "symbol": "001205",
+        "trade_date": "2024-05-21"
+      },
+      "table": "daily_bars",
+      "verdict": "mismatch"
+    },
+    {
+      "checked_values": {
+        "available_time": {
+          "external_value": "2021-04-23 16:00:00.000000",
+          "local_value": "2021-04-23 16:00:00.000000",
+          "pass": true
+        },
+        "source": {
+          "external_value": "baostock",
+          "local_value": "baostock",
+          "pass": true
+        },
+        "value": {
+          "external_value": 0.582857908848,
+          "local_value": 0.507244,
+          "pass": false,
+          "tolerance": 0.000582857908848
+        }
+      },
+      "external_source": "eastmoney-f10-main-financial",
+      "key": {
+        "metric": "debt_ratio",
+        "report_period": "2020Q4",
+        "symbol": "000155"
+      },
+      "table": "financial_indicators",
+      "verdict": "mismatch"
+    },
+    {
+      "checked_values": {
+        "available_time": {
+          "external_value": "2026-03-25 16:00:00.000000",
+          "local_value": "2026-03-25 16:00:00.000000",
+          "pass": true
+        },
+        "source": {
+          "external_value": "baostock",
+          "local_value": "baostock",
+          "pass": true
+        },
+        "value": {
+          "external_value": 0.7805919614450001,
+          "local_value": 0.007806,
+          "pass": false,
+          "tolerance": 0.0007805919614450001
+        }
+      },
+      "external_source": "eastmoney-f10-main-financial",
+      "key": {
+        "metric": "debt_ratio",
+        "report_period": "2025Q4",
+        "symbol": "000509"
+      },
+      "table": "financial_indicators",
+      "verdict": "mismatch"
+    },
+    {
+      "checked_values": {
+        "available_time": {
+          "external_value": "2020-04-29 16:00:00.000000",
+          "local_value": "2020-04-29 16:00:00.000000",
+          "pass": true
+        },
+        "source": {
+          "external_value": "baostock",
+          "local_value": "baostock",
+          "pass": true
+        },
+        "value": {
+          "external_value": 0.043899999999999995,
+          "local_value": 0.043853,
+          "pass": true,
+          "tolerance": 0.0001
+        }
+      },
+      "external_source": "eastmoney-f10-main-financial",
+      "key": {
+        "metric": "roe",
+        "report_period": "2019Q4",
+        "symbol": "000593"
+      },
+      "table": "financial_indicators",
+      "verdict": "match"
+    },
+    {
+      "checked_values": {
+        "available_time": {
+          "external_value": "2024-08-23 16:00:00.000000",
+          "local_value": "2024-08-23 16:00:00.000000",
+          "pass": true
+        },
+        "source": {
+          "external_value": "baostock",
+          "local_value": "baostock",
+          "pass": true
+        },
+        "value": {
+          "external_value": 0.08070000000000001,
+          "local_value": 0.073723,
+          "pass": false,
+          "tolerance": 0.0001
+        }
+      },
+      "external_source": "eastmoney-f10-main-financial",
+      "key": {
+        "metric": "roe",
+        "report_period": "2024Q2",
+        "symbol": "000680"
+      },
+      "table": "financial_indicators",
+      "verdict": "mismatch"
+    },
+    {
+      "checked_values": {
+        "available_time": {
+          "external_value": "2023-08-31 16:00:00.000000",
+          "local_value": "2023-08-31 16:00:00.000000",
+          "pass": true
+        },
+        "source": {
+          "external_value": "baostock",
+          "local_value": "baostock",
+          "pass": true
+        },
+        "value": {
+          "external_value": "N/A",
+          "local_value": null,
+          "pass": true,
+          "tolerance": 0.0
+        }
+      },
+      "external_source": "eastmoney-f10-main-financial",
+      "key": {
+        "metric": "ocf_to_profit",
+        "report_period": "2023Q2",
+        "symbol": "000761"
+      },
+      "table": "financial_indicators",
+      "verdict": "match"
+    },
+    {
+      "checked_values": {
+        "available_time": {
+          "external_value": "2022-11-21 07:00:00.000000",
+          "local_value": "2022-11-21 07:00:00.000000",
+          "pass": true
+        },
+        "pb_mrq": {
+          "external_value": 1.98407603,
+          "local_value": 1.98407603,
+          "pass": true,
+          "tolerance": 0.01
+        },
+        "pe_ttm": {
+          "external_value": 31.48867883,
+          "local_value": 31.48867883,
+          "pass": true,
+          "tolerance": 0.01
+        },
+        "ps_ttm": {
+          "external_value": 5.521201,
+          "local_value": 5.521201,
+          "pass": true,
+          "tolerance": 0.01
+        },
+        "source": {
+          "external_value": "em",
+          "local_value": "em",
+          "pass": true
+        }
+      },
+      "external_source": "eastmoney-stock-value-em",
+      "key": {
+        "symbol": "000565",
+        "trade_date": "2022-11-21"
+      },
+      "table": "valuation_daily",
+      "verdict": "match"
+    },
+    {
+      "checked_values": {
+        "available_time": {
+          "external_value": "2019-12-25 07:00:00.000000",
+          "local_value": "2019-12-25 07:00:00.000000",
+          "pass": true
+        },
+        "pb_mrq": {
+          "external_value": 1.3599069,
+          "local_value": 1.3599069,
+          "pass": true,
+          "tolerance": 0.01
+        },
+        "pe_ttm": {
+          "external_value": 38.21816855,
+          "local_value": 38.21816855,
+          "pass": true,
+          "tolerance": 0.01
+        },
+        "ps_ttm": {
+          "external_value": 2.54959205,
+          "local_value": 2.54959205,
+          "pass": true,
+          "tolerance": 0.01
+        },
+        "source": {
+          "external_value": "em",
+          "local_value": "em",
+          "pass": true
+        }
+      },
+      "external_source": "eastmoney-stock-value-em",
+      "key": {
+        "symbol": "000690",
+        "trade_date": "2019-12-25"
+      },
+      "table": "valuation_daily",
+      "verdict": "match"
+    },
+    {
+      "checked_values": {
+        "available_time": {
+          "external_value": "2026-03-05 07:00:00.000000",
+          "local_value": "2026-03-05 07:00:00.000000",
+          "pass": true
+        },
+        "pb_mrq": {
+          "external_value": 1.04445234,
+          "local_value": 1.04445234,
+          "pass": true,
+          "tolerance": 0.01
+        },
+        "pe_ttm": {
+          "external_value": 12.35134943,
+          "local_value": 12.35134943,
+          "pass": true,
+          "tolerance": 0.01
+        },
+        "ps_ttm": {
+          "external_value": 0.59096286,
+          "local_value": 0.59096286,
+          "pass": true,
+          "tolerance": 0.01
+        },
+        "source": {
+          "external_value": "em",
+          "local_value": "em",
+          "pass": true
+        }
+      },
+      "external_source": "eastmoney-stock-value-em",
+      "key": {
+        "symbol": "001914",
+        "trade_date": "2026-03-05"
+      },
+      "table": "valuation_daily",
+      "verdict": "match"
+    },
+    {
+      "checked_values": {
+        "available_time": {
+          "external_value": "2024-09-06 07:00:00.000000",
+          "local_value": "2024-09-06 07:00:00.000000",
+          "pass": true
+        },
+        "pb_mrq": {
+          "external_value": 3.17944722,
+          "local_value": 3.17944722,
+          "pass": true,
+          "tolerance": 0.01
+        },
+        "pe_ttm": {
+          "external_value": 43.14786861,
+          "local_value": 43.14786861,
+          "pass": true,
+          "tolerance": 0.01
+        },
+        "ps_ttm": {
+          "external_value": 1.82693231,
+          "local_value": 1.82693231,
+          "pass": true,
+          "tolerance": 0.01
+        },
+        "source": {
+          "external_value": "em",
+          "local_value": "em",
+          "pass": true
+        }
+      },
+      "external_source": "eastmoney-stock-value-em",
+      "key": {
+        "symbol": "002186",
+        "trade_date": "2024-09-06"
+      },
+      "table": "valuation_daily",
+      "verdict": "match"
+    },
+    {
+      "checked_values": {
+        "available_time": {
+          "external_value": "2025-09-03 07:00:00.000000",
+          "local_value": "2025-09-03 07:00:00.000000",
+          "pass": true
+        },
+        "pb_mrq": {
+          "external_value": 0.93165417,
+          "local_value": 0.93165417,
+          "pass": true,
+          "tolerance": 0.01
+        },
+        "pe_ttm": {
+          "external_value": 474.74560924,
+          "local_value": 474.74560924,
+          "pass": true,
+          "tolerance": 0.04747456092400001
+        },
+        "ps_ttm": {
+          "external_value": 2.37394028,
+          "local_value": 2.37394028,
+          "pass": true,
+          "tolerance": 0.01
+        },
+        "source": {
+          "external_value": "em",
+          "local_value": "em",
+          "pass": true
+        }
+      },
+      "external_source": "eastmoney-stock-value-em",
+      "key": {
+        "symbol": "002191",
+        "trade_date": "2025-09-03"
+      },
+      "table": "valuation_daily",
+      "verdict": "match"
+    }
+  ],
+  "schema_version": "p3.3-s6-external-pit-trial-v1",
+  "secrets_included": false,
+  "seed": 20260725,
+  "summary": {
+    "eligible_for_v2_signing": false,
+    "match": 7,
+    "mismatch": 8,
+    "sample_count": 15,
+    "unavailable": 0
+  }
+}

@@ -236,8 +236,6 @@ def _replace_with_full_financial_history(database_path: Path) -> None:
 
 def _external_evidence_document(
     report: dict[str, Any],
-    *,
-    checked_marker: str = "test_checked_value",
 ) -> dict[str, Any]:
     pit_samples = report["pit_samples"]
     assert isinstance(pit_samples, dict)
@@ -251,6 +249,11 @@ def _external_evidence_document(
         ),
         ("valuation_daily", "valuation_daily", ("symbol", "trade_date")),
     )
+    external_sources = {
+        "daily_bars": "futu-unadjusted-day+futu-hfq-day",
+        "financial_indicators": "eastmoney-f10-main-financial",
+        "valuation_daily": "eastmoney-stock-value-em",
+    }
     for table, report_key, key_fields in table_specs:
         selected = pit_samples[report_key]
         assert isinstance(selected, list)
@@ -263,11 +266,21 @@ def _external_evidence_document(
                     external_value = (
                         "N/A" if local_value is None else local_value
                     )
+                    if local_value is None:
+                        tolerance = 0.0
+                    else:
+                        absolute, relative = (
+                            data_health.PIT_NUMERIC_TOLERANCE_POLICY[field]
+                        )
+                        tolerance = max(
+                            absolute,
+                            relative * abs(float(local_value)),
+                        )
                     checked_values[field] = {
                         "local_value": local_value,
                         "external_value": external_value,
                         "pass": True,
-                        "tolerance": 0.0,
+                        "tolerance": tolerance,
                     }
                 else:
                     checked_values[field] = {
@@ -280,7 +293,7 @@ def _external_evidence_document(
                     "table": table,
                     "key": {field: str(row[field]) for field in key_fields},
                     "verdict": "match",
-                    "external_source": checked_marker,
+                    "external_source": external_sources[table],
                     "checked_values": checked_values,
                 }
             )
@@ -372,6 +385,9 @@ def test_s6_report_is_read_only_and_blocks_incomplete_s2(tmp_path: Path) -> None
     assert report["pit_samples"]["external_source_pairing"] == (
         "not_performed_by_this_read_only_script"
     )
+    for sample in report["pit_samples"]["daily_bars_with_adj"]:
+        assert sample["adj_anchor_date"] > sample["trade_date"]
+        assert sample["adj_anchor_factor"] > 0
     warning_codes = {item["code"] for item in report["gate"]["warnings"]}
     assert "SECTOR_FLOW_ONE_YEAR_LIMIT" in warning_codes
     assert "SECTOR_FLOW_FIXED_TOP5_LOOKAHEAD" in warning_codes
@@ -653,11 +669,8 @@ def test_external_pairing_requires_exact_strict_json_and_reports_metadata_only(
         "EXTERNAL_PIT_PAIRING_PENDING"
     }
     evidence_path = tmp_path / "architect-pit-pairing.json"
-    checked_marker = "sensitive_external_checked_value"
-    evidence_document = _external_evidence_document(
-        unsigned,
-        checked_marker=checked_marker,
-    )
+    checked_marker = "futu-unadjusted-day+futu-hfq-day"
+    evidence_document = _external_evidence_document(unsigned)
     evidence_content = json.dumps(
         evidence_document,
         ensure_ascii=False,
@@ -743,6 +756,87 @@ def test_external_pairing_rejects_missing_empty_and_arbitrary_text(
         build_data_health_report(
             database_path,
             external_pit_pairing_evidence=oversized,
+            factor_probe=_sufficient_probe,
+        )
+
+
+def test_external_pairing_rejects_forbidden_source_inflated_tolerance_and_nonhuman_role(
+    tmp_path: Path,
+) -> None:
+    database_path = _database(tmp_path)
+    baseline = build_data_health_report(
+        database_path,
+        sample_size=1,
+        factor_probe=_sufficient_probe,
+    )
+    evidence_path = tmp_path / "forged-evidence.json"
+
+    forbidden_source = _external_evidence_document(baseline)
+    forbidden_samples = forbidden_source["samples"]
+    assert isinstance(forbidden_samples, list)
+    forbidden_samples[0]["external_source"] = "BaoStock-forbidden-route"
+    evidence_path.write_text(json.dumps(forbidden_source), encoding="utf-8")
+    with pytest.raises(ValueError, match="non-BaoStock route"):
+        build_data_health_report(
+            database_path,
+            external_pit_pairing_evidence=evidence_path,
+            sample_size=1,
+            factor_probe=_sufficient_probe,
+        )
+
+    wrong_table_route = _external_evidence_document(baseline)
+    wrong_table_samples = wrong_table_route["samples"]
+    assert isinstance(wrong_table_samples, list)
+    wrong_table_samples[0]["external_source"] = "eastmoney-stock-value-em"
+    evidence_path.write_text(json.dumps(wrong_table_route), encoding="utf-8")
+    with pytest.raises(ValueError, match="route for daily_bars"):
+        build_data_health_report(
+            database_path,
+            external_pit_pairing_evidence=evidence_path,
+            sample_size=1,
+            factor_probe=_sufficient_probe,
+        )
+
+    inflated_tolerance = _external_evidence_document(baseline)
+    inflated_samples = inflated_tolerance["samples"]
+    assert isinstance(inflated_samples, list)
+    first_checks = inflated_samples[0]["checked_values"]
+    assert isinstance(first_checks, dict)
+    first_checks["close"]["external_value"] += 1_000_000.0
+    first_checks["close"]["tolerance"] = 1_000_001.0
+    evidence_path.write_text(json.dumps(inflated_tolerance), encoding="utf-8")
+    with pytest.raises(ValueError, match="fixed policy"):
+        build_data_health_report(
+            database_path,
+            external_pit_pairing_evidence=evidence_path,
+            sample_size=1,
+            factor_probe=_sufficient_probe,
+        )
+
+    nonhuman_role = _external_evidence_document(baseline)
+    nonhuman_role["reviewer_role"] = "automated trial"
+    evidence_path.write_text(json.dumps(nonhuman_role), encoding="utf-8")
+    with pytest.raises(ValueError, match="human reviewer"):
+        build_data_health_report(
+            database_path,
+            external_pit_pairing_evidence=evidence_path,
+            sample_size=1,
+            factor_probe=_sufficient_probe,
+        )
+
+    valid = _external_evidence_document(baseline)
+    duplicate_json = json.dumps(valid)
+    duplicate_json = duplicate_json.replace(
+        '"approved": true,',
+        '"approved": false, "approved": true,',
+        1,
+    )
+    evidence_path.write_text(duplicate_json, encoding="utf-8")
+    with pytest.raises(ValueError, match="strict JSON"):
+        build_data_health_report(
+            database_path,
+            external_pit_pairing_evidence=evidence_path,
+            sample_size=1,
             factor_probe=_sufficient_probe,
         )
 

@@ -1,7 +1,7 @@
 {
   "as_of_date": "2026-07-26",
   "daily_adj_key_audit": {
-    "adj_keys_without_audited_daily": 111,
+    "adj_keys_without_audited_daily": 0,
     "audited_daily_keys_without_adj": 0
   },
   "database": {
@@ -14,7 +14,7 @@
     "basename": null,
     "bytes": 0,
     "pit_manifest_schema_version": "p3.3-s6-local-pit-manifest-v1",
-    "pit_manifest_sha256": "7667d6f2869c47264547408747f1aa390943e2c57cd103803abbaef345717101",
+    "pit_manifest_sha256": "85841b59f1102796a5942d32eb9df02d3fc313c80d5c04ceac9059a5d028b58d",
     "reviewed_at": null,
     "reviewer_role": null,
     "sample_count": 0,
@@ -209,8 +209,8 @@
         "live_forward": false,
         "minimum_cross_section": 100,
         "non_null_summary": {
-          "maximum_n": 1003,
-          "minimum_n": 974,
+          "maximum_n": 1485,
+          "minimum_n": 1447,
           "probe_count": 3,
           "sufficient_probe_count": 3
         },
@@ -220,21 +220,21 @@
             "eligible": 5270,
             "error": null,
             "membership_pit": null,
-            "n": 993
+            "n": 1476
           },
           {
             "date": "2025-07-30",
             "eligible": 5373,
             "error": null,
             "membership_pit": null,
-            "n": 1003
+            "n": 1485
           },
           {
             "date": "2026-07-24",
             "eligible": 5504,
             "error": null,
             "membership_pit": null,
-            "n": 974
+            "n": 1447
           }
         ],
         "reason": null,
@@ -249,8 +249,8 @@
         "live_forward": false,
         "minimum_cross_section": 100,
         "non_null_summary": {
-          "maximum_n": 1003,
-          "minimum_n": 974,
+          "maximum_n": 1485,
+          "minimum_n": 1447,
           "probe_count": 3,
           "sufficient_probe_count": 3
         },
@@ -260,21 +260,21 @@
             "eligible": 5270,
             "error": null,
             "membership_pit": null,
-            "n": 993
+            "n": 1476
           },
           {
             "date": "2025-07-30",
             "eligible": 5373,
             "error": null,
             "membership_pit": null,
-            "n": 1003
+            "n": 1485
           },
           {
             "date": "2026-07-24",
             "eligible": 5504,
             "error": null,
             "membership_pit": null,
-            "n": 974
+            "n": 1447
           }
         ],
         "reason": null,
@@ -289,8 +289,8 @@
         "live_forward": false,
         "minimum_cross_section": 100,
         "non_null_summary": {
-          "maximum_n": 1003,
-          "minimum_n": 974,
+          "maximum_n": 1485,
+          "minimum_n": 1447,
           "probe_count": 3,
           "sufficient_probe_count": 3
         },
@@ -300,21 +300,21 @@
             "eligible": 5270,
             "error": null,
             "membership_pit": null,
-            "n": 993
+            "n": 1476
           },
           {
             "date": "2025-07-30",
             "eligible": 5373,
             "error": null,
             "membership_pit": null,
-            "n": 1003
+            "n": 1485
           },
           {
             "date": "2026-07-24",
             "eligible": 5504,
             "error": null,
             "membership_pit": null,
-            "n": 974
+            "n": 1447
           }
         ],
         "reason": null,
@@ -329,8 +329,8 @@
         "live_forward": false,
         "minimum_cross_section": 100,
         "non_null_summary": {
-          "maximum_n": 1003,
-          "minimum_n": 974,
+          "maximum_n": 1485,
+          "minimum_n": 1447,
           "probe_count": 3,
           "sufficient_probe_count": 3
         },
@@ -340,21 +340,21 @@
             "eligible": 5270,
             "error": null,
             "membership_pit": null,
-            "n": 993
+            "n": 1476
           },
           {
             "date": "2025-07-30",
             "eligible": 5373,
             "error": null,
             "membership_pit": null,
-            "n": 1003
+            "n": 1485
           },
           {
             "date": "2026-07-24",
             "eligible": 5504,
             "error": null,
             "membership_pit": null,
-            "n": 974
+            "n": 1447
           }
         ],
         "reason": null,
@@ -369,8 +369,8 @@
         "live_forward": false,
         "minimum_cross_section": 100,
         "non_null_summary": {
-          "maximum_n": 997,
-          "minimum_n": 968,
+          "maximum_n": 1479,
+          "minimum_n": 1441,
           "probe_count": 3,
           "sufficient_probe_count": 3
         },
@@ -380,21 +380,21 @@
             "eligible": 5270,
             "error": null,
             "membership_pit": null,
-            "n": 989
+            "n": 1472
           },
           {
             "date": "2025-07-30",
             "eligible": 5373,
             "error": null,
             "membership_pit": null,
-            "n": 997
+            "n": 1479
           },
           {
             "date": "2026-07-24",
             "eligible": 5504,
             "error": null,
             "membership_pit": null,
-            "n": 968
+            "n": 1441
           }
         ],
         "reason": null,
@@ -504,15 +504,15 @@
     "probe_results": [
       {
         "counts": {
-          "debt_ratio": 993,
+          "debt_ratio": 1476,
           "momentum_20d": 5270,
           "momentum_60d": 5267,
-          "net_profit_yoy": 993,
-          "ocf_to_profit": 993,
+          "net_profit_yoy": 1476,
+          "ocf_to_profit": 1476,
           "pb_percentile": 5245,
           "pe_percentile": 4100,
-          "revenue_yoy": 989,
-          "roe": 993,
+          "revenue_yoy": 1472,
+          "roe": 1476,
           "turnover_change_5d": 5269,
           "volatility_20d": 5270
         },
@@ -522,15 +522,15 @@
       },
       {
         "counts": {
-          "debt_ratio": 1003,
+          "debt_ratio": 1485,
           "momentum_20d": 5373,
           "momentum_60d": 5367,
-          "net_profit_yoy": 1003,
-          "ocf_to_profit": 1003,
+          "net_profit_yoy": 1485,
+          "ocf_to_profit": 1485,
           "pb_percentile": 5339,
           "pe_percentile": 3949,
-          "revenue_yoy": 997,
-          "roe": 1003,
+          "revenue_yoy": 1479,
+          "roe": 1485,
           "turnover_change_5d": 5370,
           "volatility_20d": 5373
         },
@@ -540,15 +540,15 @@
       },
       {
         "counts": {
-          "debt_ratio": 1002,
+          "debt_ratio": 1482,
           "momentum_20d": 5368,
           "momentum_60d": 5362,
-          "net_profit_yoy": 1002,
-          "ocf_to_profit": 1002,
+          "net_profit_yoy": 1482,
+          "ocf_to_profit": 1482,
           "pb_percentile": 5334,
           "pe_percentile": 3946,
-          "revenue_yoy": 996,
-          "roe": 1002,
+          "revenue_yoy": 1476,
+          "roe": 1482,
           "turnover_change_5d": 5364,
           "volatility_20d": 5368
         },
@@ -558,15 +558,15 @@
       },
       {
         "counts": {
-          "debt_ratio": 1008,
+          "debt_ratio": 1492,
           "momentum_20d": 5424,
           "momentum_60d": 5413,
-          "net_profit_yoy": 1008,
-          "ocf_to_profit": 1008,
+          "net_profit_yoy": 1492,
+          "ocf_to_profit": 1492,
           "pb_percentile": 5382,
           "pe_percentile": 3902,
-          "revenue_yoy": 1005,
-          "roe": 1008,
+          "revenue_yoy": 1489,
+          "roe": 1492,
           "turnover_change_5d": 5419,
           "volatility_20d": 5424
         },
@@ -576,15 +576,15 @@
       },
       {
         "counts": {
-          "debt_ratio": 974,
+          "debt_ratio": 1447,
           "momentum_20d": 5296,
           "momentum_60d": 5284,
-          "net_profit_yoy": 974,
-          "ocf_to_profit": 974,
+          "net_profit_yoy": 1447,
+          "ocf_to_profit": 1447,
           "pb_percentile": 5289,
           "pe_percentile": 3928,
-          "revenue_yoy": 968,
-          "roe": 974,
+          "revenue_yoy": 1441,
+          "roe": 1447,
           "turnover_change_5d": 5295,
           "volatility_20d": 5296
         },
@@ -640,14 +640,9 @@
     "automated_checks_pass": false,
     "blockers": [
       {
-        "code": "DAILY_ADJ_KEY_MISMATCH",
-        "kind": "automated",
-        "message": "daily_bars 与 adj_factors 的审计日期键未逐行对齐。"
-      },
-      {
         "code": "S2_FINANCIAL_COVERAGE_INCOMPLETE",
         "kind": "automated",
-        "message": "财务覆盖率 0.184415 低于闸门 90%；S2 未完成，S6 不得放行。"
+        "message": "财务覆盖率 0.271922 低于闸门 90%；S2 未完成，S6 不得放行。"
       },
       {
         "code": "EXTERNAL_PIT_PAIRING_PENDING",
@@ -680,7 +675,7 @@
       }
     ]
   },
-  "generated_at": "2026-07-25T20:22:51.817443+00:00",
+  "generated_at": "2026-07-25T20:59:36.971951+00:00",
   "historical_factor_scope": {
     "candidate_count": 11,
     "candidate_factors": [
@@ -728,10 +723,10 @@
           "SEARCH observed USING COVERING INDEX sqlite_autoindex_adj_factors_1 (symbol=? AND trade_date=?)"
         ]
       },
-      "rows": 8463893,
+      "rows": 8463782,
       "source_counts": {
         "baostock-hfq": 8198345,
-        "sina-hfq": 265547,
+        "sina-hfq": 265436,
         "tushare": 1
       },
       "symbols": 5531
@@ -776,8 +771,8 @@
     },
     "financial_indicators": {
       "available_time_range": [
-        "2016-10-14 16:00:00.000000",
-        "2026-07-18 16:00:00.000000"
+        "2016-10-12 16:00:00.000000",
+        "2026-07-24 16:00:00.000000"
       ],
       "depth_contract": {
         "listing_date_basis_counts": {
@@ -787,21 +782,21 @@
         },
         "metric_depth": {
           "debt_ratio": {
-            "cross_year_sufficient_ratio": 0.185036,
-            "cross_year_sufficient_symbols": 1014,
-            "depth_sufficient_ratio": 0.184854,
-            "depth_sufficient_symbols": 1013,
-            "fresh_ratio": 0.184672,
-            "fresh_symbols": 1012,
+            "cross_year_sufficient_ratio": 0.273175,
+            "cross_year_sufficient_symbols": 1497,
+            "depth_sufficient_ratio": 0.272993,
+            "depth_sufficient_symbols": 1496,
+            "fresh_ratio": 0.27281,
+            "fresh_symbols": 1495,
             "mature_symbols": 4246,
             "minimum_mature_quarters": 20,
             "minimum_mature_years": 5,
             "non_null_quarter_distribution": {
-              "0-9": 4484,
-              "10-19": 68,
-              "20-29": 46,
-              "30-39": 881,
-              "40+": 1
+              "0-9": 4001,
+              "10-19": 70,
+              "20-29": 142,
+              "30-39": 1264,
+              "40+": 3
             },
             "representative_gaps": [
               {
@@ -901,25 +896,25 @@
               }
             ],
             "symbols_evaluated": 5480,
-            "target_40_quarters_achieved_ratio": 0.000182,
-            "target_40_quarters_achieved_symbols": 1
+            "target_40_quarters_achieved_ratio": 0.000547,
+            "target_40_quarters_achieved_symbols": 3
           },
           "net_profit_yoy": {
-            "cross_year_sufficient_ratio": 0.185036,
-            "cross_year_sufficient_symbols": 1014,
-            "depth_sufficient_ratio": 0.184854,
-            "depth_sufficient_symbols": 1013,
-            "fresh_ratio": 0.184854,
-            "fresh_symbols": 1013,
+            "cross_year_sufficient_ratio": 0.273175,
+            "cross_year_sufficient_symbols": 1497,
+            "depth_sufficient_ratio": 0.272993,
+            "depth_sufficient_symbols": 1496,
+            "fresh_ratio": 0.272993,
+            "fresh_symbols": 1496,
             "mature_symbols": 4246,
             "minimum_mature_quarters": 20,
             "minimum_mature_years": 5,
             "non_null_quarter_distribution": {
-              "0-9": 4484,
-              "10-19": 69,
-              "20-29": 48,
-              "30-39": 878,
-              "40+": 1
+              "0-9": 4001,
+              "10-19": 71,
+              "20-29": 155,
+              "30-39": 1250,
+              "40+": 3
             },
             "representative_gaps": [
               {
@@ -1019,24 +1014,24 @@
               }
             ],
             "symbols_evaluated": 5480,
-            "target_40_quarters_achieved_ratio": 0.000182,
-            "target_40_quarters_achieved_symbols": 1
+            "target_40_quarters_achieved_ratio": 0.000547,
+            "target_40_quarters_achieved_symbols": 3
           },
           "ocf_to_profit": {
-            "cross_year_sufficient_ratio": 0.180474,
-            "cross_year_sufficient_symbols": 989,
-            "depth_sufficient_ratio": 0.163321,
-            "depth_sufficient_symbols": 895,
-            "fresh_ratio": 0.142336,
-            "fresh_symbols": 780,
+            "cross_year_sufficient_ratio": 0.266971,
+            "cross_year_sufficient_symbols": 1463,
+            "depth_sufficient_ratio": 0.240328,
+            "depth_sufficient_symbols": 1317,
+            "fresh_ratio": 0.200547,
+            "fresh_symbols": 1099,
             "mature_symbols": 4246,
             "minimum_mature_quarters": 20,
             "minimum_mature_years": 5,
             "non_null_quarter_distribution": {
-              "0-9": 4500,
-              "10-19": 147,
-              "20-29": 224,
-              "30-39": 608,
+              "0-9": 4022,
+              "10-19": 205,
+              "20-29": 392,
+              "30-39": 860,
               "40+": 1
             },
             "representative_gaps": [
@@ -1140,8 +1135,8 @@
             "target_40_quarters_achieved_symbols": 1
           },
           "revenue_yoy": {
-            "cross_year_sufficient_ratio": 0.168431,
-            "cross_year_sufficient_symbols": 923,
+            "cross_year_sufficient_ratio": 0.256022,
+            "cross_year_sufficient_symbols": 1403,
             "depth_sufficient_ratio": 0.000912,
             "depth_sufficient_symbols": 5,
             "fresh_ratio": 0.0,
@@ -1150,9 +1145,9 @@
             "minimum_mature_quarters": 20,
             "minimum_mature_years": 5,
             "non_null_quarter_distribution": {
-              "0-9": 4584,
-              "10-19": 894,
-              "20-29": 2,
+              "0-9": 4108,
+              "10-19": 1369,
+              "20-29": 3,
               "30-39": 0,
               "40+": 0
             },
@@ -1258,21 +1253,21 @@
             "target_40_quarters_achieved_symbols": 0
           },
           "roe": {
-            "cross_year_sufficient_ratio": 0.185036,
-            "cross_year_sufficient_symbols": 1014,
-            "depth_sufficient_ratio": 0.184854,
-            "depth_sufficient_symbols": 1013,
-            "fresh_ratio": 0.183577,
-            "fresh_symbols": 1006,
+            "cross_year_sufficient_ratio": 0.273175,
+            "cross_year_sufficient_symbols": 1497,
+            "depth_sufficient_ratio": 0.272993,
+            "depth_sufficient_symbols": 1496,
+            "fresh_ratio": 0.271533,
+            "fresh_symbols": 1488,
             "mature_symbols": 4246,
             "minimum_mature_quarters": 20,
             "minimum_mature_years": 5,
             "non_null_quarter_distribution": {
-              "0-9": 4484,
-              "10-19": 68,
-              "20-29": 54,
-              "30-39": 873,
-              "40+": 1
+              "0-9": 4001,
+              "10-19": 70,
+              "20-29": 155,
+              "30-39": 1251,
+              "40+": 3
             },
             "representative_gaps": [
               {
@@ -1356,8 +1351,8 @@
               }
             ],
             "symbols_evaluated": 5480,
-            "target_40_quarters_achieved_ratio": 0.000182,
-            "target_40_quarters_achieved_symbols": 1
+            "target_40_quarters_achieved_ratio": 0.000547,
+            "target_40_quarters_achieved_symbols": 3
           }
         },
         "minimum_mature_quarters": 20,
@@ -1383,71 +1378,71 @@
           "distinct_periods": 40,
           "distinct_years": 11,
           "non_null_distinct_periods": 40,
-          "non_null_ratio": 0.993485,
-          "non_null_rows": 36599,
+          "non_null_ratio": 0.990009,
+          "non_null_rows": 53213,
           "period_range": [
             "2016Q3",
             "2026Q2"
           ],
-          "rows": 36839,
-          "symbol_coverage_ratio": 0.184415,
-          "symbols": 1020
+          "rows": 53750,
+          "symbol_coverage_ratio": 0.271922,
+          "symbols": 1504
         },
         "net_profit_yoy": {
           "distinct_periods": 40,
           "distinct_years": 11,
           "non_null_distinct_periods": 40,
-          "non_null_ratio": 0.990581,
-          "non_null_rows": 36492,
+          "non_null_ratio": 0.986698,
+          "non_null_rows": 53035,
           "period_range": [
             "2016Q3",
             "2026Q2"
           ],
-          "rows": 36839,
-          "symbol_coverage_ratio": 0.184415,
-          "symbols": 1020
+          "rows": 53750,
+          "symbol_coverage_ratio": 0.271922,
+          "symbols": 1504
         },
         "ocf_to_profit": {
           "distinct_periods": 40,
           "distinct_years": 11,
           "non_null_distinct_periods": 40,
-          "non_null_ratio": 0.824317,
-          "non_null_rows": 30367,
+          "non_null_ratio": 0.82666,
+          "non_null_rows": 44433,
           "period_range": [
             "2016Q3",
             "2026Q2"
           ],
-          "rows": 36839,
-          "symbol_coverage_ratio": 0.184415,
-          "symbols": 1020
+          "rows": 53750,
+          "symbol_coverage_ratio": 0.271922,
+          "symbols": 1504
         },
         "revenue_yoy": {
           "distinct_periods": 40,
           "distinct_years": 11,
-          "non_null_distinct_periods": 27,
-          "non_null_ratio": 0.468444,
-          "non_null_rows": 17257,
+          "non_null_distinct_periods": 28,
+          "non_null_ratio": 0.458698,
+          "non_null_rows": 24655,
           "period_range": [
             "2016Q3",
             "2026Q2"
           ],
-          "rows": 36839,
-          "symbol_coverage_ratio": 0.184415,
-          "symbols": 1020
+          "rows": 53750,
+          "symbol_coverage_ratio": 0.271922,
+          "symbols": 1504
         },
         "roe": {
           "distinct_periods": 40,
           "distinct_years": 11,
           "non_null_distinct_periods": 40,
-          "non_null_ratio": 0.986156,
-          "non_null_rows": 36329,
+          "non_null_ratio": 0.984595,
+          "non_null_rows": 52922,
           "period_range": [
             "2016Q3",
             "2026Q2"
           ],
-          "rows": 36839,
-          "symbol_coverage_ratio": 0.184415,
-          "symbols": 1020
+          "rows": 53750,
+          "symbol_coverage_ratio": 0.271922,
+          "symbols": 1504
         }
       },
       "missing_required_metrics": [],
@@ -1461,23 +1456,23 @@
         },
         "anomaly_rows": 0,
         "available_time_basis_counts": {
-          "provider_pub_date_end_of_day": 184139,
-          "stat_date_plus_45_days": 56
+          "provider_pub_date_end_of_day": 268622,
+          "stat_date_plus_45_days": 128
         },
         "examples": [],
-        "provider_pub_date_end_of_day_ratio": 0.999696,
-        "provider_pub_date_end_of_day_rows": 184139
+        "provider_pub_date_end_of_day_ratio": 0.999524,
+        "provider_pub_date_end_of_day_rows": 268622
       },
       "report_period_range": [
         "2016Q3",
         "2026Q2"
       ],
-      "rows": 184195,
+      "rows": 268750,
       "source_counts": {
-        "baostock": 184195
+        "baostock": 268750
       },
-      "symbol_coverage_ratio": 0.184415,
-      "symbols": 1020
+      "symbol_coverage_ratio": 0.271922,
+      "symbols": 1504
     },
     "sector_flow_daily": {
       "date_range": [
@@ -1578,6 +1573,8 @@
   "pit_samples": {
     "daily_bars_with_adj": [
       {
+        "adj_anchor_date": "2026-07-24",
+        "adj_anchor_factor": 1.050635,
         "adj_factor": 1.039872,
         "adj_source": "baostock-hfq",
         "close": 20.34,
@@ -1586,6 +1583,8 @@
         "trade_date": "2025-10-29"
       },
       {
+        "adj_anchor_date": "2026-07-24",
+        "adj_anchor_factor": 6.114387,
         "adj_factor": 5.863797,
         "adj_source": "baostock-hfq",
         "close": 10.74,
@@ -1594,6 +1593,8 @@
         "trade_date": "2025-06-16"
       },
       {
+        "adj_anchor_date": "2026-07-24",
+        "adj_anchor_factor": 11.154579,
         "adj_factor": 10.631079000000001,
         "adj_source": "baostock-hfq",
         "close": 4.05,
@@ -1602,6 +1603,8 @@
         "trade_date": "2026-01-30"
       },
       {
+        "adj_anchor_date": "2026-07-24",
+        "adj_anchor_factor": 3.0051870000000003,
         "adj_factor": 2.9898480000000003,
         "adj_source": "baostock-hfq",
         "close": 30.54,
@@ -1610,6 +1613,8 @@
         "trade_date": "2023-05-29"
       },
       {
+        "adj_anchor_date": "2026-07-24",
+        "adj_anchor_factor": 1.448181,
         "adj_factor": 1.41313,
         "adj_source": "baostock-hfq",
         "close": 18.44,
@@ -1621,53 +1626,53 @@
     "external_source_pairing": "not_performed_by_this_read_only_script",
     "financial_indicators": [
       {
-        "available_time": "2021-04-15 16:00:00.000000",
-        "metric": "revenue_yoy",
-        "payload": "{\"available_time_basis\": \"provider_pub_date_end_of_day\", \"approx\": false, \"stat_date\": \"2020-12-31\", \"pub_dates\": [\"2021-04-15\"], \"source_field\": \"derived.profit.MBRevenue_yoy\", \"raw_source_value\": {\"current_main_business_revenue\": \"99438069611.030000\", \"prior_main_business_revenue\": 92199774841.1}, \"value_unit\": \"ratio_decimal\", \"main_business_revenue\": 99438069611.03, \"prior_report_period\": \"2019Q4\", \"prior_main_business_revenue\": 92199774841.1}",
+        "available_time": "2021-04-23 16:00:00.000000",
+        "metric": "debt_ratio",
+        "payload": "{\"available_time_basis\": \"provider_pub_date_end_of_day\", \"approx\": false, \"stat_date\": \"2020-12-31\", \"pub_dates\": [\"2021-04-23\"], \"source_field\": \"balance.liabilityToAsset\", \"raw_source_value\": \"0.507244\", \"value_unit\": \"ratio_decimal\", \"main_business_revenue\": 1996451169.15}",
         "report_period": "2020Q4",
         "source": "baostock",
-        "symbol": "000630",
-        "value": 0.07850664258567552
+        "symbol": "000155",
+        "value": 0.507244
       },
       {
-        "available_time": "2017-08-25 16:00:00.000000",
+        "available_time": "2026-03-25 16:00:00.000000",
+        "metric": "debt_ratio",
+        "payload": "{\"available_time_basis\": \"provider_pub_date_end_of_day\", \"approx\": false, \"stat_date\": \"2025-12-31\", \"pub_dates\": [\"2026-03-25\"], \"source_field\": \"balance.liabilityToAsset\", \"raw_source_value\": \"0.007806\", \"value_unit\": \"ratio_decimal\", \"main_business_revenue\": 755386295.03}",
+        "report_period": "2025Q4",
+        "source": "baostock",
+        "symbol": "000509",
+        "value": 0.007806
+      },
+      {
+        "available_time": "2020-04-29 16:00:00.000000",
         "metric": "roe",
-        "payload": "{\"available_time_basis\": \"provider_pub_date_end_of_day\", \"approx\": false, \"stat_date\": \"2017-06-30\", \"pub_dates\": [\"2017-08-25\"], \"source_field\": \"profit.roeAvg\", \"raw_source_value\": \"0.040335\", \"value_unit\": \"ratio_decimal\", \"main_business_revenue\": 19476278905.41}",
-        "report_period": "2017Q2",
+        "payload": "{\"available_time_basis\": \"provider_pub_date_end_of_day\", \"approx\": false, \"stat_date\": \"2019-12-31\", \"pub_dates\": [\"2020-04-29\"], \"source_field\": \"profit.roeAvg\", \"raw_source_value\": \"0.043853\", \"value_unit\": \"ratio_decimal\", \"main_business_revenue\": 995827988.69}",
+        "report_period": "2019Q4",
+        "source": "baostock",
+        "symbol": "000593",
+        "value": 0.043853
+      },
+      {
+        "available_time": "2024-08-23 16:00:00.000000",
+        "metric": "roe",
+        "payload": "{\"available_time_basis\": \"provider_pub_date_end_of_day\", \"approx\": false, \"stat_date\": \"2024-06-30\", \"pub_dates\": [\"2024-08-23\"], \"source_field\": \"profit.roeAvg\", \"raw_source_value\": \"0.073723\", \"value_unit\": \"ratio_decimal\", \"main_business_revenue\": 5925885674.06}",
+        "report_period": "2024Q2",
+        "source": "baostock",
+        "symbol": "000680",
+        "value": 0.073723
+      },
+      {
+        "available_time": "2023-08-31 16:00:00.000000",
+        "metric": "ocf_to_profit",
+        "payload": "{\"available_time_basis\": \"provider_pub_date_end_of_day\", \"approx\": false, \"stat_date\": \"2023-06-30\", \"pub_dates\": [\"2023-08-31\"], \"source_field\": \"cash_flow.CFOToNP\", \"raw_source_value\": null, \"value_unit\": \"ratio_decimal\", \"main_business_revenue\": 30567409205.03}",
+        "report_period": "2023Q2",
         "source": "baostock",
         "symbol": "000761",
-        "value": 0.040335
-      },
-      {
-        "available_time": "2018-04-28 16:00:00.000000",
-        "metric": "debt_ratio",
-        "payload": "{\"available_time_basis\": \"provider_pub_date_end_of_day\", \"approx\": false, \"stat_date\": \"2017-12-31\", \"pub_dates\": [\"2018-04-28\"], \"source_field\": \"balance.liabilityToAsset\", \"raw_source_value\": \"0.502777\", \"value_unit\": \"ratio_decimal\", \"main_business_revenue\": 8528962603.09}",
-        "report_period": "2017Q4",
-        "source": "baostock",
-        "symbol": "000066",
-        "value": 0.502777
-      },
-      {
-        "available_time": "2023-04-29 16:00:00.000000",
-        "metric": "debt_ratio",
-        "payload": "{\"available_time_basis\": \"provider_pub_date_end_of_day\", \"approx\": false, \"stat_date\": \"2023-03-31\", \"pub_dates\": [\"2023-04-29\"], \"source_field\": \"balance.liabilityToAsset\", \"raw_source_value\": \"1.171328\", \"value_unit\": \"ratio_decimal\", \"main_business_revenue\": null}",
-        "report_period": "2023Q1",
-        "source": "baostock",
-        "symbol": "000697",
-        "value": 1.171328
-      },
-      {
-        "available_time": "2022-04-29 16:00:00.000000",
-        "metric": "ocf_to_profit",
-        "payload": "{\"available_time_basis\": \"provider_pub_date_end_of_day\", \"approx\": false, \"stat_date\": \"2022-03-31\", \"pub_dates\": [\"2022-04-29\"], \"source_field\": \"cash_flow.CFOToNP\", \"raw_source_value\": \"-33.146695\", \"value_unit\": \"ratio_decimal\", \"main_business_revenue\": null}",
-        "report_period": "2022Q1",
-        "source": "baostock",
-        "symbol": "000816",
-        "value": -33.146695
+        "value": null
       }
     ],
     "manifest_schema_version": "p3.3-s6-local-pit-manifest-v1",
-    "manifest_sha256": "7667d6f2869c47264547408747f1aa390943e2c57cd103803abbaef345717101",
+    "manifest_sha256": "85841b59f1102796a5942d32eb9df02d3fc313c80d5c04ceac9059a5d028b58d",
     "sample_size_per_table": 5,
     "seed": 20260725,
     "selection": "deterministic pseudo-random row-id sampling",

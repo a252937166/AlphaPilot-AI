@@ -3,7 +3,7 @@ from __future__ import annotations
 import fcntl
 import logging
 import math
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from datetime import UTC, date, datetime, time, timedelta
@@ -152,6 +152,7 @@ def fetch_valuation_em(
     *,
     start_date: date = DEFAULT_START_DATE,
     end_date: date | None = None,
+    http_get: Callable[..., httpx.Response] | None = None,
 ) -> pd.DataFrame:
     """Fetch and normalize one stock's Eastmoney historical valuation series.
 
@@ -164,8 +165,9 @@ def fetch_valuation_em(
     if end_date is not None and end_date < start_date:
         raise ValueError("end_date must not be earlier than start_date")
 
+    request_get = http_get or httpx.get
     try:
-        response = httpx.get(
+        response = request_get(
             _EM_VALUE_URL,
             params={
                 "sortColumns": "TRADE_DATE",
