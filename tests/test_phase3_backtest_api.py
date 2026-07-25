@@ -159,7 +159,7 @@ def test_factor_diagnosis_static_routes_are_not_shadowed(
     monkeypatch.setattr(
         backtest_routes,
         "factor_ic_report",
-        lambda _session, sample_tag: {
+        lambda _session, sample_tag, **_kwargs: {
             "available": False,
             "sample_tag": sample_tag,
             "factors": [],
@@ -168,9 +168,17 @@ def test_factor_diagnosis_static_routes_are_not_shadowed(
     monkeypatch.setattr(
         backtest_routes,
         "factor_diagnosis_report",
-        lambda _session, sample_tag: {
+        lambda _session, sample_tag, **_kwargs: {
             "available": False,
             "sample": {"tag": sample_tag},
+        },
+    )
+    monkeypatch.setattr(
+        backtest_routes,
+        "factor_ic_windows",
+        lambda _session, sample_tag: {
+            "sample_tag": sample_tag,
+            "windows": [],
         },
     )
     monkeypatch.setattr(
@@ -183,15 +191,95 @@ def test_factor_diagnosis_static_routes_are_not_shadowed(
     )
 
     ic = client.get("/v1/backtest/factors/ic")
+    windows = client.get("/v1/backtest/factors/windows")
     diagnosis = client.get("/v1/backtest/factors/diagnosis")
     comparison = client.get("/v1/backtest/compare", params={"v1": 9, "v2": 8})
 
     assert ic.status_code == 200
-    assert ic.json()["sample_tag"] == "full"
+    assert ic.json()["sample_tag"] == "train"
+    assert windows.status_code == 200
+    assert windows.json()["sample_tag"] == "train"
     assert diagnosis.status_code == 200
-    assert diagnosis.json()["sample"]["tag"] == "full"
+    assert diagnosis.json()["sample"]["tag"] == "train"
     assert comparison.status_code == 200
     assert comparison.json() == {"v1": 9, "v2": 8}
+
+
+def test_factor_routes_forward_exact_window_dates(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[tuple[str, str, date | None, date | None]] = []
+
+    def fake_ic(
+        _session: object,
+        sample_tag: str,
+        *,
+        start_date: date | None,
+        end_date: date | None,
+    ) -> dict[str, object]:
+        calls.append(("ic", sample_tag, start_date, end_date))
+        return {
+            "sample_tag": sample_tag,
+            "start_date": start_date.isoformat() if start_date else None,
+            "end_date": end_date.isoformat() if end_date else None,
+        }
+
+    def fake_diagnosis(
+        _session: object,
+        sample_tag: str,
+        *,
+        start_date: date | None,
+        end_date: date | None,
+    ) -> dict[str, object]:
+        calls.append(("diagnosis", sample_tag, start_date, end_date))
+        return {
+            "sample": {
+                "tag": sample_tag,
+                "start_date": start_date.isoformat() if start_date else None,
+                "end_date": end_date.isoformat() if end_date else None,
+                "research_run_id": 15004,
+            }
+        }
+
+    monkeypatch.setattr(backtest_routes, "factor_ic_report", fake_ic)
+    monkeypatch.setattr(backtest_routes, "factor_diagnosis_report", fake_diagnosis)
+    params = {
+        "sample_tag": "train",
+        "start_date": "2019-01-02",
+        "end_date": "2024-04-16",
+    }
+
+    ic = client.get("/v1/backtest/factors/ic", params=params)
+    diagnosis = client.get("/v1/backtest/factors/diagnosis", params=params)
+
+    assert ic.status_code == 200
+    assert diagnosis.status_code == 200
+    assert diagnosis.json()["sample"]["research_run_id"] == 15004
+    assert calls == [
+        ("ic", "train", date(2019, 1, 2), date(2024, 4, 16)),
+        ("diagnosis", "train", date(2019, 1, 2), date(2024, 4, 16)),
+    ]
+
+
+@pytest.mark.parametrize("route", ["/factors/ic", "/factors/diagnosis"])
+@pytest.mark.parametrize(
+    "params",
+    [
+        {"sample_tag": "train", "start_date": "2019-01-02"},
+        {
+            "sample_tag": "train",
+            "start_date": "2024-04-16",
+            "end_date": "2019-01-02",
+        },
+    ],
+)
+def test_factor_routes_reject_unpaired_or_reversed_dates(
+    route: str,
+    params: dict[str, str],
+) -> None:
+    response = client.get(f"/v1/backtest{route}", params=params)
+
+    assert response.status_code == 422
 
 
 def test_orphaned_background_run_expires_instead_of_blocking_queue(

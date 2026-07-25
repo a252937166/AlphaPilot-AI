@@ -1199,6 +1199,7 @@ export interface FactorDirectionAudit {
 
 export interface FactorDiagnosisItem {
   factor: string
+  evaluation_status: FactorEvaluationStatus
   ic_mean: number | null
   ic_ir: number | null
   t_stat: number | null
@@ -1215,21 +1216,90 @@ export interface FactorDiagnosisItem {
   direction_audit: FactorDirectionAudit
 }
 
+export type FactorEvaluationStatus =
+  | 'measured'
+  | 'evaluated_no_sample'
+  | 'not_evaluated'
+  | 'live_only'
+
+export type FactorResearchStage =
+  | 'm3_preliminary_multi_year'
+  | 'm3_preliminary_flow'
+  | 'legacy_or_other'
+
+export interface FactorICWindow {
+  sample_tag: 'train' | 'test' | 'full'
+  start_date: string
+  end_date: string
+  updated_at: string | null
+  research_run_id: number | null
+  research_stage: FactorResearchStage
+  expected_factors: string[]
+  evaluated_count: number
+  measurable_count: number
+  evaluated_no_sample_count: number
+  factors: string[]
+  preliminary_requested_count: number
+  preliminary_evaluated_count: number
+  preliminary_measurable_count: number
+  preliminary_evaluated_no_sample_count: number
+}
+
+export interface FactorICWindowResponse {
+  sample_tag: 'train' | 'test' | 'full'
+  default_policy: string
+  default_window: FactorICWindow | null
+  windows: FactorICWindow[]
+  scope: {
+    preliminary_requested_factors: string[]
+    preliminary_requested_count: number
+    financial_pending_factors: string[]
+    financial_pending_count: number
+    live_only_factors: string[]
+    live_only_count: number
+    test_window_sealed: boolean
+  }
+}
+
 export interface FactorICResponse {
   available: boolean
   sample_tag: 'train' | 'test' | 'full'
   start_date: string | null
   end_date: string | null
+  research_stage: FactorResearchStage | null
+  research_run_id: number | null
+  expected_factors: string[]
   factor_count: number
   available_count: number
+  updated_at: string | null
+  selection: {
+    exact_window: boolean
+    default_policy: string
+    research_stage: FactorResearchStage | null
+    research_run_id: number | null
+    expected_factors: string[]
+  }
+  coverage: {
+    preliminary_requested_count: number
+    preliminary_evaluated_count: number
+    preliminary_measurable_count: number
+    preliminary_evaluated_no_sample_count: number
+    preliminary_not_evaluated_count: number
+    financial_pending_count: number
+    financial_pending_factors: string[]
+    live_only_count: number
+    live_only_factors: string[]
+  }
   factors: Array<{
     factor: string
+    evaluation_status: FactorEvaluationStatus
     ic_mean: number | null
     ic_ir: number | null
     t_stat: number | null
     ic_positive_ratio: number | null
     long_short: number | null
     n_periods: number
+    updated_at: string | null
   }>
   limitations: string[]
 }
@@ -1240,10 +1310,22 @@ export interface FactorDiagnosisResponse {
     tag: 'train' | 'test' | 'full'
     start_date: string | null
     end_date: string | null
+    research_stage: FactorResearchStage | null
+    research_run_id: number | null
+    expected_factors: string[]
     factor_count: number
     available_count: number
+    updated_at: string | null
+    selection: {
+      exact_window: boolean
+      default_policy: string
+      research_stage: FactorResearchStage | null
+      research_run_id: number | null
+      expected_factors: string[]
+    }
     evidence_label: string
   }
+  coverage: FactorICResponse['coverage']
   factors: FactorDiagnosisItem[]
   classification_counts: Record<FactorClassification, number>
   correlation: {
@@ -1498,14 +1580,34 @@ export const api = {
     request<BacktestDailyResponse>(`/v1/backtest/${id}/daily`),
   backtestReport: (id: number) =>
     request<BacktestReportResponse>(`/v1/backtest/${id}/report`),
-  factorIC: (sampleTag: 'train' | 'test' | 'full' = 'full') =>
-    request<FactorICResponse>(
-      `/v1/backtest/factors/ic?sample_tag=${encodeURIComponent(sampleTag)}`,
+  factorICWindows: (sampleTag: 'train' | 'test' | 'full' = 'train') =>
+    request<FactorICWindowResponse>(
+      `/v1/backtest/factors/windows?sample_tag=${encodeURIComponent(sampleTag)}`,
     ),
-  factorDiagnosis: (sampleTag: 'train' | 'test' | 'full' = 'full') =>
-    request<FactorDiagnosisResponse>(
-      `/v1/backtest/factors/diagnosis?sample_tag=${encodeURIComponent(sampleTag)}`,
-    ),
+  factorIC: (
+    sampleTag: 'train' | 'test' | 'full' = 'train',
+    window?: { startDate: string; endDate: string },
+  ) => {
+    const params = new URLSearchParams({ sample_tag: sampleTag })
+    if (window) {
+      params.set('start_date', window.startDate)
+      params.set('end_date', window.endDate)
+    }
+    return request<FactorICResponse>(`/v1/backtest/factors/ic?${params.toString()}`)
+  },
+  factorDiagnosis: (
+    sampleTag: 'train' | 'test' | 'full' = 'train',
+    window?: { startDate: string; endDate: string },
+  ) => {
+    const params = new URLSearchParams({ sample_tag: sampleTag })
+    if (window) {
+      params.set('start_date', window.startDate)
+      params.set('end_date', window.endDate)
+    }
+    return request<FactorDiagnosisResponse>(
+      `/v1/backtest/factors/diagnosis?${params.toString()}`,
+    )
+  },
   backtestCompare: (v1: number, v2: number) =>
     request<BacktestComparisonResponse>(
       `/v1/backtest/compare?v1=${encodeURIComponent(v1)}&v2=${encodeURIComponent(v2)}`,

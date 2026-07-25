@@ -22,6 +22,9 @@ import {
   type BacktestRunRequest,
   type FactorClassification,
   type FactorDiagnosisResponse,
+  type FactorEvaluationStatus,
+  type FactorICWindow,
+  type FactorICWindowResponse,
 } from '../api'
 import {
   CHART_COLORS,
@@ -43,12 +46,17 @@ const detailLoading = ref(false)
 const starting = ref(false)
 const error = ref('')
 const activeSection = ref<'runs' | 'factors'>('runs')
+const diagnosisMode = ref<'m3' | 'm2'>('m3')
 const diagnosis = ref<FactorDiagnosisResponse | null>(null)
+const factorWindows = ref<FactorICWindowResponse | null>(null)
+const selectedFactorWindowKey = ref('')
 const comparison = ref<BacktestComparisonResponse | null>(null)
 const diagnosisLoading = ref(false)
 const diagnosisError = ref('')
+const comparisonError = ref('')
 let pollTimer: number | undefined
 let selectionToken = 0
+let diagnosisRequestToken = 0
 
 const form = reactive({
   startDate: '',
@@ -95,6 +103,59 @@ const CLASSIFICATION_LABELS: Record<
   significant_reverse: { label: '显著反向', tone: 'negative' },
   ineffective: { label: '弱证据', tone: 'weak' },
   insufficient_data: { label: '样本不足', tone: 'missing' },
+}
+
+const EVALUATION_LABELS: Record<
+  FactorEvaluationStatus,
+  { label: string; note: string; tone: string }
+> = {
+  measured: { label: '可测', note: '本窗已有有效截面', tone: 'positive' },
+  evaluated_no_sample: { label: '已算 · n=0', note: '执行过但没有合格 PIT 截面', tone: 'weak' },
+  not_evaluated: { label: '未评估', note: '本窗没有该因子的计算记录', tone: 'missing' },
+  live_only: { label: '仅实时', note: '历史数据不可诚实回填', tone: 'live' },
+}
+
+function factorWindowKey(window: Pick<FactorICWindow, 'start_date' | 'end_date'>): string {
+  return `${window.start_date}|${window.end_date}`
+}
+
+const selectedFactorWindow = computed(() =>
+  factorWindows.value?.windows.find(
+    (window) => factorWindowKey(window) === selectedFactorWindowKey.value,
+  ) ?? null,
+)
+const m3FactorWindows = computed(() =>
+  factorWindows.value?.windows.filter(
+    (window) => window.research_stage !== 'legacy_or_other',
+  ) ?? [],
+)
+
+const diagnosisTabCount = computed(() => {
+  if (diagnosisMode.value === 'm3') {
+    return factorWindows.value?.scope.preliminary_requested_count
+      ?? diagnosis.value?.coverage.preliminary_requested_count
+      ?? null
+  }
+  return diagnosis.value?.sample.factor_count ?? null
+})
+
+function symmetricFactorIcExtent(values: Array<number | null>): number {
+  const observed = Math.max(
+    0,
+    ...values
+      .filter((value): value is number => value !== null && Number.isFinite(value))
+      .map((value) => Math.abs(value)),
+  )
+  if (observed === 0) return 0.1
+  const padded = observed * 1.15
+  const step = padded <= 0.05
+    ? 0.01
+    : padded <= 0.1
+      ? 0.02
+      : padded <= 0.25
+        ? 0.05
+        : 0.1
+  return Math.ceil(padded / step) * step
 }
 
 const gateEntries = computed(() => {
@@ -346,11 +407,13 @@ const calibrationOption = computed<Record<string, unknown>>(() => {
 
 const factorIcOption = computed<Record<string, unknown>>(() => {
   const factors = diagnosis.value?.factors ?? []
+  const extent = symmetricFactorIcExtent(factors.map((item) => item.ic_mean))
   const values = factors.map((item) => ({
     value: item.ic_mean,
     factor: item.factor,
     tStat: item.t_stat,
     periods: item.n_periods,
+    evaluationStatus: item.evaluation_status,
     itemStyle: {
       color: item.ic_mean === null
         ? CHART_COLORS.line2
@@ -368,7 +431,12 @@ const factorIcOption = computed<Record<string, unknown>>(() => {
       formatter: (params: any) => {
         const item = params.data
         if (item.value === null || item.value === undefined) {
-          return `${FACTOR_LABELS[item.factor] ?? item.factor}<br/>IC：样本不足`
+          const state = EVALUATION_LABELS[item.evaluationStatus as FactorEvaluationStatus]
+          return [
+            FACTOR_LABELS[item.factor] ?? item.factor,
+            `状态：${state?.label ?? '暂不可用'}`,
+            state?.note ?? '没有可展示的 IC',
+          ].join('<br/>')
         }
         return [
           FACTOR_LABELS[item.factor] ?? item.factor,
@@ -381,11 +449,11 @@ const factorIcOption = computed<Record<string, unknown>>(() => {
     },
     grid: { left: 104, right: 24, top: 14, bottom: 30 },
     xAxis: valueAxis({
-      min: -0.12,
-      max: 0.12,
+      min: -extent,
+      max: extent,
       axisLabel: {
         color: CHART_COLORS.text3,
-        fontSize: 10,
+        fontSize: 11,
         formatter: (value: number) => value.toFixed(2),
       },
     }),
@@ -395,7 +463,7 @@ const factorIcOption = computed<Record<string, unknown>>(() => {
         inverse: true,
         axisLabel: {
           color: CHART_COLORS.text2,
-          fontSize: 10,
+          fontSize: 11,
           width: 88,
           overflow: 'truncate',
         },
@@ -403,7 +471,7 @@ const factorIcOption = computed<Record<string, unknown>>(() => {
     ),
     series: [
       {
-        name: 'full 窗 Rank IC',
+        name: diagnosisMode.value === 'm3' ? 'train 窗 Rank IC' : 'M2 full 窗 Rank IC',
         type: 'bar',
         data: values,
         barMaxWidth: 13,
@@ -448,7 +516,7 @@ const correlationOption = computed<Record<string, unknown>>(() => {
     xAxis: categoryAxis(labels, {
       axisLabel: {
         color: CHART_COLORS.text3,
-        fontSize: 9,
+        fontSize: 11,
         rotate: 48,
         interval: 0,
       },
@@ -457,7 +525,7 @@ const correlationOption = computed<Record<string, unknown>>(() => {
       inverse: true,
       axisLabel: {
         color: CHART_COLORS.text3,
-        fontSize: 9,
+        fontSize: 11,
         width: 94,
         overflow: 'truncate',
       },
@@ -471,7 +539,7 @@ const correlationOption = computed<Record<string, unknown>>(() => {
       top: 'center',
       itemHeight: 130,
       text: ['+1', '-1'],
-      textStyle: { color: CHART_COLORS.text3, fontSize: 9 },
+      textStyle: { color: CHART_COLORS.text3, fontSize: 11 },
       inRange: {
         color: ['#7f1d1d', '#182137', '#065f46'],
       },
@@ -483,7 +551,7 @@ const correlationOption = computed<Record<string, unknown>>(() => {
         label: {
           show: true,
           color: '#dbe5f6',
-          fontSize: 8,
+          fontSize: 11,
           formatter: (params: any) => Number(params.data[2]).toFixed(2),
         },
         itemStyle: {
@@ -811,21 +879,85 @@ function comparisonPair(
 
 async function loadDiagnosis(force = false) {
   if (diagnosis.value && !force) return
+  const token = ++diagnosisRequestToken
+  const requestedMode = diagnosisMode.value
+  const isCurrent = () =>
+    token === diagnosisRequestToken && diagnosisMode.value === requestedMode
   diagnosisLoading.value = true
   diagnosisError.value = ''
-  comparison.value = null
+  comparisonError.value = ''
+  if (isCurrent()) comparison.value = null
   try {
+    if (requestedMode === 'm3') {
+      const catalog = force || !factorWindows.value
+        ? await api.factorICWindows('train')
+        : factorWindows.value
+      if (!isCurrent()) return
+      factorWindows.value = catalog
+      const selected = catalog.windows.find(
+        (window) =>
+          factorWindowKey(window) === selectedFactorWindowKey.value
+          && window.research_stage !== 'legacy_or_other',
+      ) ?? catalog.default_window
+      if (!selected) {
+        if (!isCurrent()) return
+        diagnosis.value = null
+        diagnosisError.value = '尚无 M3 train 因子窗口；test 仍保持封存。'
+        return
+      }
+      selectedFactorWindowKey.value = factorWindowKey(selected)
+      const result = await api.factorDiagnosis('train', {
+        startDate: selected.start_date,
+        endDate: selected.end_date,
+      })
+      if (!isCurrent()) return
+      diagnosis.value = result
+      return
+    }
+
     const result = await api.factorDiagnosis('full')
+    if (!isCurrent()) return
     diagnosis.value = result
-    const pair = comparisonPair(runs.value)
-    if (pair) {
-      comparison.value = await api.backtestCompare(pair.v1, pair.v2)
+    try {
+      const refreshedRuns = (await api.backtests(50)).runs
+      if (!isCurrent()) return
+      runs.value = refreshedRuns
+      const pair = comparisonPair(refreshedRuns)
+      if (!pair) return
+      const comparisonResult = await api.backtestCompare(pair.v1, pair.v2)
+      if (!isCurrent()) return
+      comparison.value = comparisonResult
+    } catch (exc: unknown) {
+      if (!isCurrent()) return
+      comparison.value = null
+      comparisonError.value = `样本外对照暂不可用：${errorMessage(exc)}`
     }
   } catch (exc: unknown) {
+    if (!isCurrent()) return
+    diagnosis.value = null
+    comparison.value = null
     diagnosisError.value = `因子诊断暂不可用：${errorMessage(exc)}`
   } finally {
-    diagnosisLoading.value = false
+    if (isCurrent()) diagnosisLoading.value = false
   }
+}
+
+async function switchDiagnosisMode(mode: 'm3' | 'm2') {
+  if (mode === diagnosisMode.value && diagnosis.value) return
+  diagnosisMode.value = mode
+  diagnosis.value = null
+  comparison.value = null
+  diagnosisError.value = ''
+  comparisonError.value = ''
+  await loadDiagnosis(true)
+}
+
+async function selectFactorWindow(event: Event) {
+  selectedFactorWindowKey.value = (event.target as HTMLSelectElement).value
+  diagnosis.value = null
+  comparison.value = null
+  comparisonError.value = ''
+  await loadDiagnosis()
 }
 
 async function switchSection(section: 'runs' | 'factors') {
@@ -840,7 +972,7 @@ async function switchSection(section: 'runs' | 'factors') {
 
 async function refreshActiveSection() {
   if (activeSection.value === 'factors') {
-    await Promise.all([loadRuns(), loadDiagnosis(true)])
+    await loadDiagnosis(true)
     return
   }
   await loadRuns()
@@ -876,7 +1008,10 @@ async function startBacktest() {
 }
 
 onMounted(loadRuns)
-onUnmounted(clearPoll)
+onUnmounted(() => {
+  diagnosisRequestToken += 1
+  clearPoll()
+})
 </script>
 
 <template>
@@ -902,9 +1037,13 @@ onUnmounted(clearPoll)
         <span
           v-else
           class="badge"
-          :class="comparison?.verdict.status === 'failed' ? 'red' : 'yellow'"
+          :class="diagnosisMode === 'm3'
+            ? 'blue'
+            : comparison?.verdict.status === 'failed' ? 'red' : 'yellow'"
         >
-          {{ comparison?.verdict.status === 'failed' ? 'M2 未通过' : 'M2 证据待定' }}
+          {{ diagnosisMode === 'm3'
+            ? 'M3 TRAIN · TEST 封存'
+            : comparison?.verdict.status === 'failed' ? 'M2 未通过' : 'M2 历史证据' }}
         </span>
         <span
           v-if="activeSection === 'runs' && selectedRun"
@@ -913,7 +1052,11 @@ onUnmounted(clearPoll)
           RUN #{{ selectedRun.id }}
         </span>
         <span v-else-if="activeSection === 'factors'" class="run-ref mono">
-          FULL SNAPSHOT
+          {{ diagnosisMode === 'm3'
+            ? selectedFactorWindow
+              ? `${selectedFactorWindow.start_date} → ${selectedFactorWindow.end_date} · JOB #${selectedFactorWindow.research_run_id}`
+              : 'TRAIN SNAPSHOT'
+            : 'M2 FULL SNAPSHOT' }}
         </span>
         <button
           class="btn"
@@ -931,17 +1074,21 @@ onUnmounted(clearPoll)
 
     <nav class="research-tabs" aria-label="回测研究视图">
       <button
+        :aria-pressed="activeSection === 'runs'"
         :class="{ active: activeSection === 'runs' }"
         @click="switchSection('runs')"
       >
         严格回测
       </button>
       <button
+        :aria-pressed="activeSection === 'factors'"
         :class="{ active: activeSection === 'factors' }"
         @click="switchSection('factors')"
       >
         因子诊断
-        <span class="tab-count mono">13</span>
+        <span v-if="diagnosisTabCount !== null" class="tab-count mono">
+          {{ diagnosisTabCount }}
+        </span>
       </button>
     </nav>
 
@@ -961,6 +1108,15 @@ onUnmounted(clearPoll)
     >
       <TriangleAlert :size="14" />
       {{ diagnosisError }}
+    </div>
+
+    <div
+      v-if="activeSection === 'factors' && comparisonError"
+      class="banner page-message"
+      role="alert"
+    >
+      <TriangleAlert :size="14" />
+      {{ comparisonError }}；因子诊断证据仍保留。
     </div>
 
     <template v-if="activeSection === 'runs'">
@@ -1299,6 +1455,51 @@ onUnmounted(clearPoll)
     </template>
 
     <template v-else>
+      <section class="research-mode-bar" aria-label="因子证据模式">
+        <div class="mode-tabs" role="group" aria-label="选择因子研究阶段">
+          <button
+            :aria-pressed="diagnosisMode === 'm3'"
+            :class="{ active: diagnosisMode === 'm3' }"
+            @click="switchDiagnosisMode('m3')"
+          >
+            M3 train 预验
+            <span>默认 · test 封存</span>
+          </button>
+          <button
+            :aria-pressed="diagnosisMode === 'm2'"
+            :class="{ active: diagnosisMode === 'm2' }"
+            @click="switchDiagnosisMode('m2')"
+          >
+            M2 历史证据
+            <span>主动查看 full / test</span>
+          </button>
+        </div>
+        <label v-if="diagnosisMode === 'm3' && m3FactorWindows.length" class="window-picker">
+          <span>精确 train 窗</span>
+          <select
+            class="input"
+            :value="selectedFactorWindowKey"
+            :disabled="diagnosisLoading"
+            @change="selectFactorWindow"
+          >
+            <option
+              v-for="window in m3FactorWindows"
+              :key="factorWindowKey(window)"
+              :value="factorWindowKey(window)"
+            >
+              {{ window.start_date }} → {{ window.end_date }}
+              · {{ window.preliminary_measurable_count }}/{{ window.preliminary_requested_count }} 可测
+              · Job #{{ window.research_run_id }}
+              {{ window.research_stage === 'm3_preliminary_flow' ? '· 资金流独立窗' : '· 多年主窗' }}
+            </option>
+          </select>
+        </label>
+        <div v-else-if="diagnosisMode === 'm2'" class="mode-caution">
+          <TriangleAlert :size="15" />
+          仅回看 M2；不得据此修改 M3 权重
+        </div>
+      </section>
+
       <section
         v-if="diagnosisLoading && !diagnosis"
         class="panel diagnosis-loading"
@@ -1306,13 +1507,18 @@ onUnmounted(clearPoll)
       >
         <span class="orbit"><Activity :size="22" /></span>
         <div>
-          <h2>正在读取冻结研究快照</h2>
-          <p>载入 13 因子 IC、相关矩阵与同窗 v1/v2 样本外证据。</p>
+          <h2>{{ diagnosisMode === 'm3' ? '正在读取精确 train 窗' : '正在读取 M2 历史证据' }}</h2>
+          <p>
+            {{ diagnosisMode === 'm3'
+              ? '只读取持久化 train 结果，不请求 full/test，也不触发权重重算。'
+              : '用户已主动切换；载入 full 诊断与同协议样本外对照。' }}
+          </p>
         </div>
       </section>
 
       <div v-else-if="diagnosis" class="diagnosis-workspace">
         <section
+          v-if="diagnosisMode === 'm2'"
           class="m2-verdict"
           :class="comparison?.verdict.status ?? 'pending'"
         >
@@ -1378,49 +1584,98 @@ onUnmounted(clearPoll)
           </div>
         </section>
 
+        <section v-else class="m3-preview">
+          <div class="m3-preview-copy">
+            <div class="preview-title">
+              <Beaker :size="17" />
+              <div>
+                <h2>M3 初步 train 诊断</h2>
+                <p>
+                  精确窗口已锁定至 Job #{{ diagnosis.sample.research_run_id }}；
+                  test 窗未读取，当前结果不用于调权。
+                </p>
+              </div>
+            </div>
+            <p class="preview-boundary">{{ diagnosis.sample.evidence_label }}</p>
+          </div>
+          <div class="preview-counts" aria-label="M3 预验覆盖统计">
+            <span>
+              <b class="mono">{{ diagnosis.coverage.preliminary_requested_count }}</b>
+              先行因子
+            </span>
+            <span>
+              <b class="mono up">{{ diagnosis.coverage.preliminary_measurable_count }}</b>
+              本窗可测
+            </span>
+            <span>
+              <b class="mono">{{ diagnosis.coverage.financial_pending_count }}</b>
+              财务待 S2
+            </span>
+            <span>
+              <b class="mono">{{ diagnosis.coverage.live_only_count }}</b>
+              live-only
+            </span>
+          </div>
+        </section>
+
         <section class="diagnosis-meta-strip" aria-label="因子诊断覆盖">
           <span>
-            FULL 窗
+            {{ diagnosisMode === 'm3' ? '精确 TRAIN 窗' : 'M2 FULL 窗' }}
             <b class="mono">{{ diagnosis.sample.start_date || '—' }} → {{ diagnosis.sample.end_date || '—' }}</b>
           </span>
           <span>
-            可测因子
-            <b class="mono">{{ diagnosis.sample.available_count }} / {{ diagnosis.sample.factor_count }}</b>
-          </span>
-          <span>
-            弱证据
-            <b class="mono">{{ diagnosis.classification_counts.ineffective }}</b>
-          </span>
-          <span>
-            样本不足
-            <b class="mono">{{ diagnosis.classification_counts.insufficient_data }}</b>
-          </span>
-          <span>
-            符号 bug
-            <b :class="diagnosis.source_audit.calculation_bug_found ? 'down' : 'up'">
-              {{ diagnosis.source_audit.calculation_bug_found ? '发现' : '未发现' }}
+            {{ diagnosisMode === 'm3' ? '先行可测' : '可测因子' }}
+            <b class="mono">
+              {{ diagnosisMode === 'm3'
+                ? `${diagnosis.coverage.preliminary_measurable_count} / ${diagnosis.coverage.preliminary_requested_count}`
+                : `${diagnosis.sample.available_count} / ${diagnosis.sample.factor_count}` }}
             </b>
+          </span>
+          <span>
+            {{ diagnosisMode === 'm3' ? '已算但 n=0' : '弱证据' }}
+            <b class="mono">
+              {{ diagnosisMode === 'm3'
+                ? diagnosis.coverage.preliminary_evaluated_no_sample_count
+                : diagnosis.classification_counts.ineffective }}
+            </b>
+          </span>
+          <span>
+            {{ diagnosisMode === 'm3' ? '财务待回填' : '样本不足' }}
+            <b class="mono">
+              {{ diagnosisMode === 'm3'
+                ? diagnosis.coverage.financial_pending_count
+                : diagnosis.classification_counts.insufficient_data }}
+            </b>
+          </span>
+          <span>
+            数据更新
+            <b class="mono">{{ fmtTime(diagnosis.sample.updated_at) }}</b>
           </span>
         </section>
 
-        <div class="diagnosis-chart-grid">
+        <div class="diagnosis-chart-grid" :class="{ preview: diagnosisMode === 'm3' }">
           <section class="panel">
             <div class="panel-title">
-              <span><BarChart3 :size="13" /> 13 因子 Rank IC</span>
-              <span class="extra">正绿 · 负红 · 缺失不补零</span>
+              <span>
+                <BarChart3 :size="13" />
+                {{ diagnosisMode === 'm3' ? 'M3 train Rank IC' : 'M2 full Rank IC' }}
+              </span>
+              <span class="extra">正绿 · 负红 · 四种缺失状态不补零</span>
             </div>
             <EChart
               v-if="diagnosis.available"
               :option="factorIcOption"
               height="420px"
-              aria-label="13 因子 full 窗 Rank IC 条形图"
+              :aria-label="diagnosisMode === 'm3'
+                ? 'M3 精确 train 窗因子 Rank IC 条形图'
+                : 'M2 full 窗十三因子 Rank IC 条形图'"
             />
             <div v-else class="chart-empty">
               <span>暂无持久化 IC 快照；不会使用示例值。</span>
             </div>
           </section>
 
-          <section class="panel">
+          <section v-if="diagnosisMode === 'm2'" class="panel">
             <div class="panel-title">
               <span><SlidersHorizontal :size="13" /> v1 → v2 权重变化</span>
               <span class="extra">train 单次 IC_IR · test 未参与</span>
@@ -1451,6 +1706,7 @@ onUnmounted(clearPoll)
           </div>
           <EChart
             v-if="diagnosis.correlation.available"
+            class="correlation-chart"
             :option="correlationOption"
             height="570px"
             aria-label="13 因子横截面相关热力图"
@@ -1458,6 +1714,41 @@ onUnmounted(clearPoll)
           <div v-else class="chart-empty">
             <span>相关性有效截面不足；空白单元格不按 0 处理。</span>
           </div>
+          <details v-if="diagnosis.correlation.available" class="correlation-table-fallback">
+            <summary>查看相关矩阵数据表</summary>
+            <div class="correlation-table-scroll">
+              <table class="tbl correlation-table">
+                <caption>相关系数；“未评估”不是 0</caption>
+                <thead>
+                  <tr>
+                    <th scope="col">因子</th>
+                    <th
+                      v-for="factor in diagnosis.correlation.factors"
+                      :key="`corr-head-${factor}`"
+                      scope="col"
+                    >
+                      {{ FACTOR_LABELS[factor] || factor }}
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr
+                    v-for="(factor, rowIndex) in diagnosis.correlation.factors"
+                    :key="`corr-row-${factor}`"
+                  >
+                    <th scope="row">{{ FACTOR_LABELS[factor] || factor }}</th>
+                    <td
+                      v-for="(value, columnIndex) in diagnosis.correlation.values[rowIndex]"
+                      :key="`corr-${rowIndex}-${columnIndex}`"
+                      class="num"
+                    >
+                      {{ value === null ? '未评估' : fmtNum(value, 2) }}
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </details>
           <div class="correlation-foot">
             <span>{{ diagnosis.correlation.limitation }}</span>
             <b>
@@ -1469,7 +1760,7 @@ onUnmounted(clearPoll)
           </div>
         </section>
 
-        <section class="panel comparison-panel">
+        <section v-if="diagnosisMode === 'm2'" class="panel comparison-panel">
           <div class="panel-title">
             <span><Activity :size="13" /> test 窗净值对照</span>
             <span v-if="comparison" class="extra">
@@ -1506,6 +1797,7 @@ onUnmounted(clearPoll)
                   <th class="r">IC</th>
                   <th class="r">t</th>
                   <th class="r">期数</th>
+                  <th>评估状态</th>
                   <th>分类</th>
                   <th>原始计算 / 方向</th>
                   <th>审计结论</th>
@@ -1522,6 +1814,15 @@ onUnmounted(clearPoll)
                   </td>
                   <td class="r num">{{ fmtNum(item.t_stat, 3) }}</td>
                   <td class="r num">{{ item.n_periods }}</td>
+                  <td>
+                    <span
+                      class="factor-state"
+                      :class="EVALUATION_LABELS[item.evaluation_status].tone"
+                      :title="EVALUATION_LABELS[item.evaluation_status].note"
+                    >
+                      {{ EVALUATION_LABELS[item.evaluation_status].label }}
+                    </span>
+                  </td>
                   <td>
                     <span
                       class="factor-state"
@@ -1550,14 +1851,19 @@ onUnmounted(clearPoll)
           </div>
           <ul>
             <li v-for="item in diagnosis.limitations" :key="item">{{ item }}</li>
-            <li v-for="item in comparison?.limitations || []" :key="`compare-${item}`">
+            <li
+              v-for="item in diagnosisMode === 'm2' ? comparison?.limitations || [] : []"
+              :key="`compare-${item}`"
+            >
               {{ item }}
             </li>
           </ul>
         </section>
 
         <p class="research-disclaimer">
-          M2 是只读研究：失败不会触发自动调参、提案、委托或交易。composite-v2 未经 M3 多年样本确认前，paper_auto 保持冻结。
+          {{ diagnosisMode === 'm3'
+            ? 'M3 当前只展示 train 预验：test 继续封存，不据此调权，也不连接提案、委托或交易。'
+            : 'M2 是只读历史研究：失败不会触发自动调参、提案、委托或交易。' }}
         </p>
       </div>
 
@@ -1622,7 +1928,7 @@ onUnmounted(clearPoll)
   color: var(--text-3);
   background: transparent;
   font: inherit;
-  font-size: 11px;
+  font-size: 12px;
   cursor: pointer;
 }
 .research-tabs button::after {
@@ -1647,7 +1953,7 @@ onUnmounted(clearPoll)
   border-radius: 3px;
   padding: 1px 4px;
   color: var(--text-3);
-  font-size: 8px;
+  font-size: 10px;
   text-align: center;
 }
 .research-top-grid {
@@ -2186,6 +2492,70 @@ onUnmounted(clearPoll)
   display: grid;
   gap: 12px;
 }
+.research-mode-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  border-bottom: 1px solid var(--line-1);
+  padding: 0 0 12px;
+  margin-bottom: 12px;
+}
+.mode-tabs {
+  display: inline-flex;
+  align-items: stretch;
+  gap: 4px;
+  border: 1px solid var(--line-1);
+  border-radius: 9px;
+  padding: 3px;
+  background: var(--surface-1);
+}
+.mode-tabs button {
+  display: grid;
+  gap: 1px;
+  border: 0;
+  border-radius: 6px;
+  padding: 7px 11px;
+  color: var(--text-2);
+  background: transparent;
+  font: inherit;
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+  transition: color var(--t-fast), background var(--t-fast);
+}
+.mode-tabs button span {
+  color: var(--text-3);
+  font-size: 11px;
+}
+.mode-tabs button:hover {
+  color: var(--text-1);
+  background: rgba(96, 165, 250, 0.06);
+}
+.mode-tabs button.active {
+  color: var(--text-1);
+  background: var(--surface-3);
+}
+.window-picker {
+  display: grid;
+  grid-template-columns: auto minmax(280px, 420px);
+  align-items: center;
+  gap: 9px;
+  color: var(--text-2);
+  font-size: 11px;
+}
+.window-picker .input {
+  min-width: 280px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+.mode-caution {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--warn);
+  font-size: 11px;
+}
 .diagnosis-loading,
 .diagnosis-empty {
   display: grid;
@@ -2210,7 +2580,65 @@ onUnmounted(clearPoll)
 .diagnosis-empty p {
   margin-top: 4px;
   color: var(--text-3);
-  font-size: 10.5px;
+  font-size: 12px;
+}
+.m3-preview {
+  display: flex;
+  align-items: stretch;
+  justify-content: space-between;
+  gap: 24px;
+  border: 1px solid rgba(96, 165, 250, 0.28);
+  border-radius: var(--r-lg);
+  padding: 20px;
+  background: var(--surface-2);
+}
+.m3-preview-copy {
+  display: grid;
+  align-content: center;
+  gap: 12px;
+  min-width: 0;
+}
+.preview-title {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  color: var(--accent-hi);
+}
+.preview-title h2 {
+  color: var(--text-1);
+  font-size: 20px;
+  letter-spacing: -0.02em;
+}
+.preview-title p,
+.preview-boundary {
+  color: var(--text-2);
+  font-size: 12px;
+  line-height: 1.55;
+}
+.preview-counts {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(86px, 1fr));
+  min-width: min(100%, 460px);
+  border: 1px solid var(--line-1);
+  background: rgba(4, 7, 15, 0.28);
+}
+.preview-counts span {
+  display: grid;
+  align-content: center;
+  gap: 2px;
+  min-height: 84px;
+  border-right: 1px solid var(--line-1);
+  padding: 12px;
+  color: var(--text-3);
+  font-size: 11px;
+}
+.preview-counts span:last-child {
+  border-right: 0;
+}
+.preview-counts b {
+  color: var(--text-1);
+  font-size: 21px;
+  line-height: 1.2;
 }
 .m2-verdict {
   display: grid;
@@ -2249,7 +2677,7 @@ onUnmounted(clearPoll)
   max-width: 760px;
   margin-top: 7px;
   color: var(--text-2);
-  font-size: 11px;
+  font-size: 12px;
   line-height: 1.6;
 }
 .evidence-warning {
@@ -2270,7 +2698,7 @@ onUnmounted(clearPoll)
 }
 .evidence-warning span {
   color: var(--text-3);
-  font-size: 9.5px;
+  font-size: 11px;
 }
 .m2-scoreboard {
   display: grid;
@@ -2295,7 +2723,7 @@ onUnmounted(clearPoll)
 }
 .m2-scoreboard span {
   color: var(--text-3);
-  font-size: 9.5px;
+  font-size: 11px;
 }
 .m2-scoreboard strong {
   margin-top: 3px;
@@ -2304,7 +2732,7 @@ onUnmounted(clearPoll)
 .m2-scoreboard small {
   margin-top: 2px;
   color: var(--text-3);
-  font-size: 8.5px;
+  font-size: 11px;
 }
 .diagnosis-meta-strip {
   display: grid;
@@ -2319,14 +2747,14 @@ onUnmounted(clearPoll)
   border-right: 1px solid var(--line-1);
   padding: 9px 12px;
   color: var(--text-3);
-  font-size: 9px;
+  font-size: 11px;
 }
 .diagnosis-meta-strip > span:last-child {
   border-right: 0;
 }
 .diagnosis-meta-strip b {
   color: var(--text-2);
-  font-size: 9.5px;
+  font-size: 11px;
   font-weight: 550;
   text-align: right;
 }
@@ -2334,6 +2762,9 @@ onUnmounted(clearPoll)
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 12px;
+}
+.diagnosis-chart-grid.preview {
+  grid-template-columns: minmax(0, 1fr);
 }
 .correlation-panel,
 .comparison-panel,
@@ -2348,7 +2779,7 @@ onUnmounted(clearPoll)
   margin: 0 -16px -16px;
   padding: 9px 16px;
   color: var(--text-3);
-  font-size: 9.5px;
+  font-size: 11px;
 }
 .correlation-foot b {
   color: var(--text-2);
@@ -2366,8 +2797,47 @@ onUnmounted(clearPoll)
 }
 .comparison-policy span {
   color: var(--text-3);
-  font-size: 9.5px;
+  font-size: 11px;
   line-height: 1.5;
+}
+.correlation-table-fallback {
+  border-top: 1px solid var(--line-1);
+  margin-top: 10px;
+  padding-top: 10px;
+}
+.correlation-table-fallback summary {
+  width: fit-content;
+  color: var(--accent-hi);
+  font-size: 11px;
+  cursor: pointer;
+}
+.correlation-table-scroll {
+  max-width: 100%;
+  margin-top: 9px;
+  overflow-x: auto;
+}
+.correlation-table {
+  min-width: 1160px;
+  font-size: 11px;
+}
+.correlation-table caption {
+  padding: 0 0 7px;
+  color: var(--text-3);
+  text-align: left;
+}
+.correlation-table th,
+.correlation-table td {
+  min-width: 78px;
+  text-align: center;
+}
+.correlation-table th:first-child {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  min-width: 112px;
+  color: var(--text-2);
+  background: var(--surface-1);
+  text-align: left;
 }
 .factor-table-scroll {
   max-width: 100%;
@@ -2381,8 +2851,9 @@ onUnmounted(clearPoll)
 .factor-table th:nth-child(2),
 .factor-table th:nth-child(3) { width: 72px; }
 .factor-table th:nth-child(4) { width: 58px; }
-.factor-table th:nth-child(5) { width: 90px; }
-.factor-table th:nth-child(6) { width: 315px; }
+.factor-table th:nth-child(5),
+.factor-table th:nth-child(6) { width: 98px; }
+.factor-table th:nth-child(7) { width: 315px; }
 .factor-table td {
   vertical-align: top;
   line-height: 1.45;
@@ -2392,19 +2863,19 @@ onUnmounted(clearPoll)
   display: block;
 }
 .factor-table td > b {
-  font-size: 10.5px;
+  font-size: 12px;
 }
 .factor-table td > small {
   margin-top: 2px;
   color: var(--text-3);
-  font-size: 8.5px;
+  font-size: 11px;
 }
 .factor-table code {
   display: block;
   overflow-wrap: anywhere;
   color: var(--text-2);
   background: transparent;
-  font-size: 9px;
+  font-size: 11px;
   white-space: normal;
 }
 .factor-state {
@@ -2413,7 +2884,7 @@ onUnmounted(clearPoll)
   border-radius: 3px;
   padding: 2px 5px;
   color: var(--text-3);
-  font-size: 8.5px;
+  font-size: 11px;
   white-space: nowrap;
 }
 .factor-state.positive {
@@ -2431,9 +2902,13 @@ onUnmounted(clearPoll)
 .factor-state.missing {
   color: var(--text-3);
 }
+.factor-state.live {
+  border-color: rgba(96, 165, 250, 0.32);
+  color: var(--accent-hi);
+}
 .audit-verdict {
   color: var(--text-3);
-  font-size: 9.5px;
+  font-size: 11px;
 }
 .diagnosis-limitations {
   display: grid;
@@ -2458,12 +2933,12 @@ onUnmounted(clearPoll)
   margin: 0;
   padding: 13px 16px 13px 32px;
   color: var(--text-3);
-  font-size: 9.5px;
+  font-size: 11px;
   line-height: 1.5;
 }
 .research-disclaimer {
   color: var(--text-3);
-  font-size: 9.5px;
+  font-size: 11px;
   line-height: 1.55;
   text-align: center;
 }
@@ -2508,6 +2983,12 @@ onUnmounted(clearPoll)
   .m2-verdict {
     grid-template-columns: 1fr;
   }
+  .m3-preview {
+    display: grid;
+  }
+  .preview-counts {
+    width: 100%;
+  }
   .m2-scoreboard {
     max-width: none;
   }
@@ -2538,6 +3019,16 @@ onUnmounted(clearPoll)
   .diagnosis-meta-strip > span:last-child {
     border-bottom: 0;
   }
+  .research-mode-bar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .window-picker {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+  .window-picker .input {
+    min-width: 0;
+  }
 }
 @media (max-width: 760px) {
   .research-head {
@@ -2546,10 +3037,27 @@ onUnmounted(clearPoll)
   }
   .head-actions {
     width: 100%;
+    flex-wrap: wrap;
     margin-left: 0;
   }
+  .head-actions .run-ref {
+    flex: 1 1 190px;
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
   .head-actions .btn {
-    margin-left: auto;
+    min-height: 44px;
+    margin-left: 0;
+  }
+  .research-tabs button,
+  .mode-tabs button,
+  .window-picker .input {
+    min-height: 44px;
+  }
+  .correlation-table-fallback summary {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
   }
   .metric-deck {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -2588,6 +3096,28 @@ onUnmounted(clearPoll)
   .correlation-foot b {
     text-align: left;
   }
+  .correlation-chart {
+    display: none;
+  }
+  .correlation-table-fallback:not([open]) > .correlation-table-scroll {
+    display: block;
+  }
+  .mode-tabs {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+  .window-picker {
+    grid-template-columns: 1fr;
+  }
+  .preview-counts {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .preview-counts span:nth-child(2) {
+    border-right: 0;
+  }
+  .preview-counts span:nth-child(-n + 2) {
+    border-bottom: 1px solid var(--line-1);
+  }
 }
 @media (max-width: 480px) {
   .field-grid,
@@ -2617,6 +3147,23 @@ onUnmounted(clearPoll)
   }
   .research-tabs {
     gap: 16px;
+  }
+  .mode-tabs {
+    grid-template-columns: 1fr;
+  }
+  .m3-preview {
+    padding: 16px;
+  }
+  .preview-counts {
+    grid-template-columns: 1fr;
+  }
+  .preview-counts span,
+  .preview-counts span:nth-child(2) {
+    border-right: 0;
+    border-bottom: 1px solid var(--line-1);
+  }
+  .preview-counts span:last-child {
+    border-bottom: 0;
   }
   .m2-scoreboard,
   .diagnosis-meta-strip {
