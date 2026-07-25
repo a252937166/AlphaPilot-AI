@@ -15,6 +15,11 @@ from alphapilot.backtest.factor_research import (
     classify_factors,
     factor_correlation,
 )
+from alphapilot.backtest.factor_scope import (
+    HISTORICAL_FACTOR_CANDIDATES,
+    HISTORY_EXCLUDED_PIT_GAP_FACTORS,
+    LIVE_ONLY_FACTORS,
+)
 from alphapilot.data.provenance import AUDITED_DAILY_BAR_SOURCES
 from alphapilot.db.models import DailyBar
 from alphapilot.engines.factors import FACTOR_SET
@@ -96,6 +101,9 @@ def _normalized_weights(
         factor: retained_ir[factor] / denominator
         for factor in FACTOR_SET
     }
+    excluded = (*HISTORY_EXCLUDED_PIT_GAP_FACTORS, *LIVE_ONLY_FACTORS)
+    if any(weights[factor] != 0.0 for factor in excluded):
+        raise RuntimeError("historically excluded factors must retain zero weight")
     if not math.isclose(sum(abs(value) for value in weights.values()), 1.0):
         raise RuntimeError("factor_weights_v2 L1 normalization failed")
     return weights
@@ -147,6 +155,9 @@ def rebuild_weights(
         "horizon": "20d",
         "rebalance_freq": "20d",
         "correlation_threshold": 0.8,
+        "historical_factor_candidates": list(HISTORICAL_FACTOR_CANDIDATES),
+        "history_excluded_pit_gap": list(HISTORY_EXCLUDED_PIT_GAP_FACTORS),
+        "live_only_factors": list(LIVE_ONLY_FACTORS),
         "factor_ic_ir": factor_ic_ir,
         "redundancy_groups": diagnosis["redundancy_groups"],
         "weights": weights,

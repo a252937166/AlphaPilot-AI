@@ -23,6 +23,7 @@ from alphapilot.db.models import (
     DailyBar,
     FinancialIndicator,
     SectorConstituent,
+    SectorConstituentSnapshot,
     SectorFlowDaily,
     SectorSnapshot,
     Security,
@@ -399,7 +400,7 @@ def _load_valuation_factors(
     return latest, len(latest)
 
 
-def _sector_memberships(
+def _current_sector_memberships(
     session: Session,
     cutoff: datetime,
 ) -> dict[str, list[str]]:
@@ -411,6 +412,35 @@ def _sector_memberships(
         ).where(SectorConstituent.refreshed_at <= cutoff)
     ).all()
     for raw_symbol, raw_plate_code in rows:
+        symbol = _symbol_digits(raw_symbol)
+        plate_code = str(raw_plate_code).strip()
+        if symbol is None or not plate_code:
+            continue
+        memberships.setdefault(symbol, []).append(plate_code)
+    return memberships
+
+
+def _pit_sector_memberships(
+    session: Session,
+    trade_date: date,
+    cutoff: datetime,
+) -> dict[str, list[str]]:
+    """Load only the immutable membership snapshot visible at this decision."""
+
+    memberships: dict[str, list[str]] = {}
+    rows = session.execute(
+        select(
+            SectorConstituentSnapshot.symbol,
+            SectorConstituentSnapshot.plate_code,
+            SectorConstituentSnapshot.available_time,
+        ).where(
+            SectorConstituentSnapshot.as_of_date == trade_date,
+            SectorConstituentSnapshot.available_time <= cutoff,
+        )
+    ).all()
+    for raw_symbol, raw_plate_code, available_time in rows:
+        if not isinstance(available_time, datetime) or _utc(available_time) > cutoff:
+            continue
         symbol = _symbol_digits(raw_symbol)
         plate_code = str(raw_plate_code).strip()
         if symbol is None or not plate_code:
@@ -558,21 +588,34 @@ def compute_factors_for_date(session: Session, trade_date: date) -> pd.DataFrame
         percentiles = values.rank(method="average", pct=True)
         frame.loc[percentiles.index, factor] = percentiles
 
-    memberships = _sector_memberships(session, decision_cutoff)
+    flow_memberships = _pit_sector_memberships(
+        session,
+        trade_date,
+        decision_cutoff,
+    )
     required_flow_dates = trading_dates[-5:] if len(trading_dates) >= 5 else []
     plate_flows, sector_flow_days, sector_flow_sources = _sector_flow_values(
         session,
         required_flow_dates,
     )
-    for symbol, value in _map_sector_values(symbols, memberships, plate_flows).items():
+    for symbol, value in _map_sector_values(
+        symbols,
+        flow_memberships,
+        plate_flows,
+    ).items():
         frame.at[symbol, "net_inflow_5d"] = value
 
+    current_memberships = _current_sector_memberships(session, decision_cutoff)
     plate_strength, sector_snapshot_as_of = _sector_strength_values(
         session,
         day_start,
         decision_cutoff,
     )
-    for symbol, value in _map_sector_values(symbols, memberships, plate_strength).items():
+    for symbol, value in _map_sector_values(
+        symbols,
+        current_memberships,
+        plate_strength,
+    ).items():
         frame.at[symbol, "sector_strength"] = value
 
     frame = frame.replace([np.inf, -np.inf], np.nan)
@@ -595,9 +638,13 @@ def compute_factors_for_date(session: Session, trade_date: date) -> pd.DataFrame
         "adjustment_factor_missing_rows": missing_adjustments,
         "financial_values": financial_selected,
         "valuation_values": valuation_selected,
-        "sector_membership_symbols": len(memberships),
+        "sector_membership_symbols": len(current_memberships),
+        "sector_membership_pit_symbols": len(flow_memberships),
         "sector_flow_days": sector_flow_days,
         "sector_flow_sources": sector_flow_sources,
+        "sector_membership_pit_rows": sum(
+            len(plates) for plates in flow_memberships.values()
+        ),
         "sector_snapshot_as_of": sector_snapshot_as_of,
         "coverage": factor_coverage,
     }

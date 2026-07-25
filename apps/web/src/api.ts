@@ -1189,6 +1189,7 @@ export type FactorClassification =
   | 'significant_reverse'
   | 'ineffective'
   | 'insufficient_data'
+  | 'history_excluded_pit_gap'
 
 export interface FactorDirectionAudit {
   formula: string
@@ -1221,6 +1222,7 @@ export type FactorEvaluationStatus =
   | 'evaluated_no_sample'
   | 'not_evaluated'
   | 'live_only'
+  | 'history_excluded_pit_gap'
 
 export type FactorResearchStage =
   | 'm3_preliminary_multi_year'
@@ -1257,6 +1259,10 @@ export interface FactorICWindowResponse {
     financial_pending_count: number
     live_only_factors: string[]
     live_only_count: number
+    historical_factor_candidates: string[]
+    historical_factor_candidate_count: number
+    history_excluded_pit_gap_factors: string[]
+    history_excluded_pit_gap_count: number
     test_window_sealed: boolean
   }
 }
@@ -1289,6 +1295,10 @@ export interface FactorICResponse {
     financial_pending_factors: string[]
     live_only_count: number
     live_only_factors: string[]
+    historical_factor_candidate_count: number
+    historical_factor_candidates: string[]
+    history_excluded_pit_gap_count: number
+    history_excluded_pit_gap_factors: string[]
   }
   factors: Array<{
     factor: string

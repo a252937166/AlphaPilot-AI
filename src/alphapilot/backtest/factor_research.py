@@ -12,6 +12,7 @@ import pandas as pd
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
+from alphapilot.backtest.factor_scope import HISTORICAL_FACTOR_CANDIDATES
 from alphapilot.backtest.metrics import (
     ic_summary,
     layered_returns,
@@ -252,11 +253,15 @@ def all_factors_ic(
     *,
     sample_tag: Literal["train", "test", "full"] = "full",
 ) -> pd.DataFrame:
-    """Research the runtime factor set once per decision date and persist summaries."""
+    """Research the audited historical factor scope and persist summaries.
+
+    ``net_inflow_5d`` is deliberately absent: pre-snapshot membership cannot be
+    reconstructed without look-ahead.  ``sector_strength`` remains live-only.
+    """
 
     return factors_ic(
         session,
-        FACTOR_SET,
+        HISTORICAL_FACTOR_CANDIDATES,
         start,
         end,
         sample_tag=sample_tag,
@@ -331,17 +336,19 @@ def factor_correlation(
 
     calendar = _calendar(session, start, end)
     decision_dates = calendar[:: _REBALANCE_DAYS["20d"]]
-    factor_count = len(FACTOR_SET)
+    factor_count = len(HISTORICAL_FACTOR_CANDIDATES)
     correlation_sum = np.zeros((factor_count, factor_count), dtype=float)
     period_counts = np.zeros((factor_count, factor_count), dtype=int)
 
     for decision_date in decision_dates:
-        frame = factor_zscores(session, decision_date).reindex(columns=FACTOR_SET)
+        frame = factor_zscores(session, decision_date).reindex(
+            columns=HISTORICAL_FACTOR_CANDIDATES
+        )
         if frame.empty:
             continue
         daily = frame.corr(method="pearson", min_periods=3).reindex(
-            index=FACTOR_SET,
-            columns=FACTOR_SET,
+            index=HISTORICAL_FACTOR_CANDIDATES,
+            columns=HISTORICAL_FACTOR_CANDIDATES,
         )
         values = daily.to_numpy(dtype=float)
         finite = np.isfinite(values)
@@ -358,19 +365,19 @@ def factor_correlation(
     )
     result = pd.DataFrame(
         averages,
-        index=FACTOR_SET,
-        columns=FACTOR_SET,
+        index=HISTORICAL_FACTOR_CANDIDATES,
+        columns=HISTORICAL_FACTOR_CANDIDATES,
         dtype=float,
     )
     count_table = pd.DataFrame(
         period_counts,
-        index=FACTOR_SET,
-        columns=FACTOR_SET,
+        index=HISTORICAL_FACTOR_CANDIDATES,
+        columns=HISTORICAL_FACTOR_CANDIDATES,
         dtype=int,
     )
     redundant_pairs: list[dict[str, float | int | str]] = []
-    for left_index, left in enumerate(FACTOR_SET):
-        for right in FACTOR_SET[left_index + 1 :]:
+    for left_index, left in enumerate(HISTORICAL_FACTOR_CANDIDATES):
+        for right in HISTORICAL_FACTOR_CANDIDATES[left_index + 1 :]:
             value = _finite_or_none(result.at[left, right])
             if value is not None and abs(value) > 0.8:
                 redundant_pairs.append(
@@ -404,7 +411,10 @@ def persist_factor_correlation(
 
     if sample_tag not in _SAMPLE_TAGS:
         raise ValueError("sample_tag must be one of train/test/full")
-    normalized = corr.reindex(index=FACTOR_SET, columns=FACTOR_SET)
+    normalized = corr.reindex(
+        index=HISTORICAL_FACTOR_CANDIDATES,
+        columns=HISTORICAL_FACTOR_CANDIDATES,
+    )
     pair_periods = corr.attrs.get("pair_periods", {})
     if not isinstance(pair_periods, dict):
         raise ValueError("corr is missing pair_periods audit metadata")
@@ -417,8 +427,8 @@ def persist_factor_correlation(
         )
     )
     stored = 0
-    for left_index, left in enumerate(FACTOR_SET):
-        for right in FACTOR_SET[left_index:]:
+    for left_index, left in enumerate(HISTORICAL_FACTOR_CANDIDATES):
+        for right in HISTORICAL_FACTOR_CANDIDATES[left_index:]:
             value = _finite_or_none(normalized.at[left, right])
             column = pair_periods.get(right, {})
             raw_periods = column.get(left) if isinstance(column, dict) else None
@@ -479,6 +489,23 @@ def classify_factors(ic_table: pd.DataFrame, corr: pd.DataFrame) -> dict[str, An
 
     factors: dict[str, dict[str, Any]] = {}
     for factor in FACTOR_SET:
+        if factor == "net_inflow_5d":
+            factors[factor] = {
+                "classification": "history_excluded_pit_gap",
+                "direction": "unknown",
+                "ic_mean": None,
+                "ic_ir": None,
+                "t_stat": None,
+                "n_periods": 0,
+                "direction_audit_required": False,
+                "recommendation": (
+                    "历史成分 PIT 不可重建；退出 S7/S9，待前向日快照形成新窗口。"
+                ),
+                "economic_note": "不使用当前成分伪造历史映射，不写偏差版 IC。",
+                "redundant": False,
+                "retained_factor": None,
+            }
+            continue
         row = rows.get(factor, {})
         ic_mean = _finite_or_none(row.get("ic_mean"))
         ic_ir = _finite_or_none(row.get("ic_ir"))

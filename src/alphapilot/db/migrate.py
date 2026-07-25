@@ -31,6 +31,7 @@ INDEX_MIGRATIONS: list[tuple[str, str, tuple[str, ...]]] = [
 ]
 
 _IDENTIFIER = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+TABLE_MIGRATIONS = ("sector_constituent_snapshots",)
 
 
 def _validated_identifier(value: str) -> str:
@@ -85,6 +86,21 @@ def ensure_column(engine: Engine, table: str, column: str, ddl_type: str) -> boo
     return True
 
 
+def ensure_model_table(engine: Engine, table_name: str) -> bool:
+    """Create one centrally modelled table for an existing database."""
+
+    table_name = _validated_identifier(table_name)
+    if inspect(engine).has_table(table_name):
+        return False
+    from alphapilot.db.models import Base
+
+    table = Base.metadata.tables.get(table_name)
+    if table is None:
+        raise ValueError(f"model table does not exist: {table_name}")
+    table.create(bind=engine, checkfirst=True)
+    return True
+
+
 def ensure_index(
     engine: Engine,
     table: str,
@@ -136,6 +152,9 @@ def run_migrations(engine: Engine) -> list[str]:
     """Apply the centrally registered idempotent column and index migrations."""
 
     applied: list[str] = []
+    for table_name in TABLE_MIGRATIONS:
+        if ensure_model_table(engine, table_name):
+            applied.append(table_name)
     for table, column, ddl_type in MIGRATIONS:
         if ensure_column(engine, table, column, ddl_type):
             applied.append(f"{table}.{column}")

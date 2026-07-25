@@ -18,6 +18,10 @@ from jsonschema import Draft202012Validator
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
+from alphapilot.backtest.factor_scope import (
+    HISTORICAL_FACTOR_CANDIDATES,
+    HISTORY_EXCLUDED_PIT_GAP_FACTORS,
+)
 from alphapilot.backtest.pit import factor_zscores
 from alphapilot.data.provenance import (
     AUDITED_DAILY_BAR_SOURCES,
@@ -25,7 +29,7 @@ from alphapilot.data.provenance import (
 )
 from alphapilot.engines.factors import FACTOR_SET
 
-REPORT_VERSION = "p3.3-s6-v2"
+REPORT_VERSION = "p3.3-s6-v3"
 MARKET_TIMEZONE = ZoneInfo("Asia/Shanghai")
 LATEST_CROSS_SECTION_CANDIDATES = 60
 FINANCIAL_TARGET_QUARTERS = 40
@@ -250,9 +254,7 @@ REQUIRED_FINANCIAL_FACTORS = (
     "debt_ratio",
     "revenue_yoy",
 )
-HISTORICAL_FACTORS = tuple(
-    factor for factor in FACTOR_SET if factor != "sector_strength"
-)
+HISTORICAL_FACTORS = HISTORICAL_FACTOR_CANDIDATES
 PRICE_FACTORS = frozenset(
     {
         "momentum_20d",
@@ -279,6 +281,7 @@ REQUIRED_TABLES = frozenset(
         "valuation_daily",
         "sector_flow_daily",
         "sector_constituents",
+        "sector_constituent_snapshots",
     }
 )
 
@@ -351,6 +354,10 @@ def _duplicate_groups(
         ("financial_indicators", "symbol, report_period, metric"),
         ("valuation_daily", "symbol, trade_date"),
         ("sector_flow_daily", "plate_code, trade_date"),
+        (
+            "sector_constituent_snapshots",
+            "plate_code, symbol, as_of_date",
+        ),
     }
     if (table, key_columns) not in allowed:
         raise ValueError("unsupported duplicate-key audit")
@@ -1219,6 +1226,20 @@ def _sector_flow_audit(connection: sqlite3.Connection) -> dict[str, Any]:
         FROM sector_constituents
         """,
     )
+    membership_history = _one(
+        connection,
+        """
+        SELECT COUNT(*) AS rows_count,
+               COUNT(DISTINCT symbol) AS symbols,
+               COUNT(DISTINCT plate_code) AS plates,
+               COUNT(DISTINCT as_of_date) AS dates,
+               MIN(as_of_date) AS min_date,
+               MAX(as_of_date) AS max_date,
+               MIN(available_time) AS min_available_time,
+               MAX(available_time) AS max_available_time
+        FROM sector_constituent_snapshots
+        """,
+    )
     rows_count = int(summary["rows_count"])
     source_counts = _source_counts(connection, table="sector_flow_daily")
     historical_source_rows = source_counts.get(M3_SECTOR_FLOW_SOURCE, 0)
@@ -1255,6 +1276,25 @@ def _sector_flow_audit(connection: sqlite3.Connection) -> dict[str, Any]:
                 membership["min_refreshed_at"],
                 membership["max_refreshed_at"],
             ],
+        },
+        "membership_pit_history": {
+            "rows": int(membership_history["rows_count"]),
+            "symbols": int(membership_history["symbols"]),
+            "plates": int(membership_history["plates"]),
+            "dates": int(membership_history["dates"]),
+            "date_range": [
+                membership_history["min_date"],
+                membership_history["max_date"],
+            ],
+            "available_time_range": [
+                membership_history["min_available_time"],
+                membership_history["max_available_time"],
+            ],
+            "duplicate_key_groups": _duplicate_groups(
+                connection,
+                table="sector_constituent_snapshots",
+                key_columns="plate_code, symbol, as_of_date",
+            ),
         },
     }
 
@@ -1358,10 +1398,11 @@ def _membership_pit_visibility(
             SELECT COUNT(*) AS rows_count,
                    COUNT(DISTINCT symbol) AS symbols,
                    COUNT(DISTINCT plate_code) AS plates
-            FROM sector_constituents
-            WHERE julianday(refreshed_at) <= julianday(?)
+            FROM sector_constituent_snapshots
+            WHERE as_of_date = ?
+              AND julianday(available_time) <= julianday(?)
             """,
-            (cutoff.isoformat(),),
+            (date_text, cutoff.isoformat()),
         )
         rows_count = int(row["rows_count"])
         visibility[date_text] = {
@@ -1437,6 +1478,31 @@ def _factor_availability(
     factors: list[dict[str, Any]] = []
     for factor in FACTOR_SET:
         group = _factor_group(factor)
+        if factor in HISTORY_EXCLUDED_PIT_GAP_FACTORS:
+            factors.append(
+                {
+                    "factor": factor,
+                    "group": group,
+                    "status": "history_excluded_pit_gap",
+                    "minimum_cross_section": None,
+                    "probes": [],
+                    "non_null_summary": {
+                        "probe_count": 0,
+                        "minimum_n": None,
+                        "maximum_n": None,
+                        "sufficient_probe_count": 0,
+                    },
+                    "representative_gaps": [],
+                    "reason": (
+                        "2026-07-25 架构裁定：历史板块成分 PIT 不可重建；"
+                        "该因子退出 S7/S9，日快照仅供未来窗口。"
+                    ),
+                    "cause_class": "history_excluded_pit_gap",
+                    "historical_candidate": False,
+                    "live_forward": True,
+                }
+            )
+            continue
         if factor == "sector_strength":
             factors.append(
                 {
@@ -1455,6 +1521,8 @@ def _factor_availability(
                     "reason": (
                         "SectorSnapshot is a live derived signal with no historical PIT series."
                     ),
+                    "historical_candidate": False,
+                    "live_forward": False,
                 }
             )
             continue
@@ -1541,6 +1609,8 @@ def _factor_availability(
                 },
                 "representative_gaps": representative_gaps,
                 "reason": reason,
+                "historical_candidate": True,
+                "live_forward": False,
             }
         )
     return {
@@ -1571,6 +1641,9 @@ def _diagnose_factor_gaps(
             continue
         if status == "live_only":
             item["cause_class"] = "live_only"
+            continue
+        if status == "history_excluded_pit_gap":
+            item["cause_class"] = "history_excluded_pit_gap"
             continue
         if status == "probe_error":
             item["cause_class"] = "probe_error"
@@ -2092,6 +2165,13 @@ def _gate(
             "code": "SECTOR_STRENGTH_LIVE_ONLY",
             "message": "sector_strength 是实时衍生量，明确不进入历史回测。",
         },
+        {
+            "code": "FACTOR_NET_INFLOW_5D_HISTORY_EXCLUDED_PIT_GAP",
+            "message": (
+                "2026-07-25 架构裁定：net_inflow_5d 因历史板块成分 PIT 缺口"
+                "退出 S7/S9；日快照仅供未来窗口，不阻断 S7。"
+            ),
+        },
     ]
 
     def block(code: str, message: str, *, kind: str = "automated") -> None:
@@ -2235,6 +2315,15 @@ def _gate(
                 f"{M3_SECTOR_FLOW_SOURCE}。"
             ),
         )
+    membership_history = sector["membership_pit_history"]
+    if membership_history["duplicate_key_groups"]:
+        block(
+            "SECTOR_CONSTITUENT_SNAPSHOT_DUPLICATES",
+            (
+                "sector_constituent_snapshots 存在 "
+                f"{membership_history['duplicate_key_groups']} 组重复复合键。"
+            ),
+        )
     broad_sections = {
         "DAILY_BARS": daily["latest_broad_cross_section"],
         "ADJ_FACTORS": adj["latest_broad_cross_section"],
@@ -2266,7 +2355,7 @@ def _gate(
                 "valuation_daily 最新广覆盖截面未与 daily_bars 对齐。",
             )
     for item in factors:
-        if item["factor"] == "sector_strength":
+        if item["status"] in {"live_only", "history_excluded_pit_gap"}:
             continue
         if item["status"] != "sufficient":
             block(
@@ -2429,6 +2518,14 @@ def build_data_health_report(
         "input_coverage": input_coverage,
         "daily_adj_key_audit": key_audit,
         "factor_availability": factor_availability,
+        "historical_factor_scope": {
+            "candidate_factors": list(HISTORICAL_FACTOR_CANDIDATES),
+            "candidate_count": len(HISTORICAL_FACTOR_CANDIDATES),
+            "history_excluded_pit_gap": list(
+                HISTORY_EXCLUDED_PIT_GAP_FACTORS
+            ),
+            "ruling_date": "2026-07-25",
+        },
         "pit_samples": samples,
         "external_pit_pairing": external_pairing,
     }
@@ -2465,6 +2562,8 @@ def render_data_health_markdown(report: dict[str, Any]) -> str:
         f"- 可进入 S7：`{str(gate['ready_for_s7']).lower()}`",
         f"- 外部 PIT 对拍证据："
         f"`{'accepted' if report['external_pit_pairing']['accepted'] else 'pending'}`",
+        f"- M3 历史候选：`{report['historical_factor_scope']['candidate_count']}` "
+        "因子；`net_inflow_5d` 为 `history_excluded_pit_gap` / live-forward",
         "",
         "## 输入底表覆盖",
         "",
@@ -2556,6 +2655,10 @@ def render_data_health_markdown(report: dict[str, Any]) -> str:
             f"（闸门 ≥ {MIN_PROVIDER_PUB_DATE_BASIS_RATIO:.0%}）",
             f"- 财务 PIT 异常行：{financial_pit['anomaly_rows']:,}",
             f"- 估值 PIT 异常行：{inputs['valuation_daily']['pit_anomaly_rows']:,}",
+            "- 板块成分 PIT 日快照："
+            f"{inputs['sector_flow_daily']['membership_pit_history']['rows']:,} 行 / "
+            f"{inputs['sector_flow_daily']['membership_pit_history']['dates']:,} 日，"
+            "仅供 2026-07-25 裁定后的前向窗口",
             "",
             "### 财务 40 季度目标与最低可测深度",
             "",

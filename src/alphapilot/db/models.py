@@ -452,6 +452,31 @@ class SectorConstituent(Base):
     refreshed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 
+class SectorConstituentSnapshot(Base):
+    """Immutable daily PIT copy of industry-plate membership."""
+
+    __tablename__ = "sector_constituent_snapshots"
+    __table_args__ = (
+        UniqueConstraint(
+            "plate_code",
+            "symbol",
+            "as_of_date",
+            name="uq_sector_constituent_snapshot",
+        ),
+        Index(
+            "ix_sector_constituent_snapshot_date_available",
+            "as_of_date",
+            "available_time",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    plate_code: Mapped[str] = mapped_column(String(24))
+    symbol: Mapped[str] = mapped_column(String(24))
+    as_of_date: Mapped[date] = mapped_column(Date)
+    available_time: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+
 class SectorFlowDaily(Base):
     """Daily plate-level fund-flow aggregate with explicit source provenance."""
 
