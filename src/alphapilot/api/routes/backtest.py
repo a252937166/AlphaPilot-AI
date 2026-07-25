@@ -14,6 +14,7 @@ from alphapilot.backtest.diagnosis import (
     compare_backtests,
     factor_diagnosis_report,
     factor_ic_report,
+    factor_ic_windows,
 )
 from alphapilot.backtest.engine import (
     BacktestConfig,
@@ -239,18 +240,46 @@ def list_backtests(
 
 @router.get("/factors/ic")
 def get_factor_ic(
-    sample_tag: Literal["train", "test", "full"] = Query(default="full"),
+    sample_tag: Literal["train", "test", "full"] = Query(default="train"),
+    start_date: date | None = Query(default=None),
+    end_date: date | None = Query(default=None),
     session: Session = Depends(db_session_dependency),
 ) -> dict[str, Any]:
-    return factor_ic_report(session, sample_tag)
+    try:
+        return factor_ic_report(
+            session,
+            sample_tag,
+            start_date=start_date,
+            end_date=end_date,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+@router.get("/factors/windows")
+def get_factor_ic_windows(
+    sample_tag: Literal["train", "test", "full"] = Query(default="train"),
+    session: Session = Depends(db_session_dependency),
+) -> dict[str, Any]:
+    return factor_ic_windows(session, sample_tag)
 
 
 @router.get("/factors/diagnosis")
 def get_factor_diagnosis(
-    sample_tag: Literal["train", "test", "full"] = Query(default="full"),
+    sample_tag: Literal["train", "test", "full"] = Query(default="train"),
+    start_date: date | None = Query(default=None),
+    end_date: date | None = Query(default=None),
     session: Session = Depends(db_session_dependency),
 ) -> dict[str, Any]:
-    return factor_diagnosis_report(session, sample_tag)
+    try:
+        return factor_diagnosis_report(
+            session,
+            sample_tag,
+            start_date=start_date,
+            end_date=end_date,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
 
 
 @router.get("/compare")

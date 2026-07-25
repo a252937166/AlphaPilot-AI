@@ -1,0 +1,1755 @@
+{
+  "as_of_date": "2026-07-25",
+  "daily_adj_key_audit": {
+    "adj_keys_without_audited_daily": 0,
+    "audited_daily_keys_without_adj": 0
+  },
+  "database": {
+    "open_mode": "ro",
+    "path": "/Users/ouyangduning/Documents/project/interesting/AlphaPilot-AI/data/alphapilot.db",
+    "query_only": true
+  },
+  "external_pit_pairing": {
+    "accepted": false,
+    "basename": null,
+    "bytes": 0,
+    "pit_manifest_schema_version": "p3.3-s6-local-pit-manifest-v1",
+    "pit_manifest_sha256": "2085ff8a2d300220617f674033ddb4d95b5f7cd9cd5c29bffaf35e7948cb7df3",
+    "reviewed_at": null,
+    "reviewer_role": null,
+    "sample_count": 0,
+    "schema_version": "p3.3-s6-external-pit-pairing-v2",
+    "sha256": null
+  },
+  "factor_availability": {
+    "factors": [
+      {
+        "cause_class": null,
+        "factor": "momentum_20d",
+        "group": "price_volume",
+        "minimum_cross_section": 100,
+        "non_null_summary": {
+          "maximum_n": 5373,
+          "minimum_n": 5270,
+          "probe_count": 3,
+          "sufficient_probe_count": 3
+        },
+        "probes": [
+          {
+            "date": "2024-08-05",
+            "eligible": 5270,
+            "error": null,
+            "membership_pit": null,
+            "n": 5270
+          },
+          {
+            "date": "2025-07-30",
+            "eligible": 5373,
+            "error": null,
+            "membership_pit": null,
+            "n": 5373
+          },
+          {
+            "date": "2026-07-24",
+            "eligible": 5504,
+            "error": null,
+            "membership_pit": null,
+            "n": 5296
+          }
+        ],
+        "reason": null,
+        "representative_gaps": [],
+        "status": "sufficient"
+      },
+      {
+        "cause_class": null,
+        "factor": "momentum_60d",
+        "group": "price_volume",
+        "minimum_cross_section": 100,
+        "non_null_summary": {
+          "maximum_n": 5367,
+          "minimum_n": 5267,
+          "probe_count": 3,
+          "sufficient_probe_count": 3
+        },
+        "probes": [
+          {
+            "date": "2024-08-05",
+            "eligible": 5270,
+            "error": null,
+            "membership_pit": null,
+            "n": 5267
+          },
+          {
+            "date": "2025-07-30",
+            "eligible": 5373,
+            "error": null,
+            "membership_pit": null,
+            "n": 5367
+          },
+          {
+            "date": "2026-07-24",
+            "eligible": 5504,
+            "error": null,
+            "membership_pit": null,
+            "n": 5284
+          }
+        ],
+        "reason": null,
+        "representative_gaps": [],
+        "status": "sufficient"
+      },
+      {
+        "cause_class": null,
+        "factor": "volatility_20d",
+        "group": "price_volume",
+        "minimum_cross_section": 100,
+        "non_null_summary": {
+          "maximum_n": 5373,
+          "minimum_n": 5270,
+          "probe_count": 3,
+          "sufficient_probe_count": 3
+        },
+        "probes": [
+          {
+            "date": "2024-08-05",
+            "eligible": 5270,
+            "error": null,
+            "membership_pit": null,
+            "n": 5270
+          },
+          {
+            "date": "2025-07-30",
+            "eligible": 5373,
+            "error": null,
+            "membership_pit": null,
+            "n": 5373
+          },
+          {
+            "date": "2026-07-24",
+            "eligible": 5504,
+            "error": null,
+            "membership_pit": null,
+            "n": 5296
+          }
+        ],
+        "reason": null,
+        "representative_gaps": [],
+        "status": "sufficient"
+      },
+      {
+        "cause_class": null,
+        "factor": "turnover_change_5d",
+        "group": "price_volume",
+        "minimum_cross_section": 100,
+        "non_null_summary": {
+          "maximum_n": 5370,
+          "minimum_n": 5269,
+          "probe_count": 3,
+          "sufficient_probe_count": 3
+        },
+        "probes": [
+          {
+            "date": "2024-08-05",
+            "eligible": 5270,
+            "error": null,
+            "membership_pit": null,
+            "n": 5269
+          },
+          {
+            "date": "2025-07-30",
+            "eligible": 5373,
+            "error": null,
+            "membership_pit": null,
+            "n": 5370
+          },
+          {
+            "date": "2026-07-24",
+            "eligible": 5504,
+            "error": null,
+            "membership_pit": null,
+            "n": 5295
+          }
+        ],
+        "reason": null,
+        "representative_gaps": [],
+        "status": "sufficient"
+      },
+      {
+        "cause_class": "pit_membership_gap",
+        "factor": "net_inflow_5d",
+        "group": "sector_flow",
+        "minimum_cross_section": 100,
+        "non_null_summary": {
+          "maximum_n": 4985,
+          "minimum_n": 0,
+          "probe_count": 3,
+          "sufficient_probe_count": 1
+        },
+        "probes": [
+          {
+            "date": "2025-07-31",
+            "eligible": 5368,
+            "error": null,
+            "membership_pit": {
+              "decision_cutoff": "2025-07-31T11:30:00+00:00",
+              "plates": 0,
+              "rows": 0,
+              "symbols": 0,
+              "visible": false
+            },
+            "n": 0
+          },
+          {
+            "date": "2026-01-26",
+            "eligible": 5424,
+            "error": null,
+            "membership_pit": {
+              "decision_cutoff": "2026-01-26T11:30:00+00:00",
+              "plates": 0,
+              "rows": 0,
+              "symbols": 0,
+              "visible": false
+            },
+            "n": 0
+          },
+          {
+            "date": "2026-07-24",
+            "eligible": 5504,
+            "error": null,
+            "membership_pit": {
+              "decision_cutoff": "2026-07-24T11:30:00+00:00",
+              "plates": 131,
+              "rows": 5200,
+              "symbols": 5200,
+              "visible": true
+            },
+            "n": 4985
+          }
+        ],
+        "reason": "板块资金流存在，但 sector_constituents 的 refreshed_at 晚于探针决策时点；严格 PIT 下不得借用当前成分。",
+        "representative_gaps": [
+          {
+            "date": "2025-07-31",
+            "eligible": 5368,
+            "error": null,
+            "membership_pit": {
+              "decision_cutoff": "2025-07-31T11:30:00+00:00",
+              "plates": 0,
+              "rows": 0,
+              "symbols": 0,
+              "visible": false
+            },
+            "n": 0
+          },
+          {
+            "date": "2026-01-26",
+            "eligible": 5424,
+            "error": null,
+            "membership_pit": {
+              "decision_cutoff": "2026-01-26T11:30:00+00:00",
+              "plates": 0,
+              "rows": 0,
+              "symbols": 0,
+              "visible": false
+            },
+            "n": 0
+          }
+        ],
+        "status": "unavailable"
+      },
+      {
+        "cause_class": null,
+        "factor": "roe",
+        "group": "financial",
+        "minimum_cross_section": 100,
+        "non_null_summary": {
+          "maximum_n": 756,
+          "minimum_n": 743,
+          "probe_count": 3,
+          "sufficient_probe_count": 3
+        },
+        "probes": [
+          {
+            "date": "2024-08-05",
+            "eligible": 5270,
+            "error": null,
+            "membership_pit": null,
+            "n": 747
+          },
+          {
+            "date": "2025-07-30",
+            "eligible": 5373,
+            "error": null,
+            "membership_pit": null,
+            "n": 756
+          },
+          {
+            "date": "2026-07-24",
+            "eligible": 5504,
+            "error": null,
+            "membership_pit": null,
+            "n": 743
+          }
+        ],
+        "reason": null,
+        "representative_gaps": [],
+        "status": "sufficient"
+      },
+      {
+        "cause_class": null,
+        "factor": "net_profit_yoy",
+        "group": "financial",
+        "minimum_cross_section": 100,
+        "non_null_summary": {
+          "maximum_n": 756,
+          "minimum_n": 743,
+          "probe_count": 3,
+          "sufficient_probe_count": 3
+        },
+        "probes": [
+          {
+            "date": "2024-08-05",
+            "eligible": 5270,
+            "error": null,
+            "membership_pit": null,
+            "n": 747
+          },
+          {
+            "date": "2025-07-30",
+            "eligible": 5373,
+            "error": null,
+            "membership_pit": null,
+            "n": 756
+          },
+          {
+            "date": "2026-07-24",
+            "eligible": 5504,
+            "error": null,
+            "membership_pit": null,
+            "n": 743
+          }
+        ],
+        "reason": null,
+        "representative_gaps": [],
+        "status": "sufficient"
+      },
+      {
+        "cause_class": null,
+        "factor": "ocf_to_profit",
+        "group": "financial",
+        "minimum_cross_section": 100,
+        "non_null_summary": {
+          "maximum_n": 756,
+          "minimum_n": 743,
+          "probe_count": 3,
+          "sufficient_probe_count": 3
+        },
+        "probes": [
+          {
+            "date": "2024-08-05",
+            "eligible": 5270,
+            "error": null,
+            "membership_pit": null,
+            "n": 747
+          },
+          {
+            "date": "2025-07-30",
+            "eligible": 5373,
+            "error": null,
+            "membership_pit": null,
+            "n": 756
+          },
+          {
+            "date": "2026-07-24",
+            "eligible": 5504,
+            "error": null,
+            "membership_pit": null,
+            "n": 743
+          }
+        ],
+        "reason": null,
+        "representative_gaps": [],
+        "status": "sufficient"
+      },
+      {
+        "cause_class": null,
+        "factor": "debt_ratio",
+        "group": "financial",
+        "minimum_cross_section": 100,
+        "non_null_summary": {
+          "maximum_n": 756,
+          "minimum_n": 743,
+          "probe_count": 3,
+          "sufficient_probe_count": 3
+        },
+        "probes": [
+          {
+            "date": "2024-08-05",
+            "eligible": 5270,
+            "error": null,
+            "membership_pit": null,
+            "n": 747
+          },
+          {
+            "date": "2025-07-30",
+            "eligible": 5373,
+            "error": null,
+            "membership_pit": null,
+            "n": 756
+          },
+          {
+            "date": "2026-07-24",
+            "eligible": 5504,
+            "error": null,
+            "membership_pit": null,
+            "n": 743
+          }
+        ],
+        "reason": null,
+        "representative_gaps": [],
+        "status": "sufficient"
+      },
+      {
+        "cause_class": null,
+        "factor": "revenue_yoy",
+        "group": "financial",
+        "minimum_cross_section": 100,
+        "non_null_summary": {
+          "maximum_n": 750,
+          "minimum_n": 737,
+          "probe_count": 3,
+          "sufficient_probe_count": 3
+        },
+        "probes": [
+          {
+            "date": "2024-08-05",
+            "eligible": 5270,
+            "error": null,
+            "membership_pit": null,
+            "n": 743
+          },
+          {
+            "date": "2025-07-30",
+            "eligible": 5373,
+            "error": null,
+            "membership_pit": null,
+            "n": 750
+          },
+          {
+            "date": "2026-07-24",
+            "eligible": 5504,
+            "error": null,
+            "membership_pit": null,
+            "n": 737
+          }
+        ],
+        "reason": null,
+        "representative_gaps": [],
+        "status": "sufficient"
+      },
+      {
+        "cause_class": null,
+        "factor": "pe_percentile",
+        "group": "valuation",
+        "minimum_cross_section": 100,
+        "non_null_summary": {
+          "maximum_n": 4100,
+          "minimum_n": 3928,
+          "probe_count": 3,
+          "sufficient_probe_count": 3
+        },
+        "probes": [
+          {
+            "date": "2024-08-05",
+            "eligible": 5270,
+            "error": null,
+            "membership_pit": null,
+            "n": 4100
+          },
+          {
+            "date": "2025-07-30",
+            "eligible": 5373,
+            "error": null,
+            "membership_pit": null,
+            "n": 3949
+          },
+          {
+            "date": "2026-07-24",
+            "eligible": 5504,
+            "error": null,
+            "membership_pit": null,
+            "n": 3928
+          }
+        ],
+        "reason": null,
+        "representative_gaps": [],
+        "status": "sufficient"
+      },
+      {
+        "cause_class": null,
+        "factor": "pb_percentile",
+        "group": "valuation",
+        "minimum_cross_section": 100,
+        "non_null_summary": {
+          "maximum_n": 5339,
+          "minimum_n": 5245,
+          "probe_count": 3,
+          "sufficient_probe_count": 3
+        },
+        "probes": [
+          {
+            "date": "2024-08-05",
+            "eligible": 5270,
+            "error": null,
+            "membership_pit": null,
+            "n": 5245
+          },
+          {
+            "date": "2025-07-30",
+            "eligible": 5373,
+            "error": null,
+            "membership_pit": null,
+            "n": 5339
+          },
+          {
+            "date": "2026-07-24",
+            "eligible": 5504,
+            "error": null,
+            "membership_pit": null,
+            "n": 5289
+          }
+        ],
+        "reason": null,
+        "representative_gaps": [],
+        "status": "sufficient"
+      },
+      {
+        "cause_class": "live_only",
+        "factor": "sector_strength",
+        "group": "live_only",
+        "minimum_cross_section": null,
+        "non_null_summary": {
+          "maximum_n": null,
+          "minimum_n": null,
+          "probe_count": 0,
+          "sufficient_probe_count": 0
+        },
+        "probes": [],
+        "reason": "SectorSnapshot is a live derived signal with no historical PIT series.",
+        "representative_gaps": [],
+        "status": "live_only"
+      }
+    ],
+    "minimum_cross_section": 100,
+    "probe_results": [
+      {
+        "counts": {
+          "debt_ratio": 747,
+          "momentum_20d": 5270,
+          "momentum_60d": 5267,
+          "net_inflow_5d": 0,
+          "net_profit_yoy": 747,
+          "ocf_to_profit": 747,
+          "pb_percentile": 5245,
+          "pe_percentile": 4100,
+          "revenue_yoy": 743,
+          "roe": 747,
+          "turnover_change_5d": 5269,
+          "volatility_20d": 5270
+        },
+        "date": "2024-08-05",
+        "eligible": 5270,
+        "error": null
+      },
+      {
+        "counts": {
+          "debt_ratio": 756,
+          "momentum_20d": 5373,
+          "momentum_60d": 5367,
+          "net_inflow_5d": 0,
+          "net_profit_yoy": 756,
+          "ocf_to_profit": 756,
+          "pb_percentile": 5339,
+          "pe_percentile": 3949,
+          "revenue_yoy": 750,
+          "roe": 756,
+          "turnover_change_5d": 5370,
+          "volatility_20d": 5373
+        },
+        "date": "2025-07-30",
+        "eligible": 5373,
+        "error": null
+      },
+      {
+        "counts": {
+          "debt_ratio": 755,
+          "momentum_20d": 5368,
+          "momentum_60d": 5362,
+          "net_inflow_5d": 0,
+          "net_profit_yoy": 755,
+          "ocf_to_profit": 755,
+          "pb_percentile": 5334,
+          "pe_percentile": 3946,
+          "revenue_yoy": 749,
+          "roe": 755,
+          "turnover_change_5d": 5364,
+          "volatility_20d": 5368
+        },
+        "date": "2025-07-31",
+        "eligible": 5368,
+        "error": null
+      },
+      {
+        "counts": {
+          "debt_ratio": 761,
+          "momentum_20d": 5424,
+          "momentum_60d": 5413,
+          "net_inflow_5d": 0,
+          "net_profit_yoy": 761,
+          "ocf_to_profit": 761,
+          "pb_percentile": 5382,
+          "pe_percentile": 3902,
+          "revenue_yoy": 758,
+          "roe": 761,
+          "turnover_change_5d": 5419,
+          "volatility_20d": 5424
+        },
+        "date": "2026-01-26",
+        "eligible": 5424,
+        "error": null
+      },
+      {
+        "counts": {
+          "debt_ratio": 743,
+          "momentum_20d": 5296,
+          "momentum_60d": 5284,
+          "net_inflow_5d": 4985,
+          "net_profit_yoy": 743,
+          "ocf_to_profit": 743,
+          "pb_percentile": 5289,
+          "pe_percentile": 3928,
+          "revenue_yoy": 737,
+          "roe": 743,
+          "turnover_change_5d": 5295,
+          "volatility_20d": 5296
+        },
+        "date": "2026-07-24",
+        "eligible": 5504,
+        "error": null
+      }
+    ],
+    "schedule": {
+      "all": [
+        "2024-08-05",
+        "2025-07-30",
+        "2025-07-31",
+        "2026-01-26",
+        "2026-07-24"
+      ],
+      "multi_year": [
+        "2024-08-05",
+        "2025-07-30",
+        "2026-07-24"
+      ],
+      "sector_flow_one_year": [
+        "2025-07-31",
+        "2026-01-26",
+        "2026-07-24"
+      ]
+    },
+    "sector_membership_pit_visibility": {
+      "2025-07-31": {
+        "decision_cutoff": "2025-07-31T11:30:00+00:00",
+        "plates": 0,
+        "rows": 0,
+        "symbols": 0,
+        "visible": false
+      },
+      "2026-01-26": {
+        "decision_cutoff": "2026-01-26T11:30:00+00:00",
+        "plates": 0,
+        "rows": 0,
+        "symbols": 0,
+        "visible": false
+      },
+      "2026-07-24": {
+        "decision_cutoff": "2026-07-24T11:30:00+00:00",
+        "plates": 131,
+        "rows": 5200,
+        "symbols": 5200,
+        "visible": true
+      }
+    }
+  },
+  "gate": {
+    "automated_checks_pass": false,
+    "blockers": [
+      {
+        "code": "DAILY_BARS_SOURCE",
+        "kind": "automated",
+        "message": "daily_bars 有 95 行来源不在审计白名单。"
+      },
+      {
+        "code": "DAILY_BAR_VALUES",
+        "kind": "automated",
+        "message": "daily_bars 存在非法价格区间。"
+      },
+      {
+        "code": "S2_FINANCIAL_COVERAGE_INCOMPLETE",
+        "kind": "automated",
+        "message": "财务覆盖率 0.139758 低于闸门 90%；S2 未完成，S6 不得放行。"
+      },
+      {
+        "code": "FACTOR_NET_INFLOW_5D_UNAVAILABLE",
+        "kind": "automated",
+        "message": "net_inflow_5d PIT 可测性为 unavailable。"
+      },
+      {
+        "code": "EXTERNAL_PIT_PAIRING_PENDING",
+        "kind": "manual_evidence",
+        "message": "尚无显式外部数据源 PIT 对拍签认证据，自动检查通过也不得进入 S7。"
+      }
+    ],
+    "ready_for_s7": false,
+    "status": "blocked",
+    "warnings": [
+      {
+        "code": "SURVIVORSHIP_BIAS",
+        "message": "证券主表不含完整退市股历史，历史截面仍有幸存者偏差。"
+      },
+      {
+        "code": "SECTOR_FLOW_ONE_YEAR_LIMIT",
+        "message": "富途 DAY 板块资金流只有约一年硬上限，不能外推为多年资金流历史。"
+      },
+      {
+        "code": "SECTOR_FLOW_FIXED_TOP5_LOOKAHEAD",
+        "message": "S5 用当前 top5 固定篮子回填历史，存在已披露的轻微前视偏差。"
+      },
+      {
+        "code": "SECTOR_STRENGTH_LIVE_ONLY",
+        "message": "sector_strength 是实时衍生量，明确不进入历史回测。"
+      }
+    ]
+  },
+  "generated_at": "2026-07-25T14:59:27.540356+00:00",
+  "input_coverage": {
+    "adj_factors": {
+      "date_range": [
+        "2019-01-02",
+        "2026-07-24"
+      ],
+      "dates": 1834,
+      "duplicate_key_groups": 0,
+      "invalid_factor_rows": 0,
+      "invalid_source_rows": 0,
+      "latest_broad_cross_section": {
+        "candidates_checked": [
+          {
+            "date": "2026-07-24",
+            "entities": 5530
+          }
+        ],
+        "date": "2026-07-24",
+        "entities": 5530,
+        "minimum_entities": 4978,
+        "qualified": true,
+        "query_plan": [
+          "SCAN security",
+          "CORRELATED SCALAR SUBQUERY 1",
+          "SEARCH observed USING COVERING INDEX sqlite_autoindex_adj_factors_1 (symbol=? AND trade_date=?)"
+        ]
+      },
+      "rows": 8463893,
+      "source_counts": {
+        "baostock-hfq": 8198345,
+        "sina-hfq": 265547,
+        "tushare": 1
+      },
+      "symbols": 5531
+    },
+    "daily_bars": {
+      "audited_source_ratio": 0.999989,
+      "audited_source_rows": 8466720,
+      "date_range": [
+        "2019-01-02",
+        "2026-07-24"
+      ],
+      "dates": 1853,
+      "duplicate_key_groups": 0,
+      "invalid_price_rows": 111,
+      "invalid_source_rows": 95,
+      "latest_broad_cross_section": {
+        "candidates_checked": [
+          {
+            "date": "2026-07-24",
+            "entities": 5530
+          }
+        ],
+        "date": "2026-07-24",
+        "entities": 5530,
+        "minimum_entities": 4978,
+        "qualified": true,
+        "query_plan": [
+          "SCAN security",
+          "CORRELATED SCALAR SUBQUERY 1",
+          "SEARCH observed USING INDEX sqlite_autoindex_daily_bars_1 (symbol=? AND trade_date=?)"
+        ]
+      },
+      "rows": 8466815,
+      "source_counts": {
+        "akshare": 3,
+        "baostock": 8201023,
+        "futu": 143,
+        "futu-close": 3,
+        "mock": 95,
+        "sina": 265548
+      },
+      "symbols": 5536
+    },
+    "financial_indicators": {
+      "available_time_range": [
+        "2016-10-15 16:00:00.000000",
+        "2026-07-18 16:00:00.000000"
+      ],
+      "depth_contract": {
+        "listing_date_basis_counts": {
+          "first_audited_bar": 5529,
+          "security_master": 2,
+          "unknown": 0
+        },
+        "metric_depth": {
+          "debt_ratio": {
+            "cross_year_sufficient_ratio": 0.139964,
+            "cross_year_sufficient_symbols": 767,
+            "depth_sufficient_ratio": 0.139964,
+            "depth_sufficient_symbols": 767,
+            "fresh_ratio": 0.139599,
+            "fresh_symbols": 765,
+            "mature_symbols": 4246,
+            "minimum_mature_quarters": 20,
+            "minimum_mature_years": 5,
+            "non_null_quarter_distribution": {
+              "0-9": 4731,
+              "10-19": 67,
+              "20-29": 47,
+              "30-39": 635,
+              "40+": 0
+            },
+            "representative_gaps": [
+              {
+                "expected_publishable_quarters": 29,
+                "latest_non_null_period": "2022Q2",
+                "latest_required_period": "2026Q1",
+                "listed_date": "2019-01-02",
+                "listed_date_basis": "first_audited_bar",
+                "minimum_quarters": 20,
+                "minimum_years": 5,
+                "missing_period_sample": [
+                  "2022Q3",
+                  "2022Q4",
+                  "2023Q1",
+                  "2023Q2",
+                  "2023Q3"
+                ],
+                "non_null_quarters": 24,
+                "non_null_years": 7,
+                "symbol": "002076"
+              },
+              {
+                "expected_publishable_quarters": 29,
+                "latest_non_null_period": null,
+                "latest_required_period": "2026Q1",
+                "listed_date": "2019-01-02",
+                "listed_date_basis": "first_audited_bar",
+                "minimum_quarters": 20,
+                "minimum_years": 5,
+                "missing_period_sample": [
+                  "2019Q1",
+                  "2019Q2",
+                  "2019Q3",
+                  "2019Q4",
+                  "2020Q1"
+                ],
+                "non_null_quarters": 0,
+                "non_null_years": 0,
+                "symbol": "002077"
+              },
+              {
+                "expected_publishable_quarters": 29,
+                "latest_non_null_period": null,
+                "latest_required_period": "2026Q1",
+                "listed_date": "2019-01-02",
+                "listed_date_basis": "first_audited_bar",
+                "minimum_quarters": 20,
+                "minimum_years": 5,
+                "missing_period_sample": [
+                  "2019Q1",
+                  "2019Q2",
+                  "2019Q3",
+                  "2019Q4",
+                  "2020Q1"
+                ],
+                "non_null_quarters": 0,
+                "non_null_years": 0,
+                "symbol": "002078"
+              },
+              {
+                "expected_publishable_quarters": 29,
+                "latest_non_null_period": null,
+                "latest_required_period": "2026Q1",
+                "listed_date": "2019-01-02",
+                "listed_date_basis": "first_audited_bar",
+                "minimum_quarters": 20,
+                "minimum_years": 5,
+                "missing_period_sample": [
+                  "2019Q1",
+                  "2019Q2",
+                  "2019Q3",
+                  "2019Q4",
+                  "2020Q1"
+                ],
+                "non_null_quarters": 0,
+                "non_null_years": 0,
+                "symbol": "002079"
+              },
+              {
+                "expected_publishable_quarters": 29,
+                "latest_non_null_period": null,
+                "latest_required_period": "2026Q1",
+                "listed_date": "2019-01-02",
+                "listed_date_basis": "first_audited_bar",
+                "minimum_quarters": 20,
+                "minimum_years": 5,
+                "missing_period_sample": [
+                  "2019Q1",
+                  "2019Q2",
+                  "2019Q3",
+                  "2019Q4",
+                  "2020Q1"
+                ],
+                "non_null_quarters": 0,
+                "non_null_years": 0,
+                "symbol": "002080"
+              }
+            ],
+            "symbols_evaluated": 5480,
+            "target_40_quarters_achieved_ratio": 0.0,
+            "target_40_quarters_achieved_symbols": 0
+          },
+          "net_profit_yoy": {
+            "cross_year_sufficient_ratio": 0.139964,
+            "cross_year_sufficient_symbols": 767,
+            "depth_sufficient_ratio": 0.139964,
+            "depth_sufficient_symbols": 767,
+            "fresh_ratio": 0.139781,
+            "fresh_symbols": 766,
+            "mature_symbols": 4246,
+            "minimum_mature_quarters": 20,
+            "minimum_mature_years": 5,
+            "non_null_quarter_distribution": {
+              "0-9": 4731,
+              "10-19": 68,
+              "20-29": 49,
+              "30-39": 632,
+              "40+": 0
+            },
+            "representative_gaps": [
+              {
+                "expected_publishable_quarters": 29,
+                "latest_non_null_period": "2022Q2",
+                "latest_required_period": "2026Q1",
+                "listed_date": "2019-01-02",
+                "listed_date_basis": "first_audited_bar",
+                "minimum_quarters": 20,
+                "minimum_years": 5,
+                "missing_period_sample": [
+                  "2022Q3",
+                  "2022Q4",
+                  "2023Q1",
+                  "2023Q2",
+                  "2023Q3"
+                ],
+                "non_null_quarters": 24,
+                "non_null_years": 7,
+                "symbol": "002076"
+              },
+              {
+                "expected_publishable_quarters": 29,
+                "latest_non_null_period": null,
+                "latest_required_period": "2026Q1",
+                "listed_date": "2019-01-02",
+                "listed_date_basis": "first_audited_bar",
+                "minimum_quarters": 20,
+                "minimum_years": 5,
+                "missing_period_sample": [
+                  "2019Q1",
+                  "2019Q2",
+                  "2019Q3",
+                  "2019Q4",
+                  "2020Q1"
+                ],
+                "non_null_quarters": 0,
+                "non_null_years": 0,
+                "symbol": "002077"
+              },
+              {
+                "expected_publishable_quarters": 29,
+                "latest_non_null_period": null,
+                "latest_required_period": "2026Q1",
+                "listed_date": "2019-01-02",
+                "listed_date_basis": "first_audited_bar",
+                "minimum_quarters": 20,
+                "minimum_years": 5,
+                "missing_period_sample": [
+                  "2019Q1",
+                  "2019Q2",
+                  "2019Q3",
+                  "2019Q4",
+                  "2020Q1"
+                ],
+                "non_null_quarters": 0,
+                "non_null_years": 0,
+                "symbol": "002078"
+              },
+              {
+                "expected_publishable_quarters": 29,
+                "latest_non_null_period": null,
+                "latest_required_period": "2026Q1",
+                "listed_date": "2019-01-02",
+                "listed_date_basis": "first_audited_bar",
+                "minimum_quarters": 20,
+                "minimum_years": 5,
+                "missing_period_sample": [
+                  "2019Q1",
+                  "2019Q2",
+                  "2019Q3",
+                  "2019Q4",
+                  "2020Q1"
+                ],
+                "non_null_quarters": 0,
+                "non_null_years": 0,
+                "symbol": "002079"
+              },
+              {
+                "expected_publishable_quarters": 29,
+                "latest_non_null_period": null,
+                "latest_required_period": "2026Q1",
+                "listed_date": "2019-01-02",
+                "listed_date_basis": "first_audited_bar",
+                "minimum_quarters": 20,
+                "minimum_years": 5,
+                "missing_period_sample": [
+                  "2019Q1",
+                  "2019Q2",
+                  "2019Q3",
+                  "2019Q4",
+                  "2020Q1"
+                ],
+                "non_null_quarters": 0,
+                "non_null_years": 0,
+                "symbol": "002080"
+              }
+            ],
+            "symbols_evaluated": 5480,
+            "target_40_quarters_achieved_ratio": 0.0,
+            "target_40_quarters_achieved_symbols": 0
+          },
+          "ocf_to_profit": {
+            "cross_year_sufficient_ratio": 0.135401,
+            "cross_year_sufficient_symbols": 742,
+            "depth_sufficient_ratio": 0.124453,
+            "depth_sufficient_symbols": 682,
+            "fresh_ratio": 0.107847,
+            "fresh_symbols": 591,
+            "mature_symbols": 4246,
+            "minimum_mature_quarters": 20,
+            "minimum_mature_years": 5,
+            "non_null_quarter_distribution": {
+              "0-9": 4745,
+              "10-19": 115,
+              "20-29": 169,
+              "30-39": 451,
+              "40+": 0
+            },
+            "representative_gaps": [
+              {
+                "expected_publishable_quarters": 29,
+                "latest_non_null_period": "2024Q1",
+                "latest_required_period": "2026Q1",
+                "listed_date": "2019-01-02",
+                "listed_date_basis": "first_audited_bar",
+                "minimum_quarters": 20,
+                "minimum_years": 5,
+                "missing_period_sample": [
+                  "2024Q2",
+                  "2024Q3",
+                  "2024Q4",
+                  "2025Q1",
+                  "2025Q2"
+                ],
+                "non_null_quarters": 31,
+                "non_null_years": 9,
+                "symbol": "000002"
+              },
+              {
+                "expected_publishable_quarters": 29,
+                "latest_non_null_period": "2025Q4",
+                "latest_required_period": "2026Q1",
+                "listed_date": "2019-01-02",
+                "listed_date_basis": "first_audited_bar",
+                "minimum_quarters": 20,
+                "minimum_years": 5,
+                "missing_period_sample": [
+                  "2019Q2",
+                  "2019Q3",
+                  "2020Q1",
+                  "2020Q2",
+                  "2020Q3"
+                ],
+                "non_null_quarters": 18,
+                "non_null_years": 7,
+                "symbol": "000007"
+              },
+              {
+                "expected_publishable_quarters": 29,
+                "latest_non_null_period": "2019Q4",
+                "latest_required_period": "2026Q1",
+                "listed_date": "2019-01-02",
+                "listed_date_basis": "first_audited_bar",
+                "minimum_quarters": 20,
+                "minimum_years": 5,
+                "missing_period_sample": [
+                  "2020Q1",
+                  "2020Q2",
+                  "2020Q3",
+                  "2020Q4",
+                  "2021Q1"
+                ],
+                "non_null_quarters": 14,
+                "non_null_years": 4,
+                "symbol": "000008"
+              },
+              {
+                "expected_publishable_quarters": 29,
+                "latest_non_null_period": "2026Q1",
+                "latest_required_period": "2026Q1",
+                "listed_date": "2019-01-02",
+                "listed_date_basis": "first_audited_bar",
+                "minimum_quarters": 20,
+                "minimum_years": 5,
+                "missing_period_sample": [
+                  "2020Q1",
+                  "2022Q3",
+                  "2022Q4",
+                  "2023Q1",
+                  "2023Q2"
+                ],
+                "non_null_quarters": 18,
+                "non_null_years": 8,
+                "symbol": "000010"
+              },
+              {
+                "expected_publishable_quarters": 29,
+                "latest_non_null_period": "2025Q4",
+                "latest_required_period": "2026Q1",
+                "listed_date": "2019-01-02",
+                "listed_date_basis": "first_audited_bar",
+                "minimum_quarters": 20,
+                "minimum_years": 5,
+                "missing_period_sample": [
+                  "2024Q1",
+                  "2024Q3",
+                  "2024Q4",
+                  "2026Q1"
+                ],
+                "non_null_quarters": 34,
+                "non_null_years": 10,
+                "symbol": "000011"
+              }
+            ],
+            "symbols_evaluated": 5480,
+            "target_40_quarters_achieved_ratio": 0.0,
+            "target_40_quarters_achieved_symbols": 0
+          },
+          "revenue_yoy": {
+            "cross_year_sufficient_ratio": 0.123358,
+            "cross_year_sufficient_symbols": 676,
+            "depth_sufficient_ratio": 0.000912,
+            "depth_sufficient_symbols": 5,
+            "fresh_ratio": 0.0,
+            "fresh_symbols": 0,
+            "mature_symbols": 4246,
+            "minimum_mature_quarters": 20,
+            "minimum_mature_years": 5,
+            "non_null_quarter_distribution": {
+              "0-9": 4830,
+              "10-19": 649,
+              "20-29": 1,
+              "30-39": 0,
+              "40+": 0
+            },
+            "representative_gaps": [
+              {
+                "expected_publishable_quarters": 29,
+                "latest_non_null_period": "2025Q4",
+                "latest_required_period": "2026Q1",
+                "listed_date": "2019-01-02",
+                "listed_date_basis": "first_audited_bar",
+                "minimum_quarters": 20,
+                "minimum_years": 5,
+                "missing_period_sample": [
+                  "2019Q1",
+                  "2019Q3",
+                  "2020Q1",
+                  "2020Q3",
+                  "2021Q1"
+                ],
+                "non_null_quarters": 19,
+                "non_null_years": 10,
+                "symbol": "000001"
+              },
+              {
+                "expected_publishable_quarters": 29,
+                "latest_non_null_period": "2025Q4",
+                "latest_required_period": "2026Q1",
+                "listed_date": "2019-01-02",
+                "listed_date_basis": "first_audited_bar",
+                "minimum_quarters": 20,
+                "minimum_years": 5,
+                "missing_period_sample": [
+                  "2019Q1",
+                  "2019Q3",
+                  "2020Q1",
+                  "2020Q3",
+                  "2021Q1"
+                ],
+                "non_null_quarters": 19,
+                "non_null_years": 10,
+                "symbol": "000002"
+              },
+              {
+                "expected_publishable_quarters": 29,
+                "latest_non_null_period": "2025Q4",
+                "latest_required_period": "2026Q1",
+                "listed_date": "2019-01-02",
+                "listed_date_basis": "first_audited_bar",
+                "minimum_quarters": 20,
+                "minimum_years": 5,
+                "missing_period_sample": [
+                  "2019Q1",
+                  "2019Q3",
+                  "2020Q1",
+                  "2020Q3",
+                  "2021Q1"
+                ],
+                "non_null_quarters": 19,
+                "non_null_years": 10,
+                "symbol": "000006"
+              },
+              {
+                "expected_publishable_quarters": 29,
+                "latest_non_null_period": "2025Q4",
+                "latest_required_period": "2026Q1",
+                "listed_date": "2019-01-02",
+                "listed_date_basis": "first_audited_bar",
+                "minimum_quarters": 20,
+                "minimum_years": 5,
+                "missing_period_sample": [
+                  "2019Q1",
+                  "2019Q3",
+                  "2020Q1",
+                  "2020Q3",
+                  "2021Q1"
+                ],
+                "non_null_quarters": 19,
+                "non_null_years": 10,
+                "symbol": "000007"
+              },
+              {
+                "expected_publishable_quarters": 29,
+                "latest_non_null_period": "2025Q4",
+                "latest_required_period": "2026Q1",
+                "listed_date": "2019-01-02",
+                "listed_date_basis": "first_audited_bar",
+                "minimum_quarters": 20,
+                "minimum_years": 5,
+                "missing_period_sample": [
+                  "2019Q1",
+                  "2019Q3",
+                  "2020Q1",
+                  "2020Q3",
+                  "2021Q1"
+                ],
+                "non_null_quarters": 19,
+                "non_null_years": 10,
+                "symbol": "000008"
+              }
+            ],
+            "symbols_evaluated": 5480,
+            "target_40_quarters_achieved_ratio": 0.0,
+            "target_40_quarters_achieved_symbols": 0
+          },
+          "roe": {
+            "cross_year_sufficient_ratio": 0.139964,
+            "cross_year_sufficient_symbols": 767,
+            "depth_sufficient_ratio": 0.139781,
+            "depth_sufficient_symbols": 766,
+            "fresh_ratio": 0.138504,
+            "fresh_symbols": 759,
+            "mature_symbols": 4246,
+            "minimum_mature_quarters": 20,
+            "minimum_mature_years": 5,
+            "non_null_quarter_distribution": {
+              "0-9": 4731,
+              "10-19": 68,
+              "20-29": 52,
+              "30-39": 629,
+              "40+": 0
+            },
+            "representative_gaps": [
+              {
+                "expected_publishable_quarters": 29,
+                "latest_non_null_period": "2025Q3",
+                "latest_required_period": "2026Q1",
+                "listed_date": "2019-01-02",
+                "listed_date_basis": "first_audited_bar",
+                "minimum_quarters": 20,
+                "minimum_years": 5,
+                "missing_period_sample": [
+                  "2025Q4",
+                  "2026Q1"
+                ],
+                "non_null_quarters": 37,
+                "non_null_years": 10,
+                "symbol": "000016"
+              },
+              {
+                "expected_publishable_quarters": 29,
+                "latest_non_null_period": "2025Q2",
+                "latest_required_period": "2026Q1",
+                "listed_date": "2019-01-02",
+                "listed_date_basis": "first_audited_bar",
+                "minimum_quarters": 20,
+                "minimum_years": 5,
+                "missing_period_sample": [
+                  "2025Q3",
+                  "2025Q4",
+                  "2026Q1"
+                ],
+                "non_null_quarters": 36,
+                "non_null_years": 10,
+                "symbol": "000056"
+              },
+              {
+                "expected_publishable_quarters": 29,
+                "latest_non_null_period": "2025Q3",
+                "latest_required_period": "2026Q1",
+                "listed_date": "2019-01-02",
+                "listed_date_basis": "first_audited_bar",
+                "minimum_quarters": 20,
+                "minimum_years": 5,
+                "missing_period_sample": [
+                  "2025Q4",
+                  "2026Q1"
+                ],
+                "non_null_quarters": 37,
+                "non_null_years": 10,
+                "symbol": "000609"
+              },
+              {
+                "expected_publishable_quarters": 29,
+                "latest_non_null_period": "2025Q4",
+                "latest_required_period": "2026Q1",
+                "listed_date": "2019-01-02",
+                "listed_date_basis": "first_audited_bar",
+                "minimum_quarters": 20,
+                "minimum_years": 5,
+                "missing_period_sample": [
+                  "2026Q1"
+                ],
+                "non_null_quarters": 38,
+                "non_null_years": 10,
+                "symbol": "000610"
+              },
+              {
+                "expected_publishable_quarters": 29,
+                "latest_non_null_period": "2025Q4",
+                "latest_required_period": "2026Q1",
+                "listed_date": "2019-01-02",
+                "listed_date_basis": "first_audited_bar",
+                "minimum_quarters": 20,
+                "minimum_years": 5,
+                "missing_period_sample": [
+                  "2026Q1"
+                ],
+                "non_null_quarters": 38,
+                "non_null_years": 10,
+                "symbol": "000826"
+              }
+            ],
+            "symbols_evaluated": 5480,
+            "target_40_quarters_achieved_ratio": 0.0,
+            "target_40_quarters_achieved_symbols": 0
+          }
+        },
+        "minimum_mature_quarters": 20,
+        "new_symbols_without_publishable_quarter": 51,
+        "publication_lag_days": 45,
+        "publishable_period_range": [
+          "2016Q3",
+          "2026Q1"
+        ],
+        "target_period_range": [
+          "2016Q3",
+          "2026Q2"
+        ],
+        "target_quarters": 40,
+        "universe_definition": "current securities where market='CN' and list_status='listed'; listed_date falls back to first audited daily_bar as in backtest PIT",
+        "universe_symbols": 5531,
+        "unknown_listing_date_symbols": 0
+      },
+      "duplicate_key_groups": 0,
+      "invalid_source_rows": 0,
+      "metrics": {
+        "debt_ratio": {
+          "distinct_periods": 40,
+          "distinct_years": 11,
+          "non_null_distinct_periods": 40,
+          "non_null_ratio": 0.99118,
+          "non_null_rows": 26971,
+          "period_range": [
+            "2016Q3",
+            "2026Q2"
+          ],
+          "rows": 27211,
+          "symbol_coverage_ratio": 0.139758,
+          "symbols": 773
+        },
+        "net_profit_yoy": {
+          "distinct_periods": 40,
+          "distinct_years": 11,
+          "non_null_distinct_periods": 40,
+          "non_null_ratio": 0.987248,
+          "non_null_rows": 26864,
+          "period_range": [
+            "2016Q3",
+            "2026Q2"
+          ],
+          "rows": 27211,
+          "symbol_coverage_ratio": 0.139758,
+          "symbols": 773
+        },
+        "ocf_to_profit": {
+          "distinct_periods": 40,
+          "distinct_years": 11,
+          "non_null_distinct_periods": 40,
+          "non_null_ratio": 0.832935,
+          "non_null_rows": 22665,
+          "period_range": [
+            "2016Q3",
+            "2026Q2"
+          ],
+          "rows": 27211,
+          "symbol_coverage_ratio": 0.139758,
+          "symbols": 773
+        },
+        "revenue_yoy": {
+          "distinct_periods": 40,
+          "distinct_years": 11,
+          "non_null_distinct_periods": 27,
+          "non_null_ratio": 0.462166,
+          "non_null_rows": 12576,
+          "period_range": [
+            "2016Q3",
+            "2026Q2"
+          ],
+          "rows": 27211,
+          "symbol_coverage_ratio": 0.139758,
+          "symbols": 773
+        },
+        "roe": {
+          "distinct_periods": 40,
+          "distinct_years": 11,
+          "non_null_distinct_periods": 40,
+          "non_null_ratio": 0.984051,
+          "non_null_rows": 26777,
+          "period_range": [
+            "2016Q3",
+            "2026Q2"
+          ],
+          "rows": 27211,
+          "symbol_coverage_ratio": 0.139758,
+          "symbols": 773
+        }
+      },
+      "missing_required_metrics": [],
+      "pit": {
+        "anomaly_counts": {
+          "available_time_mismatch": 0,
+          "basis_fields_missing": 0,
+          "malformed_payload": 0,
+          "missing_available_time": 0,
+          "unsupported_basis": 0
+        },
+        "anomaly_rows": 0,
+        "available_time_basis_counts": {
+          "provider_pub_date_end_of_day": 135999,
+          "stat_date_plus_45_days": 56
+        },
+        "examples": [],
+        "provider_pub_date_end_of_day_ratio": 0.999588,
+        "provider_pub_date_end_of_day_rows": 135999
+      },
+      "report_period_range": [
+        "2016Q3",
+        "2026Q2"
+      ],
+      "rows": 136055,
+      "source_counts": {
+        "baostock": 136055
+      },
+      "symbol_coverage_ratio": 0.139758,
+      "symbols": 773
+    },
+    "sector_flow_daily": {
+      "date_range": [
+        "2025-07-25",
+        "2026-07-24"
+      ],
+      "dates": 242,
+      "duplicate_key_groups": 0,
+      "historical_source": "futu-daily",
+      "historical_source_ratio": 1.0,
+      "historical_source_rows": 31702,
+      "invalid_source_rows": 0,
+      "main_inflow_non_null_ratio": 1.0,
+      "main_inflow_non_null_rows": 31702,
+      "membership_snapshot": {
+        "plates": 131,
+        "refreshed_at_range": [
+          "2026-07-21 08:27:07.121792",
+          "2026-07-21 08:27:07.121792"
+        ],
+        "rows": 5200,
+        "symbols": 5200
+      },
+      "net_inflow_non_null_ratio": 1.0,
+      "net_inflow_non_null_rows": 31702,
+      "plates": 131,
+      "rows": 31702,
+      "source_counts": {
+        "futu-daily": 31702
+      }
+    },
+    "valuation_daily": {
+      "date_range": [
+        "2019-01-02",
+        "2026-07-24"
+      ],
+      "dates": 1833,
+      "duplicate_key_groups": 0,
+      "invalid_source_rows": 0,
+      "latest_broad_cross_section": {
+        "candidates_checked": [
+          {
+            "date": "2026-07-24",
+            "entities": 5531
+          }
+        ],
+        "date": "2026-07-24",
+        "entities": 5531,
+        "minimum_entities": 4978,
+        "qualified": true,
+        "query_plan": [
+          "SCAN security",
+          "CORRELATED SCALAR SUBQUERY 1",
+          "SEARCH observed USING COVERING INDEX sqlite_autoindex_valuation_daily_1 (symbol=? AND trade_date=?)"
+        ]
+      },
+      "metrics": {
+        "pb_mrq": {
+          "non_null_ratio": 1.0,
+          "non_null_rows": 8455673,
+          "positive_ratio": 0.994876,
+          "positive_rows": 8412344
+        },
+        "pe_ttm": {
+          "non_null_ratio": 1.0,
+          "non_null_rows": 8455673,
+          "positive_ratio": 0.800067,
+          "positive_rows": 6765106
+        },
+        "ps_ttm": {
+          "non_null_ratio": 0.999833,
+          "non_null_rows": 8454257
+        }
+      },
+      "pit_anomaly_rows": 0,
+      "rows": 8455673,
+      "source_counts": {
+        "em": 8455673
+      },
+      "symbols": 5531
+    }
+  },
+  "pit_samples": {
+    "daily_bars_with_adj": [
+      {
+        "adj_factor": 1.039872,
+        "adj_source": "baostock-hfq",
+        "close": 20.34,
+        "source": "baostock",
+        "symbol": "001260",
+        "trade_date": "2025-10-29"
+      },
+      {
+        "adj_factor": 5.863797,
+        "adj_source": "baostock-hfq",
+        "close": 10.74,
+        "source": "baostock",
+        "symbol": "600648",
+        "trade_date": "2025-06-16"
+      },
+      {
+        "adj_factor": 10.631079000000001,
+        "adj_source": "baostock-hfq",
+        "close": 4.05,
+        "source": "baostock",
+        "symbol": "600782",
+        "trade_date": "2026-01-30"
+      },
+      {
+        "adj_factor": 2.9898480000000003,
+        "adj_source": "baostock-hfq",
+        "close": 30.54,
+        "source": "baostock",
+        "symbol": "000831",
+        "trade_date": "2023-05-29"
+      },
+      {
+        "adj_factor": 1.41313,
+        "adj_source": "baostock-hfq",
+        "close": 18.44,
+        "source": "baostock",
+        "symbol": "001205",
+        "trade_date": "2024-05-21"
+      }
+    ],
+    "external_source_pairing": "not_performed_by_this_read_only_script",
+    "financial_indicators": [
+      {
+        "available_time": "2023-08-31 16:00:00.000000",
+        "metric": "net_profit_yoy",
+        "payload": "{\"available_time_basis\": \"provider_pub_date_end_of_day\", \"approx\": false, \"stat_date\": \"2023-06-30\", \"pub_dates\": [\"2023-08-31\"], \"source_field\": \"growth.YOYNI\", \"raw_source_value\": \"-0.931850\", \"value_unit\": \"ratio_decimal\", \"main_business_revenue\": 174527160.76}",
+        "report_period": "2023Q2",
+        "source": "baostock",
+        "symbol": "000573",
+        "value": -0.93185
+      },
+      {
+        "available_time": "2021-04-15 16:00:00.000000",
+        "metric": "revenue_yoy",
+        "payload": "{\"available_time_basis\": \"provider_pub_date_end_of_day\", \"approx\": false, \"stat_date\": \"2020-12-31\", \"pub_dates\": [\"2021-04-15\"], \"source_field\": \"derived.profit.MBRevenue_yoy\", \"raw_source_value\": {\"current_main_business_revenue\": \"99438069611.030000\", \"prior_main_business_revenue\": 92199774841.1}, \"value_unit\": \"ratio_decimal\", \"main_business_revenue\": 99438069611.03, \"prior_report_period\": \"2019Q4\", \"prior_main_business_revenue\": 92199774841.1}",
+        "report_period": "2020Q4",
+        "source": "baostock",
+        "symbol": "000630",
+        "value": 0.07850664258567552
+      },
+      {
+        "available_time": "2023-04-21 16:00:00.000000",
+        "metric": "roe",
+        "payload": "{\"available_time_basis\": \"provider_pub_date_end_of_day\", \"approx\": false, \"stat_date\": \"2022-12-31\", \"pub_dates\": [\"2023-04-21\"], \"source_field\": \"profit.roeAvg\", \"raw_source_value\": \"-0.037445\", \"value_unit\": \"ratio_decimal\", \"main_business_revenue\": 3480662853.78}",
+        "report_period": "2022Q4",
+        "source": "baostock",
+        "symbol": "000757",
+        "value": -0.037445
+      },
+      {
+        "available_time": "2017-08-25 16:00:00.000000",
+        "metric": "roe",
+        "payload": "{\"available_time_basis\": \"provider_pub_date_end_of_day\", \"approx\": false, \"stat_date\": \"2017-06-30\", \"pub_dates\": [\"2017-08-25\"], \"source_field\": \"profit.roeAvg\", \"raw_source_value\": \"0.040335\", \"value_unit\": \"ratio_decimal\", \"main_business_revenue\": 19476278905.41}",
+        "report_period": "2017Q2",
+        "source": "baostock",
+        "symbol": "000761",
+        "value": 0.040335
+      },
+      {
+        "available_time": "2018-04-28 16:00:00.000000",
+        "metric": "debt_ratio",
+        "payload": "{\"available_time_basis\": \"provider_pub_date_end_of_day\", \"approx\": false, \"stat_date\": \"2017-12-31\", \"pub_dates\": [\"2018-04-28\"], \"source_field\": \"balance.liabilityToAsset\", \"raw_source_value\": \"0.502777\", \"value_unit\": \"ratio_decimal\", \"main_business_revenue\": 8528962603.09}",
+        "report_period": "2017Q4",
+        "source": "baostock",
+        "symbol": "000066",
+        "value": 0.502777
+      }
+    ],
+    "manifest_schema_version": "p3.3-s6-local-pit-manifest-v1",
+    "manifest_sha256": "2085ff8a2d300220617f674033ddb4d95b5f7cd9cd5c29bffaf35e7948cb7df3",
+    "sample_size_per_table": 5,
+    "seed": 20260725,
+    "selection": "deterministic pseudo-random row-id sampling",
+    "valuation_daily": [
+      {
+        "available_time": "2022-11-21 07:00:00.000000",
+        "pb_mrq": 1.98407603,
+        "pe_ttm": 31.48867883,
+        "ps_ttm": 5.521201,
+        "source": "em",
+        "symbol": "000565",
+        "trade_date": "2022-11-21"
+      },
+      {
+        "available_time": "2019-12-25 07:00:00.000000",
+        "pb_mrq": 1.3599069,
+        "pe_ttm": 38.21816855,
+        "ps_ttm": 2.54959205,
+        "source": "em",
+        "symbol": "000690",
+        "trade_date": "2019-12-25"
+      },
+      {
+        "available_time": "2026-03-05 07:00:00.000000",
+        "pb_mrq": 1.04445234,
+        "pe_ttm": 12.35134943,
+        "ps_ttm": 0.59096286,
+        "source": "em",
+        "symbol": "001914",
+        "trade_date": "2026-03-05"
+      },
+      {
+        "available_time": "2024-09-06 07:00:00.000000",
+        "pb_mrq": 3.17944722,
+        "pe_ttm": 43.14786861,
+        "ps_ttm": 1.82693231,
+        "source": "em",
+        "symbol": "002186",
+        "trade_date": "2024-09-06"
+      },
+      {
+        "available_time": "2025-09-03 07:00:00.000000",
+        "pb_mrq": 0.93165417,
+        "pe_ttm": 474.74560924,
+        "ps_ttm": 2.37394028,
+        "source": "em",
+        "symbol": "002191",
+        "trade_date": "2025-09-03"
+      }
+    ]
+  },
+  "report_version": "p3.3-s6-v2",
+  "thresholds": {
+    "financial_minimum_mature_quarters": 20,
+    "financial_target_quarters": 40,
+    "minimum_factor_cross_section": 100,
+    "minimum_financial_symbol_pass_ratio": 0.9,
+    "minimum_market_coverage": 0.9,
+    "minimum_provider_pub_date_basis_ratio": 0.95,
+    "minimum_sector_dates": 200,
+    "minimum_sector_plates": 100
+  },
+  "universe": {
+    "definition": "securities.market='CN' AND list_status='listed'",
+    "securities": 5531
+  }
+}
