@@ -112,6 +112,34 @@ def test_fetch_valuation_em_maps_columns_and_preserves_six_digit_symbol(
         valuation_sync.fetch_valuation_em("SH.600519")
 
 
+def test_fetch_valuation_em_uses_injected_direct_getter() -> None:
+    captured: list[str] = []
+
+    def direct_get(
+        url: str,
+        *,
+        params: dict[str, str],
+        timeout: httpx.Timeout,
+    ) -> httpx.Response:
+        del params, timeout
+        captured.append(url)
+        return httpx.Response(
+            200,
+            request=httpx.Request("GET", url),
+            json={"result": {"data": []}},
+        )
+
+    frame = valuation_sync.fetch_valuation_em(
+        "600519",
+        start_date=date(2025, 1, 2),
+        end_date=date(2025, 1, 2),
+        http_get=direct_get,
+    )
+
+    assert captured == [valuation_sync._EM_VALUE_URL]
+    assert frame.empty
+
+
 def test_fetch_valuation_em_converts_transport_timeout_to_network_error(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
