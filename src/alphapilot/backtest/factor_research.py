@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import logging
 import math
 from collections.abc import Iterable
 from datetime import date
+from time import monotonic
 from typing import Any, Literal
 
 import numpy as np
@@ -25,6 +27,7 @@ _GROUP_COUNT = 10
 _DECAY_HORIZONS = (5, 10, 20, 40)
 _REBALANCE_DAYS = {"5d": 5, "10d": 10, "20d": 20}
 _SAMPLE_TAGS = frozenset({"train", "test", "full"})
+logger = logging.getLogger(__name__)
 
 
 def _calendar(session: Session, start: date, end: date) -> list[date]:
@@ -94,6 +97,12 @@ def _research(
     interval = _interval(rebalance)
     decay_horizons = sorted(set((*_DECAY_HORIZONS, main_horizon)))
     calendar = _calendar(session, start, end)
+    started = monotonic()
+    decision_count = sum(
+        index + min(decay_horizons) < len(calendar)
+        for index in range(0, len(calendar), interval)
+    )
+    decision_number = 0
 
     ic_values: dict[str, dict[int, list[float]]] = {
         factor: {period: [] for period in decay_horizons} for factor in selected
@@ -106,6 +115,7 @@ def _research(
         ]
         if not available_horizons:
             continue
+        decision_number += 1
         decision_date = calendar[decision_index]
         scores = factor_zscores(session, decision_date).reindex(columns=selected)
         if scores.empty:
@@ -132,6 +142,15 @@ def _research(
                     )
                     if any(math.isfinite(item) for item in period_layers):
                         layers[factor].append(period_layers)
+        if decision_number == 1 or decision_number % 5 == 0:
+            logger.info(
+                "factor research progress decision=%d/%d date=%s factors=%d elapsed=%.1fs",
+                decision_number,
+                decision_count,
+                decision_date,
+                len(selected),
+                monotonic() - started,
+            )
 
     results: list[dict[str, Any]] = []
     for factor in selected:
@@ -235,16 +254,27 @@ def all_factors_ic(
 ) -> pd.DataFrame:
     """Research the runtime factor set once per decision date and persist summaries."""
 
-    records = _research(
+    return factors_ic(
         session,
         FACTOR_SET,
         start,
         end,
-        horizon=20,
-        rebalance="20d",
+        sample_tag=sample_tag,
     )
-    table = pd.DataFrame.from_records(records)
-    _persist_stats(
+
+
+def factors_ic(
+    session: Session,
+    factors: Iterable[str],
+    start: date,
+    end: date,
+    *,
+    sample_tag: Literal["train", "test", "full"],
+) -> pd.DataFrame:
+    """Research an explicit factor subset and persist one auditable sample."""
+
+    table = research_factors_ic(session, factors, start, end)
+    persist_factors_ic(
         session,
         table,
         sample_tag=sample_tag,
@@ -252,6 +282,44 @@ def all_factors_ic(
         end=end,
     )
     return table
+
+
+def research_factors_ic(
+    session: Session,
+    factors: Iterable[str],
+    start: date,
+    end: date,
+) -> pd.DataFrame:
+    """Compute an explicit factor subset without opening a write transaction."""
+
+    records = _research(
+        session,
+        factors,
+        start,
+        end,
+        horizon=20,
+        rebalance="20d",
+    )
+    return pd.DataFrame.from_records(records)
+
+
+def persist_factors_ic(
+    session: Session,
+    table: pd.DataFrame,
+    *,
+    sample_tag: Literal["train", "test", "full"],
+    start: date,
+    end: date,
+) -> None:
+    """Persist a precomputed IC table in one short explicit transaction."""
+
+    _persist_stats(
+        session,
+        table,
+        sample_tag=sample_tag,
+        start=start,
+        end=end,
+    )
 
 
 def factor_correlation(
