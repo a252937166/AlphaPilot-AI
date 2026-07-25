@@ -1,11 +1,16 @@
 from __future__ import annotations
 
 import sqlite3
+from datetime import date
 from pathlib import Path
 
+import pandas as pd
 import pytest
 
-from alphapilot.db.data_hygiene import cleanup_mock_daily_bars
+from alphapilot.db.data_hygiene import (
+    cleanup_mock_daily_bars,
+    repair_invalid_sina_daily_bars,
+)
 
 
 def _create_database(path: Path, *, mock_count: int) -> None:
@@ -102,3 +107,136 @@ def test_cleanup_fails_closed_when_count_changes(tmp_path: Path) -> None:
         assert remaining == (1,)
     finally:
         connection.close()
+
+
+class _FakeSinaFetcher:
+    def __init__(self) -> None:
+        self.calls: list[tuple[str, date, date]] = []
+
+    def get_daily_bars(self, symbol: str, start: date, end: date) -> pd.DataFrame:
+        self.calls.append((symbol, start, end))
+        if symbol == "920001":
+            return pd.DataFrame(
+                [
+                    {
+                        "date": date(2020, 1, 2),
+                        "open": 2.0,
+                        "high": 2.2,
+                        "low": 1.9,
+                        "close": 2.1,
+                        "volume": 100.0,
+                        "amount": 205.0,
+                    }
+                ]
+            )
+        return pd.DataFrame(
+            [
+                {
+                    "date": date(2020, 1, 3),
+                    "open": 0.0,
+                    "high": 0.0,
+                    "low": 0.0,
+                    "close": 0.0,
+                    "volume": 200.0,
+                    "amount": 400.0,
+                }
+            ]
+        )
+
+
+def _create_invalid_sina_database(path: Path) -> None:
+    connection = sqlite3.connect(path)
+    try:
+        connection.executescript(
+            """
+            CREATE TABLE daily_bars (
+                id INTEGER PRIMARY KEY,
+                symbol TEXT NOT NULL,
+                trade_date TEXT NOT NULL,
+                open REAL NOT NULL,
+                high REAL NOT NULL,
+                low REAL NOT NULL,
+                close REAL NOT NULL,
+                volume REAL NOT NULL,
+                amount REAL,
+                source TEXT NOT NULL,
+                ingested_at TEXT
+            );
+            CREATE TABLE trade_proposals (id INTEGER PRIMARY KEY);
+            CREATE TABLE broker_orders (id INTEGER PRIMARY KEY);
+            INSERT INTO trade_proposals (id) VALUES (1);
+            INSERT INTO broker_orders (id) VALUES (1);
+            INSERT INTO daily_bars
+                (id, symbol, trade_date, open, high, low, close, volume, amount, source)
+            VALUES
+                (1, '920001', '2020-01-02', 0, 0, 0, 0, 100, 205, 'sina'),
+                (2, '920002', '2020-01-03', 0, 0, 0, 0, 200, 400, 'sina');
+            """
+        )
+        connection.commit()
+    finally:
+        connection.close()
+
+
+def test_sina_repair_refetches_valid_row_and_deletes_invalid_source_row(
+    tmp_path: Path,
+) -> None:
+    database_path = tmp_path / "test.db"
+    _create_invalid_sina_database(database_path)
+    fetcher = _FakeSinaFetcher()
+
+    dry_run = repair_invalid_sina_daily_bars(
+        database_path=database_path,
+        backup_directory=tmp_path / "backups",
+        expected_count=2,
+        fetcher=fetcher,
+        apply=False,
+        cleared_proxy_keys=("HTTP_PROXY",),
+    )
+    assert dry_run.status == "dry_run"
+    assert dry_run.repaired_count == 1
+    assert dry_run.deleted_count == 1
+    assert dry_run.after_count == 2
+    assert [row.classification for row in dry_run.rows] == [
+        "sina_refetch_valid",
+        "sina_zero_ohlc_with_trading_activity",
+    ]
+
+    applied = repair_invalid_sina_daily_bars(
+        database_path=database_path,
+        backup_directory=tmp_path / "backups",
+        expected_count=2,
+        fetcher=fetcher,
+        apply=True,
+        cleared_proxy_keys=(),
+    )
+    assert applied.status == "applied"
+    assert applied.repaired_count == 1
+    assert applied.deleted_count == 1
+    assert applied.after_count == 0
+    assert applied.trade_proposals_before == applied.trade_proposals_after == 1
+    assert applied.broker_orders_before == applied.broker_orders_after == 1
+    assert applied.backup_path is not None
+
+    connection = sqlite3.connect(database_path)
+    try:
+        remaining = connection.execute(
+            """
+            SELECT symbol, open, high, low, close, volume, amount
+            FROM daily_bars
+            ORDER BY symbol
+            """
+        ).fetchall()
+        assert remaining == [("920001", 2.0, 2.2, 1.9, 2.1, 100.0, 205.0)]
+    finally:
+        connection.close()
+
+    idempotent = repair_invalid_sina_daily_bars(
+        database_path=database_path,
+        backup_directory=tmp_path / "backups",
+        expected_count=2,
+        fetcher=fetcher,
+        apply=True,
+        cleared_proxy_keys=(),
+    )
+    assert idempotent.status == "already_clean"
