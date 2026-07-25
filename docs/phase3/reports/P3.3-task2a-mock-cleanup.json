@@ -1,0 +1,492 @@
+{
+  "status": "applied",
+  "expected_count": 95,
+  "deleted_count": 95,
+  "before_count": 95,
+  "after_count": 0,
+  "backup_path": "/Users/ouyangduning/Documents/project/interesting/AlphaPilot-AI/data/backups/alphapilot-before-mock-cleanup-20260725T200555Z.db",
+  "backup_sha256": "d635c45493f00dba15599cc5162360433bd7f56807807b425bac6679e17c0c14",
+  "database_quick_check": "ok",
+  "trade_proposals_before": 1,
+  "trade_proposals_after": 1,
+  "broker_orders_before": 1,
+  "broker_orders_after": 1,
+  "rows": [
+    {
+      "symbol": "000333",
+      "trade_date": "2025-10-01",
+      "source": "mock"
+    },
+    {
+      "symbol": "000333",
+      "trade_date": "2025-10-02",
+      "source": "mock"
+    },
+    {
+      "symbol": "000333",
+      "trade_date": "2025-10-03",
+      "source": "mock"
+    },
+    {
+      "symbol": "000333",
+      "trade_date": "2025-10-06",
+      "source": "mock"
+    },
+    {
+      "symbol": "000333",
+      "trade_date": "2025-10-07",
+      "source": "mock"
+    },
+    {
+      "symbol": "000333",
+      "trade_date": "2025-10-08",
+      "source": "mock"
+    },
+    {
+      "symbol": "000333",
+      "trade_date": "2026-01-01",
+      "source": "mock"
+    },
+    {
+      "symbol": "000333",
+      "trade_date": "2026-01-02",
+      "source": "mock"
+    },
+    {
+      "symbol": "000333",
+      "trade_date": "2026-02-16",
+      "source": "mock"
+    },
+    {
+      "symbol": "000333",
+      "trade_date": "2026-02-17",
+      "source": "mock"
+    },
+    {
+      "symbol": "000333",
+      "trade_date": "2026-02-18",
+      "source": "mock"
+    },
+    {
+      "symbol": "000333",
+      "trade_date": "2026-02-19",
+      "source": "mock"
+    },
+    {
+      "symbol": "000333",
+      "trade_date": "2026-02-20",
+      "source": "mock"
+    },
+    {
+      "symbol": "000333",
+      "trade_date": "2026-02-23",
+      "source": "mock"
+    },
+    {
+      "symbol": "000333",
+      "trade_date": "2026-04-06",
+      "source": "mock"
+    },
+    {
+      "symbol": "000333",
+      "trade_date": "2026-05-01",
+      "source": "mock"
+    },
+    {
+      "symbol": "000333",
+      "trade_date": "2026-05-04",
+      "source": "mock"
+    },
+    {
+      "symbol": "000333",
+      "trade_date": "2026-05-05",
+      "source": "mock"
+    },
+    {
+      "symbol": "000333",
+      "trade_date": "2026-06-19",
+      "source": "mock"
+    },
+    {
+      "symbol": "002594",
+      "trade_date": "2025-10-01",
+      "source": "mock"
+    },
+    {
+      "symbol": "002594",
+      "trade_date": "2025-10-02",
+      "source": "mock"
+    },
+    {
+      "symbol": "002594",
+      "trade_date": "2025-10-03",
+      "source": "mock"
+    },
+    {
+      "symbol": "002594",
+      "trade_date": "2025-10-06",
+      "source": "mock"
+    },
+    {
+      "symbol": "002594",
+      "trade_date": "2025-10-07",
+      "source": "mock"
+    },
+    {
+      "symbol": "002594",
+      "trade_date": "2025-10-08",
+      "source": "mock"
+    },
+    {
+      "symbol": "002594",
+      "trade_date": "2026-01-01",
+      "source": "mock"
+    },
+    {
+      "symbol": "002594",
+      "trade_date": "2026-01-02",
+      "source": "mock"
+    },
+    {
+      "symbol": "002594",
+      "trade_date": "2026-02-16",
+      "source": "mock"
+    },
+    {
+      "symbol": "002594",
+      "trade_date": "2026-02-17",
+      "source": "mock"
+    },
+    {
+      "symbol": "002594",
+      "trade_date": "2026-02-18",
+      "source": "mock"
+    },
+    {
+      "symbol": "002594",
+      "trade_date": "2026-02-19",
+      "source": "mock"
+    },
+    {
+      "symbol": "002594",
+      "trade_date": "2026-02-20",
+      "source": "mock"
+    },
+    {
+      "symbol": "002594",
+      "trade_date": "2026-02-23",
+      "source": "mock"
+    },
+    {
+      "symbol": "002594",
+      "trade_date": "2026-04-06",
+      "source": "mock"
+    },
+    {
+      "symbol": "002594",
+      "trade_date": "2026-05-01",
+      "source": "mock"
+    },
+    {
+      "symbol": "002594",
+      "trade_date": "2026-05-04",
+      "source": "mock"
+    },
+    {
+      "symbol": "002594",
+      "trade_date": "2026-05-05",
+      "source": "mock"
+    },
+    {
+      "symbol": "002594",
+      "trade_date": "2026-06-19",
+      "source": "mock"
+    },
+    {
+      "symbol": "300750",
+      "trade_date": "2025-10-01",
+      "source": "mock"
+    },
+    {
+      "symbol": "300750",
+      "trade_date": "2025-10-02",
+      "source": "mock"
+    },
+    {
+      "symbol": "300750",
+      "trade_date": "2025-10-03",
+      "source": "mock"
+    },
+    {
+      "symbol": "300750",
+      "trade_date": "2025-10-06",
+      "source": "mock"
+    },
+    {
+      "symbol": "300750",
+      "trade_date": "2025-10-07",
+      "source": "mock"
+    },
+    {
+      "symbol": "300750",
+      "trade_date": "2025-10-08",
+      "source": "mock"
+    },
+    {
+      "symbol": "300750",
+      "trade_date": "2026-01-01",
+      "source": "mock"
+    },
+    {
+      "symbol": "300750",
+      "trade_date": "2026-01-02",
+      "source": "mock"
+    },
+    {
+      "symbol": "300750",
+      "trade_date": "2026-02-16",
+      "source": "mock"
+    },
+    {
+      "symbol": "300750",
+      "trade_date": "2026-02-17",
+      "source": "mock"
+    },
+    {
+      "symbol": "300750",
+      "trade_date": "2026-02-18",
+      "source": "mock"
+    },
+    {
+      "symbol": "300750",
+      "trade_date": "2026-02-19",
+      "source": "mock"
+    },
+    {
+      "symbol": "300750",
+      "trade_date": "2026-02-20",
+      "source": "mock"
+    },
+    {
+      "symbol": "300750",
+      "trade_date": "2026-02-23",
+      "source": "mock"
+    },
+    {
+      "symbol": "300750",
+      "trade_date": "2026-04-06",
+      "source": "mock"
+    },
+    {
+      "symbol": "300750",
+      "trade_date": "2026-05-01",
+      "source": "mock"
+    },
+    {
+      "symbol": "300750",
+      "trade_date": "2026-05-04",
+      "source": "mock"
+    },
+    {
+      "symbol": "300750",
+      "trade_date": "2026-05-05",
+      "source": "mock"
+    },
+    {
+      "symbol": "300750",
+      "trade_date": "2026-06-19",
+      "source": "mock"
+    },
+    {
+      "symbol": "600000",
+      "trade_date": "2025-10-01",
+      "source": "mock"
+    },
+    {
+      "symbol": "600000",
+      "trade_date": "2025-10-02",
+      "source": "mock"
+    },
+    {
+      "symbol": "600000",
+      "trade_date": "2025-10-03",
+      "source": "mock"
+    },
+    {
+      "symbol": "600000",
+      "trade_date": "2025-10-06",
+      "source": "mock"
+    },
+    {
+      "symbol": "600000",
+      "trade_date": "2025-10-07",
+      "source": "mock"
+    },
+    {
+      "symbol": "600000",
+      "trade_date": "2025-10-08",
+      "source": "mock"
+    },
+    {
+      "symbol": "600000",
+      "trade_date": "2026-01-01",
+      "source": "mock"
+    },
+    {
+      "symbol": "600000",
+      "trade_date": "2026-01-02",
+      "source": "mock"
+    },
+    {
+      "symbol": "600000",
+      "trade_date": "2026-02-16",
+      "source": "mock"
+    },
+    {
+      "symbol": "600000",
+      "trade_date": "2026-02-17",
+      "source": "mock"
+    },
+    {
+      "symbol": "600000",
+      "trade_date": "2026-02-18",
+      "source": "mock"
+    },
+    {
+      "symbol": "600000",
+      "trade_date": "2026-02-19",
+      "source": "mock"
+    },
+    {
+      "symbol": "600000",
+      "trade_date": "2026-02-20",
+      "source": "mock"
+    },
+    {
+      "symbol": "600000",
+      "trade_date": "2026-02-23",
+      "source": "mock"
+    },
+    {
+      "symbol": "600000",
+      "trade_date": "2026-04-06",
+      "source": "mock"
+    },
+    {
+      "symbol": "600000",
+      "trade_date": "2026-05-01",
+      "source": "mock"
+    },
+    {
+      "symbol": "600000",
+      "trade_date": "2026-05-04",
+      "source": "mock"
+    },
+    {
+      "symbol": "600000",
+      "trade_date": "2026-05-05",
+      "source": "mock"
+    },
+    {
+      "symbol": "600000",
+      "trade_date": "2026-06-19",
+      "source": "mock"
+    },
+    {
+      "symbol": "600519",
+      "trade_date": "2025-10-01",
+      "source": "mock"
+    },
+    {
+      "symbol": "600519",
+      "trade_date": "2025-10-02",
+      "source": "mock"
+    },
+    {
+      "symbol": "600519",
+      "trade_date": "2025-10-03",
+      "source": "mock"
+    },
+    {
+      "symbol": "600519",
+      "trade_date": "2025-10-06",
+      "source": "mock"
+    },
+    {
+      "symbol": "600519",
+      "trade_date": "2025-10-07",
+      "source": "mock"
+    },
+    {
+      "symbol": "600519",
+      "trade_date": "2025-10-08",
+      "source": "mock"
+    },
+    {
+      "symbol": "600519",
+      "trade_date": "2026-01-01",
+      "source": "mock"
+    },
+    {
+      "symbol": "600519",
+      "trade_date": "2026-01-02",
+      "source": "mock"
+    },
+    {
+      "symbol": "600519",
+      "trade_date": "2026-02-16",
+      "source": "mock"
+    },
+    {
+      "symbol": "600519",
+      "trade_date": "2026-02-17",
+      "source": "mock"
+    },
+    {
+      "symbol": "600519",
+      "trade_date": "2026-02-18",
+      "source": "mock"
+    },
+    {
+      "symbol": "600519",
+      "trade_date": "2026-02-19",
+      "source": "mock"
+    },
+    {
+      "symbol": "600519",
+      "trade_date": "2026-02-20",
+      "source": "mock"
+    },
+    {
+      "symbol": "600519",
+      "trade_date": "2026-02-23",
+      "source": "mock"
+    },
+    {
+      "symbol": "600519",
+      "trade_date": "2026-04-06",
+      "source": "mock"
+    },
+    {
+      "symbol": "600519",
+      "trade_date": "2026-05-01",
+      "source": "mock"
+    },
+    {
+      "symbol": "600519",
+      "trade_date": "2026-05-04",
+      "source": "mock"
+    },
+    {
+      "symbol": "600519",
+      "trade_date": "2026-05-05",
+      "source": "mock"
+    },
+    {
+      "symbol": "600519",
+      "trade_date": "2026-06-19",
+      "source": "mock"
+    }
+  ],
+  "completed_at": "2026-07-25T20:06:44.264166+00:00"
+}
