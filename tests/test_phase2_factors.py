@@ -25,6 +25,7 @@ from alphapilot.db.models import (
     JobRun,
     ScoreOutcomeStat,
     SectorConstituent,
+    SectorConstituentSnapshot,
     SectorFlowDaily,
     SectorSnapshot,
     Security,
@@ -306,6 +307,24 @@ def _seed_engine_inputs(session: Session) -> None:
                 plate_name="未来行业映射",
                 symbol="SZ.300001",
                 refreshed_at=datetime(2026, 7, 22, 8, tzinfo=UTC),
+            ),
+            SectorConstituentSnapshot(
+                plate_code="SH.LIST0001",
+                symbol="SH.600000",
+                as_of_date=TARGET_DATE,
+                available_time=snapshot_at,
+            ),
+            SectorConstituentSnapshot(
+                plate_code="SH.LIST0002",
+                symbol="SZ.000001",
+                as_of_date=TARGET_DATE,
+                available_time=snapshot_at,
+            ),
+            SectorConstituentSnapshot(
+                plate_code="SH.LIST0001",
+                symbol="SZ.300001",
+                as_of_date=TARGET_DATE,
+                available_time=datetime(2026, 7, 21, 12, tzinfo=UTC),
             ),
         ]
     )

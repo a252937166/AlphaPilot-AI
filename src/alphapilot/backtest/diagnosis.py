@@ -11,6 +11,11 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from alphapilot.backtest.factor_research import classify_factors
+from alphapilot.backtest.factor_scope import (
+    HISTORICAL_FACTOR_CANDIDATES,
+    HISTORY_EXCLUDED_PIT_GAP_FACTORS,
+    LIVE_ONLY_FACTORS,
+)
 from alphapilot.backtest.report import generate_report
 from alphapilot.core.timeutil import iso_utc
 from alphapilot.db.models import (
@@ -33,7 +38,6 @@ _PRELIMINARY_M3_FACTORS = (
     "turnover_change_5d",
     "pe_percentile",
     "pb_percentile",
-    "net_inflow_5d",
 )
 _PENDING_FINANCIAL_FACTORS = (
     "roe",
@@ -42,18 +46,14 @@ _PENDING_FINANCIAL_FACTORS = (
     "debt_ratio",
     "revenue_yoy",
 )
-_LIVE_ONLY_FACTORS = ("sector_strength",)
-_PRELIMINARY_MULTI_YEAR_FACTORS = _PRELIMINARY_M3_FACTORS[:-1]
-_PRELIMINARY_FLOW_FACTORS = (_PRELIMINARY_M3_FACTORS[-1],)
+_LIVE_ONLY_FACTORS = LIVE_ONLY_FACTORS
+_HISTORY_EXCLUDED_FACTORS = HISTORY_EXCLUDED_PIT_GAP_FACTORS
+_PRELIMINARY_MULTI_YEAR_FACTORS = _PRELIMINARY_M3_FACTORS
 _PRELIMINARY_JOB_NAME = "research_preliminary_train_ic"
 _PRELIMINARY_COHORTS = {
     "multi_year_price_valuation": (
         "m3_preliminary_multi_year",
         _PRELIMINARY_MULTI_YEAR_FACTORS,
-    ),
-    "one_year_sector_flow": (
-        "m3_preliminary_flow",
-        _PRELIMINARY_FLOW_FACTORS,
     ),
 }
 
@@ -102,7 +102,10 @@ _DIRECTION_AUDITS: dict[str, dict[str, Any]] = {
     "net_inflow_5d": {
         "formula": "sum(sector_net_inflow, 5d)",
         "raw_direction": "净流入为正",
-        "verdict": "方向正确；历史截面不足，禁止回填。",
+        "verdict": (
+            "方向正确；历史成分 PIT 不可重建，标 history_excluded_pit_gap，"
+            "仅保留 live-forward。"
+        ),
         "bug_found": False,
     },
     "roe": {
@@ -184,9 +187,17 @@ def _latest_ic_window(
 def _evaluation_status(
     factor: str,
     row: FactorICStat | None,
-) -> Literal["measured", "evaluated_no_sample", "not_evaluated", "live_only"]:
+) -> Literal[
+    "measured",
+    "evaluated_no_sample",
+    "not_evaluated",
+    "live_only",
+    "history_excluded_pit_gap",
+]:
     if factor in _LIVE_ONLY_FACTORS:
         return "live_only"
+    if factor in _HISTORY_EXCLUDED_FACTORS:
+        return "history_excluded_pit_gap"
     if row is None:
         return "not_evaluated"
     return "measured" if row.n_periods > 0 else "evaluated_no_sample"
@@ -240,8 +251,12 @@ def _job_cohort_window(
         or stats.get("sample_tag") != "train"
         or stats.get("test_window_used") is not False
         or stats.get("weights_written") is not False
-        or set(stats.get("selected_factors") or ()) != set(_PRELIMINARY_M3_FACTORS)
     ):
+        return None
+    selected = set(stats.get("selected_factors") or ())
+    required = set(_PRELIMINARY_M3_FACTORS)
+    allowed = required | set(_HISTORY_EXCLUDED_FACTORS)
+    if not required.issubset(selected) or not selected.issubset(allowed):
         return None
     cohorts = stats.get("cohorts")
     if not isinstance(cohorts, dict):
@@ -447,6 +462,10 @@ def factor_ic_windows(
             "financial_pending_count": len(_PENDING_FINANCIAL_FACTORS),
             "live_only_factors": list(_LIVE_ONLY_FACTORS),
             "live_only_count": len(_LIVE_ONLY_FACTORS),
+            "historical_factor_candidates": list(HISTORICAL_FACTOR_CANDIDATES),
+            "historical_factor_candidate_count": len(HISTORICAL_FACTOR_CANDIDATES),
+            "history_excluded_pit_gap_factors": list(_HISTORY_EXCLUDED_FACTORS),
+            "history_excluded_pit_gap_count": len(_HISTORY_EXCLUDED_FACTORS),
             "test_window_sealed": sample_tag == "train",
         },
     }
@@ -617,11 +636,18 @@ def factor_ic_report(
             "financial_pending_factors": list(_PENDING_FINANCIAL_FACTORS),
             "live_only_count": len(_LIVE_ONLY_FACTORS),
             "live_only_factors": list(_LIVE_ONLY_FACTORS),
+            "historical_factor_candidate_count": len(HISTORICAL_FACTOR_CANDIDATES),
+            "historical_factor_candidates": list(HISTORICAL_FACTOR_CANDIDATES),
+            "history_excluded_pit_gap_count": len(_HISTORY_EXCLUDED_FACTORS),
+            "history_excluded_pit_gap_factors": list(_HISTORY_EXCLUDED_FACTORS),
         },
         "factors": factors,
         "limitations": [
             "仅使用持久化的严格 PIT 研究结果；接口不会现场补算或回填缺失历史。",
-            "未评估、已评估但 n=0、可测与 live-only 是四种不同状态，不互相补零。",
+            (
+                "未评估、已评估但 n=0、可测、live-only 与 "
+                "history_excluded_pit_gap 是五种不同状态，不互相补零。"
+            ),
             f"{len(FACTOR_SET)} 个运行时因子中本窗有 {available_count} 个可测截面。",
         ],
     }
@@ -793,6 +819,7 @@ def factor_diagnosis_report(
                 "significant_reverse",
                 "ineffective",
                 "insufficient_data",
+                "history_excluded_pit_gap",
             )
         },
         "correlation": correlation,
@@ -813,12 +840,16 @@ def factor_diagnosis_report(
             *ic["limitations"],
             correlation["limitation"],
             (
-                "当前是 7 个先行因子的 train 预验，不是 12 因子最终结论；"
+                "当前是 6 个先行因子的 train 预验，不是 11 因子最终结论；"
                 "5 个财务因子等待 S2 全市场回填。"
                 if sample_tag == "train"
                 else "该视图保留 M2 历史结论，不参与 M3 权重选择。"
             ),
             "sector_strength 依赖实时衍生量，明确标为 live-only，不进入历史回测。",
+            (
+                "net_inflow_5d 因历史成分 PIT 缺口标为 "
+                "history_excluded_pit_gap，仅保留 live-forward，不进入 S7/S9。"
+            ),
         ],
     }
 

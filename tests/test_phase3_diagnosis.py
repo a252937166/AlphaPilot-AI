@@ -143,7 +143,11 @@ def test_factor_diagnosis_keeps_missing_cells_explicit(tmp_path: Path) -> None:
         assert ic["available_count"] == 4
         assert diagnosis["source_audit"]["calculation_bug_found"] is False
         assert diagnosis["classification_counts"]["ineffective"] == 4
-        assert diagnosis["classification_counts"]["insufficient_data"] == 9
+        assert diagnosis["classification_counts"]["insufficient_data"] == 8
+        assert (
+            diagnosis["classification_counts"]["history_excluded_pit_gap"]
+            == 1
+        )
         assert diagnosis["correlation"]["values"][0][1] == pytest.approx(0.569)
         assert diagnosis["correlation"]["values"][0][4] is None
         assert diagnosis["correlation"]["n_periods"][0][4] == 0
@@ -257,7 +261,6 @@ def test_train_windows_use_earliest_multi_year_default_and_exact_statuses(
             window["research_stage"] for window in catalog["windows"]
         } == {
             "m3_preliminary_multi_year",
-            "m3_preliminary_flow",
             "legacy_or_other",
         }
         assert catalog["scope"]["test_window_sealed"] is True
@@ -267,11 +270,11 @@ def test_train_windows_use_earliest_multi_year_default_and_exact_statuses(
         assert report["selection"]["research_run_id"] == job.id
         assert report["selection"]["expected_factors"] == report["expected_factors"]
         assert report["coverage"] == {
-            "preliminary_requested_count": 7,
+            "preliminary_requested_count": 6,
             "preliminary_evaluated_count": 6,
             "preliminary_measurable_count": 6,
             "preliminary_evaluated_no_sample_count": 0,
-            "preliminary_not_evaluated_count": 1,
+            "preliminary_not_evaluated_count": 0,
             "financial_pending_count": 5,
             "financial_pending_factors": [
                 "roe",
@@ -282,16 +285,38 @@ def test_train_windows_use_earliest_multi_year_default_and_exact_statuses(
             ],
             "live_only_count": 1,
             "live_only_factors": ["sector_strength"],
+            "historical_factor_candidate_count": 11,
+            "historical_factor_candidates": [
+                "momentum_20d",
+                "momentum_60d",
+                "volatility_20d",
+                "turnover_change_5d",
+                "roe",
+                "net_profit_yoy",
+                "ocf_to_profit",
+                "debt_ratio",
+                "revenue_yoy",
+                "pe_percentile",
+                "pb_percentile",
+            ],
+            "history_excluded_pit_gap_count": 1,
+            "history_excluded_pit_gap_factors": ["net_inflow_5d"],
         }
         statuses = {
             item["factor"]: item["evaluation_status"] for item in report["factors"]
         }
         assert statuses["momentum_20d"] == "measured"
-        assert statuses["net_inflow_5d"] == "not_evaluated"
+        assert (
+            statuses["net_inflow_5d"]
+            == "history_excluded_pit_gap"
+        )
         assert statuses["roe"] == "not_evaluated"
         assert statuses["sector_strength"] == "live_only"
         flow = {item["factor"]: item for item in flow_report["factors"]}
-        assert flow["net_inflow_5d"]["evaluation_status"] == "evaluated_no_sample"
+        assert (
+            flow["net_inflow_5d"]["evaluation_status"]
+            == "history_excluded_pit_gap"
+        )
         assert flow["net_inflow_5d"]["n_periods"] == 0
         assert flow["net_inflow_5d"]["ic_mean"] is None
     finally:

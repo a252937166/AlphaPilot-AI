@@ -29,6 +29,7 @@ from alphapilot.db.models import (
     DailyBar,
     FinancialIndicator,
     SectorConstituent,
+    SectorConstituentSnapshot,
     SectorFlowDaily,
     Security,
     ValuationDaily,
@@ -131,6 +132,15 @@ def _database(
                 ),
             )
         )
+        for snapshot_date in trading_days[membership_refresh_index:]:
+            session.add(
+                SectorConstituentSnapshot(
+                    plate_code="BK0001",
+                    symbol="600519",
+                    as_of_date=snapshot_date,
+                    available_time=_utc_at_shanghai(snapshot_date, 14),
+                )
+            )
         report_period_end = date(2025, 12, 31)
         publication_date = date(2026, 3, 30)
         available_time = datetime.combine(
@@ -350,10 +360,14 @@ def test_s6_report_is_read_only_and_blocks_incomplete_s2(tmp_path: Path) -> None
     }
     assert len(factors) == 13
     assert factors["sector_strength"]["status"] == "live_only"
+    assert (
+        factors["net_inflow_5d"]["status"]
+        == "history_excluded_pit_gap"
+    )
     assert all(
         item["status"] == "sufficient"
         for factor, item in factors.items()
-        if factor != "sector_strength"
+        if factor not in {"sector_strength", "net_inflow_5d"}
     )
     assert report["pit_samples"]["external_source_pairing"] == (
         "not_performed_by_this_read_only_script"
@@ -361,6 +375,8 @@ def test_s6_report_is_read_only_and_blocks_incomplete_s2(tmp_path: Path) -> None
     warning_codes = {item["code"] for item in report["gate"]["warnings"]}
     assert "SECTOR_FLOW_ONE_YEAR_LIMIT" in warning_codes
     assert "SECTOR_FLOW_FIXED_TOP5_LOOKAHEAD" in warning_codes
+    assert "FACTOR_NET_INFLOW_5D_HISTORY_EXCLUDED_PIT_GAP" in warning_codes
+    assert report["historical_factor_scope"]["candidate_count"] == 11
     assert json.loads(json.dumps(report, ensure_ascii=False))["gate"]["status"] == "blocked"
     for table in ("daily_bars", "adj_factors", "valuation_daily"):
         plan = report["input_coverage"][table]["latest_broad_cross_section"][
@@ -372,7 +388,7 @@ def test_s6_report_is_read_only_and_blocks_incomplete_s2(tmp_path: Path) -> None
         assert any("SEARCH OBSERVED" in detail for detail in normalized)
 
 
-def test_flow_factor_probes_warm_start_middle_end_and_enforces_membership_pit(
+def test_flow_factor_is_recorded_as_nonblocking_exclusion_and_tracks_forward_pit(
     tmp_path: Path,
 ) -> None:
     database_path = _database(
@@ -400,13 +416,13 @@ def test_flow_factor_probes_warm_start_middle_end_and_enforces_membership_pit(
         for item in report["factor_availability"]["factors"]
         if item["factor"] == "net_inflow_5d"
     )
-    assert flow["status"] == "unavailable"
-    assert flow["cause_class"] == "pit_membership_gap"
-    assert len(flow["probes"]) == 3
-    assert len(flow["representative_gaps"]) == 2
-    assert "FACTOR_NET_INFLOW_5D_UNAVAILABLE" in {
-        item["code"] for item in report["gate"]["blockers"]
-    }
+    assert flow["status"] == "history_excluded_pit_gap"
+    assert flow["cause_class"] == "history_excluded_pit_gap"
+    assert flow["probes"] == []
+    assert flow["historical_candidate"] is False
+    assert flow["live_forward"] is True
+    blocker_codes = {item["code"] for item in report["gate"]["blockers"]}
+    assert not any(code.startswith("FACTOR_NET_INFLOW_5D") for code in blocker_codes)
 
 
 def test_each_broad_cross_section_must_qualify_independently(

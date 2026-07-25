@@ -103,6 +103,7 @@ const CLASSIFICATION_LABELS: Record<
   significant_reverse: { label: '显著反向', tone: 'negative' },
   ineffective: { label: '弱证据', tone: 'weak' },
   insufficient_data: { label: '样本不足', tone: 'missing' },
+  history_excluded_pit_gap: { label: '历史排除', tone: 'live' },
 }
 
 const EVALUATION_LABELS: Record<
@@ -113,6 +114,11 @@ const EVALUATION_LABELS: Record<
   evaluated_no_sample: { label: '已算 · n=0', note: '执行过但没有合格 PIT 截面', tone: 'weak' },
   not_evaluated: { label: '未评估', note: '本窗没有该因子的计算记录', tone: 'missing' },
   live_only: { label: '仅实时', note: '历史数据不可诚实回填', tone: 'live' },
+  history_excluded_pit_gap: {
+    label: '历史排除',
+    note: '历史成分 PIT 不可重建；仅保留前向因子',
+    tone: 'live',
+  },
 }
 
 function factorWindowKey(window: Pick<FactorICWindow, 'start_date' | 'end_date'>): string {
@@ -1612,8 +1618,13 @@ onUnmounted(() => {
               财务待 S2
             </span>
             <span>
-              <b class="mono">{{ diagnosis.coverage.live_only_count }}</b>
-              live-only
+              <b class="mono">
+                {{
+                  diagnosis.coverage.live_only_count
+                    + diagnosis.coverage.history_excluded_pit_gap_count
+                }}
+              </b>
+              非历史候选
             </span>
           </div>
         </section>

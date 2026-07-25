@@ -143,6 +143,10 @@ def test_rebuild_weights_uses_only_train_once_and_signed_l1_formula(
         assert result["weights"]["momentum_20d"] == pytest.approx(-0.8)
         assert result["weights"]["momentum_60d"] == 0.0
         assert result["weights"]["volatility_20d"] == pytest.approx(0.2)
+        assert result["weights"]["net_inflow_5d"] == 0.0
+        assert payload["history_excluded_pit_gap"] == ["net_inflow_5d"]
+        assert len(payload["historical_factor_candidates"]) == 11
+        assert "net_inflow_5d" not in payload["historical_factor_candidates"]
         assert sum(abs(value) for value in result["weights"].values()) == (
             pytest.approx(1.0)
         )

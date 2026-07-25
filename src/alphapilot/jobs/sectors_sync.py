@@ -15,7 +15,11 @@ from sqlalchemy import delete, select
 
 from alphapilot.data.base import DataProviderError
 from alphapilot.db.engine import get_session
-from alphapilot.db.models import SectorConstituent, SectorFlowDaily
+from alphapilot.db.models import (
+    SectorConstituent,
+    SectorConstituentSnapshot,
+    SectorFlowDaily,
+)
 from alphapilot.futu.client import FutuClient, get_futu_client
 from alphapilot.jobs.registry import JobSpec, register
 
@@ -36,6 +40,8 @@ SNAPSHOT_MAIN_FLOW_FIELDS = (
     "main_in_flow",
     "main_capital_flow",
 )
+CONSTITUENT_SNAPSHOT_HOUR = 15
+CONSTITUENT_SNAPSHOT_MINUTE = 10
 
 
 def _finite(value: object) -> float | None:
@@ -48,6 +54,14 @@ def _finite(value: object) -> float | None:
 
 def _market_today() -> date:
     return datetime.now(MARKET_TIMEZONE).date()
+
+
+def _utc_now() -> datetime:
+    return datetime.now(UTC)
+
+
+def _as_utc(value: datetime) -> datetime:
+    return value.replace(tzinfo=UTC) if value.tzinfo is None else value.astimezone(UTC)
 
 
 def _cn_trade_day(client: FutuClient, target: date) -> date | None:
@@ -179,6 +193,68 @@ def sync_sector_constituents(
         "failures": failures[:20],
         "failure_count": len(failures),
         "refreshed_at": refreshed_at.isoformat(),
+        "duration_seconds": round(monotonic() - started, 2),
+    }
+
+
+def snapshot_sector_constituents() -> dict[str, Any]:
+    """Persist today's first visible constituent set without backdating it."""
+
+    started = monotonic()
+    available_time = _utc_now()
+    as_of_date = available_time.astimezone(MARKET_TIMEZONE).date()
+    with get_session() as session:
+        source_rows = list(
+            session.scalars(
+                select(SectorConstituent).order_by(
+                    SectorConstituent.plate_code,
+                    SectorConstituent.symbol,
+                )
+            )
+        )
+        visible_rows = [
+            row
+            for row in source_rows
+            if _as_utc(row.refreshed_at) <= available_time
+        ]
+        if not visible_rows:
+            raise DataProviderError(
+                "sector constituent PIT snapshot requires a visible current cache"
+            )
+        existing = {
+            (str(row.plate_code), str(row.symbol))
+            for row in session.scalars(
+                select(SectorConstituentSnapshot).where(
+                    SectorConstituentSnapshot.as_of_date == as_of_date
+                )
+            )
+        }
+        inserted = 0
+        for row in visible_rows:
+            key = (str(row.plate_code), str(row.symbol))
+            if key in existing:
+                continue
+            session.add(
+                SectorConstituentSnapshot(
+                    plate_code=key[0],
+                    symbol=key[1],
+                    as_of_date=as_of_date,
+                    available_time=available_time,
+                )
+            )
+            existing.add(key)
+            inserted += 1
+
+    return {
+        "as_of_date": as_of_date.isoformat(),
+        "available_time": available_time.isoformat(),
+        "source_rows": len(source_rows),
+        "visible_source_rows": len(visible_rows),
+        "inserted": inserted,
+        "skipped_existing": len(visible_rows) - inserted,
+        "plates": len({row.plate_code for row in visible_rows}),
+        "symbols": len({row.symbol for row in visible_rows}),
+        "immutable_first_capture": True,
         "duration_seconds": round(monotonic() - started, 2),
     }
 
@@ -531,6 +607,18 @@ def register_sector_jobs() -> None:
                 day_of_week="sun",
                 hour=9,
                 minute=0,
+                timezone=MARKET_TIMEZONE,
+            ),
+        )
+    )
+    register(
+        JobSpec(
+            name="snapshot_sector_constituents",
+            func=snapshot_sector_constituents,
+            trigger=CronTrigger(
+                day_of_week="mon-fri",
+                hour=CONSTITUENT_SNAPSHOT_HOUR,
+                minute=CONSTITUENT_SNAPSHOT_MINUTE,
                 timezone=MARKET_TIMEZONE,
             ),
         )

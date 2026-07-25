@@ -34,12 +34,11 @@ def _result(factors: object) -> pd.DataFrame:
     )
 
 
-def test_preliminary_research_splits_two_train_only_cohorts(
+def test_preliminary_research_runs_only_six_pit_valid_train_factors(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     session = object()
     multi_year = _dates(date(2019, 1, 2), 100)
-    one_year_flow = _dates(date(2025, 7, 25), 20)
     calls: list[dict[str, Any]] = []
     persisted: list[dict[str, Any]] = []
 
@@ -53,11 +52,8 @@ def test_preliminary_research_splits_two_train_only_cohorts(
         end: date,
     ) -> list[date]:
         assert received_session is session
-        if start == multi_year[0] and end == multi_year[-1]:
-            return multi_year
-        assert start == one_year_flow[0]
-        assert end == one_year_flow[-1]
-        return one_year_flow
+        assert start == multi_year[0] and end == multi_year[-1]
+        return multi_year
 
     def fake_research_factors_ic(
         received_session: object,
@@ -97,11 +93,6 @@ def test_preliminary_research_splits_two_train_only_cohorts(
     monkeypatch.setattr(factor_research_job, "_calendar", fake_calendar)
     monkeypatch.setattr(
         factor_research_job,
-        "_sector_flow_bounds",
-        lambda _session, *, end_date: (one_year_flow[0], one_year_flow[-1]),
-    )
-    monkeypatch.setattr(
-        factor_research_job,
         "research_factors_ic",
         fake_research_factors_ic,
     )
@@ -122,11 +113,6 @@ def test_preliminary_research_splits_two_train_only_cohorts(
             "start": multi_year[0],
             "end": multi_year[69],
         },
-        {
-            "factors": factor_research_job.SECTOR_FLOW_TRAIN_FACTORS,
-            "start": one_year_flow[0],
-            "end": one_year_flow[13],
-        },
     ]
     assert persisted == [
         {
@@ -134,12 +120,6 @@ def test_preliminary_research_splits_two_train_only_cohorts(
             "sample_tag": "train",
             "start": multi_year[0],
             "end": multi_year[69],
-        },
-        {
-            "factors": list(factor_research_job.SECTOR_FLOW_TRAIN_FACTORS),
-            "sample_tag": "train",
-            "start": one_year_flow[0],
-            "end": one_year_flow[13],
         },
     ]
     assert stats["sample_tag"] == "train"
@@ -151,12 +131,10 @@ def test_preliminary_research_splits_two_train_only_cohorts(
         "sessions": 30,
         "read_factor_outcomes": False,
     }
-    assert stats["cohorts"]["one_year_sector_flow"]["sealed_test_window"] == {
-        "start": one_year_flow[14].isoformat(),
-        "end": one_year_flow[-1].isoformat(),
-        "sessions": 6,
-        "read_factor_outcomes": False,
-    }
+    assert "one_year_sector_flow" not in stats["cohorts"]
+    assert stats["factor_scope"] == "6_of_11_historical_factors"
+    assert stats["history_excluded_pit_gap"] == ["net_inflow_5d"]
+    assert "net_inflow_5d" not in stats["selected_factors"]
 
 
 @pytest.mark.parametrize("ratio", [True, 0.0, 1.0, float("nan")])
@@ -165,12 +143,11 @@ def test_preliminary_research_rejects_invalid_train_ratio(ratio: object) -> None
         factor_research_job._validated_ratio(ratio)  # type: ignore[arg-type]
 
 
-def test_preliminary_research_failure_persists_neither_cohort(
+def test_preliminary_research_failure_persists_no_partial_result(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     session = object()
     multi_year = _dates(date(2019, 1, 2), 10)
-    one_year_flow = _dates(date(2025, 7, 25), 10)
     research_calls = 0
 
     @contextmanager
@@ -179,34 +156,27 @@ def test_preliminary_research_failure_persists_neither_cohort(
 
     def fake_calendar(
         _session: object,
-        start: date,
+        _start: date,
         _end: date,
     ) -> list[date]:
-        return multi_year if start == multi_year[0] else one_year_flow
+        return multi_year
 
-    def fail_on_flow(
+    def fail_research(
         _session: object,
-        factors: object,
+        _factors: object,
         _start: date,
         _end: date,
     ) -> pd.DataFrame:
         nonlocal research_calls
         research_calls += 1
-        if factors == factor_research_job.SECTOR_FLOW_TRAIN_FACTORS:
-            raise RuntimeError("flow cohort failed")
-        return _result(factors)
+        raise RuntimeError("research failed")
 
     monkeypatch.setattr(factor_research_job, "get_session", fake_session)
     monkeypatch.setattr(factor_research_job, "_calendar", fake_calendar)
     monkeypatch.setattr(
         factor_research_job,
-        "_sector_flow_bounds",
-        lambda _session, *, end_date: (one_year_flow[0], one_year_flow[-1]),
-    )
-    monkeypatch.setattr(
-        factor_research_job,
         "research_factors_ic",
-        fail_on_flow,
+        fail_research,
     )
     monkeypatch.setattr(
         factor_research_job,
@@ -214,13 +184,13 @@ def test_preliminary_research_failure_persists_neither_cohort(
         pytest.fail,
     )
 
-    with pytest.raises(RuntimeError, match="flow cohort failed"):
+    with pytest.raises(RuntimeError, match="research failed"):
         factor_research_job.run_preliminary_train_ic(
             start_date=multi_year[0],
             end_date=multi_year[-1],
         )
 
-    assert research_calls == 2
+    assert research_calls == 1
 
 
 def test_preliminary_runner_does_not_expose_test_or_rebuild_controls() -> None:

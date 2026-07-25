@@ -16,6 +16,7 @@ from alphapilot.backtest.factor_research import (
     persist_factor_correlation,
     single_factor_ic,
 )
+from alphapilot.backtest.factor_scope import HISTORICAL_FACTOR_CANDIDATES
 from alphapilot.db.models import (
     AdjFactor,
     Base,
@@ -172,16 +173,23 @@ def test_all_factors_reuses_each_pit_snapshot_and_upserts_full_stats(
         table = all_factors_ic(session, dates[0], dates[-1])
         session.commit()
 
-        assert table["factor"].tolist() == FACTOR_SET
-        assert len(table) == len(FACTOR_SET) == 13
-        assert table["n_periods"].tolist() == [2] * len(FACTOR_SET)
-        assert table["ic_mean"].tolist() == pytest.approx([1.0] * len(FACTOR_SET))
+        assert table["factor"].tolist() == list(HISTORICAL_FACTOR_CANDIDATES)
+        assert len(table) == len(HISTORICAL_FACTOR_CANDIDATES) == 11
+        assert "net_inflow_5d" not in table["factor"].tolist()
+        assert table["n_periods"].tolist() == [2] * len(HISTORICAL_FACTOR_CANDIDATES)
+        assert table["ic_mean"].tolist() == pytest.approx(
+            [1.0] * len(HISTORICAL_FACTOR_CANDIDATES)
+        )
         assert snapshot_calls == [dates[0], dates[20]]
-        assert len(session.scalars(select(FactorICStat)).all()) == len(FACTOR_SET)
+        assert len(session.scalars(select(FactorICStat)).all()) == len(
+            HISTORICAL_FACTOR_CANDIDATES
+        )
 
         all_factors_ic(session, dates[0], dates[-1])
         session.commit()
-        assert len(session.scalars(select(FactorICStat)).all()) == len(FACTOR_SET)
+        assert len(session.scalars(select(FactorICStat)).all()) == len(
+            HISTORICAL_FACTOR_CANDIDATES
+        )
     finally:
         session.close()
 
