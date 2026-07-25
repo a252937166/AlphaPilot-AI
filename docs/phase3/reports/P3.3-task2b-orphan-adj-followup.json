@@ -1,0 +1,805 @@
+{
+  "status": "applied",
+  "expected_count": 111,
+  "expected_symbol_count": 30,
+  "expected_min_date": "2019-01-02",
+  "expected_max_date": "2020-11-16",
+  "authority_evidence_path": "/Users/ouyangduning/Documents/project/interesting/AlphaPilot-AI/docs/phase3/reports/P3.3-task2b-sina-zero-price-repair.json",
+  "authority_sha256": "4115f45e67d20796cae9c5ec9a388e2e4a234931bd059425735e64538bb0f2d9",
+  "before_count": 111,
+  "deleted_count": 111,
+  "after_count": 0,
+  "backup_path": "/Users/ouyangduning/Documents/project/interesting/AlphaPilot-AI/data/backups/alphapilot-before-orphan-sina-adj-cleanup-20260725T205024Z.db",
+  "backup_sha256": "fc1bebd4dbb6b4adbf5d3e6ac4512095c33df24d4f9f61869c97e676befc41e5",
+  "database_quick_check": "ok",
+  "trade_proposals_before": 1,
+  "trade_proposals_after": 1,
+  "broker_orders_before": 1,
+  "broker_orders_after": 1,
+  "adj_duplicate_groups_before": 0,
+  "adj_duplicate_groups_after": 0,
+  "daily_bar_duplicate_groups_before": 0,
+  "daily_bar_duplicate_groups_after": 0,
+  "daily_bars_without_adj_before": 2827,
+  "daily_bars_without_adj_after": 2827,
+  "rows": [
+    {
+      "row_id": 8279735,
+      "symbol": "920000",
+      "trade_date": "2019-05-23",
+      "source": "sina-hfq",
+      "adj_factor": 1.0000511174904456
+    },
+    {
+      "row_id": 8279739,
+      "symbol": "920000",
+      "trade_date": "2019-07-12",
+      "source": "sina-hfq",
+      "adj_factor": 1.0000511174904456
+    },
+    {
+      "row_id": 8282196,
+      "symbol": "920010",
+      "trade_date": "2019-02-01",
+      "source": "sina-hfq",
+      "adj_factor": 1.0002112860246097
+    },
+    {
+      "row_id": 8282202,
+      "symbol": "920010",
+      "trade_date": "2020-03-31",
+      "source": "sina-hfq",
+      "adj_factor": 1.0002112860246097
+    },
+    {
+      "row_id": 8282203,
+      "symbol": "920010",
+      "trade_date": "2020-04-01",
+      "source": "sina-hfq",
+      "adj_factor": 1.0002112860246097
+    },
+    {
+      "row_id": 8282206,
+      "symbol": "920010",
+      "trade_date": "2020-04-16",
+      "source": "sina-hfq",
+      "adj_factor": 1.0002112860246097
+    },
+    {
+      "row_id": 8282207,
+      "symbol": "920010",
+      "trade_date": "2020-04-17",
+      "source": "sina-hfq",
+      "adj_factor": 1.0002112860246097
+    },
+    {
+      "row_id": 8282208,
+      "symbol": "920010",
+      "trade_date": "2020-04-20",
+      "source": "sina-hfq",
+      "adj_factor": 1.0002112860246097
+    },
+    {
+      "row_id": 8282217,
+      "symbol": "920010",
+      "trade_date": "2020-05-07",
+      "source": "sina-hfq",
+      "adj_factor": 1.0002112860246097
+    },
+    {
+      "row_id": 8286919,
+      "symbol": "920030",
+      "trade_date": "2019-01-02",
+      "source": "sina-hfq",
+      "adj_factor": 1.0001796773722482
+    },
+    {
+      "row_id": 8286928,
+      "symbol": "920030",
+      "trade_date": "2019-04-01",
+      "source": "sina-hfq",
+      "adj_factor": 1.0001796773722482
+    },
+    {
+      "row_id": 8286929,
+      "symbol": "920030",
+      "trade_date": "2019-04-03",
+      "source": "sina-hfq",
+      "adj_factor": 1.0001796773722482
+    },
+    {
+      "row_id": 8286930,
+      "symbol": "920030",
+      "trade_date": "2019-04-22",
+      "source": "sina-hfq",
+      "adj_factor": 1.0001796773722482
+    },
+    {
+      "row_id": 8286935,
+      "symbol": "920030",
+      "trade_date": "2019-10-14",
+      "source": "sina-hfq",
+      "adj_factor": 1.0001796773722482
+    },
+    {
+      "row_id": 8288710,
+      "symbol": "920039",
+      "trade_date": "2020-05-20",
+      "source": "sina-hfq",
+      "adj_factor": 0.9996249684065297
+    },
+    {
+      "row_id": 8290363,
+      "symbol": "920047",
+      "trade_date": "2019-07-18",
+      "source": "sina-hfq",
+      "adj_factor": 1.0
+    },
+    {
+      "row_id": 8290476,
+      "symbol": "920047",
+      "trade_date": "2020-02-21",
+      "source": "sina-hfq",
+      "adj_factor": 1.0
+    },
+    {
+      "row_id": 8290477,
+      "symbol": "920047",
+      "trade_date": "2020-02-25",
+      "source": "sina-hfq",
+      "adj_factor": 1.0
+    },
+    {
+      "row_id": 8290478,
+      "symbol": "920047",
+      "trade_date": "2020-02-26",
+      "source": "sina-hfq",
+      "adj_factor": 1.0
+    },
+    {
+      "row_id": 8294354,
+      "symbol": "920077",
+      "trade_date": "2019-01-23",
+      "source": "sina-hfq",
+      "adj_factor": 1.0002271259379323
+    },
+    {
+      "row_id": 8294355,
+      "symbol": "920077",
+      "trade_date": "2020-02-10",
+      "source": "sina-hfq",
+      "adj_factor": 1.0002271259379323
+    },
+    {
+      "row_id": 8294453,
+      "symbol": "920077",
+      "trade_date": "2020-10-29",
+      "source": "sina-hfq",
+      "adj_factor": 1.0002271259379323
+    },
+    {
+      "row_id": 8296115,
+      "symbol": "920089",
+      "trade_date": "2019-02-28",
+      "source": "sina-hfq",
+      "adj_factor": 1.0001709062173794
+    },
+    {
+      "row_id": 8296116,
+      "symbol": "920089",
+      "trade_date": "2019-03-19",
+      "source": "sina-hfq",
+      "adj_factor": 1.0001709062173794
+    },
+    {
+      "row_id": 8296117,
+      "symbol": "920089",
+      "trade_date": "2019-03-25",
+      "source": "sina-hfq",
+      "adj_factor": 1.0001709062173794
+    },
+    {
+      "row_id": 8296964,
+      "symbol": "920090",
+      "trade_date": "2019-04-08",
+      "source": "sina-hfq",
+      "adj_factor": 1.0000336804460852
+    },
+    {
+      "row_id": 8296965,
+      "symbol": "920090",
+      "trade_date": "2019-04-30",
+      "source": "sina-hfq",
+      "adj_factor": 1.0000336804460852
+    },
+    {
+      "row_id": 8296966,
+      "symbol": "920090",
+      "trade_date": "2019-05-23",
+      "source": "sina-hfq",
+      "adj_factor": 1.0000336804460852
+    },
+    {
+      "row_id": 8296967,
+      "symbol": "920090",
+      "trade_date": "2019-05-24",
+      "source": "sina-hfq",
+      "adj_factor": 1.0000336804460852
+    },
+    {
+      "row_id": 8296968,
+      "symbol": "920090",
+      "trade_date": "2019-05-28",
+      "source": "sina-hfq",
+      "adj_factor": 1.0000336804460852
+    },
+    {
+      "row_id": 8296969,
+      "symbol": "920090",
+      "trade_date": "2019-05-29",
+      "source": "sina-hfq",
+      "adj_factor": 1.0000336804460852
+    },
+    {
+      "row_id": 8296970,
+      "symbol": "920090",
+      "trade_date": "2019-05-30",
+      "source": "sina-hfq",
+      "adj_factor": 1.0000336804460852
+    },
+    {
+      "row_id": 8296976,
+      "symbol": "920090",
+      "trade_date": "2019-11-15",
+      "source": "sina-hfq",
+      "adj_factor": 1.0000336804460852
+    },
+    {
+      "row_id": 8296984,
+      "symbol": "920090",
+      "trade_date": "2019-12-12",
+      "source": "sina-hfq",
+      "adj_factor": 1.0000336804460852
+    },
+    {
+      "row_id": 8296989,
+      "symbol": "920090",
+      "trade_date": "2020-01-03",
+      "source": "sina-hfq",
+      "adj_factor": 1.0000336804460852
+    },
+    {
+      "row_id": 8303240,
+      "symbol": "920146",
+      "trade_date": "2019-07-05",
+      "source": "sina-hfq",
+      "adj_factor": 1.0003994350385181
+    },
+    {
+      "row_id": 8303243,
+      "symbol": "920146",
+      "trade_date": "2019-07-12",
+      "source": "sina-hfq",
+      "adj_factor": 1.0003994350385181
+    },
+    {
+      "row_id": 8304244,
+      "symbol": "920149",
+      "trade_date": "2019-06-27",
+      "source": "sina-hfq",
+      "adj_factor": 1.0001935722297814
+    },
+    {
+      "row_id": 8304247,
+      "symbol": "920149",
+      "trade_date": "2019-12-26",
+      "source": "sina-hfq",
+      "adj_factor": 1.0001935722297814
+    },
+    {
+      "row_id": 8304248,
+      "symbol": "920149",
+      "trade_date": "2020-01-03",
+      "source": "sina-hfq",
+      "adj_factor": 1.0001935722297814
+    },
+    {
+      "row_id": 8304249,
+      "symbol": "920149",
+      "trade_date": "2020-01-22",
+      "source": "sina-hfq",
+      "adj_factor": 1.0001935722297814
+    },
+    {
+      "row_id": 8304250,
+      "symbol": "920149",
+      "trade_date": "2020-02-03",
+      "source": "sina-hfq",
+      "adj_factor": 1.0001935722297814
+    },
+    {
+      "row_id": 8304251,
+      "symbol": "920149",
+      "trade_date": "2020-03-03",
+      "source": "sina-hfq",
+      "adj_factor": 1.0001935722297814
+    },
+    {
+      "row_id": 8304253,
+      "symbol": "920149",
+      "trade_date": "2020-03-19",
+      "source": "sina-hfq",
+      "adj_factor": 1.0001935722297814
+    },
+    {
+      "row_id": 8304259,
+      "symbol": "920149",
+      "trade_date": "2020-05-06",
+      "source": "sina-hfq",
+      "adj_factor": 1.0001935722297814
+    },
+    {
+      "row_id": 8312158,
+      "symbol": "920184",
+      "trade_date": "2019-06-10",
+      "source": "sina-hfq",
+      "adj_factor": 1.000221132018566
+    },
+    {
+      "row_id": 8312257,
+      "symbol": "920184",
+      "trade_date": "2019-11-27",
+      "source": "sina-hfq",
+      "adj_factor": 1.000221132018566
+    },
+    {
+      "row_id": 8312270,
+      "symbol": "920184",
+      "trade_date": "2019-12-20",
+      "source": "sina-hfq",
+      "adj_factor": 1.000221132018566
+    },
+    {
+      "row_id": 8325982,
+      "symbol": "920242",
+      "trade_date": "2019-02-20",
+      "source": "sina-hfq",
+      "adj_factor": 1.0000681647179444
+    },
+    {
+      "row_id": 8325985,
+      "symbol": "920242",
+      "trade_date": "2019-05-10",
+      "source": "sina-hfq",
+      "adj_factor": 1.0000681647179444
+    },
+    {
+      "row_id": 8325986,
+      "symbol": "920242",
+      "trade_date": "2019-05-13",
+      "source": "sina-hfq",
+      "adj_factor": 1.0000681647179444
+    },
+    {
+      "row_id": 8325988,
+      "symbol": "920242",
+      "trade_date": "2019-06-28",
+      "source": "sina-hfq",
+      "adj_factor": 1.0000681647179444
+    },
+    {
+      "row_id": 8325990,
+      "symbol": "920242",
+      "trade_date": "2019-07-03",
+      "source": "sina-hfq",
+      "adj_factor": 1.0000681647179444
+    },
+    {
+      "row_id": 8325991,
+      "symbol": "920242",
+      "trade_date": "2019-07-04",
+      "source": "sina-hfq",
+      "adj_factor": 1.0000681647179444
+    },
+    {
+      "row_id": 8325992,
+      "symbol": "920242",
+      "trade_date": "2019-07-10",
+      "source": "sina-hfq",
+      "adj_factor": 1.0000681647179444
+    },
+    {
+      "row_id": 8325997,
+      "symbol": "920242",
+      "trade_date": "2019-08-06",
+      "source": "sina-hfq",
+      "adj_factor": 1.0000681647179444
+    },
+    {
+      "row_id": 8325998,
+      "symbol": "920242",
+      "trade_date": "2019-08-08",
+      "source": "sina-hfq",
+      "adj_factor": 1.0000681647179444
+    },
+    {
+      "row_id": 8325999,
+      "symbol": "920242",
+      "trade_date": "2019-08-13",
+      "source": "sina-hfq",
+      "adj_factor": 1.0000681647179444
+    },
+    {
+      "row_id": 8326000,
+      "symbol": "920242",
+      "trade_date": "2019-09-06",
+      "source": "sina-hfq",
+      "adj_factor": 1.0000681647179444
+    },
+    {
+      "row_id": 8326007,
+      "symbol": "920242",
+      "trade_date": "2019-12-12",
+      "source": "sina-hfq",
+      "adj_factor": 1.0000681647179444
+    },
+    {
+      "row_id": 8326021,
+      "symbol": "920242",
+      "trade_date": "2020-02-10",
+      "source": "sina-hfq",
+      "adj_factor": 1.0000681647179444
+    },
+    {
+      "row_id": 8331608,
+      "symbol": "920263",
+      "trade_date": "2019-08-22",
+      "source": "sina-hfq",
+      "adj_factor": 1.000142263765078
+    },
+    {
+      "row_id": 8331665,
+      "symbol": "920263",
+      "trade_date": "2020-01-08",
+      "source": "sina-hfq",
+      "adj_factor": 1.000142263765078
+    },
+    {
+      "row_id": 8331706,
+      "symbol": "920263",
+      "trade_date": "2020-03-18",
+      "source": "sina-hfq",
+      "adj_factor": 1.000142263765078
+    },
+    {
+      "row_id": 8331708,
+      "symbol": "920263",
+      "trade_date": "2020-03-24",
+      "source": "sina-hfq",
+      "adj_factor": 1.000142263765078
+    },
+    {
+      "row_id": 8338359,
+      "symbol": "920278",
+      "trade_date": "2019-06-19",
+      "source": "sina-hfq",
+      "adj_factor": 1.0002610421108729
+    },
+    {
+      "row_id": 8338371,
+      "symbol": "920278",
+      "trade_date": "2019-12-12",
+      "source": "sina-hfq",
+      "adj_factor": 1.0002610421108729
+    },
+    {
+      "row_id": 8347259,
+      "symbol": "920368",
+      "trade_date": "2019-03-29",
+      "source": "sina-hfq",
+      "adj_factor": 1.0000397221204003
+    },
+    {
+      "row_id": 8347301,
+      "symbol": "920368",
+      "trade_date": "2019-07-26",
+      "source": "sina-hfq",
+      "adj_factor": 1.0000397221204003
+    },
+    {
+      "row_id": 8355756,
+      "symbol": "920405",
+      "trade_date": "2019-09-17",
+      "source": "sina-hfq",
+      "adj_factor": 0.9999404725303794
+    },
+    {
+      "row_id": 8355760,
+      "symbol": "920405",
+      "trade_date": "2019-09-26",
+      "source": "sina-hfq",
+      "adj_factor": 0.9999404725303794
+    },
+    {
+      "row_id": 8355764,
+      "symbol": "920405",
+      "trade_date": "2019-10-16",
+      "source": "sina-hfq",
+      "adj_factor": 0.9999404725303794
+    },
+    {
+      "row_id": 8376128,
+      "symbol": "920508",
+      "trade_date": "2019-07-03",
+      "source": "sina-hfq",
+      "adj_factor": 0.9999707302186295
+    },
+    {
+      "row_id": 8376129,
+      "symbol": "920508",
+      "trade_date": "2019-07-04",
+      "source": "sina-hfq",
+      "adj_factor": 0.9999707302186295
+    },
+    {
+      "row_id": 8377282,
+      "symbol": "920509",
+      "trade_date": "2020-01-06",
+      "source": "sina-hfq",
+      "adj_factor": 0.9999699138670269
+    },
+    {
+      "row_id": 8380199,
+      "symbol": "920523",
+      "trade_date": "2020-05-22",
+      "source": "sina-hfq",
+      "adj_factor": 1.0000977638376285
+    },
+    {
+      "row_id": 8391781,
+      "symbol": "920599",
+      "trade_date": "2020-02-28",
+      "source": "sina-hfq",
+      "adj_factor": 1.0001200843928437
+    },
+    {
+      "row_id": 8396951,
+      "symbol": "920642",
+      "trade_date": "2019-05-15",
+      "source": "sina-hfq",
+      "adj_factor": 1.000157233223928
+    },
+    {
+      "row_id": 8396987,
+      "symbol": "920642",
+      "trade_date": "2019-12-17",
+      "source": "sina-hfq",
+      "adj_factor": 1.000157233223928
+    },
+    {
+      "row_id": 8396988,
+      "symbol": "920642",
+      "trade_date": "2019-12-18",
+      "source": "sina-hfq",
+      "adj_factor": 1.000157233223928
+    },
+    {
+      "row_id": 8396990,
+      "symbol": "920642",
+      "trade_date": "2020-03-27",
+      "source": "sina-hfq",
+      "adj_factor": 1.000157233223928
+    },
+    {
+      "row_id": 8411036,
+      "symbol": "920726",
+      "trade_date": "2019-04-29",
+      "source": "sina-hfq",
+      "adj_factor": 0.9999593858733491
+    },
+    {
+      "row_id": 8411039,
+      "symbol": "920726",
+      "trade_date": "2020-03-25",
+      "source": "sina-hfq",
+      "adj_factor": 0.9999593858733491
+    },
+    {
+      "row_id": 8412085,
+      "symbol": "920729",
+      "trade_date": "2019-03-25",
+      "source": "sina-hfq",
+      "adj_factor": 1.0000880573724626
+    },
+    {
+      "row_id": 8412092,
+      "symbol": "920729",
+      "trade_date": "2019-05-30",
+      "source": "sina-hfq",
+      "adj_factor": 1.0000880573724626
+    },
+    {
+      "row_id": 8412153,
+      "symbol": "920729",
+      "trade_date": "2019-12-18",
+      "source": "sina-hfq",
+      "adj_factor": 1.0000880573724626
+    },
+    {
+      "row_id": 8412156,
+      "symbol": "920729",
+      "trade_date": "2019-12-24",
+      "source": "sina-hfq",
+      "adj_factor": 1.0000880573724626
+    },
+    {
+      "row_id": 8412165,
+      "symbol": "920729",
+      "trade_date": "2020-02-03",
+      "source": "sina-hfq",
+      "adj_factor": 1.0000880573724626
+    },
+    {
+      "row_id": 8416157,
+      "symbol": "920765",
+      "trade_date": "2019-12-26",
+      "source": "sina-hfq",
+      "adj_factor": 0.9999374517534652
+    },
+    {
+      "row_id": 8427646,
+      "symbol": "920826",
+      "trade_date": "2020-01-22",
+      "source": "sina-hfq",
+      "adj_factor": 0.9997971042085165
+    },
+    {
+      "row_id": 8427648,
+      "symbol": "920826",
+      "trade_date": "2020-02-04",
+      "source": "sina-hfq",
+      "adj_factor": 0.9997971042085165
+    },
+    {
+      "row_id": 8428770,
+      "symbol": "920832",
+      "trade_date": "2019-06-17",
+      "source": "sina-hfq",
+      "adj_factor": 0.9999219607987836
+    },
+    {
+      "row_id": 8428781,
+      "symbol": "920832",
+      "trade_date": "2019-07-03",
+      "source": "sina-hfq",
+      "adj_factor": 0.9999219607987836
+    },
+    {
+      "row_id": 8428783,
+      "symbol": "920832",
+      "trade_date": "2019-07-08",
+      "source": "sina-hfq",
+      "adj_factor": 0.9999219607987836
+    },
+    {
+      "row_id": 8431502,
+      "symbol": "920839",
+      "trade_date": "2019-01-02",
+      "source": "sina-hfq",
+      "adj_factor": 1.0000320563454517
+    },
+    {
+      "row_id": 8431510,
+      "symbol": "920839",
+      "trade_date": "2019-06-03",
+      "source": "sina-hfq",
+      "adj_factor": 1.0000320563454517
+    },
+    {
+      "row_id": 8431515,
+      "symbol": "920839",
+      "trade_date": "2020-01-09",
+      "source": "sina-hfq",
+      "adj_factor": 1.0000320563454517
+    },
+    {
+      "row_id": 8431544,
+      "symbol": "920839",
+      "trade_date": "2020-06-10",
+      "source": "sina-hfq",
+      "adj_factor": 1.0000320563454517
+    },
+    {
+      "row_id": 8431549,
+      "symbol": "920839",
+      "trade_date": "2020-06-17",
+      "source": "sina-hfq",
+      "adj_factor": 1.0000320563454517
+    },
+    {
+      "row_id": 8442957,
+      "symbol": "920924",
+      "trade_date": "2019-07-31",
+      "source": "sina-hfq",
+      "adj_factor": 0.9998993739631257
+    },
+    {
+      "row_id": 8442958,
+      "symbol": "920924",
+      "trade_date": "2019-08-08",
+      "source": "sina-hfq",
+      "adj_factor": 0.9998993739631257
+    },
+    {
+      "row_id": 8442959,
+      "symbol": "920924",
+      "trade_date": "2019-08-09",
+      "source": "sina-hfq",
+      "adj_factor": 0.9998993739631257
+    },
+    {
+      "row_id": 8443893,
+      "symbol": "920925",
+      "trade_date": "2020-03-23",
+      "source": "sina-hfq",
+      "adj_factor": 0.9999243153214887
+    },
+    {
+      "row_id": 8443907,
+      "symbol": "920925",
+      "trade_date": "2020-06-16",
+      "source": "sina-hfq",
+      "adj_factor": 0.9999243153214887
+    },
+    {
+      "row_id": 8443912,
+      "symbol": "920925",
+      "trade_date": "2020-07-06",
+      "source": "sina-hfq",
+      "adj_factor": 0.9999243153214887
+    },
+    {
+      "row_id": 8443929,
+      "symbol": "920925",
+      "trade_date": "2020-08-24",
+      "source": "sina-hfq",
+      "adj_factor": 0.9999243153214887
+    },
+    {
+      "row_id": 8443933,
+      "symbol": "920925",
+      "trade_date": "2020-09-07",
+      "source": "sina-hfq",
+      "adj_factor": 0.9999243153214887
+    },
+    {
+      "row_id": 8443939,
+      "symbol": "920925",
+      "trade_date": "2020-11-03",
+      "source": "sina-hfq",
+      "adj_factor": 0.9999243153214887
+    },
+    {
+      "row_id": 8443942,
+      "symbol": "920925",
+      "trade_date": "2020-11-16",
+      "source": "sina-hfq",
+      "adj_factor": 0.9999243153214887
+    },
+    {
+      "row_id": 8450356,
+      "symbol": "920961",
+      "trade_date": "2019-04-25",
+      "source": "sina-hfq",
+      "adj_factor": 1.0000206580266007
+    },
+    {
+      "row_id": 8450453,
+      "symbol": "920961",
+      "trade_date": "2019-10-11",
+      "source": "sina-hfq",
+      "adj_factor": 1.0000206580266007
+    }
+  ],
+  "completed_at": "2026-07-25T20:51:49.007516+00:00"
+}

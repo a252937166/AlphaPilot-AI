@@ -46,6 +46,7 @@ def main() -> int:
     print(
         f"status={result.status} before={result.before_count} "
         f"repaired={result.repaired_count} deleted={result.deleted_count} "
+        f"adj_deleted={result.deleted_adj_factor_count} "
         f"after={result.after_count} quick_check={result.database_quick_check}"
     )
     print(
