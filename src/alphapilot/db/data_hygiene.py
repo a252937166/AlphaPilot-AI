@@ -86,6 +86,7 @@ class SinaRepairResult:
     before_count: int
     repaired_count: int
     deleted_count: int
+    deleted_adj_factor_count: int
     after_count: int
     backup_path: str | None
     backup_sha256: str | None
@@ -96,6 +97,50 @@ class SinaRepairResult:
     broker_orders_after: int
     cleared_proxy_keys: tuple[str, ...]
     rows: tuple[SinaRepairEvidenceRow, ...]
+    completed_at: str
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            **asdict(self),
+            "rows": [asdict(row) for row in self.rows],
+        }
+
+
+@dataclass(frozen=True)
+class OrphanAdjFactorEvidenceRow:
+    row_id: int
+    symbol: str
+    trade_date: str
+    source: str
+    adj_factor: float
+
+
+@dataclass(frozen=True)
+class OrphanAdjFactorCleanupResult:
+    status: str
+    expected_count: int
+    expected_symbol_count: int
+    expected_min_date: str
+    expected_max_date: str
+    authority_evidence_path: str
+    authority_sha256: str
+    before_count: int
+    deleted_count: int
+    after_count: int
+    backup_path: str | None
+    backup_sha256: str | None
+    database_quick_check: str
+    trade_proposals_before: int
+    trade_proposals_after: int
+    broker_orders_before: int
+    broker_orders_after: int
+    adj_duplicate_groups_before: int
+    adj_duplicate_groups_after: int
+    daily_bar_duplicate_groups_before: int
+    daily_bar_duplicate_groups_after: int
+    daily_bars_without_adj_before: int
+    daily_bars_without_adj_after: int
+    rows: tuple[OrphanAdjFactorEvidenceRow, ...]
     completed_at: str
 
     def to_dict(self) -> dict[str, Any]:
@@ -141,6 +186,169 @@ def _quick_check(connection: sqlite3.Connection) -> str:
     if row is None:
         raise RuntimeError("PRAGMA quick_check returned no result")
     return str(row[0])
+
+
+def _table_exists(connection: sqlite3.Connection, table: str) -> bool:
+    row = connection.execute(
+        "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?",
+        (table,),
+    ).fetchone()
+    return row is not None
+
+
+def _duplicate_key_group_count(
+    connection: sqlite3.Connection,
+    table: str,
+) -> int:
+    if table not in {"daily_bars", "adj_factors"}:
+        raise ValueError(f"unsupported key-gate table: {table}")
+    row = connection.execute(
+        f"""
+        SELECT COUNT(*)
+        FROM (
+            SELECT symbol, trade_date
+            FROM {table}
+            GROUP BY symbol, trade_date
+            HAVING COUNT(*) > 1
+        )
+        """
+    ).fetchone()
+    if row is None:
+        raise RuntimeError(f"failed to count duplicate keys in {table}")
+    return int(row[0])
+
+
+def _daily_bars_without_adj_count(connection: sqlite3.Connection) -> int:
+    row = connection.execute(
+        """
+        SELECT COUNT(*)
+        FROM daily_bars AS daily
+        LEFT JOIN adj_factors AS adj
+          ON adj.symbol = daily.symbol
+         AND adj.trade_date = daily.trade_date
+        WHERE adj.id IS NULL
+        """
+    ).fetchone()
+    if row is None:
+        raise RuntimeError("failed to count daily bars without adjustment factors")
+    return int(row[0])
+
+
+def _load_orphan_adj_factors(
+    connection: sqlite3.Connection,
+) -> tuple[OrphanAdjFactorEvidenceRow, ...]:
+    rows = connection.execute(
+        """
+        SELECT adj.id, adj.symbol, adj.trade_date, adj.source, adj.adj_factor
+        FROM adj_factors AS adj
+        LEFT JOIN daily_bars AS daily
+          ON daily.symbol = adj.symbol
+         AND daily.trade_date = adj.trade_date
+        WHERE daily.id IS NULL
+        ORDER BY adj.symbol, adj.trade_date, adj.id
+        """
+    ).fetchall()
+    return tuple(
+        OrphanAdjFactorEvidenceRow(
+            row_id=int(row[0]),
+            symbol=str(row[1]),
+            trade_date=str(row[2]),
+            source=str(row[3]),
+            adj_factor=float(row[4]),
+        )
+        for row in rows
+    )
+
+
+def _load_adj_factors_for_keys(
+    connection: sqlite3.Connection,
+    keys: tuple[tuple[str, str], ...],
+) -> tuple[OrphanAdjFactorEvidenceRow, ...]:
+    rows: list[OrphanAdjFactorEvidenceRow] = []
+    for symbol, trade_date in keys:
+        matches = connection.execute(
+            """
+            SELECT id, symbol, trade_date, source, adj_factor
+            FROM adj_factors
+            WHERE symbol = ? AND trade_date = ?
+            ORDER BY id
+            """,
+            (symbol, trade_date),
+        ).fetchall()
+        rows.extend(
+            OrphanAdjFactorEvidenceRow(
+                row_id=int(row[0]),
+                symbol=str(row[1]),
+                trade_date=str(row[2]),
+                source=str(row[3]),
+                adj_factor=float(row[4]),
+            )
+            for row in matches
+        )
+    return tuple(sorted(rows, key=lambda row: (row.symbol, row.trade_date, row.row_id)))
+
+
+def _load_authority_delete_keys(
+    evidence_path: Path,
+    *,
+    expected_count: int,
+    expected_symbol_count: int,
+    expected_min_date: str,
+    expected_max_date: str,
+) -> tuple[tuple[tuple[str, str], ...], str]:
+    resolved_path = evidence_path.resolve()
+    if not resolved_path.is_file():
+        raise FileNotFoundError(resolved_path)
+    try:
+        document = json.loads(resolved_path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, UnicodeDecodeError) as exc:
+        raise RuntimeError(f"invalid authority evidence JSON: {resolved_path}") from exc
+    if not isinstance(document, dict) or not isinstance(document.get("rows"), list):
+        raise RuntimeError("authority evidence must contain a rows list")
+
+    keys: list[tuple[str, str]] = []
+    for item in document["rows"]:
+        if not isinstance(item, dict) or item.get("action") != "delete":
+            continue
+        symbol = item.get("symbol")
+        trade_date = item.get("trade_date")
+        source = item.get("source")
+        if (
+            not isinstance(symbol, str)
+            or not isinstance(trade_date, str)
+            or source != "sina"
+        ):
+            raise RuntimeError(
+                "authority delete row must have string symbol/trade_date and source=sina"
+            )
+        try:
+            date.fromisoformat(trade_date)
+        except ValueError as exc:
+            raise RuntimeError(
+                f"authority evidence contains invalid trade_date: {trade_date}"
+            ) from exc
+        keys.append((symbol, trade_date))
+
+    unique_keys = set(keys)
+    if len(keys) != expected_count or len(unique_keys) != expected_count:
+        raise RuntimeError(
+            "authority delete-key count changed; refusing mutation: "
+            f"expected={expected_count}, rows={len(keys)}, unique={len(unique_keys)}"
+        )
+    symbol_count = len({symbol for symbol, _ in unique_keys})
+    minimum = min(trade_date for _, trade_date in unique_keys)
+    maximum = max(trade_date for _, trade_date in unique_keys)
+    if (
+        symbol_count != expected_symbol_count
+        or minimum != expected_min_date
+        or maximum != expected_max_date
+    ):
+        raise RuntimeError(
+            "authority delete-key scope changed; refusing mutation: "
+            f"symbols={symbol_count}/{expected_symbol_count}, "
+            f"dates={minimum}..{maximum}/{expected_min_date}..{expected_max_date}"
+        )
+    return tuple(sorted(unique_keys)), _sha256(resolved_path)
 
 
 def _load_mock_rows(connection: sqlite3.Connection) -> tuple[DailyBarEvidenceRow, ...]:
@@ -476,6 +684,7 @@ def repair_invalid_sina_daily_bars(
                 before_count=0,
                 repaired_count=0,
                 deleted_count=0,
+                deleted_adj_factor_count=0,
                 after_count=0,
                 backup_path=None,
                 backup_sha256=None,
@@ -509,6 +718,23 @@ def repair_invalid_sina_daily_bars(
         deleted_count = sum(row.action == "delete" for row in evidence_rows)
         if repaired_count + deleted_count != expected_count:
             raise RuntimeError("repair plan does not cover every invalid daily-bar row")
+        delete_keys = tuple(
+            sorted(
+                (row.symbol, row.trade_date)
+                for row in evidence_rows
+                if row.action == "delete"
+            )
+        )
+        matching_adj_factors = (
+            _load_adj_factors_for_keys(connection, delete_keys)
+            if _table_exists(connection, "adj_factors")
+            else ()
+        )
+        if any(row.source != "sina-hfq" for row in matching_adj_factors):
+            raise RuntimeError(
+                "invalid Sina rows have a non-sina-hfq adjustment factor; refusing mutation"
+            )
+        planned_adj_factor_deletes = len(matching_adj_factors)
 
         if not apply:
             return SinaRepairResult(
@@ -517,6 +743,7 @@ def repair_invalid_sina_daily_bars(
                 before_count=before_count,
                 repaired_count=repaired_count,
                 deleted_count=deleted_count,
+                deleted_adj_factor_count=planned_adj_factor_deletes,
                 after_count=before_count,
                 backup_path=None,
                 backup_sha256=None,
@@ -538,8 +765,17 @@ def repair_invalid_sina_daily_bars(
         try:
             if _load_invalid_daily_bars(connection) != invalid_rows:
                 raise RuntimeError("invalid daily-bar rows changed during refetch; rolling back")
+            if (
+                _table_exists(connection, "adj_factors")
+                and _load_adj_factors_for_keys(connection, delete_keys)
+                != matching_adj_factors
+            ):
+                raise RuntimeError(
+                    "matching adjustment factors changed during refetch; rolling back"
+                )
             applied_repairs = 0
             applied_deletes = 0
+            applied_adj_factor_deletes = 0
             for row in evidence_rows:
                 if row.action == "repair":
                     cursor = connection.execute(
@@ -563,6 +799,15 @@ def repair_invalid_sina_daily_bars(
                     )
                     applied_repairs += int(cursor.rowcount)
                 elif row.action == "delete":
+                    if _table_exists(connection, "adj_factors"):
+                        adj_cursor = connection.execute(
+                            """
+                            DELETE FROM adj_factors
+                            WHERE symbol = ? AND trade_date = ? AND source = 'sina-hfq'
+                            """,
+                            (row.symbol, row.trade_date),
+                        )
+                        applied_adj_factor_deletes += int(adj_cursor.rowcount)
                     cursor = connection.execute(
                         """
                         DELETE FROM daily_bars
@@ -581,12 +826,16 @@ def repair_invalid_sina_daily_bars(
             if (
                 applied_repairs != repaired_count
                 or applied_deletes != deleted_count
+                or applied_adj_factor_deletes != planned_adj_factor_deletes
                 or after_count != 0
             ):
                 raise RuntimeError(
                     "unexpected Sina repair result: "
                     f"repairs={applied_repairs}/{repaired_count}, "
-                    f"deletes={applied_deletes}/{deleted_count}, remaining={after_count}"
+                    f"deletes={applied_deletes}/{deleted_count}, "
+                    "adj_factor_deletes="
+                    f"{applied_adj_factor_deletes}/{planned_adj_factor_deletes}, "
+                    f"remaining={after_count}"
                 )
             if proposals_after != proposals_before or orders_after != orders_before:
                 raise RuntimeError("trading safety-table count changed; rolling back")
@@ -605,6 +854,7 @@ def repair_invalid_sina_daily_bars(
             before_count=before_count,
             repaired_count=repaired_count,
             deleted_count=deleted_count,
+            deleted_adj_factor_count=applied_adj_factor_deletes,
             after_count=after_count,
             backup_path=str(completed_backup),
             backup_sha256=backup_sha256,
@@ -621,6 +871,262 @@ def repair_invalid_sina_daily_bars(
         connection.close()
 
 
+def cleanup_orphan_sina_adj_factors(
+    *,
+    database_path: Path,
+    backup_directory: Path,
+    authority_evidence_path: Path,
+    expected_count: int,
+    expected_symbol_count: int,
+    expected_min_date: str,
+    expected_max_date: str,
+    apply: bool,
+) -> OrphanAdjFactorCleanupResult:
+    """Delete only orphan Sina HFQ factors named by prior row-level evidence.
+
+    The authoritative delete keys must exactly equal the database's complete
+    orphan-adjustment set. Any count, key, source, symbol-range, date-range, or
+    duplicate-key drift fails closed before a backup or mutation is attempted.
+    """
+
+    database_path = database_path.resolve()
+    authority_evidence_path = authority_evidence_path.resolve()
+    if not database_path.is_file():
+        raise FileNotFoundError(database_path)
+    if expected_count <= 0 or expected_symbol_count <= 0:
+        raise ValueError("expected counts must be positive")
+    authority_keys, authority_sha256 = _load_authority_delete_keys(
+        authority_evidence_path,
+        expected_count=expected_count,
+        expected_symbol_count=expected_symbol_count,
+        expected_min_date=expected_min_date,
+        expected_max_date=expected_max_date,
+    )
+    authority_key_set = set(authority_keys)
+
+    connection = sqlite3.connect(database_path, timeout=15.0)
+    connection.execute("PRAGMA busy_timeout=15000")
+    try:
+        quick_check_before = _quick_check(connection)
+        if quick_check_before != "ok":
+            raise RuntimeError(f"database PRAGMA quick_check failed: {quick_check_before}")
+        proposals_before = _scalar_count(connection, "trade_proposals")
+        orders_before = _scalar_count(connection, "broker_orders")
+        if proposals_before != 1 or orders_before != 1:
+            raise RuntimeError(
+                "trading safety-table counts must be exactly 1/1; "
+                f"actual={proposals_before}/{orders_before}"
+            )
+        adj_duplicates_before = _duplicate_key_group_count(connection, "adj_factors")
+        daily_duplicates_before = _duplicate_key_group_count(connection, "daily_bars")
+        if adj_duplicates_before != 0 or daily_duplicates_before != 0:
+            raise RuntimeError(
+                "duplicate symbol/trade_date groups detected; refusing mutation: "
+                f"adj_factors={adj_duplicates_before}, daily_bars={daily_duplicates_before}"
+            )
+        daily_without_adj_before = _daily_bars_without_adj_count(connection)
+        orphan_rows = _load_orphan_adj_factors(connection)
+        orphan_keys = {(row.symbol, row.trade_date) for row in orphan_rows}
+        authority_rows = _load_adj_factors_for_keys(connection, authority_keys)
+
+        if not orphan_rows:
+            if authority_rows:
+                raise RuntimeError(
+                    "authority-key adjustment factors still exist but are not orphaned; "
+                    "refusing idempotent no-op"
+                )
+            return OrphanAdjFactorCleanupResult(
+                status="already_clean",
+                expected_count=expected_count,
+                expected_symbol_count=expected_symbol_count,
+                expected_min_date=expected_min_date,
+                expected_max_date=expected_max_date,
+                authority_evidence_path=str(authority_evidence_path),
+                authority_sha256=authority_sha256,
+                before_count=0,
+                deleted_count=0,
+                after_count=0,
+                backup_path=None,
+                backup_sha256=None,
+                database_quick_check=quick_check_before,
+                trade_proposals_before=proposals_before,
+                trade_proposals_after=proposals_before,
+                broker_orders_before=orders_before,
+                broker_orders_after=orders_before,
+                adj_duplicate_groups_before=adj_duplicates_before,
+                adj_duplicate_groups_after=adj_duplicates_before,
+                daily_bar_duplicate_groups_before=daily_duplicates_before,
+                daily_bar_duplicate_groups_after=daily_duplicates_before,
+                daily_bars_without_adj_before=daily_without_adj_before,
+                daily_bars_without_adj_after=daily_without_adj_before,
+                rows=(),
+                completed_at=datetime.now(UTC).isoformat(),
+            )
+
+        if orphan_keys != authority_key_set or len(orphan_rows) != expected_count:
+            raise RuntimeError(
+                "database orphan keys do not exactly equal authority delete keys; "
+                "refusing mutation: "
+                f"orphans={len(orphan_rows)}, authority={len(authority_keys)}, "
+                f"missing={len(authority_key_set - orphan_keys)}, "
+                f"unexpected={len(orphan_keys - authority_key_set)}"
+            )
+        if authority_rows != orphan_rows:
+            raise RuntimeError(
+                "authority-key adjustment rows are not exactly the orphan rows; "
+                "refusing mutation"
+            )
+        if any(row.source != "sina-hfq" for row in orphan_rows):
+            raise RuntimeError("orphan adjustment source drifted from sina-hfq")
+
+        if not apply:
+            return OrphanAdjFactorCleanupResult(
+                status="dry_run",
+                expected_count=expected_count,
+                expected_symbol_count=expected_symbol_count,
+                expected_min_date=expected_min_date,
+                expected_max_date=expected_max_date,
+                authority_evidence_path=str(authority_evidence_path),
+                authority_sha256=authority_sha256,
+                before_count=len(orphan_rows),
+                deleted_count=0,
+                after_count=len(orphan_rows),
+                backup_path=None,
+                backup_sha256=None,
+                database_quick_check=quick_check_before,
+                trade_proposals_before=proposals_before,
+                trade_proposals_after=proposals_before,
+                broker_orders_before=orders_before,
+                broker_orders_after=orders_before,
+                adj_duplicate_groups_before=adj_duplicates_before,
+                adj_duplicate_groups_after=adj_duplicates_before,
+                daily_bar_duplicate_groups_before=daily_duplicates_before,
+                daily_bar_duplicate_groups_after=daily_duplicates_before,
+                daily_bars_without_adj_before=daily_without_adj_before,
+                daily_bars_without_adj_after=daily_without_adj_before,
+                rows=orphan_rows,
+                completed_at=datetime.now(UTC).isoformat(),
+            )
+
+        timestamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
+        backup_path = (
+            backup_directory.resolve()
+            / f"alphapilot-before-orphan-sina-adj-cleanup-{timestamp}.db"
+        )
+        completed_backup, backup_sha256 = _online_backup(connection, backup_path)
+
+        connection.execute("BEGIN IMMEDIATE")
+        try:
+            if _load_orphan_adj_factors(connection) != orphan_rows:
+                raise RuntimeError(
+                    "orphan adjustment rows changed before mutation; rolling back"
+                )
+            if _scalar_count(connection, "trade_proposals") != proposals_before:
+                raise RuntimeError("trade_proposals changed before mutation; rolling back")
+            if _scalar_count(connection, "broker_orders") != orders_before:
+                raise RuntimeError("broker_orders changed before mutation; rolling back")
+            if (
+                _duplicate_key_group_count(connection, "adj_factors") != 0
+                or _duplicate_key_group_count(connection, "daily_bars") != 0
+            ):
+                raise RuntimeError("duplicate key gate changed before mutation; rolling back")
+
+            deleted_count = 0
+            for row in orphan_rows:
+                cursor = connection.execute(
+                    """
+                    DELETE FROM adj_factors
+                    WHERE id = ?
+                      AND symbol = ?
+                      AND trade_date = ?
+                      AND source = 'sina-hfq'
+                      AND NOT EXISTS (
+                          SELECT 1
+                          FROM daily_bars
+                          WHERE daily_bars.symbol = adj_factors.symbol
+                            AND daily_bars.trade_date = adj_factors.trade_date
+                      )
+                    """,
+                    (row.row_id, row.symbol, row.trade_date),
+                )
+                deleted_count += int(cursor.rowcount)
+
+            after_rows = _load_orphan_adj_factors(connection)
+            remaining_authority_rows = _load_adj_factors_for_keys(
+                connection, authority_keys
+            )
+            proposals_after = _scalar_count(connection, "trade_proposals")
+            orders_after = _scalar_count(connection, "broker_orders")
+            adj_duplicates_after = _duplicate_key_group_count(
+                connection, "adj_factors"
+            )
+            daily_duplicates_after = _duplicate_key_group_count(
+                connection, "daily_bars"
+            )
+            daily_without_adj_after = _daily_bars_without_adj_count(connection)
+            if (
+                deleted_count != expected_count
+                or after_rows
+                or remaining_authority_rows
+            ):
+                raise RuntimeError(
+                    "unexpected orphan adjustment cleanup result: "
+                    f"deleted={deleted_count}/{expected_count}, "
+                    f"orphans={len(after_rows)}, "
+                    f"authority_rows={len(remaining_authority_rows)}"
+                )
+            if proposals_after != proposals_before or orders_after != orders_before:
+                raise RuntimeError("trading safety-table count changed; rolling back")
+            if adj_duplicates_after != 0 or daily_duplicates_after != 0:
+                raise RuntimeError("duplicate key gate failed after cleanup; rolling back")
+            if daily_without_adj_after != daily_without_adj_before:
+                raise RuntimeError(
+                    "daily-bar to adjustment-factor key gap changed; rolling back: "
+                    f"before={daily_without_adj_before}, "
+                    f"after={daily_without_adj_after}"
+                )
+        except Exception:
+            connection.rollback()
+            raise
+        else:
+            connection.commit()
+
+        quick_check_after = _quick_check(connection)
+        if quick_check_after != "ok":
+            raise RuntimeError(
+                f"post-cleanup PRAGMA quick_check failed: {quick_check_after}"
+            )
+        return OrphanAdjFactorCleanupResult(
+            status="applied",
+            expected_count=expected_count,
+            expected_symbol_count=expected_symbol_count,
+            expected_min_date=expected_min_date,
+            expected_max_date=expected_max_date,
+            authority_evidence_path=str(authority_evidence_path),
+            authority_sha256=authority_sha256,
+            before_count=len(orphan_rows),
+            deleted_count=deleted_count,
+            after_count=len(after_rows),
+            backup_path=str(completed_backup),
+            backup_sha256=backup_sha256,
+            database_quick_check=quick_check_after,
+            trade_proposals_before=proposals_before,
+            trade_proposals_after=proposals_after,
+            broker_orders_before=orders_before,
+            broker_orders_after=orders_after,
+            adj_duplicate_groups_before=adj_duplicates_before,
+            adj_duplicate_groups_after=adj_duplicates_after,
+            daily_bar_duplicate_groups_before=daily_duplicates_before,
+            daily_bar_duplicate_groups_after=daily_duplicates_after,
+            daily_bars_without_adj_before=daily_without_adj_before,
+            daily_bars_without_adj_after=daily_without_adj_after,
+            rows=orphan_rows,
+            completed_at=datetime.now(UTC).isoformat(),
+        )
+    finally:
+        connection.close()
+
+
 def write_cleanup_evidence(result: MockCleanupResult, path: Path) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(
@@ -630,6 +1136,17 @@ def write_cleanup_evidence(result: MockCleanupResult, path: Path) -> None:
 
 
 def write_sina_repair_evidence(result: SinaRepairResult, path: Path) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        json.dumps(result.to_dict(), ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
+
+
+def write_orphan_adj_factor_cleanup_evidence(
+    result: OrphanAdjFactorCleanupResult,
+    path: Path,
+) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(
         json.dumps(result.to_dict(), ensure_ascii=False, indent=2) + "\n",
