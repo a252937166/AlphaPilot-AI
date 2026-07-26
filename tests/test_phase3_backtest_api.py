@@ -153,6 +153,93 @@ def test_post_v2_test_window_uses_frozen_split_and_weights(
     assert sum(abs(value) for value in run["params"]["weights"].values()) == (pytest.approx(1.0))
 
 
+def test_v3_explicit_dates_bypass_fixed_301_window(
+    audited_range: None,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    del audited_range
+    captured: dict[str, object] = {}
+    monkeypatch.setattr(
+        backtest_routes,
+        "train_test_split",
+        lambda *_args, **_kwargs: pytest.fail("explicit S9 dates must bypass 301 split"),
+    )
+    monkeypatch.setattr(
+        backtest_routes,
+        "create_backtest_run",
+        lambda _session, cfg: captured.update(cfg=cfg) or 9001,
+    )
+    monkeypatch.setattr(
+        backtest_routes,
+        "_run_queued_backtest",
+        lambda _run_id, _cfg: None,
+    )
+    monkeypatch.setattr(
+        backtest_routes,
+        "_serialize_run",
+        lambda _run: {
+            "id": 9001,
+            "signal_id": "composite-v3",
+            "status": "running",
+        },
+    )
+    monkeypatch.setattr(
+        backtest_routes.Session,
+        "get",
+        lambda *_args, **_kwargs: object(),
+    )
+
+    response = client.post(
+        "/v1/backtest/run",
+        json={
+            "signal_id": "composite-v3",
+            "start_date": START.isoformat(),
+            "end_date": END.isoformat(),
+            "rebalance_freq": "20d",
+        },
+    )
+
+    assert response.status_code == 202
+    cfg = captured["cfg"]
+    assert cfg.signal_id == "composite-v3"
+    assert cfg.start_date == START
+    assert cfg.end_date == END
+
+
+def test_v3_missing_weight_file_returns_conflict_without_queue(
+    audited_range: None,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    del audited_range
+    monkeypatch.setattr(
+        backtest_routes,
+        "create_backtest_run",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            ValueError("composite-v3 权重配置尚未生成：fixture")
+        ),
+    )
+    queued: list[object] = []
+    monkeypatch.setattr(
+        backtest_routes,
+        "_run_queued_backtest",
+        lambda *_args, **_kwargs: queued.append(object()),
+    )
+
+    response = client.post(
+        "/v1/backtest/run",
+        json={
+            "signal_id": "composite-v3",
+            "start_date": START.isoformat(),
+            "end_date": END.isoformat(),
+            "rebalance_freq": "20d",
+        },
+    )
+
+    assert response.status_code == 409
+    assert "尚未生成" in response.json()["detail"]
+    assert queued == []
+
+
 def test_factor_diagnosis_static_routes_are_not_shadowed(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

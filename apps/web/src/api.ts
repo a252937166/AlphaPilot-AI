@@ -1019,7 +1019,7 @@ export interface BacktestCostModel {
 
 export interface BacktestRunRequest {
   name?: string
-  signal_id: 'composite-v1' | 'composite-v2'
+  signal_id: 'composite-v1' | 'composite-v2' | 'composite-v3'
   window?: 'full' | 'train' | 'test' | null
   start_date?: string | null
   end_date?: string | null
@@ -1227,6 +1227,7 @@ export type FactorEvaluationStatus =
 export type FactorResearchStage =
   | 'm3_preliminary_multi_year'
   | 'm3_preliminary_flow'
+  | 'm3_s7_formal'
   | 'legacy_or_other'
 
 export interface FactorICWindow {

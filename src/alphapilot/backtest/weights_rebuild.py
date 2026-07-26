@@ -26,6 +26,8 @@ from alphapilot.engines.factors import FACTOR_SET
 
 _RESEARCH_SESSION_COUNT = 301
 _DEFAULT_OUTPUT = Path(__file__).resolve().parents[3] / "config" / "factor_weights_v2.yaml"
+_DEFAULT_VERSION = "v2.0.0"
+_DEFAULT_SIGNAL_ID = "composite-v2"
 
 
 def _finite(value: object) -> float | None:
@@ -96,7 +98,7 @@ def _normalized_weights(
         retained_ir[factor] = 0.0 if value is None or redundant else value
     denominator = sum(abs(value) for value in retained_ir.values())
     if not math.isfinite(denominator) or denominator <= 0:
-        raise ValueError("train 窗没有可用的非零 IC_IR，禁止生成 composite-v2 权重。")
+        raise ValueError("train 窗没有可用的非零 IC_IR，禁止生成复合因子权重。")
     weights = {
         factor: retained_ir[factor] / denominator
         for factor in FACTOR_SET
@@ -105,7 +107,7 @@ def _normalized_weights(
     if any(weights[factor] != 0.0 for factor in excluded):
         raise RuntimeError("historically excluded factors must retain zero weight")
     if not math.isclose(sum(abs(value) for value in weights.values()), 1.0):
-        raise RuntimeError("factor_weights_v2 L1 normalization failed")
+        raise RuntimeError("factor weights L1 normalization failed")
     return weights
 
 
@@ -125,11 +127,27 @@ def rebuild_weights(
     train_end: date,
     *,
     output_path: str | Path | None = None,
+    version: str = _DEFAULT_VERSION,
+    signal_id: str = _DEFAULT_SIGNAL_ID,
 ) -> dict[str, Any]:
     """Generate one signed train-only IC_IR weighting without test-window reads."""
 
     if train_end < train_start:
         raise ValueError("train_end must not be earlier than train_start")
+    resolved_version = str(version).strip()
+    resolved_signal_id = str(signal_id).strip()
+    if not resolved_version:
+        raise ValueError("version must not be empty")
+    if not resolved_signal_id:
+        raise ValueError("signal_id must not be empty")
+    if (
+        (resolved_version, resolved_signal_id)
+        != (_DEFAULT_VERSION, _DEFAULT_SIGNAL_ID)
+        and output_path is None
+    ):
+        raise ValueError(
+            "non-default version/signal_id requires an explicit output_path"
+        )
     ic_table = all_factors_ic(
         session,
         train_start,
@@ -143,9 +161,9 @@ def rebuild_weights(
     generated_at = datetime.now(UTC).isoformat()
     target = Path(output_path) if output_path is not None else _DEFAULT_OUTPUT
     payload: dict[str, Any] = {
-        "version": "v2.0.0",
+        "version": resolved_version,
         "profile": "train_ic_ir_once",
-        "signal_id": "composite-v2",
+        "signal_id": resolved_signal_id,
         "method": "signed_train_ic_ir_l1",
         "train_window": {
             "start": train_start.isoformat(),
@@ -165,6 +183,8 @@ def rebuild_weights(
     _write_yaml(target, payload)
     return {
         "weights": weights,
+        "version": resolved_version,
+        "signal_id": resolved_signal_id,
         "train_window": payload["train_window"],
         "factor_ic_ir": factor_ic_ir,
         "redundancy_groups": diagnosis["redundancy_groups"],

@@ -157,5 +157,100 @@ def test_rebuild_weights_uses_only_train_once_and_signed_l1_formula(
         }
         assert payload["factor_ic_ir"]["momentum_20d"] == -2.0
         assert payload["weights"] == result["weights"]
+        assert payload["version"] == result["version"] == "v2.0.0"
+        assert payload["signal_id"] == result["signal_id"] == "composite-v2"
+    finally:
+        session.close()
+
+
+def test_rebuild_weights_writes_explicit_v3_metadata_to_fixture_path(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    session = _session(tmp_path)
+    rows = [
+        {
+            "factor": factor,
+            "ic_mean": 0.01 if factor == "momentum_20d" else None,
+            "ic_ir": 1.0 if factor == "momentum_20d" else None,
+            "t_stat": 2.0 if factor == "momentum_20d" else None,
+            "n_periods": 20 if factor == "momentum_20d" else 0,
+        }
+        for factor in FACTOR_SET
+    ]
+    corr = pd.DataFrame(
+        float("nan"),
+        index=FACTOR_SET,
+        columns=FACTOR_SET,
+    )
+    for factor in FACTOR_SET:
+        corr.at[factor, factor] = 1.0
+    calls: list[str] = []
+    monkeypatch.setattr(
+        weights_rebuild,
+        "all_factors_ic",
+        lambda *_args, **_kwargs: calls.append("train_ic") or pd.DataFrame(rows),
+    )
+    monkeypatch.setattr(
+        weights_rebuild,
+        "factor_correlation",
+        lambda *_args, **_kwargs: calls.append("train_corr") or corr,
+    )
+    target = tmp_path / "factor_weights_v3.yaml"
+    try:
+        result = rebuild_weights(
+            session,
+            date(2019, 1, 2),
+            date(2024, 4, 16),
+            output_path=target,
+            version="v3.0.0",
+            signal_id="composite-v3",
+        )
+        payload = yaml.safe_load(target.read_text(encoding="utf-8"))
+
+        assert calls == ["train_ic", "train_corr"]
+        assert payload["version"] == result["version"] == "v3.0.0"
+        assert payload["signal_id"] == result["signal_id"] == "composite-v3"
+        assert payload["historical_factor_candidates"] == [
+            "momentum_20d",
+            "momentum_60d",
+            "volatility_20d",
+            "turnover_change_5d",
+            "roe",
+            "net_profit_yoy",
+            "ocf_to_profit",
+            "debt_ratio",
+            "revenue_yoy",
+            "pe_percentile",
+            "pb_percentile",
+        ]
+        assert payload["weights"]["net_inflow_5d"] == 0.0
+        assert payload["weights"]["sector_strength"] == 0.0
+        assert sum(abs(value) for value in payload["weights"].values()) == (
+            pytest.approx(1.0)
+        )
+    finally:
+        session.close()
+
+
+def test_non_default_weight_identity_requires_explicit_output_before_research(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    session = _session(tmp_path)
+    monkeypatch.setattr(
+        weights_rebuild,
+        "all_factors_ic",
+        lambda *_args, **_kwargs: pytest.fail("research must not start"),
+    )
+    try:
+        with pytest.raises(ValueError, match="explicit output_path"):
+            rebuild_weights(
+                session,
+                date(2019, 1, 2),
+                date(2024, 4, 16),
+                version="v3.0.0",
+                signal_id="composite-v3",
+            )
     finally:
         session.close()

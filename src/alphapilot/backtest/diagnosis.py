@@ -50,6 +50,8 @@ _LIVE_ONLY_FACTORS = LIVE_ONLY_FACTORS
 _HISTORY_EXCLUDED_FACTORS = HISTORY_EXCLUDED_PIT_GAP_FACTORS
 _PRELIMINARY_MULTI_YEAR_FACTORS = _PRELIMINARY_M3_FACTORS
 _PRELIMINARY_JOB_NAME = "research_preliminary_train_ic"
+_FORMAL_M3_JOB_NAME = "research_factors_m3"
+_FORMAL_M3_STAGE = "m3_s7_formal"
 _PRELIMINARY_COHORTS = {
     "multi_year_price_valuation": (
         "m3_preliminary_multi_year",
@@ -337,6 +339,106 @@ def _preliminary_provenance(
     return provenance
 
 
+def _formal_job_window(
+    run: JobRun,
+) -> tuple[date, date, dict[str, Any]] | None:
+    stats = run.stats if isinstance(run.stats, dict) else {}
+    if (
+        stats.get("status") != "formal_factor_research"
+        or stats.get("research_stage") != _FORMAL_M3_STAGE
+        or stats.get("test_window_used") is not True
+        or stats.get("historical_factor_candidates")
+        != list(HISTORICAL_FACTOR_CANDIDATES)
+    ):
+        return None
+    excluded = stats.get("excluded_factors")
+    expected_excluded = {
+        **{
+            factor: "history_excluded_pit_gap"
+            for factor in HISTORY_EXCLUDED_PIT_GAP_FACTORS
+        },
+        **{factor: "live_only" for factor in LIVE_ONLY_FACTORS},
+    }
+    if excluded != expected_excluded:
+        return None
+    samples = stats.get("samples")
+    train = samples.get("train") if isinstance(samples, dict) else None
+    if not isinstance(train, dict):
+        return None
+    results = train.get("results")
+    if not isinstance(results, dict) or set(results) != set(
+        HISTORICAL_FACTOR_CANDIDATES
+    ):
+        return None
+    window = train.get("window")
+    if not isinstance(window, dict):
+        return None
+    try:
+        start = date.fromisoformat(str(window["start"]))
+        end = date.fromisoformat(str(window["end"]))
+    except (KeyError, TypeError, ValueError):
+        return None
+    return (start, end, results) if start <= end else None
+
+
+def _formal_provenance(
+    session: Session,
+    grouped: dict[tuple[date, date], list[FactorICStat]],
+) -> dict[tuple[date, date], _PreliminaryLineage]:
+    """Resolve formal M3 train windows from their successful JobRun lineage."""
+
+    runs = list(
+        session.scalars(
+            select(JobRun)
+            .where(
+                JobRun.job_name == _FORMAL_M3_JOB_NAME,
+                JobRun.status == "ok",
+                JobRun.finished_at.is_not(None),
+            )
+            .order_by(JobRun.id.desc())
+        )
+    )
+    provenance: dict[tuple[date, date], _PreliminaryLineage] = {}
+    for run in runs:
+        if run.finished_at is None:
+            continue
+        started_at = _utc_naive(run.started_at)
+        finished_at = _utc_naive(run.finished_at)
+        if finished_at < started_at:
+            continue
+        resolved = _formal_job_window(run)
+        if resolved is None:
+            continue
+        start, end, results = resolved
+        window = (start, end)
+        if window in provenance:
+            continue
+        stored = {row.factor: row for row in grouped.get(window, [])}
+        expected_rows = [
+            stored.get(factor) for factor in HISTORICAL_FACTOR_CANDIDATES
+        ]
+        if any(row is None or row.updated_at is None for row in expected_rows):
+            continue
+        if not all(
+            started_at <= _utc_naive(row.updated_at) <= finished_at
+            for row in expected_rows
+            if row is not None and row.updated_at is not None
+        ):
+            continue
+        if not all(
+            row is not None
+            and _row_matches_job_result(row, results.get(row.factor))
+            for row in expected_rows
+        ):
+            continue
+        provenance[window] = _PreliminaryLineage(
+            research_stage=_FORMAL_M3_STAGE,
+            research_run_id=int(run.id),
+            expected_factors=HISTORICAL_FACTOR_CANDIDATES,
+        )
+    return provenance
+
+
 def factor_ic_windows(
     session: Session,
     sample_tag: Literal["train", "test", "full"] = "train",
@@ -359,7 +461,13 @@ def factor_ic_windows(
     grouped: dict[tuple[date, date], list[FactorICStat]] = {}
     for row in rows:
         grouped.setdefault((row.start_date, row.end_date), []).append(row)
-    provenance = _preliminary_provenance(session, grouped) if sample_tag == "train" else {}
+    provenance = (
+        _preliminary_provenance(session, grouped)
+        if sample_tag == "train"
+        else {}
+    )
+    if sample_tag == "train":
+        provenance.update(_formal_provenance(session, grouped))
 
     windows: list[dict[str, Any]] = []
     for (start, end), window_rows in grouped.items():
@@ -430,11 +538,13 @@ def factor_ic_windows(
         m3_primary = [
             window
             for window in windows
-            if window["research_stage"] == "m3_preliminary_multi_year"
+            if window["research_stage"]
+            in {_FORMAL_M3_STAGE, "m3_preliminary_multi_year"}
         ]
         default_window = max(
             m3_primary,
             key=lambda item: (
+                item["research_stage"] == _FORMAL_M3_STAGE,
                 int(item["research_run_id"]),
                 str(item["updated_at"]),
             ),
@@ -769,7 +879,8 @@ def factor_diagnosis_report(
         if ic["start_date"] is not None and ic["end_date"] is not None
         else None
     )
-    is_provenanced_m3 = (
+    is_formal_m3 = ic["research_stage"] == _FORMAL_M3_STAGE
+    is_provenanced_preliminary = (
         sample_tag == "train"
         and ic["research_run_id"] is not None
         and str(ic["research_stage"]).startswith("m3_preliminary_")
@@ -778,7 +889,7 @@ def factor_diagnosis_report(
         session,
         sample_tag=sample_tag,
         window=window,
-        require_lineage=is_provenanced_m3,
+        require_lineage=is_provenanced_preliminary,
     )
     ic_frame = pd.DataFrame(ic["factors"])
     classification = classify_factors(ic_frame, corr_frame)
@@ -805,7 +916,12 @@ def factor_diagnosis_report(
             "expected_factors": ic["expected_factors"],
             "selection": ic["selection"],
             "evidence_label": (
-                "M3 初步 train 证据 · test 保持封存 · 非最终结论"
+                (
+                    "M3 S7 正式 JobRun · full/train/test 已计算 · "
+                    "本页精确展示 train"
+                )
+                if is_formal_m3
+                else "M3 初步 train 证据 · test 保持封存 · 非最终结论"
                 if sample_tag == "train"
                 else "M2 历史证据 · 仅在用户主动切换后展示"
             ),
@@ -840,8 +956,16 @@ def factor_diagnosis_report(
             *ic["limitations"],
             correlation["limitation"],
             (
-                "当前是 6 个先行因子的 train 预验，不是 11 因子最终结论；"
-                "5 个财务因子等待 S2 全市场回填。"
+                (
+                    "正式 S7 JobRun 已计算 11 个历史候选因子的 "
+                    "full/train/test；本页仅展示精确 train 窗，"
+                    "不得据此回看 test 调权。"
+                )
+                if is_formal_m3
+                else (
+                    "当前是 6 个先行因子的 train 预验，不是 11 因子最终结论；"
+                    "5 个财务因子等待 S2 全市场回填。"
+                )
                 if sample_tag == "train"
                 else "该视图保留 M2 历史结论，不参与 M3 权重选择。"
             ),
