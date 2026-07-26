@@ -1,16 +1,35 @@
 from __future__ import annotations
 
 import argparse
+import fcntl
 import json
 import logging
 import os
 import subprocess
 import sys
+from collections.abc import Iterator
+from contextlib import contextmanager
 from datetime import date
 from pathlib import Path
 
-from alphapilot.jobs.factor_research_job import FORMAL_RESEARCH_JOB_NAME
+from alphapilot.jobs.factor_research_job import (
+    FORMAL_RESEARCH_JOB_NAME,
+    register_factor_research_job,
+)
 from alphapilot.jobs.registry import JOBS, run_job
+
+_ROOT = Path(__file__).resolve().parents[1]
+_LOCK_PATH = _ROOT / "data" / "p3-m3-factor-research.lock"
+_RESEARCH_ENV = {
+    "ALPHAPILOT_TRADING_MODE": "research",
+    "ALPHAPILOT_LIVE_TRADING_ENABLED": "false",
+    "ALPHAPILOT_PAPER_TRADING_ENABLED": "false",
+    "ALPHAPILOT_PAPER_AUTO_TRADING_ENABLED": "false",
+    "ALPHAPILOT_FUTU_ENABLE_ACCOUNT_MUTATION": "false",
+    "ALPHAPILOT_FUTU_ENABLE_TRADE": "false",
+    "ALPHAPILOT_SCHEDULER_ENABLED": "false",
+    "ALPHAPILOT_MARKET_POLL_ENABLED": "false",
+}
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -52,9 +71,25 @@ def _detached_command(arguments: argparse.Namespace) -> list[str]:
         "--train-ratio",
         str(arguments.train_ratio),
         "--external-pit-evidence",
-        str(arguments.external_pit_evidence),
+        str(arguments.external_pit_evidence.expanduser().resolve()),
     ]
     return command
+
+
+@contextmanager
+def _research_host_lock() -> Iterator[None]:
+    _LOCK_PATH.parent.mkdir(parents=True, exist_ok=True)
+    with _LOCK_PATH.open("a+", encoding="utf-8") as lock:
+        try:
+            fcntl.flock(lock.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError as exc:
+            raise RuntimeError(
+                f"formal factor research is already running: {_LOCK_PATH}"
+            ) from exc
+        try:
+            yield
+        finally:
+            fcntl.flock(lock.fileno(), fcntl.LOCK_UN)
 
 
 def _detach(arguments: argparse.Namespace) -> int:
@@ -67,7 +102,8 @@ def _detach(arguments: argparse.Namespace) -> int:
             stdout=stream,
             stderr=subprocess.STDOUT,
             start_new_session=True,
-            cwd=Path(__file__).resolve().parents[1],
+            cwd=_ROOT,
+            env={**os.environ, **_RESEARCH_ENV},
         )
     print(json.dumps({"pid": process.pid, "log_path": str(log_path)}))
     return 0
@@ -78,22 +114,21 @@ def _foreground(arguments: argparse.Namespace) -> int:
         level=logging.INFO,
         format="%(asctime)s %(levelname)s %(name)s %(message)s",
     )
-    # Importing alphapilot.jobs registers the trigger=None formal job.
-    import alphapilot.jobs  # noqa: F401
-
     os.environ["ALPHAPILOT_S6_EXTERNAL_PIT_EVIDENCE"] = str(
         arguments.external_pit_evidence.expanduser().resolve()
     )
-    if FORMAL_RESEARCH_JOB_NAME not in JOBS:
-        raise RuntimeError(f"job is not registered: {FORMAL_RESEARCH_JOB_NAME}")
-    record = run_job(
-        FORMAL_RESEARCH_JOB_NAME,
-        start_date=arguments.start_date,
-        end_date=arguments.end_date,
-        train_ratio=arguments.train_ratio,
-        do_rebuild=False,
-        output_path=None,
-    )
+    register_factor_research_job()
+    with _research_host_lock():
+        if FORMAL_RESEARCH_JOB_NAME not in JOBS:
+            raise RuntimeError(f"job is not registered: {FORMAL_RESEARCH_JOB_NAME}")
+        record = run_job(
+            FORMAL_RESEARCH_JOB_NAME,
+            start_date=arguments.start_date,
+            end_date=arguments.end_date,
+            train_ratio=arguments.train_ratio,
+            do_rebuild=False,
+            output_path=None,
+        )
     print(
         json.dumps(
             {
