@@ -252,6 +252,7 @@ def all_factors_ic(
     end: date,
     *,
     sample_tag: Literal["train", "test", "full"] = "full",
+    persist: bool = True,
 ) -> pd.DataFrame:
     """Research the audited historical factor scope and persist summaries.
 
@@ -259,12 +260,19 @@ def all_factors_ic(
     reconstructed without look-ahead.  ``sector_strength`` remains live-only.
     """
 
-    return factors_ic(
+    if persist:
+        return factors_ic(
+            session,
+            HISTORICAL_FACTOR_CANDIDATES,
+            start,
+            end,
+            sample_tag=sample_tag,
+        )
+    return research_factors_ic(
         session,
         HISTORICAL_FACTOR_CANDIDATES,
         start,
         end,
-        sample_tag=sample_tag,
     )
 
 
