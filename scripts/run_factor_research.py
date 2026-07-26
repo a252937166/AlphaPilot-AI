@@ -114,6 +114,7 @@ def _foreground(arguments: argparse.Namespace) -> int:
         level=logging.INFO,
         format="%(asctime)s %(levelname)s %(name)s %(message)s",
     )
+    os.environ.update(_RESEARCH_ENV)
     os.environ["ALPHAPILOT_S6_EXTERNAL_PIT_EVIDENCE"] = str(
         arguments.external_pit_evidence.expanduser().resolve()
     )

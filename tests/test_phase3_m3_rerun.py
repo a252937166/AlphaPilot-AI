@@ -270,6 +270,11 @@ def test_foreground_runner_registers_job_and_forces_s7_only(
     tmp_path: Path,
 ) -> None:
     calls: list[tuple[str, dict[str, Any]]] = []
+    for key in (
+        *run_factor_research._RESEARCH_ENV,
+        "ALPHAPILOT_S6_EXTERNAL_PIT_EVIDENCE",
+    ):
+        monkeypatch.delenv(key, raising=False)
     def fake_register() -> None:
         monkeypatch.setitem(
             run_factor_research.JOBS,
@@ -307,6 +312,10 @@ def test_foreground_runner_registers_job_and_forces_s7_only(
     )
 
     assert result == 0
+    assert all(
+        run_factor_research.os.environ[key] == value
+        for key, value in run_factor_research._RESEARCH_ENV.items()
+    )
     assert calls == [
         (
             "research_factors_m3",
