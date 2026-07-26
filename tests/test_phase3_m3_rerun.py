@@ -1,0 +1,245 @@
+from __future__ import annotations
+
+from contextlib import contextmanager
+from datetime import date, timedelta
+from pathlib import Path
+from typing import Any
+
+import pandas as pd
+import pytest
+
+from alphapilot.backtest.factor_scope import HISTORICAL_FACTOR_CANDIDATES
+from alphapilot.jobs import factor_research_job
+from alphapilot.jobs.registry import JobExecutionError
+
+
+def _ic_table(offset: float = 0.0) -> pd.DataFrame:
+    return pd.DataFrame.from_records(
+        [
+            {
+                "factor": factor,
+                "ic_mean": 0.01 + offset,
+                "ic_ir": 0.1 + offset,
+                "t_stat": 2.0 + offset,
+                "n_periods": 42,
+                "long_short": 0.02 + offset,
+            }
+            for factor in HISTORICAL_FACTOR_CANDIDATES
+        ]
+    )
+
+
+@contextmanager
+def _fake_session() -> Any:
+    yield object()
+
+
+def test_formal_runtime_uses_explicit_full_train_test_and_lineage(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    calls: list[tuple[str, date, date]] = []
+    calendar = [date(2019, 1, 2) + timedelta(days=index) for index in range(10)]
+
+    monkeypatch.setattr(
+        factor_research_job,
+        "_require_research_safety",
+        lambda: {"trading_mode": "research"},
+    )
+    monkeypatch.setattr(
+        factor_research_job,
+        "_require_s6_gate",
+        lambda: {
+            "ready_for_s7": True,
+            "report_version": "fixture",
+            "generated_at": "2026-07-26T00:00:00+00:00",
+        },
+    )
+    monkeypatch.setattr(factor_research_job, "get_session", _fake_session)
+    monkeypatch.setattr(
+        factor_research_job,
+        "_calendar",
+        lambda _session, start, end: (
+            calendar
+            if (start, end) == (date(2019, 1, 1), date(2019, 12, 31))
+            else pytest.fail("calendar must receive the explicit caller window")
+        ),
+    )
+
+    def fake_ic(
+        _session: object,
+        start: date,
+        end: date,
+        *,
+        sample_tag: str,
+        persist: bool,
+    ) -> pd.DataFrame:
+        assert persist is False
+        calls.append((sample_tag, start, end))
+        return _ic_table({"full": 0.0, "train": 0.1, "test": 0.2}[sample_tag])
+
+    correlation = pd.DataFrame(
+        1.0,
+        index=HISTORICAL_FACTOR_CANDIDATES,
+        columns=HISTORICAL_FACTOR_CANDIDATES,
+    )
+    correlation.attrs = {
+        "method": "fixture",
+        "minimum_pair_periods": 3,
+        "decision_dates": ["2019-01-02"],
+    }
+    monkeypatch.setattr(factor_research_job, "all_factors_ic", fake_ic)
+    monkeypatch.setattr(
+        factor_research_job,
+        "factor_correlation",
+        lambda _session, start, end: (
+            correlation
+            if (start, end) == (calendar[0], calendar[6])
+            else pytest.fail("correlation must use the explicit train window")
+        ),
+    )
+    monkeypatch.setattr(
+        factor_research_job,
+        "persist_factors_ic",
+        lambda _session, table, **kwargs: (
+            None
+            if table is not None
+            and kwargs["sample_tag"] in {"full", "train", "test"}
+            else pytest.fail("unexpected IC persistence payload")
+        ),
+    )
+    monkeypatch.setattr(
+        factor_research_job,
+        "persist_factor_correlation",
+        lambda _session, corr, **kwargs: (
+            66
+            if corr is correlation
+            and kwargs
+            == {
+                "sample_tag": "train",
+                "start": calendar[0],
+                "end": calendar[6],
+            }
+            else pytest.fail("correlation lineage/window mismatch")
+        ),
+    )
+    monkeypatch.setattr(
+        factor_research_job,
+        "rebuild_weights",
+        lambda *_args, **_kwargs: pytest.fail("S7 must not rebuild weights"),
+    )
+
+    result = factor_research_job.run_factor_research(
+        start_date=date(2019, 1, 1),
+        end_date=date(2019, 12, 31),
+        train_ratio=0.7,
+        do_rebuild=False,
+        output_path=tmp_path / "unused.yaml",
+    )
+
+    assert calls == [
+        ("full", calendar[0], calendar[-1]),
+        ("train", calendar[0], calendar[6]),
+        ("test", calendar[7], calendar[-1]),
+    ]
+    assert result["status"] == "formal_factor_research"
+    assert set(result["samples"]) == {"full", "train", "test"}
+    assert all(
+        set(sample["n_periods"]) == set(HISTORICAL_FACTOR_CANDIDATES)
+        for sample in result["samples"].values()
+    )
+    assert result["correlation"]["stored_cells"] == 66
+    assert result["correlation"]["lineage"] == {
+        "job_name": "research_factors_m3",
+        "sample_tag": "train",
+        "start_date": calendar[0].isoformat(),
+        "end_date": calendar[6].isoformat(),
+    }
+    assert result["excluded_factors"] == {
+        "net_inflow_5d": "history_excluded_pit_gap",
+        "sector_strength": "live_only",
+    }
+    assert result["weights_written"] is False
+
+
+def test_s6_gate_blocks_before_any_database_or_research_read(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def blocked() -> dict[str, Any]:
+        raise JobExecutionError(
+            "S6 blocked",
+            stats={"status": "blocked_s6", "research_started": False},
+        )
+
+    monkeypatch.setattr(factor_research_job, "_require_s6_gate", blocked)
+    monkeypatch.setattr(
+        factor_research_job,
+        "_require_research_safety",
+        lambda: {"trading_mode": "research"},
+    )
+    monkeypatch.setattr(
+        factor_research_job,
+        "get_session",
+        lambda: pytest.fail("S6 must run before opening a research Session"),
+    )
+    monkeypatch.setattr(
+        factor_research_job,
+        "_calendar",
+        lambda *_args: pytest.fail("S6 must run before reading the calendar"),
+    )
+    monkeypatch.setattr(
+        factor_research_job,
+        "all_factors_ic",
+        lambda *_args, **_kwargs: pytest.fail("S6 must run before factor outcomes"),
+    )
+
+    with pytest.raises(JobExecutionError, match="S6 blocked") as captured:
+        factor_research_job.run_factor_research(
+            start_date=date(2019, 1, 1),
+            end_date=date(2026, 7, 23),
+        )
+    assert captured.value.stats["research_started"] is False
+
+
+def test_safety_gate_blocks_before_s6_or_database(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    blocked = JobExecutionError(
+        "unsafe",
+        stats={"status": "blocked_safety", "research_started": False},
+    )
+    monkeypatch.setattr(
+        factor_research_job,
+        "_require_research_safety",
+        lambda: (_ for _ in ()).throw(blocked),
+    )
+    monkeypatch.setattr(
+        factor_research_job,
+        "_require_s6_gate",
+        lambda: pytest.fail("S6 must not run when safety is open"),
+    )
+    monkeypatch.setattr(
+        factor_research_job,
+        "get_session",
+        lambda: pytest.fail("database must remain untouched"),
+    )
+
+    with pytest.raises(JobExecutionError, match="unsafe"):
+        factor_research_job.run_factor_research(
+            start_date=date(2019, 1, 1),
+            end_date=date(2026, 7, 23),
+        )
+
+
+def test_formal_runtime_never_calls_fixed_301_split(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import alphapilot.backtest.weights_rebuild as weights_rebuild
+
+    monkeypatch.setattr(
+        weights_rebuild,
+        "train_test_split",
+        lambda *_args, **_kwargs: pytest.fail("fixed 301 split is forbidden"),
+    )
+    # The formal module deliberately does not import the fixed helper.
+    assert "train_test_split" not in factor_research_job.__dict__
