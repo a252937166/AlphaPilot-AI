@@ -3,10 +3,12 @@ from __future__ import annotations
 from contextlib import contextmanager
 from datetime import date, timedelta
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
 import pandas as pd
 import pytest
+from scripts import run_factor_research
 
 from alphapilot.backtest.factor_scope import HISTORICAL_FACTOR_CANDIDATES
 from alphapilot.jobs import factor_research_job
@@ -243,3 +245,95 @@ def test_formal_runtime_never_calls_fixed_301_split(
     )
     # The formal module deliberately does not import the fixed helper.
     assert "train_test_split" not in factor_research_job.__dict__
+
+
+def test_foreground_runner_registers_job_and_forces_s7_only(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    calls: list[tuple[str, dict[str, Any]]] = []
+    def fake_register() -> None:
+        monkeypatch.setitem(
+            run_factor_research.JOBS,
+            run_factor_research.FORMAL_RESEARCH_JOB_NAME,
+            object(),
+        )
+
+    monkeypatch.setattr(
+        run_factor_research,
+        "register_factor_research_job",
+        fake_register,
+    )
+    monkeypatch.setattr(
+        run_factor_research,
+        "_research_host_lock",
+        _fake_session,
+    )
+    monkeypatch.setattr(
+        run_factor_research,
+        "run_job",
+        lambda name, **kwargs: (
+            calls.append((name, kwargs))
+            or SimpleNamespace(id=7, status="ok", error=None, stats={})
+        ),
+    )
+    evidence = tmp_path / "signed.json"
+
+    result = run_factor_research._foreground(
+        SimpleNamespace(
+            start_date=date(2019, 1, 2),
+            end_date=date(2026, 7, 23),
+            train_ratio=0.7,
+            external_pit_evidence=evidence,
+        )
+    )
+
+    assert result == 0
+    assert calls == [
+        (
+            "research_factors_m3",
+            {
+                "start_date": date(2019, 1, 2),
+                "end_date": date(2026, 7, 23),
+                "train_ratio": 0.7,
+                "do_rebuild": False,
+                "output_path": None,
+            },
+        )
+    ]
+
+
+def test_detached_child_uses_resolved_evidence_and_research_safety_env(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    captured: dict[str, Any] = {}
+
+    class _Process:
+        pid = 321
+
+    def fake_popen(command: list[str], **kwargs: Any) -> _Process:
+        captured["command"] = command
+        captured["kwargs"] = kwargs
+        return _Process()
+
+    monkeypatch.setattr(run_factor_research.subprocess, "Popen", fake_popen)
+    evidence = tmp_path / "signed.json"
+    result = run_factor_research._detach(
+        SimpleNamespace(
+            start_date=date(2019, 1, 2),
+            end_date=date(2026, 7, 23),
+            train_ratio=0.7,
+            external_pit_evidence=evidence,
+            log_path=tmp_path / "research.log",
+        )
+    )
+
+    assert result == 0
+    command = captured["command"]
+    assert str(evidence.resolve()) in command
+    child_env = captured["kwargs"]["env"]
+    assert all(
+        child_env[key] == value
+        for key, value in run_factor_research._RESEARCH_ENV.items()
+    )
