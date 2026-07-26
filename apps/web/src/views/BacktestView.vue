@@ -135,12 +135,42 @@ const m3FactorWindows = computed(() =>
     (window) => window.research_stage !== 'legacy_or_other',
   ) ?? [],
 )
+const isFormalM3 = computed(
+  () =>
+    diagnosis.value?.sample.research_stage === 'm3_s7_formal'
+    || selectedFactorWindow.value?.research_stage === 'm3_s7_formal',
+)
+const m3RequestedCount = computed(() =>
+  isFormalM3.value
+    ? diagnosis.value?.sample.expected_factors.length
+      ?? selectedFactorWindow.value?.expected_factors.length
+      ?? 0
+    : diagnosis.value?.coverage.preliminary_requested_count
+      ?? selectedFactorWindow.value?.preliminary_requested_count
+      ?? 0,
+)
+const m3MeasurableCount = computed(() =>
+  isFormalM3.value
+    ? diagnosis.value?.sample.available_count
+      ?? selectedFactorWindow.value?.measurable_count
+      ?? 0
+    : diagnosis.value?.coverage.preliminary_measurable_count
+      ?? selectedFactorWindow.value?.preliminary_measurable_count
+      ?? 0,
+)
+const m3NoSampleCount = computed(() =>
+  isFormalM3.value
+    ? diagnosis.value?.factors.filter(
+      (factor) => factor.evaluation_status === 'evaluated_no_sample',
+    ).length ?? selectedFactorWindow.value?.evaluated_no_sample_count ?? 0
+    : diagnosis.value?.coverage.preliminary_evaluated_no_sample_count
+      ?? selectedFactorWindow.value?.preliminary_evaluated_no_sample_count
+      ?? 0,
+)
 
 const diagnosisTabCount = computed(() => {
   if (diagnosisMode.value === 'm3') {
-    return factorWindows.value?.scope.preliminary_requested_count
-      ?? diagnosis.value?.coverage.preliminary_requested_count
-      ?? null
+    return m3RequestedCount.value || null
   }
   return diagnosis.value?.sample.factor_count ?? null
 })
@@ -917,6 +947,16 @@ async function loadDiagnosis(force = false) {
         endDate: selected.end_date,
       })
       if (!isCurrent()) return
+      if (
+        !result.available
+        || !result.sample.selection.exact_window
+        || result.sample.start_date !== selected.start_date
+        || result.sample.end_date !== selected.end_date
+      ) {
+        throw new Error(
+          `精确窗口校验失败：请求 ${selected.start_date} → ${selected.end_date}，拒绝展示错窗结果。`,
+        )
+      }
       diagnosis.value = result
       return
     }
@@ -1468,8 +1508,8 @@ onUnmounted(() => {
             :class="{ active: diagnosisMode === 'm3' }"
             @click="switchDiagnosisMode('m3')"
           >
-            M3 train 预验
-            <span>默认 · test 封存</span>
+            {{ isFormalM3 ? 'M3 S7 正式' : 'M3 train 预验' }}
+            <span>{{ isFormalM3 ? '精确 train · 正式 lineage' : '默认 · test 封存' }}</span>
           </button>
           <button
             :aria-pressed="diagnosisMode === 'm2'"
@@ -1494,9 +1534,15 @@ onUnmounted(() => {
               :value="factorWindowKey(window)"
             >
               {{ window.start_date }} → {{ window.end_date }}
-              · {{ window.preliminary_measurable_count }}/{{ window.preliminary_requested_count }} 可测
+              · {{ window.research_stage === 'm3_s7_formal'
+                ? `${window.measurable_count}/${window.expected_factors.length}`
+                : `${window.preliminary_measurable_count}/${window.preliminary_requested_count}` }} 可测
               · Job #{{ window.research_run_id }}
-              {{ window.research_stage === 'm3_preliminary_flow' ? '· 资金流独立窗' : '· 多年主窗' }}
+              {{ window.research_stage === 'm3_s7_formal'
+                ? '· 正式多年窗'
+                : window.research_stage === 'm3_preliminary_flow'
+                  ? '· 资金流独立窗'
+                  : '· 多年主窗' }}
             </option>
           </select>
         </label>
@@ -1516,7 +1562,9 @@ onUnmounted(() => {
           <h2>{{ diagnosisMode === 'm3' ? '正在读取精确 train 窗' : '正在读取 M2 历史证据' }}</h2>
           <p>
             {{ diagnosisMode === 'm3'
-              ? '只读取持久化 train 结果，不请求 full/test，也不触发权重重算。'
+              ? isFormalM3
+                ? '只读取正式 JobRun 的精确 train 结果，不现场重算 full/test，也不触发权重重算。'
+                : '只读取持久化 train 结果，不请求 full/test，也不触发权重重算。'
               : '用户已主动切换；载入 full 诊断与同协议样本外对照。' }}
           </p>
         </div>
@@ -1595,10 +1643,12 @@ onUnmounted(() => {
             <div class="preview-title">
               <Beaker :size="17" />
               <div>
-                <h2>M3 初步 train 诊断</h2>
+                <h2>{{ isFormalM3 ? 'M3 S7 正式 train 诊断' : 'M3 初步 train 诊断' }}</h2>
                 <p>
                   精确窗口已锁定至 Job #{{ diagnosis.sample.research_run_id }}；
-                  test 窗未读取，当前结果不用于调权。
+                  {{ isFormalM3
+                    ? 'full/train/test 已由该 JobRun 计算，本页只展示 train，禁止回看 test 调权。'
+                    : 'test 窗未读取，当前结果不用于调权。' }}
                 </p>
               </div>
             </div>
@@ -1606,16 +1656,16 @@ onUnmounted(() => {
           </div>
           <div class="preview-counts" aria-label="M3 预验覆盖统计">
             <span>
-              <b class="mono">{{ diagnosis.coverage.preliminary_requested_count }}</b>
-              先行因子
+              <b class="mono">{{ m3RequestedCount }}</b>
+              {{ isFormalM3 ? '历史候选' : '先行因子' }}
             </span>
             <span>
-              <b class="mono up">{{ diagnosis.coverage.preliminary_measurable_count }}</b>
+              <b class="mono up">{{ m3MeasurableCount }}</b>
               本窗可测
             </span>
             <span>
-              <b class="mono">{{ diagnosis.coverage.financial_pending_count }}</b>
-              财务待 S2
+              <b class="mono">{{ isFormalM3 ? m3NoSampleCount : diagnosis.coverage.financial_pending_count }}</b>
+              {{ isFormalM3 ? '已算 n=0' : '财务待 S2' }}
             </span>
             <span>
               <b class="mono">
@@ -1635,10 +1685,10 @@ onUnmounted(() => {
             <b class="mono">{{ diagnosis.sample.start_date || '—' }} → {{ diagnosis.sample.end_date || '—' }}</b>
           </span>
           <span>
-            {{ diagnosisMode === 'm3' ? '先行可测' : '可测因子' }}
+            {{ diagnosisMode === 'm3' ? (isFormalM3 ? '候选可测' : '先行可测') : '可测因子' }}
             <b class="mono">
               {{ diagnosisMode === 'm3'
-                ? `${diagnosis.coverage.preliminary_measurable_count} / ${diagnosis.coverage.preliminary_requested_count}`
+                ? `${m3MeasurableCount} / ${m3RequestedCount}`
                 : `${diagnosis.sample.available_count} / ${diagnosis.sample.factor_count}` }}
             </b>
           </span>
@@ -1646,15 +1696,19 @@ onUnmounted(() => {
             {{ diagnosisMode === 'm3' ? '已算但 n=0' : '弱证据' }}
             <b class="mono">
               {{ diagnosisMode === 'm3'
-                ? diagnosis.coverage.preliminary_evaluated_no_sample_count
+                ? m3NoSampleCount
                 : diagnosis.classification_counts.ineffective }}
             </b>
           </span>
           <span>
-            {{ diagnosisMode === 'm3' ? '财务待回填' : '样本不足' }}
+            {{ diagnosisMode === 'm3'
+              ? (isFormalM3 ? '历史排除' : '财务待回填')
+              : '样本不足' }}
             <b class="mono">
               {{ diagnosisMode === 'm3'
-                ? diagnosis.coverage.financial_pending_count
+                ? isFormalM3
+                  ? diagnosis.coverage.history_excluded_pit_gap_count
+                  : diagnosis.coverage.financial_pending_count
                 : diagnosis.classification_counts.insufficient_data }}
             </b>
           </span>
@@ -1873,7 +1927,9 @@ onUnmounted(() => {
 
         <p class="research-disclaimer">
           {{ diagnosisMode === 'm3'
-            ? 'M3 当前只展示 train 预验：test 继续封存，不据此调权，也不连接提案、委托或交易。'
+            ? isFormalM3
+              ? 'M3 当前展示正式 JobRun 的精确 train：full/test 不在本页展开，禁止回看调权，也不连接提案、委托或交易。'
+              : 'M3 当前只展示 train 预验：test 继续封存，不据此调权，也不连接提案、委托或交易。'
             : 'M2 是只读历史研究：失败不会触发自动调参、提案、委托或交易。' }}
         </p>
       </div>

@@ -47,7 +47,11 @@ class CostModelRequest(BaseModel):
 
 class BacktestRunRequest(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=64)
-    signal_id: Literal["composite-v1", "composite-v2"] = "composite-v1"
+    signal_id: Literal[
+        "composite-v1",
+        "composite-v2",
+        "composite-v3",
+    ] = "composite-v1"
     window: Literal["full", "train", "test"] | None = None
     start_date: date | None = None
     end_date: date | None = None
@@ -211,7 +215,13 @@ def start_backtest(
             detail="已有回测正在运行；请等待完成后再启动新的全市场回测。",
         )
     cfg = _request_config(session, body, _available_range(session))
-    run_id = create_backtest_run(session, cfg)
+    try:
+        run_id = create_backtest_run(session, cfg)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=str(exc),
+        ) from exc
     background_tasks.add_task(_run_queued_backtest, run_id, cfg)
     queued = session.get(BacktestRun, run_id)
     if queued is None:

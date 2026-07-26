@@ -246,9 +246,19 @@ def run_factor_research(
 
     if end_date < start_date:
         raise ValueError("end_date must not be earlier than start_date")
+    if not isinstance(do_rebuild, bool):
+        raise ValueError("do_rebuild must be a boolean")
     ratio = _validated_ratio(train_ratio)
     if do_rebuild and output_path is None:
         raise ValueError("do_rebuild=True requires an explicit output_path")
+    if (
+        do_rebuild
+        and output_path is not None
+        and Path(output_path).name != "factor_weights_v3.yaml"
+    ):
+        raise ValueError(
+            "S9 rebuild output must be named factor_weights_v3.yaml"
+        )
 
     # These are deliberately first: no Session, calendar, factor outcome, or
     # writable research table is touched until both current gates pass.
@@ -262,6 +272,10 @@ def run_factor_research(
         "safety": safety,
         "s6_gate": s6_gate,
         "research_started": True,
+        "requested_window": {
+            "start": start_date.isoformat(),
+            "end": end_date.isoformat(),
+        },
         "train_ratio": ratio,
         "historical_factor_candidates": list(HISTORICAL_FACTOR_CANDIDATES),
         "excluded_factors": {
@@ -405,6 +419,8 @@ def run_factor_research(
                     train_start,
                     train_end,
                     output_path=output_path,
+                    version="v3.0.0",
+                    signal_id="composite-v3",
                 )
             phase_durations["rebuild"] = round(monotonic() - phase_started, 3)
             stats["rebuild"] = rebuilt

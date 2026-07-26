@@ -5,6 +5,7 @@ from pathlib import Path
 
 import pandas as pd
 import pytest
+import yaml
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session
 
@@ -324,6 +325,78 @@ def test_composite_v2_loads_frozen_weight_snapshot(tmp_path: Path) -> None:
                 end_date=date(2026, 7, 2),
                 signal_id="future-model",
             )
+    finally:
+        session.close()
+
+
+def test_composite_v3_routes_to_explicit_weight_file(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    session = _session(tmp_path)
+    weight_file = tmp_path / "factor_weights_v3.yaml"
+    weight_file.write_text(
+        yaml.safe_dump(
+            {
+                "version": "v3.0.0",
+                "profile": "synthetic_fixture",
+                "weights": {
+                    "momentum_20d": 0.6,
+                    "roe": 0.4,
+                    "net_inflow_5d": 0.0,
+                    "sector_strength": 0.0,
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setitem(
+        engine_module._SIGNAL_WEIGHT_FILES,
+        "composite-v3",
+        weight_file,
+    )
+    try:
+        run_id = create_backtest_run(
+            session,
+            BacktestConfig(
+                start_date=date(2026, 7, 1),
+                end_date=date(2026, 7, 2),
+                signal_id="composite-v3",
+                rebalance_freq="20d",
+            ),
+        )
+        run = session.get(BacktestRun, run_id)
+
+        assert run is not None
+        assert run.signal_id == "composite-v3"
+        assert run.params["weight_version"] == "v3.0.0"
+        assert run.params["weights"]["roe"] == pytest.approx(0.4)
+    finally:
+        session.close()
+
+
+def test_composite_v3_missing_file_fails_before_run_row(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    session = _session(tmp_path)
+    missing = tmp_path / "missing-factor-weights-v3.yaml"
+    monkeypatch.setitem(
+        engine_module._SIGNAL_WEIGHT_FILES,
+        "composite-v3",
+        missing,
+    )
+    try:
+        with pytest.raises(ValueError, match=r"composite-v3.*尚未生成"):
+            create_backtest_run(
+                session,
+                BacktestConfig(
+                    start_date=date(2026, 7, 1),
+                    end_date=date(2026, 7, 2),
+                    signal_id="composite-v3",
+                ),
+            )
+        assert session.scalar(select(BacktestRun)) is None
     finally:
         session.close()
 

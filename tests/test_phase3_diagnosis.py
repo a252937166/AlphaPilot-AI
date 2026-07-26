@@ -13,6 +13,7 @@ from alphapilot.backtest.diagnosis import (
     factor_ic_report,
     factor_ic_windows,
 )
+from alphapilot.backtest.factor_scope import HISTORICAL_FACTOR_CANDIDATES
 from alphapilot.db.models import (
     BacktestDaily,
     BacktestRun,
@@ -82,6 +83,40 @@ def _preliminary_job_stats(
                 },
                 "results": {factor: dict(flow_result) for factor in flow_factors},
             },
+        },
+    }
+
+
+def _formal_job_stats(start: date, end: date) -> dict[str, object]:
+    result = {
+        "ic_mean": 0.03,
+        "ic_ir": 0.3,
+        "t_stat": 2.5,
+        "n_periods": 120,
+        "long_short": 0.02,
+    }
+    return {
+        "status": "formal_factor_research",
+        "research_stage": "m3_s7_formal",
+        "test_window_used": True,
+        "weights_written": False,
+        "historical_factor_candidates": list(HISTORICAL_FACTOR_CANDIDATES),
+        "excluded_factors": {
+            "net_inflow_5d": "history_excluded_pit_gap",
+            "sector_strength": "live_only",
+        },
+        "samples": {
+            "train": {
+                "window": {
+                    "start": start.isoformat(),
+                    "end": end.isoformat(),
+                    "sessions": 900,
+                },
+                "results": {
+                    factor: dict(result)
+                    for factor in HISTORICAL_FACTOR_CANDIDATES
+                },
+            }
         },
     }
 
@@ -597,6 +632,93 @@ def test_exact_window_does_not_fall_back_to_another_window(tmp_path: Path) -> No
                 start_date=date(2021, 1, 2),
                 end_date=date(2021, 1, 1),
             )
+    finally:
+        session.close()
+
+
+def test_formal_multi_year_lineage_wins_over_same_end_301_window(
+    tmp_path: Path,
+) -> None:
+    session = _session(tmp_path)
+    multi_start = date(2019, 1, 2)
+    short_start = date(2025, 4, 28)
+    shared_end = date(2026, 2, 27)
+    started_at = datetime(2026, 7, 26, 9, 0)
+    written_at = datetime(2026, 7, 26, 9, 30)
+    finished_at = datetime(2026, 7, 26, 10, 0)
+    try:
+        for factor in HISTORICAL_FACTOR_CANDIDATES:
+            session.add(
+                FactorICStat(
+                    factor=factor,
+                    sample_tag="train",
+                    start_date=multi_start,
+                    end_date=shared_end,
+                    ic_mean=0.03,
+                    ic_ir=0.3,
+                    t_stat=2.5,
+                    ic_positive_ratio=0.6,
+                    long_short=0.02,
+                    n_periods=120,
+                    updated_at=written_at,
+                )
+            )
+            session.add(
+                FactorICStat(
+                    factor=factor,
+                    sample_tag="train",
+                    start_date=short_start,
+                    end_date=shared_end,
+                    ic_mean=-0.9,
+                    ic_ir=-9.0,
+                    t_stat=-8.0,
+                    ic_positive_ratio=0.1,
+                    long_short=-0.5,
+                    n_periods=12,
+                    updated_at=written_at - timedelta(days=1),
+                )
+            )
+        formal = JobRun(
+            job_name="research_factors_m3",
+            started_at=started_at,
+            finished_at=finished_at,
+            status="ok",
+            stats=_formal_job_stats(multi_start, shared_end),
+        )
+        session.add(formal)
+        session.commit()
+
+        catalog = factor_ic_windows(session, "train")
+        exact = factor_ic_report(
+            session,
+            "train",
+            start_date=multi_start,
+            end_date=shared_end,
+        )
+
+        assert catalog["default_window"]["start_date"] == multi_start.isoformat()
+        assert catalog["default_window"]["research_stage"] == "m3_s7_formal"
+        assert catalog["default_window"]["research_run_id"] == formal.id
+        assert exact["selection"]["exact_window"] is True
+        diagnosis = factor_diagnosis_report(
+            session,
+            "train",
+            start_date=multi_start,
+            end_date=shared_end,
+        )
+        assert diagnosis["sample"]["evidence_label"].startswith(
+            "M3 S7 正式 JobRun"
+        )
+        assert "11 个历史候选因子" in diagnosis["limitations"][-3]
+        assert "5 个财务因子等待" not in " ".join(diagnosis["limitations"])
+        assert exact["start_date"] == multi_start.isoformat()
+        assert exact["end_date"] == shared_end.isoformat()
+        momentum = next(
+            row for row in exact["factors"] if row["factor"] == "momentum_20d"
+        )
+        assert momentum["ic_mean"] == pytest.approx(0.03)
+        assert momentum["ic_ir"] == pytest.approx(0.3)
+        assert momentum["n_periods"] == 120
     finally:
         session.close()
 

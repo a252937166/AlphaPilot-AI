@@ -28,7 +28,9 @@ from alphapilot.db.models import AdjFactor, BacktestDaily, BacktestRun, DailyBar
 from alphapilot.engines.factors import load_weights
 
 _SUPPORTED_REBALANCE_DAYS = frozenset({5, 10, 20})
-_SUPPORTED_SIGNALS = frozenset({"composite-v1", "composite-v2"})
+_SUPPORTED_SIGNALS = frozenset(
+    {"composite-v1", "composite-v2", "composite-v3"}
+)
 _DEFAULT_INITIAL_CAPITAL = 1_000_000.0
 _BENCHMARK_SYMBOL = "SH.000300"
 _GROUP_COUNT = 10
@@ -36,6 +38,14 @@ _EPSILON = 1e-9
 _V2_WEIGHTS_FILE = (
     Path(__file__).resolve().parents[3] / "config" / "factor_weights_v2.yaml"
 )
+_V3_WEIGHTS_FILE = (
+    Path(__file__).resolve().parents[3] / "config" / "factor_weights_v3.yaml"
+)
+_SIGNAL_WEIGHT_FILES: dict[str, Path | None] = {
+    "composite-v1": None,
+    "composite-v2": _V2_WEIGHTS_FILE,
+    "composite-v3": _V3_WEIGHTS_FILE,
+}
 
 
 @dataclass(frozen=True, slots=True)
@@ -59,7 +69,10 @@ class BacktestConfig:
         if not self.name.strip():
             raise ValueError("name must not be empty")
         if self.signal_id not in _SUPPORTED_SIGNALS:
-            raise ValueError("signal_id must be one of composite-v1/composite-v2")
+            raise ValueError(
+                "signal_id must be one of "
+                "composite-v1/composite-v2/composite-v3"
+            )
         _rebalance_days(self.rebalance_freq)
         if not math.isfinite(self.top_pct) or not 0 < self.top_pct <= 1:
             raise ValueError("top_pct must be within (0, 1]")
@@ -150,9 +163,12 @@ def _rebalance_days(value: str) -> int:
 
 def _resolved_weights(cfg: BacktestConfig) -> tuple[dict[str, float], str]:
     if cfg.weights is None:
-        loaded = load_weights(
-            _V2_WEIGHTS_FILE if cfg.signal_id == "composite-v2" else None
-        )
+        config_path = _SIGNAL_WEIGHT_FILES[cfg.signal_id]
+        if config_path is not None and not config_path.is_file():
+            raise ValueError(
+                f"{cfg.signal_id} 权重配置尚未生成：{config_path}"
+            )
+        loaded = load_weights(config_path)
         return dict(loaded.weights), loaded.version
     resolved: dict[str, float] = {}
     for raw_name, raw_value in cfg.weights.items():

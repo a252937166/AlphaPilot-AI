@@ -247,6 +247,24 @@ def test_formal_runtime_never_calls_fixed_301_split(
     assert "train_test_split" not in factor_research_job.__dict__
 
 
+def test_s9_rebuild_rejects_non_v3_target_before_gates(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.setattr(
+        factor_research_job,
+        "_require_research_safety",
+        lambda: pytest.fail("invalid target must fail before safety/database"),
+    )
+    with pytest.raises(ValueError, match=r"factor_weights_v3\.yaml"):
+        factor_research_job.run_factor_research(
+            start_date=date(2019, 1, 2),
+            end_date=date(2026, 7, 23),
+            do_rebuild=True,
+            output_path=tmp_path / "factor_weights_v2.yaml",
+        )
+
+
 def test_foreground_runner_registers_job_and_forces_s7_only(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
