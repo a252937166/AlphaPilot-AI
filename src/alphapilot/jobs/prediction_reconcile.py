@@ -235,6 +235,19 @@ def _prediction_state(session: Session) -> _PredictionState:
     )
 
 
+def prediction_outputs_readiness(
+    session: Session,
+) -> tuple[date | None, bool, dict[str, Any]]:
+    """Expose the reconciler's full output contract to downstream read-only jobs."""
+
+    state = _prediction_state(session)
+    return (
+        state.target_date,
+        state.factor_current and state.style_current,
+        dict(state.details),
+    )
+
+
 def _failed_child_stats(
     *,
     child_name: str,

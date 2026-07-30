@@ -22,6 +22,7 @@ from alphapilot.screening.service import ScreeningService
 from alphapilot.services.screening_v2 import (
     ScreeningFilterError,
     ScreeningUnavailableError,
+    persist_screening_response,
     run_factor_screen,
 )
 
@@ -49,29 +50,6 @@ DEFAULT_UNIVERSE = [
 ]
 
 
-def _screen_filters(request: ScreeningRequest) -> dict[str, Any]:
-    return {
-        "symbols": list(request.symbols) if request.symbols is not None else None,
-        "industries": (
-            sorted(
-                dict.fromkeys(
-                    industry.strip() for industry in request.industries if industry.strip()
-                )
-            )
-            if request.industries is not None
-            else None
-        ),
-        "style": request.style,
-        "risk_level": request.risk_level,
-        "min_market_cap": request.min_market_cap,
-        "top_n": request.top_n,
-        "sort_by": request.sort_by,
-        "horizon_days": request.horizon_days,
-        "provider": request.provider,
-        "lookback_days": request.lookback_days,
-    }
-
-
 @router.post("/run", response_model=PersistedScreeningResponse)
 def run_screen(
     request: ScreeningRequest,
@@ -96,18 +74,7 @@ def run_screen(
             raise HTTPException(status_code=422, detail=str(exc)) from exc
         except ScreeningUnavailableError as exc:
             raise HTTPException(status_code=503, detail=str(exc)) from exc
-    record = ScreeningRun(
-        universe=request.universe,
-        filters=_screen_filters(request),
-        provider=response.provider,
-        model_version=response.model_version,
-        requested=response.requested,
-        succeeded=response.succeeded,
-        failed=response.failed,
-        candidates=[item.model_dump(mode="json") for item in response.candidates],
-    )
-    session.add(record)
-    session.flush()
+    record = persist_screening_response(session, request, response)
     return PersistedScreeningResponse(
         run_id=record.id,
         **response.model_dump(),

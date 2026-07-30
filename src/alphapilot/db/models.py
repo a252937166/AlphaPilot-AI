@@ -236,8 +236,18 @@ class AlertOutcome(Base):
 
 class ScreeningRun(Base):
     __tablename__ = "screening_runs"
+    __table_args__ = (
+        UniqueConstraint(
+            "idempotency_key",
+            name="uq_screening_runs_idempotency_key",
+        ),
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    idempotency_key: Mapped[str | None] = mapped_column(
+        String(128),
+        nullable=True,
+    )
     universe: Mapped[str] = mapped_column(String(24), default="custom")
     filters: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
     provider: Mapped[str] = mapped_column(String(24))

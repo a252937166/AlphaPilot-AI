@@ -33,7 +33,10 @@ export function fmtTime(value: unknown): string {
   if (!value) return '—'
   const date = new Date(String(value))
   if (Number.isNaN(date.getTime())) return '—'
-  return date.toLocaleString('zh-CN', { hour12: false })
+  return date.toLocaleString('zh-CN', {
+    hour12: false,
+    timeZone: 'Asia/Shanghai',
+  })
 }
 
 export function fmtDate(value: unknown): string {

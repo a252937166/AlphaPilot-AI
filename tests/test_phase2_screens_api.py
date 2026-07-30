@@ -38,10 +38,13 @@ def test_screening_run_context_migration_upgrades_existing_schema(tmp_path: Path
 
     applied = run_migrations(engine)
     columns = {column["name"] for column in inspect(engine).get_columns("screening_runs")}
+    indexes = {item["name"] for item in inspect(engine).get_indexes("screening_runs")}
 
     assert "screening_runs.universe" in applied
     assert "screening_runs.filters" in applied
-    assert {"universe", "filters"}.issubset(columns)
+    assert "screening_runs.idempotency_key" in applied
+    assert {"universe", "filters", "idempotency_key"}.issubset(columns)
+    assert "uq_screening_runs_idempotency_key" in indexes
     assert run_migrations(engine) == []
 
 
