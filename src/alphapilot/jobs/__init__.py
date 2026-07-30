@@ -18,6 +18,7 @@ def register_builtin_jobs() -> None:
     from alphapilot.jobs.order_sync import register_order_sync_job
     from alphapilot.jobs.paper_auto_trade import register_paper_auto_trade_job
     from alphapilot.jobs.portfolio_snapshot import register_portfolio_jobs
+    from alphapilot.jobs.prediction_reconcile import register_prediction_reconcile_job
     from alphapilot.jobs.score_outcomes import register_score_outcomes_job
     from alphapilot.jobs.sector_flow_backfill import register_sector_flow_backfill_job
     from alphapilot.jobs.sector_forecast import register_sector_forecast_job
@@ -35,6 +36,7 @@ def register_builtin_jobs() -> None:
     register_financials_job()
     register_factor_job()
     register_style_job()
+    register_prediction_reconcile_job()
     register_market_poll_job()
     register_order_sync_job()
     register_paper_auto_trade_job()

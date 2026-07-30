@@ -27,6 +27,7 @@ MIGRATIONS: list[tuple[str, str, str]] = [
 
 INDEX_MIGRATIONS: list[tuple[str, str, tuple[str, ...]]] = [
     ("daily_bars", "ix_daily_bars_trade_date_symbol", ("trade_date", "symbol")),
+    ("adj_factors", "ix_adj_trade_date_symbol", ("trade_date", "symbol")),
     ("valuation_daily", "ix_valuation_trade_date_symbol", ("trade_date", "symbol")),
 ]
 
