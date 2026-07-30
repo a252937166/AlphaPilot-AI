@@ -116,6 +116,38 @@ def test_valuation_trade_date_index_migration_is_existing_safe_and_idempotent(
     )
 
 
+def test_adj_factor_trade_date_index_migration_is_existing_safe_and_idempotent(
+    tmp_path: Path,
+) -> None:
+    engine = create_engine(f"sqlite:///{tmp_path / 'adj-factor-index.db'}")
+    Base.metadata.create_all(engine)
+    expected = ("trade_date", "symbol")
+
+    indexes = {
+        str(item["name"]): tuple(str(column) for column in item["column_names"])
+        for item in inspect(engine).get_indexes("adj_factors")
+    }
+    assert indexes["ix_adj_trade_date_symbol"] == expected
+
+    with engine.begin() as connection:
+        connection.execute(text("DROP INDEX ix_adj_trade_date_symbol"))
+    assert "adj_factors.ix_adj_trade_date_symbol" in run_migrations(engine)
+    assert run_migrations(engine) == []
+
+    with engine.connect() as connection:
+        plan = connection.execute(
+            text(
+                "EXPLAIN QUERY PLAN SELECT count(DISTINCT symbol) FROM adj_factors "
+                "WHERE trade_date = :trade_date AND adj_factor > 0"
+            ),
+            {"trade_date": "2026-07-21"},
+        ).all()
+    assert any(
+        "ix_adj_trade_date_symbol" in str(row[-1]) and "SEARCH" in str(row[-1])
+        for row in plan
+    )
+
+
 def test_ensure_index_rejects_an_existing_name_with_wrong_columns(tmp_path: Path) -> None:
     engine = create_engine(f"sqlite:///{tmp_path / 'wrong-index.db'}")
     with engine.begin() as connection:

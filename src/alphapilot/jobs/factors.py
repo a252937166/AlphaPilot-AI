@@ -16,6 +16,7 @@ from alphapilot.core.config import get_settings
 from alphapilot.data.provenance import AUDITED_DAILY_BAR_SOURCES
 from alphapilot.db.engine import get_session
 from alphapilot.db.models import (
+    AdjFactor,
     CompositeScore,
     DailyBar,
     FactorValue,
@@ -23,6 +24,7 @@ from alphapilot.db.models import (
     ScoreOutcomeStat,
     Security,
     StockScore,
+    ValuationDaily,
 )
 from alphapilot.engines.factors import (
     FACTOR_SET,
@@ -43,6 +45,7 @@ from alphapilot.jobs.registry import JobExecutionError, JobSpec, register
 
 MARKET_TIMEZONE = ZoneInfo("Asia/Shanghai")
 MIN_INPUT_COVERAGE = 0.90
+MIN_AUXILIARY_INPUT_COVERAGE = 0.99
 INSERT_BATCH_SIZE = 5_000
 
 
@@ -142,6 +145,154 @@ def _adjustment_factors_running(session: Session) -> bool:
             )
         )
     )
+
+
+def _valuation_sync_running(session: Session) -> bool:
+    return bool(
+        session.scalar(
+            select(func.count())
+            .select_from(JobRun)
+            .where(
+                JobRun.job_name == "sync_valuation_daily",
+                JobRun.status == "running",
+            )
+        )
+    )
+
+
+def _latest_job_run(session: Session, job_name: str) -> JobRun | None:
+    return session.scalar(
+        select(JobRun)
+        .where(JobRun.job_name == job_name)
+        .order_by(JobRun.id.desc())
+        .limit(1)
+    )
+
+
+def _job_stats(run: JobRun | None) -> dict[str, Any]:
+    if run is None or not isinstance(run.stats, dict):
+        return {}
+    return dict(run.stats)
+
+
+def _deferred_stats(
+    readiness: Mapping[str, Any],
+    *,
+    skipped: str,
+    message: str,
+    started: float,
+) -> dict[str, Any]:
+    return {
+        **readiness,
+        "skipped": skipped,
+        "message": message,
+        "duration_seconds": round(monotonic() - started, 2),
+    }
+
+
+def _live_input_contract(
+    session: Session,
+    *,
+    target_date: date,
+    universe: int,
+) -> tuple[dict[str, Any], str | None]:
+    """Validate the exact EOD producer contract before a live factor run."""
+
+    daily_run = _latest_job_run(session, "sync_daily_bars")
+    adj_run = _latest_job_run(session, "sync_adj_factors")
+    valuation_run = _latest_job_run(session, "sync_valuation_daily")
+    daily_stats = _job_stats(daily_run)
+    adj_stats = _job_stats(adj_run)
+    valuation_stats = _job_stats(valuation_run)
+    expected_valuation_symbols = max(
+        int(valuation_stats.get("symbols_total") or 0)
+        - int(valuation_stats.get("symbols_no_data") or 0),
+        0,
+    )
+    stats: dict[str, Any] = {
+        "adj_factor_symbols": None,
+        "adj_factor_coverage": None,
+        "valuation_symbols": None,
+        "valuation_coverage": None,
+        "valuation_producer_expected_symbols": expected_valuation_symbols,
+        "input_counts_checked": False,
+        "daily_bars_job_run_id": daily_run.id if daily_run is not None else None,
+        "adj_factors_job_run_id": adj_run.id if adj_run is not None else None,
+        "valuation_job_run_id": valuation_run.id if valuation_run is not None else None,
+    }
+
+    if (
+        daily_run is None
+        or daily_run.status != "ok"
+        or daily_stats.get("latest_trade_date") != target_date.isoformat()
+    ):
+        return stats, "daily_bars_not_final"
+    if (
+        adj_run is None
+        or adj_run.status != "ok"
+        or float(adj_stats.get("coverage") or 0.0) < MIN_AUXILIARY_INPUT_COVERAGE
+    ):
+        return stats, "adjustment_factors_not_final"
+    if (
+        valuation_run is None
+        or valuation_run.status != "ok"
+        or valuation_stats.get("end_date") != target_date.isoformat()
+        or valuation_stats.get("is_complete") is not True
+        or int(valuation_stats.get("symbols_failed") or 0) != 0
+        or bool(valuation_stats.get("failures"))
+    ):
+        return stats, "valuation_job_not_final"
+
+    cutoff = datetime.combine(
+        target_date,
+        time(19, 30),
+        tzinfo=MARKET_TIMEZONE,
+    ).astimezone(UTC)
+    adj_symbols = int(
+        session.scalar(
+            select(func.count(func.distinct(AdjFactor.symbol)))
+            .select_from(AdjFactor)
+            .join(Security, Security.symbol == AdjFactor.symbol)
+            .where(
+                AdjFactor.trade_date == target_date,
+                Security.market == "CN",
+                Security.list_status == "listed",
+                AdjFactor.adj_factor > 0,
+            )
+        )
+        or 0
+    )
+    valuation_symbols = int(
+        session.scalar(
+            select(func.count(func.distinct(ValuationDaily.symbol)))
+            .select_from(ValuationDaily)
+            .join(Security, Security.symbol == ValuationDaily.symbol)
+            .where(
+                ValuationDaily.trade_date == target_date,
+                ValuationDaily.source == "em",
+                ValuationDaily.available_time <= cutoff,
+                Security.market == "CN",
+                Security.list_status == "listed",
+            )
+        )
+        or 0
+    )
+    adj_coverage = round(adj_symbols / universe, 6) if universe else 0.0
+    valuation_coverage = round(valuation_symbols / universe, 6) if universe else 0.0
+    stats.update(
+        {
+            "adj_factor_symbols": adj_symbols,
+            "adj_factor_coverage": adj_coverage,
+            "valuation_symbols": valuation_symbols,
+            "valuation_coverage": valuation_coverage,
+            "input_counts_checked": True,
+        }
+    )
+    if adj_coverage < MIN_AUXILIARY_INPUT_COVERAGE:
+        return stats, "adjustment_factors_not_final"
+    if valuation_coverage < MIN_AUXILIARY_INPUT_COVERAGE:
+        return stats, "valuation_cross_section_incomplete"
+    return stats, None
 
 
 def _outcome_win_rates(
@@ -275,8 +426,12 @@ def _insert_batches(
         session.execute(insert(model), records[offset : offset + INSERT_BATCH_SIZE])
 
 
-def compute_factors(trade_date: date | None = None) -> dict[str, Any]:
-    """Compute and atomically replace one complete daily factor cross-section."""
+def compute_factors(
+    trade_date: date | None = None,
+    *,
+    allow_catchup: bool = False,
+) -> dict[str, Any]:
+    """Compute one cross-section; catch-up still requires the exact EOD contract."""
 
     started = monotonic()
     settings = get_settings()
@@ -287,18 +442,45 @@ def compute_factors(trade_date: date | None = None) -> dict[str, Any]:
     with get_session() as session:
         readiness = _market_coverage(session, trade_date)
         if _daily_bars_running(session):
+            if trade_date is None:
+                return _deferred_stats(
+                    readiness,
+                    skipped="daily_bars_running",
+                    message="日线同步仍在运行，等待自动补算。",
+                    started=started,
+                )
             raise JobExecutionError(
                 "日线同步任务仍在运行，因子计算已延后。",
                 stats={**readiness, "reason": "daily_bars_running"},
             )
         if _adjustment_factors_running(session):
+            if trade_date is None:
+                return _deferred_stats(
+                    readiness,
+                    skipped="adjustment_factors_running",
+                    message="复权因子同步仍在运行，等待自动补算。",
+                    started=started,
+                )
             raise JobExecutionError(
                 "复权因子同步任务仍在运行，因子计算已延后。",
                 stats={**readiness, "reason": "adjustment_factors_running"},
             )
+        if _valuation_sync_running(session):
+            if trade_date is None:
+                return _deferred_stats(
+                    readiness,
+                    skipped="valuation_sync_running",
+                    message="估值同步仍在运行，等待自动补算。",
+                    started=started,
+                )
+            raise JobExecutionError(
+                "估值同步任务仍在运行，因子计算已延后。",
+                stats={**readiness, "reason": "valuation_sync_running"},
+            )
         market_today = _market_today()
         if (
             trade_date is None
+            and not allow_catchup
             and readiness["date"] is not None
             and readiness["date"] != market_today.isoformat()
         ):
@@ -316,6 +498,20 @@ def compute_factors(trade_date: date | None = None) -> dict[str, Any]:
             )
 
         target_date = date.fromisoformat(str(readiness["date"]))
+        if trade_date is None:
+            live_stats, live_reason = _live_input_contract(
+                session,
+                target_date=target_date,
+                universe=int(readiness["universe"]),
+            )
+            readiness = {**readiness, **live_stats}
+            if live_reason is not None:
+                return _deferred_stats(
+                    readiness,
+                    skipped=live_reason,
+                    message="盘后输入尚未形成完整终态，等待自动补算。",
+                    started=started,
+                )
         raw = compute_factors_for_date(session, target_date)
         if raw.empty:
             raise JobExecutionError(

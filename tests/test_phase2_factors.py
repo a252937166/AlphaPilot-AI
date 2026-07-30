@@ -911,6 +911,125 @@ def test_factor_job_rejects_partial_market_and_running_daily_sync(
     assert str(factors_running.value) == "复权因子同步任务仍在运行，因子计算已延后。"
     assert factors_running.value.stats["reason"] == "adjustment_factors_running"
 
+    with local_session() as session:
+        adj_run = session.scalars(
+            select(JobRun).where(JobRun.job_name == "sync_adj_factors")
+        ).one()
+        adj_run.status = "ok"
+        session.add(
+            JobRun(
+                job_name="sync_valuation_daily",
+                status="running",
+                stats={},
+            )
+        )
+
+    with pytest.raises(JobExecutionError) as valuation_running:
+        factor_job.compute_factors(TARGET_DATE)
+    assert str(valuation_running.value) == "估值同步任务仍在运行，因子计算已延后。"
+    assert valuation_running.value.stats["reason"] == "valuation_sync_running"
+
+    scheduled = factor_job.compute_factors()
+    assert scheduled["skipped"] == "valuation_sync_running"
+    assert scheduled["input_coverage"] == 1.0
+
+
+def test_live_input_contract_rejects_an_incomplete_valuation_cross_section(
+    tmp_path: Path,
+) -> None:
+    engine = create_engine(f"sqlite:///{tmp_path / 'factor-live-contract.db'}")
+    Base.metadata.create_all(engine)
+    with Session(engine) as session:
+        symbols = [f"{600000 + index:06d}" for index in range(10)]
+        session.add_all(
+            Security(symbol=symbol, market="CN", list_status="listed")
+            for symbol in symbols
+        )
+        session.add_all(
+            AdjFactor(
+                symbol=symbol,
+                trade_date=TARGET_DATE,
+                adj_factor=1.0,
+                source="test",
+            )
+            for symbol in symbols
+        )
+        session.add_all(
+            ValuationDaily(
+                symbol=symbol,
+                trade_date=TARGET_DATE,
+                pe_ttm=10.0,
+                pb_mrq=1.0,
+                ps_ttm=2.0,
+                source="em",
+                available_time=datetime(2026, 7, 21, 7, tzinfo=UTC),
+            )
+            for symbol in symbols[:8]
+        )
+        session.add_all(
+            [
+                JobRun(
+                    job_name="sync_daily_bars",
+                    status="ok",
+                    stats={"latest_trade_date": TARGET_DATE.isoformat()},
+                ),
+                JobRun(
+                    job_name="sync_adj_factors",
+                    status="ok",
+                    stats={"coverage": 1.0},
+                ),
+                JobRun(
+                    job_name="sync_valuation_daily",
+                    status="ok",
+                    stats={
+                        "end_date": TARGET_DATE.isoformat(),
+                        "is_complete": True,
+                        # The producer may include a six-digit security outside
+                        # the live CN-listed universe. It remains diagnostic and
+                        # must not make the consumer denominator inconsistent.
+                        "symbols_total": 11,
+                        "symbols_no_data": 0,
+                        "symbols_failed": 0,
+                        "failures": [],
+                    },
+                ),
+            ]
+        )
+        session.commit()
+
+        stats, reason = factor_job._live_input_contract(
+            session,
+            target_date=TARGET_DATE,
+            universe=10,
+        )
+        assert reason == "valuation_cross_section_incomplete"
+        assert stats["valuation_symbols"] == 8
+        assert stats["valuation_coverage"] == 0.8
+        assert stats["valuation_producer_expected_symbols"] == 11
+
+        session.add_all(
+            ValuationDaily(
+                symbol=symbol,
+                trade_date=TARGET_DATE,
+                pe_ttm=10.0,
+                pb_mrq=1.0,
+                ps_ttm=2.0,
+                source="em",
+                available_time=datetime(2026, 7, 21, 7, tzinfo=UTC),
+            )
+            for symbol in symbols[8:]
+        )
+        session.commit()
+
+        complete_stats, complete_reason = factor_job._live_input_contract(
+            session,
+            target_date=TARGET_DATE,
+            universe=10,
+        )
+        assert complete_reason is None
+        assert complete_stats["valuation_symbols"] == 10
+        assert complete_stats["valuation_coverage"] == 1.0
+
 
 def test_factor_job_cron_is_after_daily_bar_sync() -> None:
     factor_job.register_factor_job()
