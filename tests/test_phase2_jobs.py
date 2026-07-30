@@ -15,7 +15,12 @@ from sqlalchemy.orm import Session
 
 from alphapilot.api.routes.jobs import list_runs
 from alphapilot.core.config import Settings
-from alphapilot.db.migrate import ensure_column, ensure_index, run_migrations
+from alphapilot.db.migrate import (
+    drop_redundant_index,
+    ensure_column,
+    ensure_index,
+    run_migrations,
+)
 from alphapilot.db.models import (
     Base,
     Disclosure,
@@ -307,6 +312,56 @@ def test_ensure_index_does_not_treat_a_partial_index_as_equivalent(
     assert {str(item["name"]) for item in inspect(engine).get_indexes("sample")} == {
         "ix_full_pair",
         "ix_partial_pair",
+    }
+
+
+@pytest.mark.parametrize(
+    ("table", "index_name", "columns"),
+    [
+        ("daily_bars", "ix_daily_bars_symbol_date", ("symbol", "trade_date")),
+        ("adj_factors", "ix_adj_symbol_date", ("symbol", "trade_date")),
+        ("adj_factors", "ix_adj_factors_symbol", ("symbol",)),
+        ("valuation_daily", "ix_valuation_symbol_date", ("symbol", "trade_date")),
+        ("valuation_daily", "ix_valuation_daily_symbol", ("symbol",)),
+        ("financial_indicators", "ix_financial_indicators_symbol", ("symbol",)),
+        ("factor_values", "ix_factor_values_symbol", ("symbol",)),
+        ("composite_scores", "ix_composite_scores_symbol", ("symbol",)),
+        ("stock_scores", "ix_stock_scores_symbol", ("symbol",)),
+    ],
+)
+def test_redundant_index_migrations_require_a_covering_key_and_are_idempotent(
+    tmp_path: Path,
+    table: str,
+    index_name: str,
+    columns: tuple[str, ...],
+) -> None:
+    engine = create_engine(f"sqlite:///{tmp_path / f'{index_name}.db'}")
+    Base.metadata.create_all(engine)
+    column_sql = ", ".join(columns)
+    with engine.begin() as connection:
+        connection.execute(text(f"CREATE INDEX {index_name} ON {table} ({column_sql})"))
+
+    applied = run_migrations(engine)
+    remaining = {str(item["name"]) for item in inspect(engine).get_indexes(table)}
+
+    assert f"{table}.{index_name}:removed" in applied
+    assert index_name not in remaining
+    assert run_migrations(engine) == []
+
+
+def test_drop_redundant_index_fails_closed_without_a_covering_key(
+    tmp_path: Path,
+) -> None:
+    engine = create_engine(f"sqlite:///{tmp_path / 'unsafe-index-drop.db'}")
+    with engine.begin() as connection:
+        connection.execute(text("CREATE TABLE sample (first TEXT, second TEXT)"))
+        connection.execute(text("CREATE INDEX ix_sample_first ON sample (first)"))
+
+    with pytest.raises(ValueError, match="no non-partial key covers prefix"):
+        drop_redundant_index(engine, "sample", "ix_sample_first", ("first",))
+
+    assert {str(item["name"]) for item in inspect(engine).get_indexes("sample")} == {
+        "ix_sample_first"
     }
 
 

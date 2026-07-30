@@ -41,6 +41,17 @@ INDEX_MIGRATIONS: list[tuple[str, str, tuple[str, ...]]] = [
         ("trade_date", "symbol", "factor"),
     ),
 ]
+REDUNDANT_INDEX_MIGRATIONS: list[tuple[str, str, tuple[str, ...]]] = [
+    ("daily_bars", "ix_daily_bars_symbol_date", ("symbol", "trade_date")),
+    ("adj_factors", "ix_adj_symbol_date", ("symbol", "trade_date")),
+    ("adj_factors", "ix_adj_factors_symbol", ("symbol",)),
+    ("valuation_daily", "ix_valuation_symbol_date", ("symbol", "trade_date")),
+    ("valuation_daily", "ix_valuation_daily_symbol", ("symbol",)),
+    ("financial_indicators", "ix_financial_indicators_symbol", ("symbol",)),
+    ("factor_values", "ix_factor_values_symbol", ("symbol",)),
+    ("composite_scores", "ix_composite_scores_symbol", ("symbol",)),
+    ("stock_scores", "ix_stock_scores_symbol", ("symbol",)),
+]
 
 _IDENTIFIER = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 TABLE_MIGRATIONS = ("sector_constituent_snapshots",)
@@ -160,6 +171,68 @@ def ensure_index(
     return True
 
 
+def drop_redundant_index(
+    engine: Engine,
+    table: str,
+    index_name: str,
+    columns: tuple[str, ...],
+) -> bool:
+    """Drop a legacy index only when another non-partial key covers its prefix."""
+
+    table = _validated_identifier(table)
+    index_name = _validated_identifier(index_name)
+    columns = tuple(_validated_identifier(column) for column in columns)
+    if not columns or len(set(columns)) != len(columns):
+        raise ValueError("index columns must be non-empty and unique")
+
+    inspector = inspect(engine)
+    if not inspector.has_table(table):
+        return False
+    existing_indexes = inspector.get_indexes(table)
+    target = next(
+        (item for item in existing_indexes if item.get("name") == index_name),
+        None,
+    )
+    if target is None:
+        return False
+    target_columns = tuple(str(column) for column in target.get("column_names") or ())
+    if target_columns != columns:
+        raise ValueError(
+            f"index {index_name} has columns {target_columns}, expected {columns}"
+        )
+    if bool(target.get("dialect_options")):
+        raise ValueError(f"refusing to drop partial or dialect-specific index {index_name}")
+
+    replacement_keys = [
+        tuple(str(column) for column in item.get("column_names") or ())
+        for item in existing_indexes
+        if item.get("name") != index_name and not bool(item.get("dialect_options"))
+    ]
+    replacement_keys.extend(
+        tuple(str(column) for column in item.get("column_names") or ())
+        for item in inspector.get_unique_constraints(table)
+    )
+    primary_key = inspector.get_pk_constraint(table)
+    replacement_keys.append(
+        tuple(str(column) for column in primary_key.get("constrained_columns") or ())
+    )
+    if not any(
+        len(replacement) >= len(columns)
+        and replacement[: len(columns)] == columns
+        for replacement in replacement_keys
+    ):
+        raise ValueError(
+            f"refusing to drop {index_name}: no non-partial key covers prefix {columns}"
+        )
+
+    metadata = MetaData()
+    reflected = Table(table, metadata, autoload_with=engine)
+    index = Index(index_name, *(reflected.c[column] for column in columns))
+    with engine.begin() as connection:
+        index.drop(bind=connection, checkfirst=True)
+    return True
+
+
 def run_migrations(engine: Engine) -> list[str]:
     """Apply the centrally registered idempotent column and index migrations."""
 
@@ -175,6 +248,9 @@ def run_migrations(engine: Engine) -> list[str]:
             engine, table, index_name, columns
         ):
             applied.append(f"{table}.{index_name}")
+    for table, index_name, columns in REDUNDANT_INDEX_MIGRATIONS:
+        if drop_redundant_index(engine, table, index_name, columns):
+            applied.append(f"{table}.{index_name}:removed")
     if inspect(engine).has_table("trade_proposals"):
         if ensure_column(engine, "trade_proposals", "idempotency_key", "TEXT"):
             applied.append("trade_proposals.idempotency_key")

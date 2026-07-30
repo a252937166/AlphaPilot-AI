@@ -62,7 +62,6 @@ class DailyBar(Base):
     __tablename__ = "daily_bars"
     __table_args__ = (
         UniqueConstraint("symbol", "trade_date", name="uq_daily_bars_symbol_date"),
-        Index("ix_daily_bars_symbol_date", "symbol", "trade_date"),
         Index("ix_daily_bars_trade_date_symbol", "trade_date", "symbol"),
     )
 
@@ -85,12 +84,11 @@ class AdjFactor(Base):
     __tablename__ = "adj_factors"
     __table_args__ = (
         UniqueConstraint("symbol", "trade_date", name="uq_adj"),
-        Index("ix_adj_symbol_date", "symbol", "trade_date"),
         Index("ix_adj_trade_date_symbol", "trade_date", "symbol"),
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    symbol: Mapped[str] = mapped_column(String(24), index=True)
+    symbol: Mapped[str] = mapped_column(String(24))
     trade_date: Mapped[date] = mapped_column(Date)
     adj_factor: Mapped[float] = mapped_column(Float)
     source: Mapped[str] = mapped_column(String(16), default="tushare")
@@ -602,7 +600,7 @@ class FinancialIndicator(Base):
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    symbol: Mapped[str] = mapped_column(String(24), index=True)
+    symbol: Mapped[str] = mapped_column(String(24))
     report_period: Mapped[str] = mapped_column(String(10))
     metric: Mapped[str] = mapped_column(String(32))
     value: Mapped[float | None] = mapped_column(Float, nullable=True)
@@ -617,12 +615,11 @@ class ValuationDaily(Base):
     __tablename__ = "valuation_daily"
     __table_args__ = (
         UniqueConstraint("symbol", "trade_date", name="uq_valuation_daily"),
-        Index("ix_valuation_symbol_date", "symbol", "trade_date"),
         Index("ix_valuation_trade_date_symbol", "trade_date", "symbol"),
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    symbol: Mapped[str] = mapped_column(String(24), index=True)
+    symbol: Mapped[str] = mapped_column(String(24))
     trade_date: Mapped[date] = mapped_column(Date)
     pe_ttm: Mapped[float | None] = mapped_column(Float, nullable=True)
     pb_mrq: Mapped[float | None] = mapped_column(Float, nullable=True)
@@ -648,7 +645,7 @@ class FactorValue(Base):
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    symbol: Mapped[str] = mapped_column(String(24), index=True)
+    symbol: Mapped[str] = mapped_column(String(24))
     trade_date: Mapped[date] = mapped_column(Date)
     factor: Mapped[str] = mapped_column(String(32))
     raw: Mapped[float | None] = mapped_column(Float, nullable=True)
@@ -663,7 +660,7 @@ class CompositeScore(Base):
     __table_args__ = (UniqueConstraint("symbol", "trade_date", name="uq_comp_score"),)
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    symbol: Mapped[str] = mapped_column(String(24), index=True)
+    symbol: Mapped[str] = mapped_column(String(24))
     trade_date: Mapped[date] = mapped_column(Date, index=True)
     score: Mapped[float] = mapped_column(Float)
     win_rate_20d: Mapped[float | None] = mapped_column(Float, nullable=True)
@@ -735,7 +732,7 @@ class StockScore(Base):
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    symbol: Mapped[str] = mapped_column(String(24), index=True)
+    symbol: Mapped[str] = mapped_column(String(24))
     trade_date: Mapped[date] = mapped_column(Date)
     tech: Mapped[float] = mapped_column(Float)
     capital: Mapped[float] = mapped_column(Float)
