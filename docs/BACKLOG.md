@@ -60,4 +60,5 @@
 - [ ] Batch/cached PIT factor queries; the audited 301-day SQLite baseline currently takes about 38 minutes.
 - [ ] Durable, restart-resumable backtest queue with progress checkpoints and cancellation.
 - [ ] Route-level frontend code splitting; the production bundle still emits Vite's >500 kB warning.
+- [x] Offline PostgreSQL DDL/readiness inventory with machine-readable blockers and a cutover runbook.
 - [ ] PostgreSQL/TimescaleDB migration and concurrent-writer soak testing.
