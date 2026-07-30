@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import sqlite3
 from collections.abc import Iterator
 from contextlib import contextmanager
 from datetime import UTC, date, datetime, timedelta
@@ -11,7 +12,7 @@ import numpy as np
 import pandas as pd
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine, func, select
+from sqlalchemy import create_engine, event, func, select
 from sqlalchemy.orm import Session
 
 from alphapilot.api.dependencies import db_session_dependency, settings_dependency
@@ -33,6 +34,7 @@ from alphapilot.db.models import (
 )
 from alphapilot.engines.factors import (
     FACTOR_SET,
+    _load_financial_factors,
     _load_valuation_factors,
     _trading_dates,
     composite,
@@ -84,6 +86,23 @@ weights:
         encoding="utf-8",
     )
     return path
+
+
+def _financial(
+    symbol: str,
+    period: str,
+    metric: str,
+    value: float | None,
+    available_time: datetime,
+) -> FinancialIndicator:
+    return FinancialIndicator(
+        symbol=symbol,
+        report_period=period,
+        metric=metric,
+        value=value,
+        source="test",
+        available_time=available_time,
+    )
 
 
 def _trade_dates() -> list[date]:
@@ -469,6 +488,150 @@ def test_trading_dates_falls_back_when_benchmark_is_stale(tmp_path: Path) -> Non
 
     assert len(result) == 90
     assert result[-1] == TARGET_DATE
+
+
+def test_load_financial_factors_obeys_pit_null_fallback_and_symbol_scope(
+    tmp_path: Path,
+) -> None:
+    engine = create_engine(f"sqlite:///{tmp_path / 'financial-pit.db'}")
+    Base.metadata.create_all(engine)
+    cutoff = datetime(2026, 7, 21, 11, 30, tzinfo=UTC)
+    just_after = cutoff + timedelta(microseconds=1)
+    with Session(engine) as session:
+        session.add_all(
+            [
+                _financial(
+                    "600001",
+                    "2025Q4",
+                    "roe",
+                    0.10,
+                    cutoff - timedelta(days=90),
+                ),
+                _financial(
+                    "600001",
+                    "2026Q1",
+                    "roe",
+                    None,
+                    cutoff - timedelta(days=1),
+                ),
+                _financial("600001", "2026Q2", "roe", 0.90, just_after),
+                _financial(
+                    "600001",
+                    "2025Q4",
+                    "revenue_yoy",
+                    0.11,
+                    cutoff - timedelta(days=90),
+                ),
+                _financial(
+                    "600001",
+                    "2026Q1",
+                    "revenue_yoy",
+                    0.22,
+                    cutoff - timedelta(days=1),
+                ),
+                _financial(
+                    "600001",
+                    "2025Q4",
+                    "debt_ratio",
+                    0.40,
+                    cutoff - timedelta(days=90),
+                ),
+                _financial("600001", "2026Q1", "debt_ratio", 0.30, cutoff),
+                _financial("600001", "2026Q2", "debt_ratio", 0.20, just_after),
+                _financial(
+                    "600002",
+                    "2026Q1",
+                    "roe",
+                    0.77,
+                    cutoff - timedelta(days=1),
+                ),
+            ]
+        )
+        session.commit()
+
+        values, selected = _load_financial_factors(session, {"600001"}, cutoff)
+        later, later_selected = _load_financial_factors(
+            session,
+            {"600001"},
+            cutoff + timedelta(days=1),
+        )
+
+    assert selected == 3
+    assert set(values) == {"600001"}
+    assert values["600001"] == pytest.approx(
+        {"roe": 0.10, "revenue_yoy": 0.22, "debt_ratio": 0.30}
+    )
+    assert later_selected == 3
+    assert later["600001"] == pytest.approx(
+        {"roe": 0.90, "revenue_yoy": 0.22, "debt_ratio": 0.20}
+    )
+
+
+def test_load_financial_factors_empty_symbols_executes_no_sql(tmp_path: Path) -> None:
+    engine = create_engine(f"sqlite:///{tmp_path / 'financial-empty.db'}")
+    Base.metadata.create_all(engine)
+    statements: list[str] = []
+
+    def capture_statement(
+        _connection: Any,
+        _cursor: Any,
+        statement: str,
+        _parameters: Any,
+        _context: Any,
+        _executemany: bool,
+    ) -> None:
+        statements.append(statement)
+
+    event.listen(engine, "before_cursor_execute", capture_statement)
+    try:
+        with Session(engine) as session:
+            result = _load_financial_factors(
+                session,
+                set(),
+                datetime(2026, 7, 21, 11, 30, tzinfo=UTC),
+            )
+    finally:
+        event.remove(engine, "before_cursor_execute", capture_statement)
+
+    assert result == ({}, 0)
+    assert statements == []
+
+
+def test_load_financial_factors_avoids_large_symbol_bind_lists(tmp_path: Path) -> None:
+    engine = create_engine(f"sqlite:///{tmp_path / 'financial-bind-limit.db'}")
+
+    @event.listens_for(engine, "connect")
+    def lower_bind_limit(
+        dbapi_connection: sqlite3.Connection,
+        _connection_record: object,
+    ) -> None:
+        dbapi_connection.setlimit(sqlite3.SQLITE_LIMIT_VARIABLE_NUMBER, 999)
+
+    Base.metadata.create_all(engine)
+    symbols = {f"{600000 + index:06d}" for index in range(1_005)}
+    with Session(engine) as session:
+        session.add_all(
+            [
+                _financial(
+                    symbol,
+                    "2025Q4",
+                    "roe",
+                    0.10,
+                    datetime(2026, 4, 1, tzinfo=UTC),
+                )
+                for symbol in symbols
+            ]
+        )
+        session.commit()
+
+        values, selected = _load_financial_factors(
+            session,
+            symbols,
+            datetime(2026, 7, 21, 11, 30, tzinfo=UTC),
+        )
+
+    assert set(values) == symbols
+    assert selected == len(symbols)
 
 
 def test_load_valuation_factors_is_exact_day_and_pit_bounded(tmp_path: Path) -> None:

@@ -593,6 +593,12 @@ class FinancialIndicator(Base):
             "metric",
             name="uq_fin_metric",
         ),
+        Index(
+            "ix_financial_pit_symbol_metric_period",
+            "symbol",
+            "metric",
+            "report_period",
+        ),
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
