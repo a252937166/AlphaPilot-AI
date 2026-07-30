@@ -60,13 +60,22 @@ def _locked_error() -> OperationalError:
     )
 
 
-def test_sqlite_engine_waits_for_concurrent_writers(tmp_path: Path) -> None:
+def test_sqlite_engine_applies_durable_connection_pragmas_to_every_pool_connection(
+    tmp_path: Path,
+) -> None:
     engine = _build_engine(
         Settings(database_url=f"sqlite:///{tmp_path / 'busy-timeout.db'}")
     )
     try:
-        with engine.connect() as connection:
-            assert connection.exec_driver_sql("PRAGMA busy_timeout").scalar_one() == 15000
+        with engine.connect() as first, engine.connect() as second:
+            for connection in (first, second):
+                assert (
+                    connection.exec_driver_sql("PRAGMA busy_timeout").scalar_one()
+                    == 15000
+                )
+                assert connection.exec_driver_sql("PRAGMA journal_mode").scalar_one() == "wal"
+                assert connection.exec_driver_sql("PRAGMA foreign_keys").scalar_one() == 1
+                assert connection.exec_driver_sql("PRAGMA synchronous").scalar_one() == 2
     finally:
         engine.dispose()
 
