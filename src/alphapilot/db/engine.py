@@ -37,6 +37,7 @@ def _build_engine(settings: Settings) -> Engine:
             cursor.execute("PRAGMA busy_timeout=15000")
             cursor.execute("PRAGMA journal_mode=WAL")
             cursor.execute("PRAGMA foreign_keys=ON")
+            cursor.execute("PRAGMA synchronous=FULL")
             cursor.close()
 
     return engine
