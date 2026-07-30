@@ -11,7 +11,7 @@ from zoneinfo import ZoneInfo
 import numpy as np
 import pandas as pd
 import yaml
-from sqlalchemy import func, select
+from sqlalchemy import and_, func, select
 from sqlalchemy.orm import Session
 
 from alphapilot.data.provenance import (
@@ -50,6 +50,7 @@ FACTOR_SET = [
 FINANCIAL_FACTORS = frozenset(
     {"roe", "net_profit_yoy", "ocf_to_profit", "debt_ratio", "revenue_yoy"}
 )
+FINANCIAL_SYMBOL_FILTER_LIMIT = 800
 MARKET_TIMEZONE = ZoneInfo("Asia/Shanghai")
 FACTOR_DECISION_TIME = time(19, 30)
 PRICE_SESSION_COUNT = 90
@@ -328,6 +329,31 @@ def _load_financial_factors(
     symbols: set[str],
     cutoff: datetime,
 ) -> tuple[dict[str, dict[str, float]], int]:
+    if not symbols:
+        return {}, 0
+
+    latest_period_query = select(
+        FinancialIndicator.symbol.label("symbol"),
+        FinancialIndicator.metric.label("metric"),
+        func.max(FinancialIndicator.report_period).label("report_period"),
+    ).where(
+        FinancialIndicator.metric.in_(FINANCIAL_FACTORS),
+        FinancialIndicator.value.is_not(None),
+        FinancialIndicator.available_time <= cutoff,
+    )
+    if len(symbols) <= FINANCIAL_SYMBOL_FILTER_LIMIT:
+        latest_period_query = latest_period_query.where(
+            FinancialIndicator.symbol.in_(sorted(symbols))
+        )
+    latest_periods = (
+        latest_period_query.group_by(
+            FinancialIndicator.symbol,
+            FinancialIndicator.metric,
+        )
+        .correlate(None)
+        .subquery("latest_financial_periods")
+    )
+
     rows = session.execute(
         select(
             FinancialIndicator.symbol,
@@ -337,17 +363,17 @@ def _load_financial_factors(
             FinancialIndicator.report_period,
             FinancialIndicator.id,
         )
+        .join(
+            latest_periods,
+            and_(
+                FinancialIndicator.symbol == latest_periods.c.symbol,
+                FinancialIndicator.metric == latest_periods.c.metric,
+                FinancialIndicator.report_period == latest_periods.c.report_period,
+            ),
+        )
         .where(
-            FinancialIndicator.metric.in_(FINANCIAL_FACTORS),
             FinancialIndicator.value.is_not(None),
             FinancialIndicator.available_time <= cutoff,
-        )
-        .order_by(
-            FinancialIndicator.symbol,
-            FinancialIndicator.metric,
-            FinancialIndicator.report_period.desc(),
-            FinancialIndicator.available_time.desc(),
-            FinancialIndicator.id.desc(),
         )
     ).all()
     latest: dict[str, dict[str, float]] = {}

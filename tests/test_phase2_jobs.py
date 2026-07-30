@@ -16,7 +16,7 @@ from sqlalchemy.orm import Session
 from alphapilot.api.routes.jobs import list_runs
 from alphapilot.core.config import Settings
 from alphapilot.db.migrate import ensure_column, ensure_index, run_migrations
-from alphapilot.db.models import Base, Disclosure, DomainEvent, JobRun
+from alphapilot.db.models import Base, Disclosure, DomainEvent, FinancialIndicator, JobRun
 from alphapilot.jobs import event_backfill
 from alphapilot.jobs import scheduler as scheduler_module
 from alphapilot.jobs.registry import (
@@ -114,6 +114,64 @@ def test_valuation_trade_date_index_migration_is_existing_safe_and_idempotent(
         "ix_valuation_trade_date_symbol" in str(row[-1]) and "SEARCH" in str(row[-1])
         for row in plan
     )
+
+
+def test_financial_pit_index_migration_is_existing_safe_and_idempotent(
+    tmp_path: Path,
+) -> None:
+    engine = create_engine(f"sqlite:///{tmp_path / 'financial-pit-index.db'}")
+    Base.metadata.create_all(engine)
+    index_name = "ix_financial_pit_symbol_metric_period"
+    expected = ("symbol", "metric", "report_period")
+
+    indexes = {
+        str(item["name"]): tuple(str(column) for column in item["column_names"])
+        for item in inspect(engine).get_indexes("financial_indicators")
+    }
+    assert indexes[index_name] == expected
+    with Session(engine) as session:
+        session.add(
+            FinancialIndicator(
+                symbol="600519",
+                report_period="2025Q4",
+                metric="roe",
+                value=0.25,
+                source="test",
+                available_time=datetime(2026, 4, 30, tzinfo=UTC),
+            )
+        )
+        session.commit()
+
+    with engine.begin() as connection:
+        connection.execute(text(f"DROP INDEX {index_name}"))
+    assert f"financial_indicators.{index_name}" in run_migrations(engine)
+    assert run_migrations(engine) == []
+
+    with engine.connect() as connection:
+        row_count = connection.scalar(
+            text("SELECT COUNT(*) FROM financial_indicators")
+        )
+        plan = connection.execute(
+            text(
+                "EXPLAIN QUERY PLAN "
+                "SELECT symbol, metric, max(report_period) "
+                "FROM financial_indicators "
+                "WHERE symbol = :symbol AND metric = :metric "
+                "AND value IS NOT NULL AND available_time <= :cutoff "
+                "GROUP BY symbol, metric"
+            ),
+            {
+                "symbol": "600519",
+                "metric": "roe",
+                "cutoff": "2026-07-21 11:30:00",
+            },
+        ).all()
+
+    details = "\n".join(str(row[-1]) for row in plan)
+    assert row_count == 1
+    assert index_name in details
+    assert "SEARCH financial_indicators" in details
+    assert "USE TEMP B-TREE FOR GROUP BY" not in details
 
 
 def test_adj_factor_trade_date_index_migration_is_existing_safe_and_idempotent(
