@@ -2,10 +2,11 @@ from __future__ import annotations
 
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
+from typing import Any
 
 import pandas as pd
 import pytest
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, event
 from sqlalchemy.orm import Session
 
 from alphapilot.backtest.pit import (
@@ -88,6 +89,7 @@ def test_eligible_universe_enforces_age_suspension_and_audited_sources(
                     listed_date="2020-01-01",
                     snapshot_at=datetime(2026, 7, 20, 17, tzinfo=UTC),
                 ),
+                _security("600007"),
             ]
         )
         session.add_all(
@@ -103,6 +105,11 @@ def test_eligible_universe_enforces_age_suspension_and_audited_sources(
                 _bar("600005", as_of - timedelta(days=61), 10.0),
                 _bar("600005", as_of, 10.0),
                 _bar("600006", as_of, 10.0),
+                # An old mock row must not make a recently observed audited
+                # symbol pass the 60-day listing-age fallback.
+                _bar("600007", as_of - timedelta(days=100), 10.0, source="mock"),
+                _bar("600007", as_of - timedelta(days=30), 10.0),
+                _bar("600007", as_of, 10.0),
             ]
         )
         session.commit()
@@ -122,6 +129,64 @@ def test_eligible_universe_enforces_age_suspension_and_audited_sources(
         assert frame.attrs["st_status_known"] == 1
     finally:
         session.close()
+
+
+def test_eligible_universe_uses_bounded_index_searches(tmp_path: Path) -> None:
+    as_of = date(2026, 7, 21)
+    engine = create_engine(f"sqlite:///{tmp_path / 'pit-plan.db'}")
+    Base.metadata.create_all(engine)
+    with Session(engine) as session:
+        for number in range(100):
+            symbol = f"{600100 + number:06d}"
+            session.add(_security(symbol, listed_date="2020-01-01"))
+            session.add_all(
+                [
+                    _bar(symbol, as_of - timedelta(days=61), 10.0),
+                    _bar(symbol, as_of, 10.0),
+                ]
+            )
+        session.commit()
+
+    captured: list[tuple[str, Any]] = []
+
+    def capture_statement(
+        _connection: Any,
+        _cursor: Any,
+        statement: str,
+        parameters: Any,
+        _context: Any,
+        _executemany: bool,
+    ) -> None:
+        if statement.lstrip().upper().startswith("SELECT"):
+            captured.append((statement, parameters))
+
+    event.listen(engine, "before_cursor_execute", capture_statement)
+    try:
+        with Session(engine) as session:
+            frame = eligible_universe(session, as_of)
+            assert not session.new
+            assert not session.dirty
+            assert not session.deleted
+    finally:
+        event.remove(engine, "before_cursor_execute", capture_statement)
+
+    assert len(frame) == 100
+    assert len(captured) == 1
+    statement, parameters = captured[0]
+    with engine.connect() as connection:
+        plan = "\n".join(
+            str(row[3])
+            for row in connection.exec_driver_sql(
+                f"EXPLAIN QUERY PLAN {statement}",
+                parameters,
+            )
+        )
+    assert "CORRELATED SCALAR SUBQUERY" in plan
+    assert "SEARCH first_audited_bar" in plan
+    assert "symbol=?" in plan
+    assert "SCAN first_audited_bar" not in plan
+    assert "SCAN daily_bars" not in plan
+    assert "MATERIALIZE" not in plan
 
 
 def test_signal_scores_excludes_future_financials_and_uses_adjusted_momentum(
