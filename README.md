@@ -88,6 +88,9 @@ docker compose up --build
 - PostgreSQL：`127.0.0.1:5432`
 - Redis：`127.0.0.1:6379`
 
+> PostgreSQL 容器目前是迁移预览基础设施。应用尚有版本化迁移、方言 upsert、UTC/JSONB、
+> sequence 和并发测试阻断，不能把 `docker compose up` 视为可切换生产事实源。
+
 ## 数据源配置
 
 默认 `auto`：日线走 `baostock → akshare → futu` 故障转移，快照走 `futu → akshare`，
@@ -117,11 +120,21 @@ ALPHAPILOT_CNINFO_ACCESS_KEY=你的AccessKey
 ALPHAPILOT_CNINFO_ACCESS_SECRET=你的AccessSecret
 ```
 
-数据库默认 SQLite（`data/alphapilot.db`，启动自动建表），切换 PostgreSQL：
+数据库默认 SQLite（`data/alphapilot.db`，启动自动建表）。PostgreSQL 目标 URL 形式如下，
+但当前**禁止仅改这一项直接切库**：
 
 ```env
 ALPHAPILOT_DATABASE_URL=postgresql+psycopg://alphapilot:alphapilot@127.0.0.1:5432/alphapilot
 ```
+
+先运行不联网、不读生产库的就绪检查：
+
+```bash
+.venv/bin/python scripts/check_postgres_readiness.py --project-root .
+```
+
+所有 blocker 和数据对账签字完成后才能迁移，详见
+[`docs/operations/postgresql-readiness.md`](docs/operations/postgresql-readiness.md)。
 
 安装中国市场数据扩展：
 
@@ -232,7 +245,7 @@ Futu/OpenD 时，缓存模块保留日期与来源，实时模块返回中文原
 apps/web/                    Vue 3 多页面仪表盘（vue-router + ECharts）
 src/alphapilot/api/          FastAPI 路由（dashboard/watchlist/alerts/sectors/reports 等）
 src/alphapilot/data/         Mock、AKShare、BaoStock、富途 Provider + auto 故障转移路由
-src/alphapilot/db/           SQLAlchemy 引擎与 ORM 模型（SQLite 默认 / PostgreSQL 可切）
+src/alphapilot/db/           SQLAlchemy 引擎与 ORM 模型（SQLite 生产事实源 / PostgreSQL 就绪审计）
 src/alphapilot/cninfo/       巨潮资讯客户端（OAuth2 token + 公司档案 + 公告）
 src/alphapilot/services/     服务层：行情缓存、自选追踪、板块、复盘、总览聚合、AI 摘要
 src/alphapilot/features/     特征工程
