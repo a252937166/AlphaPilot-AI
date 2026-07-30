@@ -365,6 +365,26 @@ def test_drop_redundant_index_fails_closed_without_a_covering_key(
     }
 
 
+def test_drop_redundant_index_is_disabled_for_non_sqlite_dialects(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    engine = create_engine(f"sqlite:///{tmp_path / 'dialect-index-drop.db'}")
+    with engine.begin() as connection:
+        connection.execute(text("CREATE TABLE sample (first TEXT, second TEXT)"))
+        connection.execute(text("CREATE UNIQUE INDEX uq_sample_pair ON sample (first, second)"))
+        connection.execute(text("CREATE INDEX ix_sample_first ON sample (first)"))
+    monkeypatch.setattr(engine.dialect, "name", "postgresql")
+
+    assert (
+        drop_redundant_index(engine, "sample", "ix_sample_first", ("first",)) is False
+    )
+    assert {str(item["name"]) for item in inspect(engine).get_indexes("sample")} == {
+        "ix_sample_first",
+        "uq_sample_pair",
+    }
+
+
 def test_run_job_records_stats() -> None:
     name = "test_phase2_audit"
 
