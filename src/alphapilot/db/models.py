@@ -639,6 +639,12 @@ class FactorValue(Base):
     __table_args__ = (
         UniqueConstraint("symbol", "trade_date", "factor", name="uq_factor"),
         Index("ix_factor_date", "factor", "trade_date"),
+        Index(
+            "ix_factor_values_trade_date_symbol_factor",
+            "trade_date",
+            "symbol",
+            "factor",
+        ),
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)

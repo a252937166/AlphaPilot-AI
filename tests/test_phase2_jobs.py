@@ -16,7 +16,14 @@ from sqlalchemy.orm import Session
 from alphapilot.api.routes.jobs import list_runs
 from alphapilot.core.config import Settings
 from alphapilot.db.migrate import ensure_column, ensure_index, run_migrations
-from alphapilot.db.models import Base, Disclosure, DomainEvent, FinancialIndicator, JobRun
+from alphapilot.db.models import (
+    Base,
+    Disclosure,
+    DomainEvent,
+    FactorValue,
+    FinancialIndicator,
+    JobRun,
+)
 from alphapilot.jobs import event_backfill
 from alphapilot.jobs import scheduler as scheduler_module
 from alphapilot.jobs.registry import (
@@ -172,6 +179,59 @@ def test_financial_pit_index_migration_is_existing_safe_and_idempotent(
     assert index_name in details
     assert "SEARCH financial_indicators" in details
     assert "USE TEMP B-TREE FOR GROUP BY" not in details
+
+
+def test_factor_value_trade_date_index_migration_is_existing_safe_and_idempotent(
+    tmp_path: Path,
+) -> None:
+    engine = create_engine(f"sqlite:///{tmp_path / 'factor-value-date-index.db'}")
+    Base.metadata.create_all(engine)
+    index_name = "ix_factor_values_trade_date_symbol_factor"
+    expected = ("trade_date", "symbol", "factor")
+
+    indexes = {
+        str(item["name"]): tuple(str(column) for column in item["column_names"])
+        for item in inspect(engine).get_indexes("factor_values")
+    }
+    assert indexes[index_name] == expected
+    with Session(engine) as session:
+        session.add(
+            FactorValue(
+                symbol="600519",
+                trade_date=datetime(2026, 7, 21, tzinfo=UTC).date(),
+                factor="volatility_20d",
+                raw=0.1,
+                zscore=0.2,
+                model_version="factor-v1.0.0",
+            )
+        )
+        session.commit()
+
+    with engine.begin() as connection:
+        connection.execute(text(f"DROP INDEX {index_name}"))
+    assert f"factor_values.{index_name}" in run_migrations(engine)
+    assert run_migrations(engine) == []
+
+    with engine.connect() as connection:
+        row_count = connection.scalar(text("SELECT COUNT(*) FROM factor_values"))
+        plan = connection.execute(
+            text(
+                "EXPLAIN QUERY PLAN "
+                "SELECT symbol, factor, raw, zscore, model_version "
+                "FROM factor_values "
+                "WHERE trade_date = :trade_date "
+                "AND factor IN ('net_profit_yoy', 'volatility_20d', "
+                "'pe_percentile', 'pb_percentile') "
+                "ORDER BY symbol, factor"
+            ),
+            {"trade_date": "2026-07-21"},
+        ).all()
+
+    details = "\n".join(str(row[-1]) for row in plan)
+    assert row_count == 1
+    assert index_name in details
+    assert "SEARCH factor_values" in details
+    assert "USE TEMP B-TREE FOR ORDER BY" not in details
 
 
 def test_adj_factor_trade_date_index_migration_is_existing_safe_and_idempotent(
