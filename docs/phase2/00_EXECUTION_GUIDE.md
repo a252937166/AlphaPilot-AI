@@ -11,15 +11,21 @@
 - 项目根：`/Users/ouyangduning/Documents/project/interesting/AlphaPilot-AI`
 - Python venv：`.venv/`（已装 dev 依赖）。所有命令用 `.venv/bin/python`、`.venv/bin/ruff` 等显式路径，不要裸 `python`。
 - 后端：FastAPI，入口 `src/alphapilot/main.py`，由 LaunchAgent `com.alphapilot.api` 常驻本机
-  `127.0.0.1:8000`（无 `--reload`，`RunAtLoad=true`、`KeepAlive=true`）。首次安装/拉起与日常管理：
+  `127.0.0.1:8000`（无 `--reload`，`RunAtLoad=true`、`KeepAlive=true`）。生产 plist 显式
+  `ALPHAPILOT_SCHEDULER_ENABLED=false`，定时任务由独立的
+  `com.alphapilot.scheduler` 运行，避免 API 重启中断调度。首次安装/拉起与日常管理：
   ```bash
   make api-start    # 安装 ~/Library/LaunchAgents/com.alphapilot.api.plist 并拉起
   make api-status   # 核对受管 PID、8000 监听与日志路径
   make api-restart  # 改完后端代码后必须重启
   make api-stop     # 停止服务并移除 plist；仅在明确需要关闭常驻服务时使用
+  ./scripts/start_scheduler_launchd.sh
+  ./scripts/status_scheduler_launchd.sh
+  ./scripts/restart_scheduler_launchd.sh
   ```
   日志写入 `~/Library/Logs/AlphaPilot-AI/api.stdout.log` 与 `api.stderr.log`。启动脚本发现 8000
   被非受管进程占用时会拒绝接管且不会杀进程；不要再用模糊 `pkill`/手工 `nohup` 启动后端。
+  API/scheduler 的无双跑部署与回滚顺序见 `docs/operations/process-supervision.md`。
 - 前端：`apps/web/`（Vue3+TS+vite），dev server 5173 常驻（vite 热更新，改前端不用重启）；构建校验用 `cd apps/web && npm run build`。
 - 富途 OpenD：launchd 服务常驻 `127.0.0.1:11111`（`make futu-start` 可拉起）。行情+交易均已登录。
 - 数据库：SQLite `data/alphapilot.db`（启动时 `init_db()` create_all）。每日在线全量备份由

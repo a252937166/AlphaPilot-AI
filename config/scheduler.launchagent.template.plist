@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>__SCHEDULER_SERVICE_LABEL__</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>__SCHEDULER_VENV_PYTHON__</string>
+        <string>-m</string>
+        <string>alphapilot.scheduler_main</string>
+    </array>
+    <key>WorkingDirectory</key>
+    <string>__SCHEDULER_WORKING_DIRECTORY__</string>
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>ALPHAPILOT_SCHEDULER_ENABLED</key>
+        <string>true</string>
+        <key>ALPHAPILOT_TRADING_MODE</key>
+        <string>research</string>
+        <key>ALPHAPILOT_LIVE_TRADING_ENABLED</key>
+        <string>false</string>
+        <key>ALPHAPILOT_PAPER_AUTO_TRADING_ENABLED</key>
+        <string>false</string>
+        <key>ALPHAPILOT_FUTU_ENABLE_ACCOUNT_MUTATION</key>
+        <string>false</string>
+        <key>ALPHAPILOT_BAOSTOCK_FINANCIAL_SYNC_ENABLED</key>
+        <string>false</string>
+    </dict>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <true/>
+    <key>ProcessType</key>
+    <string>Background</string>
+    <key>ThrottleInterval</key>
+    <integer>10</integer>
+    <key>ExitTimeOut</key>
+    <integer>300</integer>
+    <key>StandardOutPath</key>
+    <string>__SCHEDULER_STDOUT_LOG__</string>
+    <key>StandardErrorPath</key>
+    <string>__SCHEDULER_STDERR_LOG__</string>
+</dict>
+</plist>

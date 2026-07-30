@@ -55,8 +55,13 @@ def start_scheduler(settings: Settings | None = None) -> BackgroundScheduler | N
         return scheduler
 
 
-def shutdown_scheduler() -> None:
-    """Stop the process-local scheduler without waiting for long jobs."""
+def shutdown_scheduler(*, wait: bool = False) -> None:
+    """Pause and stop the process-local scheduler.
+
+    The API compatibility path keeps the historical non-blocking shutdown.
+    The dedicated scheduler daemon requests a graceful wait after first
+    ensuring deployment/restart happens outside an active job window.
+    """
 
     global _scheduler
     with _lock:
@@ -65,6 +70,8 @@ def shutdown_scheduler() -> None:
     if scheduler is None:
         return
     try:
-        scheduler.shutdown(wait=False)
+        if scheduler.running:
+            scheduler.pause()
+        scheduler.shutdown(wait=wait)
     except SchedulerNotRunningError:
         return
