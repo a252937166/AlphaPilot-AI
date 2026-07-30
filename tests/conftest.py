@@ -12,6 +12,7 @@ from collections.abc import Iterator
 
 _tmpdir = tempfile.mkdtemp(prefix="alphapilot-tests-")
 os.environ["ALPHAPILOT_DATABASE_URL"] = f"sqlite:///{_tmpdir}/test.db"
+os.environ["ALPHAPILOT_PROCESS_LOCK_DIR"] = f"{_tmpdir}/process-locks"
 os.environ["ALPHAPILOT_DEFAULT_DATA_PROVIDER"] = "mock"
 os.environ["ALPHAPILOT_SCHEDULER_ENABLED"] = "false"
 os.environ["ALPHAPILOT_MARKET_POLL_ENABLED"] = "false"
