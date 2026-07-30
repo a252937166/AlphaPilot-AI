@@ -179,6 +179,8 @@ def drop_redundant_index(
 ) -> bool:
     """Drop a legacy index only when another non-partial key covers its prefix."""
 
+    if engine.dialect.name != "sqlite":
+        return False
     table = _validated_identifier(table)
     index_name = _validated_identifier(index_name)
     columns = tuple(_validated_identifier(column) for column in columns)
