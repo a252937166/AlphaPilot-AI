@@ -8,8 +8,10 @@ from typing import Any
 from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.interval import IntervalTrigger
 
+from alphapilot.core.config import get_settings
 from alphapilot.db.engine import get_session
 from alphapilot.db.models import JobRun, utcnow
+from alphapilot.jobs.process_lock import job_process_lock
 from alphapilot.services.notifications import push_job_failure
 
 
@@ -89,5 +91,8 @@ def run_job(name: str, **kwargs: Any) -> JobRun:
     if spec is None:
         raise KeyError(name)
 
-    with _job_lock(name):
+    with (
+        _job_lock(name),
+        job_process_lock(get_settings().database_url, name),
+    ):
         return _run_job_locked(name, spec, kwargs)
