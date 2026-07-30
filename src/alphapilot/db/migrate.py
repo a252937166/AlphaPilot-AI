@@ -19,6 +19,7 @@ MIGRATIONS: list[tuple[str, str, str]] = [
     ("securities", "snapshot_at", "TIMESTAMP"),
     ("screening_runs", "universe", "TEXT DEFAULT 'custom'"),
     ("screening_runs", "filters", "JSON DEFAULT '{}'"),
+    ("screening_runs", "idempotency_key", "TEXT"),
     ("style_daily", "source_fingerprint", "TEXT DEFAULT ''"),
     ("alerts", "target_low", "FLOAT"),
     ("alerts", "target_high", "FLOAT"),
@@ -169,6 +170,10 @@ def run_migrations(engine: Engine) -> list[str]:
             applied.append("trade_proposals.idempotency_key")
         if _ensure_trade_proposal_idempotency(engine):
             applied.append("trade_proposals.idempotency_unique")
+    if inspect(engine).has_table("screening_runs") and _ensure_screening_run_idempotency(
+        engine
+    ):
+        applied.append("screening_runs.idempotency_unique")
     return applied
 
 
@@ -232,3 +237,27 @@ def _ensure_trade_proposal_idempotency(engine: Engine) -> bool:
             )
             changed = True
     return changed
+
+
+def _ensure_screening_run_idempotency(engine: Engine) -> bool:
+    """Create the nullable uniqueness boundary used by automated screen runs."""
+
+    with engine.begin() as connection:
+        inspector = inspect(connection)
+        index_exists = any(
+            item.get("name") == "uq_screening_runs_idempotency_key"
+            for item in inspector.get_indexes("screening_runs")
+        )
+        constraint_exists = any(
+            item.get("column_names") == ["idempotency_key"]
+            for item in inspector.get_unique_constraints("screening_runs")
+        )
+        if index_exists or constraint_exists:
+            return False
+        connection.execute(
+            text(
+                "CREATE UNIQUE INDEX uq_screening_runs_idempotency_key "
+                "ON screening_runs (idempotency_key)"
+            )
+        )
+    return True

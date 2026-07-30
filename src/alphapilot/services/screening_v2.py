@@ -15,6 +15,7 @@ from alphapilot.db.models import (
     DailyBar,
     FactorValue,
     ForecastSnapshot,
+    ScreeningRun,
     Security,
     StyleDaily,
     WatchlistItem,
@@ -534,3 +535,53 @@ def run_factor_screen(session: Session, request: ScreeningRequest) -> ScreeningR
         failed=failed,
         candidates=candidates,
     )
+
+
+def screening_filters(request: ScreeningRequest) -> dict[str, object]:
+    """Return the canonical persisted filter payload shared by API and jobs."""
+
+    return {
+        "symbols": list(request.symbols) if request.symbols is not None else None,
+        "industries": (
+            sorted(
+                dict.fromkeys(
+                    industry.strip() for industry in request.industries if industry.strip()
+                )
+            )
+            if request.industries is not None
+            else None
+        ),
+        "style": request.style,
+        "risk_level": request.risk_level,
+        "min_market_cap": request.min_market_cap,
+        "top_n": request.top_n,
+        "sort_by": request.sort_by,
+        "horizon_days": request.horizon_days,
+        "provider": request.provider,
+        "lookback_days": request.lookback_days,
+    }
+
+
+def persist_screening_response(
+    session: Session,
+    request: ScreeningRequest,
+    response: ScreeningResponse,
+    *,
+    idempotency_key: str | None = None,
+) -> ScreeningRun:
+    """Persist one immutable screening snapshot without committing the transaction."""
+
+    record = ScreeningRun(
+        idempotency_key=idempotency_key,
+        universe=request.universe,
+        filters=screening_filters(request),
+        provider=response.provider,
+        model_version=response.model_version,
+        requested=response.requested,
+        succeeded=response.succeeded,
+        failed=response.failed,
+        candidates=[item.model_dump(mode="json") for item in response.candidates],
+    )
+    session.add(record)
+    session.flush()
+    return record
