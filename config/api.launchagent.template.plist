@@ -17,6 +17,11 @@
     </array>
     <key>WorkingDirectory</key>
     <string>__API_WORKING_DIRECTORY__</string>
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>ALPHAPILOT_SCHEDULER_ENABLED</key>
+        <string>false</string>
+    </dict>
     <key>RunAtLoad</key>
     <true/>
     <key>KeepAlive</key>
