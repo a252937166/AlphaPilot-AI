@@ -35,6 +35,11 @@ INDEX_MIGRATIONS: list[tuple[str, str, tuple[str, ...]]] = [
         "ix_financial_pit_symbol_metric_period",
         ("symbol", "metric", "report_period"),
     ),
+    (
+        "factor_values",
+        "ix_factor_values_trade_date_symbol_factor",
+        ("trade_date", "symbol", "factor"),
+    ),
 ]
 
 _IDENTIFIER = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
