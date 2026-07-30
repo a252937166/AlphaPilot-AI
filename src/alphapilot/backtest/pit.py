@@ -6,8 +6,8 @@ from datetime import date, timedelta
 from math import isfinite
 
 import pandas as pd
-from sqlalchemy import func, select
-from sqlalchemy.orm import Session
+from sqlalchemy import select
+from sqlalchemy.orm import Session, aliased
 
 from alphapilot.data.provenance import AUDITED_DAILY_BAR_SOURCES
 from alphapilot.db.models import AdjFactor, DailyBar, Security
@@ -38,14 +38,17 @@ def _parse_listed_date(value: object) -> date | None:
 def eligible_universe(session: Session, as_of: date) -> pd.DataFrame:
     """Return the auditable, non-suspended current-survivor universe at ``as_of``."""
 
-    first_bar = (
-        select(
-            DailyBar.symbol.label("symbol"),
-            func.min(DailyBar.trade_date).label("first_observed_date"),
+    first_audited_bar = aliased(DailyBar, name="first_audited_bar")
+    first_observed_date = (
+        select(first_audited_bar.trade_date)
+        .where(
+            first_audited_bar.symbol == Security.symbol,
+            first_audited_bar.source.in_(AUDITED_DAILY_BAR_SOURCES),
         )
-        .where(DailyBar.source.in_(AUDITED_DAILY_BAR_SOURCES))
-        .group_by(DailyBar.symbol)
-        .subquery()
+        .order_by(first_audited_bar.trade_date)
+        .limit(1)
+        .correlate(Security)
+        .scalar_subquery()
     )
     rows = session.execute(
         select(
@@ -55,7 +58,7 @@ def eligible_universe(session: Session, as_of: date) -> pd.DataFrame:
             Security.is_st,
             Security.snapshot_at,
             Security.listed_date,
-            first_bar.c.first_observed_date,
+            first_observed_date.label("first_observed_date"),
             DailyBar.source,
         )
         .join(
@@ -63,7 +66,6 @@ def eligible_universe(session: Session, as_of: date) -> pd.DataFrame:
             (DailyBar.symbol == Security.symbol)
             & (DailyBar.trade_date == as_of),
         )
-        .join(first_bar, first_bar.c.symbol == Security.symbol)
         .where(
             Security.market == "CN",
             Security.list_status == "listed",
@@ -71,7 +73,7 @@ def eligible_universe(session: Session, as_of: date) -> pd.DataFrame:
             DailyBar.close > 0,
             DailyBar.volume > 0,
         )
-        .order_by(Security.symbol)
+        .order_by(DailyBar.symbol)
     ).all()
     frame = pd.DataFrame(
         rows,
