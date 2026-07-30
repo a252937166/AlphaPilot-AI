@@ -297,6 +297,7 @@ def test_snapshot_uses_composite_universe_and_positive_amount_weights(session: S
     assert set(snapshot.amount_weights) == set(STYLE_TAGS)
     assert sum(snapshot.amount_weights.values()) == pytest.approx(1.0)
     assert snapshot.total_amount == 1_000.0
+    assert snapshot.source_fingerprint == style_source_fingerprint(session, TARGET_DATE)
     assert snapshot.input_stats.composite_symbols == 7
     assert snapshot.input_stats.eligible_symbols == 4
     assert snapshot.input_stats.excluded_symbols == 3

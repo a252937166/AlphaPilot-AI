@@ -219,6 +219,38 @@ def test_style_job_rejects_inputs_that_change_during_computation(
         assert security.style_tag == "value"
 
 
+def test_style_job_reuses_snapshot_fingerprint_and_keeps_final_race_check(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    engine = create_engine(f"sqlite:///{tmp_path / 'style-fingerprint-reuse.db'}")
+    Base.metadata.create_all(engine)
+    local_session = _local_session(engine)
+    with local_session() as session:
+        session.add(Security(symbol="600001", list_status="listed"))
+        _add_inputs(session, TARGET_DATE)
+
+    snapshot = _snapshot()
+    snapshot.source_fingerprint = "a" * 64
+    fingerprint_calls = 0
+
+    def final_fingerprint(*_args: object) -> str:
+        nonlocal fingerprint_calls
+        fingerprint_calls += 1
+        return "a" * 64
+
+    monkeypatch.setattr(style_job, "get_session", local_session)
+    monkeypatch.setattr(style_job, "_market_today", lambda: TARGET_DATE)
+    monkeypatch.setattr(style_job, "compute_style_snapshot", lambda *_args: snapshot)
+    monkeypatch.setattr(style_job, "style_source_fingerprint", final_fingerprint)
+
+    stats = style_job.compute_style_daily()
+
+    assert stats["skipped"] is None
+    assert stats["source_fingerprint"] == "a" * 64
+    assert fingerprint_calls == 1
+
+
 def test_explicit_historical_run_never_changes_current_security_tags(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,

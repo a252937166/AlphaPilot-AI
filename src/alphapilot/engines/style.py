@@ -2,13 +2,15 @@ from __future__ import annotations
 
 import hashlib
 import json
+from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import date
 from math import isfinite
-from typing import Literal
+from typing import Any, Literal
 
 from sqlalchemy import and_, select
 from sqlalchemy.orm import Session
+from sqlalchemy.sql import Select
 
 from alphapilot.db.models import CompositeScore, DailyBar, FactorValue, Security, StyleDaily
 
@@ -86,6 +88,7 @@ class StyleDailySnapshot:
     tag_counts: dict[StyleTag, int]
     input_stats: StyleInputStats
     total_amount: float
+    source_fingerprint: str
     model_version: str = MODEL_VERSION
 
 
@@ -149,17 +152,8 @@ def _empty_counts() -> dict[StyleTag, int]:
     return {tag: 0 for tag in STYLE_TAGS}
 
 
-def style_source_fingerprint(session: Session, trade_date: date) -> str:
-    """Hash every target-day input that can affect tags or turnover weights.
-
-    The hash is deliberately per-symbol rather than aggregate-only: swapping two
-    securities' factors or amounts must invalidate persisted tags even when counts
-    and market totals remain unchanged.
-    """
-
-    digest = hashlib.sha256()
-    digest.update(f"{MODEL_VERSION}|{trade_date.isoformat()}\n".encode())
-    base_rows = session.execute(
+def _style_base_statement(trade_date: date) -> Select[Any]:
+    return (
         select(
             CompositeScore.symbol,
             CompositeScore.model_version,
@@ -178,21 +172,11 @@ def style_source_fingerprint(session: Session, trade_date: date) -> str:
         )
         .where(CompositeScore.trade_date == trade_date)
         .order_by(CompositeScore.symbol)
-    ).all()
-    for base_row in base_rows:
-        payload = [
-            str(base_row.symbol),
-            str(base_row.model_version),
-            str(base_row.security_symbol) if base_row.security_symbol is not None else None,
-            str(base_row.industry_csrc) if base_row.industry_csrc is not None else None,
-            str(base_row.bar_symbol) if base_row.bar_symbol is not None else None,
-            _finite(base_row.amount),
-        ]
-        digest.update(
-            (json.dumps(payload, ensure_ascii=False, separators=(",", ":")) + "\n").encode()
-        )
+    )
 
-    factor_rows = session.execute(
+
+def _style_factor_statement(trade_date: date) -> Select[Any]:
+    return (
         select(
             FactorValue.symbol,
             FactorValue.factor,
@@ -212,7 +196,29 @@ def style_source_fingerprint(session: Session, trade_date: date) -> str:
             FactorValue.factor.in_(_REQUIRED_FACTORS),
         )
         .order_by(FactorValue.symbol, FactorValue.factor)
-    ).all()
+    )
+
+
+def _style_source_fingerprint_from_rows(
+    trade_date: date,
+    base_rows: Sequence[Any],
+    factor_rows: Sequence[Any],
+) -> str:
+    digest = hashlib.sha256()
+    digest.update(f"{MODEL_VERSION}|{trade_date.isoformat()}\n".encode())
+    for base_row in base_rows:
+        payload = [
+            str(base_row.symbol),
+            str(base_row.model_version),
+            str(base_row.security_symbol) if base_row.security_symbol is not None else None,
+            str(base_row.industry_csrc) if base_row.industry_csrc is not None else None,
+            str(base_row.bar_symbol) if base_row.bar_symbol is not None else None,
+            _finite(base_row.amount),
+        ]
+        digest.update(
+            (json.dumps(payload, ensure_ascii=False, separators=(",", ":")) + "\n").encode()
+        )
+
     for factor_row in factor_rows:
         payload = [
             str(factor_row.symbol),
@@ -227,6 +233,19 @@ def style_source_fingerprint(session: Session, trade_date: date) -> str:
     return digest.hexdigest()
 
 
+def style_source_fingerprint(session: Session, trade_date: date) -> str:
+    """Hash every target-day input that can affect tags or turnover weights.
+
+    The hash is deliberately per-symbol rather than aggregate-only: swapping two
+    securities' factors or amounts must invalidate persisted tags even when counts
+    and market totals remain unchanged.
+    """
+
+    base_rows = session.execute(_style_base_statement(trade_date)).all()
+    factor_rows = session.execute(_style_factor_statement(trade_date)).all()
+    return _style_source_fingerprint_from_rows(trade_date, base_rows, factor_rows)
+
+
 def compute_style_snapshot(session: Session, trade_date: date) -> StyleDailySnapshot:
     """Build a style snapshot from the target day's composite-score universe only.
 
@@ -235,25 +254,7 @@ def compute_style_snapshot(session: Session, trade_date: date) -> StyleDailySnap
     and naturally classify as balanced; no history or factor value is synthesized.
     """
 
-    base_rows = session.execute(
-        select(
-            CompositeScore.symbol,
-            Security.symbol.label("security_symbol"),
-            Security.industry_csrc,
-            DailyBar.symbol.label("bar_symbol"),
-            DailyBar.amount,
-        )
-        .outerjoin(Security, Security.symbol == CompositeScore.symbol)
-        .outerjoin(
-            DailyBar,
-            and_(
-                DailyBar.symbol == CompositeScore.symbol,
-                DailyBar.trade_date == trade_date,
-            ),
-        )
-        .where(CompositeScore.trade_date == trade_date)
-        .order_by(CompositeScore.symbol)
-    ).all()
+    base_rows = session.execute(_style_base_statement(trade_date)).all()
     composite_symbols = len(base_rows)
     if composite_symbols == 0:
         raise StyleAggregationError(
@@ -285,26 +286,7 @@ def compute_style_snapshot(session: Session, trade_date: date) -> StyleDailySnap
             "请检查 daily_bars，并先运行 sync_daily_bars 与 compute_factors。"
         )
 
-    factor_rows = session.execute(
-        select(
-            FactorValue.symbol,
-            FactorValue.factor,
-            FactorValue.raw,
-            FactorValue.zscore,
-        )
-        .join(
-            CompositeScore,
-            and_(
-                CompositeScore.symbol == FactorValue.symbol,
-                CompositeScore.trade_date == FactorValue.trade_date,
-            ),
-        )
-        .where(
-            FactorValue.trade_date == trade_date,
-            FactorValue.factor.in_(_REQUIRED_FACTORS),
-        )
-        .order_by(FactorValue.symbol, FactorValue.factor)
-    ).all()
+    factor_rows = session.execute(_style_factor_statement(trade_date)).all()
     for factor_row in factor_rows:
         target = input_rows.get(str(factor_row.symbol))
         if target is None:
@@ -350,6 +332,11 @@ def compute_style_snapshot(session: Session, trade_date: date) -> StyleDailySnap
             factor_coverage=factor_coverage,
         ),
         total_amount=total_amount,
+        source_fingerprint=_style_source_fingerprint_from_rows(
+            trade_date,
+            base_rows,
+            factor_rows,
+        ),
     )
 
 

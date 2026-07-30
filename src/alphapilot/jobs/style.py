@@ -180,7 +180,6 @@ def compute_style_daily(trade_date: date | None = None) -> dict[str, Any]:
             )
         assert target_date is not None
 
-        fingerprint_before = style_source_fingerprint(session, target_date)
         try:
             snapshot = compute_style_snapshot(session, target_date)
         except StyleAggregationError as exc:
@@ -192,6 +191,12 @@ def compute_style_daily(trade_date: date | None = None) -> dict[str, Any]:
             )
             raise JobExecutionError(str(exc), stats=stats) from exc
 
+        snapshot_fingerprint = getattr(snapshot, "source_fingerprint", None)
+        fingerprint_before = (
+            snapshot_fingerprint
+            if isinstance(snapshot_fingerprint, str) and len(snapshot_fingerprint) == 64
+            else style_source_fingerprint(session, target_date)
+        )
         fingerprint_after = style_source_fingerprint(session, target_date)
         final_input_dates = _latest_input_dates(session)
         if (
