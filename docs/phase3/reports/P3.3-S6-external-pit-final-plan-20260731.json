@@ -1,0 +1,32 @@
+{
+  "approved": false,
+  "blockers": [],
+  "forbidden_sources": [
+    "BaoStock"
+  ],
+  "mode": "plan_only",
+  "network_called": false,
+  "pit_manifest_schema_version": "p3.3-s6-local-pit-manifest-v1",
+  "pit_manifest_sha256": "fb9c888e7a10f7b1ef28e7a447b0e2b53df739f6acdbedb1ba95d1d41cbfb0bd",
+  "ready_for_trial": true,
+  "routes": {
+    "daily_bars": {
+      "bse_or_fallback": "Sina unadjusted DAY + Sina HFQ DAY, normalized to manifest adjustment anchor",
+      "futu_planned_samples": 5,
+      "sh_sz": "Futu unadjusted DAY + Futu HFQ DAY, normalized to manifest adjustment anchor",
+      "sina_planned_samples": 0
+    },
+    "financial_indicators": {
+      "planned_symbol_calls": 5,
+      "source": "Eastmoney F10",
+      "tushare_call_limit": 0
+    },
+    "valuation_daily": {
+      "planned_symbol_calls": 5,
+      "source": "Eastmoney stock_value_em"
+    }
+  },
+  "sample_count": 15,
+  "schema_version": "p3.3-s6-external-pit-preflight-v1",
+  "secrets_included": false
+}
