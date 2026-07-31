@@ -29,7 +29,7 @@ from alphapilot.data.provenance import (
 )
 from alphapilot.engines.factors import FACTOR_SET
 
-REPORT_VERSION = "p3.3-s6-v3"
+REPORT_VERSION = "p3.3-s6-v4"
 MARKET_TIMEZONE = ZoneInfo("Asia/Shanghai")
 LATEST_CROSS_SECTION_CANDIDATES = 60
 FINANCIAL_TARGET_QUARTERS = 40
@@ -38,6 +38,28 @@ FINANCIAL_PUBLICATION_LAG_DAYS = 45
 MIN_FINANCIAL_DEPTH_RATIO = 0.80
 MIN_FINANCIAL_SYMBOL_PASS_RATIO = 0.90
 MIN_PROVIDER_PUB_DATE_BASIS_RATIO = 0.95
+FINANCIAL_PROVIDER_CADENCE: dict[str, dict[str, Any]] = {
+    "roe": {
+        "label": "quarterly",
+        "expected_quarters": (1, 2, 3, 4),
+    },
+    "net_profit_yoy": {
+        "label": "quarterly",
+        "expected_quarters": (1, 2, 3, 4),
+    },
+    "ocf_to_profit": {
+        "label": "quarterly_provider_nullable",
+        "expected_quarters": (1, 2, 3, 4),
+    },
+    "debt_ratio": {
+        "label": "quarterly",
+        "expected_quarters": (1, 2, 3, 4),
+    },
+    "revenue_yoy": {
+        "label": "semiannual_q2_q4_from_baostock_mb_revenue",
+        "expected_quarters": (2, 4),
+    },
+}
 MAX_EXTERNAL_EVIDENCE_BYTES = 64 * 1024
 PIT_MANIFEST_SCHEMA_VERSION = "p3.3-s6-local-pit-manifest-v1"
 EXTERNAL_PAIRING_SCHEMA_VERSION = "p3.3-s6-external-pit-pairing-v2"
@@ -854,6 +876,15 @@ def _depth_bucket(periods: int) -> str:
     return "40+"
 
 
+def _financial_provider_supports(symbol: str, board: object) -> bool:
+    return (
+        len(symbol) == 6
+        and symbol.isdigit()
+        and str(board or "") != "北交所"
+        and not symbol.startswith(("4", "8", "92"))
+    )
+
+
 def _financial_depth_audit(
     connection: sqlite3.Connection,
     *,
@@ -878,6 +909,7 @@ def _financial_depth_audit(
     security_rows = connection.execute(
         f"""
         SELECT security.symbol,
+               security.board,
                security.listed_date,
                (
                  SELECT MIN(bars.trade_date)
@@ -898,13 +930,18 @@ def _financial_depth_audit(
         "first_audited_bar": 0,
         "unknown": 0,
     }
+    provider_unsupported_symbols = 0
     for row in security_rows:
+        symbol = str(row["symbol"])
+        if not _financial_provider_supports(symbol, row["board"]):
+            provider_unsupported_symbols += 1
+            continue
         listed_date = _parse_date(row["listed_date"])
         basis = "security_master"
         if listed_date is None:
             listed_date = _parse_date(row["first_audited_bar"])
             basis = "first_audited_bar" if listed_date is not None else "unknown"
-        listing_info[str(row["symbol"])] = (listed_date, basis)
+        listing_info[symbol] = (listed_date, basis)
         listing_basis_counts[basis] += 1
     rows = connection.execute(
         """
@@ -969,8 +1006,22 @@ def _financial_depth_audit(
                 (metric, symbol),
                 {"observed": set(), "non_null": set()},
             )
-            target_non_null = set(payload["non_null"]).intersection(target_set)
-            non_null = target_non_null.intersection(publishable_set)
+            expected_target = {
+                period
+                for period in target_periods
+                if (
+                    (period_end := _quarter_end(period)) is not None
+                    and period_end >= listed_date
+                )
+            }
+            target_non_null = (
+                set(payload["non_null"])
+                .intersection(target_set)
+                .intersection(expected_target)
+            )
+            non_null = target_non_null.intersection(publishable_set).intersection(
+                expected
+            )
             actual_depth = len(non_null)
             buckets[_depth_bucket(len(target_non_null))] += 1
             minimum_depth = (
@@ -1015,7 +1066,11 @@ def _financial_depth_audit(
                         "missing_period_sample": sorted(expected - non_null)[:5],
                     }
                 )
+        cadence = FINANCIAL_PROVIDER_CADENCE[metric]
         metrics[metric] = {
+            "diagnostic_only": True,
+            "provider_cadence": cadence["label"],
+            "provider_expected_quarters": list(cadence["expected_quarters"]),
             "symbols_evaluated": symbols_evaluated,
             "mature_symbols": mature_symbols,
             "minimum_mature_quarters": FINANCIAL_MINIMUM_MATURE_QUARTERS,
@@ -1047,10 +1102,13 @@ def _financial_depth_audit(
         ],
         "publication_lag_days": FINANCIAL_PUBLICATION_LAG_DAYS,
         "universe_definition": (
-            "current securities where market='CN' and list_status='listed'; "
+            "BaoStock-supported current securities where market='CN' and "
+            "list_status='listed', excluding board='北交所' and symbols starting "
+            "with 4/8/92; "
             "listed_date falls back to first audited daily_bar as in backtest PIT"
         ),
         "universe_symbols": len(listing_info),
+        "provider_unsupported_symbols": provider_unsupported_symbols,
         "listing_date_basis_counts": listing_basis_counts,
         "unknown_listing_date_symbols": unknown_listing_date_symbols,
         "new_symbols_without_publishable_quarter": (
@@ -1267,7 +1325,79 @@ def _sector_flow_audit(connection: sqlite3.Connection) -> dict[str, Any]:
     )
     rows_count = int(summary["rows_count"])
     source_counts = _source_counts(connection, table="sector_flow_daily")
-    historical_source_rows = source_counts.get(M3_SECTOR_FLOW_SOURCE, 0)
+    historical = _one(
+        connection,
+        """
+        SELECT COUNT(*) AS rows_count,
+               COUNT(DISTINCT plate_code) AS plates,
+               COUNT(DISTINCT trade_date) AS dates,
+               MIN(trade_date) AS min_date,
+               MAX(trade_date) AS max_date
+        FROM sector_flow_daily
+        WHERE source = ?
+        """,
+        (M3_SECTOR_FLOW_SOURCE,),
+    )
+    historical_rows = int(historical["rows_count"])
+    historical_plates = int(historical["plates"])
+    historical_dates = int(historical["dates"])
+    historical_start = historical["min_date"]
+    historical_end = historical["max_date"]
+    historical_window_rows = historical_rows
+    mixed_source_rows_in_window = 0
+    live_forward = {
+        "rows": 0,
+        "plates": 0,
+        "dates": 0,
+        "date_range": [None, None],
+        "source_counts": {},
+    }
+    if historical_start is not None and historical_end is not None:
+        window = _one(
+            connection,
+            """
+            SELECT COUNT(*) AS rows_count
+            FROM sector_flow_daily
+            WHERE trade_date >= ? AND trade_date <= ?
+            """,
+            (historical_start, historical_end),
+        )
+        historical_window_rows = int(window["rows_count"])
+        mixed_source_rows_in_window = historical_window_rows - historical_rows
+        live_summary = _one(
+            connection,
+            """
+            SELECT COUNT(*) AS rows_count,
+                   COUNT(DISTINCT plate_code) AS plates,
+                   COUNT(DISTINCT trade_date) AS dates,
+                   MIN(trade_date) AS min_date,
+                   MAX(trade_date) AS max_date
+            FROM sector_flow_daily
+            WHERE trade_date > ?
+            """,
+            (historical_end,),
+        )
+        live_sources = connection.execute(
+            """
+            SELECT COALESCE(source, '<null>') AS source, COUNT(*) AS rows_count
+            FROM sector_flow_daily
+            WHERE trade_date > ?
+            GROUP BY source
+            ORDER BY source
+            """,
+            (historical_end,),
+        ).fetchall()
+        live_forward = {
+            "rows": int(live_summary["rows_count"]),
+            "plates": int(live_summary["plates"]),
+            "dates": int(live_summary["dates"]),
+            "date_range": [live_summary["min_date"], live_summary["max_date"]],
+            "source_counts": {
+                str(row["source"]): int(row["rows_count"]) for row in live_sources
+            },
+        }
+    expected_historical_rows = historical_plates * historical_dates
+    rectangular_gap_rows = max(0, expected_historical_rows - historical_rows)
     return {
         "rows": rows_count,
         "plates": int(summary["plates"]),
@@ -1282,8 +1412,23 @@ def _sector_flow_audit(connection: sqlite3.Connection) -> dict[str, Any]:
         ),
         "source_counts": source_counts,
         "historical_source": M3_SECTOR_FLOW_SOURCE,
-        "historical_source_rows": historical_source_rows,
-        "historical_source_ratio": _ratio(historical_source_rows, rows_count),
+        "historical_source_rows": historical_rows,
+        "historical_source_ratio": _ratio(
+            historical_rows,
+            historical_window_rows,
+        ),
+        "historical_backfill": {
+            "source": M3_SECTOR_FLOW_SOURCE,
+            "rows": historical_rows,
+            "plates": historical_plates,
+            "dates": historical_dates,
+            "date_range": [historical_start, historical_end],
+            "expected_rectangular_rows": expected_historical_rows,
+            "rectangular_gap_rows": rectangular_gap_rows,
+            "window_rows": historical_window_rows,
+            "mixed_source_rows_in_window": mixed_source_rows_in_window,
+        },
+        "live_forward": live_forward,
         "invalid_source_rows": _invalid_source_rows(
             source_counts,
             AUDITED_SECTOR_FLOW_SOURCES,
@@ -2256,7 +2401,7 @@ def _gate(
     keys = report["daily_adj_key_audit"]
     factors = report["factor_availability"]["factors"]
     blockers: list[dict[str, str]] = []
-    warnings: list[dict[str, str]] = [
+    warnings: list[dict[str, Any]] = [
         {
             "code": "SURVIVORSHIP_BIAS",
             "message": "证券主表不含完整退市股历史，历史截面仍有幸存者偏差。",
@@ -2366,61 +2511,68 @@ def _gate(
             depth = depth_metrics.get(metric)
             if not isinstance(depth, dict):
                 continue
-            if (
-                depth["depth_sufficient_ratio"] is None
-                or depth["depth_sufficient_ratio"] < MIN_FINANCIAL_SYMBOL_PASS_RATIO
+            for dimension, ratio_key, label in (
+                ("depth", "depth_sufficient_ratio", "成熟/次新自适应季度深度"),
+                ("cross_year", "cross_year_sufficient_ratio", "跨年截面"),
+                ("freshness", "fresh_ratio", "近端可披露季度覆盖"),
             ):
-                block(
-                    f"FINANCIAL_{metric.upper()}_DEPTH",
-                    (
-                        f"{metric} 成熟/次新自适应季度深度达标率 "
-                        f"{depth['depth_sufficient_ratio']!s} 低于 "
-                        f"{MIN_FINANCIAL_SYMBOL_PASS_RATIO:.0%}。"
-                    ),
-                )
-            if (
-                depth["cross_year_sufficient_ratio"] is None
-                or depth["cross_year_sufficient_ratio"]
-                < MIN_FINANCIAL_SYMBOL_PASS_RATIO
-            ):
-                block(
-                    f"FINANCIAL_{metric.upper()}_CROSS_YEAR",
-                    (
-                        f"{metric} 跨年截面达标率 "
-                        f"{depth['cross_year_sufficient_ratio']!s} 低于 "
-                        f"{MIN_FINANCIAL_SYMBOL_PASS_RATIO:.0%}。"
-                    ),
-                )
-            if (
-                depth["fresh_ratio"] is None
-                or depth["fresh_ratio"] < MIN_FINANCIAL_SYMBOL_PASS_RATIO
-            ):
-                block(
-                    f"FINANCIAL_{metric.upper()}_FRESHNESS",
-                    (
-                        f"{metric} 近端可披露季度覆盖率 {depth['fresh_ratio']!s} "
-                        f"低于 {MIN_FINANCIAL_SYMBOL_PASS_RATIO:.0%}。"
-                    ),
+                ratio = depth[ratio_key]
+                if (
+                    ratio is not None
+                    and ratio >= MIN_FINANCIAL_SYMBOL_PASS_RATIO
+                ):
+                    continue
+                warnings.append(
+                    {
+                        "code": (
+                            f"FINANCIAL_{metric.upper()}_{dimension.upper()}"
+                        ),
+                        "message": (
+                            f"{metric} {label}诊断率 {ratio!s} 低于参考值 "
+                            f"{MIN_FINANCIAL_SYMBOL_PASS_RATIO:.0%}；"
+                            "该统计反映 provider cadence/字段空值，不等同于采集漏失。"
+                            "S2 键闭环、PIT 完整性和固定 factor_zscores 截面仍是硬门。"
+                        ),
+                        "kind": "provider_null_diagnostic",
+                        "metric": metric,
+                        "dimension": dimension,
+                        "observed_ratio": ratio,
+                        "reference_ratio": MIN_FINANCIAL_SYMBOL_PASS_RATIO,
+                        "provider_cadence": depth["provider_cadence"],
+                        "provider_expected_quarters": depth[
+                            "provider_expected_quarters"
+                        ],
+                        "blocking": False,
+                    }
                 )
     if valuation["pit_anomaly_rows"]:
         block(
             "VALUATION_PIT_ANOMALY",
             f"估值 available_time 口径有 {valuation['pit_anomaly_rows']} 行异常。",
         )
-    if sector["plates"] < minimum_sector_plates or sector["dates"] < minimum_sector_dates:
+    historical_sector = sector["historical_backfill"]
+    if (
+        historical_sector["plates"] < minimum_sector_plates
+        or historical_sector["dates"] < minimum_sector_dates
+        or historical_sector["rectangular_gap_rows"]
+    ):
         block(
             "SECTOR_FLOW_COVERAGE",
             (
-                f"板块资金流仅 {sector['plates']} 板块/{sector['dates']} 日期，"
-                f"低于 {minimum_sector_plates}/{minimum_sector_dates}。"
+                f"M3 {M3_SECTOR_FLOW_SOURCE} 历史子集仅 "
+                f"{historical_sector['plates']} 板块/{historical_sector['dates']} 日期，"
+                f"矩形缺口 {historical_sector['rectangular_gap_rows']} 行；"
+                f"闸门要求至少 {minimum_sector_plates}/{minimum_sector_dates} 且无缺口。"
             ),
         )
-    if sector["historical_source_rows"] != sector["rows"]:
+    if historical_sector["mixed_source_rows_in_window"]:
         block(
             "SECTOR_FLOW_HISTORICAL_SOURCE",
             (
-                "sector_flow_daily 并非全部来自 M3 历史 DAY 口径 "
-                f"{M3_SECTOR_FLOW_SOURCE}。"
+                f"M3 历史窗 {historical_sector['date_range'][0]}.."
+                f"{historical_sector['date_range'][1]} 内有 "
+                f"{historical_sector['mixed_source_rows_in_window']} 行不来自 "
+                f"DAY 口径 {M3_SECTOR_FLOW_SOURCE}。"
             ),
         )
     membership_history = sector["membership_pit_history"]
@@ -2725,6 +2877,32 @@ def render_data_health_markdown(report: dict[str, Any]) -> str:
             f"qualified={str(broad['qualified']).lower()}"
         )
 
+    sector = inputs["sector_flow_daily"]
+    historical_sector = sector["historical_backfill"]
+    live_forward_sector = sector["live_forward"]
+    lines.extend(
+        [
+            "",
+            "### 板块资金流历史窗与 live-forward",
+            "",
+            f"- M3 历史子集 `{historical_sector['source']}`："
+            f"{historical_sector['rows']:,} 行 / "
+            f"{historical_sector['plates']:,} 板块 / "
+            f"{historical_sector['dates']:,} 日，"
+            f"{_display(historical_sector['date_range'][0])} → "
+            f"{_display(historical_sector['date_range'][1])}；"
+            f"矩形缺口={historical_sector['rectangular_gap_rows']:,}，"
+            f"窗内混源={historical_sector['mixed_source_rows_in_window']:,}",
+            "- 历史窗后 live-forward："
+            f"{live_forward_sector['rows']:,} 行 / "
+            f"{live_forward_sector['dates']:,} 日，"
+            f"{_display(live_forward_sector['date_range'][0])} → "
+            f"{_display(live_forward_sector['date_range'][1])}；"
+            "source_counts="
+            f"`{json.dumps(live_forward_sector['source_counts'], ensure_ascii=False)}`",
+        ]
+    )
+
     key_audit = report["daily_adj_key_audit"]
     lines.extend(
         [
@@ -2778,6 +2956,9 @@ def render_data_health_markdown(report: dict[str, Any]) -> str:
         [
             f"- 深度审计全集：{depth_contract['universe_definition']}",
             f"- 深度审计股票数：{depth_contract['universe_symbols']:,}",
+            "- Provider 不支持股票数："
+            f"{depth_contract['provider_unsupported_symbols']:,}"
+            "（不纳入财务深度诊断分母）",
             "- 上市日期口径："
             f"security_master={listing_basis['security_master']:,}，"
             f"first_audited_bar={listing_basis['first_audited_bar']:,}，"
@@ -2786,9 +2967,9 @@ def render_data_health_markdown(report: dict[str, Any]) -> str:
             f"{depth_contract['new_symbols_without_publishable_quarter']:,}"
             "（不纳入深度分母）",
             "",
-            "| 指标 | ≥20季度达标率 | ≥5年达标率 | 近端新鲜率 | "
-            "40季度达成率 | 代表性缺口 |",
-            "|---|---:|---:|---:|---:|---|",
+            "| 指标 | provider cadence | 原始季度深度诊断率 | ≥5年诊断率 | "
+            "近端诊断率 | 40季度达成率 | 代表性缺口 |",
+            "|---|---|---:|---:|---:|---:|---|",
         ]
     )
     for metric in REQUIRED_FINANCIAL_FACTORS:
@@ -2802,7 +2983,9 @@ def render_data_health_markdown(report: dict[str, Any]) -> str:
             else "—"
         )
         lines.append(
-            f"| {metric} | {_display(depth.get('depth_sufficient_ratio'))} | "
+            f"| {metric} | {_display(depth.get('provider_cadence'))} "
+            f"{_display(depth.get('provider_expected_quarters'))} | "
+            f"{_display(depth.get('depth_sufficient_ratio'))} | "
             f"{_display(depth.get('cross_year_sufficient_ratio'))} | "
             f"{_display(depth.get('fresh_ratio'))} | "
             f"{_display(depth.get('target_40_quarters_achieved_ratio'))} | "

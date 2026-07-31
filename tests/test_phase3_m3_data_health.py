@@ -441,6 +441,182 @@ def test_flow_factor_is_recorded_as_nonblocking_exclusion_and_tracks_forward_pit
     assert not any(code.startswith("FACTOR_NET_INFLOW_5D") for code in blocker_codes)
 
 
+def test_sector_flow_gate_allows_audited_live_forward_rows_after_m3_window(
+    tmp_path: Path,
+) -> None:
+    database_path = _database(tmp_path)
+    writable = sqlite3.connect(database_path)
+    try:
+        writable.execute(
+            """
+            INSERT INTO sector_flow_daily(
+                plate_code, trade_date, net_inflow, main_inflow, source
+            ) VALUES ('BK0001', '2026-07-25', 120.0, 90.0, 'em')
+            """
+        )
+        writable.commit()
+    finally:
+        writable.close()
+
+    report = build_data_health_report(
+        database_path,
+        minimum_market_coverage=0.80,
+        minimum_factor_cross_section=2,
+        minimum_sector_plates=1,
+        minimum_sector_dates=5,
+        sample_size=1,
+        factor_probe=_sufficient_probe,
+    )
+
+    sector = report["input_coverage"]["sector_flow_daily"]
+    assert sector["source_counts"] == {"em": 1, "futu-daily": 5}
+    assert sector["historical_backfill"] == {
+        "source": "futu-daily",
+        "rows": 5,
+        "plates": 1,
+        "dates": 5,
+        "date_range": ["2026-07-20", "2026-07-24"],
+        "expected_rectangular_rows": 5,
+        "rectangular_gap_rows": 0,
+        "window_rows": 5,
+        "mixed_source_rows_in_window": 0,
+    }
+    assert sector["live_forward"] == {
+        "rows": 1,
+        "plates": 1,
+        "dates": 1,
+        "date_range": ["2026-07-25", "2026-07-25"],
+        "source_counts": {"em": 1},
+    }
+    blocker_codes = {item["code"] for item in report["gate"]["blockers"]}
+    assert "SECTOR_FLOW_COVERAGE" not in blocker_codes
+    assert "SECTOR_FLOW_HISTORICAL_SOURCE" not in blocker_codes
+    assert "SECTOR_FLOW_DAILY_SOURCE" not in blocker_codes
+    markdown = render_data_health_markdown(report)
+    assert "板块资金流历史窗与 live-forward" in markdown
+    assert "矩形缺口=0，窗内混源=0" in markdown
+    assert 'source_counts=`{"em": 1}`' in markdown
+
+
+def test_sector_flow_gate_rejects_mixed_source_inside_m3_window(
+    tmp_path: Path,
+) -> None:
+    database_path = _database(tmp_path)
+    writable = sqlite3.connect(database_path)
+    try:
+        writable.execute(
+            """
+            UPDATE sector_flow_daily
+            SET source = 'em'
+            WHERE plate_code = 'BK0001' AND trade_date = '2026-07-22'
+            """
+        )
+        writable.commit()
+    finally:
+        writable.close()
+
+    report = build_data_health_report(
+        database_path,
+        minimum_market_coverage=0.80,
+        minimum_factor_cross_section=2,
+        minimum_sector_plates=1,
+        minimum_sector_dates=5,
+        sample_size=1,
+        factor_probe=_sufficient_probe,
+    )
+
+    historical = report["input_coverage"]["sector_flow_daily"][
+        "historical_backfill"
+    ]
+    assert historical["window_rows"] == 5
+    assert historical["mixed_source_rows_in_window"] == 1
+    blocker_codes = {item["code"] for item in report["gate"]["blockers"]}
+    assert "SECTOR_FLOW_HISTORICAL_SOURCE" in blocker_codes
+
+
+def test_sector_flow_gate_rejects_rectangular_gap_in_historical_subset(
+    tmp_path: Path,
+) -> None:
+    database_path = _database(tmp_path)
+    writable = sqlite3.connect(database_path)
+    try:
+        writable.execute(
+            """
+            INSERT INTO sector_flow_daily(
+                plate_code, trade_date, net_inflow, main_inflow, source
+            )
+            SELECT 'BK0002', trade_date, net_inflow, main_inflow, source
+            FROM sector_flow_daily
+            WHERE plate_code = 'BK0001'
+            """
+        )
+        writable.execute(
+            """
+            DELETE FROM sector_flow_daily
+            WHERE plate_code = 'BK0002' AND trade_date = '2026-07-22'
+            """
+        )
+        writable.commit()
+    finally:
+        writable.close()
+
+    report = build_data_health_report(
+        database_path,
+        minimum_market_coverage=0.80,
+        minimum_factor_cross_section=2,
+        minimum_sector_plates=2,
+        minimum_sector_dates=5,
+        sample_size=1,
+        factor_probe=_sufficient_probe,
+    )
+
+    historical = report["input_coverage"]["sector_flow_daily"][
+        "historical_backfill"
+    ]
+    assert historical["rows"] == 9
+    assert historical["expected_rectangular_rows"] == 10
+    assert historical["rectangular_gap_rows"] == 1
+    assert historical["mixed_source_rows_in_window"] == 0
+    blocker_codes = {item["code"] for item in report["gate"]["blockers"]}
+    assert "SECTOR_FLOW_COVERAGE" in blocker_codes
+    assert "SECTOR_FLOW_HISTORICAL_SOURCE" not in blocker_codes
+
+
+def test_sector_flow_gate_rejects_unknown_source_after_m3_window(
+    tmp_path: Path,
+) -> None:
+    database_path = _database(tmp_path)
+    writable = sqlite3.connect(database_path)
+    try:
+        writable.execute(
+            """
+            INSERT INTO sector_flow_daily(
+                plate_code, trade_date, net_inflow, main_inflow, source
+            ) VALUES ('BK0001', '2026-07-25', 120.0, 90.0, 'unknown')
+            """
+        )
+        writable.commit()
+    finally:
+        writable.close()
+
+    report = build_data_health_report(
+        database_path,
+        minimum_market_coverage=0.80,
+        minimum_factor_cross_section=2,
+        minimum_sector_plates=1,
+        minimum_sector_dates=5,
+        sample_size=1,
+        factor_probe=_sufficient_probe,
+    )
+
+    sector = report["input_coverage"]["sector_flow_daily"]
+    assert sector["historical_backfill"]["mixed_source_rows_in_window"] == 0
+    assert sector["live_forward"]["source_counts"] == {"unknown": 1}
+    blocker_codes = {item["code"] for item in report["gate"]["blockers"]}
+    assert "SECTOR_FLOW_HISTORICAL_SOURCE" not in blocker_codes
+    assert "SECTOR_FLOW_DAILY_SOURCE" in blocker_codes
+
+
 def test_each_broad_cross_section_must_qualify_independently(
     tmp_path: Path,
 ) -> None:
@@ -485,7 +661,7 @@ def test_each_broad_cross_section_must_qualify_independently(
         assert broad["entities"] < broad["minimum_entities"]
 
 
-def test_financial_gate_rejects_ninety_percent_symbols_with_one_old_quarter(
+def test_financial_depth_gaps_are_structured_nonblocking_diagnostics(
     tmp_path: Path,
 ) -> None:
     database_path = _database(tmp_path)
@@ -590,11 +766,226 @@ def test_financial_gate_rejects_ninety_percent_symbols_with_one_old_quarter(
     assert roe_depth["fresh_ratio"] == 0.0
     assert roe_depth["representative_gaps"]
     blocker_codes = {item["code"] for item in report["gate"]["blockers"]}
+    warning_by_code = {
+        item["code"]: item for item in report["gate"]["warnings"]
+    }
     assert "S2_FINANCIAL_COVERAGE_INCOMPLETE" not in blocker_codes
-    assert "FINANCIAL_ROE_DEPTH" in blocker_codes
-    assert "FINANCIAL_ROE_CROSS_YEAR" in blocker_codes
-    assert "FINANCIAL_ROE_FRESHNESS" in blocker_codes
-    assert report["gate"]["automated_checks_pass"] is False
+    assert "FINANCIAL_ROE_DEPTH" not in blocker_codes
+    assert "FINANCIAL_ROE_CROSS_YEAR" not in blocker_codes
+    assert "FINANCIAL_ROE_FRESHNESS" not in blocker_codes
+    for code, dimension in (
+        ("FINANCIAL_ROE_DEPTH", "depth"),
+        ("FINANCIAL_ROE_CROSS_YEAR", "cross_year"),
+        ("FINANCIAL_ROE_FRESHNESS", "freshness"),
+    ):
+        warning = warning_by_code[code]
+        assert warning["kind"] == "provider_null_diagnostic"
+        assert warning["dimension"] == dimension
+        assert warning["blocking"] is False
+        assert warning["reference_ratio"] == 0.90
+        assert "不等同于采集漏失" in warning["message"]
+    assert report["gate"]["automated_checks_pass"] is True
+
+
+def test_financial_depth_uses_provider_universe_and_ignores_prelisting_values(
+    tmp_path: Path,
+) -> None:
+    database_path = tmp_path / "financial-depth.db"
+    engine = create_engine(f"sqlite:///{database_path}")
+    Base.metadata.create_all(engine)
+    with Session(engine) as session:
+        session.add_all(
+            [
+                Security(
+                    symbol="600001",
+                    market="CN",
+                    board="主板",
+                    list_status="listed",
+                    listed_date="2025-01-01",
+                ),
+                Security(
+                    symbol="920001",
+                    market="CN",
+                    board="北交所",
+                    list_status="listed",
+                    listed_date="2020-01-01",
+                ),
+            ]
+        )
+        session.add_all(
+            [
+                DailyBar(
+                    symbol=symbol,
+                    trade_date=date(2025, 1, 2),
+                    open=10.0,
+                    high=11.0,
+                    low=9.0,
+                    close=10.5,
+                    volume=1_000.0,
+                    amount=10_000.0,
+                    source="baostock",
+                )
+                for symbol in ("600001", "920001")
+            ]
+        )
+        session.add(
+            FinancialIndicator(
+                symbol="600001",
+                report_period="2020Q1",
+                metric="roe",
+                value=0.1,
+                source="baostock",
+                available_time=datetime(2020, 5, 1, tzinfo=UTC),
+                payload={},
+            )
+        )
+        session.commit()
+    engine.dispose()
+
+    with readonly_connection(database_path) as connection:
+        depth = data_health._financial_depth_audit(
+            connection,
+            as_of_date=date(2026, 7, 31),
+        )
+
+    assert depth["universe_symbols"] == 1
+    assert depth["provider_unsupported_symbols"] == 1
+    assert "excluding board='北交所'" in depth["universe_definition"]
+    roe = depth["metric_depth"]["roe"]
+    assert roe["symbols_evaluated"] == 1
+    gap = roe["representative_gaps"][0]
+    assert gap["symbol"] == "600001"
+    assert gap["non_null_quarters"] == 0
+    revenue = depth["metric_depth"]["revenue_yoy"]
+    assert revenue["diagnostic_only"] is True
+    assert revenue["provider_cadence"] == (
+        "semiannual_q2_q4_from_baostock_mb_revenue"
+    )
+    assert revenue["provider_expected_quarters"] == [2, 4]
+
+
+def test_provider_null_financial_rows_warn_but_prior_values_remain_pit_usable(
+    tmp_path: Path,
+) -> None:
+    database_path = _database(tmp_path)
+    engine = create_engine(f"sqlite:///{database_path}")
+
+    def observation(
+        *,
+        symbol: str,
+        report_period: str,
+        metric: str,
+        value: float | None,
+        period_end: date,
+        publication_date: date,
+    ) -> FinancialIndicator:
+        available_time = datetime.combine(
+            publication_date + timedelta(days=1),
+            time.min,
+            tzinfo=SHANGHAI,
+        ).astimezone(UTC)
+        source_field = (
+            "cash_flow.CFOToNP"
+            if metric == "ocf_to_profit"
+            else "derived.profit.MBRevenue_yoy"
+        )
+        payload: dict[str, Any] = {
+            "available_time_basis": "provider_pub_date_end_of_day",
+            "approx": False,
+            "stat_date": period_end.isoformat(),
+            "pub_dates": [publication_date.isoformat()],
+            "source_field": source_field,
+        }
+        if metric == "revenue_yoy" and value is None:
+            payload["unavailable_reason"] = "missing_current_revenue"
+        return FinancialIndicator(
+            symbol=symbol,
+            report_period=report_period,
+            metric=metric,
+            value=value,
+            source="baostock",
+            available_time=available_time,
+            payload=payload,
+        )
+
+    with Session(engine) as session:
+        for symbol, offset in (("600519", 0.0), ("000001", 0.2)):
+            for metric in ("ocf_to_profit", "revenue_yoy"):
+                session.add(
+                    observation(
+                        symbol=symbol,
+                        report_period="2025Q2",
+                        metric=metric,
+                        value=0.1 + offset,
+                        period_end=date(2025, 6, 30),
+                        publication_date=date(2025, 8, 20),
+                    )
+                )
+                session.add(
+                    observation(
+                        symbol=symbol,
+                        report_period="2025Q3",
+                        metric=metric,
+                        value=(
+                            None
+                            if metric == "revenue_yoy"
+                            else 0.15 + offset
+                        ),
+                        period_end=date(2025, 9, 30),
+                        publication_date=date(2025, 10, 25),
+                    )
+                )
+                if symbol == "000001":
+                    session.add(
+                        observation(
+                            symbol=symbol,
+                            report_period="2025Q4",
+                            metric=metric,
+                            value=0.2 + offset,
+                            period_end=date(2025, 12, 31),
+                            publication_date=date(2026, 3, 30),
+                        )
+                    )
+                session.add(
+                    observation(
+                        symbol=symbol,
+                        report_period="2026Q1",
+                        metric=metric,
+                        value=None,
+                        period_end=date(2026, 3, 31),
+                        publication_date=date(2026, 4, 29),
+                    )
+                )
+        session.commit()
+        frame = data_health.factor_zscores(session, date(2026, 7, 24))
+    engine.dispose()
+
+    assert int(frame["ocf_to_profit"].notna().sum()) == 2
+    assert int(frame["revenue_yoy"].notna().sum()) == 2
+
+    report = build_data_health_report(
+        database_path,
+        as_of_date=date(2026, 7, 25),
+        minimum_market_coverage=0.50,
+        minimum_factor_cross_section=2,
+        minimum_sector_plates=1,
+        minimum_sector_dates=5,
+        sample_size=1,
+        factor_probe=_sufficient_probe,
+    )
+    blocker_codes = {item["code"] for item in report["gate"]["blockers"]}
+    warning_by_code = {
+        item["code"]: item for item in report["gate"]["warnings"]
+    }
+    for metric in ("OCF_TO_PROFIT", "REVENUE_YOY"):
+        for suffix in ("DEPTH", "CROSS_YEAR", "FRESHNESS"):
+            code = f"FINANCIAL_{metric}_{suffix}"
+            assert code not in blocker_codes
+            assert warning_by_code[code]["blocking"] is False
+    revenue = report["input_coverage"]["financial_indicators"][
+        "depth_contract"
+    ]["metric_depth"]["revenue_yoy"]
+    assert revenue["provider_expected_quarters"] == [2, 4]
 
 
 def test_provider_publication_date_basis_ratio_is_a_hard_gate(
@@ -938,7 +1329,7 @@ def test_external_pairing_rejects_replay_after_sample_value_changes(
         )
 
 
-def test_financial_depth_uses_all_listed_and_adapts_missing_listed_date(
+def test_financial_depth_uses_provider_universe_and_adapts_missing_listed_date(
     tmp_path: Path,
 ) -> None:
     database_path = _database(tmp_path)
@@ -1023,7 +1414,9 @@ def test_financial_depth_uses_all_listed_and_adapts_missing_listed_date(
     )
     markdown = render_data_health_markdown(report)
     assert "first_audited_bar=1" in markdown
-    assert markdown.index("- 深度审计全集") < markdown.index("| 指标 | ≥20季度")
+    assert markdown.index("- 深度审计全集") < markdown.index(
+        "| 指标 | provider cadence"
+    )
 
 
 def test_readonly_connection_rejects_writes(tmp_path: Path) -> None:
