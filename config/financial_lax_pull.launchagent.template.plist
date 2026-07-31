@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>__LAX_PULL_LABEL__</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>__LAX_PULL_PYTHON__</string>
+        <string>-u</string>
+        <string>__LAX_PULL_GATE__</string>
+        <string>--at</string>
+        <string>04:40</string>
+        <string>--state-file</string>
+        <string>__LAX_PULL_STATE_FILE__</string>
+        <string>--</string>
+        <string>__LAX_PULL_PYTHON__</string>
+        <string>-u</string>
+        <string>__LAX_PULL_SCRIPT__</string>
+        <string>--ssh-target</string>
+        <string>__LAX_PULL_SSH_TARGET__</string>
+        <string>--ssh-port</string>
+        <string>__LAX_PULL_SSH_PORT__</string>
+        <string>--remote-root</string>
+        <string>/opt/alphapilot-s2-lax</string>
+        <string>--remote-exporter</string>
+        <string>/opt/alphapilot-s2-lax/export-financial-snapshot.sh</string>
+        <string>--target-db</string>
+        <string>__LAX_PULL_TARGET_DB__</string>
+        <string>--snapshot-dir</string>
+        <string>__LAX_PULL_SNAPSHOT_DIR__</string>
+    </array>
+    <key>WorkingDirectory</key>
+    <string>__LAX_PULL_WORKING_DIRECTORY__</string>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>StartCalendarInterval</key>
+    <dict>
+        <key>Minute</key>
+        <integer>40</integer>
+    </dict>
+    <key>ProcessType</key>
+    <string>Background</string>
+    <key>LowPriorityIO</key>
+    <true/>
+    <key>Nice</key>
+    <integer>10</integer>
+    <key>ThrottleInterval</key>
+    <integer>300</integer>
+    <key>StandardOutPath</key>
+    <string>__LAX_PULL_STDOUT_LOG__</string>
+    <key>StandardErrorPath</key>
+    <string>__LAX_PULL_STDERR_LOG__</string>
+</dict>
+</plist>

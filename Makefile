@@ -1,4 +1,4 @@
-.PHONY: install install-all run test lint format typecheck web api-start api-stop api-restart api-status futu-start futu-stop docker-up docker-down bundle
+.PHONY: install install-all run test lint format typecheck web api-start api-stop api-restart api-status futu-start futu-stop financial-pull-install financial-pull-now financial-dog-pull-install financial-dog-pull-now docker-up docker-down bundle
 
 install:
 	python -m pip install -e ".[dev]"
@@ -42,6 +42,18 @@ futu-start:
 
 futu-stop:
 	./scripts/stop_futu_opend.sh
+
+financial-pull-install:
+	./scripts/install_financial_pull_launchd.sh
+
+financial-pull-now:
+	.venv/bin/python scripts/pull_financial_snapshot.py --ssh-target root@47.93.234.51 --remote-root /opt/alphapilot-s2 --target-db data/alphapilot.db --snapshot-dir data/phase3-s2
+
+financial-dog-pull-install:
+	./scripts/install_financial_dog_pull_launchd.sh
+
+financial-dog-pull-now:
+	.venv/bin/python scripts/pull_financial_snapshot.py --ssh-target root@206.237.18.80 --remote-root /opt/alphapilot-s2-dog --remote-exporter /opt/alphapilot-s2-dog/export-financial-snapshot.sh --target-db data/alphapilot.db --snapshot-dir data/phase3-s2-dog
 
 docker-up:
 	docker compose up --build
