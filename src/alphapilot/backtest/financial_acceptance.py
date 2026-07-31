@@ -50,13 +50,19 @@ SHARD_CONTRACTS: dict[str, ShardContract] = {
     "dogcloud": ShardContract(
         name="dogcloud",
         symbol_min=300_387,
-        symbol_max_exclusive=603_182,
+        symbol_max_exclusive=600_235,
         provider_request_budget=40_000,
     ),
-    "lax": ShardContract(
-        name="lax",
-        symbol_min=603_182,
-        symbol_max_exclusive=None,
+    "us38": ShardContract(
+        name="us38",
+        symbol_min=600_235,
+        symbol_max_exclusive=603_730,
+        provider_request_budget=39_999,
+    ),
+    "ussea": ShardContract(
+        name="ussea",
+        symbol_min=603_730,
+        symbol_max_exclusive=1_000_000,
         provider_request_budget=39_999,
     ),
 }
@@ -533,6 +539,12 @@ def _pubdate_plan(
         pub_date = _parse_date(pub_dates[0])
         if pub_date is None:
             continue
+        stat_date = _parse_date(payload.get("stat_date"))
+        if stat_date is None:
+            continue
+        available_time = _parse_datetime(row["available_time"])
+        if available_time is None:
+            continue
         period = str(row["report_period"])
         if not _REPORT_PERIOD_PATTERN.fullmatch(period):
             continue
@@ -541,8 +553,9 @@ def _pubdate_plan(
             "report_period": period,
             "year": int(period[:4]),
             "quarter": int(period[-1]),
+            "local_stat_date": stat_date.isoformat(),
             "local_pub_date": pub_date.isoformat(),
-            "local_available_time": str(row["available_time"]),
+            "local_available_time": available_time.isoformat(),
             "local_source_field": payload.get("source_field"),
             "planned_query": "BaoStock query_profit_data",
         }
@@ -943,7 +956,7 @@ def render_s2_financial_acceptance_markdown(report: Mapping[str, Any]) -> str:
             f"- provider_pub_date_end_of_day 比例：{pit['provider_pub_date_end_of_day_ratio']!s}",
             f"- PIT 异常行：{pit['anomaly_rows']:,}",
             "",
-            "## 三分片幂等空跑",
+            "## 四分片幂等空跑",
             "",
         ]
     )

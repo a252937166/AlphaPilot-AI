@@ -1,0 +1,201 @@
+{
+  "gate": {
+    "blockers": [],
+    "matched_count": 5,
+    "passed": true,
+    "required_matches": 5
+  },
+  "generated_at": "2026-07-31T02:01:26.076277+00:00",
+  "invariants": {
+    "hard_query_cap": 5,
+    "resampling_allowed": false,
+    "retry_count": 0,
+    "single_login": true,
+    "single_process": true
+  },
+  "login": {
+    "attempted": true,
+    "error_code": "0",
+    "error_message": "success"
+  },
+  "logout": {
+    "attempted": true,
+    "error_code": "0",
+    "error_message": "success"
+  },
+  "mode": "authorized_fixed_plan_execution",
+  "network_called": true,
+  "plan": {
+    "location": "acceptance_report.pubdate_plan",
+    "sample_count": 5,
+    "schema_version": "p3.3-s2-pubdate-plan-v1",
+    "sha256": "62c6c869f062b2780e945048a86f0e2128db74d4a6e173ab71a9c70c4eaf921d"
+  },
+  "provider_console_output_suppressed": true,
+  "queries_attempted": 5,
+  "samples": [
+    {
+      "checks": {
+        "available_time_matches": true,
+        "pub_date_matches": true,
+        "query_error_code_zero": true,
+        "report_period_matches": true,
+        "row_count_exactly_one": true,
+        "stat_date_matches": true,
+        "symbol_matches": true
+      },
+      "expected": {
+        "available_time_utc": "2026-04-27T16:00:00+00:00",
+        "pub_date": "2026-04-27",
+        "stat_date": "2026-03-31"
+      },
+      "matched": true,
+      "provider": {
+        "error_code": "0",
+        "error_message": "success",
+        "pub_date": "2026-04-27",
+        "recomputed_available_time_utc": "2026-04-27T16:00:00+00:00",
+        "row_count": 1,
+        "stat_date": "2026-03-31",
+        "symbol": "sz.002144"
+      },
+      "provider_code": "sz.002144",
+      "quarter": 1,
+      "report_period": "2026Q1",
+      "sample_index": 0,
+      "symbol": "002144",
+      "year": 2026
+    },
+    {
+      "checks": {
+        "available_time_matches": true,
+        "pub_date_matches": true,
+        "query_error_code_zero": true,
+        "report_period_matches": true,
+        "row_count_exactly_one": true,
+        "stat_date_matches": true,
+        "symbol_matches": true
+      },
+      "expected": {
+        "available_time_utc": "2026-04-30T16:00:00+00:00",
+        "pub_date": "2026-04-30",
+        "stat_date": "2026-03-31"
+      },
+      "matched": true,
+      "provider": {
+        "error_code": "0",
+        "error_message": "success",
+        "pub_date": "2026-04-30",
+        "recomputed_available_time_utc": "2026-04-30T16:00:00+00:00",
+        "row_count": 1,
+        "stat_date": "2026-03-31",
+        "symbol": "sh.688733"
+      },
+      "provider_code": "sh.688733",
+      "quarter": 1,
+      "report_period": "2026Q1",
+      "sample_index": 1,
+      "symbol": "688733",
+      "year": 2026
+    },
+    {
+      "checks": {
+        "available_time_matches": true,
+        "pub_date_matches": true,
+        "query_error_code_zero": true,
+        "report_period_matches": true,
+        "row_count_exactly_one": true,
+        "stat_date_matches": true,
+        "symbol_matches": true
+      },
+      "expected": {
+        "available_time_utc": "2026-04-25T16:00:00+00:00",
+        "pub_date": "2026-04-25",
+        "stat_date": "2026-03-31"
+      },
+      "matched": true,
+      "provider": {
+        "error_code": "0",
+        "error_message": "success",
+        "pub_date": "2026-04-25",
+        "recomputed_available_time_utc": "2026-04-25T16:00:00+00:00",
+        "row_count": 1,
+        "stat_date": "2026-03-31",
+        "symbol": "sz.300739"
+      },
+      "provider_code": "sz.300739",
+      "quarter": 1,
+      "report_period": "2026Q1",
+      "sample_index": 2,
+      "symbol": "300739",
+      "year": 2026
+    },
+    {
+      "checks": {
+        "available_time_matches": true,
+        "pub_date_matches": true,
+        "query_error_code_zero": true,
+        "report_period_matches": true,
+        "row_count_exactly_one": true,
+        "stat_date_matches": true,
+        "symbol_matches": true
+      },
+      "expected": {
+        "available_time_utc": "2026-04-23T16:00:00+00:00",
+        "pub_date": "2026-04-23",
+        "stat_date": "2026-03-31"
+      },
+      "matched": true,
+      "provider": {
+        "error_code": "0",
+        "error_message": "success",
+        "pub_date": "2026-04-23",
+        "recomputed_available_time_utc": "2026-04-23T16:00:00+00:00",
+        "row_count": 1,
+        "stat_date": "2026-03-31",
+        "symbol": "sz.301188"
+      },
+      "provider_code": "sz.301188",
+      "quarter": 1,
+      "report_period": "2026Q1",
+      "sample_index": 3,
+      "symbol": "301188",
+      "year": 2026
+    },
+    {
+      "checks": {
+        "available_time_matches": true,
+        "pub_date_matches": true,
+        "query_error_code_zero": true,
+        "report_period_matches": true,
+        "row_count_exactly_one": true,
+        "stat_date_matches": true,
+        "symbol_matches": true
+      },
+      "expected": {
+        "available_time_utc": "2026-04-30T16:00:00+00:00",
+        "pub_date": "2026-04-30",
+        "stat_date": "2026-03-31"
+      },
+      "matched": true,
+      "provider": {
+        "error_code": "0",
+        "error_message": "success",
+        "pub_date": "2026-04-30",
+        "recomputed_available_time_utc": "2026-04-30T16:00:00+00:00",
+        "row_count": 1,
+        "stat_date": "2026-03-31",
+        "symbol": "sh.688458"
+      },
+      "provider_code": "sh.688458",
+      "quarter": 1,
+      "report_period": "2026Q1",
+      "sample_index": 4,
+      "symbol": "688458",
+      "year": 2026
+    }
+  ],
+  "schema_version": "p3.3-s2-pubdate-execution-v1",
+  "stop_reason": null,
+  "stopped_early": false
+}

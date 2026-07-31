@@ -1,0 +1,427 @@
+{
+  "baostock_imported": false,
+  "checkpoint_closure": {
+    "checkpoint_pairs_outside_target_window": 0,
+    "duplicate_checkpoint_entries": 0,
+    "duplicate_financial_key_groups": 0,
+    "invalid_checkpoint_container": 0,
+    "invalid_checkpoint_entries": 0,
+    "invalid_profile_json": 0,
+    "negative_checkpoint_pairs": 38701,
+    "negative_checkpoint_symbols": 5196,
+    "partial_pair_count": 0,
+    "partial_pair_samples": [],
+    "positive_complete_pairs": 169419,
+    "positive_negative_overlap_samples": [],
+    "positive_negative_overlaps": 0,
+    "resolved_pairs": 208120,
+    "resolved_ratio": 1.0,
+    "target_symbol_periods": 208120,
+    "unresolved_pairs": 0,
+    "unresolved_samples": []
+  },
+  "contract": {
+    "as_of_date": "2026-07-31",
+    "effective_required_symbols": 5000,
+    "minimum_covered_symbols": 5000,
+    "minimum_provider_pub_date_ratio": 0.95,
+    "required_metrics": [
+      "debt_ratio",
+      "net_profit_yoy",
+      "ocf_to_profit",
+      "revenue_yoy",
+      "roe"
+    ],
+    "target_period_range": [
+      "2016Q3",
+      "2026Q2"
+    ],
+    "target_quarters": 40
+  },
+  "coverage": {
+    "extra_metrics": [],
+    "metrics": {
+      "debt_ratio": {
+        "non_null_ratio": 0.9857690105596184,
+        "non_null_rows": 167008,
+        "period_max": "2026Q2",
+        "period_min": "2016Q3",
+        "rows": 169419,
+        "symbol_coverage_ratio": 1.0,
+        "symbols": 5203
+      },
+      "net_profit_yoy": {
+        "non_null_ratio": 0.9769742472804113,
+        "non_null_rows": 165518,
+        "period_max": "2026Q2",
+        "period_min": "2016Q3",
+        "rows": 169419,
+        "symbol_coverage_ratio": 1.0,
+        "symbols": 5203
+      },
+      "ocf_to_profit": {
+        "non_null_ratio": 0.828366357964573,
+        "non_null_rows": 140341,
+        "period_max": "2026Q2",
+        "period_min": "2016Q3",
+        "rows": 169419,
+        "symbol_coverage_ratio": 1.0,
+        "symbols": 5203
+      },
+      "revenue_yoy": {
+        "non_null_ratio": 0.42239064095526474,
+        "non_null_rows": 71561,
+        "period_max": "2026Q2",
+        "period_min": "2016Q3",
+        "rows": 169419,
+        "symbol_coverage_ratio": 1.0,
+        "symbols": 5203
+      },
+      "roe": {
+        "non_null_ratio": 0.9821802749396467,
+        "non_null_rows": 166400,
+        "period_max": "2026Q2",
+        "period_min": "2016Q3",
+        "rows": 169419,
+        "symbol_coverage_ratio": 1.0,
+        "symbols": 5203
+      }
+    },
+    "missing_required_metrics": [],
+    "symbol_coverage_ratio": 1.0,
+    "symbols": 5203
+  },
+  "database": {
+    "open_mode": "ro",
+    "path": "/Users/ouyangduning/Documents/project/interesting/AlphaPilot-AI/data/alphapilot.db",
+    "query_only": true,
+    "quick_check": "ok"
+  },
+  "gate": {
+    "blockers": [],
+    "external_pending": [
+      "authorized five-stock BaoStock pubDate execution",
+      "architect review and signature"
+    ],
+    "local_checks_passed": true,
+    "ready_for_authorized_pubdate_execution": true,
+    "ready_for_s2_signoff": false
+  },
+  "generated_at": "2026-07-31T01:57:26.198488+00:00",
+  "mode": "read_only_plan_only",
+  "network_called": false,
+  "pit": {
+    "anomaly_counts": {
+      "available_time_mismatch": 0,
+      "basis_fields_missing": 0,
+      "invalid_source": 0,
+      "malformed_payload": 0,
+      "missing_available_time": 0,
+      "unsupported_basis": 0
+    },
+    "anomaly_rows": 0,
+    "available_time_basis_counts": {
+      "provider_pub_date_end_of_day": 846871,
+      "stat_date_plus_45_days": 224
+    },
+    "examples": [],
+    "provider_pub_date_end_of_day_ratio": 0.9997355668490547,
+    "provider_pub_date_end_of_day_rows": 846871
+  },
+  "pubdate_plan": {
+    "approved": false,
+    "blockers": [],
+    "candidate_symbols": 5203,
+    "execution_invariants": [
+      "execute only after S2 collection completes and the egress quota is authorized",
+      "one process, one BaoStock connection, at most five actual queries",
+      "10001011 or any query failure stops the audit without retry",
+      "compare statDate, pubDate, and pubDate+1 Shanghai midnight converted to UTC",
+      "five matches are required; incomplete or mismatched evidence cannot be signed"
+    ],
+    "hard_provider_query_cap": 5,
+    "mode": "plan_only",
+    "network_called": false,
+    "planned_provider_queries": 5,
+    "provider_imported": false,
+    "ready_for_authorized_execution": true,
+    "sample_size": 5,
+    "samples": [
+      {
+        "local_available_time": "2026-04-27T16:00:00+00:00",
+        "local_pub_date": "2026-04-27",
+        "local_source_field": "profit.roeAvg",
+        "local_stat_date": "2026-03-31",
+        "planned_query": "BaoStock query_profit_data",
+        "quarter": 1,
+        "report_period": "2026Q1",
+        "symbol": "002144",
+        "year": 2026
+      },
+      {
+        "local_available_time": "2026-04-30T16:00:00+00:00",
+        "local_pub_date": "2026-04-30",
+        "local_source_field": "profit.roeAvg",
+        "local_stat_date": "2026-03-31",
+        "planned_query": "BaoStock query_profit_data",
+        "quarter": 1,
+        "report_period": "2026Q1",
+        "symbol": "688733",
+        "year": 2026
+      },
+      {
+        "local_available_time": "2026-04-25T16:00:00+00:00",
+        "local_pub_date": "2026-04-25",
+        "local_source_field": "profit.roeAvg",
+        "local_stat_date": "2026-03-31",
+        "planned_query": "BaoStock query_profit_data",
+        "quarter": 1,
+        "report_period": "2026Q1",
+        "symbol": "300739",
+        "year": 2026
+      },
+      {
+        "local_available_time": "2026-04-23T16:00:00+00:00",
+        "local_pub_date": "2026-04-23",
+        "local_source_field": "profit.roeAvg",
+        "local_stat_date": "2026-03-31",
+        "planned_query": "BaoStock query_profit_data",
+        "quarter": 1,
+        "report_period": "2026Q1",
+        "symbol": "301188",
+        "year": 2026
+      },
+      {
+        "local_available_time": "2026-04-30T16:00:00+00:00",
+        "local_pub_date": "2026-04-30",
+        "local_source_field": "profit.roeAvg",
+        "local_stat_date": "2026-03-31",
+        "planned_query": "BaoStock query_profit_data",
+        "quarter": 1,
+        "report_period": "2026Q1",
+        "symbol": "688458",
+        "year": 2026
+      }
+    ],
+    "schema_version": "p3.3-s2-pubdate-plan-v1",
+    "seed": 20260726,
+    "selection_method": "latest target-window ROE row per supported symbol, then ascending sha256(seed|symbol|report_period); no result-based resampling"
+  },
+  "schema_version": "p3.3-s2-final-acceptance-v1",
+  "shards": {
+    "aliyun": {
+      "expected_boundary": {
+        "symbol_max_exclusive": 300387,
+        "symbol_min": null
+      },
+      "expected_symbols_total": 1843,
+      "idempotent_empty_run_passed": true,
+      "latest_job": {
+        "error": null,
+        "finished_at": "2026-07-31 01:31:56.101601",
+        "id": 10,
+        "started_at": "2026-07-31 01:31:46.409436",
+        "stats": {
+          "duration_seconds": 9.58,
+          "failures": [],
+          "financial_quarters_queried": 0,
+          "is_complete": true,
+          "last_symbol": "300386",
+          "metrics_inserted": 0,
+          "metrics_updated": 0,
+          "prior_revenue_queries": 0,
+          "provider_probe_requests": 1,
+          "provider_probe_rows": 1,
+          "provider_request_budget": 40000,
+          "provider_requests_estimated": 1,
+          "quarters_done": 0,
+          "quarters_requested": 40,
+          "quarters_skipped_unavailable_checkpoint": 5629,
+          "quarters_unavailable": 0,
+          "resume_symbol": null,
+          "stopped_for_request_budget": false,
+          "symbol_max_exclusive": 300387,
+          "symbol_min": null,
+          "symbols_done": 0,
+          "symbols_failed": 0,
+          "symbols_processed": 1843,
+          "symbols_skipped": 1843,
+          "symbols_total": 1843,
+          "symbols_unsupported": 0,
+          "symbols_with_data": 0,
+          "unavailable_checkpoints_added": 0
+        },
+        "status": "ok"
+      },
+      "name": "aliyun",
+      "open_mode": "ro",
+      "path": "/Users/ouyangduning/Documents/project/interesting/AlphaPilot-AI/data/phase3-s2/financial-s2-final-aliyun-20260731.db",
+      "query_only": true,
+      "quick_check": "ok",
+      "reasons": [],
+      "sha256": "f6e3778d53973f4513a6200b491d0b5078288dda9aa909097135571d281e326e"
+    },
+    "dogcloud": {
+      "expected_boundary": {
+        "symbol_max_exclusive": 600235,
+        "symbol_min": 300387
+      },
+      "expected_symbols_total": 1226,
+      "idempotent_empty_run_passed": true,
+      "latest_job": {
+        "error": null,
+        "finished_at": "2026-07-31 01:51:25.939435",
+        "id": 13,
+        "started_at": "2026-07-31 01:51:20.390192",
+        "stats": {
+          "duration_seconds": 5.43,
+          "failures": [],
+          "financial_quarters_queried": 0,
+          "is_complete": true,
+          "last_symbol": "600234",
+          "metrics_inserted": 0,
+          "metrics_updated": 0,
+          "prior_revenue_queries": 0,
+          "provider_probe_requests": 1,
+          "provider_probe_rows": 1,
+          "provider_request_budget": 40000,
+          "provider_requests_estimated": 1,
+          "quarters_done": 0,
+          "quarters_requested": 40,
+          "quarters_skipped_unavailable_checkpoint": 13880,
+          "quarters_unavailable": 0,
+          "resume_symbol": null,
+          "stopped_for_request_budget": false,
+          "symbol_max_exclusive": 600235,
+          "symbol_min": 300387,
+          "symbols_done": 0,
+          "symbols_failed": 0,
+          "symbols_processed": 1226,
+          "symbols_skipped": 1226,
+          "symbols_total": 1226,
+          "symbols_unsupported": 0,
+          "symbols_with_data": 0,
+          "unavailable_checkpoints_added": 0
+        },
+        "status": "ok"
+      },
+      "name": "dogcloud",
+      "open_mode": "ro",
+      "path": "/Users/ouyangduning/Documents/project/interesting/AlphaPilot-AI/data/phase3-s2-dog/financial-s2-final-dogcloud-20260731.db",
+      "query_only": true,
+      "quick_check": "ok",
+      "reasons": [],
+      "sha256": "a91cbefd40a0a18cd2cd46ece5ff206abb0f8ad2b324afda5dedf594d9b9e990"
+    },
+    "us38": {
+      "expected_boundary": {
+        "symbol_max_exclusive": 603730,
+        "symbol_min": 600235
+      },
+      "expected_symbols_total": 1270,
+      "idempotent_empty_run_passed": true,
+      "latest_job": {
+        "error": null,
+        "finished_at": "2026-07-31 01:05:28.683796",
+        "id": 5,
+        "started_at": "2026-07-31 01:05:14.871996",
+        "stats": {
+          "duration_seconds": 13.4,
+          "failures": [],
+          "financial_quarters_queried": 0,
+          "is_complete": true,
+          "last_symbol": "603729",
+          "metrics_inserted": 0,
+          "metrics_updated": 0,
+          "prior_revenue_queries": 0,
+          "provider_probe_requests": 1,
+          "provider_probe_rows": 1,
+          "provider_request_budget": 39999,
+          "provider_requests_estimated": 1,
+          "quarters_done": 0,
+          "quarters_requested": 40,
+          "quarters_skipped_unavailable_checkpoint": 5789,
+          "quarters_unavailable": 0,
+          "resume_symbol": null,
+          "stopped_for_request_budget": false,
+          "symbol_max_exclusive": 603730,
+          "symbol_min": 600235,
+          "symbols_done": 0,
+          "symbols_failed": 0,
+          "symbols_processed": 1270,
+          "symbols_skipped": 1270,
+          "symbols_total": 1270,
+          "symbols_unsupported": 0,
+          "symbols_with_data": 0,
+          "unavailable_checkpoints_added": 0
+        },
+        "status": "ok"
+      },
+      "name": "us38",
+      "open_mode": "ro",
+      "path": "/Users/ouyangduning/Documents/project/interesting/AlphaPilot-AI/data/phase3-s2-us38/financial-s2-final-us38-20260731.db",
+      "query_only": true,
+      "quick_check": "ok",
+      "reasons": [],
+      "sha256": "e13e24f3e7d9dda75b1f5e351607d93c3076c448a5c4e0644b4866c2f8a46d84"
+    },
+    "ussea": {
+      "expected_boundary": {
+        "symbol_max_exclusive": 1000000,
+        "symbol_min": 603730
+      },
+      "expected_symbols_total": 1195,
+      "idempotent_empty_run_passed": true,
+      "latest_job": {
+        "error": null,
+        "finished_at": "2026-07-31 01:32:06.425559",
+        "id": 7,
+        "started_at": "2026-07-31 01:31:55.923567",
+        "stats": {
+          "duration_seconds": 8.32,
+          "failures": [],
+          "financial_quarters_queried": 0,
+          "is_complete": true,
+          "last_symbol": "920992",
+          "metrics_inserted": 0,
+          "metrics_updated": 0,
+          "prior_revenue_queries": 0,
+          "provider_probe_requests": 1,
+          "provider_probe_rows": 1,
+          "provider_request_budget": 39999,
+          "provider_requests_estimated": 1,
+          "quarters_done": 0,
+          "quarters_requested": 40,
+          "quarters_skipped_unavailable_checkpoint": 13403,
+          "quarters_unavailable": 0,
+          "resume_symbol": null,
+          "stopped_for_request_budget": false,
+          "symbol_max_exclusive": 1000000,
+          "symbol_min": 603730,
+          "symbols_done": 0,
+          "symbols_failed": 0,
+          "symbols_processed": 1195,
+          "symbols_skipped": 864,
+          "symbols_total": 1195,
+          "symbols_unsupported": 331,
+          "symbols_with_data": 0,
+          "unavailable_checkpoints_added": 0
+        },
+        "status": "ok"
+      },
+      "name": "ussea",
+      "open_mode": "ro",
+      "path": "/Users/ouyangduning/Documents/project/interesting/AlphaPilot-AI/data/phase3-s2-ussea/financial-s2-final-ussea-20260731.db",
+      "query_only": true,
+      "quick_check": "ok",
+      "reasons": [],
+      "sha256": "dfe2e2fe41027b8cacf8c8dd8fa41dcf936789edfebc9897b7f71cbfddceba50"
+    }
+  },
+  "universe": {
+    "cn_listed_symbols": 5535,
+    "definition": "securities where market='CN' and list_status='listed', excluding board='北交所' and symbols starting with 4/8/92",
+    "provider_supported_symbols": 5203,
+    "provider_unsupported_symbols": 332
+  }
+}
