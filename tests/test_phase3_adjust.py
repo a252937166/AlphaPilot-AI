@@ -40,6 +40,12 @@ def _bar(symbol: str, trade_date: date, close: float) -> DailyBar:
     )
 
 
+def _bse_bar(symbol: str, trade_date: date, close: float) -> DailyBar:
+    bar = _bar(symbol, trade_date, close)
+    bar.source = "sina"
+    return bar
+
+
 class _Response:
     def __init__(self, payload: dict[str, Any]) -> None:
         self._buffer = BytesIO(json.dumps(payload).encode())
@@ -579,17 +585,11 @@ def test_sync_adj_factors_uses_sina_factor_events_for_bse(
         session.add(Security(symbol="920079", market="CN"))
         session.add_all(
             [
-                _bar("920079", date(2026, 7, 21), 10.0),
-                _bar("920079", date(2026, 7, 22), 9.0),
+                _bse_bar("920079", date(2026, 7, 21), 10.0),
+                _bse_bar("920079", date(2026, 7, 22), 9.0),
             ]
         )
         session.commit()
-
-        def rate_limited(*_args: object, **_kwargs: object) -> pd.DataFrame:
-            raise adjust.TushareAPIError(
-                "Tushare adj_factor 返回错误 code=40203：频率超限",
-                code=40203,
-            )
 
         class Sina:
             def __init__(self, min_interval_seconds: float) -> None:
@@ -607,7 +607,13 @@ def test_sync_adj_factors_uses_sina_factor_events_for_bse(
                     ]
                 )
 
-        monkeypatch.setattr(adjust, "tushare_call", rate_limited)
+        monkeypatch.setattr(
+            adjust,
+            "tushare_call",
+            lambda *_args, **_kwargs: pytest.fail(
+                "新北交所证券首建因子不得消耗 Tushare 配额"
+            ),
+        )
         monkeypatch.setattr(
             adjust,
             "get_settings",
@@ -627,6 +633,251 @@ def test_sync_adj_factors_uses_sina_factor_events_for_bse(
         ]
         assert stats["source_counts"] == {"sina-hfq": 1}
         assert stats["rows_inserted"] == 2
+        assert stats["tushare_rate_limited"] is False
+    finally:
+        session.close()
+
+
+def test_tushare_bse_history_migrates_only_after_full_sina_validation(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    session = _session(tmp_path)
+    first = date(2026, 7, 21)
+    second = date(2026, 7, 22)
+    third = date(2026, 7, 23)
+    try:
+        session.add_all(
+            [
+                Security(symbol="920238", market="CN"),
+                _bse_bar("920238", first, 10.0),
+                _bse_bar("920238", second, 9.0),
+                _bse_bar("920238", third, 9.5),
+                AdjFactor(
+                    symbol="920238",
+                    trade_date=first,
+                    adj_factor=1.0,
+                    source="tushare",
+                ),
+                AdjFactor(
+                    symbol="920238",
+                    trade_date=second,
+                    adj_factor=1.1,
+                    source="tushare",
+                ),
+            ]
+        )
+        session.commit()
+
+        class Sina:
+            def __init__(self, min_interval_seconds: float) -> None:
+                assert min_interval_seconds == 0.25
+
+            def get_adjustment_factors(
+                self,
+                symbol: str,
+                end: date,
+            ) -> pd.DataFrame:
+                assert (symbol, end) == ("920238", third)
+                return pd.DataFrame(
+                    [
+                        {"date": date(1900, 1, 1), "adj_factor": 1.0},
+                        {"date": second, "adj_factor": 1.1},
+                    ]
+                )
+
+        monkeypatch.setattr(adjust, "SinaDailyBarProvider", Sina)
+        monkeypatch.setattr(
+            adjust,
+            "get_settings",
+            lambda: Settings(tushare_token="token"),
+        )
+        monkeypatch.setattr(
+            adjust,
+            "tushare_call",
+            lambda *_args, **_kwargs: pytest.fail(
+                "北交所全历史迁移不得调用 Tushare"
+            ),
+        )
+        monkeypatch.setattr(adjust, "sleep", lambda _seconds: None)
+
+        stats = adjust.sync_adj_factors(session)
+
+        rows = session.scalars(
+            select(AdjFactor).order_by(AdjFactor.trade_date)
+        ).all()
+        assert [
+            (row.trade_date, row.adj_factor, row.source)
+            for row in rows
+        ] == [
+            (first, 1.0, "sina-hfq"),
+            (second, 1.1, "sina-hfq"),
+            (third, 1.1, "sina-hfq"),
+        ]
+        assert stats["rows_inserted"] == 1
+        assert stats["rows_updated"] == 2
+        assert stats["failed_count"] == 0
+        assert stats["source_counts"] == {"sina-hfq": 1}
+        assert stats["source_migrations"] == [
+            {
+                "symbol": "920238",
+                "from": "tushare",
+                "to": "sina-hfq",
+                "audited_dates": 3,
+            }
+        ]
+    finally:
+        session.close()
+
+
+def test_tushare_bse_history_migration_fails_closed_on_sina_coverage_gap(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    session = _session(tmp_path)
+    first = date(2026, 7, 21)
+    second = date(2026, 7, 22)
+    try:
+        session.add_all(
+            [
+                Security(symbol="920238", market="CN"),
+                _bse_bar("920238", first, 10.0),
+                _bse_bar("920238", second, 9.0),
+                AdjFactor(
+                    symbol="920238",
+                    trade_date=first,
+                    adj_factor=1.0,
+                    source="tushare",
+                ),
+            ]
+        )
+        session.commit()
+
+        class Sina:
+            def __init__(self, min_interval_seconds: float) -> None:
+                assert min_interval_seconds == 0.25
+
+            def get_adjustment_factors(
+                self,
+                _symbol: str,
+                _end: date,
+            ) -> pd.DataFrame:
+                return pd.DataFrame(
+                    [{"date": second, "adj_factor": 1.0}]
+                )
+
+        monkeypatch.setattr(adjust, "SinaDailyBarProvider", Sina)
+        monkeypatch.setattr(
+            adjust,
+            "get_settings",
+            lambda: Settings(tushare_token="token"),
+        )
+        monkeypatch.setattr(
+            adjust,
+            "tushare_call",
+            lambda *_args, **_kwargs: pytest.fail(
+                "覆盖不足时不得回退 Tushare 或部分迁移"
+            ),
+        )
+        monkeypatch.setattr(adjust, "sleep", lambda _seconds: None)
+
+        stats = adjust.sync_adj_factors(session)
+
+        rows = session.scalars(
+            select(AdjFactor).order_by(AdjFactor.trade_date)
+        ).all()
+        assert [
+            (row.trade_date, row.adj_factor, row.source)
+            for row in rows
+        ] == [(first, 1.0, "tushare")]
+        assert stats["rows_inserted"] == 0
+        assert stats["rows_updated"] == 0
+        assert stats["failed_count"] == 1
+        assert stats["source_migrations"] == []
+        assert "未覆盖全部审计日线" in stats["failures"][0]["error"]
+    finally:
+        session.close()
+
+
+def test_tushare_bse_history_migration_fails_closed_on_anchor_mismatch(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    session = _session(tmp_path)
+    first = date(2026, 7, 21)
+    second = date(2026, 7, 22)
+    third = date(2026, 7, 23)
+    try:
+        session.add_all(
+            [
+                Security(symbol="920238", market="CN"),
+                _bse_bar("920238", first, 10.0),
+                _bse_bar("920238", second, 9.0),
+                _bse_bar("920238", third, 9.5),
+                AdjFactor(
+                    symbol="920238",
+                    trade_date=first,
+                    adj_factor=1.0,
+                    source="tushare",
+                ),
+                AdjFactor(
+                    symbol="920238",
+                    trade_date=second,
+                    adj_factor=1.0,
+                    source="tushare",
+                ),
+            ]
+        )
+        session.commit()
+
+        class Sina:
+            def __init__(self, min_interval_seconds: float) -> None:
+                assert min_interval_seconds == 0.25
+
+            def get_adjustment_factors(
+                self,
+                _symbol: str,
+                _end: date,
+            ) -> pd.DataFrame:
+                return pd.DataFrame(
+                    [
+                        {"date": date(1900, 1, 1), "adj_factor": 1.0},
+                        {"date": second, "adj_factor": 1.1},
+                    ]
+                )
+
+        monkeypatch.setattr(adjust, "SinaDailyBarProvider", Sina)
+        monkeypatch.setattr(
+            adjust,
+            "get_settings",
+            lambda: Settings(tushare_token="token"),
+        )
+        monkeypatch.setattr(
+            adjust,
+            "tushare_call",
+            lambda *_args, **_kwargs: pytest.fail(
+                "锚点不一致时不得回退 Tushare 或部分迁移"
+            ),
+        )
+        monkeypatch.setattr(adjust, "sleep", lambda _seconds: None)
+
+        stats = adjust.sync_adj_factors(session)
+
+        rows = session.scalars(
+            select(AdjFactor).order_by(AdjFactor.trade_date)
+        ).all()
+        assert [
+            (row.trade_date, row.adj_factor, row.source)
+            for row in rows
+        ] == [
+            (first, 1.0, "tushare"),
+            (second, 1.0, "tushare"),
+        ]
+        assert stats["rows_inserted"] == 0
+        assert stats["rows_updated"] == 0
+        assert stats["failed_count"] == 1
+        assert stats["source_migrations"] == []
+        assert "复权锚点不一致" in stats["failures"][0]["error"]
     finally:
         session.close()
 
