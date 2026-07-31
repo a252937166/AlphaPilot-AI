@@ -79,7 +79,7 @@ def _payload(period: str) -> dict[str, object]:
 
 def _available_time(payload: dict[str, object]) -> str:
     pub_date = date.fromisoformat(str(payload["pub_dates"][0]))  # type: ignore[index]
-    return f"{(pub_date.replace()).isoformat()}T16:00:00+00:00"
+    return f"{pub_date.isoformat()} 16:00:00.000000"
 
 
 def _insert_complete_symbol(
@@ -162,8 +162,9 @@ def _shard_database(path: Path, name: str) -> Path:
     contract = SHARD_CONTRACTS[name]
     symbol = {
         "aliyun": "000001",
-        "dogcloud": "600000",
-        "lax": "603182",
+        "dogcloud": "300500",
+        "us38": "600235",
+        "ussea": "603730",
     }[name]
     with sqlite3.connect(path) as connection:
         _schema(connection)
@@ -240,6 +241,11 @@ def test_final_acceptance_closes_positive_and_negative_periods_without_network(
     assert plan["provider_imported"] is False
     assert plan["planned_provider_queries"] == 5
     assert len(plan["samples"]) == 5
+    assert all(sample["local_stat_date"] for sample in plan["samples"])
+    assert all(
+        str(sample["local_available_time"]).endswith("+00:00")
+        for sample in plan["samples"]
+    )
     assert report["gate"]["local_checks_passed"] is True
     assert report["gate"]["ready_for_authorized_pubdate_execution"] is True
     assert report["gate"]["ready_for_s2_signoff"] is False
@@ -260,8 +266,8 @@ def test_acceptance_blocks_partial_bundle_and_nonempty_empty_run(
             (_periods()[-1],),
         )
     shards = {name: _shard_database(tmp_path / f"{name}.db", name) for name in SHARD_CONTRACTS}
-    with sqlite3.connect(shards["lax"]) as connection:
-        stats = _empty_run_stats(name="lax", symbols_total=1)
+    with sqlite3.connect(shards["ussea"]) as connection:
+        stats = _empty_run_stats(name="ussea", symbols_total=1)
         stats["metrics_inserted"] = 5
         connection.execute(
             "UPDATE job_runs SET stats = ? WHERE id = 1",
@@ -277,11 +283,11 @@ def test_acceptance_blocks_partial_bundle_and_nonempty_empty_run(
 
     assert report["checkpoint_closure"]["partial_pair_count"] == 1
     assert report["checkpoint_closure"]["unresolved_pairs"] == 1
-    assert report["shards"]["lax"]["idempotent_empty_run_passed"] is False
+    assert report["shards"]["ussea"]["idempotent_empty_run_passed"] is False
     codes = {blocker["code"] for blocker in report["gate"]["blockers"]}
     assert "FINANCIAL_CHECKPOINT_PARTIAL_PAIR_COUNT" in codes
     assert "FINANCIAL_CHECKPOINT_UNRESOLVED_PAIRS" in codes
-    assert "IDEMPOTENT_EMPTY_RUN_LAX" in codes
+    assert "IDEMPOTENT_EMPTY_RUN_USSEA" in codes
     assert report["gate"]["local_checks_passed"] is False
 
 
