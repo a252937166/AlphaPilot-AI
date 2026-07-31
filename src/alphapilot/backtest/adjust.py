@@ -28,6 +28,8 @@ _REQUEST_RETRY_DELAYS = (1.0, 3.0, 10.0)
 _REQUEST_INTERVAL_SECONDS = 0.12
 _SQLITE_LOCK_RETRY_DELAYS = (0.5, 1.5, 3.0)
 _PROVIDER_FACTOR_SOURCES = frozenset({"baostock-hfq", "sina-hfq"})
+_SOURCE_MIGRATION_REL_TOLERANCE = 1e-9
+_SOURCE_MIGRATION_ABS_TOLERANCE = 1e-12
 
 
 class TushareAPIError(RuntimeError):
@@ -136,6 +138,11 @@ def _tushare_symbol(symbol: str) -> str:
     return f"{normalized}.{suffix}"
 
 
+def _is_bse_symbol(symbol: str) -> bool:
+    normalized = symbol.strip().upper().split(".", maxsplit=1)[0]
+    return normalized.startswith(("4", "8", "92"))
+
+
 def _parse_adj_rows(frame: pd.DataFrame, symbol: str) -> list[tuple[date, float]]:
     required = {"trade_date", "adj_factor"}
     missing = required.difference(str(column) for column in frame.columns)
@@ -221,7 +228,7 @@ def _provider_adj_rows(
     baostock: BaoStockMarketDataProvider,
     sina: SinaDailyBarProvider,
 ) -> tuple[list[tuple[date, float]], str]:
-    is_bse = symbol.startswith(("4", "8", "92"))
+    is_bse = _is_bse_symbol(symbol)
     source = "sina-hfq" if is_bse else "baostock-hfq"
     anchor = session.execute(
         select(AdjFactor.trade_date, AdjFactor.adj_factor)
@@ -263,37 +270,28 @@ def _provider_adj_rows(
         return [], source
     raw_factors: dict[date, float] = {}
     if is_bse:
-        events = sina.get_adjustment_factors(symbol, query_end)
-        local_dates = local[["date"]].copy()
-        local_dates["date"] = pd.to_datetime(
-            local_dates["date"],
-            errors="coerce",
+        local_dates = [
+            value
+            for value in local["date"].tolist()
+            if isinstance(value, date)
+        ]
+        resolved = _sina_factor_rows_for_dates(
+            sina,
+            symbol,
+            local_dates,
         )
-        factor_events = events.copy()
-        factor_events["date"] = pd.to_datetime(
-            factor_events["date"],
-            errors="coerce",
-        )
-        factor_events["adj_factor"] = pd.to_numeric(
-            factor_events["adj_factor"],
-            errors="coerce",
-        )
-        factor_events = factor_events.dropna().sort_values("date")
-        merged_factors = pd.merge_asof(
-            local_dates.dropna().sort_values("date"),
-            factor_events,
-            on="date",
-            direction="backward",
-        )
-        for record in merged_factors.to_dict(orient="records"):
-            trade_date_value = record["date"]
-            factor = float(record["adj_factor"])
-            if (
-                isinstance(trade_date_value, pd.Timestamp)
-                and math.isfinite(factor)
-                and factor > 0
-            ):
-                raw_factors[trade_date_value.date()] = factor
+        missing_dates = [
+            trade_date
+            for trade_date in local_dates
+            if trade_date not in resolved
+        ]
+        if missing_dates:
+            raise TushareAPIError(
+                f"Sina 复权事件未覆盖请求日线：symbol={symbol}, "
+                f"missing={len(missing_dates)}, "
+                f"sample={[value.isoformat() for value in missing_dates[:5]]}"
+            )
+        raw_factors.update(resolved)
     else:
         adjusted = baostock.get_adjusted_closes(
             symbol,
@@ -344,6 +342,245 @@ def _provider_adj_rows(
         ],
         source,
     )
+
+
+def _sina_factor_rows_for_dates(
+    sina: SinaDailyBarProvider,
+    symbol: str,
+    trade_dates: Sequence[date],
+) -> dict[date, float]:
+    target_dates = sorted(set(trade_dates))
+    if not target_dates:
+        return {}
+
+    events = sina.get_adjustment_factors(symbol, target_dates[-1])
+    local_dates = pd.DataFrame({"date": pd.to_datetime(target_dates)})
+    factor_events = events.copy()
+    factor_events["date"] = pd.to_datetime(
+        factor_events["date"],
+        errors="coerce",
+    )
+    factor_events["adj_factor"] = pd.to_numeric(
+        factor_events["adj_factor"],
+        errors="coerce",
+    )
+    factor_events = factor_events.dropna().sort_values("date")
+    merged_factors = pd.merge_asof(
+        local_dates.sort_values("date"),
+        factor_events,
+        on="date",
+        direction="backward",
+    )
+    resolved: dict[date, float] = {}
+    for record in merged_factors.to_dict(orient="records"):
+        trade_date_value = record["date"]
+        try:
+            factor = float(record["adj_factor"])
+        except (KeyError, TypeError, ValueError):
+            continue
+        if (
+            isinstance(trade_date_value, pd.Timestamp)
+            and math.isfinite(factor)
+            and factor > 0
+        ):
+            resolved[trade_date_value.date()] = factor
+    return resolved
+
+
+def _validated_tushare_bse_migration_rows(
+    session: Session,
+    symbol: str,
+    sina: SinaDailyBarProvider,
+) -> list[tuple[date, float]]:
+    if not _is_bse_symbol(symbol):
+        raise TushareAPIError(
+            f"仅北交所证券允许迁移 Tushare 复权来源：symbol={symbol}"
+        )
+
+    audited_dates = sorted(
+        {
+            trade_date
+            for trade_date in session.scalars(
+                select(DailyBar.trade_date)
+                .where(
+                    DailyBar.symbol == symbol,
+                    DailyBar.source.in_(AUDITED_DAILY_BAR_SOURCES),
+                )
+                .order_by(DailyBar.trade_date)
+            )
+            if isinstance(trade_date, date)
+        }
+    )
+    if not audited_dates:
+        raise TushareAPIError(
+            f"北交所复权来源迁移没有审计日线：symbol={symbol}"
+        )
+
+    existing_rows = list(
+        session.scalars(
+            select(AdjFactor)
+            .where(AdjFactor.symbol == symbol)
+            .order_by(AdjFactor.trade_date, AdjFactor.id)
+        )
+    )
+    if not existing_rows or any(
+        row.source != "tushare" for row in existing_rows
+    ):
+        raise TushareAPIError(
+            f"北交所复权来源迁移要求既有历史全为 Tushare：symbol={symbol}"
+        )
+
+    audited_date_set = set(audited_dates)
+    orphan_dates = [
+        row.trade_date
+        for row in existing_rows
+        if row.trade_date not in audited_date_set
+    ]
+    if orphan_dates:
+        raise TushareAPIError(
+            f"Sina 迁移拒绝既有无日线复权键：symbol={symbol}, "
+            f"dates={[value.isoformat() for value in orphan_dates[:5]]}"
+        )
+
+    resolved = _sina_factor_rows_for_dates(
+        sina,
+        symbol,
+        audited_dates,
+    )
+    missing_dates = [
+        trade_date
+        for trade_date in audited_dates
+        if trade_date not in resolved
+    ]
+    if missing_dates:
+        raise TushareAPIError(
+            f"Sina 复权事件未覆盖全部审计日线：symbol={symbol}, "
+            f"missing={len(missing_dates)}, "
+            f"sample={[value.isoformat() for value in missing_dates[:5]]}"
+        )
+
+    for row in existing_rows:
+        sina_factor = resolved[row.trade_date]
+        if not math.isclose(
+            float(row.adj_factor),
+            sina_factor,
+            rel_tol=_SOURCE_MIGRATION_REL_TOLERANCE,
+            abs_tol=_SOURCE_MIGRATION_ABS_TOLERANCE,
+        ):
+            raise TushareAPIError(
+                f"Tushare/Sina 复权锚点不一致，拒绝迁移：symbol={symbol}, "
+                f"date={row.trade_date.isoformat()}, "
+                f"tushare={row.adj_factor}, sina={sina_factor}"
+            )
+    return [(trade_date, resolved[trade_date]) for trade_date in audited_dates]
+
+
+def _upsert_full_sina_history(
+    session: Session,
+    symbol: str,
+    parsed: Sequence[tuple[date, float]],
+) -> tuple[int, int]:
+    parsed_by_date = dict(parsed)
+    current_audited_dates = {
+        trade_date
+        for trade_date in session.scalars(
+            select(DailyBar.trade_date).where(
+                DailyBar.symbol == symbol,
+                DailyBar.source.in_(AUDITED_DAILY_BAR_SOURCES),
+            )
+        )
+        if isinstance(trade_date, date)
+    }
+    if set(parsed_by_date) != current_audited_dates:
+        raise TushareAPIError(
+            f"Sina 迁移写入前审计日期域已变化，拒绝提交：symbol={symbol}"
+        )
+
+    existing = {
+        row.trade_date: row
+        for row in session.scalars(
+            select(AdjFactor).where(AdjFactor.symbol == symbol)
+        )
+    }
+    for trade_date, row in existing.items():
+        resolved = parsed_by_date.get(trade_date)
+        if (
+            resolved is None
+            or row.source != "tushare"
+            or not math.isclose(
+                row.adj_factor,
+                resolved,
+                rel_tol=_SOURCE_MIGRATION_REL_TOLERANCE,
+                abs_tol=_SOURCE_MIGRATION_ABS_TOLERANCE,
+            )
+        ):
+            raise TushareAPIError(
+                f"Sina 迁移写入前锚点已变化，拒绝提交：symbol={symbol}, "
+                f"date={trade_date.isoformat()}"
+            )
+
+    inserted = 0
+    updated = 0
+    for trade_date, factor in parsed:
+        existing_row = existing.get(trade_date)
+        if existing_row is None:
+            session.add(
+                AdjFactor(
+                    symbol=symbol,
+                    trade_date=trade_date,
+                    adj_factor=factor,
+                    source="sina-hfq",
+                )
+            )
+            inserted += 1
+            continue
+        if (
+            not math.isclose(
+                existing_row.adj_factor,
+                factor,
+                rel_tol=0,
+                abs_tol=1e-12,
+            )
+            or existing_row.source != "sina-hfq"
+        ):
+            existing_row.adj_factor = factor
+            existing_row.source = "sina-hfq"
+            updated += 1
+    return inserted, updated
+
+
+def _save_full_sina_history_with_lock_retry(
+    session: Session,
+    symbol: str,
+    parsed: Sequence[tuple[date, float]],
+) -> tuple[int, int]:
+    retry_count = 0
+    while True:
+        try:
+            inserted, updated = _upsert_full_sina_history(
+                session,
+                symbol,
+                parsed,
+            )
+            session.commit()
+            return inserted, updated
+        except OperationalError as exc:
+            session.rollback()
+            if not _is_sqlite_write_lock(exc) or retry_count >= len(
+                _SQLITE_LOCK_RETRY_DELAYS
+            ):
+                raise
+            delay = _SQLITE_LOCK_RETRY_DELAYS[retry_count]
+            retry_count += 1
+            logger.warning(
+                "Sina history migration SQLite lock symbol=%s "
+                "retry=%s/%s delay=%ss",
+                symbol,
+                retry_count,
+                len(_SQLITE_LOCK_RETRY_DELAYS),
+                delay,
+            )
+            sleep(delay)
 
 
 def _upsert_adj_rows(
@@ -452,6 +689,7 @@ def sync_adj_factors(
         "refresh_latest": refresh_latest,
         "requested_start_date": start_date.isoformat() if start_date else None,
         "historical_backfill_symbols": 0,
+        "source_migrations": [],
     }
     target_symbols = {symbol for symbol, _, _ in windows}
     baostock = BaoStockMarketDataProvider()
@@ -497,6 +735,7 @@ def sync_adj_factors(
         try:
             source = "tushare"
             parsed: list[tuple[date, float]] = []
+            migrated_source = False
             if existing_source in _PROVIDER_FACTOR_SOURCES:
                 for window_start, window_end in request_windows:
                     window_rows, source = _provider_adj_rows(
@@ -513,6 +752,29 @@ def sync_adj_factors(
                             f"existing={existing_source}, resolved={source}"
                         )
                     parsed.extend(window_rows)
+            elif existing_source == "tushare" and _is_bse_symbol(symbol):
+                parsed = _validated_tushare_bse_migration_rows(
+                    session,
+                    symbol,
+                    sina,
+                )
+                source = "sina-hfq"
+                inserted, updated = _save_full_sina_history_with_lock_retry(
+                    session,
+                    symbol,
+                    parsed,
+                )
+                migrated_source = True
+                source_migrations = stats["source_migrations"]
+                if isinstance(source_migrations, list):
+                    source_migrations.append(
+                        {
+                            "symbol": symbol,
+                            "from": "tushare",
+                            "to": source,
+                            "audited_dates": len(parsed),
+                        }
+                    )
             elif existing_source == "tushare":
                 if tushare_rate_limited:
                     raise TushareAPIError(
@@ -537,7 +799,7 @@ def sync_adj_factors(
                 raise TushareAPIError(
                     f"不支持的既有复权因子来源：symbol={symbol}, source={existing_source}"
                 )
-            elif tushare_rate_limited:
+            elif _is_bse_symbol(symbol) or tushare_rate_limited:
                 for window_start, window_end in request_windows:
                     window_rows, source = _provider_adj_rows(
                         session,
@@ -583,12 +845,13 @@ def sync_adj_factors(
                     f"复权因子无数据：symbol={symbol}, "
                     f"{requested_window}"
                 )
-            inserted, updated = _save_adj_rows_with_lock_retry(
-                session,
-                symbol,
-                parsed,
-                source,
-            )
+            if not migrated_source:
+                inserted, updated = _save_adj_rows_with_lock_retry(
+                    session,
+                    symbol,
+                    parsed,
+                    source,
+                )
             stats["rows_inserted"] += inserted
             stats["rows_updated"] += updated
             stats["synced"] += 1
