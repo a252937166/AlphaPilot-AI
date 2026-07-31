@@ -1,0 +1,11 @@
+[Unit]
+Description=Run AlphaPilot S2 US-SEA shard outside BaoStock maintenance
+
+[Timer]
+OnCalendar=*-*-* 09:15:00 Asia/Shanghai
+Persistent=true
+RandomizedDelaySec=30s
+Unit=alphapilot-s2-financial-ussea.service
+
+[Install]
+WantedBy=timers.target

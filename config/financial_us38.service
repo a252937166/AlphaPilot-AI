@@ -1,0 +1,30 @@
+[Unit]
+Description=AlphaPilot S2 US38 BaoStock financial backfill
+Wants=network-online.target
+After=network-online.target
+ConditionPathExists=/opt/alphapilot-s2-us38/data/alphapilot-s2.db
+
+[Service]
+Type=oneshot
+User=alphapilot-s2
+Group=alphapilot-s2
+WorkingDirectory=/opt/alphapilot-s2-us38/app
+EnvironmentFile=/opt/alphapilot-s2-us38/.env
+ExecStart=/opt/alphapilot-s2-us38/run-financial-backfill.sh
+TimeoutStartSec=6h
+Restart=no
+Nice=10
+IOSchedulingClass=idle
+CPUQuota=40%
+MemoryMax=256M
+MemorySwapMax=384M
+TasksMax=64
+LimitNOFILE=1024
+UMask=0027
+NoNewPrivileges=true
+PrivateDevices=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ReadOnlyPaths=/opt/alphapilot-s2-us38/app /opt/alphapilot-s2-us38/.venv /opt/alphapilot-s2-us38/.env
+ReadWritePaths=/opt/alphapilot-s2-us38/data /opt/alphapilot-s2-us38/logs /opt/alphapilot-s2-us38/exports

@@ -1,0 +1,11 @@
+[Unit]
+Description=Run AlphaPilot S2 Aliyun financial shard before BaoStock maintenance
+
+[Timer]
+OnCalendar=*-*-* 00:05:00
+Persistent=true
+RandomizedDelaySec=2m
+Unit=alphapilot-s2-financial.service
+
+[Install]
+WantedBy=timers.target
