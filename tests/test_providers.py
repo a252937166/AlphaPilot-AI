@@ -1,13 +1,20 @@
 from __future__ import annotations
 
+import errno
+import struct
 from datetime import date
+from pathlib import Path
 from typing import ClassVar
 
 import httpx
 import pandas as pd
 import pytest
 
-from alphapilot.data.baostock_provider import BaoStockMarketDataProvider
+from alphapilot.data import baostock_provider
+from alphapilot.data.baostock_provider import (
+    BaoStockMarketDataProvider,
+    BaoStockRequestBudgetExceeded,
+)
 from alphapilot.data.base import DataProviderError, EmptyDailyBarsError
 from alphapilot.data.mock import MockMarketDataProvider
 from alphapilot.data.router import FailoverMarketDataProvider
@@ -157,13 +164,14 @@ def test_baostock_quarterly_financials_surfaces_query_error(
 
     with pytest.raises(
         DataProviderError,
-        match=r"profit query failed for sh\.600519/2025Q4: upstream unavailable",
+        match=r"profit query failed for sh\.600519/2025Q4: \(1\) upstream unavailable",
     ):
         provider.get_quarterly_financials("600519", 2025, 4)
 
 
 def test_baostock_quarterly_financials_relogs_once_after_expired_session(
     monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
 ) -> None:
     class Result:
         fields: ClassVar[tuple[str, str]] = ("code", "statDate")
@@ -222,6 +230,91 @@ def test_baostock_quarterly_financials_relogs_once_after_expired_session(
 
     provider = BaoStockMarketDataProvider()
     monkeypatch.setattr("alphapilot.data.baostock_provider._logged_in", True)
+    monkeypatch.setattr("alphapilot.data.baostock_provider._process_lock_handle", None)
+    monkeypatch.setenv(
+        "ALPHAPILOT_BAOSTOCK_LOCK_FILE",
+        str(tmp_path / "baostock-relogin.lock"),
+    )
+    monkeypatch.setattr(provider, "_module", lambda: BaoStockModule)
+
+    frames = provider.get_quarterly_financials("600519", 2025, 4)
+
+    assert all(not frame.empty for frame in frames.values())
+    assert BaoStockModule.login_calls == 1
+    assert BaoStockModule.query_calls == {
+        "profit": 2,
+        "growth": 1,
+        "cash_flow": 1,
+        "balance": 1,
+    }
+
+
+def test_baostock_quarterly_financials_reconnects_once_after_transport_error(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    class Result:
+        fields: ClassVar[tuple[str, str]] = ("code", "statDate")
+
+        def __init__(self, error_code: str = "0", error_msg: str = "") -> None:
+            self.error_code = error_code
+            self.error_msg = error_msg
+            self._pending = error_code == "0"
+
+        def next(self) -> bool:
+            if self._pending:
+                self._pending = False
+                return True
+            return False
+
+        @staticmethod
+        def get_row_data() -> list[str]:
+            return ["sh.600519", "2025-12-31"]
+
+    class BaoStockModule:
+        login_calls = 0
+        query_calls: ClassVar[dict[str, int]] = {
+            "profit": 0,
+            "growth": 0,
+            "cash_flow": 0,
+            "balance": 0,
+        }
+
+        @classmethod
+        def login(cls) -> Result:
+            cls.login_calls += 1
+            return Result()
+
+        @classmethod
+        def _query(cls, dataset: str) -> Result:
+            cls.query_calls[dataset] += 1
+            if dataset == "profit" and cls.query_calls[dataset] == 1:
+                return Result("10002007", "网络接收错误")
+            return Result()
+
+        @classmethod
+        def query_profit_data(cls, **_kwargs: object) -> Result:
+            return cls._query("profit")
+
+        @classmethod
+        def query_growth_data(cls, **_kwargs: object) -> Result:
+            return cls._query("growth")
+
+        @classmethod
+        def query_cash_flow_data(cls, **_kwargs: object) -> Result:
+            return cls._query("cash_flow")
+
+        @classmethod
+        def query_balance_data(cls, **_kwargs: object) -> Result:
+            return cls._query("balance")
+
+    provider = BaoStockMarketDataProvider()
+    monkeypatch.setattr("alphapilot.data.baostock_provider._logged_in", True)
+    monkeypatch.setattr("alphapilot.data.baostock_provider._process_lock_handle", None)
+    monkeypatch.setenv(
+        "ALPHAPILOT_BAOSTOCK_LOCK_FILE",
+        str(tmp_path / "baostock-reconnect.lock"),
+    )
     monkeypatch.setattr(provider, "_module", lambda: BaoStockModule)
 
     frames = provider.get_quarterly_financials("600519", 2025, 4)
@@ -245,6 +338,295 @@ def test_baostock_quarterly_financials_validates_period_and_rejects_bse() -> Non
         provider.get_quarterly_financials("600519", 1989, 4)
     with pytest.raises(DataProviderError, match="do not support symbol: 920000"):
         provider.get_quarterly_financials("920000", 2025, 4)
+
+
+def test_baostock_blacklist_login_fails_once_and_preserves_error_code(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    class Result:
+        error_code = "10001011"
+        error_msg = "黑名单用户，请与管理员联系"
+
+    class BaoStockModule:
+        login_calls = 0
+
+        @classmethod
+        def login(cls) -> Result:
+            cls.login_calls += 1
+            return Result()
+
+    provider = BaoStockMarketDataProvider()
+    monkeypatch.setattr("alphapilot.data.baostock_provider._logged_in", False)
+    monkeypatch.setattr("alphapilot.data.baostock_provider._active_module", None)
+    monkeypatch.setattr("alphapilot.data.baostock_provider._process_lock_handle", None)
+    monkeypatch.setenv(
+        "ALPHAPILOT_BAOSTOCK_LOCK_FILE",
+        str(tmp_path / "baostock.lock"),
+    )
+    monkeypatch.setattr("alphapilot.data.baostock_provider.sleep", pytest.fail)
+
+    with pytest.raises(DataProviderError, match=r"10001011.*黑名单用户"):
+        provider._ensure_login(BaoStockModule)
+
+    assert BaoStockModule.login_calls == 1
+    assert baostock_provider._process_lock_handle is None
+
+
+def test_baostock_process_lock_refuses_second_local_connection_before_login(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    class BaoStockModule:
+        login_calls = 0
+
+        @classmethod
+        def login(cls) -> object:
+            cls.login_calls += 1
+            raise AssertionError("login must not run while the host lock is held")
+
+    def locked(*_args: object) -> None:
+        raise BlockingIOError(errno.EAGAIN, "resource temporarily unavailable")
+
+    monkeypatch.setattr(baostock_provider, "_logged_in", False)
+    monkeypatch.setattr(baostock_provider, "_active_module", None)
+    monkeypatch.setattr(baostock_provider, "_process_lock_handle", None)
+    monkeypatch.setenv(
+        "ALPHAPILOT_BAOSTOCK_LOCK_FILE",
+        str(tmp_path / "baostock.lock"),
+    )
+    monkeypatch.setattr(baostock_provider.fcntl, "flock", locked)
+
+    with pytest.raises(DataProviderError, match="held by another local process"):
+        BaoStockMarketDataProvider()._ensure_login(BaoStockModule)
+
+    assert BaoStockModule.login_calls == 0
+    assert baostock_provider._process_lock_handle is None
+
+
+def test_baostock_successful_login_retains_host_lock_until_explicit_close(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    class Result:
+        error_code = "0"
+        error_msg = ""
+
+    class BaoStockModule:
+        login_calls = 0
+        logout_calls = 0
+
+        @classmethod
+        def login(cls) -> Result:
+            cls.login_calls += 1
+            return Result()
+
+        @classmethod
+        def logout(cls) -> Result:
+            cls.logout_calls += 1
+            return Result()
+
+    lock_path = tmp_path / "baostock.lock"
+    monkeypatch.setattr(baostock_provider, "_logged_in", False)
+    monkeypatch.setattr(baostock_provider, "_active_module", None)
+    monkeypatch.setattr(baostock_provider, "_process_lock_handle", None)
+    monkeypatch.setenv("ALPHAPILOT_BAOSTOCK_LOCK_FILE", str(lock_path))
+
+    try:
+        BaoStockMarketDataProvider()._ensure_login(BaoStockModule)
+        assert BaoStockModule.login_calls == 1
+        assert baostock_provider._process_lock_handle is not None
+        assert lock_path.exists()
+    finally:
+        baostock_provider.close_baostock_session()
+
+    assert BaoStockModule.logout_calls == 1
+    assert baostock_provider._process_lock_handle is None
+
+
+def test_baostock_financial_probe_does_not_retry_failed_query(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    class Result:
+        fields: ClassVar[tuple[str, ...]] = ()
+
+        def __init__(self, error_code: str = "0", error_msg: str = "") -> None:
+            self.error_code = error_code
+            self.error_msg = error_msg
+
+        @staticmethod
+        def next() -> bool:
+            return False
+
+    class BaoStockModule:
+        login_calls = 0
+        query_calls = 0
+
+        @classmethod
+        def login(cls) -> Result:
+            cls.login_calls += 1
+            return Result()
+
+        @classmethod
+        def logout(cls) -> Result:
+            return Result()
+
+        @classmethod
+        def query_profit_data(cls, **_kwargs: object) -> Result:
+            cls.query_calls += 1
+            return Result("10002007", "网络接收错误")
+
+    provider = BaoStockMarketDataProvider()
+    monkeypatch.setattr(baostock_provider, "_logged_in", False)
+    monkeypatch.setattr(baostock_provider, "_active_module", None)
+    monkeypatch.setattr(baostock_provider, "_process_lock_handle", None)
+    monkeypatch.setenv(
+        "ALPHAPILOT_BAOSTOCK_LOCK_FILE",
+        str(tmp_path / "baostock.lock"),
+    )
+    monkeypatch.setattr(provider, "_module", lambda: BaoStockModule)
+
+    try:
+        with pytest.raises(DataProviderError, match=r"probe failed.*10002007"):
+            provider.probe_financial_query()
+    finally:
+        baostock_provider.close_baostock_session()
+
+    assert BaoStockModule.login_calls == 1
+    assert BaoStockModule.query_calls == 1
+    assert provider.financial_query_count == 1
+
+
+def test_baostock_financial_query_hard_cap_blocks_before_provider_call(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    class Result:
+        fields: ClassVar[tuple[str, ...]] = ()
+        error_code = "0"
+        error_msg = ""
+
+        @staticmethod
+        def next() -> bool:
+            return False
+
+    class BaoStockModule:
+        query_calls = 0
+
+        @staticmethod
+        def login() -> Result:
+            return Result()
+
+        @staticmethod
+        def logout() -> Result:
+            return Result()
+
+        @classmethod
+        def query_profit_data(cls, **_kwargs: object) -> Result:
+            cls.query_calls += 1
+            return Result()
+
+    provider = BaoStockMarketDataProvider()
+    provider.set_financial_query_limit(1)
+    monkeypatch.setattr(baostock_provider, "_logged_in", False)
+    monkeypatch.setattr(baostock_provider, "_active_module", None)
+    monkeypatch.setattr(baostock_provider, "_process_lock_handle", None)
+    monkeypatch.setenv(
+        "ALPHAPILOT_BAOSTOCK_LOCK_FILE",
+        str(tmp_path / "baostock.lock"),
+    )
+    monkeypatch.setattr(provider, "_module", lambda: BaoStockModule)
+
+    try:
+        assert provider.probe_financial_query() == 0
+        with pytest.raises(BaoStockRequestBudgetExceeded, match="used=1, limit=1"):
+            provider.probe_financial_query()
+    finally:
+        baostock_provider.close_baostock_session()
+
+    assert BaoStockModule.query_calls == 1
+    assert provider.financial_query_count == 1
+
+
+def test_baostock_socks5_connector_negotiates_domain_target(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class FakeSocket:
+        def __init__(self) -> None:
+            self.responses = bytearray(b"\x05\x00\x05\x00\x00\x01\x7f\x00\x00\x01\x12\x34")
+            self.sent: list[bytes] = []
+            self.timeout: float | None = None
+            self.closed = False
+
+        def settimeout(self, timeout: float) -> None:
+            self.timeout = timeout
+
+        def sendall(self, payload: bytes) -> None:
+            self.sent.append(payload)
+
+        def recv(self, size: int) -> bytes:
+            payload = bytes(self.responses[:size])
+            del self.responses[:size]
+            return payload
+
+        def close(self) -> None:
+            self.closed = True
+
+    connection = FakeSocket()
+    captured: dict[str, object] = {}
+
+    def create_connection(
+        endpoint: tuple[str, int],
+        *,
+        timeout: float,
+    ) -> FakeSocket:
+        captured["endpoint"] = endpoint
+        captured["timeout"] = timeout
+        return connection
+
+    monkeypatch.setattr(
+        baostock_provider.socket,
+        "create_connection",
+        create_connection,
+    )
+
+    result = baostock_provider._open_socks5_connection(
+        ("127.0.0.1", 51837),
+        ("public-api.baostock.com", 10030),
+        timeout=12.0,
+    )
+
+    encoded_host = b"public-api.baostock.com"
+    assert result is connection
+    assert captured == {"endpoint": ("127.0.0.1", 51837), "timeout": 12.0}
+    assert connection.timeout == 12.0
+    assert connection.sent == [
+        b"\x05\x01\x00",
+        b"\x05\x01\x00\x03" + bytes([len(encoded_host)]) + encoded_host + struct.pack("!H", 10030),
+    ]
+    assert connection.responses == b""
+    assert connection.closed is False
+
+
+@pytest.mark.parametrize(
+    ("configured", "message"),
+    [
+        ("missing-port", "host:port"),
+        ("127.0.0.1:not-a-port", "host:port"),
+        ("127.0.0.1:0", "out of range"),
+        ("127.0.0.1:65536", "out of range"),
+    ],
+)
+def test_baostock_rejects_invalid_socks5_proxy_configuration(
+    monkeypatch: pytest.MonkeyPatch,
+    configured: str,
+    message: str,
+) -> None:
+    monkeypatch.setenv("ALPHAPILOT_BAOSTOCK_SOCKS5_PROXY", configured)
+
+    with pytest.raises(DataProviderError, match=message):
+        baostock_provider._socks5_endpoint()
 
 
 def test_sina_invalid_payload_is_not_classified_as_empty(

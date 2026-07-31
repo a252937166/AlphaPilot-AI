@@ -1,0 +1,5 @@
+SHELL=/bin/bash
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+
+# Start early enough to finish before BaoStock's observed ~02:00 CST maintenance window.
+5 0 * * * root /usr/bin/nohup /usr/bin/setsid /opt/alphapilot-s2-dog/run-financial-backfill.sh >/dev/null 2>&1 </dev/null &

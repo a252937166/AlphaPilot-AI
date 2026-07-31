@@ -28,6 +28,7 @@ class Settings(BaseSettings):
     redis_url: str = "redis://127.0.0.1:6379/0"
     scheduler_enabled: bool = False
     market_poll_enabled: bool = False
+    baostock_financial_sync_enabled: bool = True
     valuation_sync_enabled: bool = True
 
     # Failover order used by the "auto" composite provider.

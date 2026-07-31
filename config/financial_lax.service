@@ -1,0 +1,34 @@
+[Unit]
+Description=AlphaPilot S2 LAX BaoStock financial backfill (single connection)
+Wants=network-online.target
+After=network-online.target
+ConditionPathExists=/opt/alphapilot-s2-lax/data/alphapilot-s2.db
+
+[Service]
+Type=oneshot
+User=alphapilot-s2
+Group=alphapilot-s2
+WorkingDirectory=/opt/alphapilot-s2-lax/app
+EnvironmentFile=/opt/alphapilot-s2-lax/.env
+ExecStart=/opt/alphapilot-s2-lax/run-financial-backfill.sh
+TimeoutStartSec=6h
+Restart=no
+Nice=10
+IOSchedulingClass=idle
+CPUQuota=50%
+# CentOS 7 uses systemd 219/cgroup v1. MemoryLimit is the supported equivalent
+# of MemoryMax; using MemoryMax here would be ignored as an unknown directive.
+MemoryLimit=300M
+# systemd 219 predates TasksMax; the dedicated service account makes
+# RLIMIT_NPROC the compatible process-count guard on CentOS 7.
+LimitNPROC=64
+LimitNOFILE=1024
+UMask=0027
+NoNewPrivileges=true
+PrivateDevices=true
+PrivateTmp=true
+ProtectHome=true
+# systemd 219 accepts boolean/full, not the newer "strict" value.
+ProtectSystem=full
+ReadOnlyDirectories=/opt/alphapilot-s2-lax/app /opt/alphapilot-s2-lax/.venv
+ReadWriteDirectories=/opt/alphapilot-s2-lax/data /opt/alphapilot-s2-lax/logs /opt/alphapilot-s2-lax/exports

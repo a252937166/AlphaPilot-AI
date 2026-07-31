@@ -9,6 +9,7 @@ from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.interval import IntervalTrigger
 
 from alphapilot.core.config import get_settings
+from alphapilot.data.baostock_provider import close_baostock_session_if_used
 from alphapilot.db.engine import get_session
 from alphapilot.db.models import JobRun, utcnow
 from alphapilot.jobs.process_lock import job_process_lock
@@ -73,6 +74,11 @@ def _run_job_locked(name: str, spec: JobSpec, kwargs: dict[str, Any]) -> JobRun:
             failed.stats = dict(exc.stats) if isinstance(exc, JobExecutionError) else {}
             push_job_failure(session, failed)
         return failed
+    finally:
+        # A process-wide BaoStock socket is deliberately kept for the duration
+        # of a job, then closed so a later detached runner on this same public IP
+        # can acquire the host lock without overlapping connections.
+        close_baostock_session_if_used()
 
     with get_session() as session:
         completed = session.get(JobRun, run_id)

@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>__FINANCIAL_LOCAL_LABEL__</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>__FINANCIAL_LOCAL_PYTHON__</string>
+        <string>-u</string>
+        <string>__FINANCIAL_LOCAL_WRAPPER__</string>
+    </array>
+    <key>WorkingDirectory</key>
+    <string>__FINANCIAL_LOCAL_WORKING_DIRECTORY__</string>
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PYTHONUNBUFFERED</key>
+        <string>1</string>
+        <key>ALPHAPILOT_BAOSTOCK_LOCK_FILE</key>
+        <string>/tmp/alphapilot-baostock.lock</string>
+    </dict>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>StartCalendarInterval</key>
+    <dict>
+        <key>Hour</key>
+        <integer>0</integer>
+        <key>Minute</key>
+        <integer>5</integer>
+    </dict>
+    <key>ProcessType</key>
+    <string>Background</string>
+    <key>LowPriorityIO</key>
+    <true/>
+    <key>Nice</key>
+    <integer>10</integer>
+    <key>ThrottleInterval</key>
+    <integer>300</integer>
+    <key>StandardOutPath</key>
+    <string>__FINANCIAL_LOCAL_STDOUT_LOG__</string>
+    <key>StandardErrorPath</key>
+    <string>__FINANCIAL_LOCAL_STDERR_LOG__</string>
+</dict>
+</plist>

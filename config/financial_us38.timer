@@ -1,0 +1,11 @@
+[Unit]
+Description=Run AlphaPilot S2 US38 shard outside BaoStock maintenance
+
+[Timer]
+OnCalendar=*-*-* 09:05:00 Asia/Shanghai
+Persistent=true
+RandomizedDelaySec=30s
+Unit=alphapilot-s2-financial-us38.service
+
+[Install]
+WantedBy=timers.target

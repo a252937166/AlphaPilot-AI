@@ -1,0 +1,10 @@
+[Unit]
+Description=Run AlphaPilot S2 LAX shard outside BaoStock maintenance
+
+[Timer]
+OnCalendar=*-*-* 00:10:00
+RandomizedDelaySec=1m
+Unit=alphapilot-s2-financial-lax.service
+
+[Install]
+WantedBy=timers.target
