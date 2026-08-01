@@ -1,0 +1,20 @@
+{
+  "schema_version": "p4.1-source-spike-invalidation-v1",
+  "reviewed_at": "2026-08-01T16:12:00Z",
+  "report": "docs/phase4/reports/P4.1-source-spike-20260802-invalid-v1.json",
+  "report_sha256": "d73673c0b70cab57270cc08f646598bcbaf247f3adfcd3db5b6757c0a46bf5cb",
+  "job_run_id": 45453,
+  "verdict": "invalid_for_source_feasibility_decision",
+  "reason": "新浪解析器将 realstock/company 个股行情页误判为个股新闻，造成 sina_company_news=usable_primary 的假阳性。",
+  "observed_false_positive_urls": [
+    "http://finance.sina.com.cn/realstock/company/sh600519/nc.shtml",
+    "http://finance.sina.com.cn/realstock/company/sz000001/nc.shtml",
+    "http://finance.sina.com.cn/realstock/company/bj920000/nc.shtml"
+  ],
+  "integrity": {
+    "original_job_run_unchanged": true,
+    "original_report_bytes_unchanged": true,
+    "result_must_not_be_used_for_p4_1_source_promotion": true
+  },
+  "next_action": "以版本化 v2 契约收紧到新闻列表容器并重新执行一次受限 spike；v2 预注册提交必须先于任何新请求。"
+}
