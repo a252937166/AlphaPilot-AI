@@ -4,7 +4,8 @@ import hashlib
 import json
 import random
 import sqlite3
-from collections.abc import Callable, Iterator, Sequence
+import stat
+from collections.abc import Callable, Iterator, Mapping, Sequence
 from contextlib import contextmanager
 from datetime import UTC, date, datetime, time, timedelta
 from math import ceil, isfinite
@@ -18,6 +19,20 @@ from jsonschema import Draft202012Validator
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
+from alphapilot.backtest.external_pit_adjudication import (
+    AI_REVIEW_GOVERNANCE_AMENDMENT_SHA256,
+    AI_REVIEW_GOVERNANCE_AMENDMENT_VERSION,
+    AI_REVIEWER_ROLE,
+    FROZEN_MANIFEST_SHA256,
+    FROZEN_PAIRING_V3_SIGNED_EVIDENCE_TRUST_ANCHOR,
+    FROZEN_PAIRING_V3_UNSIGNED_CANONICAL_SHA256,
+    FROZEN_PREFLIGHT_SHA256,
+    INDEPENDENT_AI_SIGNATURE_STATUS,
+    PAIRING_V3_SCHEMA_VERSION,
+    normalized_unsigned_candidate_sha256,
+    validate_ai_review_attestation,
+    validate_pairing_v3,
+)
 from alphapilot.backtest.factor_scope import (
     HISTORICAL_FACTOR_CANDIDATES,
     HISTORY_EXCLUDED_PIT_GAP_FACTORS,
@@ -29,6 +44,7 @@ from alphapilot.data.provenance import (
 )
 from alphapilot.engines.factors import FACTOR_SET
 
+ROOT = Path(__file__).resolve().parents[3]
 REPORT_VERSION = "p3.3-s6-v4"
 MARKET_TIMEZONE = ZoneInfo("Asia/Shanghai")
 LATEST_CROSS_SECTION_CANDIDATES = 60
@@ -60,7 +76,20 @@ FINANCIAL_PROVIDER_CADENCE: dict[str, dict[str, Any]] = {
         "expected_quarters": (2, 4),
     },
 }
-MAX_EXTERNAL_EVIDENCE_BYTES = 64 * 1024
+# pairing-v3 carries 29 content-addressed artifact descriptors and 15 structured
+# proofs. Raw artifacts remain detached and separately size-capped.
+MAX_EXTERNAL_EVIDENCE_BYTES = 256 * 1024
+MAX_FROZEN_PREFLIGHT_BYTES = 4 * 1024 * 1024
+DEFAULT_FROZEN_PREFLIGHT_PATH = (
+    ROOT / "docs" / "phase3" / "reports" / "P3.3-S6-final-preflight-20260731.json"
+)
+DEFAULT_AI_REVIEW_ATTESTATION_PATH = (
+    ROOT
+    / "docs"
+    / "phase3"
+    / "reports"
+    / "AlphaPilot-P3.3-S6-Claude-Code-independent-ai-review-20260801.json"
+)
 PIT_MANIFEST_SCHEMA_VERSION = "p3.3-s6-local-pit-manifest-v1"
 EXTERNAL_PAIRING_SCHEMA_VERSION = "p3.3-s6-external-pit-pairing-v2"
 PIT_CHECKED_FIELDS = {
@@ -2065,6 +2094,219 @@ def _pit_manifest_sha256(pit_samples: dict[str, Any]) -> str:
     return hashlib.sha256(canonical).hexdigest()
 
 
+def _load_frozen_pit_samples(
+    preflight_path: Path,
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Load the content-addressed S6 preflight that owns the frozen 15 keys."""
+
+    expanded = preflight_path.expanduser()
+    source_stat = expanded.lstat()
+    if stat.S_ISLNK(source_stat.st_mode) or not stat.S_ISREG(source_stat.st_mode):
+        raise ValueError("frozen S6 preflight must be a regular file")
+    resolved = expanded.resolve(strict=True)
+    before = resolved.stat()
+    size_before = before.st_size
+    if size_before <= 0 or size_before > MAX_FROZEN_PREFLIGHT_BYTES:
+        raise ValueError(
+            "frozen S6 preflight must be non-empty and no larger than "
+            f"{MAX_FROZEN_PREFLIGHT_BYTES} bytes"
+        )
+    payload = resolved.read_bytes()
+    after = resolved.stat()
+    before_identity = (
+        before.st_dev,
+        before.st_ino,
+        before.st_size,
+        before.st_mtime_ns,
+    )
+    after_identity = (
+        after.st_dev,
+        after.st_ino,
+        after.st_size,
+        after.st_mtime_ns,
+    )
+    if len(payload) != size_before or after_identity != before_identity:
+        raise ValueError("frozen S6 preflight changed while being read")
+    digest = hashlib.sha256(payload).hexdigest()
+    if digest != FROZEN_PREFLIGHT_SHA256:
+        raise ValueError("frozen S6 preflight whole-file SHA-256 is not recognized")
+
+    def reject_non_finite_json(value: str) -> None:
+        raise ValueError(f"non-finite JSON number is not allowed: {value}")
+
+    def reject_duplicate_json_keys(
+        pairs: list[tuple[str, Any]],
+    ) -> dict[str, Any]:
+        strict_object: dict[str, Any] = {}
+        for key, value in pairs:
+            if key in strict_object:
+                raise ValueError(f"duplicate JSON key is not allowed: {key}")
+            strict_object[key] = value
+        return strict_object
+
+    try:
+        document = json.loads(
+            payload.decode("utf-8"),
+            object_pairs_hook=reject_duplicate_json_keys,
+            parse_constant=reject_non_finite_json,
+        )
+    except (UnicodeDecodeError, json.JSONDecodeError, ValueError) as exc:
+        raise ValueError("frozen S6 preflight must be strict UTF-8 JSON") from exc
+    if not isinstance(document, dict):
+        raise ValueError("frozen S6 preflight root must be an object")
+    pit_samples = document.get("pit_samples")
+    if not isinstance(pit_samples, dict):
+        raise ValueError("frozen S6 preflight pit_samples must be an object")
+    if pit_samples.get("manifest_schema_version") != PIT_MANIFEST_SCHEMA_VERSION:
+        raise ValueError("frozen S6 preflight PIT manifest schema changed")
+    recomputed = _pit_manifest_sha256(pit_samples)
+    if recomputed != FROZEN_MANIFEST_SHA256:
+        raise ValueError("frozen S6 preflight PIT manifest SHA-256 mismatch")
+    if pit_samples.get("manifest_sha256") != recomputed:
+        raise ValueError("frozen S6 preflight stored PIT manifest hash mismatch")
+    return pit_samples, {
+        "path": str(resolved),
+        "basename": resolved.name,
+        "sha256": digest,
+        "bytes": len(payload),
+    }
+
+
+def _audit_frozen_pit_samples(
+    connection: sqlite3.Connection,
+    *,
+    frozen: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Re-read the exact frozen business keys; dynamic re-sampling is diagnostic only."""
+
+    query_only = bool(int(connection.execute("PRAGMA query_only").fetchone()[0]))
+    if not query_only:
+        raise ValueError("frozen PIT exact-key audit requires query_only mode")
+    reconstructed: dict[str, Any] = {
+        "selection": frozen["selection"],
+        "seed": frozen["seed"],
+        "sample_size_per_table": frozen["sample_size_per_table"],
+        "external_source_pairing": frozen.get("external_source_pairing"),
+        "daily_bars_with_adj": [],
+        "financial_indicators": [],
+        "valuation_daily": [],
+        "manifest_schema_version": PIT_MANIFEST_SCHEMA_VERSION,
+    }
+    for expected in frozen["daily_bars_with_adj"]:
+        if not isinstance(expected, dict):
+            raise ValueError("frozen daily PIT sample must be an object")
+        rows = connection.execute(
+            """
+            SELECT bars.symbol, bars.trade_date, bars.close, bars.source,
+                   factors.adj_factor, factors.source AS adj_source
+            FROM daily_bars AS bars
+            LEFT JOIN adj_factors AS factors
+              ON factors.symbol = bars.symbol
+             AND factors.trade_date = bars.trade_date
+            WHERE bars.symbol = ? AND bars.trade_date = ?
+            """,
+            (expected["symbol"], expected["trade_date"]),
+        ).fetchall()
+        if len(rows) != 1:
+            raise ValueError(
+                "frozen daily PIT business key is missing or duplicated"
+            )
+        sample = dict(rows[0])
+        anchors = connection.execute(
+            """
+            SELECT factors.adj_factor
+            FROM daily_bars AS bars
+            JOIN adj_factors AS factors
+              ON factors.symbol = bars.symbol
+             AND factors.trade_date = bars.trade_date
+            WHERE bars.symbol = ? AND bars.trade_date = ?
+            """,
+            (expected["symbol"], expected["adj_anchor_date"]),
+        ).fetchall()
+        if len(anchors) != 1:
+            raise ValueError(
+                "frozen daily PIT adjustment anchor is missing or duplicated"
+            )
+        sample["adj_anchor_date"] = expected["adj_anchor_date"]
+        sample["adj_anchor_factor"] = float(anchors[0]["adj_factor"])
+        reconstructed["daily_bars_with_adj"].append(sample)
+    for expected in frozen["financial_indicators"]:
+        if not isinstance(expected, dict):
+            raise ValueError("frozen financial PIT sample must be an object")
+        rows = connection.execute(
+            """
+            SELECT symbol, report_period, metric, value, source,
+                   available_time, payload
+            FROM financial_indicators
+            WHERE symbol = ? AND report_period = ? AND metric = ?
+            """,
+            (
+                expected["symbol"],
+                expected["report_period"],
+                expected["metric"],
+            ),
+        ).fetchall()
+        if len(rows) != 1:
+            raise ValueError(
+                "frozen financial PIT business key is missing or duplicated"
+            )
+        reconstructed["financial_indicators"].append(dict(rows[0]))
+    for expected in frozen["valuation_daily"]:
+        if not isinstance(expected, dict):
+            raise ValueError("frozen valuation PIT sample must be an object")
+        rows = connection.execute(
+            """
+            SELECT symbol, trade_date, pe_ttm, pb_mrq, ps_ttm,
+                   source, available_time
+            FROM valuation_daily
+            WHERE symbol = ? AND trade_date = ?
+            """,
+            (expected["symbol"], expected["trade_date"]),
+        ).fetchall()
+        if len(rows) != 1:
+            raise ValueError(
+                "frozen valuation PIT business key is missing or duplicated"
+            )
+        reconstructed["valuation_daily"].append(dict(rows[0]))
+
+    reconstructed_sha256 = _pit_manifest_sha256(reconstructed)
+    sections = (
+        "selection",
+        "seed",
+        "sample_size_per_table",
+        "daily_bars_with_adj",
+        "financial_indicators",
+        "valuation_daily",
+    )
+    differences = [
+        section
+        for section in sections
+        if reconstructed[section] != frozen[section]
+    ]
+    if differences or reconstructed_sha256 != FROZEN_MANIFEST_SHA256:
+        raise ValueError(
+            "current DB no longer reproduces the frozen 15 PIT samples: "
+            f"{differences}"
+        )
+    return {
+        "mode": "exact_frozen_business_keys",
+        "database_open_mode": "ro",
+        "query_only": query_only,
+        "sample_count": sum(
+            len(reconstructed[section])
+            for section in (
+                "daily_bars_with_adj",
+                "financial_indicators",
+                "valuation_daily",
+            )
+        ),
+        "difference_count": 0,
+        "difference_sections": [],
+        "manifest_schema_version": PIT_MANIFEST_SCHEMA_VERSION,
+        "manifest_sha256": reconstructed_sha256,
+    }
+
+
 def _sample_identity(
     table: str,
     key: dict[str, Any],
@@ -2219,15 +2461,25 @@ def _validate_checked_values(
 def _external_pairing_evidence(
     evidence_path: Path | None,
     *,
+    ai_review_attestation_path: Path | None = None,
     pit_samples: dict[str, Any],
 ) -> dict[str, Any]:
+    required_schema_version = (
+        PAIRING_V3_SCHEMA_VERSION
+        if pit_samples.get("manifest_sha256") == FROZEN_MANIFEST_SHA256
+        else EXTERNAL_PAIRING_SCHEMA_VERSION
+    )
     if evidence_path is None:
+        if ai_review_attestation_path is not None:
+            raise ValueError(
+                "AI review attestation requires signed pairing-v3 evidence"
+            )
         return {
             "accepted": False,
             "basename": None,
             "sha256": None,
             "bytes": 0,
-            "schema_version": EXTERNAL_PAIRING_SCHEMA_VERSION,
+            "schema_version": required_schema_version,
             "pit_manifest_schema_version": PIT_MANIFEST_SCHEMA_VERSION,
             "pit_manifest_sha256": pit_samples["manifest_sha256"],
             "reviewer_role": None,
@@ -2277,6 +2529,125 @@ def _external_pairing_evidence(
         raise ValueError("external PIT pairing evidence must be strict JSON") from exc
     except ValueError as exc:
         raise ValueError("external PIT pairing evidence must be strict JSON") from exc
+    if not isinstance(document, dict):
+        raise ValueError("external PIT pairing evidence root must be an object")
+    observed_schema_version = str(document.get("schema_version") or "")
+    if observed_schema_version == PAIRING_V3_SCHEMA_VERSION:
+        if pit_samples.get("manifest_sha256") != FROZEN_MANIFEST_SHA256:
+            raise ValueError(
+                "pairing-v3 release requires the content-addressed frozen "
+                "preflight and an exact-key audit against the current DB"
+            )
+        normalized_candidate_sha256 = normalized_unsigned_candidate_sha256(
+            document
+        )
+        if (
+            normalized_candidate_sha256
+            != FROZEN_PAIRING_V3_UNSIGNED_CANONICAL_SHA256
+        ):
+            raise ValueError(
+                "pairing-v3 proof does not match the frozen unsigned candidate "
+                "canonical SHA-256"
+            )
+        signed_file_sha256 = hashlib.sha256(payload).hexdigest()
+        v3_metadata = validate_pairing_v3(
+            document,
+            evidence_path=resolved,
+            pit_samples=pit_samples,
+        )
+        trust_anchor = FROZEN_PAIRING_V3_SIGNED_EVIDENCE_TRUST_ANCHOR
+        if trust_anchor is None:
+            raise ValueError(
+                "pairing-v3 independent architect signed-file trust anchor "
+                "is pending"
+            )
+        anchor_baseline = {
+            "sha256": signed_file_sha256,
+            "reviewer_role": str(v3_metadata["reviewer_role"]),
+            "signature_status": str(v3_metadata["signature_status"]),
+            "adjudication_contract": str(v3_metadata["adjudication_contract"]),
+        }
+        for field, observed in anchor_baseline.items():
+            if trust_anchor.get(field) != observed:
+                raise ValueError(
+                    "pairing-v3 signed evidence does not match the atomic "
+                    f"trust anchor field: {field}"
+                )
+        attestation_metadata: dict[str, Any] | None = None
+        if v3_metadata["signature_status"] == INDEPENDENT_AI_SIGNATURE_STATUS:
+            if v3_metadata["reviewer_role"] != AI_REVIEWER_ROLE:
+                raise ValueError("AI pairing-v3 reviewer profile is inconsistent")
+            if ai_review_attestation_path is None:
+                raise ValueError(
+                    "AI-approved pairing-v3 evidence requires the frozen "
+                    "AI review attestation"
+                )
+            attestation_metadata = validate_ai_review_attestation(
+                ai_review_attestation_path,
+                signed_candidate=document,
+            )
+            ai_anchor = {
+                "ai_review_attestation_sha256": str(
+                    attestation_metadata["sha256"]
+                ),
+                "governance_amendment": AI_REVIEW_GOVERNANCE_AMENDMENT_VERSION,
+                "governance_amendment_sha256": (
+                    AI_REVIEW_GOVERNANCE_AMENDMENT_SHA256
+                ),
+            }
+            for field, observed in ai_anchor.items():
+                if trust_anchor.get(field) != observed:
+                    raise ValueError(
+                        "pairing-v3 AI approval does not match the atomic "
+                        f"trust anchor field: {field}"
+                    )
+        elif ai_review_attestation_path is not None:
+            raise ValueError(
+                "AI review attestation is only valid for the exact AI reviewer profile"
+            )
+        expected = _expected_sample_records(pit_samples)
+        for sample in document["samples"]:
+            if sample["verdict"] != "numeric_match":
+                continue
+            identity = _sample_identity(str(sample["table"]), sample["key"])
+            _validate_checked_values(
+                table=identity[0],
+                current_sample=expected[identity],
+                evidence_sample=sample,
+            )
+        return {
+            "accepted": True,
+            "basename": resolved.name,
+            "sha256": hashlib.sha256(payload).hexdigest(),
+            "bytes": len(payload),
+            "schema_version": str(v3_metadata["schema_version"]),
+            "pit_manifest_schema_version": str(
+                document["pit_manifest_schema_version"]
+            ),
+            "pit_manifest_sha256": str(document["pit_manifest_sha256"]),
+            "reviewer_type": str(v3_metadata["reviewer_type"]),
+            "reviewer_role": str(v3_metadata["reviewer_role"]),
+            "reviewed_at": str(v3_metadata["reviewed_at"]),
+            "signature_status": str(v3_metadata["signature_status"]),
+            "sample_count": int(v3_metadata["sample_count"]),
+            "adjudication_contract": str(
+                v3_metadata["adjudication_contract"]
+            ),
+            "final_trial_sha256": str(v3_metadata["final_trial_sha256"]),
+            "numeric_match": int(v3_metadata["numeric_match"]),
+            "formula_match": int(v3_metadata["formula_match"]),
+            "expected_unavailable": int(
+                v3_metadata["expected_unavailable"]
+            ),
+            "ai_review_attestation": attestation_metadata,
+        }
+    if pit_samples.get("manifest_sha256") == FROZEN_MANIFEST_SHA256:
+        raise ValueError(
+            "the frozen final S6 manifest requires pairing-v3 adjudication; "
+            "pairing-v2 cannot be used"
+        )
+    if ai_review_attestation_path is not None:
+        raise ValueError("AI review attestation requires pairing-v3 evidence")
     errors = sorted(
         Draft202012Validator(EXTERNAL_PAIRING_SCHEMA).iter_errors(document),
         key=lambda error: list(error.absolute_path),
@@ -2287,8 +2658,6 @@ def _external_pairing_evidence(
             "external PIT pairing evidence schema violation at "
             f"{location}: {errors[0].message}"
         )
-    if not isinstance(document, dict):
-        raise ValueError("external PIT pairing evidence root must be an object")
     reviewer_role = str(document["reviewer_role"]).strip()
     if (
         not reviewer_role
@@ -2383,6 +2752,54 @@ def _external_pairing_evidence(
         "reviewed_at": reviewed_at_text,
         "sample_count": len(supplied),
     }
+
+
+def _external_pairing_profile(
+    evidence_path: Path,
+) -> tuple[str, str]:
+    """Peek only the strict schema and exact reviewer role for path routing."""
+
+    expanded = evidence_path.expanduser()
+    if not expanded.is_file():
+        resolved = expanded.resolve()
+        raise FileNotFoundError(f"external PIT pairing evidence not found: {resolved}")
+    resolved = expanded.resolve(strict=True)
+    payload = resolved.read_bytes()
+    if not payload:
+        raise ValueError("external PIT pairing evidence must not be empty")
+    if len(payload) > MAX_EXTERNAL_EVIDENCE_BYTES:
+        raise ValueError(
+            "external PIT pairing evidence exceeds "
+            f"{MAX_EXTERNAL_EVIDENCE_BYTES} bytes"
+        )
+
+    def reject_non_finite_json(value: str) -> None:
+        raise ValueError(f"non-finite JSON number is not allowed: {value}")
+
+    def reject_duplicate_json_keys(
+        pairs: list[tuple[str, Any]],
+    ) -> dict[str, Any]:
+        strict_object: dict[str, Any] = {}
+        for key, value in pairs:
+            if key in strict_object:
+                raise ValueError(f"duplicate JSON key is not allowed: {key}")
+            strict_object[key] = value
+        return strict_object
+
+    try:
+        document = json.loads(
+            payload.decode("utf-8"),
+            object_pairs_hook=reject_duplicate_json_keys,
+            parse_constant=reject_non_finite_json,
+        )
+    except (UnicodeDecodeError, json.JSONDecodeError, ValueError) as exc:
+        raise ValueError("external PIT pairing evidence must be strict JSON") from exc
+    if not isinstance(document, dict):
+        raise ValueError("external PIT pairing evidence root must be an object")
+    return (
+        str(document.get("schema_version") or ""),
+        str(document.get("reviewer_role") or ""),
+    )
 
 
 def _gate(
@@ -2622,8 +3039,27 @@ def _gate(
                 f"FACTOR_{str(item['factor']).upper()}_{str(item['status']).upper()}",
                 f"{item['factor']} PIT 可测性为 {item['status']}。",
             )
+    pairing = report["external_pit_pairing"]
+    if (
+        pairing.get("accepted") is True
+        and pairing.get("schema_version") == PAIRING_V3_SCHEMA_VERSION
+    ):
+        frozen_audit = report.get("frozen_pit_exact_key_audit")
+        if (
+            not isinstance(frozen_audit, dict)
+            or frozen_audit.get("difference_count") != 0
+            or frozen_audit.get("query_only") is not True
+            or frozen_audit.get("manifest_sha256") != FROZEN_MANIFEST_SHA256
+        ):
+            block(
+                "FROZEN_PIT_EXACT_KEY_AUDIT",
+                (
+                    "pairing-v3 必须同时通过当前数据库对冻结 15 个业务键的 "
+                    "query_only 精确重构审计。"
+                ),
+            )
     automated_checks_pass = not blockers
-    if not report["external_pit_pairing"]["accepted"]:
+    if not pairing["accepted"]:
         block(
             "EXTERNAL_PIT_PAIRING_PENDING",
             "尚无显式外部数据源 PIT 对拍签认证据，自动检查通过也不得进入 S7。",
@@ -2644,6 +3080,8 @@ def build_data_health_report(
     *,
     as_of_date: date | None = None,
     external_pit_pairing_evidence: Path | None = None,
+    external_pit_ai_review_attestation: Path | None = None,
+    external_pit_frozen_preflight: Path | None = None,
     minimum_market_coverage: float = 0.90,
     minimum_factor_cross_section: int = 100,
     minimum_sector_plates: int = 100,
@@ -2662,7 +3100,31 @@ def build_data_health_report(
         raise ValueError("sector thresholds are invalid")
     if sample_size < 1:
         raise ValueError("sample_size must be positive")
+    if external_pit_pairing_evidence is not None:
+        evidence_schema, reviewer_role = _external_pairing_profile(
+            external_pit_pairing_evidence
+        )
+        if evidence_schema == PAIRING_V3_SCHEMA_VERSION:
+            if external_pit_frozen_preflight is None:
+                external_pit_frozen_preflight = DEFAULT_FROZEN_PREFLIGHT_PATH
+            if (
+                reviewer_role == AI_REVIEWER_ROLE
+                and external_pit_ai_review_attestation is None
+            ):
+                external_pit_ai_review_attestation = (
+                    DEFAULT_AI_REVIEW_ATTESTATION_PATH
+                )
+    if (
+        external_pit_frozen_preflight is not None
+        and external_pit_pairing_evidence is None
+    ):
+        raise ValueError(
+            "frozen PIT preflight requires external PIT pairing evidence"
+        )
     audit_date = as_of_date or datetime.now(MARKET_TIMEZONE).date()
+    frozen_key_audit: dict[str, Any] | None = None
+    evidence_samples: dict[str, Any] | None = None
+    release_snapshot: dict[str, Any] | None = None
 
     with readonly_connection(database_path) as connection:
         table_names = {
@@ -2675,6 +3137,17 @@ def build_data_health_report(
         if missing_tables:
             raise RuntimeError(f"S6 required tables are missing: {', '.join(missing_tables)}")
         query_only = bool(int(_one(connection, "PRAGMA query_only")[0]))
+        data_version_before = int(_one(connection, "PRAGMA data_version")[0])
+        running_before = int(
+            _one(
+                connection,
+                "SELECT COUNT(*) FROM job_runs WHERE status = 'running'",
+            )[0]
+        )
+        if external_pit_frozen_preflight is not None and running_before:
+            raise RuntimeError(
+                "S6 signed release gate requires zero running JobRun rows"
+            )
         universe = _one(
             connection,
             """
@@ -2724,28 +3197,84 @@ def build_data_health_report(
         )
         samples["manifest_schema_version"] = PIT_MANIFEST_SCHEMA_VERSION
         samples["manifest_sha256"] = _pit_manifest_sha256(samples)
+        evidence_samples = samples
+        if external_pit_frozen_preflight is not None:
+            frozen_samples, frozen_preflight_identity = _load_frozen_pit_samples(
+                external_pit_frozen_preflight
+            )
+            exact_key_audit = _audit_frozen_pit_samples(
+                connection,
+                frozen=frozen_samples,
+            )
+            frozen_key_audit = {
+                **exact_key_audit,
+                "preflight": {
+                    "basename": frozen_preflight_identity["basename"],
+                    "sha256": frozen_preflight_identity["sha256"],
+                    "bytes": frozen_preflight_identity["bytes"],
+                },
+                "current_diagnostic_manifest_sha256": samples[
+                    "manifest_sha256"
+                ],
+                "diagnostic_manifest_may_advance": True,
+            }
+            evidence_samples = frozen_samples
 
-    external_pairing = _external_pairing_evidence(
-        external_pit_pairing_evidence,
-        pit_samples=samples,
-    )
-    if external_pairing["accepted"]:
-        samples["external_source_pairing"] = "evidence_supplied"
-        samples["external_pairing_evidence_sha256"] = external_pairing["sha256"]
+        if evidence_samples is None:
+            raise RuntimeError("PIT evidence sample selection was not initialized")
+        external_pairing = _external_pairing_evidence(
+            external_pit_pairing_evidence,
+            ai_review_attestation_path=external_pit_ai_review_attestation,
+            pit_samples=evidence_samples,
+        )
+        if external_pairing["accepted"]:
+            if frozen_key_audit is None:
+                samples["external_source_pairing"] = "evidence_supplied"
+                samples["external_pairing_evidence_sha256"] = external_pairing[
+                    "sha256"
+                ]
+            else:
+                frozen_key_audit["external_source_pairing"] = "evidence_supplied"
+                frozen_key_audit["external_pairing_evidence_sha256"] = (
+                    external_pairing["sha256"]
+                )
 
-    factor_availability = _factor_availability(
-        database_path,
-        schedule=schedule,
-        membership_pit_visibility=membership_visibility,
-        minimum_cross_section=minimum_factor_cross_section,
-        probe=factor_probe,
-    )
-    _diagnose_factor_gaps(
-        factor_availability,
-        input_coverage=input_coverage,
-        key_audit=key_audit,
-        minimum_market_coverage=minimum_market_coverage,
-    )
+        factor_availability = _factor_availability(
+            database_path,
+            schedule=schedule,
+            membership_pit_visibility=membership_visibility,
+            minimum_cross_section=minimum_factor_cross_section,
+            probe=factor_probe,
+        )
+        _diagnose_factor_gaps(
+            factor_availability,
+            input_coverage=input_coverage,
+            key_audit=key_audit,
+            minimum_market_coverage=minimum_market_coverage,
+        )
+        data_version_after = int(_one(connection, "PRAGMA data_version")[0])
+        running_after = int(
+            _one(
+                connection,
+                "SELECT COUNT(*) FROM job_runs WHERE status = 'running'",
+            )[0]
+        )
+        if external_pit_frozen_preflight is not None:
+            if data_version_after != data_version_before:
+                raise RuntimeError(
+                    "database changed during the S6 signed release gate"
+                )
+            if running_after:
+                raise RuntimeError(
+                    "database gained a running JobRun during the S6 release gate"
+                )
+            release_snapshot = {
+                "data_version_before": data_version_before,
+                "data_version_after": data_version_after,
+                "running_job_runs_before": running_before,
+                "running_job_runs_after": running_after,
+                "stable": True,
+            }
     report: dict[str, Any] = {
         "report_version": REPORT_VERSION,
         "generated_at": datetime.now(UTC).isoformat(),
@@ -2754,6 +3283,7 @@ def build_data_health_report(
             "path": str(database_path.expanduser().resolve()),
             "open_mode": "ro",
             "query_only": query_only,
+            "release_snapshot": release_snapshot,
         },
         "thresholds": {
             "minimum_market_coverage": minimum_market_coverage,
@@ -2787,6 +3317,7 @@ def build_data_health_report(
             "ruling_date": "2026-07-25",
         },
         "pit_samples": samples,
+        "frozen_pit_exact_key_audit": frozen_key_audit,
         "external_pit_pairing": external_pairing,
     }
     report["gate"] = _gate(
@@ -3044,6 +3575,41 @@ def render_data_health_markdown(report: dict[str, Any]) -> str:
     else:
         lines.append("- 无暖机后的可用资金流探针日期。")
 
+    diagnostic_samples = report["pit_samples"]
+    frozen_audit = report.get("frozen_pit_exact_key_audit")
+    lines.extend(
+        [
+            "",
+            "## PIT 双清单绑定",
+            "",
+            "- 当前诊断清单："
+            f"`{diagnostic_samples['manifest_sha256']}`"
+            "（随最新复权锚自然推进，不替代冻结签认清单）",
+        ]
+    )
+    if isinstance(frozen_audit, dict):
+        lines.extend(
+            [
+                "- 冻结精确键清单："
+                f"`{frozen_audit['manifest_sha256']}`",
+                f"- 冻结样本：{frozen_audit['sample_count']}；"
+                f"difference_count={frozen_audit['difference_count']}；"
+                f"query_only={str(frozen_audit['query_only']).lower()}",
+                "- 冻结 preflight："
+                f"`{frozen_audit['preflight']['sha256']}`",
+            ]
+        )
+    release_snapshot = report["database"].get("release_snapshot")
+    if isinstance(release_snapshot, dict):
+        lines.append(
+            "- 发布快照稳定性："
+            f"`{str(release_snapshot['stable']).lower()}`；"
+            f"data_version={release_snapshot['data_version_before']}→"
+            f"{release_snapshot['data_version_after']}；"
+            f"running={release_snapshot['running_job_runs_before']}→"
+            f"{release_snapshot['running_job_runs_after']}"
+        )
+
     evidence = report["external_pit_pairing"]
     lines.extend(
         [
@@ -3058,11 +3624,27 @@ def render_data_health_markdown(report: dict[str, Any]) -> str:
             "- pit_manifest_schema_version："
             f"{_display(evidence['pit_manifest_schema_version'])}",
             f"- pit_manifest_sha256：{_display(evidence['pit_manifest_sha256'])}",
+            f"- reviewer_type：{_display(evidence.get('reviewer_type'))}",
             f"- reviewer_role：{_display(evidence['reviewer_role'])}",
             f"- reviewed_at：{_display(evidence['reviewed_at'])}",
+            f"- signature_status：{_display(evidence.get('signature_status'))}",
             f"- sample_count：{evidence['sample_count']}",
         ]
     )
+    ai_attestation = evidence.get("ai_review_attestation")
+    if isinstance(ai_attestation, dict):
+        lines.extend(
+            [
+                "- AI review attestation："
+                f"`{_display(ai_attestation.get('sha256'))}`",
+                "- AI reviewer："
+                f"{_display(ai_attestation.get('reviewer_product'))} / "
+                f"{_display(ai_attestation.get('reviewer_model'))}",
+                "- governance amendment："
+                f"`{_display(ai_attestation.get('governance_amendment'))}` / "
+                f"`{_display(ai_attestation.get('governance_amendment_sha256'))}`",
+            ]
+        )
 
     lines.extend(["", "## 阻断项", ""])
     if gate["blockers"]:

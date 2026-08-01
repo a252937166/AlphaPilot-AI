@@ -43,7 +43,7 @@ def _parser() -> argparse.ArgumentParser:
         "--external-pit-evidence",
         type=Path,
         required=True,
-        help="Final architect-signed S6 external PIT pairing evidence.",
+        help="Final policy-approved S6 external PIT pairing evidence.",
     )
     parser.add_argument(
         "--foreground",

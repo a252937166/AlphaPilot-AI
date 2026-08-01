@@ -23,6 +23,7 @@ from alphapilot.backtest.data_health import (
     PIT_NUMERIC_CHECKED_FIELDS,
     PIT_NUMERIC_TOLERANCE_POLICY,
 )
+from alphapilot.backtest.external_pit_adjudication import FROZEN_MANIFEST_SHA256
 
 TRIAL_SCHEMA_VERSION = "p3.3-s6-external-pit-trial-v1"
 MAX_MANIFEST_REPORT_BYTES = 4 * 1024 * 1024
@@ -482,6 +483,10 @@ def build_signed_evidence_v2(
     reviewer_role: str,
     reviewed_at: datetime,
 ) -> dict[str, Any]:
+    if str(trial.get("pit_manifest_sha256") or "") == FROZEN_MANIFEST_SHA256:
+        raise ExternalPITError(
+            "the frozen final S6 trial requires offline pairing-v3 adjudication"
+        )
     role = reviewer_role.strip()
     if (
         not role

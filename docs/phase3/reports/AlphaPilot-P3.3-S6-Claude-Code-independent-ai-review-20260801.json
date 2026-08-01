@@ -1,0 +1,108 @@
+{
+  "blockers": [],
+  "candidate_canonical_sha256": "45358d1508e7ac6e71a7df25990aba1a908fc7c5108dd4253cc1e05698d520ae",
+  "candidate_file_sha256": "094c21eb7921a0c57c35ba97247a7b69faeada0421ff1929ca5d4701c388fd0c",
+  "checks": {
+    "candidate_remains_unsigned": true,
+    "fixed_15_business_keys": true,
+    "nested_checksums": true,
+    "p0_1_official_reference": true,
+    "p0_2_candidate_bound_presign": true,
+    "p0_3_machine_invariants": true,
+    "zip_integrity": true
+  },
+  "checksum_layers": {
+    "SHA256SUMS": {
+      "duplicate": 0,
+      "entries": 279,
+      "mismatch": 0,
+      "missing": 0,
+      "phantom_entries": 0,
+      "uncovered_files": 0
+    },
+    "candidate/raw-source/SHA256SUMS": {
+      "duplicate": 0,
+      "entries": 205,
+      "mismatch": 0,
+      "missing": 0
+    },
+    "candidate/raw-source/daily-bars/complete-unfiltered-announcement-inventory/SHA256SUMS": {
+      "duplicate": 0,
+      "entries": 64,
+      "mismatch": 0,
+      "missing": 0
+    },
+    "candidate/raw-source/daily-bars/reference-evidence/001260/SHA256SUMS": {
+      "duplicate": 0,
+      "entries": 8,
+      "mismatch": 0,
+      "missing": 0
+    },
+    "candidate/raw-source/daily-bars/rounding-evidence/600782/SHA256SUMS": {
+      "duplicate": 0,
+      "entries": 17,
+      "mismatch": 0,
+      "missing": 0
+    },
+    "candidate/raw-source/git-chain/SHA256SUMS": {
+      "duplicate": 0,
+      "entries": 23,
+      "mismatch": 0,
+      "missing": 0
+    },
+    "candidate/raw-source/price-tick-rules/SHA256SUMS": {
+      "duplicate": 0,
+      "entries": 29,
+      "mismatch": 0,
+      "missing": 0
+    }
+  },
+  "contract_deviation": {
+    "authority": "explicit project owner instruction",
+    "human_impersonation": false,
+    "new_requirement": "independent AI architect review by Claude Code",
+    "old_requirement": "independent human architect signature",
+    "requires_release_gate_amendment": true
+  },
+  "decision": "approved",
+  "final_trial_sha256": "40f310a4c94e550cac33616fbe2d8ffc189cb48cd259a2913fe3379bae424099",
+  "final_verdict": "APPROVE_AS_INDEPENDENT_AI_REVIEWER",
+  "frozen_preflight_sha256": "2064586a9321c7ab8b321cd82ec5c3edcd5449984dc3a2822556a3f65eb620e3",
+  "independence_disclosure": "Earlier in this same Claude Code session, defects in the repository's gate/validator code were fixed (machine-validation hash pin, output-overwrite guard, canonical-strict comparisons). To keep this review independent of that code, every P0 conclusion above was re-derived with Python-stdlib-only tooling written for this review; the repository validator was not invoked for any conclusion.",
+  "input_zip": "/Users/ouyangduning/Downloads/AlphaPilot-P3.3-S6-pairing-v3-remediation-review-v4-20260801.zip",
+  "input_zip_sha256": "2041448a87ef8548b0fa9d5aedf7e33aad4b549b8cc58a2705edc0fffe8bce01",
+  "input_zip_sidecar_verified": true,
+  "machine_validation_sha256": "57f70704905ba84b371fc7f3432ce28967e9e67a5ae9b6517fc188da6109ef3d",
+  "non_blocking_observations": [
+    "The *.headers.json records under candidate/raw-source/daily-bars/reference-evidence/001260/ are locally reconstructed provenance metadata (asserted status 200, fixed etag), labeled with the sanitizer parser version and not distinguishable in kind from captured headers. The P0-1 conclusions in this review rest exclusively on the hash-pinned bodies, which were parsed independently; recommend honest relabeling of synthesized header records in a future rebuild.",
+    "The frozen entry page's anchor to the dividend table uses the http:// scheme while the recorded fetch URL uses https:// (same host and path); the uniqueness binding verified here is on host+path.",
+    "The repository validator's reviewer_role string check would mechanically accept AI-named roles; this review deliberately does not exploit that and leaves the human-only validator unchanged."
+  ],
+  "pit_manifest_sha256": "fb9c888e7a10f7b1ef28e7a447b0e2b53df739f6acdbedb1ba95d1d41cbfb0bd",
+  "presign_report_sha256": "1fee14d59bff82f951a620f67324540c6ad954baeef43c90cbd3c6385de12d89",
+  "reviewed_at": "2026-08-01T03:29:35.045445-04:00",
+  "reviewer_model": "claude-fable-5",
+  "reviewer_product": "Claude Code",
+  "reviewer_role": "independent_ai_architect_claude_code",
+  "reviewer_type": "ai",
+  "schema_version": "p3.3-s6-independent-ai-review-v1",
+  "state_assertions": {
+    "candidate_modified": false,
+    "candidate_top_level": {
+      "approved": false,
+      "reviewed_at": null,
+      "reviewer_role": "pending"
+    },
+    "git_committed": false,
+    "human_only_validator_modified_by_this_review": false,
+    "production_trust_anchor_unset": true,
+    "s6_status": "blocked",
+    "s7_status": "not_started",
+    "test_window": "sealed"
+  },
+  "verdict_distribution": {
+    "expected_unavailable": 2,
+    "formula_match": 8,
+    "numeric_match": 5
+  }
+}

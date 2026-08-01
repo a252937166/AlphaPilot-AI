@@ -16,6 +16,7 @@ from alphapilot.backtest.external_pit import (
     build_trial_document,
     load_pit_manifest,
 )
+from alphapilot.backtest.external_pit_adjudication import FROZEN_MANIFEST_SHA256
 from alphapilot.core.config import get_settings
 
 DEFAULT_MANIFEST = Path("docs/phase3/reports/P3.3-S6-preflight.json")
@@ -109,6 +110,13 @@ def main(argv: list[str] | None = None) -> int:
     if _same_path(arguments.manifest, arguments.output):
         raise ValueError("--output must not overwrite the S6 manifest report")
     manifest = load_pit_manifest(arguments.manifest)
+    if (
+        arguments.mode == "sign"
+        and manifest.manifest_sha256 == FROZEN_MANIFEST_SHA256
+    ):
+        raise ValueError(
+            "the frozen final S6 trial requires offline pairing-v3 adjudication"
+        )
     plan = build_preflight_plan(
         manifest,
         financial_source=arguments.financial_source,

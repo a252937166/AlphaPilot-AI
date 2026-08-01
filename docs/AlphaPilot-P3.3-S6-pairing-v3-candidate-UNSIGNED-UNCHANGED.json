@@ -1,0 +1,2240 @@
+{
+  "adjudication_contract": "p3.3-s6-external-pit-adjudication-v1",
+  "adjudication_contract_sha256": "a16995e6545ddba7fc03d917ae6cc8d9ab19b7903f1d21c5694b1c0167b1b951",
+  "approved": false,
+  "artifacts": [
+    {
+      "actual_fields": [
+        "price_tick"
+      ],
+      "content_scope": "full_response_body",
+      "fallback_reason": null,
+      "first_success": true,
+      "first_success_response_sha256": "7018114a6e11deb239c2a72e71e49defc6e8841b3e2c093b3bbf809282c67222",
+      "id": "price-tick-szse-2023-04-10-2026-07-05",
+      "missing_state": "present",
+      "parser_version": "pdftotext-25.07.0-layout",
+      "prior_source_errors": [],
+      "relative_path": "artifacts/price-tick-szse-2023-04-10-2026-07-05.pdf",
+      "request_parameters": {
+        "effective_from": "2023-04-10",
+        "effective_to": "2026-07-05",
+        "market": "SZSE",
+        "original_request": {
+          "method": "GET",
+          "params": {},
+          "response_headers_relative_path": "price-tick-rules/meta/szse-trading-rules-2023-pdf-headers.txt",
+          "url": "https://docs.static.szse.cn/www/lawrules/rule/repeal/rules/W020230217564423808793.pdf"
+        },
+        "price_tick": 0.01,
+        "source_url": "https://docs.static.szse.cn/www/lawrules/rule/repeal/rules/W020230217564423808793.pdf"
+      },
+      "retrieved_at": "2026-07-31T05:30:48Z",
+      "sha256": "7018114a6e11deb239c2a72e71e49defc6e8841b3e2c093b3bbf809282c67222",
+      "source_identity": "Shenzhen Stock Exchange official Trading Rules (2023 revision)",
+      "source_kind": "official_exchange_rule",
+      "timezone": "Asia/Shanghai"
+    },
+    {
+      "actual_fields": [
+        "price_tick"
+      ],
+      "content_scope": "full_response_body",
+      "fallback_reason": null,
+      "first_success": true,
+      "first_success_response_sha256": "7aa2319f6dcf597be1e86b3b69d7c2ad0e6acb2a5d0cc6be48a01af602fded40",
+      "id": "price-tick-sse-2023-04-10-2026-07-05",
+      "missing_state": "present",
+      "parser_version": "macOS-textutil-docx-to-text",
+      "prior_source_errors": [],
+      "relative_path": "artifacts/price-tick-sse-2023-04-10-2026-07-05.docx",
+      "request_parameters": {
+        "effective_from": "2023-04-10",
+        "effective_to": "2026-07-05",
+        "market": "SSE",
+        "original_request": {
+          "method": "GET",
+          "params": {},
+          "response_headers_relative_path": "price-tick-rules/meta/sse-trading-rules-2023-docx-headers.txt",
+          "url": "https://www.sse.com.cn/lawandrules/sselawsrules2025/repeal/rules/c/10824490/files/dcbe58edb194451d93f19b1f7dd8fb4c.docx"
+        },
+        "price_tick": 0.01,
+        "source_url": "https://www.sse.com.cn/lawandrules/sselawsrules2025/repeal/rules/c/10824490/files/dcbe58edb194451d93f19b1f7dd8fb4c.docx"
+      },
+      "retrieved_at": "2026-07-31T06:46:50Z",
+      "sha256": "7aa2319f6dcf597be1e86b3b69d7c2ad0e6acb2a5d0cc6be48a01af602fded40",
+      "source_identity": "Shanghai Stock Exchange official Trading Rules (2023 revision)",
+      "source_kind": "official_exchange_rule",
+      "timezone": "Asia/Shanghai"
+    },
+    {
+      "actual_fields": [
+        "price_tick"
+      ],
+      "content_scope": "full_response_body",
+      "fallback_reason": null,
+      "first_success": true,
+      "first_success_response_sha256": "fc922c433438b2636cb631eab25cca405209712acbb6aaded768c45456ff8888",
+      "id": "price-tick-sse-2026-07-06-open",
+      "missing_state": "present",
+      "parser_version": "macOS-textutil-docx-to-text",
+      "prior_source_errors": [],
+      "relative_path": "artifacts/price-tick-sse-2026-07-06-open.docx",
+      "request_parameters": {
+        "effective_from": "2026-07-06",
+        "effective_to": null,
+        "market": "SSE",
+        "original_request": {
+          "method": "GET",
+          "params": {},
+          "response_headers_relative_path": "price-tick-rules/meta/sse-trading-rules-2026-docx-headers.txt",
+          "url": "https://www.sse.com.cn/lawandrules/sselawsrules2025/trade/universal/c/10816492/files/704204728fe74fff89de4f16efda4791.docx"
+        },
+        "price_tick": 0.01,
+        "source_url": "https://www.sse.com.cn/lawandrules/sselawsrules2025/trade/universal/c/10816492/files/704204728fe74fff89de4f16efda4791.docx"
+      },
+      "retrieved_at": "2026-07-31T06:46:20Z",
+      "sha256": "fc922c433438b2636cb631eab25cca405209712acbb6aaded768c45456ff8888",
+      "source_identity": "Shanghai Stock Exchange official Trading Rules (2026 revision)",
+      "source_kind": "official_exchange_rule",
+      "timezone": "Asia/Shanghai"
+    },
+    {
+      "actual_fields": [
+        "event_type",
+        "ex_date",
+        "cash_dividend_per_share",
+        "share_distribution_per_share"
+      ],
+      "content_scope": "full_response_body",
+      "fallback_reason": null,
+      "first_success": true,
+      "first_success_response_sha256": "adae67fdc74a20a0abe2709dfef5819faa4e5f83c584d68b8d1cbd388dc51ac8",
+      "id": "action-000831-2023-06-20",
+      "missing_state": "present",
+      "parser_version": "official-corporate-action-v1",
+      "prior_source_errors": [],
+      "relative_path": "artifacts/action-000831-2023-06-20.pdf",
+      "request_parameters": {
+        "ex_date": "2023-06-20",
+        "original_request": {
+          "method": "GET",
+          "params": null,
+          "url": "https://disc.static.szse.cn/download/disc/disk03/finalpage/2023-06-12/331ab56f-89ad-47f5-a620-c628459c3b8a.PDF"
+        },
+        "source_url": "https://disc.static.szse.cn/download/disc/disk03/finalpage/2023-06-12/331ab56f-89ad-47f5-a620-c628459c3b8a.PDF",
+        "symbol": "000831"
+      },
+      "retrieved_at": "2026-07-31T14:17:57+08:00",
+      "sha256": "adae67fdc74a20a0abe2709dfef5819faa4e5f83c584d68b8d1cbd388dc51ac8",
+      "source_identity": "Shenzhen Stock Exchange official disclosure document",
+      "source_kind": "official_exchange_disclosure",
+      "timezone": "Asia/Shanghai"
+    },
+    {
+      "actual_fields": [
+        "event_type",
+        "ex_date",
+        "cash_dividend_per_share",
+        "share_distribution_per_share"
+      ],
+      "content_scope": "full_response_body",
+      "fallback_reason": null,
+      "first_success": true,
+      "first_success_response_sha256": "17dada3ce6fc831a11b2c3c601ffdd3baf520ab87f82ae87e9a0ba53ae157f2e",
+      "id": "action-000831-2024-06-25",
+      "missing_state": "present",
+      "parser_version": "official-corporate-action-v1",
+      "prior_source_errors": [],
+      "relative_path": "artifacts/action-000831-2024-06-25.pdf",
+      "request_parameters": {
+        "ex_date": "2024-06-25",
+        "original_request": {
+          "method": "GET",
+          "params": null,
+          "url": "https://disc.static.szse.cn/download/disc/disk03/finalpage/2024-06-18/39bd19c9-820b-4c0b-9dac-a77f0ad09cf7.PDF"
+        },
+        "source_url": "https://disc.static.szse.cn/download/disc/disk03/finalpage/2024-06-18/39bd19c9-820b-4c0b-9dac-a77f0ad09cf7.PDF",
+        "symbol": "000831"
+      },
+      "retrieved_at": "2026-07-31T14:17:57+08:00",
+      "sha256": "17dada3ce6fc831a11b2c3c601ffdd3baf520ab87f82ae87e9a0ba53ae157f2e",
+      "source_identity": "Shenzhen Stock Exchange official disclosure document",
+      "source_kind": "official_exchange_disclosure",
+      "timezone": "Asia/Shanghai"
+    },
+    {
+      "actual_fields": [
+        "event_type",
+        "ex_date",
+        "cash_dividend_per_share",
+        "share_distribution_per_share"
+      ],
+      "content_scope": "full_response_body",
+      "fallback_reason": null,
+      "first_success": true,
+      "first_success_response_sha256": "91610cf8571f704cc2ddab27b0018a0f04da90be588bd7bfe58a8fa365cd14e0",
+      "id": "action-000831-2026-07-03",
+      "missing_state": "present",
+      "parser_version": "official-corporate-action-v1",
+      "prior_source_errors": [],
+      "relative_path": "artifacts/action-000831-2026-07-03.pdf",
+      "request_parameters": {
+        "ex_date": "2026-07-03",
+        "original_request": {
+          "method": "GET",
+          "params": null,
+          "url": "https://disc.static.szse.cn/download/disc/disk03/finalpage/2026-06-26/0ca41944-654d-4dec-8ddc-e027f6b7139d.PDF"
+        },
+        "source_url": "https://disc.static.szse.cn/download/disc/disk03/finalpage/2026-06-26/0ca41944-654d-4dec-8ddc-e027f6b7139d.PDF",
+        "symbol": "000831"
+      },
+      "retrieved_at": "2026-07-31T14:17:58+08:00",
+      "sha256": "91610cf8571f704cc2ddab27b0018a0f04da90be588bd7bfe58a8fa365cd14e0",
+      "source_identity": "Shenzhen Stock Exchange official disclosure document",
+      "source_kind": "official_exchange_disclosure",
+      "timezone": "Asia/Shanghai"
+    },
+    {
+      "actual_fields": [
+        "event_type",
+        "ex_date",
+        "cash_dividend_per_share",
+        "share_distribution_per_share"
+      ],
+      "content_scope": "full_response_body",
+      "fallback_reason": null,
+      "first_success": true,
+      "first_success_response_sha256": "873e541a21c5c2ce2c27baa3d46e62245f63daa9f505becc7f4d663f5b291c98",
+      "id": "action-001205-2024-06-04",
+      "missing_state": "present",
+      "parser_version": "official-corporate-action-v1",
+      "prior_source_errors": [],
+      "relative_path": "artifacts/action-001205-2024-06-04.pdf",
+      "request_parameters": {
+        "ex_date": "2024-06-04",
+        "original_request": {
+          "method": "GET",
+          "params": null,
+          "url": "https://disc.static.szse.cn/download/disc/disk03/finalpage/2024-05-27/ff280ba0-d93d-4ff5-9c12-986750a0af8b.PDF"
+        },
+        "source_url": "https://disc.static.szse.cn/download/disc/disk03/finalpage/2024-05-27/ff280ba0-d93d-4ff5-9c12-986750a0af8b.PDF",
+        "symbol": "001205"
+      },
+      "retrieved_at": "2026-07-31T14:17:58+08:00",
+      "sha256": "873e541a21c5c2ce2c27baa3d46e62245f63daa9f505becc7f4d663f5b291c98",
+      "source_identity": "Shenzhen Stock Exchange official disclosure document",
+      "source_kind": "official_exchange_disclosure",
+      "timezone": "Asia/Shanghai"
+    },
+    {
+      "actual_fields": [
+        "event_type",
+        "ex_date",
+        "cash_dividend_per_share",
+        "share_distribution_per_share"
+      ],
+      "content_scope": "full_response_body",
+      "fallback_reason": null,
+      "first_success": true,
+      "first_success_response_sha256": "76ef9e569bccf8b77871bb573a961ad0fbc7a18ef8f82071851842bfcad38498",
+      "id": "action-001205-2025-06-06",
+      "missing_state": "present",
+      "parser_version": "official-corporate-action-v1",
+      "prior_source_errors": [],
+      "relative_path": "artifacts/action-001205-2025-06-06.pdf",
+      "request_parameters": {
+        "ex_date": "2025-06-06",
+        "original_request": {
+          "method": "GET",
+          "params": null,
+          "url": "https://disc.static.szse.cn/download/disc/disk03/finalpage/2025-05-29/4eff800b-b08c-4c30-931d-d4aa92627b9e.PDF"
+        },
+        "source_url": "https://disc.static.szse.cn/download/disc/disk03/finalpage/2025-05-29/4eff800b-b08c-4c30-931d-d4aa92627b9e.PDF",
+        "symbol": "001205"
+      },
+      "retrieved_at": "2026-07-31T14:17:58+08:00",
+      "sha256": "76ef9e569bccf8b77871bb573a961ad0fbc7a18ef8f82071851842bfcad38498",
+      "source_identity": "Shenzhen Stock Exchange official disclosure document",
+      "source_kind": "official_exchange_disclosure",
+      "timezone": "Asia/Shanghai"
+    },
+    {
+      "actual_fields": [
+        "event_type",
+        "ex_date",
+        "cash_dividend_per_share",
+        "share_distribution_per_share"
+      ],
+      "content_scope": "full_response_body",
+      "fallback_reason": null,
+      "first_success": true,
+      "first_success_response_sha256": "08f94d341d296ec184ac335a4da3eb573604d7c26181f65550731d46f62eb596",
+      "id": "action-001205-2026-05-26",
+      "missing_state": "present",
+      "parser_version": "official-corporate-action-v1",
+      "prior_source_errors": [],
+      "relative_path": "artifacts/action-001205-2026-05-26.pdf",
+      "request_parameters": {
+        "ex_date": "2026-05-26",
+        "original_request": {
+          "method": "GET",
+          "params": null,
+          "url": "https://disc.static.szse.cn/download/disc/disk03/finalpage/2026-05-19/bc1d931f-f816-4437-82df-0a5bded0368e.PDF"
+        },
+        "source_url": "https://disc.static.szse.cn/download/disc/disk03/finalpage/2026-05-19/bc1d931f-f816-4437-82df-0a5bded0368e.PDF",
+        "symbol": "001205"
+      },
+      "retrieved_at": "2026-07-31T14:17:59+08:00",
+      "sha256": "08f94d341d296ec184ac335a4da3eb573604d7c26181f65550731d46f62eb596",
+      "source_identity": "Shenzhen Stock Exchange official disclosure document",
+      "source_kind": "official_exchange_disclosure",
+      "timezone": "Asia/Shanghai"
+    },
+    {
+      "actual_fields": [
+        "event_type",
+        "ex_date",
+        "cash_dividend_per_share",
+        "share_distribution_per_share"
+      ],
+      "content_scope": "full_response_body",
+      "fallback_reason": null,
+      "first_success": true,
+      "first_success_response_sha256": "e564ec0292b434c493019ba59f4a2aaccb6c769d7268538e79fa8ef8ce3cf139",
+      "id": "action-001260-2026-05-27",
+      "missing_state": "present",
+      "parser_version": "official-corporate-action-v1",
+      "prior_source_errors": [],
+      "relative_path": "artifacts/action-001260-2026-05-27.pdf",
+      "request_parameters": {
+        "ex_date": "2026-05-27",
+        "original_request": {
+          "method": "GET",
+          "params": null,
+          "url": "https://disc.static.szse.cn/download/disc/disk03/finalpage/2026-05-19/c8e21faa-fefb-474d-a209-beb2e4f20969.PDF"
+        },
+        "source_url": "https://disc.static.szse.cn/download/disc/disk03/finalpage/2026-05-19/c8e21faa-fefb-474d-a209-beb2e4f20969.PDF",
+        "symbol": "001260"
+      },
+      "retrieved_at": "2026-07-31T14:17:57+08:00",
+      "sha256": "e564ec0292b434c493019ba59f4a2aaccb6c769d7268538e79fa8ef8ce3cf139",
+      "source_identity": "Shenzhen Stock Exchange official disclosure document",
+      "source_kind": "official_exchange_disclosure",
+      "timezone": "Asia/Shanghai"
+    },
+    {
+      "actual_fields": [
+        "event_type",
+        "ex_date",
+        "cash_dividend_per_share",
+        "share_distribution_per_share"
+      ],
+      "content_scope": "full_response_body",
+      "fallback_reason": null,
+      "first_success": true,
+      "first_success_response_sha256": "5d371536a7f976dad35618a5510b0f8da0500a86fc5c974b32a3182be34f1ed0",
+      "id": "action-600648-2026-07-13",
+      "missing_state": "present",
+      "parser_version": "official-corporate-action-v1",
+      "prior_source_errors": [],
+      "relative_path": "artifacts/action-600648-2026-07-13.pdf",
+      "request_parameters": {
+        "ex_date": "2026-07-13",
+        "original_request": {
+          "method": "GET",
+          "params": null,
+          "url": "https://static.sse.com.cn/disclosure/listedinfo/announcement/c/new/2026-07-07/600648_20260707_IUZI.pdf"
+        },
+        "source_url": "https://static.sse.com.cn/disclosure/listedinfo/announcement/c/new/2026-07-07/600648_20260707_IUZI.pdf",
+        "symbol": "600648"
+      },
+      "retrieved_at": "2026-07-31T14:19:13+08:00",
+      "sha256": "5d371536a7f976dad35618a5510b0f8da0500a86fc5c974b32a3182be34f1ed0",
+      "source_identity": "Shanghai/Shenzhen Stock Exchange official disclosure document",
+      "source_kind": "official_exchange_disclosure",
+      "timezone": "Asia/Shanghai"
+    },
+    {
+      "actual_fields": [
+        "event_type",
+        "ex_date",
+        "cash_dividend_per_share",
+        "share_distribution_per_share"
+      ],
+      "content_scope": "full_response_body",
+      "fallback_reason": null,
+      "first_success": true,
+      "first_success_response_sha256": "e1b064421daefd892fb61932388830f2bb77e39c3ca026ea7c18e17805130263",
+      "id": "action-600782-2026-06-05",
+      "missing_state": "present",
+      "parser_version": "official-corporate-action-v1",
+      "prior_source_errors": [],
+      "relative_path": "artifacts/action-600782-2026-06-05.pdf",
+      "request_parameters": {
+        "ex_date": "2026-06-05",
+        "original_request": {
+          "method": "GET",
+          "params": null,
+          "url": "https://static.sse.com.cn/disclosure/listedinfo/announcement/c/new/2026-05-30/600782_20260530_K03U.pdf"
+        },
+        "source_url": "https://static.sse.com.cn/disclosure/listedinfo/announcement/c/new/2026-05-30/600782_20260530_K03U.pdf",
+        "symbol": "600782"
+      },
+      "retrieved_at": "2026-07-31T14:19:13+08:00",
+      "sha256": "e1b064421daefd892fb61932388830f2bb77e39c3ca026ea7c18e17805130263",
+      "source_identity": "Shanghai/Shenzhen Stock Exchange official disclosure document",
+      "source_kind": "official_exchange_disclosure",
+      "timezone": "Asia/Shanghai"
+    },
+    {
+      "actual_fields": [
+        "company_action_inventory_records"
+      ],
+      "content_scope": "full_response_body",
+      "fallback_reason": null,
+      "first_success": true,
+      "first_success_response_sha256": "bc7f5689a4e5273b0d4f74d3b37d8b5f14da2d35a272a488c10df65652fdb111",
+      "id": "inventory-001260-p001",
+      "missing_state": "present",
+      "parser_version": "official-announcement-inventory-v1",
+      "prior_source_errors": [],
+      "relative_path": "artifacts/inventory-001260-p001.response.json",
+      "request_parameters": {
+        "end_date": "2026-07-30",
+        "original_request": {
+          "metadata_provenance": "exact request body is preserved byte-for-byte in the sibling page request artifact",
+          "method": "POST",
+          "params": {
+            "channelCode": [
+              "listedNotice_disc"
+            ],
+            "pageNum": 1,
+            "pageSize": 50,
+            "seDate": [
+              "2025-10-29",
+              "2026-07-30"
+            ],
+            "stock": [
+              "001260"
+            ]
+          },
+          "url": "https://www.szse.cn/api/disc/announcement/annList?random=0.1"
+        },
+        "page_number": 1,
+        "source_url": "https://www.szse.cn/api/disc/announcement/annList?random=0.1",
+        "start_date": "2025-10-29",
+        "symbol": "001260"
+      },
+      "retrieved_at": "2026-07-31T14:37:01.000+08:00",
+      "sha256": "bc7f5689a4e5273b0d4f74d3b37d8b5f14da2d35a272a488c10df65652fdb111",
+      "source_identity": "Shenzhen Stock Exchange official announcement inventory API",
+      "source_kind": "official_exchange_disclosure",
+      "timezone": "Asia/Shanghai"
+    },
+    {
+      "actual_fields": [
+        "company_action_inventory_records"
+      ],
+      "content_scope": "full_response_body",
+      "fallback_reason": null,
+      "first_success": true,
+      "first_success_response_sha256": "7ccfe272af569ac64bff79629c18bba2f6ac5175ae8c526d27dc32227a46da28",
+      "id": "inventory-001260-p002",
+      "missing_state": "present",
+      "parser_version": "official-announcement-inventory-v1",
+      "prior_source_errors": [],
+      "relative_path": "artifacts/inventory-001260-p002.response.json",
+      "request_parameters": {
+        "end_date": "2026-07-30",
+        "original_request": {
+          "metadata_provenance": "exact request body is preserved byte-for-byte in the sibling page request artifact",
+          "method": "POST",
+          "params": {
+            "channelCode": [
+              "listedNotice_disc"
+            ],
+            "pageNum": 2,
+            "pageSize": 50,
+            "seDate": [
+              "2025-10-29",
+              "2026-07-30"
+            ],
+            "stock": [
+              "001260"
+            ]
+          },
+          "url": "https://www.szse.cn/api/disc/announcement/annList?random=0.1"
+        },
+        "page_number": 2,
+        "source_url": "https://www.szse.cn/api/disc/announcement/annList?random=0.1",
+        "start_date": "2025-10-29",
+        "symbol": "001260"
+      },
+      "retrieved_at": "2026-07-31T14:37:02.000+08:00",
+      "sha256": "7ccfe272af569ac64bff79629c18bba2f6ac5175ae8c526d27dc32227a46da28",
+      "source_identity": "Shenzhen Stock Exchange official announcement inventory API",
+      "source_kind": "official_exchange_disclosure",
+      "timezone": "Asia/Shanghai"
+    },
+    {
+      "actual_fields": [
+        "company_action_inventory_records"
+      ],
+      "content_scope": "full_response_body",
+      "fallback_reason": null,
+      "first_success": true,
+      "first_success_response_sha256": "ebdb93c8630e648ca30dfe25ea930618545e3c8f8425fef3803a9adc53e8aab3",
+      "id": "inventory-600648-p001",
+      "missing_state": "present",
+      "parser_version": "official-announcement-inventory-v1",
+      "prior_source_errors": [],
+      "relative_path": "artifacts/inventory-600648-p001.json",
+      "request_parameters": {
+        "end_date": "2026-07-30",
+        "original_request": {
+          "method": "GET",
+          "params": {
+            "beginDate": "2025-06-16",
+            "endDate": "2026-07-30",
+            "isPagination": "true",
+            "keyWord": "权益分派实施公告",
+            "pageHelp.beginPage": 1,
+            "pageHelp.cacheSize": 1,
+            "pageHelp.endPage": 5,
+            "pageHelp.pageCount": 50,
+            "pageHelp.pageNo": 1,
+            "pageHelp.pageSize": 100,
+            "productId": "600648",
+            "reportType": "ALL",
+            "securityType": "0101,120100,020100,020200,120200"
+          },
+          "url": "https://query.sse.com.cn/security/stock/queryCompanyBulletin.do"
+        },
+        "page_number": 1,
+        "source_url": "https://query.sse.com.cn/security/stock/queryCompanyBulletin.do",
+        "start_date": "2025-06-16",
+        "symbol": "600648"
+      },
+      "retrieved_at": "2026-07-31T14:22:59+08:00",
+      "sha256": "ebdb93c8630e648ca30dfe25ea930618545e3c8f8425fef3803a9adc53e8aab3",
+      "source_identity": "Shanghai Stock Exchange official announcement inventory API",
+      "source_kind": "official_exchange_disclosure",
+      "timezone": "Asia/Shanghai"
+    },
+    {
+      "actual_fields": [
+        "company_action_inventory_records"
+      ],
+      "content_scope": "full_response_body",
+      "fallback_reason": null,
+      "first_success": true,
+      "first_success_response_sha256": "5a277654c50be7e4a584a17657dcfc7101ca7bd8ca34788eb07dec27f9e759c5",
+      "id": "inventory-600782-p001",
+      "missing_state": "present",
+      "parser_version": "official-announcement-inventory-v1",
+      "prior_source_errors": [],
+      "relative_path": "artifacts/inventory-600782-p001.json",
+      "request_parameters": {
+        "end_date": "2026-07-30",
+        "original_request": {
+          "method": "GET",
+          "params": {
+            "beginDate": "2026-01-30",
+            "endDate": "2026-07-30",
+            "isPagination": "true",
+            "keyWord": "权益分派实施公告",
+            "pageHelp.beginPage": 1,
+            "pageHelp.cacheSize": 1,
+            "pageHelp.endPage": 5,
+            "pageHelp.pageCount": 50,
+            "pageHelp.pageNo": 1,
+            "pageHelp.pageSize": 100,
+            "productId": "600782",
+            "reportType": "ALL",
+            "securityType": "0101,120100,020100,020200,120200"
+          },
+          "url": "https://query.sse.com.cn/security/stock/queryCompanyBulletin.do"
+        },
+        "page_number": 1,
+        "source_url": "https://query.sse.com.cn/security/stock/queryCompanyBulletin.do",
+        "start_date": "2026-01-30",
+        "symbol": "600782"
+      },
+      "retrieved_at": "2026-07-31T14:22:59+08:00",
+      "sha256": "5a277654c50be7e4a584a17657dcfc7101ca7bd8ca34788eb07dec27f9e759c5",
+      "source_identity": "Shanghai Stock Exchange official announcement inventory API",
+      "source_kind": "official_exchange_disclosure",
+      "timezone": "Asia/Shanghai"
+    },
+    {
+      "actual_fields": [
+        "company_action_inventory_records"
+      ],
+      "content_scope": "full_response_body",
+      "fallback_reason": null,
+      "first_success": true,
+      "first_success_response_sha256": "2036b37c53297168e0173e8fe37f44292f48b00df13b5a9f858221c6e1898d30",
+      "id": "inventory-000831-p001",
+      "missing_state": "present",
+      "parser_version": "official-announcement-inventory-v1",
+      "prior_source_errors": [],
+      "relative_path": "artifacts/inventory-000831-p001.json",
+      "request_parameters": {
+        "end_date": "2026-07-30",
+        "original_request": {
+          "method": "POST",
+          "params": {
+            "channelCode": [
+              "listedNotice_disc"
+            ],
+            "pageNum": 1,
+            "pageSize": 50,
+            "seDate": [
+              "2023-05-01",
+              "2026-07-30"
+            ],
+            "searchKey": [
+              "权益分派实施公告"
+            ],
+            "stock": [
+              "000831"
+            ]
+          },
+          "url": "https://www.szse.cn/api/disc/announcement/annList?random=0.1"
+        },
+        "page_number": 1,
+        "source_url": "https://www.szse.cn/api/disc/announcement/annList?random=0.1",
+        "start_date": "2023-05-01",
+        "symbol": "000831"
+      },
+      "retrieved_at": "2026-07-31T14:16:54+08:00",
+      "sha256": "2036b37c53297168e0173e8fe37f44292f48b00df13b5a9f858221c6e1898d30",
+      "source_identity": "Shenzhen Stock Exchange official announcement inventory API",
+      "source_kind": "official_exchange_disclosure",
+      "timezone": "Asia/Shanghai"
+    },
+    {
+      "actual_fields": [
+        "company_action_inventory_records"
+      ],
+      "content_scope": "full_response_body",
+      "fallback_reason": null,
+      "first_success": true,
+      "first_success_response_sha256": "2615b0c60879234250d6593a440dd8c3f0ec5344321ed2bda47418ebd7d44887",
+      "id": "inventory-001205-p001",
+      "missing_state": "present",
+      "parser_version": "official-announcement-inventory-v1",
+      "prior_source_errors": [],
+      "relative_path": "artifacts/inventory-001205-p001.json",
+      "request_parameters": {
+        "end_date": "2026-07-30",
+        "original_request": {
+          "method": "POST",
+          "params": {
+            "channelCode": [
+              "listedNotice_disc"
+            ],
+            "pageNum": 1,
+            "pageSize": 50,
+            "seDate": [
+              "2023-05-01",
+              "2026-07-30"
+            ],
+            "searchKey": [
+              "权益分派实施公告"
+            ],
+            "stock": [
+              "001205"
+            ]
+          },
+          "url": "https://www.szse.cn/api/disc/announcement/annList?random=0.1"
+        },
+        "page_number": 1,
+        "source_url": "https://www.szse.cn/api/disc/announcement/annList?random=0.1",
+        "start_date": "2023-05-01",
+        "symbol": "001205"
+      },
+      "retrieved_at": "2026-07-31T14:16:55+08:00",
+      "sha256": "2615b0c60879234250d6593a440dd8c3f0ec5344321ed2bda47418ebd7d44887",
+      "source_identity": "Shenzhen Stock Exchange official announcement inventory API",
+      "source_kind": "official_exchange_disclosure",
+      "timezone": "Asia/Shanghai"
+    },
+    {
+      "actual_fields": [
+        "净利润（本期累计）",
+        "净利润（上年同期累计）"
+      ],
+      "content_scope": "full_response_body",
+      "fallback_reason": null,
+      "first_success": true,
+      "first_success_response_sha256": "137de97eed0e9fd405a6e9738db1960b640873febab442b95884b3f82d5fac18",
+      "id": "financial-000897-2024q3-net-profit-yoy",
+      "missing_state": "present",
+      "parser_version": "raw-pdf-verbatim-v1",
+      "prior_source_errors": [],
+      "relative_path": "artifacts/financial-000897-2024q3-net-profit-yoy.pdf",
+      "request_parameters": {
+        "metric": "net_profit_yoy",
+        "original_request": {
+          "method": "GET",
+          "params": null,
+          "url": "https://static.cninfo.com.cn/finalpage/2024-10-30/1221569864.PDF"
+        },
+        "report_period": "2024Q3",
+        "source_url": "https://static.cninfo.com.cn/finalpage/2024-10-30/1221569864.PDF",
+        "symbol": "000897"
+      },
+      "retrieved_at": "2026-07-31T14:13:00.000+08:00",
+      "sha256": "137de97eed0e9fd405a6e9738db1960b640873febab442b95884b3f82d5fac18",
+      "source_identity": "CNInfo official disclosed financial report PDF",
+      "source_kind": "official_exchange_disclosure",
+      "timezone": "Asia/Shanghai"
+    },
+    {
+      "actual_fields": [
+        "净利润（本期累计）",
+        "净利润（上年同期累计）"
+      ],
+      "content_scope": "full_response_body",
+      "fallback_reason": null,
+      "first_success": true,
+      "first_success_response_sha256": "ccd36a1df8710e65b673d2f4cda694117746eaa1062626df9dc70769480d8f63",
+      "id": "financial-002012-2018q2-net-profit-yoy",
+      "missing_state": "present",
+      "parser_version": "raw-pdf-verbatim-v1",
+      "prior_source_errors": [],
+      "relative_path": "artifacts/financial-002012-2018q2-net-profit-yoy.pdf",
+      "request_parameters": {
+        "metric": "net_profit_yoy",
+        "original_request": {
+          "method": "GET",
+          "params": null,
+          "url": "https://static.cninfo.com.cn/finalpage/2018-08-14/1205282606.PDF"
+        },
+        "report_period": "2018Q2",
+        "source_url": "https://static.cninfo.com.cn/finalpage/2018-08-14/1205282606.PDF",
+        "symbol": "002012"
+      },
+      "retrieved_at": "2026-07-31T14:13:00.000+08:00",
+      "sha256": "ccd36a1df8710e65b673d2f4cda694117746eaa1062626df9dc70769480d8f63",
+      "source_identity": "CNInfo official disclosed financial report PDF",
+      "source_kind": "official_exchange_disclosure",
+      "timezone": "Asia/Shanghai"
+    },
+    {
+      "actual_fields": [
+        "归属于母公司所有者的净利润",
+        "归属于母公司所有者权益（期初）",
+        "归属于母公司所有者权益（期末）"
+      ],
+      "content_scope": "full_response_body",
+      "fallback_reason": null,
+      "first_success": true,
+      "first_success_response_sha256": "2189176b73e71a6d24d9858cef007cc0a063b6f9c4fed4e81f5e2e7e8310791c",
+      "id": "financial-300433-2025q3-roe",
+      "missing_state": "present",
+      "parser_version": "raw-pdf-verbatim-v1",
+      "prior_source_errors": [],
+      "relative_path": "artifacts/financial-300433-2025q3-roe.pdf",
+      "request_parameters": {
+        "metric": "roe",
+        "original_request": {
+          "method": "GET",
+          "params": null,
+          "url": "https://static.cninfo.com.cn/finalpage/2025-10-29/1224754140.PDF"
+        },
+        "report_period": "2025Q3",
+        "source_url": "https://static.cninfo.com.cn/finalpage/2025-10-29/1224754140.PDF",
+        "symbol": "300433"
+      },
+      "retrieved_at": "2026-07-31T14:13:01.000+08:00",
+      "sha256": "2189176b73e71a6d24d9858cef007cc0a063b6f9c4fed4e81f5e2e7e8310791c",
+      "source_identity": "CNInfo official disclosed financial report PDF",
+      "source_kind": "official_exchange_disclosure",
+      "timezone": "Asia/Shanghai"
+    },
+    {
+      "actual_fields": [
+        "营业收入",
+        "营业总收入"
+      ],
+      "content_scope": "full_response_body",
+      "fallback_reason": null,
+      "first_success": true,
+      "first_success_response_sha256": "30f4f68c32375265cd0707d310078853a8edb03b76c545bd27e5e50eec167931",
+      "id": "financial-300662-2026q1-revenue-yoy",
+      "missing_state": "field_absent",
+      "parser_version": "raw-pdf-verbatim-v1",
+      "prior_source_errors": [],
+      "relative_path": "artifacts/financial-300662-2026q1-revenue-yoy.pdf",
+      "request_parameters": {
+        "metric": "revenue_yoy",
+        "original_request": {
+          "method": "GET",
+          "params": null,
+          "url": "https://static.cninfo.com.cn/finalpage/2026-04-28/1225198898.PDF"
+        },
+        "report_period": "2026Q1",
+        "source_url": "https://static.cninfo.com.cn/finalpage/2026-04-28/1225198898.PDF",
+        "symbol": "300662"
+      },
+      "retrieved_at": "2026-07-31T14:13:02.000+08:00",
+      "sha256": "30f4f68c32375265cd0707d310078853a8edb03b76c545bd27e5e50eec167931",
+      "source_identity": "CNInfo official disclosed financial report PDF",
+      "source_kind": "official_exchange_disclosure",
+      "timezone": "Asia/Shanghai"
+    },
+    {
+      "actual_fields": [
+        "营业收入",
+        "营业总收入"
+      ],
+      "content_scope": "full_response_body",
+      "fallback_reason": null,
+      "first_success": true,
+      "first_success_response_sha256": "16983594de8b57c3b23d34d3425a86672e39833974a17643701053ec5560498c",
+      "id": "financial-601137-2017q1-revenue-yoy",
+      "missing_state": "field_absent",
+      "parser_version": "raw-pdf-verbatim-v1",
+      "prior_source_errors": [],
+      "relative_path": "artifacts/financial-601137-2017q1-revenue-yoy.pdf",
+      "request_parameters": {
+        "metric": "revenue_yoy",
+        "original_request": {
+          "method": "GET",
+          "params": null,
+          "url": "https://static.cninfo.com.cn/finalpage/2017-04-29/1203425610.PDF"
+        },
+        "report_period": "2017Q1",
+        "source_url": "https://static.cninfo.com.cn/finalpage/2017-04-29/1203425610.PDF",
+        "symbol": "601137"
+      },
+      "retrieved_at": "2026-07-31T14:13:01.000+08:00",
+      "sha256": "16983594de8b57c3b23d34d3425a86672e39833974a17643701053ec5560498c",
+      "source_identity": "CNInfo official disclosed financial report PDF",
+      "source_kind": "official_exchange_disclosure",
+      "timezone": "Asia/Shanghai"
+    },
+    {
+      "actual_fields": [
+        "pe_ttm",
+        "pb_mrq",
+        "ps_ttm",
+        "source",
+        "available_time"
+      ],
+      "content_scope": "full_response_body",
+      "fallback_reason": null,
+      "first_success": true,
+      "first_success_response_sha256": "1b82f73e6075c22dd0acae3499b14151ef64abc58c0fb9b984ec4919cc3e7ffc",
+      "id": "valuation-000565-2022-11-21",
+      "missing_state": "present",
+      "parser_version": "eastmoney-stock-value-response-v1",
+      "prior_source_errors": [],
+      "relative_path": "artifacts/valuation-000565-2022-11-21.json",
+      "request_parameters": {
+        "original_request": {
+          "method": "GET",
+          "params": {
+            "client": "WEB",
+            "columns": "ALL",
+            "filter": "(SECURITY_CODE=\"000565\")",
+            "pageNumber": "1",
+            "pageSize": "5000",
+            "quoteColumns": "",
+            "reportName": "RPT_VALUEANALYSIS_DET",
+            "sortColumns": "TRADE_DATE",
+            "sortTypes": "-1",
+            "source": "WEB"
+          },
+          "url": "https://datacenter-web.eastmoney.com/api/data/v1/get"
+        },
+        "source_url": "https://datacenter-web.eastmoney.com/api/data/v1/get",
+        "symbol": "000565",
+        "trade_date": "2022-11-21"
+      },
+      "retrieved_at": "2026-07-31T14:20:24.000+08:00",
+      "sha256": "1b82f73e6075c22dd0acae3499b14151ef64abc58c0fb9b984ec4919cc3e7ffc",
+      "source_identity": "Eastmoney datacenter RPT_VALUEANALYSIS_DET first successful raw response",
+      "source_kind": "audited_external_response",
+      "timezone": "Asia/Shanghai"
+    },
+    {
+      "actual_fields": [
+        "pe_ttm",
+        "pb_mrq",
+        "ps_ttm",
+        "source",
+        "available_time"
+      ],
+      "content_scope": "full_response_body",
+      "fallback_reason": null,
+      "first_success": true,
+      "first_success_response_sha256": "a83e526dfa7aebeeda86d2cdf4f213e726d74915ca8ac982d21ce6d98b0ed13d",
+      "id": "valuation-000690-2019-12-25",
+      "missing_state": "present",
+      "parser_version": "eastmoney-stock-value-response-v1",
+      "prior_source_errors": [],
+      "relative_path": "artifacts/valuation-000690-2019-12-25.json",
+      "request_parameters": {
+        "original_request": {
+          "method": "GET",
+          "params": {
+            "client": "WEB",
+            "columns": "ALL",
+            "filter": "(SECURITY_CODE=\"000690\")",
+            "pageNumber": "1",
+            "pageSize": "5000",
+            "quoteColumns": "",
+            "reportName": "RPT_VALUEANALYSIS_DET",
+            "sortColumns": "TRADE_DATE",
+            "sortTypes": "-1",
+            "source": "WEB"
+          },
+          "url": "https://datacenter-web.eastmoney.com/api/data/v1/get"
+        },
+        "source_url": "https://datacenter-web.eastmoney.com/api/data/v1/get",
+        "symbol": "000690",
+        "trade_date": "2019-12-25"
+      },
+      "retrieved_at": "2026-07-31T14:20:25.000+08:00",
+      "sha256": "a83e526dfa7aebeeda86d2cdf4f213e726d74915ca8ac982d21ce6d98b0ed13d",
+      "source_identity": "Eastmoney datacenter RPT_VALUEANALYSIS_DET first successful raw response",
+      "source_kind": "audited_external_response",
+      "timezone": "Asia/Shanghai"
+    },
+    {
+      "actual_fields": [
+        "pe_ttm",
+        "pb_mrq",
+        "ps_ttm",
+        "source",
+        "available_time"
+      ],
+      "content_scope": "full_response_body",
+      "fallback_reason": null,
+      "first_success": true,
+      "first_success_response_sha256": "e4794e2a0d621826d2e10c23a25de14732e5fa291ee261061a5143415f527784",
+      "id": "valuation-001914-2026-03-05",
+      "missing_state": "present",
+      "parser_version": "eastmoney-stock-value-response-v1",
+      "prior_source_errors": [],
+      "relative_path": "artifacts/valuation-001914-2026-03-05.json",
+      "request_parameters": {
+        "original_request": {
+          "method": "GET",
+          "params": {
+            "client": "WEB",
+            "columns": "ALL",
+            "filter": "(SECURITY_CODE=\"001914\")",
+            "pageNumber": "1",
+            "pageSize": "5000",
+            "quoteColumns": "",
+            "reportName": "RPT_VALUEANALYSIS_DET",
+            "sortColumns": "TRADE_DATE",
+            "sortTypes": "-1",
+            "source": "WEB"
+          },
+          "url": "https://datacenter-web.eastmoney.com/api/data/v1/get"
+        },
+        "source_url": "https://datacenter-web.eastmoney.com/api/data/v1/get",
+        "symbol": "001914",
+        "trade_date": "2026-03-05"
+      },
+      "retrieved_at": "2026-07-31T14:20:26.000+08:00",
+      "sha256": "e4794e2a0d621826d2e10c23a25de14732e5fa291ee261061a5143415f527784",
+      "source_identity": "Eastmoney datacenter RPT_VALUEANALYSIS_DET first successful raw response",
+      "source_kind": "audited_external_response",
+      "timezone": "Asia/Shanghai"
+    },
+    {
+      "actual_fields": [
+        "pe_ttm",
+        "pb_mrq",
+        "ps_ttm",
+        "source",
+        "available_time"
+      ],
+      "content_scope": "full_response_body",
+      "fallback_reason": null,
+      "first_success": true,
+      "first_success_response_sha256": "d08bffc6f03f89d1e719af6c73f39eb261a2d8ef3497a92cf315f3acf2efe619",
+      "id": "valuation-002186-2024-09-06",
+      "missing_state": "present",
+      "parser_version": "eastmoney-stock-value-response-v1",
+      "prior_source_errors": [],
+      "relative_path": "artifacts/valuation-002186-2024-09-06.json",
+      "request_parameters": {
+        "original_request": {
+          "method": "GET",
+          "params": {
+            "client": "WEB",
+            "columns": "ALL",
+            "filter": "(SECURITY_CODE=\"002186\")",
+            "pageNumber": "1",
+            "pageSize": "5000",
+            "quoteColumns": "",
+            "reportName": "RPT_VALUEANALYSIS_DET",
+            "sortColumns": "TRADE_DATE",
+            "sortTypes": "-1",
+            "source": "WEB"
+          },
+          "url": "https://datacenter-web.eastmoney.com/api/data/v1/get"
+        },
+        "source_url": "https://datacenter-web.eastmoney.com/api/data/v1/get",
+        "symbol": "002186",
+        "trade_date": "2024-09-06"
+      },
+      "retrieved_at": "2026-07-31T14:20:27.000+08:00",
+      "sha256": "d08bffc6f03f89d1e719af6c73f39eb261a2d8ef3497a92cf315f3acf2efe619",
+      "source_identity": "Eastmoney datacenter RPT_VALUEANALYSIS_DET first successful raw response",
+      "source_kind": "audited_external_response",
+      "timezone": "Asia/Shanghai"
+    },
+    {
+      "actual_fields": [
+        "pe_ttm",
+        "pb_mrq",
+        "ps_ttm",
+        "source",
+        "available_time"
+      ],
+      "content_scope": "full_response_body",
+      "fallback_reason": null,
+      "first_success": true,
+      "first_success_response_sha256": "840518b19e5ce3c7266cc7dd8b0fca18f479458e9cdbd3833bfd146ddd05f81e",
+      "id": "valuation-002191-2025-09-03",
+      "missing_state": "present",
+      "parser_version": "eastmoney-stock-value-response-v1",
+      "prior_source_errors": [],
+      "relative_path": "artifacts/valuation-002191-2025-09-03.json",
+      "request_parameters": {
+        "original_request": {
+          "method": "GET",
+          "params": {
+            "client": "WEB",
+            "columns": "ALL",
+            "filter": "(SECURITY_CODE=\"002191\")",
+            "pageNumber": "1",
+            "pageSize": "5000",
+            "quoteColumns": "",
+            "reportName": "RPT_VALUEANALYSIS_DET",
+            "sortColumns": "TRADE_DATE",
+            "sortTypes": "-1",
+            "source": "WEB"
+          },
+          "url": "https://datacenter-web.eastmoney.com/api/data/v1/get"
+        },
+        "source_url": "https://datacenter-web.eastmoney.com/api/data/v1/get",
+        "symbol": "002191",
+        "trade_date": "2025-09-03"
+      },
+      "retrieved_at": "2026-07-31T14:20:28.000+08:00",
+      "sha256": "840518b19e5ce3c7266cc7dd8b0fca18f479458e9cdbd3833bfd146ddd05f81e",
+      "source_identity": "Eastmoney datacenter RPT_VALUEANALYSIS_DET first successful raw response",
+      "source_kind": "audited_external_response",
+      "timezone": "Asia/Shanghai"
+    },
+    {
+      "actual_fields": [
+        "symbol",
+        "ex_date",
+        "pre_close_trade_date",
+        "pre_close",
+        "source"
+      ],
+      "content_scope": "full_response_body",
+      "fallback_reason": null,
+      "first_success": true,
+      "first_success_response_sha256": "9ac9fe8d716daf649f5e5c801d1a416587fc7273ecfb4ce075300b3fdbae45e0",
+      "id": "frozen-local-preclose",
+      "missing_state": "present",
+      "parser_version": "p3.3-s6-frozen-local-preclose-v1",
+      "prior_source_errors": [],
+      "relative_path": "frozen-local-preclose.json",
+      "request_parameters": {
+        "access_mode": "read_only",
+        "pit_manifest_sha256": "fb9c888e7a10f7b1ef28e7a447b0e2b53df739f6acdbedb1ba95d1d41cbfb0bd"
+      },
+      "retrieved_at": "2026-07-31T07:40:46.301395+00:00",
+      "sha256": "9ac9fe8d716daf649f5e5c801d1a416587fc7273ecfb4ce075300b3fdbae45e0",
+      "source_identity": "production-sqlite-daily-bars-prior-trading-day",
+      "source_kind": "frozen_local_manifest",
+      "timezone": "UTC"
+    }
+  ],
+  "final_trial": {
+    "relative_path": "final-trial.json",
+    "sha256": "40f310a4c94e550cac33616fbe2d8ffc189cb48cd259a2913fe3379bae424099"
+  },
+  "pit_manifest_schema_version": "p3.3-s6-local-pit-manifest-v1",
+  "pit_manifest_sha256": "fb9c888e7a10f7b1ef28e7a447b0e2b53df739f6acdbedb1ba95d1d41cbfb0bd",
+  "reviewed_at": null,
+  "reviewer_role": "pending",
+  "sample_size_per_table": 5,
+  "samples": [
+    {
+      "checked_values": {
+        "adj_factor": {
+          "external_value": 1.0391496616345652,
+          "local_value": 1.039872,
+          "pass": true,
+          "tolerance": 0.001
+        },
+        "adj_source": {
+          "external_value": "baostock-hfq",
+          "local_value": "baostock-hfq",
+          "pass": true
+        },
+        "close": {
+          "external_value": 20.34,
+          "local_value": 20.34,
+          "pass": true,
+          "tolerance": 0.01
+        },
+        "source": {
+          "external_value": "baostock",
+          "local_value": "baostock",
+          "pass": true
+        }
+      },
+      "evidence_ids": [
+        "action-001260-2026-05-27",
+        "frozen-local-preclose",
+        "inventory-001260-p001",
+        "inventory-001260-p002",
+        "price-tick-szse-2023-04-10-2026-07-05"
+      ],
+      "formula_proof": {
+        "event_window": {
+          "complete": true,
+          "end_date": "2026-07-30",
+          "inventory_evidence_ids": [
+            "inventory-001260-p001",
+            "inventory-001260-p002"
+          ],
+          "inventory_source": "official_exchange_full_pagination",
+          "page_count": 2,
+          "pages": [
+            {
+              "evidence_id": "inventory-001260-p001",
+              "page_number": 1,
+              "raw_response_records": 50,
+              "reported_records": 1
+            },
+            {
+              "evidence_id": "inventory-001260-p002",
+              "page_number": 2,
+              "raw_response_records": 2,
+              "reported_records": 0
+            }
+          ],
+          "raw_total_records": 52,
+          "start_date": "2025-10-29",
+          "symbol": "001260",
+          "total_reported_records": 1
+        },
+        "expression": "product(event_multipliers)",
+        "formula_id": "hfq_event_multiplier_product_v1",
+        "local_storage_quantum": 1e-06,
+        "operands": [
+          {
+            "disclosure_precision": {
+              "basis": "exact_machine_fact",
+              "quantum": 0.0
+            },
+            "event": {
+              "announcement_evidence_id": "action-001260-2026-05-27",
+              "cash_dividend_per_share": 0.215,
+              "event_formula_id": "cash_share_price_grid_v1",
+              "event_multiplier": 1.0103499260719566,
+              "event_type": "cash_dividend",
+              "ex_date": "2026-05-27",
+              "ex_reference_price": 20.29,
+              "pre_close": 20.5,
+              "pre_close_evidence_id": "frozen-local-preclose",
+              "price_tick": 0.01,
+              "price_tick_evidence_id": "price-tick-szse-2023-04-10-2026-07-05",
+              "share_distribution_per_share": 0.0
+            },
+            "evidence_id": "action-001260-2026-05-27",
+            "line_item": "derived_event_multiplier",
+            "lower": 1.0103499260719566,
+            "name": "event_multiplier_1",
+            "unit": "ratio",
+            "upper": 1.0103499260719566,
+            "value": 1.0103499260719566
+          }
+        ],
+        "result": {
+          "lower": 1.0103499260719566,
+          "upper": 1.0103499260719566,
+          "value": 1.0103499260719566
+        }
+      },
+      "key": {
+        "symbol": "001260",
+        "trade_date": "2025-10-29"
+      },
+      "table": "daily_bars",
+      "trial_sample_sha256": "5135a784594e1aa53fcc6728a0a758fc57f915108965ca54b08c37fe24719e91",
+      "verdict": "formula_match"
+    },
+    {
+      "checked_values": {
+        "adj_factor": {
+          "external_value": 5.86351100957545,
+          "local_value": 5.863797,
+          "pass": true,
+          "tolerance": 0.001
+        },
+        "adj_source": {
+          "external_value": "baostock-hfq",
+          "local_value": "baostock-hfq",
+          "pass": true
+        },
+        "close": {
+          "external_value": 10.74,
+          "local_value": 10.74,
+          "pass": true,
+          "tolerance": 0.01
+        },
+        "source": {
+          "external_value": "baostock",
+          "local_value": "baostock",
+          "pass": true
+        }
+      },
+      "evidence_ids": [
+        "action-600648-2026-07-13",
+        "frozen-local-preclose",
+        "inventory-600648-p001",
+        "price-tick-sse-2026-07-06-open"
+      ],
+      "formula_proof": {
+        "event_window": {
+          "complete": true,
+          "end_date": "2026-07-30",
+          "inventory_evidence_ids": [
+            "inventory-600648-p001"
+          ],
+          "inventory_source": "official_exchange_full_pagination",
+          "page_count": 1,
+          "pages": [
+            {
+              "evidence_id": "inventory-600648-p001",
+              "page_number": 1,
+              "raw_response_records": 1,
+              "reported_records": 1
+            }
+          ],
+          "raw_total_records": 1,
+          "start_date": "2025-06-16",
+          "symbol": "600648",
+          "total_reported_records": 1
+        },
+        "expression": "product(event_multipliers)",
+        "formula_id": "hfq_event_multiplier_product_v1",
+        "local_storage_quantum": 1e-06,
+        "operands": [
+          {
+            "disclosure_precision": {
+              "basis": "exact_machine_fact",
+              "quantum": 0.0
+            },
+            "event": {
+              "announcement_evidence_id": "action-600648-2026-07-13",
+              "cash_dividend_per_share": 0.35,
+              "event_formula_id": "cash_share_price_grid_v1",
+              "event_multiplier": 1.0427350427350428,
+              "event_type": "cash_dividend",
+              "ex_date": "2026-07-13",
+              "ex_reference_price": 8.19,
+              "pre_close": 8.54,
+              "pre_close_evidence_id": "frozen-local-preclose",
+              "price_tick": 0.01,
+              "price_tick_evidence_id": "price-tick-sse-2026-07-06-open",
+              "share_distribution_per_share": 0.0
+            },
+            "evidence_id": "action-600648-2026-07-13",
+            "line_item": "derived_event_multiplier",
+            "lower": 1.0427350427350428,
+            "name": "event_multiplier_1",
+            "unit": "ratio",
+            "upper": 1.0427350427350428,
+            "value": 1.0427350427350428
+          }
+        ],
+        "result": {
+          "lower": 1.0427350427350428,
+          "upper": 1.0427350427350428,
+          "value": 1.0427350427350428
+        }
+      },
+      "key": {
+        "symbol": "600648",
+        "trade_date": "2025-06-16"
+      },
+      "table": "daily_bars",
+      "trial_sample_sha256": "495fcb58d011f889bf13e69e5ce07bdfbde0caeaffb8da81495ab21619049f11",
+      "verdict": "formula_match"
+    },
+    {
+      "checked_values": {
+        "adj_factor": {
+          "external_value": 10.611167606819519,
+          "local_value": 10.631079000000001,
+          "pass": false,
+          "tolerance": 0.0010631079000000003
+        },
+        "adj_source": {
+          "external_value": "baostock-hfq",
+          "local_value": "baostock-hfq",
+          "pass": true
+        },
+        "close": {
+          "external_value": 4.05,
+          "local_value": 4.05,
+          "pass": true,
+          "tolerance": 0.01
+        },
+        "source": {
+          "external_value": "baostock",
+          "local_value": "baostock",
+          "pass": true
+        }
+      },
+      "evidence_ids": [
+        "action-600782-2026-06-05",
+        "frozen-local-preclose",
+        "inventory-600782-p001",
+        "price-tick-sse-2023-04-10-2026-07-05"
+      ],
+      "formula_proof": {
+        "event_window": {
+          "complete": true,
+          "end_date": "2026-07-30",
+          "inventory_evidence_ids": [
+            "inventory-600782-p001"
+          ],
+          "inventory_source": "official_exchange_full_pagination",
+          "page_count": 1,
+          "pages": [
+            {
+              "evidence_id": "inventory-600782-p001",
+              "page_number": 1,
+              "raw_response_records": 1,
+              "reported_records": 1
+            }
+          ],
+          "raw_total_records": 1,
+          "start_date": "2026-01-30",
+          "symbol": "600782",
+          "total_reported_records": 1
+        },
+        "expression": "product(event_multipliers)",
+        "formula_id": "hfq_event_multiplier_product_v1",
+        "local_storage_quantum": 1e-06,
+        "operands": [
+          {
+            "disclosure_precision": {
+              "basis": "exact_machine_fact",
+              "quantum": 0.0
+            },
+            "event": {
+              "announcement_evidence_id": "action-600782-2026-06-05",
+              "cash_dividend_per_share": 0.135,
+              "event_formula_id": "cash_share_price_grid_v1",
+              "event_multiplier": 1.0492424242424243,
+              "event_type": "cash_dividend",
+              "ex_date": "2026-06-05",
+              "ex_reference_price": 2.64,
+              "pre_close": 2.77,
+              "pre_close_evidence_id": "frozen-local-preclose",
+              "price_tick": 0.01,
+              "price_tick_evidence_id": "price-tick-sse-2023-04-10-2026-07-05",
+              "share_distribution_per_share": 0.0
+            },
+            "evidence_id": "action-600782-2026-06-05",
+            "line_item": "derived_event_multiplier",
+            "lower": 1.0492424242424243,
+            "name": "event_multiplier_1",
+            "unit": "ratio",
+            "upper": 1.0492424242424243,
+            "value": 1.0492424242424243
+          }
+        ],
+        "result": {
+          "lower": 1.0492424242424243,
+          "upper": 1.0492424242424243,
+          "value": 1.0492424242424243
+        }
+      },
+      "key": {
+        "symbol": "600782",
+        "trade_date": "2026-01-30"
+      },
+      "table": "daily_bars",
+      "trial_sample_sha256": "1701c9dab7d5e7ce3dccfdce781ee94af43f82b55b5781e0a4d0b69d2c0eb3c2",
+      "verdict": "formula_match"
+    },
+    {
+      "checked_values": {
+        "adj_factor": {
+          "external_value": 2.9900413120243177,
+          "local_value": 2.9898480000000003,
+          "pass": true,
+          "tolerance": 0.001
+        },
+        "adj_source": {
+          "external_value": "baostock-hfq",
+          "local_value": "baostock-hfq",
+          "pass": true
+        },
+        "close": {
+          "external_value": 30.54,
+          "local_value": 30.54,
+          "pass": true,
+          "tolerance": 0.01
+        },
+        "source": {
+          "external_value": "baostock",
+          "local_value": "baostock",
+          "pass": true
+        }
+      },
+      "evidence_ids": [
+        "action-000831-2023-06-20",
+        "action-000831-2024-06-25",
+        "action-000831-2026-07-03",
+        "frozen-local-preclose",
+        "inventory-000831-p001",
+        "price-tick-szse-2023-04-10-2026-07-05"
+      ],
+      "formula_proof": {
+        "event_window": {
+          "complete": true,
+          "end_date": "2026-07-30",
+          "inventory_evidence_ids": [
+            "inventory-000831-p001"
+          ],
+          "inventory_source": "official_exchange_full_pagination",
+          "page_count": 1,
+          "pages": [
+            {
+              "evidence_id": "inventory-000831-p001",
+              "page_number": 1,
+              "raw_response_records": 3,
+              "reported_records": 3
+            }
+          ],
+          "raw_total_records": 3,
+          "start_date": "2023-05-29",
+          "symbol": "000831",
+          "total_reported_records": 3
+        },
+        "expression": "product(event_multipliers)",
+        "formula_id": "hfq_event_multiplier_product_v1",
+        "local_storage_quantum": 1e-06,
+        "operands": [
+          {
+            "disclosure_precision": {
+              "basis": "exact_machine_fact",
+              "quantum": 0.0
+            },
+            "event": {
+              "announcement_evidence_id": "action-000831-2023-06-20",
+              "cash_dividend_per_share": 0.04,
+              "event_formula_id": "cash_share_price_grid_v1",
+              "event_multiplier": 1.0013084723585215,
+              "event_type": "cash_dividend",
+              "ex_date": "2023-06-20",
+              "ex_reference_price": 30.57,
+              "pre_close": 30.61,
+              "pre_close_evidence_id": "frozen-local-preclose",
+              "price_tick": 0.01,
+              "price_tick_evidence_id": "price-tick-szse-2023-04-10-2026-07-05",
+              "share_distribution_per_share": 0.0
+            },
+            "evidence_id": "action-000831-2023-06-20",
+            "line_item": "derived_event_multiplier",
+            "lower": 1.0013084723585215,
+            "name": "event_multiplier_1",
+            "unit": "ratio",
+            "upper": 1.0013084723585215,
+            "value": 1.0013084723585215
+          },
+          {
+            "disclosure_precision": {
+              "basis": "exact_machine_fact",
+              "quantum": 0.0
+            },
+            "event": {
+              "announcement_evidence_id": "action-000831-2024-06-25",
+              "cash_dividend_per_share": 0.08,
+              "event_formula_id": "cash_share_price_grid_v1",
+              "event_multiplier": 1.0032507110930515,
+              "event_type": "cash_dividend",
+              "ex_date": "2024-06-25",
+              "ex_reference_price": 24.61,
+              "pre_close": 24.69,
+              "pre_close_evidence_id": "frozen-local-preclose",
+              "price_tick": 0.01,
+              "price_tick_evidence_id": "price-tick-szse-2023-04-10-2026-07-05",
+              "share_distribution_per_share": 0.0
+            },
+            "evidence_id": "action-000831-2024-06-25",
+            "line_item": "derived_event_multiplier",
+            "lower": 1.0032507110930515,
+            "name": "event_multiplier_2",
+            "unit": "ratio",
+            "upper": 1.0032507110930515,
+            "value": 1.0032507110930515
+          },
+          {
+            "disclosure_precision": {
+              "basis": "exact_machine_fact",
+              "quantum": 0.0
+            },
+            "event": {
+              "announcement_evidence_id": "action-000831-2026-07-03",
+              "cash_dividend_per_share": 0.029,
+              "event_formula_id": "cash_share_price_grid_v1",
+              "event_multiplier": 1.000564227948091,
+              "event_type": "cash_dividend",
+              "ex_date": "2026-07-03",
+              "ex_reference_price": 53.17,
+              "pre_close": 53.2,
+              "pre_close_evidence_id": "frozen-local-preclose",
+              "price_tick": 0.01,
+              "price_tick_evidence_id": "price-tick-szse-2023-04-10-2026-07-05",
+              "share_distribution_per_share": 0.0
+            },
+            "evidence_id": "action-000831-2026-07-03",
+            "line_item": "derived_event_multiplier",
+            "lower": 1.000564227948091,
+            "name": "event_multiplier_3",
+            "unit": "ratio",
+            "upper": 1.000564227948091,
+            "value": 1.000564227948091
+          }
+        ],
+        "result": {
+          "lower": 1.005130239683923,
+          "upper": 1.005130239683923,
+          "value": 1.005130239683923
+        }
+      },
+      "key": {
+        "symbol": "000831",
+        "trade_date": "2023-05-29"
+      },
+      "table": "daily_bars",
+      "trial_sample_sha256": "c20081fa6e23c855f2b9701f9c2d021160e8a44eae68cb3b23d7743a2cc80158",
+      "verdict": "formula_match"
+    },
+    {
+      "checked_values": {
+        "adj_factor": {
+          "external_value": 1.413175660667311,
+          "local_value": 1.41313,
+          "pass": true,
+          "tolerance": 0.001
+        },
+        "adj_source": {
+          "external_value": "baostock-hfq",
+          "local_value": "baostock-hfq",
+          "pass": true
+        },
+        "close": {
+          "external_value": 18.44,
+          "local_value": 18.44,
+          "pass": true,
+          "tolerance": 0.01
+        },
+        "source": {
+          "external_value": "baostock",
+          "local_value": "baostock",
+          "pass": true
+        }
+      },
+      "evidence_ids": [
+        "action-001205-2024-06-04",
+        "action-001205-2025-06-06",
+        "action-001205-2026-05-26",
+        "frozen-local-preclose",
+        "inventory-001205-p001",
+        "price-tick-szse-2023-04-10-2026-07-05"
+      ],
+      "formula_proof": {
+        "event_window": {
+          "complete": true,
+          "end_date": "2026-07-30",
+          "inventory_evidence_ids": [
+            "inventory-001205-p001"
+          ],
+          "inventory_source": "official_exchange_full_pagination",
+          "page_count": 1,
+          "pages": [
+            {
+              "evidence_id": "inventory-001205-p001",
+              "page_number": 1,
+              "raw_response_records": 3,
+              "reported_records": 3
+            }
+          ],
+          "raw_total_records": 3,
+          "start_date": "2024-05-21",
+          "symbol": "001205",
+          "total_reported_records": 3
+        },
+        "expression": "product(event_multipliers)",
+        "formula_id": "hfq_event_multiplier_product_v1",
+        "local_storage_quantum": 1e-06,
+        "operands": [
+          {
+            "disclosure_precision": {
+              "basis": "exact_machine_fact",
+              "quantum": 0.0
+            },
+            "event": {
+              "announcement_evidence_id": "action-001205-2024-06-04",
+              "cash_dividend_per_share": 0.1186399,
+              "event_formula_id": "cash_share_price_grid_v1",
+              "event_multiplier": 1.006825938566553,
+              "event_type": "cash_dividend",
+              "ex_date": "2024-06-04",
+              "ex_reference_price": 17.58,
+              "pre_close": 17.7,
+              "pre_close_evidence_id": "frozen-local-preclose",
+              "price_tick": 0.01,
+              "price_tick_evidence_id": "price-tick-szse-2023-04-10-2026-07-05",
+              "share_distribution_per_share": 0.0
+            },
+            "evidence_id": "action-001205-2024-06-04",
+            "line_item": "derived_event_multiplier",
+            "lower": 1.006825938566553,
+            "name": "event_multiplier_1",
+            "unit": "ratio",
+            "upper": 1.006825938566553,
+            "value": 1.006825938566553
+          },
+          {
+            "disclosure_precision": {
+              "basis": "exact_machine_fact",
+              "quantum": 0.0
+            },
+            "event": {
+              "announcement_evidence_id": "action-001205-2025-06-06",
+              "cash_dividend_per_share": 0.1183647,
+              "event_formula_id": "cash_share_price_grid_v1",
+              "event_multiplier": 1.007462686567164,
+              "event_type": "cash_dividend",
+              "ex_date": "2025-06-06",
+              "ex_reference_price": 16.08,
+              "pre_close": 16.2,
+              "pre_close_evidence_id": "frozen-local-preclose",
+              "price_tick": 0.01,
+              "price_tick_evidence_id": "price-tick-szse-2023-04-10-2026-07-05",
+              "share_distribution_per_share": 0.0
+            },
+            "evidence_id": "action-001205-2025-06-06",
+            "line_item": "derived_event_multiplier",
+            "lower": 1.007462686567164,
+            "name": "event_multiplier_2",
+            "unit": "ratio",
+            "upper": 1.007462686567164,
+            "value": 1.007462686567164
+          },
+          {
+            "disclosure_precision": {
+              "basis": "exact_machine_fact",
+              "quantum": 0.0
+            },
+            "event": {
+              "announcement_evidence_id": "action-001205-2026-05-26",
+              "cash_dividend_per_share": 0.1479559,
+              "event_formula_id": "cash_share_price_grid_v1",
+              "event_multiplier": 1.0103163686382393,
+              "event_type": "cash_dividend",
+              "ex_date": "2026-05-26",
+              "ex_reference_price": 14.54,
+              "pre_close": 14.69,
+              "pre_close_evidence_id": "frozen-local-preclose",
+              "price_tick": 0.01,
+              "price_tick_evidence_id": "price-tick-szse-2023-04-10-2026-07-05",
+              "share_distribution_per_share": 0.0
+            },
+            "evidence_id": "action-001205-2026-05-26",
+            "line_item": "derived_event_multiplier",
+            "lower": 1.0103163686382393,
+            "name": "event_multiplier_3",
+            "unit": "ratio",
+            "upper": 1.0103163686382393,
+            "value": 1.0103163686382393
+          }
+        ],
+        "result": {
+          "lower": 1.0248038658503866,
+          "upper": 1.0248038658503866,
+          "value": 1.0248038658503866
+        }
+      },
+      "key": {
+        "symbol": "001205",
+        "trade_date": "2024-05-21"
+      },
+      "table": "daily_bars",
+      "trial_sample_sha256": "b4690dbacb34b2275b4fb913fe8a17cac65924cb7b9d2f1960eb5a8e57eac82e",
+      "verdict": "formula_match"
+    },
+    {
+      "checked_values": {
+        "available_time": {
+          "external_value": "2024-10-31 16:00:00.000000",
+          "local_value": "2024-10-31 16:00:00.000000",
+          "pass": true
+        },
+        "source": {
+          "external_value": "baostock",
+          "local_value": "baostock",
+          "pass": true
+        },
+        "value": {
+          "external_value": -0.25218251170002,
+          "local_value": -0.254348,
+          "pass": false,
+          "tolerance": 0.000254348
+        }
+      },
+      "evidence_ids": [
+        "financial-000897-2024q3-net-profit-yoy"
+      ],
+      "formula_proof": {
+        "event_window": null,
+        "expression": "(net_profit_t-net_profit_t_minus_4)/abs(net_profit_t_minus_4)",
+        "formula_id": "net_profit_yoy_v1",
+        "local_storage_quantum": 1e-06,
+        "operands": [
+          {
+            "disclosure_precision": {
+              "basis": "disclosed_unit",
+              "quantum": 0.01
+            },
+            "event": null,
+            "evidence_id": "financial-000897-2024q3-net-profit-yoy",
+            "line_item": "净利润（本期累计）",
+            "lower": 368514961.645,
+            "name": "net_profit_t",
+            "unit": "CNY",
+            "upper": 368514961.655,
+            "value": 368514961.65
+          },
+          {
+            "disclosure_precision": {
+              "basis": "disclosed_unit",
+              "quantum": 0.01
+            },
+            "event": null,
+            "evidence_id": "financial-000897-2024q3-net-profit-yoy",
+            "line_item": "净利润（上年同期累计）",
+            "lower": 494218221.645,
+            "name": "net_profit_t_minus_4",
+            "unit": "CNY",
+            "upper": 494218221.655,
+            "value": 494218221.65
+          }
+        ],
+        "result": {
+          "lower": -0.2543476838866808,
+          "upper": -0.2543476838410664,
+          "value": -0.2543476838638736
+        }
+      },
+      "key": {
+        "metric": "net_profit_yoy",
+        "report_period": "2024Q3",
+        "symbol": "000897"
+      },
+      "table": "financial_indicators",
+      "trial_sample_sha256": "661a9e59229c2a55a28cc88d3d4e5e8919848f7d98136ff0d7c7b7dc1e21ed40",
+      "verdict": "formula_match"
+    },
+    {
+      "checked_values": {
+        "available_time": {
+          "external_value": "2018-08-14 16:00:00.000000",
+          "local_value": "2018-08-14 16:00:00.000000",
+          "pass": true
+        },
+        "source": {
+          "external_value": "baostock",
+          "local_value": "baostock",
+          "pass": true
+        },
+        "value": {
+          "external_value": -0.53001070524575,
+          "local_value": -0.402055,
+          "pass": false,
+          "tolerance": 0.0005300107052457501
+        }
+      },
+      "evidence_ids": [
+        "financial-002012-2018q2-net-profit-yoy"
+      ],
+      "formula_proof": {
+        "event_window": null,
+        "expression": "(net_profit_t-net_profit_t_minus_4)/abs(net_profit_t_minus_4)",
+        "formula_id": "net_profit_yoy_v1",
+        "local_storage_quantum": 1e-06,
+        "operands": [
+          {
+            "disclosure_precision": {
+              "basis": "disclosed_unit",
+              "quantum": 0.01
+            },
+            "event": null,
+            "evidence_id": "financial-002012-2018q2-net-profit-yoy",
+            "line_item": "净利润（本期累计）",
+            "lower": 15888115.745,
+            "name": "net_profit_t",
+            "unit": "CNY",
+            "upper": 15888115.755,
+            "value": 15888115.75
+          },
+          {
+            "disclosure_precision": {
+              "basis": "disclosed_unit",
+              "quantum": 0.01
+            },
+            "event": null,
+            "evidence_id": "financial-002012-2018q2-net-profit-yoy",
+            "line_item": "净利润（上年同期累计）",
+            "lower": 26571199.095000003,
+            "name": "net_profit_t_minus_4",
+            "unit": "CNY",
+            "upper": 26571199.105,
+            "value": 26571199.1
+          }
+        ],
+        "result": {
+          "lower": -0.4020549965323272,
+          "upper": -0.40205499562832026,
+          "value": -0.4020549960803237
+        }
+      },
+      "key": {
+        "metric": "net_profit_yoy",
+        "report_period": "2018Q2",
+        "symbol": "002012"
+      },
+      "table": "financial_indicators",
+      "trial_sample_sha256": "5c7466fd4807292b91ce405c32728ecf86a7b77fc6da93332909f136748f4dd8",
+      "verdict": "formula_match"
+    },
+    {
+      "evidence_ids": [
+        "financial-601137-2017q1-revenue-yoy"
+      ],
+      "key": {
+        "metric": "revenue_yoy",
+        "report_period": "2017Q1",
+        "symbol": "601137"
+      },
+      "table": "financial_indicators",
+      "trial_sample_sha256": "fe7356a6e1b0393eae020782ebd0f9ff333d46be3f1653c502b3927374a405be",
+      "unavailable_proof": {
+        "approximate_substitute_used": false,
+        "cadence_contract": "semiannual_q2_q4_from_baostock_mb_revenue",
+        "exact_line_item_candidates": [
+          {
+            "match_count": 0,
+            "name": "主营业务收入"
+          },
+          {
+            "match_count": 0,
+            "name": "主营营业收入"
+          }
+        ],
+        "examined_line_items": [
+          {
+            "mapping_decision": "not_same_metric",
+            "name": "营业收入"
+          },
+          {
+            "mapping_decision": "not_same_metric",
+            "name": "营业总收入"
+          }
+        ],
+        "expected_quarters": [
+          2,
+          4
+        ],
+        "local_value": null,
+        "mapping_status": "no_unique_exact_mbrevenue_line_item",
+        "missing_state": "field_absent",
+        "observed_quarter": 1,
+        "payload_reason": "missing_current_revenue",
+        "request_status": "success"
+      },
+      "verdict": "expected_unavailable"
+    },
+    {
+      "checked_values": {
+        "available_time": {
+          "external_value": "2025-10-29 16:00:00.000000",
+          "local_value": "2025-10-29 16:00:00.000000",
+          "pass": true
+        },
+        "source": {
+          "external_value": "baostock",
+          "local_value": "baostock",
+          "pass": true
+        },
+        "value": {
+          "external_value": 0.057699999999999994,
+          "local_value": 0.055471,
+          "pass": false,
+          "tolerance": 0.0001
+        }
+      },
+      "evidence_ids": [
+        "financial-300433-2025q3-roe"
+      ],
+      "formula_proof": {
+        "event_window": null,
+        "expression": "parent_net_profit_t/((opening_parent_equity+closing_parent_equity)/2)",
+        "formula_id": "roe_average_parent_equity_v1",
+        "local_storage_quantum": 1e-06,
+        "operands": [
+          {
+            "disclosure_precision": {
+              "basis": "disclosed_unit",
+              "quantum": 0.01
+            },
+            "event": null,
+            "evidence_id": "financial-300433-2025q3-roe",
+            "line_item": "归属于母公司所有者的净利润",
+            "lower": 2842952844.4049997,
+            "name": "parent_net_profit_t",
+            "unit": "CNY",
+            "upper": 2842952844.415,
+            "value": 2842952844.41
+          },
+          {
+            "disclosure_precision": {
+              "basis": "disclosed_unit",
+              "quantum": 0.01
+            },
+            "event": null,
+            "evidence_id": "financial-300433-2025q3-roe",
+            "line_item": "归属于母公司所有者权益（期初）",
+            "lower": 48656642054.205,
+            "name": "opening_parent_equity",
+            "unit": "CNY",
+            "upper": 48656642054.215,
+            "value": 48656642054.21
+          },
+          {
+            "disclosure_precision": {
+              "basis": "disclosed_unit",
+              "quantum": 0.01
+            },
+            "event": null,
+            "evidence_id": "financial-300433-2025q3-roe",
+            "line_item": "归属于母公司所有者权益（期末）",
+            "lower": 53845361611.785,
+            "name": "closing_parent_equity",
+            "unit": "CNY",
+            "upper": 53845361611.795,
+            "value": 53845361611.79
+          }
+        ],
+        "result": {
+          "lower": 0.05547116627433757,
+          "upper": 0.05547116627454351,
+          "value": 0.05547116627444054
+        }
+      },
+      "key": {
+        "metric": "roe",
+        "report_period": "2025Q3",
+        "symbol": "300433"
+      },
+      "table": "financial_indicators",
+      "trial_sample_sha256": "df14273bed6b902872c218f4653d0402854b543dd12ee9f01b630e26c3bad428",
+      "verdict": "formula_match"
+    },
+    {
+      "evidence_ids": [
+        "financial-300662-2026q1-revenue-yoy"
+      ],
+      "key": {
+        "metric": "revenue_yoy",
+        "report_period": "2026Q1",
+        "symbol": "300662"
+      },
+      "table": "financial_indicators",
+      "trial_sample_sha256": "7445b3d246058cfeeb4263a8255c2c031a780addbc7dbf5d72e577bbb681a1ee",
+      "unavailable_proof": {
+        "approximate_substitute_used": false,
+        "cadence_contract": "semiannual_q2_q4_from_baostock_mb_revenue",
+        "exact_line_item_candidates": [
+          {
+            "match_count": 0,
+            "name": "主营业务收入"
+          },
+          {
+            "match_count": 0,
+            "name": "主营营业收入"
+          }
+        ],
+        "examined_line_items": [
+          {
+            "mapping_decision": "not_same_metric",
+            "name": "营业收入"
+          },
+          {
+            "mapping_decision": "not_same_metric",
+            "name": "营业总收入"
+          }
+        ],
+        "expected_quarters": [
+          2,
+          4
+        ],
+        "local_value": null,
+        "mapping_status": "no_unique_exact_mbrevenue_line_item",
+        "missing_state": "field_absent",
+        "observed_quarter": 1,
+        "payload_reason": "missing_current_revenue",
+        "request_status": "success"
+      },
+      "verdict": "expected_unavailable"
+    },
+    {
+      "checked_values": {
+        "available_time": {
+          "external_value": "2022-11-21 07:00:00.000000",
+          "local_value": "2022-11-21 07:00:00.000000",
+          "pass": true
+        },
+        "pb_mrq": {
+          "external_value": 1.98407603,
+          "local_value": 1.98407603,
+          "pass": true,
+          "tolerance": 0.01
+        },
+        "pe_ttm": {
+          "external_value": 31.48867883,
+          "local_value": 31.48867883,
+          "pass": true,
+          "tolerance": 0.01
+        },
+        "ps_ttm": {
+          "external_value": 5.521201,
+          "local_value": 5.521201,
+          "pass": true,
+          "tolerance": 0.01
+        },
+        "source": {
+          "external_value": "em",
+          "local_value": "em",
+          "pass": true
+        }
+      },
+      "evidence_ids": [
+        "valuation-000565-2022-11-21"
+      ],
+      "key": {
+        "symbol": "000565",
+        "trade_date": "2022-11-21"
+      },
+      "table": "valuation_daily",
+      "trial_sample_sha256": "30384b7e2b08607685f94a1e7f2bd7190504e14b7f138ba92726ed6a7f53bf7f",
+      "verdict": "numeric_match"
+    },
+    {
+      "checked_values": {
+        "available_time": {
+          "external_value": "2019-12-25 07:00:00.000000",
+          "local_value": "2019-12-25 07:00:00.000000",
+          "pass": true
+        },
+        "pb_mrq": {
+          "external_value": 1.3599069,
+          "local_value": 1.3599069,
+          "pass": true,
+          "tolerance": 0.01
+        },
+        "pe_ttm": {
+          "external_value": 38.21816855,
+          "local_value": 38.21816855,
+          "pass": true,
+          "tolerance": 0.01
+        },
+        "ps_ttm": {
+          "external_value": 2.54959205,
+          "local_value": 2.54959205,
+          "pass": true,
+          "tolerance": 0.01
+        },
+        "source": {
+          "external_value": "em",
+          "local_value": "em",
+          "pass": true
+        }
+      },
+      "evidence_ids": [
+        "valuation-000690-2019-12-25"
+      ],
+      "key": {
+        "symbol": "000690",
+        "trade_date": "2019-12-25"
+      },
+      "table": "valuation_daily",
+      "trial_sample_sha256": "5dcc6f13da9fdf14c66c44b2200b920f55bebcb6fc7e54ae5a4162006aeac04e",
+      "verdict": "numeric_match"
+    },
+    {
+      "checked_values": {
+        "available_time": {
+          "external_value": "2026-03-05 07:00:00.000000",
+          "local_value": "2026-03-05 07:00:00.000000",
+          "pass": true
+        },
+        "pb_mrq": {
+          "external_value": 1.04445234,
+          "local_value": 1.04445234,
+          "pass": true,
+          "tolerance": 0.01
+        },
+        "pe_ttm": {
+          "external_value": 12.35134943,
+          "local_value": 12.35134943,
+          "pass": true,
+          "tolerance": 0.01
+        },
+        "ps_ttm": {
+          "external_value": 0.59096286,
+          "local_value": 0.59096286,
+          "pass": true,
+          "tolerance": 0.01
+        },
+        "source": {
+          "external_value": "em",
+          "local_value": "em",
+          "pass": true
+        }
+      },
+      "evidence_ids": [
+        "valuation-001914-2026-03-05"
+      ],
+      "key": {
+        "symbol": "001914",
+        "trade_date": "2026-03-05"
+      },
+      "table": "valuation_daily",
+      "trial_sample_sha256": "cf32e94acb5e60f13ee756eb0f21b405a63f17f6b2d38eac56d4352b5adaca81",
+      "verdict": "numeric_match"
+    },
+    {
+      "checked_values": {
+        "available_time": {
+          "external_value": "2024-09-06 07:00:00.000000",
+          "local_value": "2024-09-06 07:00:00.000000",
+          "pass": true
+        },
+        "pb_mrq": {
+          "external_value": 3.17944722,
+          "local_value": 3.17944722,
+          "pass": true,
+          "tolerance": 0.01
+        },
+        "pe_ttm": {
+          "external_value": 43.14786861,
+          "local_value": 43.14786861,
+          "pass": true,
+          "tolerance": 0.01
+        },
+        "ps_ttm": {
+          "external_value": 1.82693231,
+          "local_value": 1.82693231,
+          "pass": true,
+          "tolerance": 0.01
+        },
+        "source": {
+          "external_value": "em",
+          "local_value": "em",
+          "pass": true
+        }
+      },
+      "evidence_ids": [
+        "valuation-002186-2024-09-06"
+      ],
+      "key": {
+        "symbol": "002186",
+        "trade_date": "2024-09-06"
+      },
+      "table": "valuation_daily",
+      "trial_sample_sha256": "40b352a630a783ff6bd1aaf3da0bf7bb84b30e41694794748df1a55169dbfb54",
+      "verdict": "numeric_match"
+    },
+    {
+      "checked_values": {
+        "available_time": {
+          "external_value": "2025-09-03 07:00:00.000000",
+          "local_value": "2025-09-03 07:00:00.000000",
+          "pass": true
+        },
+        "pb_mrq": {
+          "external_value": 0.93165417,
+          "local_value": 0.93165417,
+          "pass": true,
+          "tolerance": 0.01
+        },
+        "pe_ttm": {
+          "external_value": 474.74560924,
+          "local_value": 474.74560924,
+          "pass": true,
+          "tolerance": 0.04747456092400001
+        },
+        "ps_ttm": {
+          "external_value": 2.37394028,
+          "local_value": 2.37394028,
+          "pass": true,
+          "tolerance": 0.01
+        },
+        "source": {
+          "external_value": "em",
+          "local_value": "em",
+          "pass": true
+        }
+      },
+      "evidence_ids": [
+        "valuation-002191-2025-09-03"
+      ],
+      "key": {
+        "symbol": "002191",
+        "trade_date": "2025-09-03"
+      },
+      "table": "valuation_daily",
+      "trial_sample_sha256": "8a0703e0ae9ea2fcbfbf7e5b04bd82a7204efb5d600b28ede246c82b3b1c8633",
+      "verdict": "numeric_match"
+    }
+  ],
+  "schema_version": "p3.3-s6-external-pit-pairing-v3",
+  "seed": 20260725,
+  "summary": {
+    "ambiguous_mapping": 0,
+    "expected_unavailable": 2,
+    "formula_match": 8,
+    "generic_unavailable": 0,
+    "numeric_match": 5,
+    "sample_count": 15,
+    "schema_hash_integrity_errors": 0,
+    "unresolved": 0
+  }
+}

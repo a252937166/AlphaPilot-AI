@@ -1,0 +1,47 @@
+{
+  "schema_version": "p3.3-s6-ai-review-governance-amendment-v1",
+  "effective_date": "2026-08-01",
+  "authority": {
+    "type": "explicit_project_owner_instruction",
+    "statement": "Replace the independent human architect review step for this frozen P3.3-S6 pairing-v3 candidate with an independent AI architect review performed by Claude Code.",
+    "human_impersonation": false
+  },
+  "scope": {
+    "adjudication_contract": "p3.3-s6-external-pit-adjudication-v1",
+    "adjudication_contract_sha256": "a16995e6545ddba7fc03d917ae6cc8d9ab19b7903f1d21c5694b1c0167b1b951",
+    "pairing_schema_version": "p3.3-s6-external-pit-pairing-v3",
+    "candidate_unsigned_canonical_sha256": "45358d1508e7ac6e71a7df25990aba1a908fc7c5108dd4253cc1e05698d520ae",
+    "ai_review_attestation_sha256": "19466729872aedef21d6f530c0ac0bd7866b521910b640eb63901210f3c6b07f"
+  },
+  "reviewer_allowlist": [
+    {
+      "reviewer_type": "ai",
+      "reviewer_role": "independent_ai_architect_claude_code",
+      "reviewer_product": "Claude Code",
+      "reviewer_model": "claude-fable-5",
+      "signature_status": "independent_ai_approved"
+    }
+  ],
+  "supersedes_release_step": {
+    "old": "Obtain an independent human architect signature.",
+    "new": "Obtain a content-addressed independent AI architect approval from the exact allowlisted Claude Code reviewer."
+  },
+  "release_rules": [
+    "The original adjudication contract remains immutable and content-addressed; this amendment is an explicit scoped governance deviation.",
+    "The AI reviewer must be identified as AI and must never be represented by a human signature status.",
+    "Only the exact allowlisted reviewer role, product, model, and whole-file attestation SHA-256 are accepted; arbitrary AI or automated roles remain rejected.",
+    "The signed pairing-v3 projection may differ from the frozen unsigned candidate only in approved, reviewer_role, and reviewed_at.",
+    "The signed projection reviewer_role and reviewed_at must exactly match the anchored AI review attestation.",
+    "The signed projection whole-file SHA-256 and the AI review attestation whole-file SHA-256 must both be production trust anchors.",
+    "S6 may be marked done only after the signed release gate passes; S7 and the test window remain blocked until then."
+  ],
+  "preserved_invariants": {
+    "test_window_access_count": 0,
+    "factor_diff_count": 0,
+    "weight_diff_count": 0,
+    "research": true,
+    "paper_auto": false,
+    "live": false,
+    "trading_safety_gates_unchanged": true
+  }
+}

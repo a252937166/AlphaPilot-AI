@@ -1,0 +1,271 @@
+{
+  "review_schema_version": "alphapilot-p3.3-s6-pairing-v3-independent-review-v1",
+  "reviewed_at": "2026-07-31T10:18:15Z",
+  "reviewer_kind": "AI evidence reviewer; not an independent human architect signatory",
+  "decision": "NOT_APPROVED",
+  "candidate_modified": false,
+  "state_preserved": {
+    "s6": "blocked",
+    "s7": "not_started",
+    "test_window": "sealed",
+    "factor_changes": 0,
+    "weight_changes": 0,
+    "trading_safety_switch_changes": 0,
+    "research": true,
+    "paper_auto": false,
+    "live": false
+  },
+  "hashes": {
+    "input_zip_sha256": "b6907a92be3f9a6c27df0eaf6dfa356c228e130fc4c8c523828051d2886b1971",
+    "restored_contract_sha256": "a16995e6545ddba7fc03d917ae6cc8d9ab19b7903f1d21c5694b1c0167b1b951",
+    "unsigned_candidate_file_sha256": "ce66411d2698afc44b73dca99686c5a5e0ea5288193eeff533204f58b0cdabde",
+    "unsigned_candidate_canonical_sha256": "d45d8a90dcce43e4ec273842bebea44ebcc083e99a1e82ef54fe840c1a31a9c5",
+    "machine_validation_sha256": "1f9cf8ae0694ed42d7dafe41a7a83a4bbe9461ed19d749024ebdfb85e045170f",
+    "local_gate_report_sha256": "bd26c5364289e3f8c8c105c3fe605cb8c2af2bb2bbd8667ea4ab9332e9b2a398",
+    "source_manifest_sha256": "c56144b3d3bb8609439ca3558695bd69b548b21b7c2c9decdf4af754d9b2abf0"
+  },
+  "integrity_checks": {
+    "zip_sha256_matches_expected": true,
+    "zip_crc_and_path_safety": "pass",
+    "restored_contract_sha256_matches_expected": true,
+    "top_level_SHA256SUMS": {
+      "ok": 160,
+      "missing": 0,
+      "mismatch": 0,
+      "pass": true
+    },
+    "raw_source_SHA256SUMS": {
+      "ok": 85,
+      "missing": 25,
+      "mismatch": 0,
+      "pass": false
+    },
+    "price_tick_rules_SHA256SUMS": {
+      "ok": 18,
+      "missing": 11,
+      "mismatch": 0,
+      "pass": false
+    },
+    "raw_source_git_chain_SHA256SUMS": {
+      "ok": 23,
+      "missing": 0,
+      "mismatch": 0,
+      "pass": true
+    },
+    "top_level_git_chain_SHA256SUMS": {
+      "ok": 23,
+      "missing": 0,
+      "mismatch": 0,
+      "pass": true
+    },
+    "missing_source_artifacts": [
+      "daily-bars/authoritative-exact-window/001260/page-001.headers",
+      "daily-bars/authoritative-exact-window/001260/page-002.headers",
+      "daily-bars/legacy-exact-window/001260/001260-page-001.headers",
+      "daily-bars/legacy-exact-window/001260/001260-page-002.headers",
+      "financial/000897-2024Q3-report-1221569864.headers",
+      "financial/002012-2018H1-report-1205282606.headers",
+      "financial/300433-2025Q3-report-1224754140.headers",
+      "financial/300662-2026Q1-report-1225198898.headers",
+      "financial/601137-2017Q1-report-1203425610.headers",
+      "price-tick-rules/meta/sse-2023-effective-date-headers.txt",
+      "price-tick-rules/meta/sse-trading-rules-2023-docx-headers.txt",
+      "price-tick-rules/meta/sse-trading-rules-2023-headers.txt",
+      "price-tick-rules/meta/sse-trading-rules-2026-docx-headers.txt",
+      "price-tick-rules/meta/sse-trading-rules-2026-headers.txt",
+      "price-tick-rules/meta/szse-2023-effective-date-headers.txt",
+      "price-tick-rules/meta/szse-a-share-tick-headers.txt",
+      "price-tick-rules/meta/szse-trading-rules-2023-headers.txt",
+      "price-tick-rules/meta/szse-trading-rules-2023-pdf-headers.txt",
+      "price-tick-rules/meta/szse-trading-rules-2026-headers.txt",
+      "price-tick-rules/meta/szse-trading-rules-2026-pdf-headers.txt",
+      "valuation/000565.headers",
+      "valuation/000690.headers",
+      "valuation/001914.headers",
+      "valuation/002186.headers",
+      "valuation/002191.headers"
+    ]
+  },
+  "fixed_sample_audit": {
+    "sample_count": 15,
+    "seed": 20260725,
+    "verdict_distribution": {
+      "numeric_match": 5,
+      "formula_match": 8,
+      "expected_unavailable": 2
+    },
+    "business_keys_unchanged": true,
+    "items": [
+      {
+        "table": "daily_bars",
+        "symbol": "001260",
+        "trade_date": "2025-10-29",
+        "verdict": "formula_match"
+      },
+      {
+        "table": "daily_bars",
+        "symbol": "600648",
+        "trade_date": "2025-06-16",
+        "verdict": "formula_match"
+      },
+      {
+        "table": "daily_bars",
+        "symbol": "600782",
+        "trade_date": "2026-01-30",
+        "verdict": "formula_match"
+      },
+      {
+        "table": "daily_bars",
+        "symbol": "000831",
+        "trade_date": "2023-05-29",
+        "verdict": "formula_match"
+      },
+      {
+        "table": "daily_bars",
+        "symbol": "001205",
+        "trade_date": "2024-05-21",
+        "verdict": "formula_match"
+      },
+      {
+        "table": "financial_indicators",
+        "symbol": "000897",
+        "report_period": "2024Q3",
+        "metric": "net_profit_yoy",
+        "verdict": "formula_match"
+      },
+      {
+        "table": "financial_indicators",
+        "symbol": "002012",
+        "report_period": "2018Q2",
+        "metric": "net_profit_yoy",
+        "verdict": "formula_match"
+      },
+      {
+        "table": "financial_indicators",
+        "symbol": "601137",
+        "report_period": "2017Q1",
+        "metric": "revenue_yoy",
+        "verdict": "expected_unavailable"
+      },
+      {
+        "table": "financial_indicators",
+        "symbol": "300433",
+        "report_period": "2025Q3",
+        "metric": "roe",
+        "verdict": "formula_match"
+      },
+      {
+        "table": "financial_indicators",
+        "symbol": "300662",
+        "report_period": "2026Q1",
+        "metric": "revenue_yoy",
+        "verdict": "expected_unavailable"
+      },
+      {
+        "table": "valuation_daily",
+        "symbol": "000565",
+        "trade_date": "2022-11-21",
+        "verdict": "numeric_match"
+      },
+      {
+        "table": "valuation_daily",
+        "symbol": "000690",
+        "trade_date": "2019-12-25",
+        "verdict": "numeric_match"
+      },
+      {
+        "table": "valuation_daily",
+        "symbol": "001914",
+        "trade_date": "2026-03-05",
+        "verdict": "numeric_match"
+      },
+      {
+        "table": "valuation_daily",
+        "symbol": "002186",
+        "trade_date": "2024-09-06",
+        "verdict": "numeric_match"
+      },
+      {
+        "table": "valuation_daily",
+        "symbol": "002191",
+        "trade_date": "2025-09-03",
+        "verdict": "numeric_match"
+      }
+    ]
+  },
+  "source_document_review": {
+    "company_action_documents": {
+      "reviewed": 9,
+      "document_facts_match_candidate": true,
+      "event_inventory_completeness_contract_met": false
+    },
+    "financial_reports": {
+      "reviewed": 5,
+      "raw_line_item_formulas_match_candidate": true,
+      "revenue_q1_exact_field_absence_claims_match_reports": true
+    },
+    "exchange_rules": {
+      "reviewed": 4,
+      "a_share_price_tick_0_01_confirmed": true,
+      "round_half_up_ex_dividend_reference_price_provenance_confirmed": false
+    },
+    "valuation_raw_payloads": {
+      "reviewed": 5,
+      "exact_dates_and_pe_pb_ps_values_match_candidate": true
+    }
+  },
+  "local_gate_report_audit": {
+    "database_open_mode": "ro",
+    "query_only": true,
+    "automated_checks_pass": true,
+    "gate_status": "blocked",
+    "ready_for_s7": false,
+    "external_pairing_accepted": false,
+    "external_pairing_sample_count": 0,
+    "only_declared_blocker": "EXTERNAL_PIT_PAIRING_PENDING",
+    "note": "Report was checked as a content-addressed artifact; the omitted production database prevents an independent rerun from this ZIP alone."
+  },
+  "blocking_findings": [
+    {
+      "id": "P0-EVENT-WINDOW-NOT-EXHAUSTIVE",
+      "severity": "P0",
+      "finding": "The contract requires enumeration of all official corporate actions from each target date through anchor date. Four of five inventories are pre-filtered to titles containing 权益分派实施公告, and the classifier recognizes only that title pattern. This does not prove absence of other adjustment-relevant actions.",
+      "impact": "The five daily-bars formula_match verdicts cannot all be accepted under the restored contract.",
+      "required_fix": "For the same five frozen keys and windows, capture complete unfiltered official announcement inventories with complete pagination, predeclare an exhaustive adjustment-event taxonomy, bind every relevant event or explicit no-event result, then regenerate the candidate and validation artifacts."
+    },
+    {
+      "id": "P0-NESTED-SOURCE-CHECKSUMS-INCOMPLETE",
+      "severity": "P0",
+      "finding": "The top-level checksum file passes, but candidate/raw-source/SHA256SUMS references 25 absent response-header artifacts; the nested price-tick-rules checksum references 11 of them. SOURCE-MANIFEST also binds those paths.",
+      "impact": "The external package cannot close the full content-addressed source chain, so schema/hash/integrity errors cannot be asserted as zero.",
+      "required_fix": "Supply sanitized deterministic header artifacts and regenerate every dependent checksum/manifest/candidate hash, or issue an explicit deviation and a self-consistent replacement source-manifest contract. Do not merely delete checksum rows."
+    },
+    {
+      "id": "P0-INDEPENDENT-HUMAN-SIGNATORY-ABSENT",
+      "severity": "P0",
+      "finding": "The restored contract and handoff require an identifiable independent human architect signature. This review was performed by an AI and cannot truthfully populate a human identity.",
+      "impact": "The three approval fields must remain unchanged.",
+      "required_fix": "After all technical blockers are closed, obtain review and signature from an identifiable independent human architect."
+    },
+    {
+      "id": "P1-PRICE-GRID-ROUNDING-PROVENANCE-GAP",
+      "severity": "P1",
+      "finding": "The exchange rules prove the A-share quote tick is CNY 0.01, but do not by themselves prove ROUND_HALF_UP quantization of the ex-dividend reference price. This rounding choice is decisive for the 600782 multiplier.",
+      "impact": "The formula is numerically reproducible but its authoritative semantic provenance is incomplete.",
+      "required_fix": "Bind an authoritative exchange/vendor methodology establishing the reference-price rounding rule, or revise the machine contract with an explicit deviation and regenerate all dependent hashes."
+    },
+    {
+      "id": "P1-SOURCE-MANIFEST-TIMESTAMP-INVALID",
+      "severity": "P1",
+      "finding": "candidate/SOURCE-MANIFEST.json contains generated_at=\"2026-07-31T14:58:56:z\", which is not a valid timezone-bearing ISO-8601 timestamp.",
+      "impact": "The provenance manifest is not strictly schema-clean even though its content hash is stable.",
+      "required_fix": "Correct the timestamp, regenerate SOURCE-MANIFEST and every dependent candidate/validation hash, and record the change as required by the evidence contract."
+    }
+  ],
+  "approval_fields": {
+    "approved": false,
+    "reviewer_role": "pending",
+    "reviewed_at": null
+  },
+  "signed_json_returned": false
+}
