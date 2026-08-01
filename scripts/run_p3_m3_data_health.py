@@ -37,6 +37,22 @@ def _arguments() -> argparse.Namespace:
             "only non-sensitive metadata and SHA-256 enter the report."
         ),
     )
+    parser.add_argument(
+        "--external-pit-ai-review-attestation",
+        type=Path,
+        help=(
+            "Content-addressed independent AI review attestation required by "
+            "the exact Claude Code reviewer profile."
+        ),
+    )
+    parser.add_argument(
+        "--external-pit-frozen-preflight",
+        type=Path,
+        help=(
+            "Content-addressed frozen S6 preflight used to re-audit the exact "
+            "candidate-bound business keys against the current database."
+        ),
+    )
     parser.add_argument("--minimum-market-coverage", type=float, default=0.90)
     parser.add_argument("--minimum-factor-cross-section", type=int, default=100)
     parser.add_argument("--minimum-sector-plates", type=int, default=100)
@@ -62,6 +78,8 @@ def _validate_paths(
     json_output: Path | None,
     markdown_output: Path | None,
     external_evidence: Path | None,
+    ai_review_attestation: Path | None,
+    frozen_preflight: Path | None,
 ) -> None:
     resolved_database = database_path.expanduser().resolve()
     if not resolved_database.is_file():
@@ -90,6 +108,59 @@ def _validate_paths(
         for label, output in outputs:
             if _same_path_or_inode(external_evidence, output):
                 raise ValueError(f"{label} must not overwrite external PIT evidence")
+    if ai_review_attestation is not None:
+        if not ai_review_attestation.expanduser().resolve().is_file():
+            raise ValueError(
+                "--external-pit-ai-review-attestation must be an existing file"
+            )
+        if external_evidence is None:
+            raise ValueError(
+                "--external-pit-ai-review-attestation requires "
+                "--external-pit-pairing-evidence"
+            )
+        if _same_path_or_inode(resolved_database, ai_review_attestation):
+            raise ValueError(
+                "--external-pit-ai-review-attestation must not be the SQLite database"
+            )
+        if _same_path_or_inode(external_evidence, ai_review_attestation):
+            raise ValueError(
+                "AI review attestation and external PIT evidence must be different files"
+            )
+        for label, output in outputs:
+            if _same_path_or_inode(ai_review_attestation, output):
+                raise ValueError(f"{label} must not overwrite AI review attestation")
+        if frozen_preflight is None:
+            raise ValueError(
+                "--external-pit-ai-review-attestation requires "
+                "--external-pit-frozen-preflight"
+            )
+    if frozen_preflight is not None:
+        if not frozen_preflight.expanduser().resolve().is_file():
+            raise ValueError(
+                "--external-pit-frozen-preflight must be an existing file"
+            )
+        if external_evidence is None:
+            raise ValueError(
+                "--external-pit-frozen-preflight requires "
+                "--external-pit-pairing-evidence"
+            )
+        protected_inputs = [
+            ("SQLite database", resolved_database),
+            ("external PIT evidence", external_evidence),
+            ("AI review attestation", ai_review_attestation),
+        ]
+        for label, protected in protected_inputs:
+            if protected is not None and _same_path_or_inode(
+                frozen_preflight,
+                protected,
+            ):
+                raise ValueError(
+                    "--external-pit-frozen-preflight must not resolve to "
+                    f"the {label}"
+                )
+        for label, output in outputs:
+            if _same_path_or_inode(frozen_preflight, output):
+                raise ValueError(f"{label} must not overwrite frozen PIT preflight")
     if (
         json_output is not None
         and markdown_output is not None
@@ -106,6 +177,8 @@ def main() -> int:
             json_output=arguments.json_out,
             markdown_output=arguments.markdown_out,
             external_evidence=arguments.external_pit_pairing_evidence,
+            ai_review_attestation=arguments.external_pit_ai_review_attestation,
+            frozen_preflight=arguments.external_pit_frozen_preflight,
         )
     except ValueError as exc:
         print(f"data-health path validation failed: {exc}", file=sys.stderr)
@@ -113,6 +186,10 @@ def main() -> int:
     report = build_data_health_report(
         arguments.db,
         external_pit_pairing_evidence=arguments.external_pit_pairing_evidence,
+        external_pit_ai_review_attestation=(
+            arguments.external_pit_ai_review_attestation
+        ),
+        external_pit_frozen_preflight=arguments.external_pit_frozen_preflight,
         minimum_market_coverage=arguments.minimum_market_coverage,
         minimum_factor_cross_section=arguments.minimum_factor_cross_section,
         minimum_sector_plates=arguments.minimum_sector_plates,

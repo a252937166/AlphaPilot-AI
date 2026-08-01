@@ -1,0 +1,149 @@
+{
+  "contract_id": "p3.3-s6-external-pit-adjudication-v1",
+  "status": "proposed_not_executed",
+  "decision": "B",
+  "deviation_required": true,
+  "evidence_schema_version": "p3.3-s6-external-pit-pairing-v3",
+  "bindings": {
+    "local_manifest_schema_version": "p3.3-s6-local-pit-manifest-v1",
+    "local_manifest_sha256": "fb9c888e7a10f7b1ef28e7a447b0e2b53df739f6acdbedb1ba95d1d41cbfb0bd",
+    "final_trial_schema_version": "p3.3-s6-external-pit-trial-v1",
+    "final_trial_sha256": "40f310a4c94e550cac33616fbe2d8ffc189cb48cd259a2913fe3379bae424099",
+    "seed": 20260725,
+    "sample_count": 15,
+    "same_business_keys_required": true,
+    "same_local_values_required": true,
+    "resampling_forbidden": true,
+    "sample_replacement_forbidden": true,
+    "sample_deletion_forbidden": true,
+    "test_window_access_forbidden": true,
+    "factor_or_weight_change_forbidden": true
+  },
+  "allowed_verdicts": {
+    "numeric_match": "Same semantic field; original fixed numeric contract passes.",
+    "formula_match": "Official event or raw-line-item reconstruction passes deterministic precision validation.",
+    "expected_unavailable": "Frozen null value is proven consistent with the predeclared cadence and exact-field availability contract."
+  },
+  "forbidden_verdicts": [
+    "explained_mismatch",
+    "waived",
+    "manual_override",
+    "narrative_only_pass"
+  ],
+  "deviations": [
+    {
+      "id": "DEV-S6-ADJ-SEMANTICS",
+      "label": "⚠ DEVIATION",
+      "change": "Replace cross-vendor absolute HFQ equality with official corporate-action reconstruction under the frozen BaoStock adjustment semantics."
+    },
+    {
+      "id": "DEV-S6-FIN-RAW-LINES",
+      "label": "⚠ DEVIATION",
+      "change": "Replace approximate Eastmoney ratio aliases with official issuer filing raw-line-item recomputation."
+    },
+    {
+      "id": "DEV-S6-EXPECTED-UNAVAILABLE",
+      "label": "⚠ DEVIATION",
+      "change": "Add a machine-verifiable expected_unavailable verdict for frozen null samples."
+    },
+    {
+      "id": "DEV-S6-PAIRING-V3",
+      "label": "⚠ DEVIATION",
+      "change": "Introduce pairing-v3 schema and read-only validator for numeric_match, formula_match and expected_unavailable."
+    },
+    {
+      "id": "DEV-S6-ROUTE-PROVENANCE",
+      "label": "⚠ DEVIATION",
+      "change": "Bind executed source, fallback reason, request parameters, first successful payload and SHA-256; prohibit source shopping."
+    }
+  ],
+  "daily_bars": {
+    "sample_count": 5,
+    "close": {
+      "acceptance": "Retain pairing-v2 tolerance policy; 5 of 5 must pass."
+    },
+    "adj_factor": {
+      "acceptance": "Enumerate all official corporate actions from target date through anchor date; the product of frozen-semantic event multipliers must lie inside the ratio interval induced by the two six-decimal stored factor intervals.",
+      "generic_tolerance_increase_forbidden": true,
+      "all_five_samples_require_event_audit": true,
+      "external_vendor_factor_role": "corroboration_only"
+    }
+  },
+  "financial_indicators": {
+    "net_profit_yoy": {
+      "sample_count": 2,
+      "authoritative_source": "Issuer periodic filing from SSE, SZSE or CNINFO, preferably machine-readable/XBRL.",
+      "formula": "(consolidated_net_profit_t - consolidated_net_profit_t_minus_4) / abs(consolidated_net_profit_t_minus_4)",
+      "parent_attributable_net_profit_substitution_forbidden": true,
+      "zero_denominator": "unavailable"
+    },
+    "roe": {
+      "sample_count": 1,
+      "authoritative_source": "Issuer periodic filing from SSE, SZSE or CNINFO, preferably machine-readable/XBRL.",
+      "formula": "parent_attributable_net_profit_cumulative / ((parent_equity_begin + parent_equity_end) / 2)",
+      "reported_weighted_roe_substitution_forbidden": true
+    },
+    "precision": {
+      "acceptance": "Propagate XBRL decimals or reported-unit rounding intervals through the formula; the frozen six-decimal local value must fall inside the result interval or quantize identically.",
+      "generic_tolerance_increase_forbidden": true
+    }
+  },
+  "revenue_yoy": {
+    "sample_count": 2,
+    "authoritative_source": "Issuer periodic filing from SSE, SZSE or CNINFO, preferably machine-readable/XBRL.",
+    "accepted_line_item": "Exact main-business-revenue concept corresponding to BaoStock MBRRevenue/MBRevenue semantics.",
+    "operating_revenue_substitution_forbidden": true,
+    "formula": "main_business_revenue_t / main_business_revenue_t_minus_4 - 1",
+    "expected_unavailable_requirements": [
+      "Original frozen business key and local null value are unchanged.",
+      "Declared cadence remains Q2 and Q4 only.",
+      "Frozen local payload records missing_current_revenue.",
+      "Official Q1 filing contains no uniquely mappable exact main-business-revenue line item.",
+      "No operating-revenue or total-operating-revenue proxy is substituted."
+    ]
+  },
+  "evidence_capture": {
+    "content_addressed": true,
+    "raw_document_or_payload_sha256_required": true,
+    "request_parameters_required": true,
+    "source_identity_required": true,
+    "parser_version_required": true,
+    "selected_line_item_or_event_required": true,
+    "units_and_rounding_required": true,
+    "formula_operands_required": true,
+    "network_policy": {
+      "transport_retry_may_be_predeclared": true,
+      "bind_first_successful_payload": true,
+      "source_shopping_forbidden": true,
+      "fallback_order_must_be_predeclared": true,
+      "fallback_error_evidence_required": true,
+      "signing_must_not_refetch_network": true
+    }
+  },
+  "acceptance_threshold": {
+    "machine_verifiable_passes": 15,
+    "total_samples": 15,
+    "unresolved": 0,
+    "generic_unavailable": 0,
+    "ambiguous_mapping": 0,
+    "schema_hash_integrity_errors": 0,
+    "local_read_only_gate": "pass",
+    "test_window_access_count": 0,
+    "factor_diff_count": 0,
+    "weight_diff_count": 0,
+    "safety_invariants": {
+      "research": true,
+      "paper_auto": false,
+      "live": false,
+      "trading_safety_gates_unchanged": true
+    }
+  },
+  "release_sequence": [
+    "Generate and validate pairing-v3 evidence for the same 15 frozen samples.",
+    "Rerun the S6 local read-only data gate and preserve its content-addressed report.",
+    "Obtain an independent human architect signature.",
+    "Mark S6 done.",
+    "Create an independent S6 commit.",
+    "Start S7."
+  ]
+}

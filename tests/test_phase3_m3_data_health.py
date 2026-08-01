@@ -1108,6 +1108,103 @@ def test_external_pairing_requires_exact_strict_json_and_reports_metadata_only(
     assert evidence_path.name in signed_markdown
 
 
+def test_pairing_v3_auto_routes_to_content_addressed_release_inputs(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    database_path = _database(tmp_path)
+    _replace_with_full_financial_history(database_path)
+    evidence_path = tmp_path / "signed-v3.json"
+    evidence_path.write_text("{}", encoding="utf-8")
+    calls: dict[str, Any] = {}
+
+    monkeypatch.setattr(
+        data_health,
+        "_external_pairing_profile",
+        lambda path: (
+            data_health.PAIRING_V3_SCHEMA_VERSION,
+            data_health.AI_REVIEWER_ROLE,
+        ),
+    )
+
+    def fake_load(path: Path) -> tuple[dict[str, Any], dict[str, Any]]:
+        calls["preflight"] = path
+        return (
+            {"manifest_sha256": data_health.FROZEN_MANIFEST_SHA256},
+            {
+                "basename": path.name,
+                "sha256": data_health.FROZEN_PREFLIGHT_SHA256,
+                "bytes": 1,
+            },
+        )
+
+    def fake_audit(
+        connection: sqlite3.Connection,
+        *,
+        frozen: dict[str, Any],
+    ) -> dict[str, Any]:
+        assert frozen["manifest_sha256"] == data_health.FROZEN_MANIFEST_SHA256
+        assert int(connection.execute("PRAGMA query_only").fetchone()[0]) == 1
+        return {
+            "mode": "exact_frozen_business_keys",
+            "database_open_mode": "ro",
+            "query_only": True,
+            "sample_count": 15,
+            "difference_count": 0,
+            "difference_sections": [],
+            "manifest_schema_version": data_health.PIT_MANIFEST_SCHEMA_VERSION,
+            "manifest_sha256": data_health.FROZEN_MANIFEST_SHA256,
+        }
+
+    def fake_pairing(
+        path: Path | None,
+        *,
+        ai_review_attestation_path: Path | None,
+        pit_samples: dict[str, Any],
+    ) -> dict[str, Any]:
+        calls["evidence"] = path
+        calls["attestation"] = ai_review_attestation_path
+        assert pit_samples["manifest_sha256"] == data_health.FROZEN_MANIFEST_SHA256
+        return {
+            "accepted": True,
+            "basename": evidence_path.name,
+            "sha256": "1" * 64,
+            "bytes": 1,
+            "schema_version": data_health.PAIRING_V3_SCHEMA_VERSION,
+            "pit_manifest_schema_version": data_health.PIT_MANIFEST_SCHEMA_VERSION,
+            "pit_manifest_sha256": data_health.FROZEN_MANIFEST_SHA256,
+            "reviewer_type": "ai",
+            "reviewer_role": data_health.AI_REVIEWER_ROLE,
+            "reviewed_at": "2026-08-01T03:29:35.045445-04:00",
+            "signature_status": data_health.INDEPENDENT_AI_SIGNATURE_STATUS,
+            "sample_count": 15,
+        }
+
+    monkeypatch.setattr(data_health, "_load_frozen_pit_samples", fake_load)
+    monkeypatch.setattr(data_health, "_audit_frozen_pit_samples", fake_audit)
+    monkeypatch.setattr(data_health, "_external_pairing_evidence", fake_pairing)
+
+    report = build_data_health_report(
+        database_path,
+        as_of_date=date(2026, 7, 25),
+        external_pit_pairing_evidence=evidence_path,
+        minimum_market_coverage=0.80,
+        minimum_factor_cross_section=2,
+        minimum_sector_plates=1,
+        minimum_sector_dates=5,
+        sample_size=1,
+        factor_probe=_sufficient_probe,
+    )
+
+    assert calls == {
+        "preflight": data_health.DEFAULT_FROZEN_PREFLIGHT_PATH,
+        "evidence": evidence_path,
+        "attestation": data_health.DEFAULT_AI_REVIEW_ATTESTATION_PATH,
+    }
+    assert report["frozen_pit_exact_key_audit"]["difference_count"] == 0
+    assert report["database"]["release_snapshot"]["stable"] is True
+
+
 def test_external_pairing_rejects_missing_empty_and_arbitrary_text(
     tmp_path: Path,
 ) -> None:
@@ -1691,4 +1788,22 @@ def test_cli_rejects_database_output_inode_and_duplicate_outputs(
     assert output_collision.returncode == 2
     assert "must be different files" in output_collision.stderr
     assert not shared_output.exists()
+    assert _sha256(database_path) == before
+
+    attestation = tmp_path / "ai-review.json"
+    attestation.write_text("{}", encoding="utf-8")
+    missing_evidence = subprocess.run(
+        [
+            *base,
+            "--external-pit-ai-review-attestation",
+            str(attestation),
+        ],
+        cwd=repository,
+        env=environment,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert missing_evidence.returncode == 2
+    assert "requires --external-pit-pairing-evidence" in missing_evidence.stderr
     assert _sha256(database_path) == before

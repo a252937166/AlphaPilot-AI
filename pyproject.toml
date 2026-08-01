@@ -59,7 +59,9 @@ where = ["src"]
 [tool.pytest.ini_options]
 addopts = "-q"
 testpaths = ["tests"]
-pythonpath = ["src"]
+# "." keeps the `scripts` namespace package importable under bare `pytest`
+# (Makefile/CI); `python -m pytest` adds the cwd on its own.
+pythonpath = ["src", "."]
 
 [tool.ruff]
 target-version = "py311"
