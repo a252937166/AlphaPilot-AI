@@ -16,6 +16,7 @@ def register_builtin_jobs() -> None:
     from alphapilot.jobs.factors import register_factor_job
     from alphapilot.jobs.financials import register_financials_job
     from alphapilot.jobs.market_poll import register_market_poll_job
+    from alphapilot.jobs.news_poll import register_news_poll_job
     from alphapilot.jobs.order_sync import register_order_sync_job
     from alphapilot.jobs.paper_auto_trade import register_paper_auto_trade_job
     from alphapilot.jobs.portfolio_snapshot import register_portfolio_jobs
@@ -40,6 +41,7 @@ def register_builtin_jobs() -> None:
     register_style_job()
     register_prediction_reconcile_job()
     register_market_poll_job()
+    register_news_poll_job()
     register_order_sync_job()
     register_paper_auto_trade_job()
     register_portfolio_jobs()

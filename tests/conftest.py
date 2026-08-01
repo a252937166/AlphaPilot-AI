@@ -16,6 +16,7 @@ os.environ["ALPHAPILOT_PROCESS_LOCK_DIR"] = f"{_tmpdir}/process-locks"
 os.environ["ALPHAPILOT_DEFAULT_DATA_PROVIDER"] = "mock"
 os.environ["ALPHAPILOT_SCHEDULER_ENABLED"] = "false"
 os.environ["ALPHAPILOT_MARKET_POLL_ENABLED"] = "false"
+os.environ["ALPHAPILOT_NEWS_POLL_ENABLED"] = "false"
 # Tests must never inherit any locally enabled paper or live execution switches.
 os.environ["ALPHAPILOT_FUTU_ENABLE_TRADE_QUERY"] = "false"
 os.environ["ALPHAPILOT_FUTU_ENABLE_TRADE"] = "false"
