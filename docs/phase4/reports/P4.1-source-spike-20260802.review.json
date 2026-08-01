@@ -1,0 +1,71 @@
+{
+  "schema_version": "p4.1-source-spike-post-run-review-v1",
+  "reviewed_at": "2026-08-01T16:22:17Z",
+  "report": "docs/phase4/reports/P4.1-source-spike-20260802.json",
+  "report_sha256": "58a28066c3c6489cd687fb217de6df78cec0a7d9f7078bccf17637081a216316",
+  "job_run_id": 45488,
+  "verdict": "valid_for_source_feasibility_review_with_constraints",
+  "scope": {
+    "p4_1_spike_complete": true,
+    "p4_1_full_implementation_complete": false,
+    "p4_2_unlocked": false,
+    "source_promotion_requires_architecture_review": true
+  },
+  "source_findings": {
+    "cninfo": {
+      "verdict": "primary_candidate",
+      "constraints": [
+        "全局 sse/szse 样本出现 3 个重复 URL，正式实现必须按 URL+content_hash 幂等去重。",
+        "本次为兼容既有客户端关闭 TLS 证书校验；进入关键路径前必须单独处置证书链风险。",
+        "周末单次 spike 不证明三交易日稳定性或生产频控容量。"
+      ]
+    },
+    "sina_company_news": {
+      "verdict": "primary_candidate_for_title_and_url_only",
+      "sample_count": 9,
+      "explicit_title_to_tested_company_matches": 4,
+      "ambiguous_page_context_only_matches": 5,
+      "constraints": [
+        "datelist 容器可排除 v1 的 realstock 行情页假阳性。",
+        "页面上下文不能单独证明个股归属；标题或正文未明确命中证券代码/名称时必须写 symbol=null。",
+        "当前解析未获得规范 published_at，必须保持 nullable，不得用 available_time 反填。"
+      ]
+    },
+    "akshare_non_eastmoney": {
+      "verdict": "degraded_candidate",
+      "constraints": [
+        "stock_info_global_ths 字段完整，可作主来源候选。",
+        "stock_info_global_cls 单次请求 HTTP 404，本轮 unavailable，未重试。",
+        "stock_news_main_cx 只有摘要和 URL、无标题，只能作辅助来源。"
+      ]
+    },
+    "futu_auxiliary": {
+      "verdict": "unavailable_under_frozen_contract",
+      "constraints": [
+        "get_market_snapshot 实际无 change_rate 字段，冻结字段门如实失败。",
+        "本次仅调用报价方法，trade_methods_called=[]；不得据此改宽字段门并重解释同一轮。",
+        "2026-08-02 为周日，推送延迟和交易时段新鲜度未验证。"
+      ]
+    },
+    "eastmoney": {
+      "verdict": "not_probed_by_owner_directed_scope",
+      "constraints": [
+        "未进入任何请求路径，也未晋级关键路径。"
+      ]
+    }
+  },
+  "pit_and_safety": {
+    "available_time_policy": "jobrun_evidence_persisted_at_utc",
+    "available_time_coverage": 1.0,
+    "available_time_equals_published_at_count": 0,
+    "safety_unchanged": true,
+    "trade_proposals_before_after": "1/1",
+    "broker_orders_before_after": "1/1",
+    "non_simulate_broker_orders": 0,
+    "live_trading_enabled": false,
+    "paper_auto_trading_enabled": false,
+    "futu_enable_trade": false,
+    "futu_enable_account_mutation": false,
+    "unlock_trade_permanently_blocked": true
+  }
+}
