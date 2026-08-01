@@ -1,0 +1,56 @@
+version: v3.0.0
+profile: train_ic_ir_once
+signal_id: composite-v3
+method: signed_train_ic_ir_l1
+train_window:
+  start: '2019-01-02'
+  end: '2024-04-22'
+generated_at: '2026-08-01T14:47:30.438819+00:00'
+horizon: 20d
+rebalance_freq: 20d
+correlation_threshold: 0.8
+historical_factor_candidates:
+- momentum_20d
+- momentum_60d
+- volatility_20d
+- turnover_change_5d
+- roe
+- net_profit_yoy
+- ocf_to_profit
+- debt_ratio
+- revenue_yoy
+- pe_percentile
+- pb_percentile
+history_excluded_pit_gap:
+- net_inflow_5d
+live_only_factors:
+- sector_strength
+factor_ic_ir:
+  momentum_20d: -0.5194832484935435
+  momentum_60d: -0.3705059332897325
+  volatility_20d: -0.5128358244744925
+  turnover_change_5d: -0.09618198141360215
+  net_inflow_5d: null
+  roe: -0.009379194159440257
+  net_profit_yoy: 0.0906393742434476
+  ocf_to_profit: 0.32042305716505093
+  debt_ratio: 0.022325692855829072
+  revenue_yoy: -0.10989681334230521
+  pe_percentile: -0.28266756760511375
+  pb_percentile: -0.3871586652580874
+  sector_strength: null
+redundancy_groups: []
+weights:
+  momentum_20d: -0.19088140874154927
+  momentum_60d: -0.136140471706328
+  volatility_20d: -0.18843884747525536
+  turnover_change_5d: -0.035341567145855846
+  net_inflow_5d: 0.0
+  roe: -0.003446335948668648
+  net_profit_yoy: 0.03330496506521482
+  ocf_to_profit: 0.1177377802312312
+  debt_ratio: 0.008203459333501032
+  revenue_yoy: -0.040381010567363894
+  pe_percentile: -0.10386472261902364
+  pb_percentile: -0.14225943116600828
+  sector_strength: 0.0

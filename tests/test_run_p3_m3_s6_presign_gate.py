@@ -571,6 +571,15 @@ def test_actual_repo_scopes_match_frozen_baseline() -> None:
         text=True,
     ).stdout.strip()
     assert resolved == presign.FROZEN_BASELINE_COMMIT
+    # The S9 acceptance (2026-08-01) sanctioned exactly one weight-scope delta
+    # against the frozen S6 baseline: the composite-v3 weights file produced by
+    # the pre-registered rebuild. Everything else must remain drift-free.
+    sanctioned = {
+        "factor": [],
+        "weight": ["config/factor_weights_v3.yaml"],
+        "trading_safety_gate": [],
+        "test_window_guard": [],
+    }
     for name, paths in (
         ("factor", presign.FACTOR_SCOPE),
         ("weight", presign.WEIGHT_SCOPE),
@@ -582,4 +591,8 @@ def test_actual_repo_scopes_match_frozen_baseline() -> None:
             paths=paths,
             baseline_commit=resolved,
         )
-        assert attestation["diff_count"] == 0
+        assert attestation["changed_paths"] == sanctioned[name]
+        assert attestation["diff_count"] == len(sanctioned[name])
+        statuses = {item["path"]: item["status"] for item in attestation["files"]}
+        for path in sanctioned[name]:
+            assert statuses[path] == "added"

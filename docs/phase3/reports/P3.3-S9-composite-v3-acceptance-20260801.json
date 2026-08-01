@@ -1,0 +1,162 @@
+{
+  "criteria_evaluation": {
+    "leg1_ic_significance": {
+      "pass": true,
+      "t": 4.8,
+      "threshold": 2.0
+    },
+    "leg2_direction": {
+      "pass": true
+    },
+    "leg3_dual_benchmark_excess": {
+      "pass": false,
+      "vs_csi300_pp": 7.91,
+      "vs_equal_weight_pp": -23.98
+    }
+  },
+  "formal_research_jobrun": {
+    "boundary_sentinel_matches_s7": true,
+    "duration_seconds": 3185.253,
+    "id": 45212,
+    "phase_durations_seconds": {
+      "calendar": 30.409,
+      "ic_full": 760.17,
+      "ic_test": 249.447,
+      "ic_train": 663.075,
+      "persist_atomic": 0.017,
+      "rebuild": 996.974,
+      "train_correlation": 485.145
+    },
+    "prior_failed_attempt": {
+      "database_writes": 0,
+      "id": 45207,
+      "reason": "evidence path pointed at archival copy without bundle artifacts",
+      "research_started": false,
+      "weights_written": false
+    },
+    "status": "ok",
+    "weights_written": true
+  },
+  "generated_at": "2026-08-01T14:59:27.365752+00:00",
+  "honest_limits": [
+    "survivorship_bias=true：当前在册宇宙回放，多年窗含幸存者偏差",
+    "sector_strength live-only、net_inflow_5d history_excluded_pit_gap，未参与",
+    "missing_holding_marks=317（停牌持仓当日无标记，按最后标记估值）",
+    "等权基准大幅跑赢沪深300（1.627 vs 1.309），组合超额未能覆盖该风格差",
+    "单次样本外检验；即使转正也不足以开 paper_auto（M4 滚动验证前置）——本次未转正，更不触碰"
+  ],
+  "preregistration": {
+    "criteria": [
+      "test 窗 composite Rank IC |t| >= 2",
+      "IC 方向与 train 构建方向一致（正）",
+      "扣费净值对沪深300与等权双基准超额均为正"
+    ],
+    "no_post_hoc_changes": true,
+    "ratified_before_any_test_result": true,
+    "windows_frozen_from_s7_contract": {
+      "full": "2019-01-02..2026-07-31 (1838)",
+      "test": "2024-04-23..2026-07-31 (552)",
+      "train": "2019-01-02..2024-04-22 (1286)"
+    }
+  },
+  "safety_invariants": {
+    "broker_orders": 1,
+    "effective_values_unchanged_vs_s6_presign_attestation": true,
+    "live": false,
+    "paper_auto": false,
+    "pre_s9_backup_sha256": "c9f2de73ed3caefbec9e586900521be5ea76a8a0b9d0174e1083b9dc61428d82",
+    "quick_check": "ok",
+    "research": true,
+    "running_job_runs": 0,
+    "scheduler_bounded_pause_with_exit_trap": true,
+    "trade_proposals": 1,
+    "unlock_trade_permanently_blocked": true
+  },
+  "schema_version": "p3.3-s9-composite-v3-acceptance-v1",
+  "scope_drift": {
+    "factor_scope_vs_head_a8fa262": 0,
+    "out_of_scope_changes": [
+      "scripts/run_factor_research.py (+--do-rebuild/--output-path, alias guard)",
+      "tests/test_phase3_m3_rerun.py (+3 tests)"
+    ],
+    "test_window_guard_scope_vs_head": 0,
+    "trading_safety_gate_scope_vs_head": 0,
+    "weight_scope_delta": [
+      "config/factor_weights_v3.yaml added (sanctioned S9 product)"
+    ]
+  },
+  "test_window_backtest": {
+    "backtest_run_id": 10,
+    "composite_daily_rank_ic": {
+      "direction_consistent_with_train": true,
+      "mean": 0.03935,
+      "n": 551,
+      "sd": 0.19242,
+      "t_stat": 4.8
+    },
+    "config": {
+      "benchmark_symbol": "SH.000300",
+      "cost_model": {
+        "commission_bps": 2.5,
+        "commission_min": 5.0,
+        "slippage_bps": 5.0,
+        "stamp_duty_bps": 10.0,
+        "transfer_bps": 0.2
+      },
+      "end_date": "2026-07-31",
+      "rebalance_freq": "20d",
+      "signal_id": "composite-v3",
+      "start_date": "2024-04-23",
+      "top_pct": 0.1
+    },
+    "independent_recomputation": {
+      "both_match_persisted_to_6dp": true,
+      "csi300_nav_from_raw_bars": 1.308586,
+      "equal_weight_nav_from_raw_bars": 1.627476,
+      "method": "stdlib+sqlite only; engine price-domain semantics replicated"
+    },
+    "results": {
+      "benchmark_nav_csi300": 1.3085859951539307,
+      "blocked_buy": 26,
+      "blocked_sell": 144,
+      "cost_to_initial_capital": 0.14745586001578592,
+      "excess_vs_csi300": 0.07906888411709034,
+      "excess_vs_equal_weight": -0.23982127821141752,
+      "final_nav": 1.387654879271021,
+      "market_nav_equal_weight": 1.6274761574824386,
+      "missing_holding_marks": 317,
+      "rebalances": 28,
+      "trading_days": 552
+    },
+    "status": "completed"
+  },
+  "verdict": "not_promoted",
+  "verdict_zh": "composite-v3 未转正（预注册三条腿中第三条失败）",
+  "weights": {
+    "independent_recomputation": {
+      "l1_norm": 1.0,
+      "max_train_pairwise_abs_correlation": 0.5383436078856265,
+      "pairs_at_or_above_threshold_0p8": 0,
+      "weight_formula_max_abs_diff": 0.0,
+      "yaml_ic_ir_equals_persisted_train_rows": true
+    },
+    "method": "signed_train_ic_ir_l1",
+    "nonzero_fundamental_or_valuation": [
+      "ocf_to_profit",
+      "pe_percentile",
+      "pb_percentile",
+      "net_profit_yoy",
+      "revenue_yoy",
+      "debt_ratio",
+      "roe"
+    ],
+    "path": "config/factor_weights_v3.yaml",
+    "sha256": "7c8d080eb88df5508b6df356e4d942b531c4a2e25e495303ec40061760e45f27",
+    "signal_id": "composite-v3",
+    "version": "v3.0.0",
+    "zero_enforced": [
+      "net_inflow_5d",
+      "sector_strength"
+    ]
+  }
+}
