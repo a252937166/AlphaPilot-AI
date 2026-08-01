@@ -51,6 +51,17 @@ def _parser() -> argparse.ArgumentParser:
         help="Final policy-approved S6 external PIT pairing evidence.",
     )
     parser.add_argument(
+        "--do-rebuild",
+        action="store_true",
+        help="S9 only: rebuild composite-v3 weights from the train window.",
+    )
+    parser.add_argument(
+        "--output-path",
+        type=Path,
+        default=None,
+        help="S9 only: explicit config/factor_weights_v3.yaml destination.",
+    )
+    parser.add_argument(
         "--foreground",
         action="store_true",
         help="Run in this process. Omit to detach and write an unbuffered log.",
@@ -78,6 +89,12 @@ def _detached_command(arguments: argparse.Namespace) -> list[str]:
         "--external-pit-evidence",
         str(arguments.external_pit_evidence.expanduser().resolve()),
     ]
+    if arguments.do_rebuild:
+        command.append("--do-rebuild")
+    if arguments.output_path is not None:
+        command.extend(
+            ["--output-path", str(arguments.output_path.expanduser().resolve())]
+        )
     return command
 
 
@@ -135,6 +152,31 @@ def _validated_log_path(
     return destination
 
 
+def _validated_output_path(
+    output_path: Path | None,
+    *,
+    evidence_path: Path,
+) -> Path | None:
+    if output_path is None:
+        return None
+    destination = output_path.expanduser().resolve()
+    database = _database_path(get_settings().database_url)
+    protected = (
+        database,
+        Path(f"{database}-wal"),
+        Path(f"{database}-shm"),
+        Path(f"{database}-journal"),
+        evidence_path.expanduser().resolve(),
+        _LOCK_PATH.expanduser().resolve(),
+    )
+    if _aliases_protected_path(destination, protected):
+        raise ValueError(
+            "S9 weights output must not alias the SQLite database, a database "
+            "sidecar, signed S6 evidence, or the research host lock"
+        )
+    return destination
+
+
 def _detach(arguments: argparse.Namespace) -> int:
     log_path = _validated_log_path(
         arguments.log_path,
@@ -164,6 +206,10 @@ def _foreground(arguments: argparse.Namespace) -> int:
     os.environ["ALPHAPILOT_S6_EXTERNAL_PIT_EVIDENCE"] = str(
         arguments.external_pit_evidence.expanduser().resolve()
     )
+    output_path = _validated_output_path(
+        arguments.output_path,
+        evidence_path=arguments.external_pit_evidence,
+    )
     register_factor_research_job()
     with (
         _research_host_lock(),
@@ -176,8 +222,8 @@ def _foreground(arguments: argparse.Namespace) -> int:
             start_date=arguments.start_date,
             end_date=arguments.end_date,
             train_ratio=arguments.train_ratio,
-            do_rebuild=False,
-            output_path=None,
+            do_rebuild=arguments.do_rebuild,
+            output_path=output_path,
         )
     print(
         json.dumps(

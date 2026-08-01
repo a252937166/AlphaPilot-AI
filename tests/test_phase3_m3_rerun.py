@@ -325,6 +325,8 @@ def test_foreground_runner_registers_job_and_forces_s7_only(
             end_date=date(2026, 7, 23),
             train_ratio=0.7,
             external_pit_evidence=evidence,
+            do_rebuild=False,
+            output_path=None,
         )
     )
 
@@ -351,6 +353,79 @@ def test_foreground_runner_registers_job_and_forces_s7_only(
     ]
 
 
+def test_foreground_runner_threads_s9_rebuild_flags(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    calls: list[tuple[str, dict[str, Any]]] = []
+    monkeypatch.setattr(
+        run_factor_research,
+        "register_factor_research_job",
+        lambda: monkeypatch.setitem(
+            run_factor_research.JOBS,
+            run_factor_research.FORMAL_RESEARCH_JOB_NAME,
+            object(),
+        ),
+    )
+    monkeypatch.setattr(
+        run_factor_research,
+        "_research_host_lock",
+        _fake_session,
+    )
+    monkeypatch.setattr(
+        run_factor_research,
+        "run_job",
+        lambda name, **kwargs: (
+            calls.append((name, kwargs))
+            or SimpleNamespace(id=9, status="ok", error=None, stats={})
+        ),
+    )
+    evidence = tmp_path / "signed.json"
+    output = tmp_path / "config" / "factor_weights_v3.yaml"
+
+    result = run_factor_research._foreground(
+        SimpleNamespace(
+            start_date=date(2019, 1, 2),
+            end_date=date(2026, 7, 31),
+            train_ratio=0.7,
+            external_pit_evidence=evidence,
+            do_rebuild=True,
+            output_path=output,
+        )
+    )
+
+    assert result == 0
+    assert calls[0][1]["do_rebuild"] is True
+    assert calls[0][1]["output_path"] == output.resolve()
+
+
+def test_s9_output_path_rejects_database_and_evidence_aliases(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    database = tmp_path / "alphapilot.db"
+    database.write_bytes(b"database")
+    evidence = tmp_path / "signed.json"
+    evidence.write_text("signed", encoding="utf-8")
+    monkeypatch.setattr(
+        run_factor_research,
+        "get_settings",
+        lambda: SimpleNamespace(database_url=f"sqlite:///{database}"),
+    )
+
+    for target in (database, Path(f"{database}-wal"), evidence):
+        with pytest.raises(ValueError, match="must not alias"):
+            run_factor_research._validated_output_path(
+                target,
+                evidence_path=evidence,
+            )
+    assert run_factor_research._validated_output_path(
+        None,
+        evidence_path=evidence,
+    ) is None
+    assert database.read_bytes() == b"database"
+
+
 def test_detached_child_uses_resolved_evidence_and_research_safety_env(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
@@ -374,12 +449,16 @@ def test_detached_child_uses_resolved_evidence_and_research_safety_env(
             train_ratio=0.7,
             external_pit_evidence=evidence,
             log_path=tmp_path / "research.log",
+            do_rebuild=True,
+            output_path=tmp_path / "factor_weights_v3.yaml",
         )
     )
 
     assert result == 0
     command = captured["command"]
     assert str(evidence.resolve()) in command
+    assert "--do-rebuild" in command
+    assert str((tmp_path / "factor_weights_v3.yaml").resolve()) in command
     child_env = captured["kwargs"]["env"]
     assert all(
         child_env[key] == value
