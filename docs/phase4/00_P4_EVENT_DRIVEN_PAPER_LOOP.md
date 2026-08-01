@@ -31,12 +31,55 @@
 
 ## P4.1 资讯底座（先做 1 天可行性 spike，产出报告后停下等复核）
 
-**Spike**：实测并出具 `docs/phase4/reports/P4.1-source-spike-<date>.json`，逐源记录
+**Spike ✅ done 2026-08-02**：实测并出具
+`docs/phase4/reports/P4.1-source-spike-<date>.json`，逐源记录
 可用性/延迟/字段/频控/封锁情况：
 - 巨潮公告增量轮询（已有 `src/alphapilot/cninfo/client.py`，两步查询免凭据，最可靠）；
 - 新浪财经个股资讯（本机对 sina 直连可用，见 `data/baostock_provider.py` 的 hfq 先例）；
 - AKShare 中**非东财上游**的新闻接口（东财源已封，逐一验证再用）；
 - 富途快照/推送中的辅助信号（涨跌异动，无新闻正文）。
+
+### P4.1 source spike 证据记录（2026-08-02）
+
+- 最终预注册契约：commit `9504530`，config
+  `config/p4_source_spike_v2.yaml`，SHA-256
+  `0b8f28ba7136fcda7372a8389faa659ee80ea5240ea2799df9576d52eea4d5fd`。
+- 最终机器报告：`docs/phase4/reports/P4.1-source-spike-20260802.json`，SHA-256
+  `58a28066c3c6489cd687fb217de6df78cec0a7d9f7078bccf17637081a216316`；
+  JobRun `45488` 为 `ok`，config/执行输入运行前后哈希一致。
+- 人工逐样本复核：`docs/phase4/reports/P4.1-source-spike-20260802.review.json`，
+  SHA-256 `b2e9fb3b35c4fa69716fb0e4e9dc8237240d960e52183c9cd72ca4cf470cbc4d`。
+- PIT：23/23 样本的 `available_time` 均为分源证据写入 JobRun 的 UTC 时刻，
+  `available_time == published_at` 为 0；本 spike 不建 `news_items`，正式 P4.1 仍须按同一
+  落库语义实现并做重放测试。
+- 安全：执行前后 `trade_proposals=1/1`、`broker_orders=1/1` 且身份哈希不变，
+  非 SIMULATE 委托为 0；`research`、`live=false`、`paper_auto=false`、
+  `futu_enable_trade=false`、账户 mutation=false、`unlock_trade` 永久封锁。
+
+逐源结论：
+
+- 巨潮：主来源候选；8/8 受限请求成功、无重试/限流。样本中发现 3 个重复 URL，正式实现
+  必须执行 `url+content_hash` 幂等去重。当前为兼容既有客户端关闭 TLS 证书校验，进入关键
+  路径前须单独处置证书链风险。
+- 新浪：标题/URL 主来源候选；`datelist` 容器能排除行情页与导航假阳性。但 9 条样本中仅
+  4 条标题明确命中受测公司，页面上下文不得单独证明个股归属；未明确命中证券代码/名称时
+  必须写 `symbol=NULL`。当前 `published_at` 未规范抽取，保持 nullable。
+- AKShare 非东财：降级候选；同花顺上游字段完整可作主来源候选，财联社上游单次 HTTP 404
+  如实 unavailable，财新只有摘要/URL、无标题，只作辅助。
+- 富途辅助：在冻结字段门下 unavailable；`get_market_snapshot` 实际无 `change_rate` 字段，
+  本轮未事后放宽门槛。仅调用 `get_market_snapshot`，交易方法调用为 0；周日无法验证推送
+  延迟与交易时段新鲜度。
+- 东财：按 owner 本轮明确范围未探测、未进入请求路径、不得据规格中的历史恢复描述晋级。
+
+⚠ DEVIATION：首次 v1 运行 JobRun `45453` 将 `realstock/company` 行情页误判为新浪新闻。
+原始报告按 SHA
+`d73673c0b70cab57270cc08f646598bcbaf247f3adfcd3db5b6757c0a46bf5cb`
+原样保存在 `P4.1-source-spike-20260802-invalid-v1.json`，并由配套 invalidation JSON 明确禁止
+用于来源晋级；未删除、未改写历史 JobRun。修复经新版本配置先提交、后重测，未用 v1 结果
+调策略或评估参数。
+
+**边界**：这里只标 source spike done。P4.1 表/迁移/`news_poll`/三交易日验收均未开始，
+P4.2 继续锁定，等待独立复核。
 
 **实现**：
 - 表 `news_items(id, source, symbol NULLABLE, title, url UNIQUE, published_at NULLABLE,
