@@ -88,12 +88,9 @@ _EXPECTED_SOURCES: JsonObject = {
             "https://vip.stock.finance.sina.com.cn/corp/go.php/"
             "vCB_AllNewsStock/symbol/{market_symbol}.phtml"
         ),
-        "allowed_news_url_patterns": [
-            "/stock/",
-            "/corp/view/vCB_AllNewsStockDetail.php",
-            "/realstock/company/",
-        ],
-        "require_symbol_token_in_url": True,
+        "required_container_classes": ["datelist"],
+        "forbidden_news_url_patterns": ["/realstock/company/"],
+        "symbol_context_from_scoped_page": True,
         "symbol_probes": [
             {"symbol": "600519", "market_symbol": "sh600519"},
             {"symbol": "000001", "market_symbol": "sz000001"},
@@ -139,6 +136,53 @@ _EXPECTED_SOURCES: JsonObject = {
         ],
         "symbols": ["SH.600519", "SZ.000001"],
     },
+}
+_EXPECTED_FORBIDDEN_UPSTREAMS = [
+    "eastmoney.com",
+    "eastmoney.com.cn",
+    "push2.eastmoney.com",
+    "push2ex.eastmoney.com",
+    "np-weblist.eastmoney.com",
+    "search-api-web.eastmoney.com",
+]
+_EXPECTED_SCOPE_EXCLUSIONS: JsonObject = {
+    "eastmoney": {
+        "status": "not_probed_by_owner_directed_scope",
+        "reason": ("本轮只实测巨潮、新浪、AKShare 非东财上游与富途辅助信号；东财不进入请求路径。"),
+    }
+}
+_EXPECTED_PRIOR_INVALID_EVIDENCE: JsonObject = {
+    "report": "docs/phase4/reports/P4.1-source-spike-20260802-invalid-v1.json",
+    "report_sha256": "d73673c0b70cab57270cc08f646598bcbaf247f3adfcd3db5b6757c0a46bf5cb",
+    "job_run_id": 45453,
+    "verdict": "invalid_for_source_feasibility_decision",
+    "reason": (
+        "新浪解析器把 realstock/company 个股行情页误判为新闻；原始证据保留但不得用于来源晋级。"
+    ),
+}
+_EXPECTED_SAFETY: JsonObject = {
+    "required_trading_mode": "research",
+    "required_live_trading_enabled": False,
+    "required_paper_auto_trading_enabled": False,
+    "required_futu_trade_enabled": False,
+    "required_futu_account_mutation_enabled": False,
+    "required_unlock_trade_blocked": True,
+    "allow_trade_proposal_creation": False,
+    "allow_broker_order_creation": False,
+    "existing_broker_orders_must_all_be_simulate": True,
+}
+_EXPECTED_DOCUMENT: JsonObject = {
+    "schema_version": "p4.1-source-spike-v2",
+    "baseline_commit": "e288be683deef67891ebea0b37b508f4eb59b37c",
+    "probe_date_shanghai": "2026-08-02",
+    "pre_registered_at": "2026-08-01T16:19:42Z",
+    "prior_invalid_evidence": _EXPECTED_PRIOR_INVALID_EVIDENCE,
+    "network": _EXPECTED_NETWORK,
+    "assessment": _EXPECTED_ASSESSMENT,
+    "forbidden_upstreams": _EXPECTED_FORBIDDEN_UPSTREAMS,
+    "scope_exclusions": _EXPECTED_SCOPE_EXCLUSIONS,
+    "sources": _EXPECTED_SOURCES,
+    "safety": _EXPECTED_SAFETY,
 }
 
 
@@ -215,7 +259,9 @@ def load_source_spike_config(path: Path) -> SourceSpikeConfig:
     if not isinstance(loaded, dict):
         raise ValueError("P4.1 source-spike config must be a mapping")
     document = cast(JsonObject, loaded)
-    if document.get("schema_version") != "p4.1-source-spike-v1":
+    if document != _EXPECTED_DOCUMENT:
+        raise ValueError("P4.1 v2 config does not match the fully frozen document")
+    if document.get("schema_version") != "p4.1-source-spike-v2":
         raise ValueError("unsupported P4.1 source-spike config version")
     if document.get("baseline_commit") != "e288be683deef67891ebea0b37b508f4eb59b37c":
         raise ValueError("P4.1 phase baseline must remain e288be6")
@@ -236,20 +282,7 @@ def load_source_spike_config(path: Path) -> SourceSpikeConfig:
         raise ValueError("P4.1 frozen source contract changed")
 
     safety = document.get("safety")
-    required_safety = {
-        "required_trading_mode": "research",
-        "required_live_trading_enabled": False,
-        "required_paper_auto_trading_enabled": False,
-        "required_futu_trade_enabled": False,
-        "required_futu_account_mutation_enabled": False,
-        "required_unlock_trade_blocked": True,
-        "allow_trade_proposal_creation": False,
-        "allow_broker_order_creation": False,
-        "existing_broker_orders_must_all_be_simulate": True,
-    }
-    if not isinstance(safety, dict) or any(
-        safety.get(key) != expected for key, expected in required_safety.items()
-    ):
+    if safety != _EXPECTED_SAFETY:
         raise ValueError("P4.1 safety contract was weakened")
 
     forbidden_raw = document.get("forbidden_upstreams")
@@ -733,11 +766,16 @@ def _probe_cninfo(
     }
 
 
-class _AnchorCollector(HTMLParser):
-    def __init__(self) -> None:
+class _ScopedAnchorCollector(HTMLParser):
+    def __init__(self, required_container_classes: set[str]) -> None:
         super().__init__(convert_charrefs=True)
+        self.required_container_classes = required_container_classes
+        self._stack: list[tuple[str, bool]] = []
+        self._scope_depth = 0
         self._href: str | None = None
         self._text: list[str] = []
+        self.all_anchor_count = 0
+        self.container_count = 0
         self.anchors: list[tuple[str, str]] = []
 
     def handle_starttag(
@@ -745,22 +783,54 @@ class _AnchorCollector(HTMLParser):
         tag: str,
         attrs: list[tuple[str, str | None]],
     ) -> None:
-        if tag.lower() != "a":
-            return
+        normalized_tag = tag.lower()
         values = dict(attrs)
+        classes = {item for item in str(values.get("class") or "").split() if item}
+        enters_scope = bool(classes.intersection(self.required_container_classes))
+        self._stack.append((normalized_tag, enters_scope))
+        if enters_scope:
+            self._scope_depth += 1
+            self.container_count += 1
+        if normalized_tag != "a":
+            return
+        self.all_anchor_count += 1
+        if self._scope_depth == 0:
+            return
         self._href = values.get("href")
         self._text = []
+
+    def handle_startendtag(
+        self,
+        tag: str,
+        attrs: list[tuple[str, str | None]],
+    ) -> None:
+        self.handle_starttag(tag, attrs)
+        self.handle_endtag(tag)
 
     def handle_data(self, data: str) -> None:
         if self._href is not None:
             self._text.append(data)
 
     def handle_endtag(self, tag: str) -> None:
-        if tag.lower() == "a" and self._href is not None:
+        normalized_tag = tag.lower()
+        if normalized_tag == "a" and self._href is not None:
             text = re.sub(r"\s+", " ", "".join(self._text)).strip()
             self.anchors.append((self._href, text))
             self._href = None
             self._text = []
+        matching_index = next(
+            (
+                index
+                for index in range(len(self._stack) - 1, -1, -1)
+                if self._stack[index][0] == normalized_tag
+            ),
+            None,
+        )
+        if matching_index is None:
+            return
+        popped = self._stack[matching_index:]
+        del self._stack[matching_index:]
+        self._scope_depth -= sum(1 for _, enters_scope in popped if enters_scope)
 
 
 def _probe_sina(
@@ -792,8 +862,9 @@ def _probe_sina(
     samples: list[JsonObject] = []
     probes: list[JsonObject] = []
     max_samples = int(cast(dict[str, Any], config.document["assessment"])["max_samples_per_probe"])
-    allowed_patterns = tuple(
-        str(item) for item in cast(list[str], source["allowed_news_url_patterns"])
+    required_classes = {str(item) for item in cast(list[str], source["required_container_classes"])}
+    forbidden_patterns = tuple(
+        str(item) for item in cast(list[str], source["forbidden_news_url_patterns"])
     )
     try:
         for raw_probe in cast(list[dict[str, Any]], source["symbol_probes"]):
@@ -802,9 +873,14 @@ def _probe_sina(
             url = str(source["page_url_template"]).format(market_symbol=market_symbol)
             try:
                 response, evidence = budget.request("GET", url)
-                parser = _AnchorCollector()
+                parser = _ScopedAnchorCollector(required_classes)
                 parser.feed(str(getattr(response, "text", "") or ""))
                 observed_at = budget.mark_observed(evidence)
+                if parser.container_count == 0:
+                    raise ProbeFailure(
+                        "schema_changed",
+                        (f"Sina company-news container not found: {sorted(required_classes)}"),
+                    )
                 seen: set[str] = set()
                 matched = 0
                 for raw_href, title in parser.anchors:
@@ -819,12 +895,7 @@ def _probe_sina(
                         )
                         or absolute.rstrip("/") == url.rstrip("/")
                         or len(title) < 6
-                        or not any(pattern in parsed.path for pattern in allowed_patterns)
-                        or (
-                            bool(source["require_symbol_token_in_url"])
-                            and symbol not in absolute
-                            and market_symbol not in absolute
-                        )
+                        or any(pattern in parsed.path for pattern in forbidden_patterns)
                         or parsed.path.lower().endswith((".jpg", ".png", ".css", ".js"))
                     ):
                         continue
@@ -839,14 +910,21 @@ def _probe_sina(
                                 url=absolute,
                                 published_at=None,
                                 observed_at=observed_at,
-                                raw={"href": raw_href, "title": title},
+                                raw={
+                                    "href": raw_href,
+                                    "title": title,
+                                    "symbol_context": market_symbol,
+                                    "selector_classes": sorted(required_classes),
+                                },
                             )
                         )
                 probes.append(
                     {
                         "probe": f"symbol:{symbol}",
                         "status": "ok",
-                        "anchors": len(parser.anchors),
+                        "all_anchors": parser.all_anchor_count,
+                        "news_container_count": parser.container_count,
+                        "anchors_in_news_container": len(parser.anchors),
                         "native_news_candidates": matched,
                     }
                 )
@@ -1359,6 +1437,7 @@ def run_p4_source_spike(
         "config_sha256": config.sha256,
         "expected_config_sha256": expected_config_sha256,
         "planned_report_path": planned_report_path,
+        "prior_invalid_evidence": _json_safe(config.document["prior_invalid_evidence"]),
         "started_at": _iso_utc(_utc_now()),
         "sources": {},
         "source_failures": [],
@@ -1425,6 +1504,17 @@ def run_p4_source_spike(
                 }
             )
         )
+        sampled_urls = [
+            str(sample["url"])
+            for sample in _collect_samples({source_id: result})
+            if sample.get("url")
+        ]
+        result["sample_url_audit"] = {
+            "url_count": len(sampled_urls),
+            "unique_url_count": len(set(sampled_urls)),
+            "duplicate_url_instances": len(sampled_urls) - len(set(sampled_urls)),
+            "scope": "bounded_samples_only",
+        }
         stats["sources"] = source_results
         stats["source_failures"] = [
             {"source_id": current_source_id, **failure}

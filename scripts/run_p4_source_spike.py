@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Any
 
 PROJECT_DIR = Path(__file__).resolve().parent.parent
-DEFAULT_CONFIG = Path("config/p4_source_spike_v1.yaml")
+DEFAULT_CONFIG = Path("config/p4_source_spike_v2.yaml")
 DEFAULT_REPORT = Path("docs/phase4/reports/P4.1-source-spike-20260802.json")
 EXECUTION_INPUTS = (
     DEFAULT_CONFIG,
@@ -228,7 +228,7 @@ def main() -> int:
     terminal_at = datetime.now(UTC).isoformat()
     source_statuses = _source_statuses(stats)
     report: dict[str, Any] = {
-        "schema_version": "p4.1-source-spike-report-v1",
+        "schema_version": "p4.1-source-spike-report-v2",
         "generated_at": terminal_at,
         "phase_baseline_commit": stats.get(
             "phase_baseline_commit",
@@ -247,6 +247,7 @@ def main() -> int:
             ],
             "stop_after_report": True,
         },
+        "prior_invalid_evidence": stats.get("prior_invalid_evidence"),
         "pre_registration": {
             "config_path": str(config_path.relative_to(PROJECT_DIR)),
             "config_sha256": config_sha256_before,
