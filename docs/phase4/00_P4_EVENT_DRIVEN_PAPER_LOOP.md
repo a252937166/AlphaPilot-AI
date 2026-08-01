@@ -81,6 +81,19 @@
 **边界**：这里只标 source spike done。P4.1 表/迁移/`news_poll`/三交易日验收均未开始，
 P4.2 继续锁定，等待独立复核。
 
+> **✅ 独立 AI 架构复核通过（2026-08-02，Claude Code / claude-fable-5）**：
+> 四工件哈希逐一实核精确一致（report `58a28066…`、review `b2e9fb3b…`、config `0b8f28ba…`、
+> invalid-v1 `d73673c0…`）；提交链 94d6770→fef39ca→9504530→1c7f4ae 顺序正确，报告
+> `execution_commit=9504530`、基线 `e288be6` 绑定无误；JobRun 45488 的 config 前后哈希
+> == 预注册值；PIT 审计 23/23 UTC、零回填、6 条诚实 symbol=NULL；safety before==after、
+> 非 SIMULATE 委托 0；gate 标志如实（仅 spike done、P4.2 锁定）；v1 误判按"留档→判无效→
+> 新配置先提交→重测"处置，零静默覆盖；复核方独立重跑质量门 1033 passed / 1 skip、
+> ruff、strict mypy 全绿；`cninfo/client.py:51 verify=False` 实核属实。
+> **裁定：解锁 P4.1 全量实现**，随行条件：① cninfo 修复 TLS 证书校验为 P4.1 全量验收项，
+> 修复前不得进关键路径；② `symbol=NULL` 纪律与 `published_at` nullable 进 schema 语义
+> 与测试；③ `url+content_hash` 去重必做（spike 已见 3 重复 URL）；④ 富途辅助信号须在
+> 交易日重测推送延迟后才可启用；⑤ 财联社按 unavailable 处置，不得静默重试入池。
+
 **实现**：
 - 表 `news_items(id, source, symbol NULLABLE, title, url UNIQUE, published_at NULLABLE,
   available_time NOT NULL, content_hash, raw_payload)`；迁移走 `db/migrate.py::MIGRATIONS`。
