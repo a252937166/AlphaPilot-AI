@@ -1,0 +1,41 @@
+{
+  "as_of_date": "2026-08-01",
+  "completed_at": "2026-08-01T10:13:49.319932+00:00",
+  "database": "/Users/ouyangduning/Documents/project/interesting/AlphaPilot-AI/data/alphapilot.db",
+  "details": {
+    "application_safety": {
+      "futu_enable_account_mutation": false,
+      "futu_enable_trade": true,
+      "live_trading_enabled": false,
+      "paper_auto_trading_enabled": false,
+      "paper_trading_enabled": true,
+      "trading_mode": "research",
+      "unlock_trade_permanently_blocked": true
+    },
+    "blockers": [
+      "paper_trading_enabled",
+      "futu_enable_trade"
+    ]
+  },
+  "error": "research/trading safety gate is not closed",
+  "error_type": "ListedDateBackfillError",
+  "mode": "dry_run",
+  "operation": "p3_m3_s7_security_listed_date_backfill",
+  "safety_contract": {
+    "baostock_called": false,
+    "database_columns_mutable": [
+      "securities.listed_date"
+    ],
+    "markets": [
+      "SH",
+      "SZ"
+    ],
+    "missing_only": true,
+    "provider_method": "Futu get_stock_basicinfo",
+    "provider_surface": "quote_read_only",
+    "scheduler_started": false,
+    "trade_api_called": false
+  },
+  "started_at": "2026-08-01T10:13:13.218732+00:00",
+  "status": "blocked"
+}

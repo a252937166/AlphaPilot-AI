@@ -1,0 +1,131 @@
+{
+  "adj_rows_before": [
+    {
+      "adj_factor": 1.000241552714933,
+      "id": 8343279,
+      "source": "sina-hfq",
+      "symbol": "920344",
+      "trade_date": "2019-06-30"
+    },
+    {
+      "adj_factor": 0.9999739275277946,
+      "id": 8421185,
+      "source": "sina-hfq",
+      "symbol": "920799",
+      "trade_date": "2019-06-30"
+    }
+  ],
+  "adj_rows_deleted": 2,
+  "backup": {
+    "backup_path": "/Users/ouyangduning/Documents/project/interesting/AlphaPilot-AI/data/backups/alphapilot-full-20260801T091341451646Z.db",
+    "critical_tables": {
+      "broker_orders": {
+        "max_id": 1,
+        "present": true,
+        "rows": 1
+      },
+      "job_runs": {
+        "max_id": 44527,
+        "present": true,
+        "rows": 44527
+      },
+      "runtime_flags": {
+        "present": true,
+        "rows": 1,
+        "values": [
+          {
+            "key": "trading_halted",
+            "value": false
+          }
+        ]
+      },
+      "trade_proposals": {
+        "max_id": 1,
+        "present": true,
+        "rows": 1
+      }
+    },
+    "manifest_path": "/Users/ouyangduning/Documents/project/interesting/AlphaPilot-AI/data/backups/alphapilot-full-20260801T091341451646Z.manifest.json",
+    "quick_check": "ok",
+    "retention": {
+      "kept": [
+        "/Users/ouyangduning/Documents/project/interesting/AlphaPilot-AI/data/backups/alphapilot-full-20260731T153146637845Z.db",
+        "/Users/ouyangduning/Documents/project/interesting/AlphaPilot-AI/data/backups/alphapilot-full-20260801T091341451646Z.db"
+      ],
+      "limit": 100000,
+      "removed": []
+    },
+    "sha256": "2a8c3842d9e4a89ddd1339ea4ead05f304ec8b596903650c6cce291aa02b4926",
+    "size_bytes": 5373038592,
+    "source_journal_mode": "wal",
+    "source_query_only": true,
+    "space": {
+      "free_bytes_before": 109266472960,
+      "minimum_free_bytes": 536870912,
+      "required_bytes": 5938914336,
+      "source_size_bytes": 5373038592,
+      "source_wal_size_bytes": 29004832
+    }
+  },
+  "completed_at": "2026-08-01T09:16:11.342688+00:00",
+  "daily_rows_before": [
+    {
+      "amount": 1872000.0,
+      "close": 3.9,
+      "high": 3.9,
+      "id": 8346199,
+      "ingested_at": "2026-07-24 05:22:42.158628",
+      "low": 3.9,
+      "open": 3.9,
+      "source": "sina",
+      "symbol": "920344",
+      "trade_date": "2019-06-30",
+      "volume": 480000.0
+    },
+    {
+      "amount": 241260.0,
+      "close": 40.2,
+      "high": 40.38,
+      "id": 8424105,
+      "ingested_at": "2026-07-24 05:24:41.425534",
+      "low": 40.1,
+      "open": 40.1,
+      "source": "sina",
+      "symbol": "920799",
+      "trade_date": "2019-06-30",
+      "volume": 6000.0
+    }
+  ],
+  "daily_rows_deleted": 2,
+  "expected_keys": [
+    [
+      "920344",
+      "2019-06-30"
+    ],
+    [
+      "920799",
+      "2019-06-30"
+    ]
+  ],
+  "quick_check_after": "ok",
+  "quick_check_before": "ok",
+  "safety_after": {
+    "adj_duplicate_groups": 0,
+    "adj_without_daily": 0,
+    "broker_orders": 1,
+    "daily_duplicate_groups": 0,
+    "daily_without_adj": 2852,
+    "running_job_runs": 0,
+    "trade_proposals": 1
+  },
+  "safety_before": {
+    "adj_duplicate_groups": 0,
+    "adj_without_daily": 0,
+    "broker_orders": 1,
+    "daily_duplicate_groups": 0,
+    "daily_without_adj": 2852,
+    "running_job_runs": 0,
+    "trade_proposals": 1
+  },
+  "status": "applied"
+}
