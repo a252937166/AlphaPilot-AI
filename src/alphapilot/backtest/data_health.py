@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import random
+import re
 import sqlite3
 import stat
 from collections.abc import Callable, Iterator, Mapping, Sequence
@@ -38,6 +39,10 @@ from alphapilot.backtest.factor_scope import (
     HISTORY_EXCLUDED_PIT_GAP_FACTORS,
 )
 from alphapilot.backtest.pit import factor_zscores
+from alphapilot.core.job_execution_context import (
+    JobRunExecutionContext,
+    authorized_s6_release_job_run,
+)
 from alphapilot.data.provenance import (
     AUDITED_DAILY_BAR_SOURCES,
     AUDITED_SECTOR_FLOW_SOURCES,
@@ -54,6 +59,8 @@ FINANCIAL_PUBLICATION_LAG_DAYS = 45
 MIN_FINANCIAL_DEPTH_RATIO = 0.80
 MIN_FINANCIAL_SYMBOL_PASS_RATIO = 0.90
 MIN_PROVIDER_PUB_DATE_BASIS_RATIO = 0.95
+MIN_LISTING_DATE_COVERAGE = 0.95
+MINIMUM_LISTING_DATE = date(1990, 1, 1)
 FINANCIAL_PROVIDER_CADENCE: dict[str, dict[str, Any]] = {
     "roe": {
         "label": "quarterly",
@@ -224,12 +231,8 @@ EXTERNAL_PAIRING_SCHEMA: dict[str, Any] = {
                                 "properties": {
                                     "close": {"$ref": "#/$defs/numeric_check"},
                                     "source": {"$ref": "#/$defs/string_check"},
-                                    "adj_factor": {
-                                        "$ref": "#/$defs/numeric_check"
-                                    },
-                                    "adj_source": {
-                                        "$ref": "#/$defs/string_check"
-                                    },
+                                    "adj_factor": {"$ref": "#/$defs/numeric_check"},
+                                    "adj_source": {"$ref": "#/$defs/string_check"},
                                 },
                             },
                         },
@@ -264,15 +267,11 @@ EXTERNAL_PAIRING_SCHEMA: dict[str, Any] = {
                             "checked_values": {
                                 "type": "object",
                                 "additionalProperties": False,
-                                "required": list(
-                                    PIT_CHECKED_FIELDS["financial_indicators"]
-                                ),
+                                "required": list(PIT_CHECKED_FIELDS["financial_indicators"]),
                                 "properties": {
                                     "value": {"$ref": "#/$defs/numeric_check"},
                                     "source": {"$ref": "#/$defs/string_check"},
-                                    "available_time": {
-                                        "$ref": "#/$defs/string_check"
-                                    },
+                                    "available_time": {"$ref": "#/$defs/string_check"},
                                 },
                             },
                         },
@@ -303,17 +302,13 @@ EXTERNAL_PAIRING_SCHEMA: dict[str, Any] = {
                             "checked_values": {
                                 "type": "object",
                                 "additionalProperties": False,
-                                "required": list(
-                                    PIT_CHECKED_FIELDS["valuation_daily"]
-                                ),
+                                "required": list(PIT_CHECKED_FIELDS["valuation_daily"]),
                                 "properties": {
                                     "pe_ttm": {"$ref": "#/$defs/numeric_check"},
                                     "pb_mrq": {"$ref": "#/$defs/numeric_check"},
                                     "ps_ttm": {"$ref": "#/$defs/numeric_check"},
                                     "source": {"$ref": "#/$defs/string_check"},
-                                    "available_time": {
-                                        "$ref": "#/$defs/string_check"
-                                    },
+                                    "available_time": {"$ref": "#/$defs/string_check"},
                                 },
                             },
                         },
@@ -342,9 +337,7 @@ PRICE_FACTORS = frozenset(
 VALUATION_FACTORS = frozenset({"pe_percentile", "pb_percentile"})
 FINANCIAL_FACTORS = frozenset(REQUIRED_FINANCIAL_FACTORS)
 FLOW_FACTORS = frozenset({"net_inflow_5d"})
-AUDITED_ADJ_FACTOR_SOURCES = frozenset(
-    {"baostock-hfq", "sina-hfq", "tushare"}
-)
+AUDITED_ADJ_FACTOR_SOURCES = frozenset({"baostock-hfq", "sina-hfq", "tushare"})
 AUDITED_FINANCIAL_SOURCES = frozenset({"baostock"})
 AUDITED_VALUATION_SOURCES = frozenset({"em", "baostock"})
 M3_SECTOR_FLOW_SOURCE = "futu-daily"
@@ -482,9 +475,7 @@ def _invalid_source_rows(
     allowed_sources: frozenset[str],
 ) -> int:
     return sum(
-        rows_count
-        for source, rows_count in source_counts.items()
-        if source not in allowed_sources
+        rows_count for source, rows_count in source_counts.items() if source not in allowed_sources
     )
 
 
@@ -734,6 +725,109 @@ def _daily_adj_key_audit(connection: sqlite3.Connection) -> dict[str, int]:
     }
 
 
+def _historical_calendar_audit(
+    connection: sqlite3.Connection,
+    *,
+    minimum_cross_section: int,
+) -> dict[str, Any]:
+    """Reject sparse or weekend dates that would shift the 20-session replay."""
+
+    placeholders, sources = _in_clause(tuple(AUDITED_DAILY_BAR_SOURCES))
+    anomalies = _rows(
+        connection,
+        f"""
+        SELECT trade_date,
+               COUNT(DISTINCT symbol) AS symbols,
+               CAST(strftime('%w', trade_date) AS INTEGER) AS weekday,
+               CASE
+                 WHEN CAST(strftime('%w', trade_date) AS INTEGER) IN (0, 6)
+                 THEN 'weekend'
+                 ELSE 'sparse_cross_section'
+               END AS reason
+        FROM daily_bars
+        WHERE source IN ({placeholders})
+        GROUP BY trade_date
+        HAVING CAST(strftime('%w', trade_date) AS INTEGER) IN (0, 6)
+            OR COUNT(DISTINCT symbol) < ?
+        ORDER BY trade_date
+        """,
+        (*sources, minimum_cross_section),
+    )
+    return {
+        "minimum_cross_section": minimum_cross_section,
+        "anomaly_dates": anomalies,
+        "anomaly_date_count": len(anomalies),
+        "weekend_date_count": sum(item["reason"] == "weekend" for item in anomalies),
+        "sparse_weekday_date_count": sum(
+            item["reason"] == "sparse_cross_section" for item in anomalies
+        ),
+    }
+
+
+def _listing_date_audit(
+    connection: sqlite3.Connection,
+    *,
+    as_of_date: date,
+) -> dict[str, Any]:
+    """Audit immutable listing metadata needed for honest PIT eligibility."""
+
+    rows = connection.execute(
+        """
+        SELECT symbol, board, listed_date
+        FROM securities
+        WHERE market = 'CN' AND list_status = 'listed'
+        ORDER BY symbol
+        """
+    ).fetchall()
+    valid = 0
+    missing_symbols: list[str] = []
+    invalid: list[dict[str, str]] = []
+    future: list[dict[str, str]] = []
+    missing_by_board: dict[str, int] = {}
+    for row in rows:
+        symbol = str(row["symbol"])
+        board = str(row["board"] or "<unknown>")
+        raw = str(row["listed_date"] or "")
+        if not raw.strip():
+            missing_symbols.append(symbol)
+            missing_by_board[board] = missing_by_board.get(board, 0) + 1
+            continue
+        if raw != raw.strip() or re.fullmatch(r"\d{4}-\d{2}-\d{2}", raw) is None:
+            invalid.append({"symbol": symbol, "listed_date": raw})
+            continue
+        try:
+            parsed = date.fromisoformat(raw)
+        except ValueError:
+            invalid.append({"symbol": symbol, "listed_date": raw})
+            continue
+        if parsed < MINIMUM_LISTING_DATE:
+            invalid.append({"symbol": symbol, "listed_date": raw})
+            continue
+        if parsed > as_of_date:
+            future.append({"symbol": symbol, "listed_date": raw})
+            continue
+        valid += 1
+    universe = len(rows)
+    return {
+        "universe_symbols": universe,
+        "valid_symbols": valid,
+        "coverage_ratio": _ratio(valid, universe),
+        "missing_symbols": len(missing_symbols),
+        "missing_by_board": dict(sorted(missing_by_board.items())),
+        "missing_symbol_sample": missing_symbols[:20],
+        "invalid_rows": len(invalid),
+        "invalid_sample": invalid[:20],
+        "future_rows": len(future),
+        "future_sample": future[:20],
+        "basis": (
+            "securities.listed_date; SH/SZ values may be backfilled only from "
+            "read-only Futu stock basic information and BSE values only from "
+            "Tushare stock_basic; unresolved provider values remain explicitly "
+            "missing"
+        ),
+    }
+
+
 def _parse_datetime(value: object) -> datetime | None:
     if value is None:
         return None
@@ -886,11 +980,7 @@ def _completed_quarter_labels(count: int, *, as_of_date: date) -> list[str]:
 
 
 def _periods(value: object) -> set[str]:
-    return {
-        item
-        for item in str(value or "").split(",")
-        if _quarter_end(item) is not None
-    }
+    return {item for item in str(value or "").split(",") if _quarter_end(item) is not None}
 
 
 def _depth_bucket(periods: int) -> str:
@@ -928,8 +1018,7 @@ def _financial_depth_audit(
         for period in target_periods
         if (
             (period_end := _quarter_end(period)) is not None
-            and period_end + timedelta(days=FINANCIAL_PUBLICATION_LAG_DAYS)
-            <= as_of_date
+            and period_end + timedelta(days=FINANCIAL_PUBLICATION_LAG_DAYS) <= as_of_date
         )
     ]
     target_set = set(target_periods)
@@ -1001,8 +1090,7 @@ def _financial_depth_audit(
         for listed_date, _basis in listing_info.values()
         if listed_date is not None
         and not any(
-            (period_end := _quarter_end(period)) is not None
-            and period_end >= listed_date
+            (period_end := _quarter_end(period)) is not None and period_end >= listed_date
             for period in publishable_periods
         )
     )
@@ -1021,10 +1109,7 @@ def _financial_depth_audit(
             expected = {
                 period
                 for period in publishable_periods
-                if (
-                    (period_end := _quarter_end(period)) is not None
-                    and period_end >= listed_date
-                )
+                if ((period_end := _quarter_end(period)) is not None and period_end >= listed_date)
             }
             if not expected:
                 continue
@@ -1038,19 +1123,12 @@ def _financial_depth_audit(
             expected_target = {
                 period
                 for period in target_periods
-                if (
-                    (period_end := _quarter_end(period)) is not None
-                    and period_end >= listed_date
-                )
+                if ((period_end := _quarter_end(period)) is not None and period_end >= listed_date)
             }
             target_non_null = (
-                set(payload["non_null"])
-                .intersection(target_set)
-                .intersection(expected_target)
+                set(payload["non_null"]).intersection(target_set).intersection(expected_target)
             )
-            non_null = target_non_null.intersection(publishable_set).intersection(
-                expected
-            )
+            non_null = target_non_null.intersection(publishable_set).intersection(expected)
             actual_depth = len(non_null)
             buckets[_depth_bucket(len(target_non_null))] += 1
             minimum_depth = (
@@ -1140,9 +1218,7 @@ def _financial_depth_audit(
         "provider_unsupported_symbols": provider_unsupported_symbols,
         "listing_date_basis_counts": listing_basis_counts,
         "unknown_listing_date_symbols": unknown_listing_date_symbols,
-        "new_symbols_without_publishable_quarter": (
-            symbols_without_publishable_quarter
-        ),
+        "new_symbols_without_publishable_quarter": (symbols_without_publishable_quarter),
         "metric_depth": metrics,
     }
 
@@ -1421,9 +1497,7 @@ def _sector_flow_audit(connection: sqlite3.Connection) -> dict[str, Any]:
             "plates": int(live_summary["plates"]),
             "dates": int(live_summary["dates"]),
             "date_range": [live_summary["min_date"], live_summary["max_date"]],
-            "source_counts": {
-                str(row["source"]): int(row["rows_count"]) for row in live_sources
-            },
+            "source_counts": {str(row["source"]): int(row["rows_count"]) for row in live_sources},
         }
     expected_historical_rows = historical_plates * historical_dates
     rectangular_gap_rows = max(0, expected_historical_rows - historical_rows)
@@ -1559,17 +1633,13 @@ def _pick_probe_dates(connection: sqlite3.Connection) -> dict[str, list[str]]:
         """
     ).fetchall()
     flow_dates = [
-        parsed
-        for row in flow_rows
-        if (parsed := _parse_date(row["trade_date"])) is not None
+        parsed for row in flow_rows if (parsed := _parse_date(row["trade_date"])) is not None
     ]
     warmed_flow_dates = flow_dates[4:]
     flow_probe: list[date] = []
     if warmed_flow_dates:
         indexes = (0, len(warmed_flow_dates) // 2, len(warmed_flow_dates) - 1)
-        flow_probe = list(
-            dict.fromkeys(warmed_flow_dates[index] for index in indexes)
-        )
+        flow_probe = list(dict.fromkeys(warmed_flow_dates[index] for index in indexes))
     all_dates = sorted(set(multi_year + flow_probe))
     return {
         "multi_year": [item.isoformat() for item in multi_year],
@@ -1658,11 +1728,7 @@ def _factor_availability(
                     }
                     continue
                 factor_counts = {
-                    factor: (
-                        int(frame[factor].notna().sum())
-                        if factor in frame.columns
-                        else 0
-                    )
+                    factor: (int(frame[factor].notna().sum()) if factor in frame.columns else 0)
                     for factor in HISTORICAL_FACTORS
                 }
                 probe_rows[date_text] = {
@@ -1726,9 +1792,7 @@ def _factor_availability(
             )
             continue
         relevant_dates = (
-            schedule["sector_flow_one_year"]
-            if factor in FLOW_FACTORS
-            else schedule["multi_year"]
+            schedule["sector_flow_one_year"] if factor in FLOW_FACTORS else schedule["multi_year"]
         )
         observations = [
             {
@@ -1737,20 +1801,15 @@ def _factor_availability(
                 "eligible": probe_rows.get(date_text, {}).get("eligible", 0),
                 "error": probe_rows.get(date_text, {}).get("error"),
                 "membership_pit": (
-                    membership_pit_visibility.get(date_text)
-                    if factor in FLOW_FACTORS
-                    else None
+                    membership_pit_visibility.get(date_text) if factor in FLOW_FACTORS else None
                 ),
             }
             for date_text in relevant_dates
         ]
         errors = [item for item in observations if item["error"] is not None]
-        observed_counts = [
-            int(item["n"]) for item in observations if item["error"] is None
-        ]
+        observed_counts = [int(item["n"]) for item in observations if item["error"] is None]
         membership_gap = factor in FLOW_FACTORS and any(
-            not bool((item.get("membership_pit") or {}).get("visible"))
-            for item in observations
+            not bool((item.get("membership_pit") or {}).get("visible")) for item in observations
         )
         if not observations:
             status = "not_probed"
@@ -1764,9 +1823,7 @@ def _factor_availability(
         elif errors:
             status = "probe_error"
             reason = "At least one read-only factor_zscores probe failed."
-        elif observed_counts and all(
-            value >= minimum_cross_section for value in observed_counts
-        ):
+        elif observed_counts and all(value >= minimum_cross_section for value in observed_counts):
             status = "sufficient"
             reason = None
         elif observed_counts and max(observed_counts) == 0:
@@ -1860,9 +1917,7 @@ def _diagnose_factor_gaps(
                 item["reason"] = "财务 available_time 审计异常导致 PIT 截面不可信。"
             else:
                 item["cause_class"] = "suspected_factor_path_bug"
-                item["reason"] = (
-                    "财务底表覆盖和 PIT 已过闸但因子截面不足，需检查因子/取数路径。"
-                )
+                item["reason"] = "财务底表覆盖和 PIT 已过闸但因子截面不足，需检查因子/取数路径。"
             continue
         if factor in VALUATION_FACTORS:
             metric = "pe_ttm" if factor == "pe_percentile" else "pb_mrq"
@@ -1879,10 +1934,7 @@ def _diagnose_factor_gaps(
                 )
             continue
         if factor in FLOW_FACTORS:
-            if any(
-                not bool(payload.get("visible"))
-                for payload in membership_visibility.values()
-            ):
+            if any(not bool(payload.get("visible")) for payload in membership_visibility.values()):
                 item["cause_class"] = "pit_membership_gap"
                 item["reason"] = (
                     "板块资金流存在，但 sector_constituents 的 refreshed_at 晚于探针决策时点；"
@@ -1906,9 +1958,7 @@ def _diagnose_factor_gaps(
                 item["reason"] = "审计日线与复权键不齐，价量因子输入会被 inner join 丢弃。"
             else:
                 item["cause_class"] = "suspected_factor_path_bug"
-                item["reason"] = (
-                    "日线/复权键完整但价量截面不足，需检查历史窗口与因子计算路径。"
-                )
+                item["reason"] = "日线/复权键完整但价量截面不足，需检查历史窗口与因子计算路径。"
 
 
 def _stratified_ids(
@@ -1929,12 +1979,7 @@ def _stratified_ids(
     minimum = int(bounds["min_id"])
     maximum = int(bounds["max_id"])
     generator = random.Random(seed)
-    targets = sorted(
-        {
-            generator.randint(minimum, maximum)
-            for _ in range(max(count * 3, count))
-        }
-    )
+    targets = sorted({generator.randint(minimum, maximum) for _ in range(max(count * 3, count))})
     selected: list[int] = []
     for target in targets:
         row = connection.execute(
@@ -1973,12 +2018,8 @@ def _pit_samples(
         seed=seed + 2,
     )
     daily: list[dict[str, Any]] = []
-    daily_source_placeholders, daily_sources = _in_clause(
-        tuple(AUDITED_DAILY_BAR_SOURCES)
-    )
-    adj_source_placeholders, adj_sources = _in_clause(
-        tuple(AUDITED_ADJ_FACTOR_SOURCES)
-    )
+    daily_source_placeholders, daily_sources = _in_clause(tuple(AUDITED_DAILY_BAR_SOURCES))
+    adj_source_placeholders, adj_sources = _in_clause(tuple(AUDITED_ADJ_FACTOR_SOURCES))
     for row_id in daily_ids:
         row = _one(
             connection,
@@ -2017,14 +2058,10 @@ def _pit_samples(
             ),
         ).fetchone()
         if anchor is None:
-            raise RuntimeError(
-                "daily PIT sample has no audited adjustment normalization anchor"
-            )
+            raise RuntimeError("daily PIT sample has no audited adjustment normalization anchor")
         anchor_factor = float(anchor["adj_factor"])
         if not isfinite(anchor_factor) or anchor_factor <= 0:
-            raise RuntimeError(
-                "daily PIT sample adjustment normalization anchor is invalid"
-            )
+            raise RuntimeError("daily PIT sample adjustment normalization anchor is invalid")
         sample["adj_anchor_date"] = str(anchor["trade_date"])
         sample["adj_anchor_factor"] = anchor_factor
         daily.append(sample)
@@ -2208,9 +2245,7 @@ def _audit_frozen_pit_samples(
             (expected["symbol"], expected["trade_date"]),
         ).fetchall()
         if len(rows) != 1:
-            raise ValueError(
-                "frozen daily PIT business key is missing or duplicated"
-            )
+            raise ValueError("frozen daily PIT business key is missing or duplicated")
         sample = dict(rows[0])
         anchors = connection.execute(
             """
@@ -2224,9 +2259,7 @@ def _audit_frozen_pit_samples(
             (expected["symbol"], expected["adj_anchor_date"]),
         ).fetchall()
         if len(anchors) != 1:
-            raise ValueError(
-                "frozen daily PIT adjustment anchor is missing or duplicated"
-            )
+            raise ValueError("frozen daily PIT adjustment anchor is missing or duplicated")
         sample["adj_anchor_date"] = expected["adj_anchor_date"]
         sample["adj_anchor_factor"] = float(anchors[0]["adj_factor"])
         reconstructed["daily_bars_with_adj"].append(sample)
@@ -2247,9 +2280,7 @@ def _audit_frozen_pit_samples(
             ),
         ).fetchall()
         if len(rows) != 1:
-            raise ValueError(
-                "frozen financial PIT business key is missing or duplicated"
-            )
+            raise ValueError("frozen financial PIT business key is missing or duplicated")
         reconstructed["financial_indicators"].append(dict(rows[0]))
     for expected in frozen["valuation_daily"]:
         if not isinstance(expected, dict):
@@ -2264,9 +2295,7 @@ def _audit_frozen_pit_samples(
             (expected["symbol"], expected["trade_date"]),
         ).fetchall()
         if len(rows) != 1:
-            raise ValueError(
-                "frozen valuation PIT business key is missing or duplicated"
-            )
+            raise ValueError("frozen valuation PIT business key is missing or duplicated")
         reconstructed["valuation_daily"].append(dict(rows[0]))
 
     reconstructed_sha256 = _pit_manifest_sha256(reconstructed)
@@ -2278,15 +2307,10 @@ def _audit_frozen_pit_samples(
         "financial_indicators",
         "valuation_daily",
     )
-    differences = [
-        section
-        for section in sections
-        if reconstructed[section] != frozen[section]
-    ]
+    differences = [section for section in sections if reconstructed[section] != frozen[section]]
     if differences or reconstructed_sha256 != FROZEN_MANIFEST_SHA256:
         raise ValueError(
-            "current DB no longer reproduces the frozen 15 PIT samples: "
-            f"{differences}"
+            f"current DB no longer reproduces the frozen 15 PIT samples: {differences}"
         )
     return {
         "mode": "exact_frozen_business_keys",
@@ -2332,11 +2356,7 @@ def _expected_sample_records(
         dict[str, Any],
     ] = {}
     for table in ("daily_bars", "financial_indicators", "valuation_daily"):
-        source_key = (
-            "daily_bars_with_adj"
-            if table == "daily_bars"
-            else table
-        )
+        source_key = "daily_bars_with_adj" if table == "daily_bars" else table
         for sample in pit_samples[source_key]:
             identity = _sample_identity(table, sample)
             if identity in records:
@@ -2357,13 +2377,9 @@ def _validate_checked_values(
     for field in PIT_CHECKED_FIELDS[table]:
         comparison = checked_values[field]
         if not isinstance(comparison, dict):
-            raise ValueError(
-                f"external PIT pairing {table}.{field} check must be an object"
-            )
+            raise ValueError(f"external PIT pairing {table}.{field} check must be an object")
         if comparison["pass"] is not True:
-            raise ValueError(
-                f"external PIT pairing {table}.{field} pass must be true"
-            )
+            raise ValueError(f"external PIT pairing {table}.{field} pass must be true")
         local_value = comparison["local_value"]
         external_value = comparison["external_value"]
         current_value = current_sample.get(field)
@@ -2376,8 +2392,7 @@ def _validate_checked_values(
                     )
                 if (
                     not isinstance(external_value, str)
-                    or external_value.strip().casefold()
-                    not in PIT_MISSING_EXTERNAL_VALUES
+                    or external_value.strip().casefold() not in PIT_MISSING_EXTERNAL_VALUES
                 ):
                     raise ValueError(
                         f"external PIT pairing {table}.{field} external_value "
@@ -2405,8 +2420,7 @@ def _validate_checked_values(
                 or not isfinite(float(external_value))
             ):
                 raise ValueError(
-                    f"external PIT pairing {table}.{field} external_value "
-                    "must be a finite number"
+                    f"external PIT pairing {table}.{field} external_value must be a finite number"
                 )
             tolerance_value = comparison.get("tolerance", 0.0)
             if (
@@ -2419,13 +2433,10 @@ def _validate_checked_values(
                     f"external PIT pairing {table}.{field} tolerance "
                     "must be a finite non-negative number"
                 )
-            absolute_tolerance, relative_tolerance = PIT_NUMERIC_TOLERANCE_POLICY[
-                field
-            ]
+            absolute_tolerance, relative_tolerance = PIT_NUMERIC_TOLERANCE_POLICY[field]
             expected_tolerance = max(
                 absolute_tolerance,
-                relative_tolerance
-                * max(abs(float(local_value)), abs(float(external_value))),
+                relative_tolerance * max(abs(float(local_value)), abs(float(external_value))),
             )
             if float(tolerance_value) != expected_tolerance:
                 raise ValueError(
@@ -2433,9 +2444,7 @@ def _validate_checked_values(
                     "does not match the fixed policy"
                 )
             if abs(float(local_value) - float(external_value)) > expected_tolerance:
-                raise ValueError(
-                    f"external PIT pairing {table}.{field} values exceed tolerance"
-                )
+                raise ValueError(f"external PIT pairing {table}.{field} values exceed tolerance")
             continue
         current_text = str(current_value or "")
         if (
@@ -2471,9 +2480,7 @@ def _external_pairing_evidence(
     )
     if evidence_path is None:
         if ai_review_attestation_path is not None:
-            raise ValueError(
-                "AI review attestation requires signed pairing-v3 evidence"
-            )
+            raise ValueError("AI review attestation requires signed pairing-v3 evidence")
         return {
             "accepted": False,
             "basename": None,
@@ -2492,8 +2499,7 @@ def _external_pairing_evidence(
     evidence_bytes = resolved.stat().st_size
     if evidence_bytes > MAX_EXTERNAL_EVIDENCE_BYTES:
         raise ValueError(
-            "external PIT pairing evidence exceeds "
-            f"{MAX_EXTERNAL_EVIDENCE_BYTES} bytes"
+            f"external PIT pairing evidence exceeds {MAX_EXTERNAL_EVIDENCE_BYTES} bytes"
         )
     payload = resolved.read_bytes()
     if not payload:
@@ -2506,10 +2512,12 @@ def _external_pairing_evidence(
         raise ValueError("external PIT pairing evidence must be UTF-8 text") from exc
     if not content.strip():
         raise ValueError("external PIT pairing evidence must contain non-whitespace text")
+
     def reject_non_finite_json(value: str) -> None:
         raise ValueError(f"non-finite JSON number is not allowed: {value}")
 
     try:
+
         def reject_duplicate_json_keys(
             pairs: list[tuple[str, Any]],
         ) -> dict[str, Any]:
@@ -2538,16 +2546,10 @@ def _external_pairing_evidence(
                 "pairing-v3 release requires the content-addressed frozen "
                 "preflight and an exact-key audit against the current DB"
             )
-        normalized_candidate_sha256 = normalized_unsigned_candidate_sha256(
-            document
-        )
-        if (
-            normalized_candidate_sha256
-            != FROZEN_PAIRING_V3_UNSIGNED_CANONICAL_SHA256
-        ):
+        normalized_candidate_sha256 = normalized_unsigned_candidate_sha256(document)
+        if normalized_candidate_sha256 != FROZEN_PAIRING_V3_UNSIGNED_CANONICAL_SHA256:
             raise ValueError(
-                "pairing-v3 proof does not match the frozen unsigned candidate "
-                "canonical SHA-256"
+                "pairing-v3 proof does not match the frozen unsigned candidate canonical SHA-256"
             )
         signed_file_sha256 = hashlib.sha256(payload).hexdigest()
         v3_metadata = validate_pairing_v3(
@@ -2557,10 +2559,7 @@ def _external_pairing_evidence(
         )
         trust_anchor = FROZEN_PAIRING_V3_SIGNED_EVIDENCE_TRUST_ANCHOR
         if trust_anchor is None:
-            raise ValueError(
-                "pairing-v3 independent architect signed-file trust anchor "
-                "is pending"
-            )
+            raise ValueError("pairing-v3 independent architect signed-file trust anchor is pending")
         anchor_baseline = {
             "sha256": signed_file_sha256,
             "reviewer_role": str(v3_metadata["reviewer_role"]),
@@ -2579,21 +2578,16 @@ def _external_pairing_evidence(
                 raise ValueError("AI pairing-v3 reviewer profile is inconsistent")
             if ai_review_attestation_path is None:
                 raise ValueError(
-                    "AI-approved pairing-v3 evidence requires the frozen "
-                    "AI review attestation"
+                    "AI-approved pairing-v3 evidence requires the frozen AI review attestation"
                 )
             attestation_metadata = validate_ai_review_attestation(
                 ai_review_attestation_path,
                 signed_candidate=document,
             )
             ai_anchor = {
-                "ai_review_attestation_sha256": str(
-                    attestation_metadata["sha256"]
-                ),
+                "ai_review_attestation_sha256": str(attestation_metadata["sha256"]),
                 "governance_amendment": AI_REVIEW_GOVERNANCE_AMENDMENT_VERSION,
-                "governance_amendment_sha256": (
-                    AI_REVIEW_GOVERNANCE_AMENDMENT_SHA256
-                ),
+                "governance_amendment_sha256": (AI_REVIEW_GOVERNANCE_AMENDMENT_SHA256),
             }
             for field, observed in ai_anchor.items():
                 if trust_anchor.get(field) != observed:
@@ -2621,24 +2615,18 @@ def _external_pairing_evidence(
             "sha256": hashlib.sha256(payload).hexdigest(),
             "bytes": len(payload),
             "schema_version": str(v3_metadata["schema_version"]),
-            "pit_manifest_schema_version": str(
-                document["pit_manifest_schema_version"]
-            ),
+            "pit_manifest_schema_version": str(document["pit_manifest_schema_version"]),
             "pit_manifest_sha256": str(document["pit_manifest_sha256"]),
             "reviewer_type": str(v3_metadata["reviewer_type"]),
             "reviewer_role": str(v3_metadata["reviewer_role"]),
             "reviewed_at": str(v3_metadata["reviewed_at"]),
             "signature_status": str(v3_metadata["signature_status"]),
             "sample_count": int(v3_metadata["sample_count"]),
-            "adjudication_contract": str(
-                v3_metadata["adjudication_contract"]
-            ),
+            "adjudication_contract": str(v3_metadata["adjudication_contract"]),
             "final_trial_sha256": str(v3_metadata["final_trial_sha256"]),
             "numeric_match": int(v3_metadata["numeric_match"]),
             "formula_match": int(v3_metadata["formula_match"]),
-            "expected_unavailable": int(
-                v3_metadata["expected_unavailable"]
-            ),
+            "expected_unavailable": int(v3_metadata["expected_unavailable"]),
             "ai_review_attestation": attestation_metadata,
         }
     if pit_samples.get("manifest_sha256") == FROZEN_MANIFEST_SHA256:
@@ -2655,48 +2643,29 @@ def _external_pairing_evidence(
     if errors:
         location = ".".join(str(part) for part in errors[0].absolute_path) or "<root>"
         raise ValueError(
-            "external PIT pairing evidence schema violation at "
-            f"{location}: {errors[0].message}"
+            f"external PIT pairing evidence schema violation at {location}: {errors[0].message}"
         )
     reviewer_role = str(document["reviewer_role"]).strip()
-    if (
-        not reviewer_role
-        or any(
-            marker in reviewer_role.casefold()
-            for marker in PIT_NON_HUMAN_REVIEWER_MARKERS
-        )
+    if not reviewer_role or any(
+        marker in reviewer_role.casefold() for marker in PIT_NON_HUMAN_REVIEWER_MARKERS
     ):
-        raise ValueError(
-            "external PIT pairing reviewer_role must identify a human reviewer"
-        )
+        raise ValueError("external PIT pairing reviewer_role must identify a human reviewer")
     reviewed_at_text = str(document["reviewed_at"]).strip()
     reviewed_at = _parse_datetime(reviewed_at_text)
     if (
         reviewed_at is None
-        or datetime.fromisoformat(reviewed_at_text.replace("Z", "+00:00")).utcoffset()
-        is None
+        or datetime.fromisoformat(reviewed_at_text.replace("Z", "+00:00")).utcoffset() is None
     ):
         raise ValueError("external PIT pairing reviewed_at must be timezone-aware")
     if int(document["seed"]) != int(pit_samples["seed"]):
         raise ValueError("external PIT pairing seed does not match this report")
-    if int(document["sample_size_per_table"]) != int(
-        pit_samples["sample_size_per_table"]
-    ):
+    if int(document["sample_size_per_table"]) != int(pit_samples["sample_size_per_table"]):
+        raise ValueError("external PIT pairing sample_size_per_table does not match this report")
+    if str(document["pit_manifest_schema_version"]) != str(pit_samples["manifest_schema_version"]):
+        raise ValueError("external PIT pairing manifest schema does not match this report")
+    if str(document["pit_manifest_sha256"]) != str(pit_samples["manifest_sha256"]):
         raise ValueError(
-            "external PIT pairing sample_size_per_table does not match this report"
-        )
-    if str(document["pit_manifest_schema_version"]) != str(
-        pit_samples["manifest_schema_version"]
-    ):
-        raise ValueError(
-            "external PIT pairing manifest schema does not match this report"
-        )
-    if str(document["pit_manifest_sha256"]) != str(
-        pit_samples["manifest_sha256"]
-    ):
-        raise ValueError(
-            "external PIT pairing manifest SHA-256 does not match the current "
-            "sample values"
+            "external PIT pairing manifest SHA-256 does not match the current sample values"
         )
     raw_samples = document["samples"]
     if not isinstance(raw_samples, list):
@@ -2744,9 +2713,7 @@ def _external_pairing_evidence(
         "sha256": hashlib.sha256(payload).hexdigest(),
         "bytes": len(payload),
         "schema_version": str(document["schema_version"]),
-        "pit_manifest_schema_version": str(
-            document["pit_manifest_schema_version"]
-        ),
+        "pit_manifest_schema_version": str(document["pit_manifest_schema_version"]),
         "pit_manifest_sha256": str(document["pit_manifest_sha256"]),
         "reviewer_role": reviewer_role,
         "reviewed_at": reviewed_at_text,
@@ -2769,8 +2736,7 @@ def _external_pairing_profile(
         raise ValueError("external PIT pairing evidence must not be empty")
     if len(payload) > MAX_EXTERNAL_EVIDENCE_BYTES:
         raise ValueError(
-            "external PIT pairing evidence exceeds "
-            f"{MAX_EXTERNAL_EVIDENCE_BYTES} bytes"
+            f"external PIT pairing evidence exceeds {MAX_EXTERNAL_EVIDENCE_BYTES} bytes"
         )
 
     def reject_non_finite_json(value: str) -> None:
@@ -2806,6 +2772,7 @@ def _gate(
     report: dict[str, Any],
     *,
     minimum_market_coverage: float,
+    minimum_listing_date_coverage: float,
     minimum_sector_plates: int,
     minimum_sector_dates: int,
 ) -> dict[str, Any]:
@@ -2816,6 +2783,8 @@ def _gate(
     valuation = inputs["valuation_daily"]
     sector = inputs["sector_flow_daily"]
     keys = report["daily_adj_key_audit"]
+    calendar_audit = report["historical_calendar_audit"]
+    listing_dates = report["universe"]["listing_date_audit"]
     factors = report["factor_availability"]["factors"]
     blockers: list[dict[str, str]] = []
     warnings: list[dict[str, Any]] = [
@@ -2874,6 +2843,44 @@ def _gate(
             "DAILY_ADJ_KEY_MISMATCH",
             "daily_bars 与 adj_factors 的审计日期键未逐行对齐。",
         )
+    if calendar_audit["anomaly_date_count"]:
+        block(
+            "HISTORICAL_RESEARCH_CALENDAR_ANOMALY",
+            ("daily_bars 含周末或低于最小截面阈值的日期，会改变 S7 每 20 个交易日的决策序列。"),
+        )
+    listing_coverage = listing_dates["coverage_ratio"]
+    if listing_coverage is None or listing_coverage < minimum_listing_date_coverage:
+        block(
+            "SECURITY_LISTING_DATE_COVERAGE",
+            (
+                "securities.listed_date 有效覆盖率 "
+                f"{listing_coverage!s} 低于 S7 PIT 闸门 "
+                f"{minimum_listing_date_coverage:.0%}；不得用首根日线替代"
+                "大规模上市日期缺口。"
+            ),
+        )
+    if listing_dates["invalid_rows"] or listing_dates["future_rows"]:
+        block(
+            "SECURITY_LISTING_DATE_VALUES",
+            (
+                "securities.listed_date 存在 "
+                f"{listing_dates['invalid_rows']} 行非法日期、"
+                f"{listing_dates['future_rows']} 行未来日期。"
+            ),
+        )
+    if listing_dates["missing_symbols"]:
+        warnings.append(
+            {
+                "code": "SECURITY_LISTING_DATE_RESIDUAL_GAP",
+                "message": (
+                    "仍有 "
+                    f"{listing_dates['missing_symbols']} 只在册证券缺上市日期；"
+                    "仅当总体有效覆盖达到硬门时作为已披露残余缺口保留。"
+                ),
+                "missing_by_board": listing_dates["missing_by_board"],
+                "blocking": False,
+            }
+        )
     financial_coverage = financial["symbol_coverage_ratio"]
     if financial_coverage is None or financial_coverage < minimum_market_coverage:
         block(
@@ -2910,10 +2917,7 @@ def _gate(
             f"财务 available_time 口径有 {financial['pit']['anomaly_rows']} 行异常。",
         )
     provider_basis_ratio = financial["pit"]["provider_pub_date_end_of_day_ratio"]
-    if (
-        provider_basis_ratio is None
-        or provider_basis_ratio < MIN_PROVIDER_PUB_DATE_BASIS_RATIO
-    ):
+    if provider_basis_ratio is None or provider_basis_ratio < MIN_PROVIDER_PUB_DATE_BASIS_RATIO:
         block(
             "FINANCIAL_PROVIDER_PUB_DATE_BASIS",
             (
@@ -2934,16 +2938,11 @@ def _gate(
                 ("freshness", "fresh_ratio", "近端可披露季度覆盖"),
             ):
                 ratio = depth[ratio_key]
-                if (
-                    ratio is not None
-                    and ratio >= MIN_FINANCIAL_SYMBOL_PASS_RATIO
-                ):
+                if ratio is not None and ratio >= MIN_FINANCIAL_SYMBOL_PASS_RATIO:
                     continue
                 warnings.append(
                     {
-                        "code": (
-                            f"FINANCIAL_{metric.upper()}_{dimension.upper()}"
-                        ),
+                        "code": (f"FINANCIAL_{metric.upper()}_{dimension.upper()}"),
                         "message": (
                             f"{metric} {label}诊断率 {ratio!s} 低于参考值 "
                             f"{MIN_FINANCIAL_SYMBOL_PASS_RATIO:.0%}；"
@@ -2956,9 +2955,7 @@ def _gate(
                         "observed_ratio": ratio,
                         "reference_ratio": MIN_FINANCIAL_SYMBOL_PASS_RATIO,
                         "provider_cadence": depth["provider_cadence"],
-                        "provider_expected_quarters": depth[
-                            "provider_expected_quarters"
-                        ],
+                        "provider_expected_quarters": depth["provider_expected_quarters"],
                         "blocking": False,
                     }
                 )
@@ -3053,10 +3050,7 @@ def _gate(
         ):
             block(
                 "FROZEN_PIT_EXACT_KEY_AUDIT",
-                (
-                    "pairing-v3 必须同时通过当前数据库对冻结 15 个业务键的 "
-                    "query_only 精确重构审计。"
-                ),
+                ("pairing-v3 必须同时通过当前数据库对冻结 15 个业务键的 query_only 精确重构审计。"),
             )
     automated_checks_pass = not blockers
     if not pairing["accepted"]:
@@ -3075,6 +3069,45 @@ def _gate(
     }
 
 
+def _release_running_job_snapshot(
+    connection: sqlite3.Connection,
+) -> tuple[list[dict[str, Any]], JobRunExecutionContext | None]:
+    """Fail closed unless the only running row is this formal S7 invocation."""
+
+    rows = [
+        {
+            "id": int(row["id"]),
+            "job_name": str(row["job_name"]),
+            "finished_at": row["finished_at"],
+        }
+        for row in connection.execute(
+            """
+            SELECT id, job_name, finished_at
+            FROM job_runs
+            WHERE status = 'running'
+            ORDER BY id
+            """
+        ).fetchall()
+    ]
+    authorized = authorized_s6_release_job_run()
+    if authorized is None:
+        if rows:
+            raise RuntimeError("S6 signed release gate requires zero running JobRun rows")
+        return rows, None
+
+    expected = {
+        "id": authorized.run_id,
+        "job_name": authorized.job_name,
+        "finished_at": None,
+    }
+    if rows != [expected]:
+        raise RuntimeError(
+            "S6 signed release gate found a running JobRun other than "
+            "the exact current research_factors_m3 audit row"
+        )
+    return rows, authorized
+
+
 def build_data_health_report(
     database_path: Path,
     *,
@@ -3083,6 +3116,7 @@ def build_data_health_report(
     external_pit_ai_review_attestation: Path | None = None,
     external_pit_frozen_preflight: Path | None = None,
     minimum_market_coverage: float = 0.90,
+    minimum_listing_date_coverage: float = MIN_LISTING_DATE_COVERAGE,
     minimum_factor_cross_section: int = 100,
     minimum_sector_plates: int = 100,
     minimum_sector_dates: int = 200,
@@ -3094,6 +3128,8 @@ def build_data_health_report(
 
     if not 0 < minimum_market_coverage <= 1:
         raise ValueError("minimum_market_coverage must be in (0, 1]")
+    if not 0 < minimum_listing_date_coverage <= 1:
+        raise ValueError("minimum_listing_date_coverage must be in (0, 1]")
     if minimum_factor_cross_section < 1:
         raise ValueError("minimum_factor_cross_section must be positive")
     if minimum_sector_plates < 1 or minimum_sector_dates < 5:
@@ -3101,30 +3137,28 @@ def build_data_health_report(
     if sample_size < 1:
         raise ValueError("sample_size must be positive")
     if external_pit_pairing_evidence is not None:
-        evidence_schema, reviewer_role = _external_pairing_profile(
-            external_pit_pairing_evidence
-        )
+        evidence_schema, reviewer_role = _external_pairing_profile(external_pit_pairing_evidence)
+        if authorized_s6_release_job_run() is not None and (
+            evidence_schema != PAIRING_V3_SCHEMA_VERSION
+            or reviewer_role != AI_REVIEWER_ROLE
+        ):
+            raise ValueError(
+                "formal S7 release requires the exact pairing-v3 independent AI "
+                "review profile; legacy or alternate reviewer evidence is forbidden"
+            )
         if evidence_schema == PAIRING_V3_SCHEMA_VERSION:
             if external_pit_frozen_preflight is None:
                 external_pit_frozen_preflight = DEFAULT_FROZEN_PREFLIGHT_PATH
-            if (
-                reviewer_role == AI_REVIEWER_ROLE
-                and external_pit_ai_review_attestation is None
-            ):
-                external_pit_ai_review_attestation = (
-                    DEFAULT_AI_REVIEW_ATTESTATION_PATH
-                )
-    if (
-        external_pit_frozen_preflight is not None
-        and external_pit_pairing_evidence is None
-    ):
-        raise ValueError(
-            "frozen PIT preflight requires external PIT pairing evidence"
-        )
+            if reviewer_role == AI_REVIEWER_ROLE and external_pit_ai_review_attestation is None:
+                external_pit_ai_review_attestation = DEFAULT_AI_REVIEW_ATTESTATION_PATH
+    if external_pit_frozen_preflight is not None and external_pit_pairing_evidence is None:
+        raise ValueError("frozen PIT preflight requires external PIT pairing evidence")
     audit_date = as_of_date or datetime.now(MARKET_TIMEZONE).date()
     frozen_key_audit: dict[str, Any] | None = None
     evidence_samples: dict[str, Any] | None = None
     release_snapshot: dict[str, Any] | None = None
+    running_rows_before: list[dict[str, Any]] | None = None
+    allowed_current_job: JobRunExecutionContext | None = None
 
     with readonly_connection(database_path) as connection:
         table_names = {
@@ -3138,16 +3172,9 @@ def build_data_health_report(
             raise RuntimeError(f"S6 required tables are missing: {', '.join(missing_tables)}")
         query_only = bool(int(_one(connection, "PRAGMA query_only")[0]))
         data_version_before = int(_one(connection, "PRAGMA data_version")[0])
-        running_before = int(
-            _one(
-                connection,
-                "SELECT COUNT(*) FROM job_runs WHERE status = 'running'",
-            )[0]
-        )
-        if external_pit_frozen_preflight is not None and running_before:
-            raise RuntimeError(
-                "S6 signed release gate requires zero running JobRun rows"
-            )
+        if external_pit_frozen_preflight is not None:
+            running_rows_before, allowed_current_job = _release_running_job_snapshot(connection)
+        running_before = len(running_rows_before or [])
         universe = _one(
             connection,
             """
@@ -3157,6 +3184,10 @@ def build_data_health_report(
             """,
         )
         universe_size = int(universe["securities"])
+        listing_date_audit = _listing_date_audit(
+            connection,
+            as_of_date=audit_date,
+        )
         candidate_dates = _latest_trade_date_candidates(connection)
         input_coverage = {
             "daily_bars": _daily_bar_audit(
@@ -3185,6 +3216,10 @@ def build_data_health_report(
             "sector_flow_daily": _sector_flow_audit(connection),
         }
         key_audit = _daily_adj_key_audit(connection)
+        historical_calendar_audit = _historical_calendar_audit(
+            connection,
+            minimum_cross_section=minimum_factor_cross_section,
+        )
         schedule = _pick_probe_dates(connection)
         membership_visibility = _membership_pit_visibility(
             connection,
@@ -3213,9 +3248,7 @@ def build_data_health_report(
                     "sha256": frozen_preflight_identity["sha256"],
                     "bytes": frozen_preflight_identity["bytes"],
                 },
-                "current_diagnostic_manifest_sha256": samples[
-                    "manifest_sha256"
-                ],
+                "current_diagnostic_manifest_sha256": samples["manifest_sha256"],
                 "diagnostic_manifest_may_advance": True,
             }
             evidence_samples = frozen_samples
@@ -3230,14 +3263,10 @@ def build_data_health_report(
         if external_pairing["accepted"]:
             if frozen_key_audit is None:
                 samples["external_source_pairing"] = "evidence_supplied"
-                samples["external_pairing_evidence_sha256"] = external_pairing[
-                    "sha256"
-                ]
+                samples["external_pairing_evidence_sha256"] = external_pairing["sha256"]
             else:
                 frozen_key_audit["external_source_pairing"] = "evidence_supplied"
-                frozen_key_audit["external_pairing_evidence_sha256"] = (
-                    external_pairing["sha256"]
-                )
+                frozen_key_audit["external_pairing_evidence_sha256"] = external_pairing["sha256"]
 
         factor_availability = _factor_availability(
             database_path,
@@ -3253,26 +3282,33 @@ def build_data_health_report(
             minimum_market_coverage=minimum_market_coverage,
         )
         data_version_after = int(_one(connection, "PRAGMA data_version")[0])
-        running_after = int(
-            _one(
-                connection,
-                "SELECT COUNT(*) FROM job_runs WHERE status = 'running'",
-            )[0]
-        )
         if external_pit_frozen_preflight is not None:
+            running_rows_after, allowed_current_job_after = _release_running_job_snapshot(
+                connection
+            )
+            running_after = len(running_rows_after)
             if data_version_after != data_version_before:
-                raise RuntimeError(
-                    "database changed during the S6 signed release gate"
-                )
-            if running_after:
-                raise RuntimeError(
-                    "database gained a running JobRun during the S6 release gate"
-                )
+                raise RuntimeError("database changed during the S6 signed release gate")
+            if (
+                running_rows_after != running_rows_before
+                or allowed_current_job_after != allowed_current_job
+            ):
+                raise RuntimeError("running JobRun identity changed during the S6 release gate")
             release_snapshot = {
                 "data_version_before": data_version_before,
                 "data_version_after": data_version_after,
                 "running_job_runs_before": running_before,
                 "running_job_runs_after": running_after,
+                "unexpected_running_job_runs_before": 0,
+                "unexpected_running_job_runs_after": 0,
+                "allowed_current_job_run": (
+                    {
+                        "id": allowed_current_job.run_id,
+                        "job_name": allowed_current_job.job_name,
+                    }
+                    if allowed_current_job is not None
+                    else None
+                ),
                 "stable": True,
             }
     report: dict[str, Any] = {
@@ -3287,33 +3323,28 @@ def build_data_health_report(
         },
         "thresholds": {
             "minimum_market_coverage": minimum_market_coverage,
+            "minimum_listing_date_coverage": minimum_listing_date_coverage,
             "minimum_factor_cross_section": minimum_factor_cross_section,
             "minimum_sector_plates": minimum_sector_plates,
             "minimum_sector_dates": minimum_sector_dates,
             "financial_target_quarters": FINANCIAL_TARGET_QUARTERS,
-            "financial_minimum_mature_quarters": (
-                FINANCIAL_MINIMUM_MATURE_QUARTERS
-            ),
-            "minimum_financial_symbol_pass_ratio": (
-                MIN_FINANCIAL_SYMBOL_PASS_RATIO
-            ),
-            "minimum_provider_pub_date_basis_ratio": (
-                MIN_PROVIDER_PUB_DATE_BASIS_RATIO
-            ),
+            "financial_minimum_mature_quarters": (FINANCIAL_MINIMUM_MATURE_QUARTERS),
+            "minimum_financial_symbol_pass_ratio": (MIN_FINANCIAL_SYMBOL_PASS_RATIO),
+            "minimum_provider_pub_date_basis_ratio": (MIN_PROVIDER_PUB_DATE_BASIS_RATIO),
         },
         "universe": {
             "definition": "securities.market='CN' AND list_status='listed'",
             "securities": universe_size,
+            "listing_date_audit": listing_date_audit,
         },
         "input_coverage": input_coverage,
         "daily_adj_key_audit": key_audit,
+        "historical_calendar_audit": historical_calendar_audit,
         "factor_availability": factor_availability,
         "historical_factor_scope": {
             "candidate_factors": list(HISTORICAL_FACTOR_CANDIDATES),
             "candidate_count": len(HISTORICAL_FACTOR_CANDIDATES),
-            "history_excluded_pit_gap": list(
-                HISTORY_EXCLUDED_PIT_GAP_FACTORS
-            ),
+            "history_excluded_pit_gap": list(HISTORY_EXCLUDED_PIT_GAP_FACTORS),
             "ruling_date": "2026-07-25",
         },
         "pit_samples": samples,
@@ -3323,6 +3354,7 @@ def build_data_health_report(
     report["gate"] = _gate(
         report,
         minimum_market_coverage=minimum_market_coverage,
+        minimum_listing_date_coverage=minimum_listing_date_coverage,
         minimum_sector_plates=minimum_sector_plates,
         minimum_sector_dates=minimum_sector_dates,
     )
@@ -3342,6 +3374,11 @@ def render_data_health_markdown(report: dict[str, Any]) -> str:
 
     gate = report["gate"]
     inputs = report["input_coverage"]
+    listing_date_audit = report["universe"]["listing_date_audit"]
+    missing_listing_dates_by_board = json.dumps(
+        listing_date_audit["missing_by_board"],
+        ensure_ascii=False,
+    )
     lines = [
         "# P3.3-S6 回填后数据体检",
         "",
@@ -3355,6 +3392,24 @@ def render_data_health_markdown(report: dict[str, Any]) -> str:
         f"`{'accepted' if report['external_pit_pairing']['accepted'] else 'pending'}`",
         f"- M3 历史候选：`{report['historical_factor_scope']['candidate_count']}` "
         "因子；`net_inflow_5d` 为 `history_excluded_pit_gap` / live-forward",
+        "",
+        "## 研究证券主数据",
+        "",
+        "- 上市日期有效覆盖："
+        f"{listing_date_audit['valid_symbols']:,}/"
+        f"{listing_date_audit['universe_symbols']:,} "
+        f"({_display(listing_date_audit['coverage_ratio'])})；"
+        "闸门 ≥ "
+        f"{report['thresholds']['minimum_listing_date_coverage']:.0%}",
+        "- 上市日期残余缺口："
+        f"{listing_date_audit['missing_symbols']:,}；"
+        "按板块="
+        "`"
+        f"{missing_listing_dates_by_board}"
+        "`",
+        "- 非法/未来上市日期："
+        f"{listing_date_audit['invalid_rows']}/"
+        f"{listing_date_audit['future_rows']}",
         "",
         "## 输入底表覆盖",
         "",
@@ -3435,6 +3490,23 @@ def render_data_health_markdown(report: dict[str, Any]) -> str:
     )
 
     key_audit = report["daily_adj_key_audit"]
+    calendar_audit = report["historical_calendar_audit"]
+    lines.extend(
+        [
+            "",
+            "### 历史研究日历",
+            "",
+            f"- 异常日期：{calendar_audit['anomaly_date_count']}；"
+            f"周末={calendar_audit['weekend_date_count']}；"
+            f"稀疏工作日={calendar_audit['sparse_weekday_date_count']}；"
+            f"最小截面={calendar_audit['minimum_cross_section']}",
+        ]
+    )
+    for anomaly in calendar_audit["anomaly_dates"]:
+        lines.append(
+            f"- `{anomaly['trade_date']}`：{anomaly['reason']}，"
+            f"symbols={anomaly['symbols']}，weekday={anomaly['weekday']}"
+        )
     lines.extend(
         [
             "",
@@ -3527,16 +3599,17 @@ def render_data_health_markdown(report: dict[str, Any]) -> str:
             "",
             "## 逐因子 PIT 可测性",
             "",
-            "| 因子 | 分组 | 状态 | 非空截面统计 | 历史决策日截面 n | "
-            "代表性缺口/原因 |",
+            "| 因子 | 分组 | 状态 | 非空截面统计 | 历史决策日截面 n | 代表性缺口/原因 |",
             "|---|---|---|---|---|---|",
         ]
     )
     for item in report["factor_availability"]["factors"]:
-        observations = ", ".join(
-            f"{probe['date']}={probe['n']}/{probe['eligible']}"
-            for probe in item["probes"]
-        ) or "—"
+        observations = (
+            ", ".join(
+                f"{probe['date']}={probe['n']}/{probe['eligible']}" for probe in item["probes"]
+            )
+            or "—"
+        )
         summary = item["non_null_summary"]
         summary_text = (
             f"min={_display(summary['minimum_n'])}, "
@@ -3544,26 +3617,14 @@ def render_data_health_markdown(report: dict[str, Any]) -> str:
             f"pass={summary['sufficient_probe_count']}/{summary['probe_count']}"
         )
         gaps = item.get("representative_gaps") or []
-        gap_evidence = (
-            "; ".join(
-                f"{gap['date']}:n={gap['n']}"
-                for gap in gaps
-            )
-            or "—"
-        )
+        gap_evidence = "; ".join(f"{gap['date']}:n={gap['n']}" for gap in gaps) or "—"
         reason = str(item.get("reason") or "")
-        gap_text = (
-            f"{reason}; {gap_evidence}"
-            if reason
-            else gap_evidence
-        )
+        gap_text = f"{reason}; {gap_evidence}" if reason else gap_evidence
         lines.append(
             f"| {item['factor']} | {item['group']} | {item['status']} | "
             f"{summary_text} | {observations} | {gap_text} |"
         )
-    membership_visibility = report["factor_availability"][
-        "sector_membership_pit_visibility"
-    ]
+    membership_visibility = report["factor_availability"]["sector_membership_pit_visibility"]
     lines.extend(["", "### 资金流探针的成分 PIT 可见性", ""])
     if membership_visibility:
         for probe_date, payload in membership_visibility.items():
@@ -3590,24 +3651,32 @@ def render_data_health_markdown(report: dict[str, Any]) -> str:
     if isinstance(frozen_audit, dict):
         lines.extend(
             [
-                "- 冻结精确键清单："
-                f"`{frozen_audit['manifest_sha256']}`",
+                f"- 冻结精确键清单：`{frozen_audit['manifest_sha256']}`",
                 f"- 冻结样本：{frozen_audit['sample_count']}；"
                 f"difference_count={frozen_audit['difference_count']}；"
                 f"query_only={str(frozen_audit['query_only']).lower()}",
-                "- 冻结 preflight："
-                f"`{frozen_audit['preflight']['sha256']}`",
+                f"- 冻结 preflight：`{frozen_audit['preflight']['sha256']}`",
             ]
         )
     release_snapshot = report["database"].get("release_snapshot")
     if isinstance(release_snapshot, dict):
+        allowed_current = release_snapshot["allowed_current_job_run"]
+        allowed_text = (
+            "none"
+            if allowed_current is None
+            else f"{allowed_current['job_name']}#{allowed_current['id']}"
+        )
         lines.append(
             "- 发布快照稳定性："
             f"`{str(release_snapshot['stable']).lower()}`；"
             f"data_version={release_snapshot['data_version_before']}→"
             f"{release_snapshot['data_version_after']}；"
             f"running={release_snapshot['running_job_runs_before']}→"
-            f"{release_snapshot['running_job_runs_after']}"
+            f"{release_snapshot['running_job_runs_after']}；"
+            f"unexpected="
+            f"{release_snapshot['unexpected_running_job_runs_before']}→"
+            f"{release_snapshot['unexpected_running_job_runs_after']}；"
+            f"allowed_current=`{allowed_text}`"
         )
 
     evidence = report["external_pit_pairing"]
@@ -3621,8 +3690,7 @@ def render_data_health_markdown(report: dict[str, Any]) -> str:
             f"- sha256：{_display(evidence['sha256'])}",
             f"- bytes：{evidence['bytes']}",
             f"- schema_version：{_display(evidence['schema_version'])}",
-            "- pit_manifest_schema_version："
-            f"{_display(evidence['pit_manifest_schema_version'])}",
+            f"- pit_manifest_schema_version：{_display(evidence['pit_manifest_schema_version'])}",
             f"- pit_manifest_sha256：{_display(evidence['pit_manifest_sha256'])}",
             f"- reviewer_type：{_display(evidence.get('reviewer_type'))}",
             f"- reviewer_role：{_display(evidence['reviewer_role'])}",
@@ -3635,8 +3703,7 @@ def render_data_health_markdown(report: dict[str, Any]) -> str:
     if isinstance(ai_attestation, dict):
         lines.extend(
             [
-                "- AI review attestation："
-                f"`{_display(ai_attestation.get('sha256'))}`",
+                f"- AI review attestation：`{_display(ai_attestation.get('sha256'))}`",
                 "- AI reviewer："
                 f"{_display(ai_attestation.get('reviewer_product'))} / "
                 f"{_display(ai_attestation.get('reviewer_model'))}",
@@ -3648,17 +3715,11 @@ def render_data_health_markdown(report: dict[str, Any]) -> str:
 
     lines.extend(["", "## 阻断项", ""])
     if gate["blockers"]:
-        lines.extend(
-            f"- `{item['code']}`：{item['message']}"
-            for item in gate["blockers"]
-        )
+        lines.extend(f"- `{item['code']}`：{item['message']}" for item in gate["blockers"])
     else:
         lines.append("- 无")
     lines.extend(["", "## 风险与保留项", ""])
-    lines.extend(
-        f"- `{item['code']}`：{item['message']}"
-        for item in gate["warnings"]
-    )
+    lines.extend(f"- `{item['code']}`：{item['message']}" for item in gate["warnings"])
     lines.extend(
         [
             "",

@@ -1,0 +1,29 @@
+{
+  "as_of_date": "2026-08-01",
+  "completed_at": "2026-08-01T10:17:15.266180+00:00",
+  "database": "/Users/ouyangduning/Documents/project/interesting/AlphaPilot-AI/data/alphapilot.db",
+  "details": {
+    "value": "1970-01-01"
+  },
+  "error": "Futu[SZ.302132].listing_date predates the supported mainland exchange history",
+  "error_type": "ListedDateBackfillError",
+  "mode": "dry_run",
+  "operation": "p3_m3_s7_security_listed_date_backfill",
+  "safety_contract": {
+    "baostock_called": false,
+    "database_columns_mutable": [
+      "securities.listed_date"
+    ],
+    "markets": [
+      "SH",
+      "SZ"
+    ],
+    "missing_only": true,
+    "provider_method": "Futu get_stock_basicinfo",
+    "provider_surface": "quote_read_only",
+    "scheduler_started": false,
+    "trade_api_called": false
+  },
+  "started_at": "2026-08-01T10:16:37.633815+00:00",
+  "status": "blocked"
+}

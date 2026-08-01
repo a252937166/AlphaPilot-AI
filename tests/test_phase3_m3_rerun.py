@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import os
+from collections.abc import Iterator
 from contextlib import contextmanager
 from datetime import date, timedelta
 from pathlib import Path
@@ -270,6 +272,7 @@ def test_foreground_runner_registers_job_and_forces_s7_only(
     tmp_path: Path,
 ) -> None:
     calls: list[tuple[str, dict[str, Any]]] = []
+    allowance_calls: list[tuple[str, str]] = []
     for key in (
         *run_factor_research._RESEARCH_ENV,
         "ALPHAPILOT_S6_EXTERNAL_PIT_EVIDENCE",
@@ -291,6 +294,20 @@ def test_foreground_runner_registers_job_and_forces_s7_only(
         run_factor_research,
         "_research_host_lock",
         _fake_session,
+    )
+
+    @contextmanager
+    def fake_allowance(*, job_name: str) -> Iterator[None]:
+        allowance_calls.append(("enter", job_name))
+        try:
+            yield
+        finally:
+            allowance_calls.append(("exit", job_name))
+
+    monkeypatch.setattr(
+        run_factor_research,
+        "allow_s6_release_for_current_job",
+        fake_allowance,
     )
     monkeypatch.setattr(
         run_factor_research,
@@ -328,6 +345,10 @@ def test_foreground_runner_registers_job_and_forces_s7_only(
             },
         )
     ]
+    assert allowance_calls == [
+        ("enter", "research_factors_m3"),
+        ("exit", "research_factors_m3"),
+    ]
 
 
 def test_detached_child_uses_resolved_evidence_and_research_safety_env(
@@ -364,3 +385,59 @@ def test_detached_child_uses_resolved_evidence_and_research_safety_env(
         child_env[key] == value
         for key, value in run_factor_research._RESEARCH_ENV.items()
     )
+
+
+@pytest.mark.parametrize("suffix", ["", "-wal", "-shm", "-journal"])
+def test_detached_log_rejects_database_and_sidecar_paths(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    suffix: str,
+) -> None:
+    database = tmp_path / "alphapilot.db"
+    protected = Path(f"{database}{suffix}")
+    protected.write_bytes(b"protected")
+    evidence = tmp_path / "signed.json"
+    monkeypatch.setattr(
+        run_factor_research,
+        "get_settings",
+        lambda: SimpleNamespace(database_url=f"sqlite:///{database}"),
+    )
+
+    with pytest.raises(ValueError, match="must not alias"):
+        run_factor_research._validated_log_path(
+            protected,
+            evidence_path=evidence,
+        )
+
+    assert protected.read_bytes() == b"protected"
+
+
+def test_detached_log_rejects_hardlink_and_signed_evidence_aliases(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    database = tmp_path / "alphapilot.db"
+    database.write_bytes(b"database")
+    hardlink = tmp_path / "research.log"
+    os.link(database, hardlink)
+    evidence = tmp_path / "signed.json"
+    evidence.write_text("signed", encoding="utf-8")
+    monkeypatch.setattr(
+        run_factor_research,
+        "get_settings",
+        lambda: SimpleNamespace(database_url=f"sqlite:///{database}"),
+    )
+
+    with pytest.raises(ValueError, match="must not alias"):
+        run_factor_research._validated_log_path(
+            hardlink,
+            evidence_path=evidence,
+        )
+    with pytest.raises(ValueError, match="must not alias"):
+        run_factor_research._validated_log_path(
+            evidence,
+            evidence_path=evidence,
+        )
+
+    assert database.read_bytes() == b"database"
+    assert evidence.read_text(encoding="utf-8") == "signed"

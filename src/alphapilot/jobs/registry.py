@@ -9,6 +9,7 @@ from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.interval import IntervalTrigger
 
 from alphapilot.core.config import get_settings
+from alphapilot.core.job_execution_context import bind_job_run
 from alphapilot.data.baostock_provider import close_baostock_session_if_used
 from alphapilot.db.engine import get_session
 from alphapilot.db.models import JobRun, utcnow
@@ -62,7 +63,8 @@ def _run_job_locked(name: str, spec: JobSpec, kwargs: dict[str, Any]) -> JobRun:
         run_id = record.id
 
     try:
-        stats = spec.func(**kwargs)
+        with bind_job_run(run_id=run_id, job_name=name):
+            stats = spec.func(**kwargs)
     except Exception as exc:  # the audit row is the scheduler's failure boundary
         with get_session() as session:
             failed = session.get(JobRun, run_id)

@@ -15,6 +15,8 @@ from sqlalchemy.orm import Session
 
 from alphapilot.api.routes.jobs import list_runs
 from alphapilot.core.config import Settings
+from alphapilot.core.job_execution_context import current_job_run
+from alphapilot.db.engine import get_session
 from alphapilot.db.migrate import (
     drop_redundant_index,
     ensure_column,
@@ -401,6 +403,43 @@ def test_run_job_records_stats() -> None:
     assert record.stats == {"processed": 3}
     assert record.finished_at is not None
     assert record.error is None
+    assert current_job_run() is None
+
+
+def test_run_job_binds_exact_durable_audit_row_during_task() -> None:
+    name = "test_job_execution_context"
+    observed: dict[str, Any] = {}
+
+    def task() -> dict[str, Any]:
+        context = current_job_run()
+        assert context is not None
+        with get_session() as session:
+            running = session.get(JobRun, context.run_id)
+            assert running is not None
+            observed.update(
+                {
+                    "id": running.id,
+                    "job_name": running.job_name,
+                    "status": running.status,
+                    "context_name": context.job_name,
+                }
+            )
+        return {"bound": True}
+
+    register(JobSpec(name=name, func=task, trigger=None))
+    try:
+        record = run_job(name)
+    finally:
+        JOBS.pop(name, None)
+
+    assert observed == {
+        "id": record.id,
+        "job_name": name,
+        "status": "running",
+        "context_name": name,
+    }
+    assert record.status == "ok"
+    assert current_job_run() is None
 
 
 def test_run_job_passes_explicit_kwargs() -> None:
@@ -445,6 +484,7 @@ def test_run_job_persists_partial_stats_from_failure() -> None:
     assert record.stats == partial
     assert record.finished_at is not None
     assert record.error == "JobExecutionError: stopped after 20 failures"
+    assert current_job_run() is None
 
 
 def test_run_job_serializes_concurrent_executions_of_the_same_name() -> None:

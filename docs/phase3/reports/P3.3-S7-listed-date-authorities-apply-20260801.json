@@ -1,0 +1,45 @@
+{
+  "as_of_date": "2026-08-01",
+  "completed_at": "2026-08-01T10:43:02.159928+00:00",
+  "database": "/Users/ouyangduning/Documents/project/interesting/AlphaPilot-AI/data/alphapilot.db",
+  "details": {
+    "api_name": "stock_basic",
+    "provider": "tushare",
+    "provider_error_code": 40203
+  },
+  "error": "Tushare stock_basic authority returned a business error",
+  "error_type": "ListedDateBackfillError",
+  "mode": "apply",
+  "mutation_committed": false,
+  "operation": "p3_m3_s7_security_listed_date_backfill",
+  "safety_contract": {
+    "baostock_called": false,
+    "database_columns_mutable": [
+      "securities.listed_date"
+    ],
+    "markets": [
+      "SH",
+      "SZ",
+      "BSE"
+    ],
+    "missing_only": true,
+    "provider_calls": {
+      "futu_quote_calls": 2,
+      "tushare_api_calls": 1,
+      "tushare_retries": 0
+    },
+    "provider_methods": [
+      "Futu get_stock_basicinfo",
+      "Tushare stock_basic"
+    ],
+    "provider_surfaces": [
+      "quote_read_only",
+      "market_metadata_read_only"
+    ],
+    "scheduler_started": false,
+    "trade_api_called": false
+  },
+  "stage": "preflight",
+  "started_at": "2026-08-01T10:42:23.775134+00:00",
+  "status": "blocked"
+}

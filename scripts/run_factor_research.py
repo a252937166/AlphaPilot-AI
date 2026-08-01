@@ -12,8 +12,13 @@ from contextlib import contextmanager
 from datetime import date
 from pathlib import Path
 
+from alphapilot.core.config import get_settings
+from alphapilot.core.job_execution_context import (
+    allow_s6_release_for_current_job,
+)
 from alphapilot.jobs.factor_research_job import (
     FORMAL_RESEARCH_JOB_NAME,
+    _database_path,
     register_factor_research_job,
 )
 from alphapilot.jobs.registry import JOBS, run_job
@@ -92,8 +97,49 @@ def _research_host_lock() -> Iterator[None]:
             fcntl.flock(lock.fileno(), fcntl.LOCK_UN)
 
 
+def _aliases_protected_path(candidate: Path, protected: tuple[Path, ...]) -> bool:
+    resolved_candidate = candidate.expanduser().resolve()
+    for item in protected:
+        resolved_item = item.expanduser().resolve()
+        if resolved_candidate == resolved_item:
+            return True
+        if (
+            resolved_candidate.exists()
+            and resolved_item.exists()
+            and resolved_candidate.samefile(resolved_item)
+        ):
+            return True
+    return False
+
+
+def _validated_log_path(
+    log_path: Path,
+    *,
+    evidence_path: Path,
+) -> Path:
+    destination = log_path.expanduser().resolve()
+    database = _database_path(get_settings().database_url)
+    protected = (
+        database,
+        Path(f"{database}-wal"),
+        Path(f"{database}-shm"),
+        Path(f"{database}-journal"),
+        evidence_path.expanduser().resolve(),
+        _LOCK_PATH.expanduser().resolve(),
+    )
+    if _aliases_protected_path(destination, protected):
+        raise ValueError(
+            "formal research log must not alias the SQLite database, a database "
+            "sidecar, signed S6 evidence, or the research host lock"
+        )
+    return destination
+
+
 def _detach(arguments: argparse.Namespace) -> int:
-    log_path = arguments.log_path.expanduser().resolve()
+    log_path = _validated_log_path(
+        arguments.log_path,
+        evidence_path=arguments.external_pit_evidence,
+    )
     log_path.parent.mkdir(parents=True, exist_ok=True)
     with log_path.open("ab", buffering=0) as stream:
         process = subprocess.Popen(
@@ -119,7 +165,10 @@ def _foreground(arguments: argparse.Namespace) -> int:
         arguments.external_pit_evidence.expanduser().resolve()
     )
     register_factor_research_job()
-    with _research_host_lock():
+    with (
+        _research_host_lock(),
+        allow_s6_release_for_current_job(job_name=FORMAL_RESEARCH_JOB_NAME),
+    ):
         if FORMAL_RESEARCH_JOB_NAME not in JOBS:
             raise RuntimeError(f"job is not registered: {FORMAL_RESEARCH_JOB_NAME}")
         record = run_job(

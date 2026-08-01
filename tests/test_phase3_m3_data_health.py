@@ -23,11 +23,16 @@ from alphapilot.backtest.data_health import (
     readonly_connection,
     render_data_health_markdown,
 )
+from alphapilot.core.job_execution_context import (
+    allow_s6_release_for_current_job,
+    bind_job_run,
+)
 from alphapilot.db.models import (
     AdjFactor,
     Base,
     DailyBar,
     FinancialIndicator,
+    JobRun,
     SectorConstituent,
     SectorConstituentSnapshot,
     SectorFlowDaily,
@@ -58,10 +63,7 @@ def _database(
     database_path = tmp_path / "health.db"
     engine = create_engine(f"sqlite:///{database_path}")
     Base.metadata.create_all(engine)
-    trading_days = [
-        date(2026, 7, 20) + timedelta(days=index)
-        for index in range(trading_day_count)
-    ]
+    trading_days = [date(2026, 7, 20) + timedelta(days=index) for index in range(trading_day_count)]
     symbols = ("SH.000001", "600519", "000001")
     with Session(engine) as session:
         session.add_all(
@@ -221,9 +223,7 @@ def _replace_with_full_financial_history(database_path: Path) -> None:
                             source="baostock",
                             available_time=available_time,
                             payload={
-                                "available_time_basis": (
-                                    "provider_pub_date_end_of_day"
-                                ),
+                                "available_time_basis": ("provider_pub_date_end_of_day"),
                                 "approx": False,
                                 "stat_date": period_end.isoformat(),
                                 "pub_dates": [publication_date.isoformat()],
@@ -263,15 +263,11 @@ def _external_evidence_document(
             for field in data_health.PIT_CHECKED_FIELDS[table]:
                 local_value = row[field]
                 if field in data_health.PIT_NUMERIC_CHECKED_FIELDS:
-                    external_value = (
-                        "N/A" if local_value is None else local_value
-                    )
+                    external_value = "N/A" if local_value is None else local_value
                     if local_value is None:
                         tolerance = 0.0
                     else:
-                        absolute, relative = (
-                            data_health.PIT_NUMERIC_TOLERANCE_POLICY[field]
-                        )
+                        absolute, relative = data_health.PIT_NUMERIC_TOLERANCE_POLICY[field]
                         tolerance = max(
                             absolute,
                             relative * abs(float(local_value)),
@@ -312,10 +308,7 @@ def _external_evidence_document(
 
 def _sufficient_probe(_session: Session, _as_of: date) -> pd.DataFrame:
     frame = pd.DataFrame(
-        {
-            factor: [0.1, -0.1, 0.2]
-            for factor in FACTOR_SET
-        },
+        {factor: [0.1, -0.1, 0.2] for factor in FACTOR_SET},
         index=["SH.000001", "600519", "000001"],
     )
     frame.attrs["eligible"] = 3
@@ -368,15 +361,10 @@ def test_s6_report_is_read_only_and_blocks_incomplete_s2(tmp_path: Path) -> None
         "audited_daily_keys_without_adj": 0,
         "adj_keys_without_audited_daily": 0,
     }
-    factors = {
-        item["factor"]: item for item in report["factor_availability"]["factors"]
-    }
+    factors = {item["factor"]: item for item in report["factor_availability"]["factors"]}
     assert len(factors) == 13
     assert factors["sector_strength"]["status"] == "live_only"
-    assert (
-        factors["net_inflow_5d"]["status"]
-        == "history_excluded_pit_gap"
-    )
+    assert factors["net_inflow_5d"]["status"] == "history_excluded_pit_gap"
     assert all(
         item["status"] == "sufficient"
         for factor, item in factors.items()
@@ -395,13 +383,83 @@ def test_s6_report_is_read_only_and_blocks_incomplete_s2(tmp_path: Path) -> None
     assert report["historical_factor_scope"]["candidate_count"] == 11
     assert json.loads(json.dumps(report, ensure_ascii=False))["gate"]["status"] == "blocked"
     for table in ("daily_bars", "adj_factors", "valuation_daily"):
-        plan = report["input_coverage"][table]["latest_broad_cross_section"][
-            "query_plan"
-        ]
+        plan = report["input_coverage"][table]["latest_broad_cross_section"]["query_plan"]
         normalized = [str(detail).upper() for detail in plan]
         assert plan
         assert not any("SCAN OBSERVED" in detail for detail in normalized)
         assert any("SEARCH OBSERVED" in detail for detail in normalized)
+
+
+def test_s6_blocks_when_listing_date_metadata_is_undercovered(
+    tmp_path: Path,
+) -> None:
+    database_path = _database(tmp_path)
+    writable = sqlite3.connect(database_path)
+    try:
+        writable.execute("UPDATE securities SET listed_date = NULL WHERE symbol = '000001'")
+        writable.commit()
+    finally:
+        writable.close()
+
+    report = build_data_health_report(
+        database_path,
+        minimum_market_coverage=0.80,
+        minimum_factor_cross_section=2,
+        minimum_sector_plates=1,
+        minimum_sector_dates=5,
+        sample_size=1,
+        factor_probe=_sufficient_probe,
+    )
+
+    listing = report["universe"]["listing_date_audit"]
+    assert listing["universe_symbols"] == 2
+    assert listing["valid_symbols"] == 1
+    assert listing["coverage_ratio"] == 0.5
+    assert listing["missing_symbols"] == 1
+    blocker_codes = {item["code"] for item in report["gate"]["blockers"]}
+    assert "SECURITY_LISTING_DATE_COVERAGE" in blocker_codes
+    warning_codes = {item["code"] for item in report["gate"]["warnings"]}
+    assert "SECURITY_LISTING_DATE_RESIDUAL_GAP" in warning_codes
+    markdown = render_data_health_markdown(report)
+    assert "上市日期有效覆盖：1/2 (0.5000)" in markdown
+
+
+@pytest.mark.parametrize(
+    "dirty_value",
+    ["1970-01-01", "20200101", " 2020-01-01 "],
+)
+def test_s6_listing_date_audit_rejects_noncanonical_or_sentinel_values(
+    tmp_path: Path,
+    dirty_value: str,
+) -> None:
+    database_path = _database(tmp_path)
+    writable = sqlite3.connect(database_path)
+    try:
+        writable.execute(
+            "UPDATE securities SET listed_date = ? WHERE symbol = '000001'",
+            (dirty_value,),
+        )
+        writable.commit()
+    finally:
+        writable.close()
+
+    report = build_data_health_report(
+        database_path,
+        minimum_market_coverage=0.80,
+        minimum_listing_date_coverage=0.50,
+        minimum_factor_cross_section=2,
+        minimum_sector_plates=1,
+        minimum_sector_dates=5,
+        sample_size=1,
+        factor_probe=_sufficient_probe,
+    )
+
+    listing = report["universe"]["listing_date_audit"]
+    assert listing["valid_symbols"] == 1
+    assert listing["invalid_rows"] == 1
+    assert listing["invalid_sample"] == [{"symbol": "000001", "listed_date": dirty_value}]
+    blocker_codes = {item["code"] for item in report["gate"]["blockers"]}
+    assert "SECURITY_LISTING_DATE_VALUES" in blocker_codes
 
 
 def test_flow_factor_is_recorded_as_nonblocking_exclusion_and_tracks_forward_pit(
@@ -525,9 +583,7 @@ def test_sector_flow_gate_rejects_mixed_source_inside_m3_window(
         factor_probe=_sufficient_probe,
     )
 
-    historical = report["input_coverage"]["sector_flow_daily"][
-        "historical_backfill"
-    ]
+    historical = report["input_coverage"]["sector_flow_daily"]["historical_backfill"]
     assert historical["window_rows"] == 5
     assert historical["mixed_source_rows_in_window"] == 1
     blocker_codes = {item["code"] for item in report["gate"]["blockers"]}
@@ -570,9 +626,7 @@ def test_sector_flow_gate_rejects_rectangular_gap_in_historical_subset(
         factor_probe=_sufficient_probe,
     )
 
-    historical = report["input_coverage"]["sector_flow_daily"][
-        "historical_backfill"
-    ]
+    historical = report["input_coverage"]["sector_flow_daily"]["historical_backfill"]
     assert historical["rows"] == 9
     assert historical["expected_rectangular_rows"] == 10
     assert historical["rectangular_gap_rows"] == 1
@@ -735,9 +789,7 @@ def test_financial_depth_gaps_are_structured_nonblocking_diagnostics(
                         source="baostock",
                         available_time=available_time,
                         payload={
-                            "available_time_basis": (
-                                "provider_pub_date_end_of_day"
-                            ),
+                            "available_time_basis": ("provider_pub_date_end_of_day"),
                             "approx": False,
                             "stat_date": period_end.isoformat(),
                             "pub_dates": [publication_date.isoformat()],
@@ -766,9 +818,7 @@ def test_financial_depth_gaps_are_structured_nonblocking_diagnostics(
     assert roe_depth["fresh_ratio"] == 0.0
     assert roe_depth["representative_gaps"]
     blocker_codes = {item["code"] for item in report["gate"]["blockers"]}
-    warning_by_code = {
-        item["code"]: item for item in report["gate"]["warnings"]
-    }
+    warning_by_code = {item["code"]: item for item in report["gate"]["warnings"]}
     assert "S2_FINANCIAL_COVERAGE_INCOMPLETE" not in blocker_codes
     assert "FINANCIAL_ROE_DEPTH" not in blocker_codes
     assert "FINANCIAL_ROE_CROSS_YEAR" not in blocker_codes
@@ -858,9 +908,7 @@ def test_financial_depth_uses_provider_universe_and_ignores_prelisting_values(
     assert gap["non_null_quarters"] == 0
     revenue = depth["metric_depth"]["revenue_yoy"]
     assert revenue["diagnostic_only"] is True
-    assert revenue["provider_cadence"] == (
-        "semiannual_q2_q4_from_baostock_mb_revenue"
-    )
+    assert revenue["provider_cadence"] == ("semiannual_q2_q4_from_baostock_mb_revenue")
     assert revenue["provider_expected_quarters"] == [2, 4]
 
 
@@ -885,9 +933,7 @@ def test_provider_null_financial_rows_warn_but_prior_values_remain_pit_usable(
             tzinfo=SHANGHAI,
         ).astimezone(UTC)
         source_field = (
-            "cash_flow.CFOToNP"
-            if metric == "ocf_to_profit"
-            else "derived.profit.MBRevenue_yoy"
+            "cash_flow.CFOToNP" if metric == "ocf_to_profit" else "derived.profit.MBRevenue_yoy"
         )
         payload: dict[str, Any] = {
             "available_time_basis": "provider_pub_date_end_of_day",
@@ -926,11 +972,7 @@ def test_provider_null_financial_rows_warn_but_prior_values_remain_pit_usable(
                         symbol=symbol,
                         report_period="2025Q3",
                         metric=metric,
-                        value=(
-                            None
-                            if metric == "revenue_yoy"
-                            else 0.15 + offset
-                        ),
+                        value=(None if metric == "revenue_yoy" else 0.15 + offset),
                         period_end=date(2025, 9, 30),
                         publication_date=date(2025, 10, 25),
                     )
@@ -974,17 +1016,15 @@ def test_provider_null_financial_rows_warn_but_prior_values_remain_pit_usable(
         factor_probe=_sufficient_probe,
     )
     blocker_codes = {item["code"] for item in report["gate"]["blockers"]}
-    warning_by_code = {
-        item["code"]: item for item in report["gate"]["warnings"]
-    }
+    warning_by_code = {item["code"]: item for item in report["gate"]["warnings"]}
     for metric in ("OCF_TO_PROFIT", "REVENUE_YOY"):
         for suffix in ("DEPTH", "CROSS_YEAR", "FRESHNESS"):
             code = f"FINANCIAL_{metric}_{suffix}"
             assert code not in blocker_codes
             assert warning_by_code[code]["blocking"] is False
-    revenue = report["input_coverage"]["financial_indicators"][
-        "depth_contract"
-    ]["metric_depth"]["revenue_yoy"]
+    revenue = report["input_coverage"]["financial_indicators"]["depth_contract"]["metric_depth"][
+        "revenue_yoy"
+    ]
     assert revenue["provider_expected_quarters"] == [2, 4]
 
 
@@ -1107,6 +1147,26 @@ def test_external_pairing_requires_exact_strict_json_and_reports_metadata_only(
     assert evidence_report["sha256"] in signed_markdown
     assert evidence_path.name in signed_markdown
 
+    with (
+        allow_s6_release_for_current_job(job_name="research_factors_m3"),
+        bind_job_run(run_id=999, job_name="research_factors_m3"),
+        pytest.raises(
+            ValueError,
+            match="exact pairing-v3 independent AI review profile",
+        ),
+    ):
+        build_data_health_report(
+            database_path,
+            as_of_date=date(2026, 7, 25),
+            external_pit_pairing_evidence=evidence_path,
+            minimum_market_coverage=0.80,
+            minimum_factor_cross_section=2,
+            minimum_sector_plates=1,
+            minimum_sector_dates=5,
+            sample_size=1,
+            factor_probe=_sufficient_probe,
+        )
+
 
 def test_pairing_v3_auto_routes_to_content_addressed_release_inputs(
     tmp_path: Path,
@@ -1203,6 +1263,129 @@ def test_pairing_v3_auto_routes_to_content_addressed_release_inputs(
     }
     assert report["frozen_pit_exact_key_audit"]["difference_count"] == 0
     assert report["database"]["release_snapshot"]["stable"] is True
+
+    engine = create_engine(f"sqlite:///{database_path}")
+    with Session(engine) as session:
+        current = JobRun(
+            job_name="research_factors_m3",
+            status="running",
+            stats={},
+        )
+        session.add(current)
+        session.commit()
+        current_id = current.id
+    engine.dispose()
+
+    with (
+        allow_s6_release_for_current_job(job_name="research_factors_m3"),
+        bind_job_run(run_id=current_id, job_name="research_factors_m3"),
+    ):
+        self_gated = build_data_health_report(
+            database_path,
+            as_of_date=date(2026, 7, 25),
+            external_pit_pairing_evidence=evidence_path,
+            minimum_market_coverage=0.80,
+            minimum_factor_cross_section=2,
+            minimum_sector_plates=1,
+            minimum_sector_dates=5,
+            sample_size=1,
+            factor_probe=_sufficient_probe,
+        )
+
+    assert self_gated["database"]["release_snapshot"] == {
+        "data_version_before": self_gated["database"]["release_snapshot"]["data_version_before"],
+        "data_version_after": self_gated["database"]["release_snapshot"]["data_version_after"],
+        "running_job_runs_before": 1,
+        "running_job_runs_after": 1,
+        "unexpected_running_job_runs_before": 0,
+        "unexpected_running_job_runs_after": 0,
+        "allowed_current_job_run": {
+            "id": current_id,
+            "job_name": "research_factors_m3",
+        },
+        "stable": True,
+    }
+    assert (
+        self_gated["database"]["release_snapshot"]["data_version_before"]
+        == self_gated["database"]["release_snapshot"]["data_version_after"]
+    )
+    with pytest.raises(RuntimeError, match="requires zero running"):
+        build_data_health_report(
+            database_path,
+            as_of_date=date(2026, 7, 25),
+            external_pit_pairing_evidence=evidence_path,
+            minimum_market_coverage=0.80,
+            minimum_factor_cross_section=2,
+            minimum_sector_plates=1,
+            minimum_sector_dates=5,
+            sample_size=1,
+            factor_probe=_sufficient_probe,
+        )
+
+    with (
+        bind_job_run(run_id=current_id, job_name="research_factors_m3"),
+        pytest.raises(RuntimeError, match="requires zero running"),
+    ):
+        build_data_health_report(
+            database_path,
+            as_of_date=date(2026, 7, 25),
+            external_pit_pairing_evidence=evidence_path,
+            minimum_market_coverage=0.80,
+            minimum_factor_cross_section=2,
+            minimum_sector_plates=1,
+            minimum_sector_dates=5,
+            sample_size=1,
+            factor_probe=_sufficient_probe,
+        )
+    with (
+        allow_s6_release_for_current_job(job_name="research_factors_m3"),
+        bind_job_run(run_id=current_id + 1, job_name="research_factors_m3"),
+        pytest.raises(RuntimeError, match="other than the exact current"),
+    ):
+        build_data_health_report(
+            database_path,
+            as_of_date=date(2026, 7, 25),
+            external_pit_pairing_evidence=evidence_path,
+            minimum_market_coverage=0.80,
+            minimum_factor_cross_section=2,
+            minimum_sector_plates=1,
+            minimum_sector_dates=5,
+            sample_size=1,
+            factor_probe=_sufficient_probe,
+        )
+    with (
+        pytest.raises(ValueError, match="restricted to research_factors_m3"),
+        allow_s6_release_for_current_job(job_name="compute_factors"),
+    ):
+        pytest.fail("wrong allowance must not enter its body")
+
+    engine = create_engine(f"sqlite:///{database_path}")
+    with Session(engine) as session:
+        session.add(
+            JobRun(
+                job_name="compute_factors",
+                status="running",
+                stats={},
+            )
+        )
+        session.commit()
+    engine.dispose()
+    with (
+        allow_s6_release_for_current_job(job_name="research_factors_m3"),
+        bind_job_run(run_id=current_id, job_name="research_factors_m3"),
+        pytest.raises(RuntimeError, match="other than the exact current"),
+    ):
+        build_data_health_report(
+            database_path,
+            as_of_date=date(2026, 7, 25),
+            external_pit_pairing_evidence=evidence_path,
+            minimum_market_coverage=0.80,
+            minimum_factor_cross_section=2,
+            minimum_sector_plates=1,
+            minimum_sector_dates=5,
+            sample_size=1,
+            factor_probe=_sufficient_probe,
+        )
 
 
 def test_external_pairing_rejects_missing_empty_and_arbitrary_text(
@@ -1483,6 +1666,7 @@ def test_financial_depth_uses_provider_universe_and_adapts_missing_listed_date(
         database_path,
         as_of_date=date(2026, 7, 25),
         minimum_market_coverage=0.60,
+        minimum_listing_date_coverage=0.60,
         minimum_factor_cross_section=2,
         minimum_sector_plates=1,
         minimum_sector_dates=5,
@@ -1498,22 +1682,16 @@ def test_financial_depth_uses_provider_universe_and_adapts_missing_listed_date(
         "unknown": 0,
     }
     assert depth["new_symbols_without_publishable_quarter"] == 1
-    assert all(
-        metric["symbols_evaluated"] == 2
-        for metric in depth["metric_depth"].values()
-    )
+    assert all(metric["symbols_evaluated"] == 2 for metric in depth["metric_depth"].values())
     blocker_codes = {item["code"] for item in report["gate"]["blockers"]}
     assert "S2_FINANCIAL_COVERAGE_INCOMPLETE" not in blocker_codes
     assert not any(
-        code.startswith("FINANCIAL_")
-        and code.endswith(("_DEPTH", "_CROSS_YEAR", "_FRESHNESS"))
+        code.startswith("FINANCIAL_") and code.endswith(("_DEPTH", "_CROSS_YEAR", "_FRESHNESS"))
         for code in blocker_codes
     )
     markdown = render_data_health_markdown(report)
     assert "first_audited_bar=1" in markdown
-    assert markdown.index("- 深度审计全集") < markdown.index(
-        "| 指标 | provider cadence"
-    )
+    assert markdown.index("- 深度审计全集") < markdown.index("| 指标 | provider cadence")
 
 
 def test_readonly_connection_rejects_writes(tmp_path: Path) -> None:
@@ -1521,9 +1699,7 @@ def test_readonly_connection_rejects_writes(tmp_path: Path) -> None:
     with readonly_connection(database_path) as connection:
         assert connection.execute("PRAGMA query_only").fetchone()[0] == 1
         with pytest.raises(sqlite3.OperationalError, match="readonly"):
-            connection.execute(
-                "INSERT INTO securities(symbol, market) VALUES ('999999', 'CN')"
-            )
+            connection.execute("INSERT INTO securities(symbol, market) VALUES ('999999', 'CN')")
 
 
 def test_daily_adj_key_audit_ignores_external_benchmark_but_not_listed_stock(
@@ -1532,9 +1708,7 @@ def test_daily_adj_key_audit_ignores_external_benchmark_but_not_listed_stock(
     database_path = _database(tmp_path)
     writable = sqlite3.connect(database_path)
     try:
-        writable.execute(
-            "DELETE FROM adj_factors WHERE symbol = 'SH.000001'"
-        )
+        writable.execute("DELETE FROM adj_factors WHERE symbol = 'SH.000001'")
         writable.commit()
     finally:
         writable.close()
@@ -1584,9 +1758,7 @@ def test_daily_adj_key_audit_ignores_external_benchmark_but_not_listed_stock(
         "audited_daily_keys_without_adj": 1,
         "adj_keys_without_audited_daily": 0,
     }
-    assert "DAILY_ADJ_KEY_MISMATCH" in {
-        item["code"] for item in listed_gap["gate"]["blockers"]
-    }
+    assert "DAILY_ADJ_KEY_MISMATCH" in {item["code"] for item in listed_gap["gate"]["blockers"]}
 
 
 def test_s6_explains_zero_period_financial_factors_as_s2_gap(
@@ -1602,16 +1774,12 @@ def test_s6_explains_zero_period_financial_factors_as_s2_gap(
         sample_size=1,
         factor_probe=_missing_financial_probe,
     )
-    factors = {
-        item["factor"]: item for item in report["factor_availability"]["factors"]
-    }
+    factors = {item["factor"]: item for item in report["factor_availability"]["factors"]}
 
     assert factors["roe"]["status"] == "unavailable"
     assert factors["roe"]["cause_class"] == "input_data_gap"
     assert "S2 财务股票覆盖率" in factors["roe"]["reason"]
-    assert "FACTOR_ROE_UNAVAILABLE" in {
-        item["code"] for item in report["gate"]["blockers"]
-    }
+    assert "FACTOR_ROE_UNAVAILABLE" in {item["code"] for item in report["gate"]["blockers"]}
 
 
 def test_s6_reports_source_pit_and_key_violations(tmp_path: Path) -> None:
@@ -1628,9 +1796,7 @@ def test_s6_reports_source_pit_and_key_violations(tmp_path: Path) -> None:
             WHERE id = (SELECT MIN(id) FROM valuation_daily)
             """
         )
-        writable.execute(
-            "DELETE FROM adj_factors WHERE id = (SELECT MAX(id) FROM adj_factors)"
-        )
+        writable.execute("DELETE FROM adj_factors WHERE id = (SELECT MAX(id) FROM adj_factors)")
         writable.commit()
     finally:
         writable.close()
@@ -1651,6 +1817,68 @@ def test_s6_reports_source_pit_and_key_violations(tmp_path: Path) -> None:
     assert "VALUATION_PIT_ANOMALY" in blocker_codes
     assert report["input_coverage"]["daily_bars"]["invalid_source_rows"] == 1
     assert report["input_coverage"]["valuation_daily"]["pit_anomaly_rows"] == 1
+
+
+def test_s6_blocks_weekend_date_that_would_shift_research_calendar(
+    tmp_path: Path,
+) -> None:
+    database_path = _database(tmp_path)
+    weekend = date(2026, 7, 25)
+    engine = create_engine(f"sqlite:///{database_path}")
+    with Session(engine) as session:
+        for symbol in ("600519", "000001"):
+            session.add(
+                DailyBar(
+                    symbol=symbol,
+                    trade_date=weekend,
+                    open=10.0,
+                    high=11.0,
+                    low=9.0,
+                    close=10.5,
+                    volume=1_000.0,
+                    amount=10_000.0,
+                    source="baostock",
+                )
+            )
+            session.add(
+                AdjFactor(
+                    symbol=symbol,
+                    trade_date=weekend,
+                    adj_factor=1.0,
+                    source="baostock-hfq",
+                )
+            )
+        session.commit()
+    engine.dispose()
+
+    report = build_data_health_report(
+        database_path,
+        minimum_market_coverage=0.80,
+        minimum_factor_cross_section=2,
+        minimum_sector_plates=1,
+        minimum_sector_dates=5,
+        sample_size=1,
+        factor_probe=_sufficient_probe,
+    )
+
+    assert report["historical_calendar_audit"] == {
+        "minimum_cross_section": 2,
+        "anomaly_dates": [
+            {
+                "trade_date": "2026-07-25",
+                "symbols": 2,
+                "weekday": 6,
+                "reason": "weekend",
+            }
+        ],
+        "anomaly_date_count": 1,
+        "weekend_date_count": 1,
+        "sparse_weekday_date_count": 0,
+    }
+    assert "HISTORICAL_RESEARCH_CALENDAR_ANOMALY" in {
+        item["code"] for item in report["gate"]["blockers"]
+    }
+    assert "周末=1" in render_data_health_markdown(report)
 
 
 def test_markdown_keeps_gate_and_factor_states_explicit(tmp_path: Path) -> None:
@@ -1721,13 +1949,8 @@ def test_cli_writes_both_formats_and_exits_nonzero_when_blocked(
     assert stdout["gate"]["status"] == "blocked"
     assert persisted["gate"]["status"] == "blocked"
     assert stdout["factor_availability"]["probe_results"]
-    assert all(
-        probe["error"] is None
-        for probe in stdout["factor_availability"]["probe_results"]
-    )
-    assert "S2_FINANCIAL_COVERAGE_INCOMPLETE" in markdown_path.read_text(
-        encoding="utf-8"
-    )
+    assert all(probe["error"] is None for probe in stdout["factor_availability"]["probe_results"])
+    assert "S2_FINANCIAL_COVERAGE_INCOMPLETE" in markdown_path.read_text(encoding="utf-8")
 
 
 def test_cli_rejects_database_output_inode_and_duplicate_outputs(
