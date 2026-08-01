@@ -1,0 +1,944 @@
+{
+  "execution_commit": "94d67700ce7c1369f5b41bae13805f21dae11e7d",
+  "gate": {
+    "p4_1_full_implementation_done": false,
+    "p4_2_unlocked": false,
+    "report_written": true,
+    "requires_architecture_review": true,
+    "spike_execution_completed": true
+  },
+  "generated_at": "2026-08-01T16:09:46.998313+00:00",
+  "job_run": {
+    "error": null,
+    "finished_at": "2026-08-01T16:09:46.969147+00:00",
+    "id": 45453,
+    "job_name": "p4_source_spike",
+    "started_at": "2026-08-01T16:09:35.713367",
+    "status": "ok"
+  },
+  "phase_baseline_commit": "e288be683deef67891ebea0b37b508f4eb59b37c",
+  "pre_registration": {
+    "config_path": "config/p4_source_spike_v1.yaml",
+    "config_sha256": "9c21fe3318b490df4f81adfcfd1da67f144d4328b93d1caff64a6e34a39249c4",
+    "config_sha256_after": "9c21fe3318b490df4f81adfcfd1da67f144d4328b93d1caff64a6e34a39249c4",
+    "execution_input_sha256": {
+      "config/p4_source_spike_v1.yaml": "9c21fe3318b490df4f81adfcfd1da67f144d4328b93d1caff64a6e34a39249c4",
+      "scripts/run_p4_source_spike.py": "86d81ba41558b8b783b80db0548d68c2207e6ef06b6a41516c28bd4a65ed3870",
+      "src/alphapilot/jobs/p4_source_spike.py": "4262073b0cbc7ca1346aa12447c5f4ac13e8704722205ff5f28b64c7e36e02f8"
+    },
+    "unchanged_during_execution": true
+  },
+  "schema_version": "p4.1-source-spike-report-v1",
+  "scope": {
+    "completed": "P4.1 source feasibility spike only",
+    "excluded": [
+      "news_items migration",
+      "news_poll scheduling",
+      "AUDITED_NEWS_SOURCES promotion",
+      "P4.2 or later implementation",
+      "trade proposal creation",
+      "broker order creation"
+    ],
+    "stop_after_report": true
+  },
+  "source_statuses": {
+    "unavailable": [
+      "futu_auxiliary"
+    ],
+    "usable_primary": [
+      "cninfo",
+      "sina_company_news"
+    ],
+    "usable_primary_degraded": [
+      "akshare_non_eastmoney"
+    ]
+  },
+  "stats": {
+    "config_path": "/Users/ouyangduning/Documents/project/interesting/AlphaPilot-AI/config/p4_source_spike_v1.yaml",
+    "config_sha256": "9c21fe3318b490df4f81adfcfd1da67f144d4328b93d1caff64a6e34a39249c4",
+    "execution_commit": "94d67700ce7c1369f5b41bae13805f21dae11e7d",
+    "expected_config_sha256": "9c21fe3318b490df4f81adfcfd1da67f144d4328b93d1caff64a6e34a39249c4",
+    "finished_at": "2026-08-01T16:09:46.968859+00:00",
+    "phase_baseline_commit": "e288be683deef67891ebea0b37b508f4eb59b37c",
+    "pit_audit": {
+      "available_time_coverage": 1.0,
+      "available_time_equals_published_at_count": 0,
+      "available_time_utc_count": 17,
+      "policy": "jobrun_evidence_persisted_at_utc",
+      "sample_count": 17,
+      "zero_sample_result": null
+    },
+    "planned_report_path": "docs/phase4/reports/P4.1-source-spike-20260802.json",
+    "safety_after": {
+      "broker_orders": {
+        "count": 1,
+        "identity_sha256": "a4fd3f8619a885832db699374c830d1ddfaf528542f62999f89c524fa0967fd4",
+        "non_simulate_count": 0
+      },
+      "settings": {
+        "futu_enable_account_mutation": false,
+        "futu_enable_trade": false,
+        "live_trading_enabled": false,
+        "paper_auto_trading_enabled": false,
+        "trading_mode": "research",
+        "unlock_trade_permanently_blocked": true
+      },
+      "trade_proposals": {
+        "count": 1,
+        "identity_sha256": "0d77d45b123a94df54af71c4b8ebd150e0b5daab8893af2286a8dcaac3d3fcab"
+      }
+    },
+    "safety_before": {
+      "broker_orders": {
+        "count": 1,
+        "identity_sha256": "a4fd3f8619a885832db699374c830d1ddfaf528542f62999f89c524fa0967fd4",
+        "non_simulate_count": 0
+      },
+      "settings": {
+        "futu_enable_account_mutation": false,
+        "futu_enable_trade": false,
+        "live_trading_enabled": false,
+        "paper_auto_trading_enabled": false,
+        "trading_mode": "research",
+        "unlock_trade_permanently_blocked": true
+      },
+      "trade_proposals": {
+        "count": 1,
+        "identity_sha256": "0d77d45b123a94df54af71c4b8ebd150e0b5daab8893af2286a8dcaac3d3fcab"
+      }
+    },
+    "safety_unchanged": true,
+    "scope_exclusions": {
+      "eastmoney": {
+        "reason": "本轮只实测巨潮、新浪、AKShare 非东财上游与富途辅助信号；东财不进入请求路径。",
+        "status": "not_probed_by_owner_directed_scope"
+      }
+    },
+    "source_failures": [
+      {
+        "blocked": false,
+        "code": "http_client_error",
+        "error_type": "ProbeFailure",
+        "message": "HTTP 404",
+        "probe": "stock_info_global_cls",
+        "source_id": "akshare_non_eastmoney"
+      },
+      {
+        "blocked": false,
+        "code": "schema_changed",
+        "error_type": "ProbeFailure",
+        "message": "Futu snapshot missing auxiliary signal fields: ['change_rate']",
+        "source_id": "futu_auxiliary"
+      }
+    ],
+    "sources": {
+      "akshare_non_eastmoney": {
+        "adapter": "akshare-function-with-bounded-direct-transport",
+        "akshare_version": "1.18.64",
+        "children": [
+          {
+            "akshare_source_sha256": "27863428ae48a27d9c3af02b823d1da29a8cab8a8f7ae08c01068ea9c1c3a4b8",
+            "failure": null,
+            "function": "stock_info_global_ths",
+            "observed_fields": [
+              "标题",
+              "内容",
+              "发布时间",
+              "链接"
+            ],
+            "records": 20,
+            "samples": [
+              {
+                "available_time": "2026-08-01T16:09:46.803382+00:00",
+                "content_hash": "81577ce0a1a355df2bcfd361d5c5f8e4597af61ebbe04d512b11217e2d27ece9",
+                "observed_at": "2026-08-01T16:09:44.913032+00:00",
+                "published_at": "2026-08-01 10:37:15",
+                "raw_payload_sha256": "7aebf441a2b0604b78312574d30552f04a15694ad23f0b40eb6452dd51edf0b4",
+                "source": "akshare:stock_info_global_ths",
+                "symbol": null,
+                "title": "阿维塔7月交付7626辆",
+                "url": "https://news.10jqka.com.cn/20260801/c678604984.shtml"
+              },
+              {
+                "available_time": "2026-08-01T16:09:46.803382+00:00",
+                "content_hash": "9f7fc98eca3faa41b422a99cb59fd4a7fc29f20bc42cbf5b681953d0944d6151",
+                "observed_at": "2026-08-01T16:09:44.913032+00:00",
+                "published_at": "2026-08-01 10:36:47",
+                "raw_payload_sha256": "121ce9740ed3637eb54c409ca3e83be3fde0af776c25df5b859a44eb4e696c41",
+                "source": "akshare:stock_info_global_ths",
+                "symbol": null,
+                "title": "国际原子能机构：扎波罗热核电站因军事冲突失去场外供电",
+                "url": "https://news.10jqka.com.cn/20260801/c678604983.shtml"
+              },
+              {
+                "available_time": "2026-08-01T16:09:46.803382+00:00",
+                "content_hash": "a5b6a8cc3dd0f050bfb4e2f25f9ae787ade8d8b7ca9bf22cb37875e191c19c25",
+                "observed_at": "2026-08-01T16:09:44.913032+00:00",
+                "published_at": "2026-08-01 10:30:26",
+                "raw_payload_sha256": "a1fa6fbc3bcb79ba4eb340032e41eb8c955765d54faeabb05edf14ac00c5606d",
+                "source": "akshare:stock_info_global_ths",
+                "symbol": null,
+                "title": "伊拉克埃尔比勒西南部炼油厂开始恢复生产",
+                "url": "https://news.10jqka.com.cn/20260801/c678604979.shtml"
+              }
+            ],
+            "status": "usable_primary",
+            "upstream": "news.10jqka.com.cn"
+          },
+          {
+            "failure": {
+              "blocked": false,
+              "code": "http_client_error",
+              "error_type": "ProbeFailure",
+              "message": "HTTP 404",
+              "probe": "stock_info_global_cls"
+            },
+            "function": "stock_info_global_cls",
+            "observed_fields": [],
+            "records": 0,
+            "samples": [],
+            "status": "unavailable",
+            "upstream": "www.cls.cn"
+          },
+          {
+            "akshare_source_sha256": "c565525a9e8a9a695f807807ab9f428cc35c5ad5a51bd6c121d6a64fa4a51b75",
+            "failure": null,
+            "function": "stock_news_main_cx",
+            "observed_fields": [
+              "tag",
+              "summary",
+              "url"
+            ],
+            "records": 100,
+            "samples": [
+              {
+                "available_time": "2026-08-01T16:09:46.803382+00:00",
+                "content_hash": "5febf106cc59517c7af66b7e29e39f32a7db2dcbf9d054c81692a4fd7d74beab",
+                "observed_at": "2026-08-01T16:09:46.802641+00:00",
+                "published_at": null,
+                "raw_payload_sha256": "8ce9c8a2f7ecdd5b93f58383ee341739c52523098f4d1300b8bfbeaac8a3adaf",
+                "source": "akshare:stock_news_main_cx",
+                "symbol": null,
+                "title": null,
+                "url": "https://database.caixin.com/2026-08-01/102470313.html?cxapp_link=true"
+              },
+              {
+                "available_time": "2026-08-01T16:09:46.803382+00:00",
+                "content_hash": "00b15e5967e5fdf33afb1e888bbf89b2c298eb207fa00ace55228b6616bc3b3d",
+                "observed_at": "2026-08-01T16:09:46.802641+00:00",
+                "published_at": null,
+                "raw_payload_sha256": "c9f40539a668f0a2fc65396552a0be0a36b052f5dd6ec4b2b9e5194876247dde",
+                "source": "akshare:stock_news_main_cx",
+                "symbol": null,
+                "title": null,
+                "url": "https://database.caixin.com/2026-08-01/102470298.html?cxapp_link=true"
+              },
+              {
+                "available_time": "2026-08-01T16:09:46.803382+00:00",
+                "content_hash": "60450f9e548b204a33c805096b49e1c687e249f67f29fa3b33d569cc1ae398fa",
+                "observed_at": "2026-08-01T16:09:46.802641+00:00",
+                "published_at": null,
+                "raw_payload_sha256": "2ce6d1b3a081fd1f2d8a5bcac4417e890ebdb6a5c16fb1d0091b09f8356f5f4b",
+                "source": "akshare:stock_news_main_cx",
+                "symbol": null,
+                "title": null,
+                "url": "https://database.caixin.com/2026-08-01/102470544.html?cxapp_link=true"
+              }
+            ],
+            "status": "usable_auxiliary",
+            "upstream": "cxdata.caixin.com"
+          }
+        ],
+        "evidence_persisted_at": "2026-08-01T16:09:46.803382+00:00",
+        "failures": [
+          {
+            "blocked": false,
+            "code": "http_client_error",
+            "error_type": "ProbeFailure",
+            "message": "HTTP 404",
+            "probe": "stock_info_global_cls"
+          }
+        ],
+        "limitations": [
+          "Installed AKShare code is hashed because the package version may drift on rebuild.",
+          "CLS built-in ten-retry helper is replaced by exactly one bounded direct GET."
+        ],
+        "min_interval_seconds": 0.75,
+        "persistence": {
+          "available_time_policy": "jobrun_evidence_persisted_at_utc",
+          "job_run_id": 45453,
+          "source_id": "akshare_non_eastmoney"
+        },
+        "rate_limited": false,
+        "records_sampled": 6,
+        "request_budget": 3,
+        "request_count": 3,
+        "requests": [
+          {
+            "content_type": "application/json",
+            "failure_code": null,
+            "host": "news.10jqka.com.cn",
+            "http_status": 200,
+            "latency_ms": 153.827,
+            "method": "GET",
+            "parsed_at": "2026-08-01T16:09:44.913032+00:00",
+            "path": "/tapp/news/push/stock",
+            "request_number": 1,
+            "requested_at": "2026-08-01T16:09:44.757230+00:00",
+            "response_received_at": "2026-08-01T16:09:44.911049+00:00",
+            "retry_after": null
+          },
+          {
+            "content_type": "text/html; charset=utf-8",
+            "failure_code": "http_client_error",
+            "host": "www.cls.cn",
+            "http_status": 404,
+            "latency_ms": 238.88,
+            "method": "GET",
+            "parsed_at": "2026-08-01T16:09:45.747965+00:00",
+            "path": "/nodeapi/telegraphList",
+            "request_number": 2,
+            "requested_at": "2026-08-01T16:09:45.508985+00:00",
+            "response_received_at": "2026-08-01T16:09:45.747853+00:00",
+            "retry_after": null
+          },
+          {
+            "content_type": "application/json;charset=UTF-8",
+            "failure_code": null,
+            "host": "cxdata.caixin.com",
+            "http_status": 200,
+            "latency_ms": 533.125,
+            "method": "GET",
+            "parsed_at": "2026-08-01T16:09:46.802641+00:00",
+            "path": "/api/dataplus/sjtPc/news",
+            "request_number": 3,
+            "requested_at": "2026-08-01T16:09:46.265583+00:00",
+            "response_received_at": "2026-08-01T16:09:46.798704+00:00",
+            "retry_after": null
+          }
+        ],
+        "retry_count": 0,
+        "source_id": "akshare_non_eastmoney",
+        "status": "usable_primary_degraded",
+        "upstream": [
+          "news.10jqka.com.cn",
+          "www.cls.cn",
+          "cxdata.caixin.com"
+        ]
+      },
+      "cninfo": {
+        "adapter": "bounded-direct-cninfo-public-two-step",
+        "evidence_persisted_at": "2026-08-01T16:09:42.889337+00:00",
+        "failures": [],
+        "limitations": [
+          "TLS verification is disabled to match the existing cninfo client workaround.",
+          "One bounded weekend spike does not establish production rate-limit capacity."
+        ],
+        "min_interval_seconds": 1.0,
+        "observed_fields": [
+          "adjunctSize",
+          "adjunctType",
+          "adjunctUrl",
+          "announcementContent",
+          "announcementId",
+          "announcementTime",
+          "announcementTitle",
+          "announcementType",
+          "announcementTypeName",
+          "associateAnnouncement",
+          "batchNum",
+          "columnId",
+          "id",
+          "important",
+          "orgId",
+          "orgName",
+          "pageColumn",
+          "secCode",
+          "secName",
+          "secNameList",
+          "shortTitle",
+          "storageTime",
+          "tileSecName"
+        ],
+        "persistence": {
+          "available_time_policy": "jobrun_evidence_persisted_at_utc",
+          "job_run_id": 45453,
+          "source_id": "cninfo"
+        },
+        "probes": [
+          {
+            "has_more": false,
+            "probe": "symbol:600519:announcements",
+            "records": 0,
+            "status": "ok",
+            "total_announcement": 0,
+            "valid_records": 0
+          },
+          {
+            "has_more": false,
+            "probe": "symbol:000001:announcements",
+            "records": 2,
+            "status": "ok",
+            "total_announcement": 2,
+            "valid_records": 2
+          },
+          {
+            "has_more": false,
+            "probe": "symbol:920000:announcements",
+            "records": 0,
+            "status": "ok",
+            "total_announcement": 0,
+            "valid_records": 0
+          },
+          {
+            "has_more": true,
+            "probe": "global:sse",
+            "records": 10,
+            "status": "ok",
+            "total_announcement": 6838,
+            "valid_records": 10
+          },
+          {
+            "has_more": true,
+            "probe": "global:szse",
+            "records": 10,
+            "status": "ok",
+            "total_announcement": 6838,
+            "valid_records": 10
+          }
+        ],
+        "rate_limited": false,
+        "records_sampled": 8,
+        "request_budget": 8,
+        "request_count": 8,
+        "requests": [
+          {
+            "content_type": "application/json;charset=UTF-8",
+            "failure_code": null,
+            "host": "www.cninfo.com.cn",
+            "http_status": 200,
+            "latency_ms": 238.093,
+            "method": "POST",
+            "parsed_at": "2026-08-01T16:09:35.987550+00:00",
+            "path": "/new/information/topSearch/query",
+            "request_number": 1,
+            "requested_at": "2026-08-01T16:09:35.749209+00:00",
+            "response_received_at": "2026-08-01T16:09:35.987298+00:00",
+            "retry_after": null
+          },
+          {
+            "content_type": "application/json;charset=UTF-8",
+            "failure_code": null,
+            "host": "www.cninfo.com.cn",
+            "http_status": 200,
+            "latency_ms": 124.434,
+            "method": "POST",
+            "parsed_at": "2026-08-01T16:09:36.883157+00:00",
+            "path": "/new/hisAnnouncement/query",
+            "request_number": 2,
+            "requested_at": "2026-08-01T16:09:36.758596+00:00",
+            "response_received_at": "2026-08-01T16:09:36.883033+00:00",
+            "retry_after": null
+          },
+          {
+            "content_type": "application/json;charset=UTF-8",
+            "failure_code": null,
+            "host": "www.cninfo.com.cn",
+            "http_status": 200,
+            "latency_ms": 83.407,
+            "method": "POST",
+            "parsed_at": "2026-08-01T16:09:37.852290+00:00",
+            "path": "/new/information/topSearch/query",
+            "request_number": 3,
+            "requested_at": "2026-08-01T16:09:37.768667+00:00",
+            "response_received_at": "2026-08-01T16:09:37.852064+00:00",
+            "retry_after": null
+          },
+          {
+            "content_type": "application/json;charset=UTF-8",
+            "failure_code": null,
+            "host": "www.cninfo.com.cn",
+            "http_status": 200,
+            "latency_ms": 92.754,
+            "method": "POST",
+            "parsed_at": "2026-08-01T16:09:38.866624+00:00",
+            "path": "/new/hisAnnouncement/query",
+            "request_number": 4,
+            "requested_at": "2026-08-01T16:09:38.773759+00:00",
+            "response_received_at": "2026-08-01T16:09:38.866510+00:00",
+            "retry_after": null
+          },
+          {
+            "content_type": "application/json;charset=UTF-8",
+            "failure_code": null,
+            "host": "www.cninfo.com.cn",
+            "http_status": 200,
+            "latency_ms": 127.394,
+            "method": "POST",
+            "parsed_at": "2026-08-01T16:09:39.911355+00:00",
+            "path": "/new/information/topSearch/query",
+            "request_number": 5,
+            "requested_at": "2026-08-01T16:09:39.783828+00:00",
+            "response_received_at": "2026-08-01T16:09:39.911230+00:00",
+            "retry_after": null
+          },
+          {
+            "content_type": "application/json;charset=UTF-8",
+            "failure_code": null,
+            "host": "www.cninfo.com.cn",
+            "http_status": 200,
+            "latency_ms": 114.428,
+            "method": "POST",
+            "parsed_at": "2026-08-01T16:09:40.905222+00:00",
+            "path": "/new/hisAnnouncement/query",
+            "request_number": 6,
+            "requested_at": "2026-08-01T16:09:40.790707+00:00",
+            "response_received_at": "2026-08-01T16:09:40.905125+00:00",
+            "retry_after": null
+          },
+          {
+            "content_type": "application/json;charset=UTF-8",
+            "failure_code": null,
+            "host": "www.cninfo.com.cn",
+            "http_status": 200,
+            "latency_ms": 90.741,
+            "method": "POST",
+            "parsed_at": "2026-08-01T16:09:41.885274+00:00",
+            "path": "/new/hisAnnouncement/query",
+            "request_number": 7,
+            "requested_at": "2026-08-01T16:09:41.794251+00:00",
+            "response_received_at": "2026-08-01T16:09:41.884977+00:00",
+            "retry_after": null
+          },
+          {
+            "content_type": "application/json;charset=UTF-8",
+            "failure_code": null,
+            "host": "www.cninfo.com.cn",
+            "http_status": 200,
+            "latency_ms": 88.206,
+            "method": "POST",
+            "parsed_at": "2026-08-01T16:09:42.888179+00:00",
+            "path": "/new/hisAnnouncement/query",
+            "request_number": 8,
+            "requested_at": "2026-08-01T16:09:42.799618+00:00",
+            "response_received_at": "2026-08-01T16:09:42.887803+00:00",
+            "retry_after": null
+          }
+        ],
+        "retry_count": 0,
+        "samples": [
+          {
+            "available_time": "2026-08-01T16:09:42.889337+00:00",
+            "content_hash": "deb2fc3635cf23889c431b13ec5bd1e0731b9156ec36645658a752ef5bdc6454",
+            "observed_at": "2026-08-01T16:09:38.866624+00:00",
+            "published_at": "2026-07-31T16:00:00+00:00",
+            "raw_payload_sha256": "0f93bbe4b2bc6a1f1b7bfedc7ab6fc3d865de04078c8b82104df7862f19b4abc",
+            "source": "cninfo",
+            "symbol": "000001",
+            "title": "关联交易公告",
+            "url": "https://static.cninfo.com.cn/finalpage/2026-08-01/1225451412.PDF"
+          },
+          {
+            "available_time": "2026-08-01T16:09:42.889337+00:00",
+            "content_hash": "0ea1681050345b6512ce8b4fda5f504f099d391a3f1d3c615c87b68665f6c727",
+            "observed_at": "2026-08-01T16:09:38.866624+00:00",
+            "published_at": "2026-07-31T16:00:00+00:00",
+            "raw_payload_sha256": "e543e6667d4d0dc721032d99fb425523da683131050a027ddc43dd211c170541",
+            "source": "cninfo",
+            "symbol": "000001",
+            "title": "董事会决议公告",
+            "url": "https://static.cninfo.com.cn/finalpage/2026-08-01/1225451411.PDF"
+          },
+          {
+            "available_time": "2026-08-01T16:09:42.889337+00:00",
+            "content_hash": "8052bda3b872d949c574d7b36c167f6f05f06ea29cde8cdd8a232d79a9ce00e3",
+            "observed_at": "2026-08-01T16:09:41.885274+00:00",
+            "published_at": "2026-07-31T16:00:00+00:00",
+            "raw_payload_sha256": "7cbf1b0bd8ff1dc08191d532d038a05599187af248cce7ed4d26f1e378935275",
+            "source": "cninfo",
+            "symbol": "605199",
+            "title": "海南葫芦娃药业集团股份有限公司关于董事会秘书离任暨董事长代行董事会秘书职责的公告",
+            "url": "https://static.cninfo.com.cn/finalpage/2026-08-01/1225452709.PDF"
+          },
+          {
+            "available_time": "2026-08-01T16:09:42.889337+00:00",
+            "content_hash": "8103a05477073c2d4a7b441a404d987dcaad7185539fa66dfb66fb5893573c63",
+            "observed_at": "2026-08-01T16:09:41.885274+00:00",
+            "published_at": "2026-07-31T16:00:00+00:00",
+            "raw_payload_sha256": "98d37edb8b8d271804eaaf335a90edef01897b7a8b9719d68a2ff00f900738e9",
+            "source": "cninfo",
+            "symbol": "605199",
+            "title": "海南葫芦娃药业集团股份有限公司关于公司股票被实施其他风险警示相关事项的进展公告",
+            "url": "https://static.cninfo.com.cn/finalpage/2026-08-01/1225452708.PDF"
+          },
+          {
+            "available_time": "2026-08-01T16:09:42.889337+00:00",
+            "content_hash": "4d70a2c64e79fc71b4125d9b34e587566cf6272d62e67627f3c10c854a570f0c",
+            "observed_at": "2026-08-01T16:09:41.885274+00:00",
+            "published_at": "2026-07-31T16:00:00+00:00",
+            "raw_payload_sha256": "3c13d0d76f3e9f019a12308e377b87d9ed4b55510013b956d7e668f273286551",
+            "source": "cninfo",
+            "symbol": "600095",
+            "title": "湘财股份关于子公司收到中国证券监督管理委员会立案告知书的公告",
+            "url": "https://static.cninfo.com.cn/finalpage/2026-08-01/1225452639.PDF"
+          },
+          {
+            "available_time": "2026-08-01T16:09:42.889337+00:00",
+            "content_hash": "8052bda3b872d949c574d7b36c167f6f05f06ea29cde8cdd8a232d79a9ce00e3",
+            "observed_at": "2026-08-01T16:09:42.888179+00:00",
+            "published_at": "2026-07-31T16:00:00+00:00",
+            "raw_payload_sha256": "7cbf1b0bd8ff1dc08191d532d038a05599187af248cce7ed4d26f1e378935275",
+            "source": "cninfo",
+            "symbol": "605199",
+            "title": "海南葫芦娃药业集团股份有限公司关于董事会秘书离任暨董事长代行董事会秘书职责的公告",
+            "url": "https://static.cninfo.com.cn/finalpage/2026-08-01/1225452709.PDF"
+          },
+          {
+            "available_time": "2026-08-01T16:09:42.889337+00:00",
+            "content_hash": "8103a05477073c2d4a7b441a404d987dcaad7185539fa66dfb66fb5893573c63",
+            "observed_at": "2026-08-01T16:09:42.888179+00:00",
+            "published_at": "2026-07-31T16:00:00+00:00",
+            "raw_payload_sha256": "98d37edb8b8d271804eaaf335a90edef01897b7a8b9719d68a2ff00f900738e9",
+            "source": "cninfo",
+            "symbol": "605199",
+            "title": "海南葫芦娃药业集团股份有限公司关于公司股票被实施其他风险警示相关事项的进展公告",
+            "url": "https://static.cninfo.com.cn/finalpage/2026-08-01/1225452708.PDF"
+          },
+          {
+            "available_time": "2026-08-01T16:09:42.889337+00:00",
+            "content_hash": "4d70a2c64e79fc71b4125d9b34e587566cf6272d62e67627f3c10c854a570f0c",
+            "observed_at": "2026-08-01T16:09:42.888179+00:00",
+            "published_at": "2026-07-31T16:00:00+00:00",
+            "raw_payload_sha256": "3c13d0d76f3e9f019a12308e377b87d9ed4b55510013b956d7e668f273286551",
+            "source": "cninfo",
+            "symbol": "600095",
+            "title": "湘财股份关于子公司收到中国证券监督管理委员会立案告知书的公告",
+            "url": "https://static.cninfo.com.cn/finalpage/2026-08-01/1225452639.PDF"
+          }
+        ],
+        "source_id": "cninfo",
+        "status": "usable_primary",
+        "tls_verification": false,
+        "upstream": "www.cninfo.com.cn"
+      },
+      "futu_auxiliary": {
+        "adapter": "audited-futu-opend-quote-bridge",
+        "evidence_persisted_at": "2026-08-01T16:09:46.966573+00:00",
+        "failures": [
+          {
+            "blocked": false,
+            "code": "schema_changed",
+            "error_type": "ProbeFailure",
+            "message": "Futu snapshot missing auxiliary signal fields: ['change_rate']"
+          }
+        ],
+        "limitations": [
+          "2026-08-02 is Sunday; push latency and trading-session freshness were not observable.",
+          "Futu contributes quote anomaly fields only and has no news-body evidence here."
+        ],
+        "observed_fields": [
+          "code",
+          "name",
+          "update_time",
+          "last_price",
+          "open_price",
+          "high_price",
+          "low_price",
+          "prev_close_price",
+          "volume",
+          "turnover",
+          "turnover_rate",
+          "suspension",
+          "listing_date",
+          "lot_size",
+          "price_spread",
+          "stock_owner",
+          "ask_price",
+          "bid_price",
+          "ask_vol",
+          "bid_vol",
+          "enable_margin",
+          "mortgage_ratio",
+          "long_margin_initial_ratio",
+          "enable_short_sell",
+          "short_sell_rate",
+          "short_available_volume",
+          "short_margin_initial_ratio",
+          "amplitude",
+          "avg_price",
+          "bid_ask_ratio",
+          "volume_ratio",
+          "highest52weeks_price",
+          "lowest52weeks_price",
+          "highest_history_price",
+          "lowest_history_price",
+          "close_price_5min",
+          "after_volume",
+          "after_turnover",
+          "sec_status",
+          "equity_valid",
+          "issued_shares",
+          "total_market_val",
+          "net_asset",
+          "net_profit",
+          "earning_per_share",
+          "outstanding_shares",
+          "circular_market_val",
+          "net_asset_per_share",
+          "ey_ratio",
+          "pe_ratio",
+          "pb_ratio",
+          "pe_ttm_ratio",
+          "dividend_ttm",
+          "dividend_ratio_ttm",
+          "dividend_lfy",
+          "dividend_lfy_ratio",
+          "wrt_valid",
+          "wrt_conversion_ratio",
+          "wrt_type",
+          "wrt_strike_price",
+          "wrt_maturity_date",
+          "wrt_end_trade",
+          "wrt_recovery_price",
+          "wrt_street_vol",
+          "wrt_issue_vol",
+          "wrt_street_ratio",
+          "wrt_delta",
+          "wrt_implied_volatility",
+          "wrt_premium",
+          "wrt_leverage",
+          "wrt_ipop",
+          "wrt_break_even_point",
+          "wrt_conversion_price",
+          "wrt_price_recovery_ratio",
+          "wrt_score",
+          "wrt_upper_strike_price",
+          "wrt_lower_strike_price",
+          "wrt_inline_price_status",
+          "wrt_issuer_code",
+          "option_valid",
+          "option_type",
+          "strike_time",
+          "option_strike_price",
+          "option_contract_size",
+          "option_open_interest",
+          "option_implied_volatility",
+          "option_premium",
+          "option_delta",
+          "option_gamma",
+          "option_vega",
+          "option_theta",
+          "option_rho",
+          "option_net_open_interest",
+          "option_expiry_date_distance",
+          "option_contract_nominal_value",
+          "option_owner_lot_multiplier",
+          "option_area_type",
+          "option_contract_multiplier",
+          "index_option_type",
+          "index_valid",
+          "index_raise_count",
+          "index_fall_count",
+          "index_equal_count",
+          "plate_valid",
+          "plate_raise_count",
+          "plate_fall_count",
+          "plate_equal_count",
+          "future_valid",
+          "future_last_settle_price",
+          "future_position",
+          "future_position_change",
+          "future_main_contract",
+          "future_last_trade_time",
+          "trust_valid",
+          "trust_dividend_yield",
+          "trust_aum",
+          "trust_outstanding_units",
+          "trust_netAssetValue",
+          "trust_premium",
+          "trust_assetClass",
+          "pre_price",
+          "pre_high_price",
+          "pre_low_price",
+          "pre_volume",
+          "pre_turnover",
+          "pre_change_val",
+          "pre_change_rate",
+          "pre_amplitude",
+          "after_price",
+          "after_high_price",
+          "after_low_price",
+          "after_change_val",
+          "after_change_rate",
+          "after_amplitude",
+          "overnight_price",
+          "overnight_high_price",
+          "overnight_low_price",
+          "overnight_volume",
+          "overnight_turnover",
+          "overnight_change_val",
+          "overnight_change_rate",
+          "overnight_amplitude"
+        ],
+        "persistence": {
+          "available_time_policy": "jobrun_evidence_persisted_at_utc",
+          "job_run_id": 45453,
+          "source_id": "futu_auxiliary"
+        },
+        "push_event_types_supported": [],
+        "push_observed": false,
+        "quote_methods_called": [
+          "get_market_snapshot"
+        ],
+        "rate_limited": false,
+        "records_sampled": 0,
+        "request_budget": 1,
+        "request_count": 1,
+        "requests": [
+          {
+            "failure_code": "schema_changed",
+            "latency_ms": 161.461,
+            "method": "get_market_snapshot",
+            "parsed_at": null,
+            "request_number": 1,
+            "requested_at": "2026-08-01T16:09:46.805078+00:00",
+            "response_received_at": "2026-08-01T16:09:46.966434+00:00"
+          }
+        ],
+        "samples": [],
+        "source_id": "futu_snapshot",
+        "status": "unavailable",
+        "trade_methods_called": [],
+        "upstream": "local_futu_opend"
+      },
+      "sina_company_news": {
+        "adapter": "bounded-direct-sina-company-news-html",
+        "evidence_persisted_at": "2026-08-01T16:09:44.471651+00:00",
+        "failures": [],
+        "limitations": [
+          "The current Sina page contract does not expose a normalized published_at field.",
+          "BSE support is a feasibility observation, not assumed from SH/SZ behavior."
+        ],
+        "min_interval_seconds": 0.75,
+        "observed_fields": [
+          "title",
+          "url"
+        ],
+        "persistence": {
+          "available_time_policy": "jobrun_evidence_persisted_at_utc",
+          "job_run_id": 45453,
+          "source_id": "sina_company_news"
+        },
+        "probes": [
+          {
+            "anchors": 198,
+            "native_news_candidates": 1,
+            "probe": "symbol:600519",
+            "status": "ok"
+          },
+          {
+            "anchors": 198,
+            "native_news_candidates": 1,
+            "probe": "symbol:000001",
+            "status": "ok"
+          },
+          {
+            "anchors": 198,
+            "native_news_candidates": 1,
+            "probe": "symbol:920000",
+            "status": "ok"
+          }
+        ],
+        "rate_limited": false,
+        "records_sampled": 3,
+        "request_budget": 3,
+        "request_count": 3,
+        "requests": [
+          {
+            "content_type": "text/html; charset=gbk",
+            "failure_code": null,
+            "host": "vip.stock.finance.sina.com.cn",
+            "http_status": 200,
+            "latency_ms": 151.86,
+            "method": "GET",
+            "parsed_at": "2026-08-01T16:09:43.082949+00:00",
+            "path": "/corp/go.php/vCB_AllNewsStock/symbol/sh600519.phtml",
+            "request_number": 1,
+            "requested_at": "2026-08-01T16:09:42.915842+00:00",
+            "response_received_at": "2026-08-01T16:09:43.067691+00:00",
+            "retry_after": null
+          },
+          {
+            "content_type": "text/html; charset=gbk",
+            "failure_code": null,
+            "host": "vip.stock.finance.sina.com.cn",
+            "http_status": 200,
+            "latency_ms": 51.515,
+            "method": "GET",
+            "parsed_at": "2026-08-01T16:09:43.731030+00:00",
+            "path": "/corp/go.php/vCB_AllNewsStock/symbol/sz000001.phtml",
+            "request_number": 2,
+            "requested_at": "2026-08-01T16:09:43.670491+00:00",
+            "response_received_at": "2026-08-01T16:09:43.721991+00:00",
+            "retry_after": null
+          },
+          {
+            "content_type": "text/html; charset=gbk",
+            "failure_code": null,
+            "host": "vip.stock.finance.sina.com.cn",
+            "http_status": 200,
+            "latency_ms": 45.549,
+            "method": "GET",
+            "parsed_at": "2026-08-01T16:09:44.470375+00:00",
+            "path": "/corp/go.php/vCB_AllNewsStock/symbol/bj920000.phtml",
+            "request_number": 3,
+            "requested_at": "2026-08-01T16:09:44.422332+00:00",
+            "response_received_at": "2026-08-01T16:09:44.467878+00:00",
+            "retry_after": null
+          }
+        ],
+        "retry_count": 0,
+        "samples": [
+          {
+            "available_time": "2026-08-01T16:09:44.471651+00:00",
+            "content_hash": "a51f83024eb1c8be1dd266f32987d3dabd1b8ce78be0298a8823319a27e2bd22",
+            "observed_at": "2026-08-01T16:09:43.082949+00:00",
+            "published_at": null,
+            "raw_payload_sha256": "1eeae135191285d4f77777c3c84f6eee5f139b7873e8c8a4eed307495017f986",
+            "source": "sina_company_news",
+            "symbol": "600519",
+            "title": "贵州茅台(600519.SH)",
+            "url": "http://finance.sina.com.cn/realstock/company/sh600519/nc.shtml"
+          },
+          {
+            "available_time": "2026-08-01T16:09:44.471651+00:00",
+            "content_hash": "60bcd2d8f99ba27d6416bc72772302c70dfe7744bfa455425ef6afaab7c8d2ff",
+            "observed_at": "2026-08-01T16:09:43.731030+00:00",
+            "published_at": null,
+            "raw_payload_sha256": "29c89ad515df5c73ca1893884c4fd40a20cdbe10da86c08579f5cba12715fc11",
+            "source": "sina_company_news",
+            "symbol": "000001",
+            "title": "平安银行(000001.SZ)",
+            "url": "http://finance.sina.com.cn/realstock/company/sz000001/nc.shtml"
+          },
+          {
+            "available_time": "2026-08-01T16:09:44.471651+00:00",
+            "content_hash": "037b487d4e4cf0eceee2729e8316ee7a6ab8599429c5dffb77d52cd9b8b07dd1",
+            "observed_at": "2026-08-01T16:09:44.470375+00:00",
+            "published_at": null,
+            "raw_payload_sha256": "a80ad8424fedaa53a1ea1241e4458ddd7774965fdc2a2a4c84a421cc8bc01510",
+            "source": "sina_company_news",
+            "symbol": "920000",
+            "title": "安徽凤凰(920000.BJ)",
+            "url": "http://finance.sina.com.cn/realstock/company/bj920000/nc.shtml"
+          }
+        ],
+        "source_id": "sina_company_news",
+        "status": "usable_primary",
+        "upstream": "vip.stock.finance.sina.com.cn"
+      }
+    },
+    "started_at": "2026-08-01T16:09:35.717603+00:00",
+    "weekend_limitation": "2026-08-02 is Sunday; connectivity/schema evidence does not establish trading-session latency, push freshness, or three-day stability."
+  }
+}
