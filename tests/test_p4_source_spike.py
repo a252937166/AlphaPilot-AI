@@ -15,7 +15,7 @@ from alphapilot.jobs import p4_source_spike
 from alphapilot.jobs.registry import JOBS, run_job
 
 PROJECT_DIR = Path(__file__).resolve().parent.parent
-CONFIG_PATH = PROJECT_DIR / "config/p4_source_spike_v1.yaml"
+CONFIG_PATH = PROJECT_DIR / "config/p4_source_spike_v2.yaml"
 
 
 class _FakeResponse:
@@ -151,6 +151,10 @@ def test_config_freezes_scope_safety_and_non_eastmoney_sources() -> None:
 @pytest.mark.parametrize(
     ("path", "value"),
     [
+        (("probe_date_shanghai",), "2026-08-03"),
+        (("pre_registered_at",), "2026-08-03T00:00:00Z"),
+        (("forbidden_upstreams",), ["eastmoney.com"]),
+        (("scope_exclusions", "eastmoney", "reason"), "weakened"),
         (("network", "max_attempts_per_request"), 2),
         (("safety", "required_live_trading_enabled"), True),
         (("sources", "futu_auxiliary", "allowed_trade_methods"), ["place_order"]),
@@ -262,9 +266,14 @@ def test_cninfo_probe_uses_bounded_two_step_contract() -> None:
 def test_sina_probe_extracts_native_title_and_url() -> None:
     html = """
     <html><body>
-      <a href="https://finance.sina.com.cn/stock/600519-test-news.shtml">
-        这是一条可验证的新浪个股新闻
+      <a href="http://finance.sina.com.cn/realstock/company/sh600519/nc.shtml">
+        贵州茅台(600519.SH)
       </a>
+      <div class="datelist">
+        <a href="https://finance.sina.com.cn/stock/test-news.shtml">
+          这是一条可验证的新浪个股新闻
+        </a>
+      </div>
     </body></html>
     """
     client = _FakeHttpClient(lambda *_args: _FakeResponse(text=html))
@@ -279,6 +288,9 @@ def test_sina_probe_extracts_native_title_and_url() -> None:
     assert result["request_count"] == 3
     assert result["samples"][0]["published_at"] is None
     assert result["samples"][0]["url"].startswith("https://finance.sina.com.cn/")
+    assert "/realstock/company/" not in result["samples"][0]["url"]
+    assert result["probes"][0]["all_anchors"] == 2
+    assert result["probes"][0]["anchors_in_news_container"] == 1
 
 
 def test_source_local_rate_limit_stops_without_retry() -> None:

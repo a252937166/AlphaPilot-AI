@@ -1,0 +1,154 @@
+schema_version: p4.1-source-spike-v2
+baseline_commit: e288be683deef67891ebea0b37b508f4eb59b37c
+probe_date_shanghai: "2026-08-02"
+pre_registered_at: "2026-08-01T16:19:42Z"
+
+prior_invalid_evidence:
+  report: docs/phase4/reports/P4.1-source-spike-20260802-invalid-v1.json
+  report_sha256: d73673c0b70cab57270cc08f646598bcbaf247f3adfcd3db5b6757c0a46bf5cb
+  job_run_id: 45453
+  verdict: invalid_for_source_feasibility_decision
+  reason: "新浪解析器把 realstock/company 个股行情页误判为新闻；原始证据保留但不得用于来源晋级。"
+
+network:
+  trust_env: false
+  connect_timeout_seconds: 3.0
+  read_timeout_seconds: 8.0
+  write_timeout_seconds: 8.0
+  pool_timeout_seconds: 3.0
+  max_attempts_per_request: 1
+  retry_backoff_seconds: []
+  user_agent: "AlphaPilotAI/0.4 P4.1 source-feasibility-spike"
+
+assessment:
+  native_primary_required_fields:
+    - title
+    - url
+  published_at_nullable: true
+  available_time_policy: jobrun_evidence_persisted_at_utc
+  available_time_must_not_copy_published_at: true
+  primary_status: usable_primary
+  auxiliary_status: usable_auxiliary
+  degraded_primary_status: usable_primary_degraded
+  degraded_auxiliary_status: usable_auxiliary_degraded
+  failure_status: unavailable
+  blocked_status: blocked
+  max_samples_per_probe: 3
+  rate_limit_observation_scope: single_bounded_spike_not_capacity_proof
+
+forbidden_upstreams:
+  - eastmoney.com
+  - eastmoney.com.cn
+  - push2.eastmoney.com
+  - push2ex.eastmoney.com
+  - np-weblist.eastmoney.com
+  - search-api-web.eastmoney.com
+
+scope_exclusions:
+  eastmoney:
+    status: not_probed_by_owner_directed_scope
+    reason: "本轮只实测巨潮、新浪、AKShare 非东财上游与富途辅助信号；东财不进入请求路径。"
+
+sources:
+  cninfo:
+    enabled: true
+    source_id: cninfo
+    upstream: www.cninfo.com.cn
+    min_interval_seconds: 1.0
+    max_requests: 8
+    lookback_days: 7
+    page_size: 10
+    verify_tls: false
+    top_search_url: "https://www.cninfo.com.cn/new/information/topSearch/query"
+    announcements_url: "https://www.cninfo.com.cn/new/hisAnnouncement/query"
+    static_url_prefix: "https://static.cninfo.com.cn/"
+    symbol_probes:
+      - symbol: "600519"
+        market: SH
+        column: sse
+      - symbol: "000001"
+        market: SZ
+        column: szse
+      - symbol: "920000"
+        market: BSE
+        column: sse
+    global_columns:
+      - sse
+      - szse
+
+  sina_company_news:
+    enabled: true
+    source_id: sina_company_news
+    upstream: vip.stock.finance.sina.com.cn
+    min_interval_seconds: 0.75
+    max_requests: 3
+    verify_tls: true
+    page_url_template: "https://vip.stock.finance.sina.com.cn/corp/go.php/vCB_AllNewsStock/symbol/{market_symbol}.phtml"
+    required_container_classes:
+      - datelist
+    forbidden_news_url_patterns:
+      - /realstock/company/
+    symbol_context_from_scoped_page: true
+    symbol_probes:
+      - symbol: "600519"
+        market_symbol: sh600519
+      - symbol: "000001"
+        market_symbol: sz000001
+      - symbol: "920000"
+        market_symbol: bj920000
+
+  akshare_non_eastmoney:
+    enabled: true
+    source_id: akshare_non_eastmoney
+    min_interval_seconds: 0.75
+    max_requests: 3
+    verify_tls: true
+    function_probes:
+      - function: stock_info_global_ths
+        upstream: news.10jqka.com.cn
+        expected_native_fields:
+          - 标题
+          - 内容
+          - 发布时间
+          - 链接
+      - function: stock_info_global_cls
+        upstream: www.cls.cn
+        expected_native_fields:
+          - 标题
+          - 内容
+          - 发布日期
+          - 发布时间
+      - function: stock_news_main_cx
+        upstream: cxdata.caixin.com
+        expected_native_fields:
+          - tag
+          - summary
+          - url
+
+  futu_auxiliary:
+    enabled: true
+    source_id: futu_snapshot
+    upstream: local_futu_opend
+    max_requests: 1
+    allowed_quote_methods:
+      - get_market_snapshot
+    allowed_trade_methods: []
+    required_signal_fields:
+      - code
+      - change_rate
+      - amplitude
+      - update_time
+    symbols:
+      - SH.600519
+      - SZ.000001
+
+safety:
+  required_trading_mode: research
+  required_live_trading_enabled: false
+  required_paper_auto_trading_enabled: false
+  required_futu_trade_enabled: false
+  required_futu_account_mutation_enabled: false
+  required_unlock_trade_blocked: true
+  allow_trade_proposal_creation: false
+  allow_broker_order_creation: false
+  existing_broker_orders_must_all_be_simulate: true
