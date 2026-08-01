@@ -26,6 +26,8 @@
         <string>false</string>
         <key>ALPHAPILOT_BAOSTOCK_FINANCIAL_SYNC_ENABLED</key>
         <string>false</string>
+        <key>ALPHAPILOT_NEWS_POLL_ENABLED</key>
+        <string>true</string>
     </dict>
     <key>RunAtLoad</key>
     <true/>

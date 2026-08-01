@@ -113,6 +113,34 @@ class Disclosure(Base):
     ingested_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 
+class NewsItem(Base):
+    """Raw audited news item with point-in-time ingestion provenance."""
+
+    __tablename__ = "news_items"
+    __table_args__ = (
+        UniqueConstraint("url", name="uq_news_items_url"),
+        UniqueConstraint("content_hash", name="uq_news_items_content_hash"),
+        Index("ix_news_items_available_time_id", "available_time", "id"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    source: Mapped[str] = mapped_column(String(32), nullable=False)
+    symbol: Mapped[str | None] = mapped_column(String(24), nullable=True)
+    title: Mapped[str] = mapped_column(Text, nullable=False)
+    url: Mapped[str] = mapped_column(String(2048), nullable=False)
+    published_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+    available_time: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=utcnow,
+        nullable=False,
+    )
+    content_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    raw_payload: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
+
+
 class WatchlistItem(Base):
     """Tracked stock plus its investment thesis."""
 

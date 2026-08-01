@@ -5,8 +5,7 @@ from dataclasses import dataclass
 from threading import Lock
 from typing import Any
 
-from apscheduler.triggers.cron import CronTrigger
-from apscheduler.triggers.interval import IntervalTrigger
+from apscheduler.triggers.base import BaseTrigger
 
 from alphapilot.core.config import get_settings
 from alphapilot.core.job_execution_context import bind_job_run
@@ -21,7 +20,7 @@ from alphapilot.services.notifications import push_job_failure
 class JobSpec:
     name: str
     func: Callable[..., dict[str, Any]]
-    trigger: CronTrigger | IntervalTrigger | None
+    trigger: BaseTrigger | None
     enabled_key: str | None = None
 
 

@@ -5,6 +5,7 @@ from functools import lru_cache
 from threading import Lock
 from time import monotonic
 from typing import Any
+from urllib.parse import urlparse
 
 import httpx
 
@@ -17,7 +18,7 @@ TOKEN_PATH = "/api-cloud-platform/oauth2/token"
 STOCK_PROFILE_PATH = "/api/stock/p_stock2101"
 TOP_SEARCH_PATH = "/new/information/topSearch/query"
 ANNOUNCEMENT_PATH = "/new/hisAnnouncement/query"
-STATIC_PATH_PREFIX = "http://static.cninfo.com.cn/"
+STATIC_PATH_PREFIX = "https://static.cninfo.com.cn/"
 USER_AGENT = "AlphaPilotAI/0.2 (+local research tool)"
 
 
@@ -43,12 +44,15 @@ class CninfoClient:
         return bool(self.settings.cninfo_access_key and self.settings.cninfo_access_secret)
 
     def _client(self, base_url: str) -> httpx.Client:
-        # The webapi TLS chain misses an intermediate certificate, so strict
-        # verification fails; the credentialed calls stay on this known host.
+        parsed = urlparse(base_url)
+        if parsed.scheme.lower() == "http" and parsed.netloc.lower() == "www.cninfo.com.cn":
+            base_url = parsed._replace(scheme="https").geturl()
+        elif parsed.scheme.lower() != "https":
+            raise CninfoError("cninfo endpoints require HTTPS")
         return httpx.Client(
             base_url=base_url,
             timeout=self.timeout_seconds,
-            verify=False,
+            verify=True,
             headers={"User-Agent": USER_AGENT},
         )
 

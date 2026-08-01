@@ -101,6 +101,23 @@ P4.2 继续锁定，等待独立复核。
   （watchlist 提频见 P4.4）；断点续抓、`url+content_hash` 双去重、每源独立频控与失败计数。
 - 来源白名单加入 `data/provenance.py`（新增 `AUDITED_NEWS_SOURCES`）。
 
+### P4.1 全量实现预注册记录（2026-08-02，三交易日验收前）
+
+- 冻结配置：`config/p4_news_poll_v1.yaml`，SHA-256
+  `3af6ba11996b62b65267fecea11f63f7a6f204854533289011e2066e3e1f81b2`；观察窗固定为
+  2026-08-03、2026-08-04、2026-08-05，上海时区每日 64 个槽位（交易时段 10 分钟、
+  其余时段 30 分钟）。交易日依据为上交所 2026 年休市安排（上证公告〔2025〕45号）。
+- 审计白名单固定为 `cninfo / akshare_ths / sina_company_news`。巨潮只允许 HTTPS 且
+  `verify=True`；`symbol` 与 `published_at` 均允许 `NULL`，页面上下文不能单独绑定股票；
+  `available_time` 仅在取得 SQLite 写锁后、紧邻唯一 INSERT flush 前取当前 UTC 时刻，
+  flush/commit 完成时刻另存 JobRun 审计，不从 `published_at` 回填。
+- URL 与内容哈希为两个独立唯一键；重放保持首个 `available_time` 不变。财联社固定
+  `unavailable` 且零请求/零重试；财新固定排除；富途辅助固定
+  `pending_trading_day_latency_retest`，本版本不调用任何行情或交易方法。
+- 代码完成质量门：Ruff、strict mypy 与全量 pytest（1053 passed / 1 skipped）均通过。
+  本记录只表示实现与参数已在看数据前冻结；三交易日机器证据尚未产生，**P4.1 不标 done，
+  P4.2 继续锁定**。
+
 **验收**：连续 3 个交易日运行，零重复、失败如实记录；`available_time` 100% 为抓取时刻；
 spike 报告哈希写入本文档。
 

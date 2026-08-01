@@ -54,7 +54,10 @@ REDUNDANT_INDEX_MIGRATIONS: list[tuple[str, str, tuple[str, ...]]] = [
 ]
 
 _IDENTIFIER = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
-TABLE_MIGRATIONS = ("sector_constituent_snapshots",)
+TABLE_MIGRATIONS = (
+    "sector_constituent_snapshots",
+    "news_items",
+)
 
 
 def _validated_identifier(value: str) -> str:

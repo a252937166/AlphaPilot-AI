@@ -24,8 +24,8 @@ def test_current_repository_reports_explicit_postgres_blockers() -> None:
     }
     assert checks["PG_SCHEMA_COMPILES"]["status"] == "pass"
     assert checks["PG_SCHEMA_COMPILES"]["evidence"] == [
-        "tables=40",
-        "indexes=38",
+        "tables=41",
+        "indexes=39",
     ]
     assert {
         "PG_VERSIONED_MIGRATIONS",
