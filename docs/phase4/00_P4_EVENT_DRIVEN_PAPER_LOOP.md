@@ -148,6 +148,15 @@ P4.2 继续锁定，等待独立复核。
 
 ## P4.2 LLM 事件抽取
 
+> **拆分解锁（owner 质询后修订，2026-08-03）**：P4.2 拆为两半。**P4.2a 评测准备**即刻
+> 解锁：冻结 taxonomy、抽取 prompt + 严格 JSON schema、对既有 `news_items` 真实数据做
+> **离线**抽取试跑、从真实数据分层抽取 100 条金标准样本（建议 60 条取自现库存、40 条取自
+> 8/4–8/5 交易日新增以覆盖公告体）、owner 标注、按标注迭代至评测门达标——全程零生产
+> 写入（评测产物只进 `docs/phase4/eval/`，不建正式表、不动 scheduler、不接触发链）。
+> **P4.2b 生产接线**（`news_events` 表、抽取 job、触发链）仍锁定至 P4.1 三交易日验收
+> 通过。理由：标注与 prompt 迭代是关键路径且不依赖底座验收结论；生产管道必须建在已
+> 验收底座上。
+
 - 事件 taxonomy v1（版本化常量）：`earnings_preannounce / major_contract / buyback_or_holder_change /
   regulatory_action / halt_resume / ma_restructure / policy_sector / dividend / other`。
 - 每条新闻 → 严格 JSON（走 `src/alphapilot/llm` 现有层，purpose model 配置）：
