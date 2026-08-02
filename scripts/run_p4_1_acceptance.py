@@ -161,6 +161,10 @@ def load_config(path: Path) -> FrozenConfig:
     _require(acceptance.get("expected_poll_slots_per_day") == 64, "expected slots must be 64")
     _require(acceptance.get("require_every_expected_slot") is True, "missing-slot gate disabled")
     _require(
+        acceptance.get("require_cninfo_inserted_each_trading_date") is True,
+        "daily CNInfo insertion gate disabled",
+    )
+    _require(
         acceptance.get("allow_unexpected_extra_poll_runs") is False,
         "extra poll runs must remain forbidden",
     )
@@ -370,7 +374,11 @@ def _cadence_audit(
     }
 
 
-def _source_audit(config: FrozenConfig, runs: Sequence[JobEvidence]) -> JsonObject:
+def _source_audit(
+    config: FrozenConfig,
+    dates: Sequence[date],
+    runs: Sequence[JobEvidence],
+) -> JsonObject:
     sources = _mapping(config.document["sources"])
     assert sources is not None
     issues: list[str] = []
@@ -388,6 +396,7 @@ def _source_audit(config: FrozenConfig, runs: Sequence[JobEvidence]) -> JsonObje
         }
         for source_id in sources
     }
+    cninfo_inserted_by_trading_date = {value.isoformat(): 0 for value in dates}
     for run in runs:
         run_issues: list[str] = []
         stats_sources = _mapping(run.stats.get("sources"))
@@ -419,6 +428,11 @@ def _source_audit(config: FrozenConfig, runs: Sequence[JobEvidence]) -> JsonObje
                 else:
                     counters[field] = value
                     totals[source_id][field] += value
+            if source_id == "cninfo" and run.poll_started_at is not None:
+                trading_date = run.poll_started_at.astimezone(SHANGHAI).date().isoformat()
+                inserted = counters.get("inserted")
+                if inserted is not None and trading_date in cninfo_inserted_by_trading_date:
+                    cninfo_inserted_by_trading_date[trading_date] += inserted
             status = observed.get("status")
             if not isinstance(status, str) or not status:
                 run_issues.append(f"{source_id}.status: missing")
@@ -507,6 +521,7 @@ def _source_audit(config: FrozenConfig, runs: Sequence[JobEvidence]) -> JsonObje
     return {
         "issues": issues,
         "critical_failures": critical_failures,
+        "cninfo_inserted_by_trading_date": cninfo_inserted_by_trading_date,
         "runs": run_results,
         "totals": totals,
     }
@@ -850,6 +865,8 @@ def _gate(
     accepted_news_rows = sum(int(rows_by_date.get(value.isoformat(), 0)) for value in dates)
     source_totals = sources["totals"]
     assert isinstance(source_totals, Mapping)
+    cninfo_inserted_by_date = sources["cninfo_inserted_by_trading_date"]
+    assert isinstance(cninfo_inserted_by_date, Mapping)
     inserted_total = sum(
         int(total.get("inserted", 0))
         for total in source_totals.values()
@@ -869,6 +886,9 @@ def _gate(
         "published_at_not_substituted": news["published_at_equals_available_time"] == 0,
         "news_items_present_each_date": all(
             int(rows_by_date.get(value.isoformat(), 0)) > 0 for value in dates
+        ),
+        "cninfo_inserted_each_trading_date": all(
+            int(cninfo_inserted_by_date.get(value.isoformat(), 0)) > 0 for value in dates
         ),
         "inserted_counts_reconcile": inserted_total == accepted_news_rows,
         "pit_ordering_ok": bool(news["row_count"]) and not news["pit_anomalies"],
@@ -915,7 +935,7 @@ def evaluate_acceptance(
         selected = _selected_runs(all_runs, set(dates))
         cadence = _cadence_audit(config, dates, selected)
         jobrun = _jobrun_audit(config, selected)
-        source = _source_audit(config, selected)
+        source = _source_audit(config, dates, selected)
         schema = _schema_audit(connection)
         news = _news_audit(config, connection, runs_by_id)
         trading = _trading_audit(connection, dates)

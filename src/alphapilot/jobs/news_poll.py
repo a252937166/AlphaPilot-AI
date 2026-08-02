@@ -44,7 +44,7 @@ PROJECT_DIR = Path(__file__).resolve().parents[3]
 DEFAULT_CONFIG_PATH = PROJECT_DIR / "config/p4_news_poll_v1.yaml"
 # Filled after the versioned config is finalized. A different byte stream must
 # ship as a reviewed config/code change before it can make network requests.
-EXPECTED_CONFIG_SHA256 = "3af6ba11996b62b65267fecea11f63f7a6f204854533289011e2066e3e1f81b2"
+EXPECTED_CONFIG_SHA256 = "d0dcd665472b50092a1b4fa7f65f7115778e1b89ac11aca0ed49dc70beaa790b"
 MARKET_TIMEZONE = ZoneInfo("Asia/Shanghai")
 NEWS_POLL_ENABLED_ENV = "ALPHAPILOT_NEWS_POLL_ENABLED"
 _TRACKING_QUERY_PREFIXES = ("utm_",)

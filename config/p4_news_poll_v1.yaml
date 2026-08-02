@@ -220,6 +220,7 @@ acceptance:
   require_content_hash_duplicate_groups_zero: true
   require_available_time_coverage: 1.0
   require_news_items_each_trading_date: true
+  require_cninfo_inserted_each_trading_date: true
   require_jobrun_inserted_count_matches_database: true
   require_pit_ordering: true
   require_failure_accounting: true
