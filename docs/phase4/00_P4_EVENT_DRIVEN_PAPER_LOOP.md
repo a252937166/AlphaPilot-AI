@@ -178,6 +178,11 @@ P4.2 继续锁定，等待独立复核。
   （commit `7379e3d`，仅展示不过滤）。
 - **验收**：每条推荐可完整回溯到事件行与分数行；重放测试证明决策时刻可见性成立；
   注解层验收 = 注解不参与排序的回归测试 + 红旗标注与 news_events 行的可回溯绑定。
+- **过渡期 advisory 简报（2026-08-02 部署，P4.3 上线后退役）**：`scripts/run_daily_ai_brief.py`
+  经 launchd（`com.alphapilot.daily-ai-brief`，交易日 21:07）只读取 `news_items` 与市场状态、
+  调项目 LLM 生成当日研判写入 owner Obsidian（`AI/每日研判/`）。零 DB 写入、不入 jobs
+  registry、不产生 news_events 或推荐，输出显式标注 advisory/未评测；与 P4.2/P4.3 正式
+  管道无共享构件，P4.3 验收时一并卸载该 launchd 任务。
 
 ## P4.4 高频监控 + 调仓策略状态机（预注册 `config/p4_policy_v1.yaml`）
 
