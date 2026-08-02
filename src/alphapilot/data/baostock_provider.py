@@ -368,21 +368,13 @@ class BaoStockMarketDataProvider:
             while result.next():
                 rows.append(result.get_row_data())
         if not rows:
-            raise EmptyDailyBarsError(
-                f"BaoStock returned no adjusted closes for {code}"
-            )
+            raise EmptyDailyBarsError(f"BaoStock returned no adjusted closes for {code}")
         frame = pd.DataFrame(rows, columns=["date", "close"])
         frame["date"] = pd.to_datetime(frame["date"], errors="coerce")
         frame["close"] = pd.to_numeric(frame["close"], errors="coerce")
-        parsed = (
-            frame.dropna(subset=["date", "close"])
-            .sort_values("date")
-            .reset_index(drop=True)
-        )
+        parsed = frame.dropna(subset=["date", "close"]).sort_values("date").reset_index(drop=True)
         if parsed.empty:
-            raise EmptyDailyBarsError(
-                f"BaoStock returned no valid adjusted closes for {code}"
-            )
+            raise EmptyDailyBarsError(f"BaoStock returned no valid adjusted closes for {code}")
         return parsed
 
     def get_bars(
