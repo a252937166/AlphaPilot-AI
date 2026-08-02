@@ -48,6 +48,9 @@ dev = [
   "mypy>=1.15,<2",
   "pandas-stubs>=2.2,<3",
   "types-PyYAML>=6.0.12,<7",
+  # pandas.read_html optional backend; locally pulled in transitively by
+  # akshare, but CI installs only .[dev] and the FX parser test needs it.
+  "lxml>=5.0,<7",
 ]
 
 [project.scripts]
