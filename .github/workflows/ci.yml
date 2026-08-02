@@ -16,6 +16,10 @@ jobs:
         python-version: ["3.11", "3.12", "3.13"]
     steps:
       - uses: actions/checkout@v4
+      # The S6 frozen-baseline guard test needs this commit's objects; a full
+      # clone is too heavy, so fetch just the pinned baseline snapshot.
+      # Mirrors src/alphapilot/backtest/s6_presign.py::FROZEN_BASELINE_COMMIT.
+      - run: git fetch --depth=1 origin b9d2b19b1e701a31ecdcab3dca8ed86575f89b30
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
