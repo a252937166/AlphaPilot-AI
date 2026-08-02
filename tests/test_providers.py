@@ -687,9 +687,7 @@ def test_sina_hfq_factors_use_bounded_direct_http(
         "follow_redirects": True,
         "trust_env": False,
     }
-    assert captured["url"] == (
-        "https://finance.sina.com.cn/realstock/company/bj920079/hfq.js"
-    )
+    assert captured["url"] == ("https://finance.sina.com.cn/realstock/company/bj920079/hfq.js")
     assert frame.to_dict(orient="records") == [
         {"date": date(1900, 1, 1), "adj_factor": 1.0},
         {"date": date(2026, 7, 22), "adj_factor": 1.1},
