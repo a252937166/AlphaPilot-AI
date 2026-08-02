@@ -31,6 +31,11 @@ from alphapilot.prediction.baseline import BaselineForecastEngine
 
 RiskLevel = Literal["low", "mid", "high"]
 
+# Display-only disclosure thresholds: they annotate candidates and never
+# filter or reorder the shortlist (the P4.3 recommendation gates own that).
+LOW_LIQUIDITY_AVG_AMOUNT_20D = 50_000_000.0
+HIGH_VOLATILITY_RISK_SCORE = 20.0
+
 
 class ScreeningFilterError(ValueError):
     """The requested filter cannot be applied truthfully."""
@@ -401,6 +406,33 @@ def _enrich_candidates(
             failures[row.symbol] = message
             warnings.append(message)
 
+        avg_amount_20d: float | None = None
+        low_liquidity: bool | None = None
+        if frame is not None and "amount" in frame.columns:
+            amounts = (
+                pd.to_numeric(frame["amount"], errors="coerce").dropna().tail(20)
+            )
+            # A 20-day average needs 20 observations; with fewer we stay silent
+            # rather than publish a misleading short-window figure.
+            if len(amounts) >= 20:
+                mean_amount = float(amounts.mean())
+                if isfinite(mean_amount) and mean_amount >= 0:
+                    avg_amount_20d = mean_amount
+                    low_liquidity = mean_amount < LOW_LIQUIDITY_AVG_AMOUNT_20D
+        high_volatility = (
+            None if risk_score is None else risk_score < HIGH_VOLATILITY_RISK_SCORE
+        )
+        if low_liquidity:
+            warnings.append(
+                "流动性披露：近20日日均成交额 "
+                f"{(avg_amount_20d or 0) / 1e8:.2f} 亿元，低于 0.5 亿披露线；"
+                "仅提示，不影响排序。"
+            )
+        if high_volatility:
+            warnings.append(
+                "波动披露：年化波动率处于高位（risk_score < 20）；仅提示，不影响排序。"
+            )
+
         candidates.append(
             ScreeningCandidate(
                 rank=0,
@@ -409,6 +441,9 @@ def _enrich_candidates(
                 trend_score=trend_score,
                 risk_score=risk_score,
                 quality_placeholder_score=None,
+                avg_amount_20d=avg_amount_20d,
+                low_liquidity=low_liquidity,
+                high_volatility=high_volatility,
                 p_up_5d=p_up_5d,
                 p_up_20d=p_up_20d,
                 expected_return_5d=expected_return_5d,

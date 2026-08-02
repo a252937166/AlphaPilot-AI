@@ -49,6 +49,8 @@ def _seed_symbol(
     win_rate: float | None = None,
     watchlist: bool = False,
     style: StyleTag = "balanced",
+    amount_scale: float = 1.0,
+    daily_swing: float = 0.0,
 ) -> None:
     session.add(
         Security(
@@ -90,6 +92,8 @@ def _seed_symbol(
     for index, timestamp in enumerate(dates):
         if index:
             close *= 1.0 + daily_drift
+            if daily_swing:
+                close *= (1.0 + daily_swing) if index % 2 else 1.0 / (1.0 + daily_swing)
         session.add(
             DailyBar(
                 symbol=symbol,
@@ -99,7 +103,7 @@ def _seed_symbol(
                 low=close * 0.99,
                 close=close,
                 volume=1_000.0 + index,
-                amount=close * (1_000.0 + index),
+                amount=close * (1_000.0 + index) * amount_scale,
                 source="test",
             )
         )
@@ -139,6 +143,36 @@ def test_all_filters_industry_market_cap_and_risk_tertile(tmp_path: Path) -> Non
     assert all(item.risk_level == "low" for item in response.candidates)
     assert all(item.industry == "科技" for item in response.candidates)
     assert all(item.p_up_20d is not None for item in response.candidates)
+
+
+def test_disclosure_annotates_liquidity_and_volatility_without_reordering(
+    tmp_path: Path,
+) -> None:
+    with _session(tmp_path) as session:
+        # 薄流动 + 高波动的高分股 vs 深流动 + 低波动的次分股：披露不得改排序。
+        _seed_symbol(session, "000001", score=90, volatility_z=0.5, daily_swing=0.05)
+        _seed_symbol(session, "000002", score=80, volatility_z=0.5, amount_scale=1e5)
+        session.commit()
+
+        response = run_factor_screen(
+            session,
+            ScreeningRequest(universe="all", top_n=10),
+        )
+
+    assert [item.symbol for item in response.candidates] == ["000001", "000002"]
+    thin, deep = response.candidates
+    assert thin.low_liquidity is True
+    assert thin.avg_amount_20d is not None and thin.avg_amount_20d < 50_000_000
+    assert any("流动性披露" in warning for warning in thin.warnings)
+    assert thin.risk_score is not None and thin.risk_score < 20
+    assert thin.high_volatility is True
+    assert any("波动披露" in warning for warning in thin.warnings)
+    assert deep.low_liquidity is False
+    assert deep.avg_amount_20d is not None and deep.avg_amount_20d >= 50_000_000
+    assert deep.high_volatility is False
+    for candidate in response.candidates:
+        if candidate.risk_score is not None:
+            assert candidate.high_volatility == (candidate.risk_score < 20)
 
 
 def test_watchlist_win_rate_prefers_real_values_then_score(tmp_path: Path) -> None:
