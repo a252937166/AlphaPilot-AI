@@ -118,6 +118,25 @@ P4.2 继续锁定，等待独立复核。
   本记录只表示实现与参数已在看数据前冻结；三交易日机器证据尚未产生，**P4.1 不标 done，
   P4.2 继续锁定**。
 
+### P4.1 全量实现预验收记录（2026-08-02，非三交易日正式样本）
+
+- 预注册实现已独立提交：`8d68094`。迁移前在线备份
+  `data/backups/alphapilot-pre-p4.1-20260802T034014-CST.db`，SHA-256
+  `12eabd0c652722ab5b7115d990e7e6cdc3e36721533335326bed3d6e1829b807`；迁移后
+  `news_items` schema/双唯一键/PIT 索引存在，`PRAGMA quick_check=ok`。
+- 真实 JobRun `46094 status=ok`：巨潮严格 TLS 请求 2、失败/重试 0；同花顺抓取/插入
+  20/20；新浪抓取 117、插入 115、URL 重复 2；合计插入 135。财联社、财新、富途辅助
+  均 0 请求，富途行情/交易方法调用列表为空，safety before/after 一致。
+- 立即重放 JobRun `46096 status=ok`：抓取 137、插入 0、URL 去重 137；原 135 行
+  `available_time` 摘要前后相同。库内 URL 重复组 0、内容哈希重复组 0、
+  `published_at==available_time` 为 0；逐行
+  `fetch≤write-lock≤available≤flush≤commit≤poll_completed` 无异常。
+- `com.alphapilot.scheduler` 已由版本化模板安全重启；安装 plist 与 `launchctl` 环境均为
+  `ALPHAPILOT_NEWS_POLL_ENABLED=true`，启动日志列出 `news_poll`（共 20 个任务）。API/OpenD
+  健康；交易表仍为 proposal/order `1/1`，非 SIMULATE 委托 0。
+- 以上只证明迁移、真实抓取、幂等和部署门；不替代 2026-08-03/04/05 三交易日正式验收，
+  因此 P4.1 仍不标 done，P4.2 仍锁定。
+
 **验收**：连续 3 个交易日运行，零重复、失败如实记录；`available_time` 100% 为抓取时刻；
 spike 报告哈希写入本文档。
 
