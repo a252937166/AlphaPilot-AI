@@ -225,6 +225,9 @@ def test_frozen_config_has_64_slots_and_fail_closed_source_contract() -> None:
     assert sources["akshare_cls"]["max_attempts_per_request"] == 0
     assert sources["akshare_caixin"]["enabled"] is False
     assert sources["futu_auxiliary"]["enabled"] is False
+    assert config.document["acceptance"][
+        "require_cninfo_inserted_each_trading_date"
+    ] is True
     assert config.document["phase_gate"]["p4_2_unlocked"] is False
 
 
@@ -247,6 +250,11 @@ def test_final_acceptance_passes_complete_read_only_fixture(tmp_path: Path) -> N
     assert report["news_items"]["row_count"] == 3
     assert report["news_items"]["available_time_coverage"] == 1.0
     assert report["sources"]["issues"] == []
+    assert report["sources"]["cninfo_inserted_by_trading_date"] == {
+        "2026-08-03": 1,
+        "2026-08-04": 1,
+        "2026-08-05": 1,
+    }
     assert len(report["jobrun"]["evidence"]) == 192
     assert report["jobrun"]["evidence"][0]["stats"]["sources"]["cninfo"][
         "tls_verification"
@@ -258,6 +266,51 @@ def test_final_acceptance_passes_complete_read_only_fixture(tmp_path: Path) -> N
     with sqlite3.connect(database) as connection:
         assert connection.execute("SELECT COUNT(*) FROM news_items").fetchone()[0] == 3
         assert connection.execute("SELECT COUNT(*) FROM job_runs").fetchone()[0] == 192
+
+
+def test_gate_requires_cninfo_inserted_on_every_trading_date(tmp_path: Path) -> None:
+    config = acceptance.load_config(CONFIG_PATH)
+    database = tmp_path / "cninfo-daily-insertion-gap.db"
+    _create_database(database)
+    _seed_complete_evidence(database, config)
+    with sqlite3.connect(database) as connection:
+        rows = connection.execute("SELECT id, stats FROM job_runs ORDER BY id").fetchall()
+        for run_id, raw_stats in rows:
+            stats = json.loads(raw_stats)
+            trading_date = (
+                datetime.fromisoformat(stats["poll_started_at"])
+                .astimezone(acceptance.SHANGHAI)
+                .date()
+            )
+            if (
+                trading_date == date(2026, 8, 4)
+                and stats["sources"]["cninfo"]["inserted"] > 0
+            ):
+                stats["sources"]["cninfo"]["inserted"] = 0
+                stats["sources"]["akshare_ths"]["inserted"] = 1
+                connection.execute(
+                    "UPDATE job_runs SET stats=? WHERE id=?",
+                    (json.dumps(stats), run_id),
+                )
+                break
+        else:
+            raise AssertionError("fixture has no 2026-08-04 CNInfo insertion")
+
+    report = acceptance.evaluate_acceptance(
+        database=database,
+        config=config,
+        scope="final",
+        now=_ready_time(),
+    )
+
+    assert report["sources"]["cninfo_inserted_by_trading_date"] == {
+        "2026-08-03": 1,
+        "2026-08-04": 0,
+        "2026-08-05": 1,
+    }
+    assert report["gate"]["cninfo_inserted_each_trading_date"] is False
+    assert report["gate"]["inserted_counts_reconcile"] is True
+    assert report["gate"]["all_pass"] is False
 
 
 def test_gate_reports_missing_slot_unaccounted_failure_and_disabled_source_call(
