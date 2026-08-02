@@ -67,6 +67,9 @@ export interface ScreenCandidateSummary {
   trend_score: number | null
   risk_score: number | null
   quality_placeholder_score: number | null
+  avg_amount_20d?: number | null
+  low_liquidity?: boolean | null
+  high_volatility?: boolean | null
   p_up_5d: number | null
   p_up_20d: number | null
   expected_return_5d: number | null
