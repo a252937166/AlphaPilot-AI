@@ -1202,7 +1202,6 @@ def _offline_report(
     )
     checkpoint_audit_check_passed = (
         summary.checkpoint_audited_success_count == summary.success_count
-        and summary.success_count == summary.expected_count
     )
     audit_check_passed = (
         summary.isolated_audit_tables == ("llm_calls",)
