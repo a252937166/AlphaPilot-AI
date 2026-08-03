@@ -179,6 +179,23 @@ P4.2 继续锁定，等待独立复核。
   6 位代码，或资讯底座已审计绑定的 `ingested_symbol`；严格 JSON 解析拒绝重复键。
   P4.2b 继续冻结。
 
+#### P4.2a 执行进度（2026-08-03，未完成）
+
+- 冻结合同与离线工具已先于真实输出独立提交：`d020cfe`。随后仅对“失败终态报告可冻结”
+  与部分成功审计展示作运维修正：`a850dfc`、`ae39689`；taxonomy、prompt、schema、抽样、
+  模型及评测阈值均未改变。
+- `qwen3.6-flash` 已对冻结库存 `id=1..423` 完成一次全量离线试跑，未自动或人工重试：
+  406 成功、17 `extract_failed`（16 `post_validation_failed`、1 `http_status_400`），覆盖
+  423/423。生产 `llm_calls` 前后均为 109，交易安全表仍为 1/1；结果 JSONL SHA-256
+  `b1baca41a2d4cbbfa62ec921bc77ea760f2b80f7a075e1625c68fb74acac06a4`，终态报告 SHA-256
+  `794daa7b6f2152194575e3bf764139fdd046eb4aa31f4d310b57f92446b37e07`。
+- 现库存 60 条盲标样本已冻结：巨潮公告正文 24、同花顺有/无 symbol 各 9、新浪有/无
+  symbol 各 9；60 个 ID 唯一，gold 全为 null，模型预测字段为 0，24 份巨潮正文均记录
+  PDF/全文 SHA-256 且未持久化 PDF。样本 SHA-256
+  `81b3c0b27cd344fe4c2a735261e501dd2f60a0927c14b2c37e5b2a4879b4a2ba`。
+- 尚欠 8/4、8/5 自然新增的 40 条（硬时间门 8/6 00:10 CST）及 owner 完整盲标；两项
+  金标准指标尚未运行。故 **P4.2a 不标 done，P4.2b 继续冻结**。
+
 - 事件 taxonomy v1（版本化常量）：`earnings_preannounce / major_contract / buyback_or_holder_change /
   regulatory_action / halt_resume / ma_restructure / policy_sector / dividend / other`。
 - 每条新闻 → 严格 JSON（走 `src/alphapilot/llm` 现有层，purpose model 配置）：
