@@ -157,6 +157,28 @@ P4.2 继续锁定，等待独立复核。
 > 通过。理由：标注与 prompt 迭代是关键路径且不依赖底座验收结论；生产管道必须建在已
 > 验收底座上。
 
+### P4.2a v1 评测合同预注册（2026-08-03，首次真实 LLM 试跑前）
+
+- Owner 解锁基线：`4c79373`。冻结配置 `config/p4_event_extract_eval_v1.yaml`，SHA-256
+  `b3eb24c63816043edf0ef728d8d9778cd9083d720649d6fff3ae6289bba74300`；prompt 与严格
+  JSON Schema 分别独立哈希。模型固定 `qwen3.6-flash`，`enable_thinking=false`、单条输出
+  ≤2,000 tokens、总时限 20 秒、零自动重试、单轮上限 2,000 条。
+- 现库存快照在 2026-08-03 10:13 CST 以只读事务冻结为 `news_items id<=423`（423 条，
+  `max(available_time)=2026-08-03T02:10:09.075785Z`）。真实模型输出产生前先冻结合同并独立
+  提交；离线试跑只读该快照，结果与失败审计仅写 `docs/phase4/eval/`。
+- 100 条盲标样本与模型预测解耦：现库存 60 条固定为巨潮正文 24、同花顺有/无 symbol
+  各 9、新浪有/无 symbol 各 9；未来 40 条固定从 8/4、8/5 每日各取 20 条，逐日配额为
+  巨潮正文 10、同花顺 2/3、新浪 2/3。以冻结 seed 的 SHA-256 排名决定 ID；任何分层不足、
+  巨潮 PDF 正文获取失败均 fail-closed，不换样本，owner 标签不得预填模型结果。
+- 指标在标注前固定：`materiality>=2` precision = TP/(TP+FP)，无预测阳性直接失败，门槛
+  0.80；symbol 采用逐条集合 exact-match，全部样本与 gold 有标的子集均须 ≥0.95。失败轮
+  追加留档；改 prompt/模型必须发布新合同版本，样本和阈值不变。
+- 隔离边界：生产库强制 `mode=ro/query_only`，LLM 审计使用 eval 进程内存会话；不建
+  `news_events`、不改 ORM/迁移/registry/API，不修改或重启 scheduler，不触碰 P4.1 配置与
+  验收器，不创建提案/委托。symbol 仅接受“原文中按数字边界明确出现且属于证券全集”的
+  6 位代码，或资讯底座已审计绑定的 `ingested_symbol`；严格 JSON 解析拒绝重复键。
+  P4.2b 继续冻结。
+
 - 事件 taxonomy v1（版本化常量）：`earnings_preannounce / major_contract / buyback_or_holder_change /
   regulatory_action / halt_resume / ma_restructure / policy_sector / dividend / other`。
 - 每条新闻 → 严格 JSON（走 `src/alphapilot/llm` 现有层，purpose model 配置）：
