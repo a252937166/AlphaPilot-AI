@@ -193,6 +193,12 @@ P4.2 继续锁定，等待独立复核。
   symbol 各 9；60 个 ID 唯一，gold 全为 null，模型预测字段为 0，24 份巨潮正文均记录
   PDF/全文 SHA-256 且未持久化 PDF。样本 SHA-256
   `81b3c0b27cd344fe4c2a735261e501dd2f60a0927c14b2c37e5b2a4879b4a2ba`。
+- v1.1 未来运行链已完成纯代码准备并经独立只读复核 `APPROVE / zero blocker`：active
+  contract 与 JSON/JSONL 均严格拒绝重复键、YAML merge-key 冲突和非有限数；dev-final
+  完成时刻在 60 条覆盖校验后取证；heldout started 在首个模型调用前 fsync 并绑定完整交易
+  安全快照；crash finalizer 零模型调用且不得弱化证据；selection/evaluator 独立重验
+  receipt、contract、候选身份、prediction manifest 与 one-shot 两行终态。正式 heldout CLI
+  禁止数据库覆写。以上仅为合成 fixture 验证，未读取 8/4–8/5 数据、未调用真实 LLM。
 - 尚欠 8/4、8/5 自然新增的 40 条（硬时间门 8/6 00:10 CST）及 owner 完整盲标；两项
   金标准指标尚未运行。故 **P4.2a 不标 done，P4.2b 继续冻结**。
 
@@ -200,6 +206,15 @@ P4.2 继续锁定，等待独立复核。
 
 复核在 60 条冻结样本上实测到两处会使评测门失效的设计缺陷，按 owner 既有授权修订。
 **两项阈值（precision ≥ 0.80、symbol 准确率 ≥ 0.95）一字未改，本次修订只加严、不放水。**
+修订合同独立冻结于 `config/p4_event_evaluation_v1_1.yaml`（SHA-256
+`8e9c1d107ef235f9c017dbfb679fa01e52e0ff966f01d9efad625110588ebf97`），显式引用且不改写
+v1 抽取/标注基线合同 `b3eb24c6…`；dev60、heldout40、预测正类池确定性抽样、模型合同冻结回执、
+推理/评分各一次性状态、owner 盲标字段禁区及报告强制披露字段均由 v1.1 合同 fail-closed 校验；
+其中最终 dev60 预测及其 manifest 必须 create-only 冻结并绑定 60 条有序身份摘要、成功/失败计数
+与 active contract SHA，校验通过后才允许开始 heldout 推理。heldout selection 只生成独立的
+40 条盲样本，不得抢占 completed owner 标签或 combined100 路径；dev60/heldout40 两份 owner
+标签均为 completed、通过身份/哈希/盲性校验后，才按 1–60/61–100 重编号 create-only 合并，
+并由 owner completion manifest 绑定三份标签 SHA，最终评测一次性状态在该 manifest 验真前不得启动。
 
 1. **precision 分母过小 → 剩余 40 条改为从预测正类抽样**。实测 60 条中仅 14 条被模型判为
    `materiality>=2`，凑满 100 条约 23 条；n=23 时 precision 的 95% 置信区间约 ±0.16，
@@ -240,8 +255,9 @@ P4.2 继续锁定，等待独立复核。
   日抽取上限 2,000 条；超限降级为仅入库不抽取并计数告警。
 - 表 `news_events`（FK news_items，幂等 upsert，含 `model_version`）。
 - **金标准评测**：owner 参与人工标注 100 条固定样本；预注册验收门：
-  `materiality>=2` 事件的 precision ≥ 0.80、symbol 映射准确率 ≥ 0.95。达不到就修 prompt/换模型
-  再评，不放水阈值。
+  `materiality>=2` 事件的 precision ≥ 0.80、symbol 映射准确率 ≥ 0.95。prompt 迭代只允许看
+  dev60；heldout40 只评一次，失败后必须登记新设计版本并换一批 heldout，禁止复用测试集或
+  放水阈值。
 - **"重磅消息"的机器定义（owner 疑问的正式答案）**：`materiality>=2` 且通过评测门的事件
   即"重磅"——判定权在已评测的抽取器，不靠人工盯盘；重磅事件到达即触发 P4.3 盘中增量
   推荐与 P4.4 的插队复看/状态机评估。
