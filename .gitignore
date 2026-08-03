@@ -54,3 +54,4 @@ htmlcov/
 
 # Generated blind-labeling UI (rebuild with scripts/build_p4_2a_labeling_ui.py)
 docs/phase4/eval/*.labeling.html
+docs/phase4/eval/*.labels.jsonl

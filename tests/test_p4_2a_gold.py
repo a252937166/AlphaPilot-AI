@@ -7,6 +7,7 @@ import os
 import sqlite3
 from collections import Counter
 from collections.abc import Mapping
+from dataclasses import replace
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from typing import Any
@@ -16,7 +17,10 @@ import pytest
 from scripts import build_p4_2a_gold_sample as builder
 from scripts import evaluate_p4_2a_gold as evaluator
 
-from alphapilot.llm.p4_news_event import EXPECTED_CONTRACT_SHA256
+from alphapilot.llm.p4_news_event import (
+    EXPECTED_CONTRACT_SHA256,
+    load_event_extract_contract,
+)
 
 PROJECT_DIR = Path(__file__).resolve().parent.parent
 CONFIG_PATH = PROJECT_DIR / "config/p4_event_extract_eval_v1.yaml"
@@ -119,7 +123,11 @@ def _owner_records(records: list[dict[str, Any]]) -> list[dict[str, Any]]:
         record["annotation_owner"] = "owner"
         record["annotated_at"] = "2026-08-06T01:00:00+08:00"
         record["gold"] = {
-            "symbols": [record["ingested_symbol"]],
+            "symbols": (
+                [record["ingested_symbol"]]
+                if record["ingested_symbol"] is not None
+                else []
+            ),
             "event_type": "other",
             "direction": 0,
             "materiality": 0,
@@ -164,6 +172,38 @@ def test_contract_and_deterministic_rank_are_frozen() -> None:
         )
         == hashlib.sha256(f"seed|group|cninfo|bound|{'a' * 64}|7".encode()).hexdigest()
     )
+
+
+def test_base_and_active_contract_yaml_reject_conflicting_duplicate_keys(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    duplicate_contract = CONFIG_PATH.read_text(encoding="utf-8").replace(
+        "production_writes_allowed: false",
+        "production_writes_allowed: false\nproduction_writes_allowed: true",
+        1,
+    )
+    duplicate_path = tmp_path / "duplicate-contract.yaml"
+    duplicate_path.write_text(duplicate_contract, encoding="utf-8")
+
+    with pytest.raises(builder.GoldSampleError, match="duplicate keys"):
+        builder.load_contract(duplicate_path)
+
+    design = builder.load_evaluation_design()
+    duplicate_sha256 = hashlib.sha256(duplicate_path.read_bytes()).hexdigest()
+    monkeypatch.setattr(
+        builder,
+        "load_prediction_contract_freeze_receipt",
+        lambda _design: (
+            {
+                "contract_path": str(duplicate_path),
+                "contract_sha256": duplicate_sha256,
+            },
+            "f" * 64,
+        ),
+    )
+    with pytest.raises(builder.GoldSampleError, match="invalid YAML"):
+        builder.load_active_prediction_contract(design)
 
 
 def test_inventory_selection_has_exact_quotas_and_fails_short_stratum() -> None:
@@ -271,6 +311,25 @@ def test_cli_does_not_expose_a_future_clock_override() -> None:
                 "2099-01-01T00:00:00+08:00",
             ]
         )
+
+
+@pytest.mark.parametrize("mode", ["heldout", "combine-owner"])
+def test_active_cli_modes_reject_database_override_before_any_build(
+    capsys: pytest.CaptureFixture[str],
+    tmp_path: Path,
+    mode: str,
+) -> None:
+    result = builder.main(
+        [
+            "--mode",
+            mode,
+            "--database",
+            str(tmp_path / "untrusted.db"),
+        ]
+    )
+
+    assert result == 1
+    assert f"--database override is forbidden for active {mode} mode" in capsys.readouterr().err
 
 
 def test_cninfo_body_is_mocked_blind_truncated_and_hash_bound() -> None:
@@ -536,6 +595,34 @@ def test_database_open_is_uri_read_only_and_query_only(tmp_path: Path) -> None:
             )
 
 
+@pytest.mark.parametrize("constant", ["NaN", "Infinity", "-Infinity"])
+def test_all_gold_json_loaders_reject_non_finite_numbers(
+    tmp_path: Path,
+    constant: str,
+) -> None:
+    jsonl_path = tmp_path / "malicious.jsonl"
+    json_path = tmp_path / "malicious.json"
+    payload = f'{{"prediction":{{"confidence":{constant}}}}}\n'
+    jsonl_path.write_text(payload, encoding="utf-8")
+    json_path.write_text(payload, encoding="utf-8")
+
+    with pytest.raises(builder.GoldSampleError, match="invalid"):
+        builder._load_jsonl(jsonl_path)
+    with pytest.raises(builder.GoldSampleError, match="invalid"):
+        builder._load_json_with_sha256(json_path, label="prediction manifest")
+    with pytest.raises(evaluator.GoldEvaluationError, match="invalid JSON"):
+        evaluator._read_jsonl(jsonl_path, label="owner annotations")
+    with pytest.raises(evaluator.GoldEvaluationError, match="invalid UTF-8 JSON"):
+        evaluator._read_json(json_path, label="owner completion manifest")
+    with pytest.raises(builder.GoldSampleError, match="invalid JSON"):
+        builder._json_object(
+            f'{{"confidence":{constant}}}',
+            label="news_items.raw_payload",
+        )
+    with pytest.raises(FileExistsError, match="invalid JSON"):
+        builder._read_manifest_for_recovery(json_path)
+
+
 def test_owner_annotations_reject_unknown_model_hint_fields() -> None:
     contract = builder.load_contract(CONFIG_PATH)
     records = _owner_records(_blind_records(contract))
@@ -545,6 +632,15 @@ def test_owner_annotations_reject_unknown_model_hint_fields() -> None:
 
     records[0]["llm_hint"] = {"materiality": 3}
     with pytest.raises(evaluator.GoldEvaluationError, match="fields drifted"):
+        evaluator.validate_owner_annotations(records, contract)
+
+
+def test_owner_annotations_require_timezone_aware_completion_time() -> None:
+    contract = builder.load_contract(CONFIG_PATH)
+    records = _owner_records(_blind_records(contract))
+    records[0]["annotated_at"] = "2026-08-06T01:00:00"
+
+    with pytest.raises(evaluator.GoldEvaluationError, match="must include a timezone"):
         evaluator.validate_owner_annotations(records, contract)
 
 
@@ -659,6 +755,7 @@ def test_prediction_join_rejects_input_or_text_hash_mismatch() -> None:
             {
                 "news_item_id": news_item_id,
                 "contract_sha256": contract.sha256,
+                "model": "qwen3.6-flash",
                 "input_sha256": record["input_sha256"],
                 "text_sha256": record["text_sha256"],
                 "status": "ok",
@@ -703,6 +800,8 @@ def test_cli_returns_exit_2_for_threshold_failure(
     assert (
         evaluator.main(
             [
+                "--scope",
+                "legacy-v1",
                 "--config",
                 str(CONFIG_PATH),
                 "--annotations",
@@ -715,3 +814,678 @@ def test_cli_returns_exit_2_for_threshold_failure(
         )
         == 2
     )
+
+
+def test_v1_1_positive_pool_selection_is_exact_and_fails_short_pool() -> None:
+    records: list[dict[str, Any]] = []
+    for news_item_id in range(424, 474):
+        ok = news_item_id != 430
+        materiality = 2 if news_item_id < 470 else 1
+        records.append(
+            {
+                "news_item_id": news_item_id,
+                "status": "ok" if ok else "extract_failed",
+                "input_sha256": _hash(f"input-{news_item_id}"),
+                "text_sha256": _hash(f"text-{news_item_id}"),
+                "prediction": (
+                    {
+                        "symbols": [],
+                        "event_type": "other",
+                        "direction": 0,
+                        "materiality": materiality,
+                        "summary": "摘要",
+                        "confidence": 0.8,
+                        "evidence_span": "证据",
+                    }
+                    if ok
+                    else None
+                ),
+            }
+        )
+
+    selected, evidence = builder.select_heldout_positive_predictions(
+        records,
+        seed="registered-seed",
+        count=40,
+    )
+
+    expected = sorted(
+        (
+            builder.heldout_prediction_rank(
+                seed="registered-seed",
+                news_item_id=int(record["news_item_id"]),
+                input_sha256=str(record["input_sha256"]),
+            ),
+            int(record["news_item_id"]),
+        )
+        for record in records
+        if record["status"] == "ok"
+        and isinstance(record["prediction"], Mapping)
+        and int(record["prediction"]["materiality"]) >= 2
+    )[:40]
+    assert [record["news_item_id"] for record in selected] == [
+        news_item_id for _, news_item_id in expected
+    ]
+    assert [item["selection_rank_sha256"] for item in evidence] == [
+        rank for rank, _ in expected
+    ]
+    assert all("text_sha256" in item for item in evidence)
+
+    with pytest.raises(builder.GoldSampleError, match="insufficient"):
+        builder.select_heldout_positive_predictions(
+            records,
+            seed="registered-seed",
+            count=46,
+        )
+
+
+def test_v1_1_candidate_body_is_frozen_once_for_prediction_and_owner() -> None:
+    design = builder.load_evaluation_design()
+    active_contract = load_event_extract_contract(CONFIG_PATH)
+    row = _row(
+        500,
+        source="cninfo",
+        bound=True,
+        available_time=datetime(2026, 8, 4, 2, tzinfo=UTC),
+    )
+    fetch_count = 0
+
+    def fake_fetch(_url: str, _policy: builder.AnnouncementBodyPolicy) -> bytes:
+        nonlocal fetch_count
+        fetch_count += 1
+        return b"%PDF-heldout"
+
+    def fake_extract(
+        _payload: bytes,
+        _policy: builder.AnnouncementBodyPolicy,
+    ) -> builder.ExtractedPdfText:
+        return builder.extracted_pdf_text_fixture("同一份公告正文证据" * 20)
+
+    candidates = builder.materialize_heldout_candidate_inputs(
+        [row],
+        design,
+        active_contract,
+        pdf_fetcher=fake_fetch,
+        pdf_text_extractor=fake_extract,
+    )
+    candidate = candidates[0]
+    owner = builder._heldout_owner_record(
+        candidate=candidate,
+        row=row,
+        base_contract=design.base_contract,
+        sample_index=1,
+    )
+
+    assert fetch_count == 1
+    assert owner["original_text"] == candidate["original_text"]
+    assert owner["text_sha256"] == candidate["text_sha256"]
+    assert owner["input_sha256"] == candidate["input_sha256"]
+    assert owner["body_evidence"] == candidate["body_evidence"]
+    assert not builder.owner_forbidden_field_paths(
+        owner,
+        frozenset(design.document["owner_delivery"]["forbidden_fields"]),
+    )
+    assert set(owner["stratum"]) == builder.STRATUM_FIELDS
+    assert set(owner["body_evidence"]) == builder.BODY_EVIDENCE_FIELDS
+
+    leaked = copy.deepcopy(owner)
+    leaked["body_evidence"]["selection_reason"] = "model_positive"
+    with pytest.raises(builder.GoldSampleError, match="body_evidence fields drifted"):
+        builder.validate_blind_record(leaked, design.base_contract)
+
+
+def test_v1_1_combine_owner_is_create_only_and_binds_completion_manifest(
+    tmp_path: Path,
+) -> None:
+    design = builder.load_evaluation_design()
+    eval_root = tmp_path / "docs/phase4/eval"
+    eval_root.mkdir(parents=True)
+    dev_blind_path = builder.evaluation_artifact_path(
+        design,
+        "dev_60_frozen_jsonl",
+        project_root=tmp_path,
+    )
+    dev_blind_path.write_bytes(
+        (PROJECT_DIR / design.document["artifacts"]["dev_60_frozen_jsonl"]["path"]).read_bytes()
+    )
+    dev_blind = builder._load_jsonl(dev_blind_path)
+
+    heldout_selected = [
+        builder.SelectedNews(
+            row=_row(
+                news_item_id,
+                source="sina_company_news",
+                bound=True,
+                available_time=datetime(2026, 8, 4, 2, tzinfo=UTC),
+            ),
+            sample_group="heldout40",
+            trading_date=date(2026, 8, 4),
+            stratum=builder.Stratum("sina_company_news", "bound", 40, False),
+            rank_sha256=_hash(f"blind-rank-{news_item_id}"),
+        )
+        for news_item_id in range(424, 464)
+    ]
+    heldout_blind = builder.materialize_selected_rows(
+        heldout_selected,
+        design.base_contract,
+        starting_index=1,
+    )
+    heldout_blind_path = builder.evaluation_artifact_path(
+        design,
+        "heldout_40_blind_sample_jsonl",
+        project_root=tmp_path,
+    )
+    heldout_payload = builder._json_line_bytes(heldout_blind)
+    heldout_blind_path.write_bytes(heldout_payload)
+    selection_manifest_path = builder.evaluation_artifact_path(
+        design,
+        "heldout_selection_manifest_json",
+        project_root=tmp_path,
+    )
+    selection_manifest_path.write_text(
+        json.dumps(
+            {
+                "design": {"sha256": design.sha256},
+                "owner_delivery": {
+                    "heldout_blind_sample_path": str(
+                        heldout_blind_path.relative_to(tmp_path)
+                    ),
+                    "heldout_blind_sample_sha256": hashlib.sha256(
+                        heldout_payload
+                    ).hexdigest(),
+                    "heldout_blind_sample_count": 40,
+                },
+            },
+            sort_keys=True,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    dev_export = tmp_path / "dev-owner-export.jsonl"
+    heldout_export = tmp_path / "heldout-owner-export.jsonl"
+    dev_export.write_bytes(builder._json_line_bytes(_owner_records(dev_blind)))
+    heldout_export.write_bytes(
+        builder._json_line_bytes(_owner_records(heldout_blind))
+    )
+
+    evidence = builder.combine_owner_annotations(
+        dev_owner_export=dev_export,
+        heldout_owner_export=heldout_export,
+        project_root=tmp_path,
+    )
+
+    combined_path = builder.evaluation_artifact_path(
+        design,
+        "combined_100_annotations_jsonl",
+        project_root=tmp_path,
+    )
+    completion_path = builder.evaluation_artifact_path(
+        design,
+        "owner_completion_manifest_json",
+        project_root=tmp_path,
+    )
+    combined, combined_sha256 = evaluator._read_jsonl(
+        combined_path,
+        label="combined fixture",
+    )
+    assert [record["sample_index"] for record in combined] == list(range(1, 101))
+    assert [record["news_item_id"] for record in combined[60:]] == list(range(424, 464))
+    assert evidence["combined_annotations_sha256"] == combined_sha256
+    owner_completion = evaluator.validate_owner_completion_manifest(
+        design,
+        annotation_path=combined_path,
+        annotation_records=combined,
+        annotation_sha256=combined_sha256,
+        project_root=tmp_path,
+    )
+    assert owner_completion["combined_row_count"] == 100
+    assert owner_completion["identity_validation_passed"] is True
+    required_owner_fields = {
+        field.removeprefix("owner_completion.")
+        for field in design.document["evaluation"]["required_report_fields"]
+        if field.startswith("owner_completion.")
+    }
+    assert set(owner_completion) == required_owner_fields
+    assert completion_path.is_file()
+
+    with pytest.raises(FileExistsError, match="refusing to overwrite"):
+        builder.combine_owner_annotations(
+            dev_owner_export=dev_export,
+            heldout_owner_export=heldout_export,
+            project_root=tmp_path,
+        )
+
+
+def test_v1_1_split_gates_do_not_apply_dev_precision_to_heldout_gate() -> None:
+    design = builder.load_evaluation_design()
+    annotations: dict[int, dict[str, Any]] = {}
+    predictions: dict[int, dict[str, Any] | None] = {}
+    for news_item_id in range(1, 101):
+        heldout = news_item_id > 60
+        gold_materiality = 2 if (heldout and news_item_id <= 70) else 0
+        if not heldout and news_item_id <= 5:
+            gold_materiality = 2
+        predicted_materiality = 0
+        if not heldout and news_item_id in range(6, 11):
+            predicted_materiality = 2  # dev precision 0/5, diagnostic only
+        if heldout and (news_item_id <= 68 or news_item_id in {71, 72}):
+            predicted_materiality = 2  # heldout precision 8/10
+        symbols = [f"{news_item_id:06d}"]
+        annotations[news_item_id] = {
+            "record": {
+                "sample_index": news_item_id,
+                "sample_group": "heldout40" if heldout else "inventory_60",
+            },
+            "gold": {
+                "symbols": symbols,
+                "event_type": "other",
+                "direction": 0,
+                "materiality": gold_materiality,
+                "evidence_span": "证据",
+                "notes": None,
+            },
+        }
+        predictions[news_item_id] = {
+            "symbols": ["999999"] if news_item_id <= 5 else symbols,
+            "event_type": "other",
+            "direction": 0,
+            "materiality": predicted_materiality,
+            "summary": "摘要",
+            "confidence": 0.8,
+            "evidence_span": "证据",
+        }
+
+    result = evaluator.evaluate_split_records(annotations, predictions, design)
+
+    assert result["metrics"]["materiality_precision"]["dev60"]["value"] == 0
+    assert result["metrics"]["materiality_precision"]["heldout40"]["value"] == 0.8
+    assert result["metrics"]["materiality_precision"]["heldout40"]["threshold"] == 0.8
+    assert result["metrics"]["materiality_precision"]["heldout40"]["passed"] is True
+    assert result["gates"]["materiality_precision_heldout40"] is True
+    assert result["metrics"]["symbol_exact_set"]["all100"]["value"] == 0.95
+    assert result["passed"] is True
+
+
+def test_v1_1_prediction_contract_may_differ_from_annotation_contract() -> None:
+    contract = builder.load_contract(CONFIG_PATH)
+    active = replace(load_event_extract_contract(CONFIG_PATH), sha256="a" * 64)
+    annotation = {
+        "news_item_id": 1,
+        "contract_sha256": contract.sha256,
+        "input_sha256": _hash("input"),
+        "text_sha256": _hash("text"),
+        "original_text": "证据正文",
+    }
+    annotations = {1: {"record": annotation}}
+    prediction = {
+        "news_item_id": 1,
+        "contract_sha256": active.sha256,
+        "model": active.model,
+        "input_sha256": annotation["input_sha256"],
+        "text_sha256": annotation["text_sha256"],
+        "status": "ok",
+        "prediction": {
+            "symbols": [],
+            "event_type": "other",
+            "direction": 0,
+            "materiality": 0,
+            "summary": "摘要",
+            "confidence": 0.8,
+            "evidence_span": "证据",
+        },
+    }
+
+    joined, extras = evaluator.join_predictions(
+        [prediction],
+        annotations,
+        contract,
+        active_contract=active,
+    )
+
+    assert joined[1] is not None
+    assert extras == 0
+
+
+def test_v1_1_active_contract_allows_prompt_version_only() -> None:
+    base = builder.load_contract(CONFIG_PATH).document
+    active = copy.deepcopy(base)
+    active["schema_version"] = "p4.2a-event-extract-eval-v1.1"
+    active["owner_spec_commit"] = "f" * 40
+    active["pre_registered_at"] = "2026-08-05T16:00:00Z"
+    active["contract_files"]["prompt"] = {
+        "path": "config/prompts/p4_news_event_extract_v1_1.txt",
+        "sha256": "a" * 64,
+    }
+
+    assert builder.prediction_contract_changes_are_prompt_only(base, active)
+
+    active["input"]["open_mode"] = "read_write"
+    assert not builder.prediction_contract_changes_are_prompt_only(base, active)
+    active["input"]["open_mode"] = base["input"]["open_mode"]
+    active["isolation"]["p4_2b_unlocked"] = True
+    assert not builder.prediction_contract_changes_are_prompt_only(base, active)
+
+
+def test_v1_1_frozen_offline_trial_diagnostic_keeps_failure_190() -> None:
+    design = builder.load_evaluation_design()
+    diagnostics = evaluator._offline_trial_diagnostics(design, {190, 268, 500})
+
+    assert diagnostics["successful_prediction_count"] == 406
+    assert diagnostics["predicted_materiality_gte_2_count"] == 81
+    assert diagnostics["predicted_materiality_gte_2_rate"] == pytest.approx(81 / 406)
+    assert diagnostics["gold_intersection_failure_ids"] == [190]
+
+
+def _inference_state_events(
+    design: builder.FrozenEvaluationDesign,
+    *,
+    started_at: str = "2026-08-06T00:20:00Z",
+    terminal_at: str = "2026-08-06T00:21:00Z",
+) -> list[dict[str, Any]]:
+    return [
+        {
+            "schema_version": "p4.2a-heldout-inference-state-v1.1",
+            "event": "inference_started",
+            "at_utc": started_at,
+            "design_sha256": design.sha256,
+        },
+        {
+            "schema_version": "p4.2a-heldout-inference-state-v1.1",
+            "event": "inference_completed",
+            "at_utc": terminal_at,
+            "design_sha256": design.sha256,
+        },
+    ]
+
+
+def _write_inference_state(
+    tmp_path: Path,
+    design: builder.FrozenEvaluationDesign,
+    events: list[dict[str, Any]],
+) -> Path:
+    state_path = builder.evaluation_artifact_path(
+        design,
+        "heldout_inference_state_jsonl",
+        project_root=tmp_path,
+    )
+    state_path.parent.mkdir(parents=True, exist_ok=True)
+    state_path.write_bytes(builder._json_line_bytes(events))
+    return state_path
+
+
+def test_v1_1_inference_state_rejects_unknown_third_event(tmp_path: Path) -> None:
+    design = builder.load_evaluation_design()
+    events = _inference_state_events(design)
+    events.append(
+        {
+            "event": "inference_audit",
+            "at_utc": "2026-08-06T00:22:00Z",
+            "design_sha256": design.sha256,
+        }
+    )
+    _write_inference_state(tmp_path, design, events)
+
+    with pytest.raises(builder.GoldSampleError, match="must be exactly"):
+        builder.load_completed_one_shot_state(
+            design,
+            scope="inference",
+            project_root=tmp_path,
+        )
+
+
+def test_v1_1_inference_state_rejects_backdated_terminal(tmp_path: Path) -> None:
+    design = builder.load_evaluation_design()
+    events = _inference_state_events(
+        design,
+        started_at="2026-08-06T00:21:00Z",
+        terminal_at="2026-08-06T00:20:59Z",
+    )
+    _write_inference_state(tmp_path, design, events)
+
+    with pytest.raises(builder.GoldSampleError, match="earlier than started"):
+        builder.load_completed_one_shot_state(
+            design,
+            scope="inference",
+            project_root=tmp_path,
+        )
+
+
+def test_v1_1_inference_state_rejects_terminal_manifest_drift(
+    tmp_path: Path,
+) -> None:
+    design = builder.load_evaluation_design()
+    active_contract = load_event_extract_contract(CONFIG_PATH)
+    candidate_records = [
+        {
+            "news_item_id": news_item_id,
+            "input_sha256": _hash(f"candidate-input-{news_item_id}"),
+            "text_sha256": _hash(f"candidate-text-{news_item_id}"),
+        }
+        for news_item_id in (424, 425)
+    ]
+    receipt_sha256 = "a" * 64
+    candidate_inputs_sha256 = "b" * 64
+    prediction_manifest_sha256 = "c" * 64
+    events = _inference_state_events(design)
+    events[0].update(
+        {
+            "contract_sha256": active_contract.sha256,
+            "freeze_receipt_sha256": receipt_sha256,
+            "candidate_inputs_sha256": candidate_inputs_sha256,
+            "candidate_identity_sha256": (
+                builder._ordered_candidate_identity_sha256(candidate_records)
+            ),
+            "candidate_count": 2,
+        }
+    )
+    events[1].update(
+        {
+            "contract_sha256": active_contract.sha256,
+            "candidate_count": 2,
+            "attempted_count": 2,
+            "success_count": 1,
+            "failure_count": 1,
+            "prediction_manifest_sha256": "d" * 64,
+        }
+    )
+    _write_inference_state(tmp_path, design, events)
+    inference, _state_sha256 = builder.load_completed_one_shot_state(
+        design,
+        scope="inference",
+        project_root=tmp_path,
+    )
+
+    with pytest.raises(builder.GoldSampleError, match="terminal manifest/count"):
+        builder.validate_inference_completion_bindings(
+            inference,
+            design=design,
+            active_contract=active_contract,
+            receipt_sha256=receipt_sha256,
+            candidate_records=candidate_records,
+            candidate_inputs_sha256=candidate_inputs_sha256,
+            prediction_manifest_sha256=prediction_manifest_sha256,
+            attempted_count=2,
+            success_count=1,
+            failure_count=1,
+        )
+    inference["events"][1]["prediction_manifest_sha256"] = prediction_manifest_sha256
+    builder.validate_inference_completion_bindings(
+        inference,
+        design=design,
+        active_contract=active_contract,
+        receipt_sha256=receipt_sha256,
+        candidate_records=candidate_records,
+        candidate_inputs_sha256=candidate_inputs_sha256,
+        prediction_manifest_sha256=prediction_manifest_sha256,
+        attempted_count=2,
+        success_count=1,
+        failure_count=1,
+    )
+
+
+def test_v1_1_evaluation_one_shot_blocks_second_started_event(tmp_path: Path) -> None:
+    state = tmp_path / "evaluation.state.jsonl"
+    evaluator._claim_evaluation_one_shot(
+        state,
+        design_sha256="a" * 64,
+        started_at_utc="2026-08-06T00:20:00Z",
+    )
+    evaluator._append_evaluation_terminal(
+        state,
+        design_sha256="a" * 64,
+        event="evaluation_completed",
+        at_utc="2026-08-06T00:21:00Z",
+    )
+
+    with pytest.raises(evaluator.GoldEvaluationError, match="reevaluation is forbidden"):
+        evaluator._claim_evaluation_one_shot(
+            state,
+            design_sha256="a" * 64,
+            started_at_utc="2026-08-06T00:22:00Z",
+        )
+    events = [json.loads(line) for line in state.read_text().splitlines()]
+    assert [event["event"] for event in events] == [
+        "evaluation_started",
+        "evaluation_completed",
+    ]
+
+
+def test_v1_1_dev_final_predictions_are_receipt_bound(
+    tmp_path: Path,
+) -> None:
+    actual_design = builder.load_evaluation_design()
+    document = copy.deepcopy(actual_design.document)
+    design = builder.FrozenEvaluationDesign(
+        path=tmp_path / "config/p4_event_evaluation_v1_1.yaml",
+        sha256=actual_design.sha256,
+        document=document,
+        base_contract=actual_design.base_contract,
+    )
+    active = load_event_extract_contract(CONFIG_PATH)
+    dev_records = _blind_records(actual_design.base_contract)[:60]
+    dev_path = builder.evaluation_artifact_path(
+        design,
+        "dev_60_frozen_jsonl",
+        project_root=tmp_path,
+    )
+    predictions_path = builder.evaluation_artifact_path(
+        design,
+        "dev_final_predictions_jsonl",
+        project_root=tmp_path,
+    )
+    manifest_path = builder.evaluation_artifact_path(
+        design,
+        "dev_final_predictions_manifest_json",
+        project_root=tmp_path,
+    )
+    for path in (dev_path, predictions_path, manifest_path):
+        path.parent.mkdir(parents=True, exist_ok=True)
+    dev_path.write_bytes(builder._json_line_bytes(dev_records))
+    prediction_records: list[dict[str, Any]] = []
+    for record in sorted(dev_records, key=lambda item: int(item["news_item_id"])):
+        prediction_records.append(
+            {
+                "news_item_id": record["news_item_id"],
+                "contract_sha256": active.sha256,
+                "model": active.model,
+                "input_sha256": record["input_sha256"],
+                "text_sha256": record["text_sha256"],
+                "status": "ok",
+                "prediction": {
+                    "symbols": [record["ingested_symbol"]],
+                    "event_type": "other",
+                    "direction": 0,
+                    "materiality": 0,
+                    "summary": "测试摘要",
+                    "confidence": 0.8,
+                    "evidence_span": str(record["original_text"])[:2],
+                },
+            }
+        )
+    predictions_payload = builder._json_line_bytes(prediction_records)
+    predictions_path.write_bytes(predictions_payload)
+    identity_sha256 = builder._ordered_prediction_identity_sha256(prediction_records)
+    manifest = {
+        "design_sha256": design.sha256,
+        "contract_sha256": active.sha256,
+        "predictions_path": str(predictions_path.relative_to(tmp_path)),
+        "predictions_sha256": hashlib.sha256(predictions_payload).hexdigest(),
+        "row_count": 60,
+        "success_count": 60,
+        "failure_count": 0,
+        "ordered_identity_sha256": identity_sha256,
+        "completed_at_utc": "2026-08-05T16:01:00Z",
+    }
+    manifest_payload = (
+        json.dumps(manifest, sort_keys=True, separators=(",", ":")).encode() + b"\n"
+    )
+    manifest_path.write_bytes(manifest_payload)
+    receipt = {
+        "frozen_at_utc": "2026-08-05T16:02:00Z",
+        "dev_final_predictions_path": str(predictions_path.relative_to(tmp_path)),
+        "dev_final_predictions_sha256": hashlib.sha256(predictions_payload).hexdigest(),
+        "dev_final_predictions_manifest_path": str(manifest_path.relative_to(tmp_path)),
+        "dev_final_predictions_manifest_sha256": hashlib.sha256(manifest_payload).hexdigest(),
+        "dev_final_predictions_row_count": 60,
+        "dev_final_predictions_success_count": 60,
+        "dev_final_predictions_failure_count": 0,
+        "dev_final_predictions_identity_sha256": identity_sha256,
+        "dev_final_predictions_contract_sha256": active.sha256,
+    }
+
+    evidence = builder.validate_dev_final_prediction_freeze(
+        design,
+        active_contract=active,
+        receipt=receipt,
+        project_root=tmp_path,
+    )
+
+    assert evidence["row_count"] == 60
+    assert evidence["failure_ids"] == []
+    receipt["dev_final_predictions_contract_sha256"] = "f" * 64
+    with pytest.raises(builder.GoldSampleError, match="receipt"):
+        builder.validate_dev_final_prediction_freeze(
+            design,
+            active_contract=active,
+            receipt=receipt,
+            project_root=tmp_path,
+        )
+
+
+def test_v1_1_malformed_preflight_does_not_consume_evaluation_one_shot(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    actual = builder.load_evaluation_design()
+    eval_root = tmp_path / "eval"
+    document = copy.deepcopy(actual.document)
+    document["artifact_root"] = str(eval_root)
+    design = builder.FrozenEvaluationDesign(
+        path=actual.path,
+        sha256=actual.sha256,
+        document=document,
+        base_contract=actual.base_contract,
+    )
+    annotation_path = eval_root / "malformed.jsonl"
+    annotation_path.parent.mkdir(parents=True)
+    annotation_path.write_text("\n", encoding="utf-8")
+    state_path = eval_root / "evaluation.state.jsonl"
+    monkeypatch.setattr(builder, "load_evaluation_design", lambda _path: design)
+    monkeypatch.setattr(
+        builder,
+        "evaluation_artifact_path",
+        lambda _design, _name: state_path,
+    )
+
+    with pytest.raises(evaluator.GoldEvaluationError, match="blank line"):
+        evaluator.evaluate_gold_sample_v1_1(
+            annotation_path,
+            eval_root / "reports/round.json",
+        )
+
+    assert not state_path.exists()
+
+
+def test_v1_1_cli_rejects_superseded_future_mode() -> None:
+    with pytest.raises(SystemExit):
+        builder._arguments(["--mode", "future"])

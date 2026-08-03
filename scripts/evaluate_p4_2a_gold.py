@@ -8,6 +8,7 @@ import re
 import sys
 import tempfile
 from collections.abc import Mapping, Sequence
+from contextlib import suppress
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -23,7 +24,10 @@ if __package__ in {None, ""}:
 
 from scripts import build_p4_2a_gold_sample as gold_builder  # noqa: E402
 
-from alphapilot.llm.p4_news_event import load_event_extract_contract  # noqa: E402
+from alphapilot.llm.p4_news_event import (  # noqa: E402
+    EventExtractContract,
+    load_event_extract_contract,
+)
 
 DEFAULT_CONFIG = Path("config/p4_event_extract_eval_v1.yaml")
 SHA256_PATTERN = re.compile(r"^[0-9a-f]{64}$")
@@ -35,6 +39,10 @@ JsonObject = dict[str, Any]
 
 class GoldEvaluationError(RuntimeError):
     """The fixed sample, owner labels, predictions, or report path is invalid."""
+
+
+def _reject_non_finite_json(value: str) -> None:
+    raise ValueError(f"non-finite JSON numeric constant is forbidden: {value}")
 
 
 def _sha256_bytes(payload: bytes) -> str:
@@ -85,8 +93,12 @@ def _read_jsonl(path: Path, *, label: str) -> tuple[list[JsonObject], str]:
         if not line.strip():
             raise GoldEvaluationError(f"{label} has a blank line at {line_number}")
         try:
-            value: object = json.loads(line, object_pairs_hook=reject_duplicates)
-        except json.JSONDecodeError as exc:
+            value: object = json.loads(
+                line,
+                object_pairs_hook=reject_duplicates,
+                parse_constant=_reject_non_finite_json,
+            )
+        except ValueError as exc:
             raise GoldEvaluationError(f"{label} line {line_number} is invalid JSON") from exc
         if not isinstance(value, dict):
             raise GoldEvaluationError(f"{label} line {line_number} must be an object")
@@ -111,8 +123,12 @@ def _read_json(path: Path, *, label: str) -> tuple[JsonObject, str]:
         return result
 
     try:
-        value: object = json.loads(payload, object_pairs_hook=reject_duplicates)
-    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        value: object = json.loads(
+            payload,
+            object_pairs_hook=reject_duplicates,
+            parse_constant=_reject_non_finite_json,
+        )
+    except ValueError as exc:
         raise GoldEvaluationError(f"{label} is invalid UTF-8 JSON") from exc
     return _mapping(value, label=label), _sha256_bytes(payload)
 
@@ -120,6 +136,18 @@ def _read_json(path: Path, *, label: str) -> tuple[JsonObject, str]:
 def _annotation_owner(record: Mapping[str, object]) -> str | None:
     owner = record.get("annotation_owner")
     return owner.strip().casefold() if isinstance(owner, str) and owner.strip() else None
+
+
+def _aware_iso_datetime(value: object, *, label: str) -> datetime:
+    if not isinstance(value, str) or not value.strip():
+        raise GoldEvaluationError(f"{label} must be a non-empty ISO datetime")
+    try:
+        parsed = datetime.fromisoformat(value.strip().replace("Z", "+00:00"))
+    except ValueError as exc:
+        raise GoldEvaluationError(f"{label} is not an ISO datetime") from exc
+    if parsed.tzinfo is None or parsed.utcoffset() is None:
+        raise GoldEvaluationError(f"{label} must include a timezone")
+    return parsed.astimezone(UTC)
 
 
 def _validate_symbol_list(value: object, *, label: str) -> list[str]:
@@ -193,14 +221,22 @@ def _gold_labels(
 def validate_owner_annotations(
     records: Sequence[JsonObject],
     contract: gold_builder.FrozenContract,
+    *,
+    expected_count: int = 100,
+    expected_start_index: int = 1,
+    expected_sample_group: str | None = None,
 ) -> dict[int, JsonObject]:
-    """Validate all 100 owner labels and recompute the frozen text/input hashes."""
+    """Validate owner labels and recompute every frozen text/input hash."""
 
     evaluation = _mapping(contract.document.get("evaluation"), label="evaluation")
-    expected_count = evaluation.get("sample_count")
-    if expected_count != 100 or len(records) != expected_count:
+    if expected_count <= 0 or expected_start_index <= 0:
+        raise GoldEvaluationError("owner annotation expected range is invalid")
+    if expected_count == 100 and evaluation.get("sample_count") != 100:
+        raise GoldEvaluationError("base annotation sample count drifted")
+    if len(records) != expected_count:
         raise GoldEvaluationError(
-            f"owner annotation sample must contain exactly 100 rows, observed {len(records)}"
+            "owner annotation sample must contain exactly "
+            f"{expected_count} rows, observed {len(records)}"
         )
     taxonomy_record = _mapping(contract.document.get("taxonomy"), label="taxonomy")
     taxonomy_values = taxonomy_record.get("values")
@@ -212,7 +248,7 @@ def validate_owner_annotations(
     event_contract = load_event_extract_contract(contract.path)
 
     validated: dict[int, JsonObject] = {}
-    for expected_index, record in enumerate(records, start=1):
+    for expected_index, record in enumerate(records, start=expected_start_index):
         news_item_id = record.get("news_item_id")
         if isinstance(news_item_id, bool) or not isinstance(news_item_id, int) or news_item_id <= 0:
             raise GoldEvaluationError("annotation news_item_id must be a positive integer")
@@ -233,14 +269,52 @@ def validate_owner_annotations(
             raise GoldEvaluationError(f"annotation duplicates news item {news_item_id}")
         if record.get("sample_index") != expected_index:
             raise GoldEvaluationError("annotation sample order or sample_index drifted")
+        if (
+            expected_sample_group is not None
+            and record.get("sample_group") != expected_sample_group
+        ):
+            raise GoldEvaluationError(
+                f"annotation news item {news_item_id} sample group drifted"
+            )
         if record.get("sample_version") != "p4.2a-gold-v1":
             raise GoldEvaluationError(f"annotation news item {news_item_id} version drifted")
         if record.get("contract_sha256") != contract.sha256:
             raise GoldEvaluationError(f"annotation news item {news_item_id} contract drifted")
+        stratum = record.get("stratum")
+        body_evidence = record.get("body_evidence")
+        if (
+            not isinstance(stratum, Mapping)
+            or set(stratum) != gold_builder.STRATUM_FIELDS
+            or not isinstance(body_evidence, Mapping)
+            or set(body_evidence) != gold_builder.BODY_EVIDENCE_FIELDS
+        ):
+            raise GoldEvaluationError(
+                f"annotation news item {news_item_id} nested fields drifted"
+            )
+        if (
+            stratum.get("source") != record.get("source")
+            or stratum.get("symbol_state")
+            != ("null" if record.get("ingested_symbol") is None else "bound")
+            or stratum.get("require_announcement_body") is not body_evidence.get("required")
+        ):
+            raise GoldEvaluationError(
+                f"annotation news item {news_item_id} nested identity drifted"
+            )
+        try:
+            gold_builder.validate_body_evidence(
+                record,
+                label=f"annotation news item {news_item_id}",
+            )
+        except gold_builder.GoldSampleError as exc:
+            raise GoldEvaluationError(str(exc)) from exc
         if record.get("annotation_status") not in COMPLETED_ANNOTATION_STATUSES:
             raise GoldEvaluationError(f"annotation news item {news_item_id} is not completed")
         if _annotation_owner(record) != "owner":
             raise GoldEvaluationError(f"annotation news item {news_item_id} is not owner-labelled")
+        _aware_iso_datetime(
+            record.get("annotated_at"),
+            label=f"annotation news item {news_item_id} annotated_at",
+        )
         original_text = record.get("original_text")
         if not isinstance(original_text, str) or not original_text:
             raise GoldEvaluationError(f"annotation news item {news_item_id} has no text")
@@ -328,10 +402,16 @@ def _prediction_payload(
     annotation: JsonObject,
     *,
     validator: Draft202012Validator,
+    expected_prediction_contract_sha256: str,
+    expected_model: str,
 ) -> JsonObject | None:
     news_item_id = annotation["news_item_id"]
-    if row.get("contract_sha256") != annotation.get("contract_sha256"):
-        raise GoldEvaluationError(f"prediction news item {news_item_id} contract hash differs")
+    if row.get("contract_sha256") != expected_prediction_contract_sha256:
+        raise GoldEvaluationError(
+            f"prediction news item {news_item_id} active contract hash differs"
+        )
+    if row.get("model") != expected_model:
+        raise GoldEvaluationError(f"prediction news item {news_item_id} model differs")
     if row.get("input_sha256") != annotation.get("input_sha256"):
         raise GoldEvaluationError(f"prediction news item {news_item_id} input hash differs")
     if row.get("text_sha256") != annotation.get("text_sha256"):
@@ -374,6 +454,8 @@ def join_predictions(
     prediction_records: Sequence[JsonObject],
     annotations: Mapping[int, JsonObject],
     contract: gold_builder.FrozenContract,
+    *,
+    active_contract: EventExtractContract | None = None,
 ) -> tuple[dict[int, JsonObject | None], int]:
     """Join by fixed ID and exact hashes; extra non-sample rows are not scored."""
 
@@ -393,18 +475,26 @@ def join_predictions(
             f"predictions are missing {len(missing)} fixed sample rows; first={missing[0]}"
         )
 
-    contract_files = _mapping(contract.document.get("contract_files"), label="contract_files")
-    schema_record = _mapping(contract_files.get("schema"), label="contract_files.schema")
-    schema_path = _project_path(schema_record.get("path"), label="contract_files.schema.path")
-    schema, schema_sha256 = _read_json(schema_path, label="prediction schema")
-    if schema_sha256 != schema_record.get("sha256"):
-        raise GoldEvaluationError("prediction schema SHA-256 drifted")
+    if active_contract is None:
+        event_contract = load_event_extract_contract(contract.path)
+    else:
+        event_contract = active_contract
+    schema = getattr(event_contract, "schema", None)
+    expected_contract_sha256 = getattr(event_contract, "sha256", None)
+    if (
+        not isinstance(schema, Mapping)
+        or not isinstance(expected_contract_sha256, str)
+        or SHA256_PATTERN.fullmatch(expected_contract_sha256) is None
+    ):
+        raise GoldEvaluationError("active prediction contract is invalid")
     validator = Draft202012Validator(schema)
     joined = {
         news_item_id: _prediction_payload(
             predictions_by_id[news_item_id],
             _mapping(item["record"], label=f"annotation {news_item_id}"),
             validator=validator,
+            expected_prediction_contract_sha256=expected_contract_sha256,
+            expected_model=event_contract.model,
         )
         for news_item_id, item in annotations.items()
     }
@@ -580,6 +670,223 @@ def evaluate_records(
     }
 
 
+def _split_metrics(
+    identifiers: Sequence[int],
+    annotations: Mapping[int, JsonObject],
+    predictions: Mapping[int, JsonObject | None],
+) -> JsonObject:
+    tp = fp = fn = tn = 0
+    symbol_exact = symbol_bearing_exact = symbol_bearing_count = 0
+    successful = predicted_positive_count = 0
+    null_gold_count = null_gold_false_positive = 0
+    prediction_failure_ids: list[int] = []
+    for news_item_id in identifiers:
+        item = annotations[news_item_id]
+        gold = _mapping(item["gold"], label=f"gold {news_item_id}")
+        prediction = predictions[news_item_id]
+        gold_positive = int(gold["materiality"]) >= 2
+        predicted_positive = prediction is not None and int(prediction["materiality"]) >= 2
+        if predicted_positive:
+            predicted_positive_count += 1
+        if gold_positive and predicted_positive:
+            tp += 1
+        elif not gold_positive and predicted_positive:
+            fp += 1
+        elif gold_positive:
+            fn += 1
+        else:
+            tn += 1
+
+        gold_symbols = list(gold["symbols"])
+        if gold_symbols:
+            symbol_bearing_count += 1
+        else:
+            null_gold_count += 1
+        if prediction is None:
+            prediction_failure_ids.append(news_item_id)
+            continue
+        successful += 1
+        predicted_symbols = list(prediction["symbols"])
+        if predicted_symbols == gold_symbols:
+            symbol_exact += 1
+            if gold_symbols:
+                symbol_bearing_exact += 1
+        if not gold_symbols and predicted_symbols:
+            null_gold_false_positive += 1
+    precision_denominator = tp + fp
+    recall_denominator = tp + fn
+    return {
+        "sample_count": len(identifiers),
+        "prediction_success_count": successful,
+        "prediction_failure_count": len(prediction_failure_ids),
+        "prediction_failure_ids": prediction_failure_ids,
+        "predicted_positive_count": predicted_positive_count,
+        "predicted_positive_rate_of_successes": _ratio(
+            predicted_positive_count,
+            successful,
+        ),
+        "materiality_precision": {
+            "tp": tp,
+            "fp": fp,
+            "fn": fn,
+            "tn": tn,
+            "denominator": precision_denominator,
+            "value": _ratio(tp, precision_denominator),
+        },
+        "materiality_recall": {
+            "tp": tp,
+            "fn": fn,
+            "denominator": recall_denominator,
+            "value": _ratio(tp, recall_denominator),
+        },
+        "symbol_exact_set": {
+            "matches": symbol_exact,
+            "denominator": len(identifiers),
+            "value": _ratio(symbol_exact, len(identifiers)),
+        },
+        "symbol_bearing_exact_set": {
+            "matches": symbol_bearing_exact,
+            "denominator": symbol_bearing_count,
+            "value": _ratio(symbol_bearing_exact, symbol_bearing_count),
+        },
+        "null_gold_symbol_false_positive": {
+            "count": null_gold_false_positive,
+            "denominator": null_gold_count,
+            "value": _ratio(null_gold_false_positive, null_gold_count),
+        },
+    }
+
+
+def evaluate_split_records(
+    annotations: Mapping[int, JsonObject],
+    predictions: Mapping[int, JsonObject | None],
+    design: gold_builder.FrozenEvaluationDesign,
+) -> JsonObject:
+    """Compute v1.1 diagnostics and apply gates only to their registered scopes."""
+
+    if list(annotations) != list(predictions) or len(annotations) != 100:
+        raise GoldEvaluationError("v1.1 prediction join is not the exact ordered 100 rows")
+    identifiers = list(annotations)
+    dev_ids = identifiers[:60]
+    heldout_ids = identifiers[60:]
+    for news_item_id in dev_ids:
+        record = _mapping(annotations[news_item_id]["record"], label="dev annotation")
+        if record.get("sample_index") not in range(1, 61):
+            raise GoldEvaluationError("dev60 annotation split/order drifted")
+    for news_item_id in heldout_ids:
+        record = _mapping(annotations[news_item_id]["record"], label="heldout annotation")
+        if record.get("sample_group") != "heldout40":
+            raise GoldEvaluationError("heldout40 annotation split drifted")
+
+    split_results = {
+        "dev60": _split_metrics(dev_ids, annotations, predictions),
+        "heldout40": _split_metrics(heldout_ids, annotations, predictions),
+        "all100": _split_metrics(identifiers, annotations, predictions),
+    }
+    evaluation = _mapping(design.document.get("evaluation"), label="evaluation")
+    heldout_precision = _mapping(
+        split_results["heldout40"]["materiality_precision"],
+        label="heldout materiality precision",
+    )
+    all_symbols = _mapping(
+        split_results["all100"]["symbol_exact_set"],
+        label="all100 symbol exact set",
+    )
+    all_symbol_bearing = _mapping(
+        split_results["all100"]["symbol_bearing_exact_set"],
+        label="all100 symbol-bearing exact set",
+    )
+    precision_value = heldout_precision["value"]
+    symbol_value = all_symbols["value"]
+    bearing_value = all_symbol_bearing["value"]
+    precision_passed = isinstance(precision_value, (int, float)) and precision_value >= float(
+        evaluation["materiality_precision_minimum"]
+    )
+    symbol_passed = isinstance(symbol_value, (int, float)) and symbol_value >= float(
+        evaluation["symbol_mapping_accuracy_minimum"]
+    )
+    bearing_passed = isinstance(bearing_value, (int, float)) and bearing_value >= float(
+        evaluation["symbol_bearing_exact_set_accuracy_minimum"]
+    )
+    heldout_precision["threshold"] = float(evaluation["materiality_precision_minimum"])
+    heldout_precision["passed"] = precision_passed
+    split_results["heldout40"]["materiality_precision"] = heldout_precision
+    gates: JsonObject = {
+        "materiality_precision_heldout40": precision_passed,
+        "symbol_mapping_all100": symbol_passed,
+        "symbol_bearing_exact_set_all100": bearing_passed,
+        "owner_delivery_blind": True,
+        "heldout_one_shot": True,
+    }
+    return {
+        "splits": split_results,
+        "metrics": {
+            "materiality_precision": {
+                name: result["materiality_precision"]
+                for name, result in split_results.items()
+            },
+            "materiality_recall": {
+                name: result["materiality_recall"]
+                for name, result in split_results.items()
+            },
+            "symbol_exact_set": {
+                name: result["symbol_exact_set"] for name, result in split_results.items()
+            },
+            "symbol_bearing_exact_set": {
+                name: result["symbol_bearing_exact_set"]
+                for name, result in split_results.items()
+            },
+        },
+        "gates": gates,
+        "passed": all(bool(value) for value in gates.values()),
+    }
+
+
+def _offline_trial_diagnostics(
+    design: gold_builder.FrozenEvaluationDesign,
+    gold_ids: set[int],
+) -> JsonObject:
+    path = gold_builder.evaluation_artifact_path(
+        design,
+        "offline_trial_predictions_jsonl",
+    )
+    rows, artifact_sha256 = _read_jsonl(path, label="frozen offline trial predictions")
+    successes = [
+        row
+        for row in rows
+        if row.get("status") == "ok" and isinstance(row.get("prediction"), Mapping)
+    ]
+    positives = [
+        row
+        for row in successes
+        if int(_mapping(row["prediction"], label="offline prediction")["materiality"]) >= 2
+    ]
+    failures = sorted(
+        int(row["news_item_id"])
+        for row in rows
+        if row.get("status") != "ok" and isinstance(row.get("news_item_id"), int)
+    )
+    intersection = sorted(gold_ids.intersection(failures))
+    evaluation = _mapping(design.document.get("evaluation"), label="evaluation")
+    frozen = _mapping(evaluation.get("frozen_diagnostics"), label="frozen_diagnostics")
+    if intersection != frozen.get("offline_trial_gold_intersection_failure_ids"):
+        raise GoldEvaluationError(
+            "frozen offline-trial gold-intersection failures drifted"
+        )
+    return {
+        "artifact_path": str(path.relative_to(PROJECT_DIR)),
+        "artifact_sha256": artifact_sha256,
+        "successful_prediction_count": len(successes),
+        "predicted_materiality_gte_2_count": len(positives),
+        "predicted_materiality_gte_2_rate": _ratio(len(positives), len(successes)),
+        "all_failure_count": len(failures),
+        "all_failure_ids": failures,
+        "gold_intersection_failure_count": len(intersection),
+        "gold_intersection_failure_ids": intersection,
+        "failure_counts_for_recall_not_precision": True,
+    }
+
+
 def _new_report_path(path: Path, artifact_root: Path) -> Path:
     root = artifact_root.resolve()
     if root.exists() and root.is_symlink():
@@ -623,6 +930,767 @@ def _write_new_json(path: Path, report: JsonObject) -> str:
         if temporary_path is not None:
             temporary_path.unlink(missing_ok=True)
     return _sha256_bytes(payload)
+
+
+def _one_shot_event_bytes(
+    *,
+    event: str,
+    design_sha256: str,
+    at_utc: str,
+    details: Mapping[str, object] | None = None,
+) -> bytes:
+    payload: JsonObject = {
+        "event": event,
+        "design_sha256": design_sha256,
+        "at_utc": at_utc,
+    }
+    if details:
+        payload.update({str(key): value for key, value in details.items()})
+    return (
+        json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode(
+            "utf-8"
+        )
+        + b"\n"
+    )
+
+
+def _claim_evaluation_one_shot(
+    path: Path,
+    *,
+    design_sha256: str,
+    started_at_utc: str,
+) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    if path.parent.is_symlink():
+        raise GoldEvaluationError("evaluation one-shot directory must not be a symlink")
+    payload = _one_shot_event_bytes(
+        event="evaluation_started",
+        design_sha256=design_sha256,
+        at_utc=started_at_utc,
+    )
+    try:
+        descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    except FileExistsError as exc:
+        raise GoldEvaluationError(
+            "heldout evaluation already has a started event; reevaluation is forbidden"
+        ) from exc
+    try:
+        os.write(descriptor, payload)
+        os.fsync(descriptor)
+    finally:
+        os.close(descriptor)
+    directory_fd = os.open(path.parent, os.O_RDONLY)
+    try:
+        os.fsync(directory_fd)
+    finally:
+        os.close(directory_fd)
+
+
+def _append_evaluation_terminal(
+    path: Path,
+    *,
+    design_sha256: str,
+    event: str,
+    at_utc: str,
+    details: Mapping[str, object] | None = None,
+) -> None:
+    if event not in {"evaluation_completed", "evaluation_failed"}:
+        raise ValueError("invalid evaluation terminal event")
+    if not path.is_file() or path.is_symlink():
+        raise GoldEvaluationError("evaluation one-shot started state disappeared")
+    payload = _one_shot_event_bytes(
+        event=event,
+        design_sha256=design_sha256,
+        at_utc=at_utc,
+        details=details,
+    )
+    descriptor = os.open(path, os.O_WRONLY | os.O_APPEND)
+    try:
+        os.write(descriptor, payload)
+        os.fsync(descriptor)
+    finally:
+        os.close(descriptor)
+
+
+def _validate_selection_manifest(
+    manifest: JsonObject,
+    *,
+    manifest_sha256: str,
+    design: gold_builder.FrozenEvaluationDesign,
+    annotations: Mapping[int, JsonObject],
+    active_contract: EventExtractContract,
+    receipt_sha256: str,
+    candidate_inputs_sha256: str,
+    candidate_predictions_sha256: str,
+    candidate_prediction_manifest_sha256: str,
+    inference_state_sha256: str,
+) -> JsonObject:
+    if manifest.get("schema_version") != "p4.2a-heldout-selection-manifest-v1.1":
+        raise GoldEvaluationError("heldout selection manifest schema drifted")
+    design_binding = _mapping(manifest.get("design"), label="selection manifest design")
+    annotation_binding = _mapping(
+        manifest.get("annotation_contract"),
+        label="selection manifest annotation contract",
+    )
+    prediction_binding = _mapping(
+        manifest.get("prediction_contract"),
+        label="selection manifest prediction contract",
+    )
+    inference = _mapping(manifest.get("inference"), label="selection manifest inference")
+    candidate_inputs = _mapping(
+        manifest.get("candidate_inputs"),
+        label="selection manifest candidate inputs",
+    )
+    candidate_predictions = _mapping(
+        manifest.get("candidate_predictions"),
+        label="selection manifest candidate predictions",
+    )
+    pool = _mapping(manifest.get("eligible_pool"), label="selection manifest eligible pool")
+    selection = _mapping(manifest.get("selection"), label="selection manifest selection")
+    owner = _mapping(manifest.get("owner_delivery"), label="selection manifest owner delivery")
+    if (
+        design_binding.get("sha256") != design.sha256
+        or annotation_binding.get("sha256") != design.base_contract.sha256
+        or prediction_binding.get("contract_sha256") != active_contract.sha256
+        or prediction_binding.get("freeze_receipt_sha256") != receipt_sha256
+        or inference.get("state_sha256") != inference_state_sha256
+        or candidate_inputs.get("sha256") != candidate_inputs_sha256
+        or candidate_predictions.get("sha256") != candidate_predictions_sha256
+        or candidate_predictions.get("manifest_sha256")
+        != candidate_prediction_manifest_sha256
+        or candidate_inputs.get("cninfo_bodies_frozen_before_prediction") is not True
+        or owner.get("predictions_visible") is not False
+        or owner.get("selection_basis_visible") is not False
+        or owner.get("forbidden_field_violation_count") != 0
+    ):
+        raise GoldEvaluationError("heldout selection manifest artifact bindings drifted")
+    selected = selection.get("selected")
+    if not isinstance(selected, list) or len(selected) != 40:
+        raise GoldEvaluationError("heldout selection manifest must bind 40 selected rows")
+    heldout_ids = list(annotations)[60:]
+    selected_ids: list[int] = []
+    seed = selection.get("seed")
+    if not isinstance(seed, str):
+        raise GoldEvaluationError("heldout selection seed is invalid")
+    for raw in selected:
+        item = _mapping(raw, label="selection manifest selected row")
+        news_item_id = item.get("news_item_id")
+        if not isinstance(news_item_id, int) or news_item_id not in annotations:
+            raise GoldEvaluationError("heldout selection manifest contains unknown ID")
+        record = _mapping(annotations[news_item_id]["record"], label="heldout annotation")
+        if (
+            item.get("input_sha256") != record.get("input_sha256")
+            or item.get("text_sha256") != record.get("text_sha256")
+            or item.get("selection_rank_sha256")
+            != gold_builder.heldout_prediction_rank(
+                seed=seed,
+                news_item_id=news_item_id,
+                input_sha256=str(record["input_sha256"]),
+            )
+        ):
+            raise GoldEvaluationError(
+                f"heldout selection manifest identity/rank drifted for {news_item_id}"
+            )
+        selected_ids.append(news_item_id)
+    if selected_ids != heldout_ids or len(set(selected_ids)) != 40:
+        raise GoldEvaluationError("heldout annotation order differs from frozen selection")
+    success_count = candidate_predictions.get("success_count")
+    pool_count = pool.get("count")
+    expected_rate = (
+        pool_count / success_count
+        if isinstance(pool_count, int)
+        and isinstance(success_count, int)
+        and success_count > 0
+        else None
+    )
+    if (
+        selection.get("selected_count") != 40
+        or pool.get("positive_rate_denominator") != "successful_predictions"
+        or pool.get("positive_rate") != expected_rate
+    ):
+        raise GoldEvaluationError("heldout positive-pool statistics drifted")
+    return {
+        "manifest_sha256": manifest_sha256,
+        "selection_manifest_sha256": manifest_sha256,
+        "candidate_batch_count": candidate_inputs.get("count"),
+        "candidate_inputs_sha256": candidate_inputs_sha256,
+        "candidate_predictions_sha256": candidate_predictions_sha256,
+        "prediction_attempted_count": candidate_predictions.get("attempted_count"),
+        "prediction_success_count": success_count,
+        "prediction_failure_count": candidate_predictions.get("failure_count"),
+        "predicted_positive_pool_count": pool_count,
+        "predicted_positive_pool_rate": pool.get("positive_rate"),
+        "selected_count": selection.get("selected_count"),
+        "selection_algorithm": selection.get("algorithm"),
+        "selection_seed": seed,
+    }
+
+
+def validate_owner_completion_manifest(
+    design: gold_builder.FrozenEvaluationDesign,
+    *,
+    annotation_path: Path,
+    annotation_records: Sequence[JsonObject],
+    annotation_sha256: str,
+    project_root: Path = PROJECT_DIR,
+) -> JsonObject:
+    """Verify owner completion bytes, counts, identity, and blindness before scoring."""
+
+    root = project_root.resolve()
+    completion = _mapping(
+        design.document.get("owner_annotation_completion"),
+        label="owner_annotation_completion",
+    )
+    required = completion.get("required_manifest_fields")
+    if not isinstance(required, list) or any(not isinstance(item, str) for item in required):
+        raise GoldEvaluationError("owner completion required fields are invalid")
+
+    def artifact(name: str) -> Path:
+        return gold_builder.evaluation_artifact_path(
+            design,
+            name,
+            project_root=root,
+        )
+
+    dev_blind_path = artifact("dev_60_frozen_jsonl")
+    dev_annotations_path = artifact("dev_60_owner_annotations_jsonl")
+    heldout_blind_path = artifact("heldout_40_blind_sample_jsonl")
+    heldout_selection_path = artifact("heldout_selection_manifest_json")
+    heldout_annotations_path = artifact("heldout_40_owner_annotations_jsonl")
+    combined_path = artifact("combined_100_annotations_jsonl")
+    manifest_path = artifact("owner_completion_manifest_json")
+    if annotation_path.resolve() != combined_path:
+        raise GoldEvaluationError(
+            "active v1.1 evaluation must use the registered combined owner artifact"
+        )
+
+    manifest, manifest_sha256 = _read_json(
+        manifest_path,
+        label="owner completion manifest",
+    )
+    if set(manifest) != set(required):
+        raise GoldEvaluationError("owner completion manifest fields drifted")
+    if (
+        manifest.get("schema_version") != completion.get("schema_version")
+        or manifest.get("design_sha256") != design.sha256
+        or manifest.get("annotation_contract_sha256") != design.base_contract.sha256
+    ):
+        raise GoldEvaluationError("owner completion contract binding drifted")
+    _aware_iso_datetime(
+        manifest.get("completed_at_utc"),
+        label="owner completion completed_at_utc",
+    )
+
+    dev_blind, dev_blind_sha256 = _read_jsonl(
+        dev_blind_path,
+        label="frozen dev60 blind sample",
+    )
+    dev_annotations, dev_annotations_sha256 = _read_jsonl(
+        dev_annotations_path,
+        label="completed dev60 owner annotations",
+    )
+    heldout_blind, heldout_blind_sha256 = _read_jsonl(
+        heldout_blind_path,
+        label="frozen heldout40 blind sample",
+    )
+    heldout_selection, heldout_selection_sha256 = _read_json(
+        heldout_selection_path,
+        label="heldout selection manifest",
+    )
+    heldout_annotations, heldout_annotations_sha256 = _read_jsonl(
+        heldout_annotations_path,
+        label="completed heldout40 owner annotations",
+    )
+    combined, combined_sha256 = _read_jsonl(
+        combined_path,
+        label="combined owner annotations",
+    )
+    if (
+        combined_sha256 != annotation_sha256
+        or combined != list(annotation_records)
+    ):
+        raise GoldEvaluationError("combined annotation bytes differ from evaluation input")
+
+    artifacts = _mapping(design.document.get("artifacts"), label="artifacts")
+    dev_frozen = _mapping(
+        artifacts.get("dev_60_frozen_jsonl"),
+        label="artifacts.dev_60_frozen_jsonl",
+    )
+    if dev_frozen.get("sha256") != dev_blind_sha256:
+        raise GoldEvaluationError("frozen dev60 bytes differ from the evaluation design")
+
+    path_bindings: dict[str, Path] = {
+        "dev_blind_sample_path": dev_blind_path,
+        "dev_owner_annotations_path": dev_annotations_path,
+        "heldout_blind_sample_path": heldout_blind_path,
+        "heldout_selection_manifest_path": heldout_selection_path,
+        "heldout_owner_annotations_path": heldout_annotations_path,
+        "combined_annotations_path": combined_path,
+    }
+    for field, path in path_bindings.items():
+        if manifest.get(field) != str(path.relative_to(root)):
+            raise GoldEvaluationError(f"owner completion {field} drifted")
+
+    combined_contract = _mapping(
+        completion.get("combined"),
+        label="owner_annotation_completion.combined",
+    )
+    renumbering_rule = combined_contract.get("renumbering_rule")
+    expected_values: dict[str, object] = {
+        "dev_blind_sample_sha256": dev_blind_sha256,
+        "dev_owner_annotations_sha256": dev_annotations_sha256,
+        "dev_owner_annotations_row_count": len(dev_annotations),
+        "dev_completed_count": len(dev_annotations),
+        "heldout_blind_sample_sha256": heldout_blind_sha256,
+        "heldout_selection_manifest_sha256": heldout_selection_sha256,
+        "heldout_owner_annotations_sha256": heldout_annotations_sha256,
+        "heldout_owner_annotations_row_count": len(heldout_annotations),
+        "heldout_completed_count": len(heldout_annotations),
+        "combined_annotations_sha256": combined_sha256,
+        "combined_annotations_row_count": len(combined),
+        "combined_ordered_identity_sha256": (
+            gold_builder._combined_ordered_identity_sha256(combined)
+        ),
+        "combined_renumbering_rule": renumbering_rule,
+        "identity_validation_passed": True,
+        "blindness_validation_passed": True,
+    }
+    for field, expected in expected_values.items():
+        if manifest.get(field) != expected:
+            raise GoldEvaluationError(f"owner completion {field} drifted")
+    if (
+        len(dev_blind) != 60
+        or len(dev_annotations) != 60
+        or len(heldout_blind) != 40
+        or len(heldout_annotations) != 40
+        or len(combined) != 100
+        or manifest.get("dev_completed_count") != 60
+        or manifest.get("heldout_completed_count") != 40
+    ):
+        raise GoldEvaluationError("owner completion split counts drifted")
+
+    for record in [*dev_blind, *heldout_blind]:
+        try:
+            gold_builder.validate_blind_record(record, design.base_contract)
+        except gold_builder.GoldSampleError as exc:
+            raise GoldEvaluationError(str(exc)) from exc
+    try:
+        gold_builder._validate_completed_identity_against_blind(
+            blind_records=dev_blind,
+            owner_records=dev_annotations,
+            label="dev60",
+        )
+        gold_builder._validate_completed_identity_against_blind(
+            blind_records=heldout_blind,
+            owner_records=heldout_annotations,
+            label="heldout40",
+        )
+    except gold_builder.GoldSampleError as exc:
+        raise GoldEvaluationError(str(exc)) from exc
+    validate_owner_annotations(
+        dev_annotations,
+        design.base_contract,
+        expected_count=60,
+        expected_start_index=1,
+        expected_sample_group="inventory_60",
+    )
+    validate_owner_annotations(
+        heldout_annotations,
+        design.base_contract,
+        expected_count=40,
+        expected_start_index=1,
+        expected_sample_group="heldout40",
+    )
+    if any(record.get("annotation_status") != "completed" for record in combined):
+        raise GoldEvaluationError("canonical owner annotations must use completed status")
+
+    expected_combined: list[JsonObject] = [dict(record) for record in dev_annotations]
+    expected_combined.extend(
+        {**record, "sample_index": index}
+        for index, record in enumerate(heldout_annotations, start=61)
+    )
+    if combined != expected_combined:
+        raise GoldEvaluationError("combined owner annotations violate the frozen renumbering")
+    owner = _mapping(design.document.get("owner_delivery"), label="owner_delivery")
+    forbidden = owner.get("forbidden_fields")
+    if not isinstance(forbidden, list) or any(not isinstance(item, str) for item in forbidden):
+        raise GoldEvaluationError("owner forbidden-field contract is invalid")
+    forbidden_paths = gold_builder.owner_forbidden_field_paths(
+        [*dev_annotations, *heldout_annotations, *combined],
+        frozenset(forbidden),
+    )
+    if forbidden_paths:
+        raise GoldEvaluationError(
+            f"owner completion leaks prediction/selection fields: {forbidden_paths[:3]}"
+        )
+    selection_owner = _mapping(
+        heldout_selection.get("owner_delivery"),
+        label="heldout selection owner_delivery",
+    )
+    if (
+        _mapping(
+            heldout_selection.get("design"),
+            label="heldout selection design",
+        ).get("sha256")
+        != design.sha256
+        or selection_owner.get("heldout_blind_sample_path")
+        != str(heldout_blind_path.relative_to(root))
+        or selection_owner.get("heldout_blind_sample_sha256") != heldout_blind_sha256
+        or selection_owner.get("heldout_blind_sample_count") != 40
+    ):
+        raise GoldEvaluationError("heldout selection no longer binds its blind sample")
+
+    return {
+        "manifest_path": str(manifest_path.relative_to(root)),
+        "manifest_sha256": manifest_sha256,
+        "dev_blind_sample_sha256": dev_blind_sha256,
+        "dev_annotations_sha256": dev_annotations_sha256,
+        "dev_completed_count": 60,
+        "heldout_blind_sample_sha256": heldout_blind_sha256,
+        "heldout_selection_manifest_sha256": heldout_selection_sha256,
+        "heldout_annotations_sha256": heldout_annotations_sha256,
+        "heldout_completed_count": 40,
+        "combined_annotations_sha256": combined_sha256,
+        "combined_row_count": 100,
+        "combined_ordered_identity_sha256": expected_values[
+            "combined_ordered_identity_sha256"
+        ],
+        "combined_renumbering_rule": renumbering_rule,
+        "identity_validation_passed": True,
+        "blindness_validation_passed": True,
+    }
+
+
+def validate_required_report_fields(
+    report: Mapping[str, object],
+    design: gold_builder.FrozenEvaluationDesign,
+) -> None:
+    evaluation = _mapping(design.document.get("evaluation"), label="evaluation")
+    required = evaluation.get("required_report_fields")
+    if not isinstance(required, list) or any(not isinstance(item, str) for item in required):
+        raise GoldEvaluationError("required report field contract is invalid")
+    missing: list[str] = []
+    for dotted_path in required:
+        value: object = report
+        for component in dotted_path.split("."):
+            if not isinstance(value, Mapping) or component not in value:
+                missing.append(dotted_path)
+                break
+            value = value[component]
+    if missing:
+        raise GoldEvaluationError(f"evaluation report omits required fields: {missing}")
+
+
+def evaluate_gold_sample_v1_1(
+    annotation_path: Path,
+    output_path: Path,
+    design_path: Path = gold_builder.DEFAULT_EVALUATION_DESIGN,
+    *,
+    now: datetime | None = None,
+) -> JsonObject:
+    """Run the single pre-registered heldout evaluation and consume its one-shot."""
+
+    design = gold_builder.load_evaluation_design(design_path)
+    artifact_root = _project_path(design.document.get("artifact_root"), label="artifact_root")
+    annotation_resolved = annotation_path.resolve()
+    if not annotation_resolved.is_relative_to(artifact_root):
+        raise GoldEvaluationError("annotation artifact must stay under docs/phase4/eval")
+    report_path = _new_report_path(output_path, artifact_root)
+    state_path = gold_builder.evaluation_artifact_path(
+        design,
+        "heldout_evaluation_state_jsonl",
+    )
+    if state_path.exists() or state_path.is_symlink():
+        raise GoldEvaluationError(
+            "heldout evaluation already has a started event; reevaluation is forbidden"
+        )
+    claimed = False
+    try:
+        annotation_records, annotation_sha256 = _read_jsonl(
+            annotation_resolved,
+            label="owner annotations",
+        )
+        annotations = validate_owner_annotations(annotation_records, design.base_contract)
+        owner = _mapping(design.document.get("owner_delivery"), label="owner_delivery")
+        forbidden = owner.get("forbidden_fields")
+        if not isinstance(forbidden, list) or any(not isinstance(item, str) for item in forbidden):
+            raise GoldEvaluationError("owner forbidden-field contract is invalid")
+        forbidden_paths = gold_builder.owner_forbidden_field_paths(
+            annotation_records,
+            frozenset(forbidden),
+        )
+        if forbidden_paths:
+            raise GoldEvaluationError(
+                f"owner annotations leak prediction/selection fields: {forbidden_paths[:3]}"
+            )
+        owner_completion = validate_owner_completion_manifest(
+            design,
+            annotation_path=annotation_resolved,
+            annotation_records=annotation_records,
+            annotation_sha256=annotation_sha256,
+        )
+
+        active_contract, receipt, receipt_sha256 = (
+            gold_builder.load_active_prediction_contract(design)
+        )
+        dev_final = gold_builder.validate_dev_final_prediction_freeze(
+            design,
+            active_contract=active_contract,
+            receipt=receipt,
+        )
+        inference, inference_state_sha256 = gold_builder.load_completed_one_shot_state(
+            design,
+            scope="inference",
+        )
+        candidate_inputs_path = gold_builder.evaluation_artifact_path(
+            design,
+            "heldout_candidate_inputs_jsonl",
+        )
+        candidate_predictions_path = gold_builder.evaluation_artifact_path(
+            design,
+            "heldout_candidate_predictions_jsonl",
+        )
+        candidate_input_records, candidate_inputs_sha256 = _read_jsonl(
+            candidate_inputs_path,
+            label="heldout candidate inputs",
+        )
+        candidate_predictions, candidate_predictions_sha256 = _read_jsonl(
+            candidate_predictions_path,
+            label="heldout candidate predictions",
+        )
+        prediction_manifest_path = gold_builder.evaluation_artifact_path(
+            design,
+            "heldout_candidate_predictions_manifest_json",
+        )
+        prediction_manifest, prediction_manifest_sha256 = _read_json(
+            prediction_manifest_path,
+            label="heldout candidate prediction manifest",
+        )
+        database_path = gold_builder._database_path(design.base_contract, None)
+        with gold_builder.open_read_only_database(database_path) as connection:
+            candidate_rows = gold_builder._heldout_candidate_rows(connection, design)
+            candidate_inputs = gold_builder.validate_heldout_candidate_inputs(
+                candidate_input_records,
+                rows=candidate_rows,
+                design=design,
+                active_contract=active_contract,
+            )
+            (
+                _predictions_by_id,
+                candidate_success_count,
+                candidate_failure_count,
+            ) = gold_builder.validate_heldout_candidate_predictions(
+                candidate_predictions,
+                candidate_inputs=candidate_inputs,
+                active_contract=active_contract,
+            )
+        gold_builder._validate_prediction_manifest(
+            prediction_manifest,
+            design=design,
+            active_contract=active_contract,
+            receipt_sha256=receipt_sha256,
+            inputs_sha256=candidate_inputs_sha256,
+            predictions_sha256=candidate_predictions_sha256,
+            candidate_records=candidate_input_records,
+            success_count=candidate_success_count,
+            failure_count=candidate_failure_count,
+        )
+        gold_builder.validate_inference_completion_bindings(
+            inference,
+            design=design,
+            active_contract=active_contract,
+            receipt_sha256=receipt_sha256,
+            candidate_records=candidate_input_records,
+            candidate_inputs_sha256=candidate_inputs_sha256,
+            prediction_manifest_sha256=prediction_manifest_sha256,
+            attempted_count=len(candidate_predictions),
+            success_count=candidate_success_count,
+            failure_count=candidate_failure_count,
+        )
+        selection_manifest_path = gold_builder.evaluation_artifact_path(
+            design,
+            "heldout_selection_manifest_json",
+        )
+        selection_manifest, selection_manifest_sha256 = _read_json(
+            selection_manifest_path,
+            label="heldout selection manifest",
+        )
+        selection_evidence = _validate_selection_manifest(
+            selection_manifest,
+            manifest_sha256=selection_manifest_sha256,
+            design=design,
+            annotations=annotations,
+            active_contract=active_contract,
+            receipt_sha256=receipt_sha256,
+            candidate_inputs_sha256=candidate_inputs_sha256,
+            candidate_predictions_sha256=candidate_predictions_sha256,
+            candidate_prediction_manifest_sha256=prediction_manifest_sha256,
+            inference_state_sha256=inference_state_sha256,
+        )
+
+        dev_ids = list(annotations)[:60]
+        heldout_ids = list(annotations)[60:]
+        dev_annotations = {news_item_id: annotations[news_item_id] for news_item_id in dev_ids}
+        heldout_annotations = {
+            news_item_id: annotations[news_item_id] for news_item_id in heldout_ids
+        }
+        dev_prediction_records = dev_final["rows"]
+        if not isinstance(dev_prediction_records, list):
+            raise GoldEvaluationError("dev-final prediction evidence has invalid rows")
+        dev_predictions, _dev_extras = join_predictions(
+            dev_prediction_records,
+            dev_annotations,
+            design.base_contract,
+            active_contract=active_contract,
+        )
+        heldout_predictions, _heldout_extras = join_predictions(
+            candidate_predictions,
+            heldout_annotations,
+            design.base_contract,
+            active_contract=active_contract,
+        )
+        predictions: dict[int, JsonObject | None] = {
+            **dev_predictions,
+            **heldout_predictions,
+        }
+        # Everything above is structural/hash/blindness/join preflight. Claim
+        # the one-shot only immediately before the first metric computation.
+        started_at = (now or datetime.now(UTC)).astimezone(UTC).isoformat().replace(
+            "+00:00",
+            "Z",
+        )
+        _claim_evaluation_one_shot(
+            state_path,
+            design_sha256=design.sha256,
+            started_at_utc=started_at,
+        )
+        claimed = True
+        result = evaluate_split_records(annotations, predictions, design)
+        offline_diagnostics = _offline_trial_diagnostics(design, set(annotations))
+        active_failure_ids = sorted(
+            news_item_id
+            for news_item_id in list(annotations)
+            if predictions[news_item_id] is None
+        )
+        terminal_at = datetime.now(UTC).isoformat().replace("+00:00", "Z")
+        report: JsonObject = {
+            "schema_version": "p4.2a-gold-evaluation-report-v1.1",
+            "generated_at_utc": terminal_at,
+            "design": {
+                "schema_version": design.document["schema_version"],
+                "path": str(design.path.relative_to(PROJECT_DIR)),
+                "sha256": design.sha256,
+            },
+            "prediction_contract": {
+                "contract_path": receipt["contract_path"],
+                "contract_sha256": receipt["contract_sha256"],
+                "model": receipt["model"],
+                "prompt_path": receipt["prompt_path"],
+                "prompt_sha256": receipt["prompt_sha256"],
+                "result_schema_path": receipt["result_schema_path"],
+                "result_schema_sha256": receipt["result_schema_sha256"],
+                "taxonomy_version": receipt["taxonomy_version"],
+                "freeze_receipt_sha256": receipt_sha256,
+                "dev_final_predictions_path": dev_final["path"],
+                "dev_final_predictions_sha256": dev_final["sha256"],
+                "dev_final_predictions_manifest_path": dev_final["manifest_path"],
+                "dev_final_predictions_manifest_sha256": dev_final["manifest_sha256"],
+                "dev_final_predictions_row_count": dev_final["row_count"],
+                "dev_final_predictions_success_count": dev_final["success_count"],
+                "dev_final_predictions_failure_count": dev_final["failure_count"],
+                "dev_final_predictions_identity_sha256": dev_final[
+                    "ordered_identity_sha256"
+                ],
+                "dev_final_predictions_contract_sha256": dev_final["contract_sha256"],
+            },
+            "splits": {
+                "dev60": {
+                    "sample_count": 60,
+                    "final_predictions_sha256": dev_final["sha256"],
+                    "final_predictions_manifest_sha256": dev_final["manifest_sha256"],
+                    "final_prediction_success_count": dev_final["success_count"],
+                    "final_prediction_failure_count": dev_final["failure_count"],
+                    "final_prediction_failure_ids": dev_final["failure_ids"],
+                    "final_prediction_identity_sha256": dev_final[
+                        "ordered_identity_sha256"
+                    ],
+                    "final_prediction_contract_sha256": dev_final["contract_sha256"],
+                },
+                "heldout40": selection_evidence,
+            },
+            "one_shot": {
+                "inference": {
+                    key: inference[key]
+                    for key in (
+                        "started_at_utc",
+                        "terminal_at_utc",
+                        "status",
+                        "started_event_count",
+                    )
+                },
+                "evaluation": {
+                    "started_at_utc": started_at,
+                    "terminal_at_utc": terminal_at,
+                    "status": "completed",
+                    "started_event_count": 1,
+                },
+            },
+            "owner_delivery": {
+                "annotation_path": str(annotation_resolved.relative_to(PROJECT_DIR)),
+                "annotation_sha256": annotation_sha256,
+                "forbidden_field_violation_count": 0,
+            },
+            "owner_completion": owner_completion,
+            "metrics": result["metrics"],
+            "diagnostics": {
+                "offline_trial": offline_diagnostics,
+                "active_prediction": {
+                    "gold_failure_count": len(active_failure_ids),
+                    "gold_failure_ids": active_failure_ids,
+                },
+            },
+            "gates": result["gates"],
+            "passed": result["passed"],
+            "phase_gate": {
+                "p4_2a_evaluation_passed": result["passed"],
+                "p4_2b_unlocked": False,
+                "production_writes_performed": False,
+                "proposals_or_orders_created": False,
+            },
+            "report_artifact": {
+                "path": str(report_path.relative_to(PROJECT_DIR)),
+                "create_only": True,
+            },
+        }
+        validate_required_report_fields(report, design)
+        report_sha256 = _write_new_json(report_path, report)
+        _append_evaluation_terminal(
+            state_path,
+            design_sha256=design.sha256,
+            event="evaluation_completed",
+            at_utc=terminal_at,
+            details={
+                "report_path": str(report_path.relative_to(PROJECT_DIR)),
+                "report_sha256": report_sha256,
+                "passed": bool(result["passed"]),
+            },
+        )
+        report_artifact = _mapping(report["report_artifact"], label="report_artifact")
+        report_artifact["sha256"] = report_sha256
+        report["report_artifact"] = report_artifact
+        return report
+    except BaseException as exc:
+        if claimed:
+            failed_at = datetime.now(UTC).isoformat().replace("+00:00", "Z")
+            with suppress(Exception):
+                _append_evaluation_terminal(
+                    state_path,
+                    design_sha256=design.sha256,
+                    event="evaluation_failed",
+                    at_utc=failed_at,
+                    details={"safe_reason": type(exc).__name__},
+                )
+        raise
 
 
 def evaluate_gold_sample(
@@ -706,7 +1774,21 @@ def _arguments(argv: Sequence[str] | None = None) -> argparse.Namespace:
             "create an immutable report and exit 2."
         )
     )
+    parser.add_argument(
+        "--scope",
+        choices=("legacy-v1", "heldout-final-v1.1"),
+        default="heldout-final-v1.1",
+        help=(
+            "heldout-final-v1.1 is the active contract; legacy-v1 is historical "
+            "and must be requested explicitly"
+        ),
+    )
     parser.add_argument("--config", type=Path, default=DEFAULT_CONFIG)
+    parser.add_argument(
+        "--evaluation-design",
+        type=Path,
+        default=gold_builder.DEFAULT_EVALUATION_DESIGN,
+    )
     parser.add_argument("--annotations", type=Path, default=None)
     parser.add_argument("--predictions", type=Path, default=None)
     parser.add_argument("--output", type=Path, required=True)
@@ -716,6 +1798,23 @@ def _arguments(argv: Sequence[str] | None = None) -> argparse.Namespace:
 def main(argv: Sequence[str] | None = None) -> int:
     arguments = _arguments(argv)
     try:
+        if arguments.scope == "heldout-final-v1.1":
+            design = gold_builder.load_evaluation_design(arguments.evaluation_design)
+            annotation_path = (
+                arguments.annotations
+                if arguments.annotations is not None
+                else gold_builder.evaluation_artifact_path(
+                    design,
+                    "combined_100_annotations_jsonl",
+                )
+            )
+            report = evaluate_gold_sample_v1_1(
+                annotation_path,
+                arguments.output,
+                arguments.evaluation_design,
+            )
+            print(json.dumps(report, ensure_ascii=False, indent=2, sort_keys=True))
+            return 0 if report["passed"] is True else 2
         contract = gold_builder.load_contract(arguments.config)
         gold_sample = _mapping(contract.document.get("gold_sample"), label="gold_sample")
         annotation_path = (
