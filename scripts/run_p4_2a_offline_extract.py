@@ -1211,6 +1211,9 @@ def _offline_report(
     return {
         "schema_version": "p4.2a-offline-trial-report-v1",
         "generated_at_utc": _utc_now(),
+        "trial_outcome": (
+            "completed" if summary.failure_count == 0 else "completed_with_failures"
+        ),
         "contract": {
             "path": _safe_relative(contract.path, project_root, "contract"),
             "sha256": contract.sha256,
@@ -1301,6 +1304,7 @@ def run_offline_extract(
     contract: EventExtractContract | None = None,
     settings: Settings | None = None,
     retry_failures: bool = False,
+    finalize_report_with_failures: bool = False,
     chat_json_fn: ChatJsonCallable | None = None,
 ) -> ExtractionSummary:
     root = project_root.resolve()
@@ -1337,7 +1341,7 @@ def run_offline_extract(
         summary,
         database,
     )
-    if summary.failure_count == 0:
+    if summary.failure_count == 0 or finalize_report_with_failures:
         _write_new_json(paths.offline_report, report, paths.eval_root)
     return summary
 
@@ -1405,6 +1409,14 @@ def _arguments(argv: Sequence[str] | None = None) -> argparse.Namespace:
         help="retry prior exact failed checkpoints once; successes are always skipped",
     )
     parser.add_argument(
+        "--finalize-report-with-failures",
+        action="store_true",
+        help=(
+            "write the create-only terminal report from existing checkpoints even "
+            "when non-retryable failures remain; never combines with a retry"
+        ),
+    )
+    parser.add_argument(
         "--gold-input",
         type=Path,
         help=(
@@ -1418,8 +1430,19 @@ def _arguments(argv: Sequence[str] | None = None) -> argparse.Namespace:
 def main(argv: Sequence[str] | None = None) -> int:
     arguments = _arguments(argv)
     try:
+        if arguments.finalize_report_with_failures and (
+            arguments.retry_failures or arguments.gold_input is not None
+        ):
+            raise OfflineExtractError(
+                "terminal failure finalization cannot retry or run gold predictions"
+            )
         if arguments.gold_input is None:
-            summary = run_offline_extract(retry_failures=bool(arguments.retry_failures))
+            summary = run_offline_extract(
+                retry_failures=bool(arguments.retry_failures),
+                finalize_report_with_failures=bool(
+                    arguments.finalize_report_with_failures
+                ),
+            )
             mode = "frozen_inventory"
         else:
             summary = run_gold_predictions(
