@@ -35,3 +35,19 @@ Owner 仅填写每条记录的 `gold`：
 截至 2026-08-03，只允许冻结合同、执行现库存离线试跑并固定首批 60 条。8/4–8/5 的 40 条
 必须等自然数据完整落库后追加；Owner 未返回完整标签、两项硬指标未通过前，P4.2a 不标 done，
 P4.2b 继续锁定。
+
+## 2026-08-03 已冻结证据
+
+- `P4.2a-offline-extract-qwen3.6-flash-v1.jsonl`：423 条，406 成功、17 失败，SHA-256
+  `b1baca41a2d4cbbfa62ec921bc77ea760f2b80f7a075e1625c68fb74acac06a4`。失败均保留且未
+  重试；16 条为严格后置校验拒绝，1 条为 HTTP 400。
+- `P4.2a-offline-trial-v1.report.json`：终态 create-only 汇总，SHA-256
+  `794daa7b6f2152194575e3bf764139fdd046eb4aa31f4d310b57f92446b37e07`。
+- `P4.2a-offline-trial-v1.report.pre-audit-fix.json`：首次终态汇总尝试，SHA-256
+  `9ced3ac77187af30cf9aae94cb49398ef3da5e6b9397301520414e9fdd1cad89`。该文件把
+  “部分成功”误显示为 `table_check=0/1`，仅保留为修正链证据；`ae39689` 修复展示逻辑后
+  重新以 create-only 方式生成上面的权威终态报告，底层 423 条 JSONL 未改。
+- `P4.2a-gold-inventory60-v1.jsonl`：60 条 owner 待标注样本，SHA-256
+  `81b3c0b27cd344fe4c2a735261e501dd2f60a0927c14b2c37e5b2a4879b4a2ba`。分层为
+  `cninfo/bound/body=24`、同花顺 bound/null 各 9、新浪 bound/null 各 9；24 条巨潮样本均
+  来自官方公告 PDF 正文，正文最长按合同截至 14,000 字符并保留全文哈希。
