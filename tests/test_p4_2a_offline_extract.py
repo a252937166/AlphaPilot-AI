@@ -312,6 +312,7 @@ def test_non_retryable_failures_can_be_frozen_without_new_llm_calls(
     assert report["trial_outcome"] == "completed_with_failures"
     assert report["coverage"]["failure_count"] == 1
     assert report["isolated_llm_audit"]["current_process_llm_call_rows"] == 0
+    assert report["isolated_llm_audit"]["table_check"] == "1/1"
     assert report["isolated_llm_audit"]["checkpoint_success_evidence_check"] == "422/422"
 
 
