@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import copy
 import hashlib
 import json
 import os
@@ -20,20 +21,30 @@ from zoneinfo import ZoneInfo
 
 import httpx
 import yaml
+from jsonschema import Draft202012Validator
 
+from alphapilot.llm.p4_news_eval import (
+    EventEvaluationDesign,
+    EventEvaluationDesignError,
+    load_event_evaluation_design,
+)
 from alphapilot.llm.p4_news_event import (
     EventExtractContract,
     build_event_extract_user_input,
     event_extract_input_sha256,
     load_event_extract_contract,
+    validate_event_result,
 )
 
 PROJECT_DIR = Path(__file__).resolve().parent.parent
 DEFAULT_CONFIG = Path("config/p4_event_extract_eval_v1.yaml")
+DEFAULT_EVALUATION_DESIGN = Path("config/p4_event_evaluation_v1_1.yaml")
 SHANGHAI = ZoneInfo("Asia/Shanghai")
 PDF_MAGIC = b"%PDF-"
 SHA256_PATTERN = re.compile(r"^[0-9a-f]{64}$")
 SIX_DIGIT_SYMBOL = re.compile(r"^[0-9]{6}$")
+ACTIVE_CONTRACT_SCHEMA = re.compile(r"^p4\.2a-event-extract-eval-v[0-9]+(?:\.[0-9]+)*$")
+PROMPT_VERSION_MARKER = re.compile(r"\[P4_NEWS_EVENT_EXTRACT v[0-9]+(?:\.[0-9]+)*\]")
 MODEL_PREDICTION_KEYS = frozenset(
     {
         "prediction",
@@ -102,6 +113,23 @@ FROZEN_MANIFEST_DIRECT_FIELDS = (
     "text_sha256",
     "input_sha256",
 )
+STRATUM_FIELDS = frozenset(
+    {"source", "symbol_state", "require_announcement_body"}
+)
+BODY_EVIDENCE_FIELDS = frozenset(
+    {
+        "annotation_text_character_count",
+        "body_characters_in_original_text",
+        "full_text_character_count",
+        "full_text_sha256",
+        "pdf_persisted",
+        "pdf_sha256",
+        "required",
+        "source",
+        "text_truncated",
+        "url",
+    }
+)
 
 JsonObject = dict[str, Any]
 
@@ -114,11 +142,81 @@ class GoldSampleNotReady(GoldSampleError):
     """The future sample is still inside its pre-registered observation window."""
 
 
+def _reject_non_finite_json(value: str) -> None:
+    raise ValueError(f"non-finite JSON numeric constant is forbidden: {value}")
+
+
+class _UniqueKeySafeLoader(yaml.SafeLoader):
+    """Safe YAML loader that rejects duplicate keys at every mapping depth."""
+
+
+def _construct_unique_yaml_mapping(
+    loader: _UniqueKeySafeLoader,
+    node: yaml.nodes.MappingNode,
+    deep: bool = False,
+) -> dict[object, object]:
+    loader.flatten_mapping(node)
+    result: dict[object, object] = {}
+    for key_node, value_node in node.value:
+        key = loader.construct_object(key_node, deep=deep)
+        try:
+            duplicated = key in result
+        except TypeError as exc:
+            raise yaml.constructor.ConstructorError(
+                "while constructing a mapping",
+                node.start_mark,
+                "found an unhashable mapping key",
+                key_node.start_mark,
+            ) from exc
+        if duplicated:
+            raise yaml.constructor.ConstructorError(
+                "while constructing a mapping",
+                node.start_mark,
+                f"found duplicate key {key!r}",
+                key_node.start_mark,
+            )
+        result[key] = loader.construct_object(value_node, deep=deep)
+    return result
+
+
+_UniqueKeySafeLoader.add_constructor(
+    yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG,
+    _construct_unique_yaml_mapping,
+)
+
+
+def _strict_yaml_load(payload: bytes, *, label: str) -> object:
+    try:
+        return yaml.load(payload, Loader=_UniqueKeySafeLoader)
+    except yaml.YAMLError as exc:
+        raise GoldSampleError(f"{label} is invalid or contains duplicate keys") from exc
+
+
 @dataclass(frozen=True, slots=True)
 class FrozenContract:
     path: Path
     sha256: str
     document: JsonObject
+
+
+@dataclass(frozen=True, slots=True)
+class FrozenEvaluationDesign:
+    path: Path
+    sha256: str
+    document: JsonObject
+    base_contract: FrozenContract
+
+
+@dataclass(frozen=True, slots=True)
+class HeldoutPredictionEvidence:
+    path: Path
+    sha256: str
+    row_count: int
+    candidate_count: int
+    successful_count: int
+    eligible_count: int
+    active_contract_sha256: str
+    selected_machine_evidence: tuple[JsonObject, ...]
 
 
 @dataclass(frozen=True, slots=True)
@@ -308,7 +406,10 @@ def load_contract(path: Path = DEFAULT_CONFIG) -> FrozenContract:
 
     resolved = (path if path.is_absolute() else PROJECT_DIR / path).resolve()
     raw = resolved.read_bytes()
-    document = _mapping(yaml.safe_load(raw), label="P4.2a contract")
+    document = _mapping(
+        _strict_yaml_load(raw, label="P4.2a contract"),
+        label="P4.2a contract",
+    )
 
     _require(
         document.get("schema_version") == "p4.2a-event-extract-eval-v1",
@@ -461,6 +562,27 @@ def load_contract(path: Path = DEFAULT_CONFIG) -> FrozenContract:
     return FrozenContract(path=resolved, sha256=_sha256_bytes(raw), document=document)
 
 
+def load_evaluation_design(
+    path: Path = DEFAULT_EVALUATION_DESIGN,
+) -> FrozenEvaluationDesign:
+    """Load the v1.1 amendment and reverify its immutable v1 annotation base."""
+
+    resolved = (path if path.is_absolute() else PROJECT_DIR / path).resolve()
+    try:
+        design: EventEvaluationDesign = load_event_evaluation_design(
+            resolved,
+            project_root=PROJECT_DIR,
+        )
+    except (EventEvaluationDesignError, OSError) as exc:
+        raise GoldSampleError("P4.2a v1.1 evaluation design is invalid") from exc
+    return FrozenEvaluationDesign(
+        path=design.path,
+        sha256=design.sha256,
+        document=design.document,
+        base_contract=load_contract(design.base_contract.path),
+    )
+
+
 def announcement_body_policy(contract: FrozenContract) -> AnnouncementBodyPolicy:
     raw = _mapping(contract.document["announcement_body"], label="announcement_body")
     return AnnouncementBodyPolicy(
@@ -550,8 +672,8 @@ def _json_object(value: object, *, label: str) -> JsonObject:
     if not isinstance(value, str):
         raise GoldSampleError(f"{label} must be a JSON object")
     try:
-        parsed: object = json.loads(value)
-    except json.JSONDecodeError as exc:
+        parsed: object = json.loads(value, parse_constant=_reject_non_finite_json)
+    except ValueError as exc:
         raise GoldSampleError(f"{label} is invalid JSON") from exc
     if not isinstance(parsed, Mapping):
         raise GoldSampleError(f"{label} must decode to a JSON object")
@@ -702,6 +824,92 @@ def deterministic_rank(
 
     rank_input = "|".join((seed, group, source, symbol_state, content_hash, str(news_item_id)))
     return _sha256_bytes(rank_input.encode("utf-8"))
+
+
+def heldout_prediction_rank(*, seed: str, news_item_id: int, input_sha256: str) -> str:
+    """Return the pre-registered NUL-delimited heldout-v1.1 selection rank."""
+
+    if not seed:
+        raise GoldSampleError("heldout sampling seed must be non-empty")
+    if news_item_id <= 0:
+        raise GoldSampleError("heldout prediction news_item_id must be positive")
+    if SHA256_PATTERN.fullmatch(input_sha256) is None:
+        raise GoldSampleError("heldout prediction input_sha256 is invalid")
+    rank_input = f"{seed}\0{news_item_id}\0{input_sha256}"
+    return _sha256_bytes(rank_input.encode("utf-8"))
+
+
+def select_heldout_positive_predictions(
+    records: Sequence[JsonObject],
+    *,
+    seed: str,
+    count: int,
+) -> tuple[list[JsonObject], list[JsonObject]]:
+    """Select exactly ``count`` successful predicted positives without replacement."""
+
+    if count <= 0:
+        raise GoldSampleError("heldout sample count must be positive")
+    eligible: list[tuple[str, int, JsonObject]] = []
+    seen: set[int] = set()
+    for record in records:
+        news_item_id = record.get("news_item_id")
+        if (
+            isinstance(news_item_id, bool)
+            or not isinstance(news_item_id, int)
+            or news_item_id <= 0
+        ):
+            raise GoldSampleError("heldout prediction has invalid news_item_id")
+        if news_item_id in seen:
+            raise GoldSampleError(f"heldout predictions duplicate news item {news_item_id}")
+        seen.add(news_item_id)
+        if record.get("status") != "ok":
+            continue
+        prediction = record.get("prediction")
+        if not isinstance(prediction, Mapping):
+            raise GoldSampleError(
+                f"successful heldout prediction {news_item_id} has no prediction object"
+            )
+        materiality = prediction.get("materiality")
+        if isinstance(materiality, bool) or not isinstance(materiality, int):
+            raise GoldSampleError(
+                f"heldout prediction {news_item_id} materiality is invalid"
+            )
+        if materiality < 2:
+            continue
+        input_sha256 = record.get("input_sha256")
+        text_sha256 = record.get("text_sha256")
+        if (
+            not isinstance(input_sha256, str)
+            or SHA256_PATTERN.fullmatch(input_sha256) is None
+            or not isinstance(text_sha256, str)
+            or SHA256_PATTERN.fullmatch(text_sha256) is None
+        ):
+            raise GoldSampleError(
+                f"heldout prediction {news_item_id} input/text SHA-256 is invalid"
+            )
+        rank = heldout_prediction_rank(
+            seed=seed,
+            news_item_id=news_item_id,
+            input_sha256=input_sha256,
+        )
+        eligible.append((rank, news_item_id, record))
+    eligible.sort(key=lambda item: (item[0], item[1]))
+    if len(eligible) < count:
+        raise GoldSampleError(
+            "heldout predicted-positive pool is insufficient without substitution: "
+            f"required={count}, available={len(eligible)}"
+        )
+    selected_records = [record for _, _, record in eligible[:count]]
+    selection_evidence = [
+        {
+            "news_item_id": news_item_id,
+            "input_sha256": record["input_sha256"],
+            "text_sha256": record["text_sha256"],
+            "selection_rank_sha256": rank,
+        }
+        for rank, news_item_id, record in eligible[:count]
+    ]
+    return selected_records, selection_evidence
 
 
 def select_stratified_rows(
@@ -1106,6 +1314,55 @@ def materialize_selected_rows(
     return records
 
 
+def validate_body_evidence(
+    record: Mapping[str, object],
+    *,
+    label: str,
+) -> None:
+    body_evidence = record.get("body_evidence")
+    if not isinstance(body_evidence, Mapping) or set(body_evidence) != BODY_EVIDENCE_FIELDS:
+        raise GoldSampleError(f"{label} body_evidence fields drifted")
+    original_text = record.get("original_text")
+    text_sha256 = record.get("text_sha256")
+    if not isinstance(original_text, str) or not original_text:
+        raise GoldSampleError(f"{label} has no original_text")
+    required = body_evidence.get("required")
+    if required is True:
+        annotation_count = body_evidence.get("annotation_text_character_count")
+        body_count = body_evidence.get("body_characters_in_original_text")
+        full_count = body_evidence.get("full_text_character_count")
+        truncated = body_evidence.get("text_truncated")
+        pdf_sha256 = body_evidence.get("pdf_sha256")
+        full_sha256 = body_evidence.get("full_text_sha256")
+        if (
+            record.get("source") != "cninfo"
+            or record.get("body_state") != "announcement_body"
+            or body_evidence.get("source") != "cninfo_pdf"
+            or body_evidence.get("url") != record.get("url")
+            or body_evidence.get("pdf_persisted") is not False
+            or not isinstance(pdf_sha256, str)
+            or SHA256_PATTERN.fullmatch(pdf_sha256) is None
+            or not isinstance(full_sha256, str)
+            or SHA256_PATTERN.fullmatch(full_sha256) is None
+            or isinstance(annotation_count, bool)
+            or not isinstance(annotation_count, int)
+            or annotation_count != len(original_text)
+            or body_count != len(original_text)
+            or isinstance(full_count, bool)
+            or not isinstance(full_count, int)
+            or full_count < len(original_text)
+            or not isinstance(truncated, bool)
+            or truncated is not (full_count > len(original_text))
+            or (not truncated and full_sha256 != text_sha256)
+        ):
+            raise GoldSampleError(f"{label} announcement body evidence drifted")
+    elif required is False:
+        if dict(body_evidence) != _empty_body_evidence(False):
+            raise GoldSampleError(f"{label} non-body evidence drifted")
+    else:
+        raise GoldSampleError(f"{label} body_evidence.required is invalid")
+
+
 def validate_blind_record(
     record: Mapping[str, object],
     contract: FrozenContract,
@@ -1134,6 +1391,20 @@ def validate_blind_record(
         raise GoldSampleError(f"blind record {news_item_id} is not pending")
     if record.get("annotation_owner") is not None or record.get("annotated_at") is not None:
         raise GoldSampleError(f"blind record {news_item_id} has annotation provenance")
+    stratum = record.get("stratum")
+    body_evidence = record.get("body_evidence")
+    if not isinstance(stratum, Mapping) or set(stratum) != STRATUM_FIELDS:
+        raise GoldSampleError(f"blind record {news_item_id} stratum fields drifted")
+    if not isinstance(body_evidence, Mapping) or set(body_evidence) != BODY_EVIDENCE_FIELDS:
+        raise GoldSampleError(f"blind record {news_item_id} body_evidence fields drifted")
+    if (
+        stratum.get("source") != record.get("source")
+        or stratum.get("symbol_state")
+        != ("null" if record.get("ingested_symbol") is None else "bound")
+        or stratum.get("require_announcement_body") is not body_evidence.get("required")
+    ):
+        raise GoldSampleError(f"blind record {news_item_id} nested identity drifted")
+    validate_body_evidence(record, label=f"blind record {news_item_id}")
     gold = record.get("gold")
     expected_gold = _gold_null_template(contract)
     if not isinstance(gold, Mapping) or dict(gold) != expected_gold:
@@ -1146,6 +1417,36 @@ def validate_blind_record(
     resolved_event_contract = event_contract or load_event_extract_contract(contract.path)
     if record.get("input_sha256") != _input_sha256(record, resolved_event_contract):
         raise GoldSampleError(f"blind record {news_item_id} input SHA-256 drifted")
+
+
+def owner_forbidden_field_paths(
+    value: object,
+    forbidden_fields: frozenset[str],
+    *,
+    prefix: str = "$",
+) -> list[str]:
+    """Return recursively discovered model/selection keys in an owner payload."""
+
+    violations: list[str] = []
+    if isinstance(value, Mapping):
+        for raw_key, item in value.items():
+            key = str(raw_key)
+            path = f"{prefix}.{key}"
+            if key in forbidden_fields:
+                violations.append(path)
+            violations.extend(
+                owner_forbidden_field_paths(item, forbidden_fields, prefix=path)
+            )
+    elif isinstance(value, Sequence) and not isinstance(value, (str, bytes)):
+        for index, item in enumerate(value):
+            violations.extend(
+                owner_forbidden_field_paths(
+                    item,
+                    forbidden_fields,
+                    prefix=f"{prefix}[{index}]",
+                )
+            )
+    return violations
 
 
 def _json_line_bytes(records: Sequence[Mapping[str, object]]) -> bytes:
@@ -1207,6 +1508,40 @@ def _write_new_bytes(path: Path, payload: bytes) -> None:
             temporary_path.unlink(missing_ok=True)
 
 
+def _write_create_only_bundle(payloads: Mapping[Path, bytes]) -> dict[Path, str]:
+    """Publish an exact create-only artifact bundle with partial-run recovery."""
+
+    if not payloads or len(set(payloads)) != len(payloads):
+        raise ValueError("create-only bundle paths must be non-empty and unique")
+    expected = {path: _sha256_bytes(payload) for path, payload in payloads.items()}
+    for path, digest in expected.items():
+        if (path.exists() or path.is_symlink()) and (
+            _existing_file_sha256(path, label="bundle") != digest
+        ):
+            raise FileExistsError(
+                f"refusing to overwrite mismatched P4.2a artifact: {path}"
+            )
+    created: list[tuple[Path, os.stat_result]] = []
+    try:
+        for path, payload in payloads.items():
+            if path.exists():
+                continue
+            _write_new_bytes(path, payload)
+            created.append((path, path.stat()))
+    except BaseException:
+        for path, created_stat in reversed(created):
+            current = path.stat() if path.exists() else None
+            if (
+                current is not None
+                and current.st_dev == created_stat.st_dev
+                and current.st_ino == created_stat.st_ino
+            ):
+                path.unlink()
+                _fsync_directory(path.parent)
+        raise
+    return expected
+
+
 def _stage_payload_for_link(path: Path, payload: bytes) -> Path:
     temporary_path: Path | None = None
     try:
@@ -1240,8 +1575,11 @@ def _read_manifest_for_recovery(path: Path) -> JsonObject:
     if not path.is_file() or path.is_symlink():
         raise FileExistsError(f"manifest recovery target is not a regular file: {path}")
     try:
-        value: object = json.loads(path.read_bytes())
-    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        value: object = json.loads(
+            path.read_bytes(),
+            parse_constant=_reject_non_finite_json,
+        )
+    except ValueError as exc:
         raise FileExistsError(f"manifest recovery target is invalid JSON: {path}") from exc
     if not isinstance(value, Mapping):
         raise FileExistsError(f"manifest recovery target is not an object: {path}")
@@ -1385,13 +1723,1697 @@ def _load_jsonl(path: Path) -> list[JsonObject]:
         if not line.strip():
             raise GoldSampleError(f"JSONL has blank line {line_number}")
         try:
-            value: object = json.loads(line, object_pairs_hook=reject_duplicates)
-        except json.JSONDecodeError as exc:
+            value: object = json.loads(
+                line,
+                object_pairs_hook=reject_duplicates,
+                parse_constant=_reject_non_finite_json,
+            )
+        except ValueError as exc:
             raise GoldSampleError(f"JSONL line {line_number} is invalid") from exc
         if not isinstance(value, dict):
             raise GoldSampleError(f"JSONL line {line_number} must be an object")
         records.append(value)
     return records
+
+
+def _load_jsonl_with_sha256(path: Path, *, label: str) -> tuple[list[JsonObject], str]:
+    payload = path.read_bytes()
+    records = _load_jsonl(path)
+    return records, _sha256_bytes(payload)
+
+
+def _load_json_with_sha256(path: Path, *, label: str) -> tuple[JsonObject, str]:
+    if not path.is_file() or path.is_symlink():
+        raise GoldSampleError(f"{label} is unavailable: {path}")
+    payload = path.read_bytes()
+
+    def reject_duplicates(pairs: list[tuple[str, Any]]) -> JsonObject:
+        result: JsonObject = {}
+        for key, value in pairs:
+            if key in result:
+                raise GoldSampleError(f"{label} contains duplicate JSON key: {key}")
+            result[key] = value
+        return result
+
+    try:
+        value: object = json.loads(
+            payload,
+            object_pairs_hook=reject_duplicates,
+            parse_constant=_reject_non_finite_json,
+        )
+    except ValueError as exc:
+        raise GoldSampleError(f"{label} is invalid UTF-8 JSON") from exc
+    if not isinstance(value, dict):
+        raise GoldSampleError(f"{label} must be a JSON object")
+    return value, _sha256_bytes(payload)
+
+
+def evaluation_artifact_path(
+    design: FrozenEvaluationDesign,
+    name: str,
+    *,
+    project_root: Path = PROJECT_DIR,
+) -> Path:
+    artifacts = _mapping(design.document.get("artifacts"), label="artifacts")
+    artifact = _mapping(artifacts.get(name), label=f"artifacts.{name}")
+    value = artifact.get("path")
+    if not isinstance(value, str) or not value:
+        raise GoldSampleError(f"artifacts.{name}.path must be non-empty")
+    relative = Path(value)
+    if relative.is_absolute() or ".." in relative.parts:
+        raise GoldSampleError(f"artifacts.{name}.path escapes project root")
+    root = project_root.resolve()
+    resolved = (root / relative).resolve()
+    if not resolved.is_relative_to(root):
+        raise GoldSampleError(f"artifacts.{name}.path escapes project root")
+    return resolved
+
+
+def load_prediction_contract_freeze_receipt(
+    design: FrozenEvaluationDesign,
+) -> tuple[JsonObject, str]:
+    """Reverify the create-only active-prompt receipt and every referenced byte hash."""
+
+    path = evaluation_artifact_path(design, "prediction_contract_freeze_receipt_json")
+    receipt, receipt_sha256 = _load_json_with_sha256(
+        path,
+        label="prediction contract freeze receipt",
+    )
+    freeze = _mapping(
+        design.document.get("prediction_contract_freeze"),
+        label="prediction_contract_freeze",
+    )
+    required = freeze.get("required_receipt_fields")
+    if not isinstance(required, list) or any(not isinstance(field, str) for field in required):
+        raise GoldSampleError("prediction freeze required fields are invalid")
+    if set(receipt) != set(required):
+        raise GoldSampleError("prediction freeze receipt fields drifted")
+    if (
+        receipt.get("design_schema_version") != design.document.get("schema_version")
+        or receipt.get("design_sha256") != design.sha256
+        or not isinstance(receipt.get("contract_schema_version"), str)
+        or ACTIVE_CONTRACT_SCHEMA.fullmatch(str(receipt.get("contract_schema_version"))) is None
+        or receipt.get("model") != freeze.get("required_model")
+        or receipt.get("result_schema_sha256")
+        != freeze.get("required_result_schema_sha256")
+        or receipt.get("taxonomy_version") != freeze.get("required_taxonomy_version")
+    ):
+        raise GoldSampleError("prediction freeze receipt contract values drifted")
+    for path_field, sha_field in (
+        ("contract_path", "contract_sha256"),
+        ("prompt_path", "prompt_sha256"),
+        ("result_schema_path", "result_schema_sha256"),
+    ):
+        referenced_path = _project_path(receipt.get(path_field), label=path_field)
+        expected_sha256 = receipt.get(sha_field)
+        if (
+            not isinstance(expected_sha256, str)
+            or SHA256_PATTERN.fullmatch(expected_sha256) is None
+            or not referenced_path.is_file()
+            or referenced_path.is_symlink()
+            or _sha256_file(referenced_path) != expected_sha256
+        ):
+            raise GoldSampleError(f"prediction freeze receipt {path_field} bytes drifted")
+    frozen_at = _parse_datetime(receipt.get("frozen_at_utc"), label="receipt.frozen_at_utc")
+    if frozen_at is None:
+        raise GoldSampleError("prediction freeze receipt has no frozen_at_utc")
+    return receipt, receipt_sha256
+
+
+def prediction_contract_changes_are_prompt_only(
+    base_document: Mapping[str, object],
+    active_document: Mapping[str, object],
+) -> bool:
+    """Allow only version metadata and the versioned prompt path/hash to differ."""
+
+    normalized_active: JsonObject = copy.deepcopy(dict(active_document))
+    normalized_base: JsonObject = copy.deepcopy(dict(base_document))
+    for normalized in (normalized_active, normalized_base):
+        for identity_field in ("schema_version", "owner_spec_commit", "pre_registered_at"):
+            normalized.pop(identity_field, None)
+        normalized_files = _mapping(
+            normalized.get("contract_files"),
+            label="normalized contract_files",
+        )
+        normalized_files["prompt"] = {"versioned_prompt_binding": True}
+        normalized["contract_files"] = normalized_files
+    return normalized_active == normalized_base
+
+
+def load_active_prediction_contract(
+    design: FrozenEvaluationDesign,
+) -> tuple[EventExtractContract, JsonObject, str]:
+    """Load the receipt-bound active contract without assuming the v1 base hash.
+
+    Prompt development may produce a new versioned contract. The annotation
+    contract remains the immutable v1 base, while this loader closes every
+    receipt-to-contract-to-prompt/schema binding used for heldout inference.
+    """
+
+    receipt, receipt_sha256 = load_prediction_contract_freeze_receipt(design)
+    contract_path = _project_path(receipt.get("contract_path"), label="contract_path")
+    try:
+        raw_contract = contract_path.read_bytes()
+        document_value = _strict_yaml_load(
+            raw_contract,
+            label="active prediction contract",
+        )
+    except (OSError, GoldSampleError) as exc:
+        raise GoldSampleError("active prediction contract is invalid YAML") from exc
+    document = _mapping(document_value, label="active prediction contract")
+    if (
+        _sha256_bytes(raw_contract) != receipt.get("contract_sha256")
+        or document.get("schema_version") != receipt.get("contract_schema_version")
+        or document.get("production_writes_allowed") is not False
+    ):
+        raise GoldSampleError("active prediction contract identity drifted")
+
+    contract_files = _mapping(
+        document.get("contract_files"),
+        label="active prediction contract.contract_files",
+    )
+    prompt_binding = _mapping(
+        contract_files.get("prompt"),
+        label="active prediction contract prompt",
+    )
+    schema_binding = _mapping(
+        contract_files.get("schema"),
+        label="active prediction contract schema",
+    )
+    llm = _mapping(document.get("llm"), label="active prediction contract.llm")
+    taxonomy = _mapping(
+        document.get("taxonomy"),
+        label="active prediction contract.taxonomy",
+    )
+    base_llm = _mapping(
+        design.base_contract.document.get("llm"),
+        label="base annotation contract.llm",
+    )
+    base_input = _mapping(
+        design.base_contract.document.get("input"),
+        label="base annotation contract.input",
+    )
+    base_taxonomy = _mapping(
+        design.base_contract.document.get("taxonomy"),
+        label="base annotation contract.taxonomy",
+    )
+    input_contract = _mapping(document.get("input"), label="active prediction contract.input")
+    if (
+        llm.get("purpose") != "p4_news_event_extract"
+        or llm.get("model") != receipt.get("model")
+        or llm.get("enable_thinking") is not False
+        or llm.get("max_retries") != 0
+        or taxonomy.get("version") != receipt.get("taxonomy_version")
+        or prompt_binding.get("path") != receipt.get("prompt_path")
+        or prompt_binding.get("sha256") != receipt.get("prompt_sha256")
+        or schema_binding.get("path") != receipt.get("result_schema_path")
+        or schema_binding.get("sha256") != receipt.get("result_schema_sha256")
+        or dict(llm) != dict(base_llm)
+        or dict(input_contract) != dict(base_input)
+        or dict(taxonomy) != dict(base_taxonomy)
+        or not prediction_contract_changes_are_prompt_only(
+            design.base_contract.document,
+            document,
+        )
+    ):
+        raise GoldSampleError(
+            "active prediction contract changed more than the versioned prompt binding"
+        )
+    prompt_path = _project_path(prompt_binding.get("path"), label="active prompt path")
+    schema_path = _project_path(schema_binding.get("path"), label="active schema path")
+    try:
+        prompt_bytes = prompt_path.read_bytes()
+        schema_bytes = schema_path.read_bytes()
+        prompt = prompt_bytes.decode("utf-8")
+        schema_value: object = json.loads(
+            schema_bytes,
+            parse_constant=_reject_non_finite_json,
+        )
+    except (OSError, ValueError) as exc:
+        raise GoldSampleError("active prediction prompt/schema is unreadable") from exc
+    schema = _mapping(schema_value, label="active prediction schema")
+    if (
+        not prompt.strip()
+        or PROMPT_VERSION_MARKER.search(prompt) is None
+        or _sha256_bytes(prompt_bytes) != receipt.get("prompt_sha256")
+        or _sha256_bytes(schema_bytes) != receipt.get("result_schema_sha256")
+    ):
+        raise GoldSampleError("active prediction prompt/schema bytes drifted")
+    base_files = _mapping(
+        design.base_contract.document.get("contract_files"),
+        label="base annotation contract.contract_files",
+    )
+    base_prompt = _mapping(base_files.get("prompt"), label="base prompt binding")
+    prompt_changed = (
+        receipt.get("prompt_path") != base_prompt.get("path")
+        or receipt.get("prompt_sha256") != base_prompt.get("sha256")
+    )
+    if prompt_changed and (
+        receipt.get("contract_sha256") == design.base_contract.sha256
+        or receipt.get("contract_schema_version")
+        == design.base_contract.document.get("schema_version")
+    ):
+        raise GoldSampleError("changed prompt lacks a new versioned prediction contract")
+    required_schema_fields = {
+        "symbols",
+        "event_type",
+        "direction",
+        "materiality",
+        "summary",
+        "confidence",
+        "evidence_span",
+    }
+    schema_properties = _mapping(schema.get("properties"), label="active schema.properties")
+    if (
+        schema.get("type") != "object"
+        or schema.get("additionalProperties") is not False
+        or set(schema_properties) != required_schema_fields
+        or set(schema.get("required", [])) != required_schema_fields
+    ):
+        raise GoldSampleError("active prediction result schema is not strict")
+    taxonomy_values = taxonomy.get("values")
+    event_type_schema = _mapping(
+        schema_properties.get("event_type"),
+        label="active schema event_type",
+    )
+    if (
+        not isinstance(taxonomy_values, list)
+        or any(not isinstance(value, str) for value in taxonomy_values)
+        or event_type_schema.get("enum") != taxonomy_values
+    ):
+        raise GoldSampleError("active prediction taxonomy/schema binding drifted")
+    try:
+        Draft202012Validator.check_schema(schema)
+    except Exception as exc:
+        raise GoldSampleError("active prediction result schema is invalid") from exc
+
+    max_tokens = llm.get("max_output_tokens")
+    max_retries = llm.get("max_retries")
+    max_items = llm.get("max_items_per_run")
+    timeout = llm.get("total_deadline_seconds")
+    max_input = input_contract.get("max_llm_input_characters")
+    if (
+        isinstance(max_tokens, bool)
+        or not isinstance(max_tokens, int)
+        or max_tokens <= 0
+        or isinstance(max_retries, bool)
+        or not isinstance(max_retries, int)
+        or max_retries != 0
+        or isinstance(max_items, bool)
+        or not isinstance(max_items, int)
+        or max_items <= 0
+        or isinstance(timeout, bool)
+        or not isinstance(timeout, (int, float))
+        or timeout <= 0
+        or isinstance(max_input, bool)
+        or not isinstance(max_input, int)
+        or max_input <= 0
+    ):
+        raise GoldSampleError("active prediction contract budgets drifted")
+    active_contract = EventExtractContract(
+        path=contract_path,
+        sha256=str(receipt["contract_sha256"]),
+        document=document,
+        prompt=prompt,
+        schema=schema,
+        model=str(receipt["model"]),
+        purpose=str(llm["purpose"]),
+        timeout=float(timeout),
+        max_tokens=max_tokens,
+        max_retries=max_retries,
+        max_items_per_run=max_items,
+        max_input_characters=max_input,
+    )
+    validate_dev_final_prediction_freeze(
+        design,
+        active_contract=active_contract,
+        receipt=receipt,
+    )
+    return active_contract, receipt, receipt_sha256
+
+
+def _ordered_prediction_identity_sha256(records: Sequence[Mapping[str, object]]) -> str:
+    digest = hashlib.sha256()
+    for record in records:
+        news_item_id = record.get("news_item_id")
+        input_sha256 = record.get("input_sha256")
+        text_sha256 = record.get("text_sha256")
+        if (
+            isinstance(news_item_id, bool)
+            or not isinstance(news_item_id, int)
+            or not isinstance(input_sha256, str)
+            or SHA256_PATTERN.fullmatch(input_sha256) is None
+            or not isinstance(text_sha256, str)
+            or SHA256_PATTERN.fullmatch(text_sha256) is None
+        ):
+            raise GoldSampleError("prediction identity tuple is invalid")
+        digest.update(
+            f"{news_item_id}\0{input_sha256}\0{text_sha256}\n".encode("ascii")
+        )
+    return digest.hexdigest()
+
+
+def validate_dev_final_prediction_freeze(
+    design: FrozenEvaluationDesign,
+    *,
+    active_contract: EventExtractContract,
+    receipt: Mapping[str, object],
+    project_root: Path = PROJECT_DIR,
+) -> JsonObject:
+    """Verify the receipt-bound final active-contract predictions over dev60."""
+
+    root = project_root.resolve()
+    predictions_path = evaluation_artifact_path(
+        design,
+        "dev_final_predictions_jsonl",
+        project_root=root,
+    )
+    manifest_path = evaluation_artifact_path(
+        design,
+        "dev_final_predictions_manifest_json",
+        project_root=root,
+    )
+    if (
+        receipt.get("dev_final_predictions_path")
+        != str(predictions_path.relative_to(root))
+        or receipt.get("dev_final_predictions_manifest_path")
+        != str(manifest_path.relative_to(root))
+    ):
+        raise GoldSampleError("dev-final prediction receipt paths drifted")
+    rows, predictions_sha256 = _load_jsonl_with_sha256(
+        predictions_path,
+        label="dev-final predictions",
+    )
+    manifest, manifest_sha256 = _load_json_with_sha256(
+        manifest_path,
+        label="dev-final prediction manifest",
+    )
+    dev_path = evaluation_artifact_path(
+        design,
+        "dev_60_frozen_jsonl",
+        project_root=root,
+    )
+    dev_records, _dev_sha256 = _load_jsonl_with_sha256(dev_path, label="frozen dev60")
+    if len(dev_records) != 60 or len(rows) != 60:
+        raise GoldSampleError("dev-final prediction freeze must contain exactly 60 rows")
+    candidate_inputs: dict[int, JsonObject] = {}
+    for record in dev_records:
+        news_item_id = record.get("news_item_id")
+        if not isinstance(news_item_id, int) or news_item_id in candidate_inputs:
+            raise GoldSampleError("frozen dev60 IDs are invalid")
+        if record.get("input_sha256") != _input_sha256(record, active_contract):
+            raise GoldSampleError(
+                f"dev60 input {news_item_id} differs under active contract"
+            )
+        candidate_inputs[news_item_id] = record
+    ordered_ids = [record.get("news_item_id") for record in rows]
+    if ordered_ids != sorted(candidate_inputs):
+        raise GoldSampleError("dev-final predictions are not ordered by news_item_id")
+    predictions, success_count, failure_count = validate_heldout_candidate_predictions(
+        rows,
+        candidate_inputs=candidate_inputs,
+        active_contract=active_contract,
+    )
+    ordered_identity = _ordered_prediction_identity_sha256(rows)
+    freeze = _mapping(
+        design.document.get("prediction_contract_freeze"),
+        label="prediction_contract_freeze",
+    )
+    dev_contract = _mapping(
+        freeze.get("dev_final_predictions"),
+        label="prediction_contract_freeze.dev_final_predictions",
+    )
+    required_manifest_fields = dev_contract.get("manifest_required_fields")
+    if (
+        not isinstance(required_manifest_fields, list)
+        or any(not isinstance(field, str) for field in required_manifest_fields)
+        or set(manifest) != set(required_manifest_fields)
+    ):
+        raise GoldSampleError("dev-final prediction manifest fields drifted")
+    expected_manifest: dict[str, object] = {
+        "design_sha256": design.sha256,
+        "contract_sha256": active_contract.sha256,
+        "predictions_path": str(predictions_path.relative_to(root)),
+        "predictions_sha256": predictions_sha256,
+        "row_count": 60,
+        "success_count": success_count,
+        "failure_count": failure_count,
+        "ordered_identity_sha256": ordered_identity,
+    }
+    for field, expected in expected_manifest.items():
+        if manifest.get(field) != expected:
+            raise GoldSampleError(f"dev-final prediction manifest {field} drifted")
+    completed_at = _parse_datetime(
+        manifest.get("completed_at_utc"),
+        label="dev-final manifest completed_at_utc",
+    )
+    frozen_at = _parse_datetime(
+        receipt.get("frozen_at_utc"),
+        label="prediction freeze receipt frozen_at_utc",
+    )
+    if completed_at is None or frozen_at is None or completed_at > frozen_at:
+        raise GoldSampleError("prediction receipt predates dev-final completion")
+    expected_receipt: dict[str, object] = {
+        "dev_final_predictions_sha256": predictions_sha256,
+        "dev_final_predictions_manifest_sha256": manifest_sha256,
+        "dev_final_predictions_row_count": 60,
+        "dev_final_predictions_success_count": success_count,
+        "dev_final_predictions_failure_count": failure_count,
+        "dev_final_predictions_identity_sha256": ordered_identity,
+        "dev_final_predictions_contract_sha256": active_contract.sha256,
+    }
+    for field, expected in expected_receipt.items():
+        if receipt.get(field) != expected:
+            raise GoldSampleError(f"dev-final prediction receipt {field} drifted")
+    failure_ids = [
+        news_item_id
+        for news_item_id, record in predictions.items()
+        if record.get("status") != "ok"
+    ]
+    return {
+        "path": str(predictions_path.relative_to(root)),
+        "sha256": predictions_sha256,
+        "manifest_path": str(manifest_path.relative_to(root)),
+        "manifest_sha256": manifest_sha256,
+        "row_count": 60,
+        "success_count": success_count,
+        "failure_count": failure_count,
+        "failure_ids": failure_ids,
+        "ordered_identity_sha256": ordered_identity,
+        "contract_sha256": active_contract.sha256,
+        "rows": rows,
+    }
+
+
+def load_completed_one_shot_state(
+    design: FrozenEvaluationDesign,
+    *,
+    scope: str,
+    project_root: Path = PROJECT_DIR,
+) -> tuple[JsonObject, str]:
+    """Require exactly two ordered events and one successful terminal event."""
+
+    one_shot = _mapping(design.document.get("one_shot"), label="one_shot")
+    scope_contract = _mapping(one_shot.get(scope), label=f"one_shot.{scope}")
+    artifact_name = scope_contract.get("state_artifact")
+    if not isinstance(artifact_name, str):
+        raise GoldSampleError(f"one_shot.{scope}.state_artifact is invalid")
+    root = project_root.resolve()
+    path = evaluation_artifact_path(
+        design,
+        artifact_name,
+        project_root=root,
+    )
+    events, state_sha256 = _load_jsonl_with_sha256(path, label=f"{scope} one-shot state")
+    started_event = scope_contract.get("started_event")
+    terminal_events = scope_contract.get("terminal_events")
+    if not isinstance(started_event, str) or not isinstance(terminal_events, list):
+        raise GoldSampleError(f"one_shot.{scope} event contract is invalid")
+    expected_completed = f"{scope}_completed"
+    if len(events) != 2 or [event.get("event") for event in events] != [
+        started_event,
+        expected_completed,
+    ]:
+        raise GoldSampleError(
+            f"{scope} one-shot state must be exactly "
+            f"[{started_event}, {expected_completed}]"
+        )
+    started, terminal = events
+    if terminal.get("event") not in terminal_events:
+        raise GoldSampleError(f"{scope} completed event is outside terminal contract")
+    timestamps: list[datetime] = []
+    for event in events:
+        if event.get("design_sha256") != design.sha256:
+            raise GoldSampleError(f"{scope} one-shot state design hash drifted")
+        raw_timestamp = event.get("at_utc")
+        if not isinstance(raw_timestamp, str) or not raw_timestamp.strip():
+            raise GoldSampleError(f"{scope} one-shot state timestamp is missing")
+        try:
+            timestamp = datetime.fromisoformat(
+                raw_timestamp.strip().replace("Z", "+00:00")
+            )
+        except ValueError as exc:
+            raise GoldSampleError(
+                f"{scope} one-shot state timestamp is invalid"
+            ) from exc
+        if timestamp.tzinfo is None or timestamp.utcoffset() is None:
+            raise GoldSampleError(
+                f"{scope} one-shot state timestamp must include a timezone"
+            )
+        timestamps.append(timestamp.astimezone(UTC))
+    if timestamps[1] < timestamps[0]:
+        raise GoldSampleError(f"{scope} one-shot terminal timestamp is earlier than started")
+    return {
+        "started_at_utc": started["at_utc"],
+        "terminal_at_utc": terminal["at_utc"],
+        "status": "completed",
+        "started_event_count": 1,
+        "events": events,
+        "path": str(path.relative_to(root)),
+    }, state_sha256
+
+
+def _ordered_candidate_identity_sha256(
+    records: Sequence[Mapping[str, object]],
+) -> str:
+    digest = hashlib.sha256()
+    prior_news_item_id = 0
+    for record in records:
+        news_item_id = record.get("news_item_id")
+        input_sha256 = record.get("input_sha256")
+        text_sha256 = record.get("text_sha256")
+        if (
+            isinstance(news_item_id, bool)
+            or not isinstance(news_item_id, int)
+            or news_item_id <= prior_news_item_id
+            or not isinstance(input_sha256, str)
+            or SHA256_PATTERN.fullmatch(input_sha256) is None
+            or not isinstance(text_sha256, str)
+            or SHA256_PATTERN.fullmatch(text_sha256) is None
+        ):
+            raise GoldSampleError("candidate identity/order is invalid")
+        prior_news_item_id = news_item_id
+        digest.update(
+            f"{news_item_id}\0{input_sha256}\0{text_sha256}\n".encode("ascii")
+        )
+    return digest.hexdigest()
+
+
+def validate_inference_completion_bindings(
+    inference_state: Mapping[str, object],
+    *,
+    design: FrozenEvaluationDesign,
+    active_contract: EventExtractContract,
+    receipt_sha256: str,
+    candidate_records: Sequence[Mapping[str, object]],
+    candidate_inputs_sha256: str,
+    prediction_manifest_sha256: str,
+    attempted_count: int,
+    success_count: int,
+    failure_count: int,
+) -> None:
+    """Independently bind one-shot state to frozen inputs and terminal manifest."""
+
+    raw_events = inference_state.get("events")
+    if (
+        not isinstance(raw_events, Sequence)
+        or isinstance(raw_events, (str, bytes))
+        or len(raw_events) != 2
+        or any(not isinstance(event, Mapping) for event in raw_events)
+    ):
+        raise GoldSampleError("inference state events are invalid")
+    started = _mapping(raw_events[0], label="inference started state")
+    terminal = _mapping(raw_events[1], label="inference completed state")
+    candidate_count = len(candidate_records)
+    candidate_identity_sha256 = _ordered_candidate_identity_sha256(candidate_records)
+    if (
+        started.get("event") != "inference_started"
+        or started.get("design_sha256") != design.sha256
+        or started.get("contract_sha256") != active_contract.sha256
+        or started.get("freeze_receipt_sha256") != receipt_sha256
+        or started.get("candidate_inputs_sha256") != candidate_inputs_sha256
+        or started.get("candidate_identity_sha256") != candidate_identity_sha256
+        or started.get("candidate_count") != candidate_count
+    ):
+        raise GoldSampleError("inference started receipt/contract/candidate binding drifted")
+    if (
+        terminal.get("event") != "inference_completed"
+        or terminal.get("design_sha256") != design.sha256
+        or terminal.get("contract_sha256") != active_contract.sha256
+        or terminal.get("candidate_count") != candidate_count
+        or terminal.get("attempted_count") != attempted_count
+        or terminal.get("success_count") != success_count
+        or terminal.get("failure_count") != failure_count
+        or terminal.get("prediction_manifest_sha256") != prediction_manifest_sha256
+        or attempted_count != candidate_count
+        or success_count + failure_count != attempted_count
+    ):
+        raise GoldSampleError("inference terminal manifest/count binding drifted")
+
+
+def require_heldout_ready(design: FrozenEvaluationDesign, now: datetime) -> None:
+    """Enforce the pre-registered end-of-window gate for candidate freezing/selection."""
+
+    if now.tzinfo is None or now.utcoffset() is None:
+        raise ValueError("heldout readiness time must be timezone-aware")
+    splits = _mapping(design.document.get("splits"), label="splits")
+    heldout = _mapping(splits.get("heldout_40"), label="splits.heldout_40")
+    batch = _mapping(heldout.get("candidate_batch"), label="heldout candidate batch")
+    ready = _parse_datetime(
+        batch.get("selection_ready_after"),
+        label="heldout selection_ready_after",
+    )
+    assert ready is not None
+    if now.astimezone(UTC) < ready:
+        raise GoldSampleNotReady(
+            "heldout candidate artifacts are not ready before "
+            f"{ready.astimezone(SHANGHAI).isoformat()}"
+        )
+
+
+def _heldout_candidate_rows(
+    connection: sqlite3.Connection,
+    design: FrozenEvaluationDesign,
+) -> list[NewsRow]:
+    splits = _mapping(design.document.get("splits"), label="splits")
+    heldout = _mapping(splits.get("heldout_40"), label="splits.heldout_40")
+    batch = _mapping(heldout.get("candidate_batch"), label="heldout candidate batch")
+    cutoff = int(batch["min_news_item_id_exclusive"])
+    start = _parse_datetime(
+        batch.get("window_start_inclusive"),
+        label="heldout window_start_inclusive",
+    )
+    end = _parse_datetime(
+        batch.get("window_end_exclusive"),
+        label="heldout window_end_exclusive",
+    )
+    assert start is not None and end is not None
+    sources = batch.get("sources")
+    if not isinstance(sources, list) or any(not isinstance(item, str) for item in sources):
+        raise GoldSampleError("heldout candidate sources are invalid")
+    rows = _load_news_rows(connection, cutoff=cutoff, after_cutoff=True)
+    selected = [
+        row
+        for row in rows
+        if row.source in sources and start <= row.available_time < end
+    ]
+    if not selected:
+        raise GoldSampleError("heldout candidate batch is empty")
+    return selected
+
+
+def _candidate_input_from_row(
+    row: NewsRow,
+    *,
+    base_contract: FrozenContract,
+    active_contract: EventExtractContract,
+    design: FrozenEvaluationDesign,
+    pdf_fetcher: PdfFetcher,
+    pdf_text_extractor: PdfTextExtractor,
+) -> JsonObject:
+    require_body = row.source == "cninfo"
+    selected = SelectedNews(
+        row=row,
+        sample_group="heldout_candidate",
+        trading_date=row.available_time.astimezone(SHANGHAI).date(),
+        stratum=Stratum(
+            source=row.source,
+            symbol_state=row.symbol_state,
+            count=1,
+            require_announcement_body=require_body,
+        ),
+        rank_sha256=_sha256_bytes(
+            f"heldout-candidate-input-v1.1\0{row.news_item_id}".encode()
+        ),
+    )
+    original_text, body_evidence = _original_text_and_body_evidence(
+        selected,
+        base_contract,
+        pdf_fetcher=pdf_fetcher,
+        pdf_text_extractor=pdf_text_extractor,
+    )
+    record: JsonObject = {
+        "schema_version": "p4.2a-heldout-candidate-input-v1.1",
+        "design_sha256": design.sha256,
+        "contract_sha256": active_contract.sha256,
+        "model": active_contract.model,
+        "news_item_id": row.news_item_id,
+        "source": row.source,
+        "url": row.url,
+        "title": row.title,
+        "ingested_symbol": row.ingested_symbol,
+        "published_at": _iso_utc(row.published_at),
+        "available_time": _iso_utc(row.available_time),
+        "original_text": original_text,
+        "body_state": _body_state(row, require_body),
+        "content_hash": row.content_hash,
+        "text_sha256": _sha256_bytes(original_text.encode("utf-8")),
+        "body_evidence": body_evidence,
+    }
+    record["input_sha256"] = _input_sha256(record, active_contract)
+    return record
+
+
+def validate_heldout_candidate_inputs(
+    records: Sequence[JsonObject],
+    *,
+    rows: Sequence[NewsRow],
+    design: FrozenEvaluationDesign,
+    active_contract: EventExtractContract,
+) -> dict[int, JsonObject]:
+    """Bind every candidate input to DB identity and its once-fetched frozen body."""
+
+    rows_by_id = {row.news_item_id: row for row in rows}
+    required = {
+        "news_item_id",
+        "source",
+        "url",
+        "title",
+        "ingested_symbol",
+        "published_at",
+        "available_time",
+        "original_text",
+        "body_state",
+        "text_sha256",
+        "input_sha256",
+        "body_evidence",
+    }
+    validated: dict[int, JsonObject] = {}
+    for record in records:
+        missing = required - set(record)
+        if missing:
+            raise GoldSampleError(f"heldout candidate input fields missing: {sorted(missing)}")
+        news_item_id = record.get("news_item_id")
+        if (
+            isinstance(news_item_id, bool)
+            or not isinstance(news_item_id, int)
+            or news_item_id <= 0
+        ):
+            raise GoldSampleError("heldout candidate input has invalid news_item_id")
+        if news_item_id in validated:
+            raise GoldSampleError(f"heldout candidate inputs duplicate news item {news_item_id}")
+        row = rows_by_id.get(news_item_id)
+        if row is None:
+            raise GoldSampleError(f"heldout candidate input {news_item_id} is outside frozen batch")
+        expected_identity: dict[str, object] = {
+            "source": row.source,
+            "url": row.url,
+            "title": row.title,
+            "ingested_symbol": row.ingested_symbol,
+            "published_at": _iso_utc(row.published_at),
+            "available_time": _iso_utc(row.available_time),
+        }
+        for field, expected in expected_identity.items():
+            if record.get(field) != expected:
+                raise GoldSampleError(
+                    f"heldout candidate input {news_item_id} changed DB field {field}"
+                )
+        if "content_hash" in record and record.get("content_hash") != row.content_hash:
+            raise GoldSampleError(
+                f"heldout candidate input {news_item_id} content_hash drifted"
+            )
+        original_text = record.get("original_text")
+        if not isinstance(original_text, str) or not original_text:
+            raise GoldSampleError(f"heldout candidate input {news_item_id} has no text")
+        if record.get("text_sha256") != _sha256_bytes(original_text.encode("utf-8")):
+            raise GoldSampleError(
+                f"heldout candidate input {news_item_id} text SHA-256 drifted"
+            )
+        if (
+            record.get("contract_sha256") not in {None, active_contract.sha256}
+            or record.get("model") not in {None, active_contract.model}
+            or record.get("design_sha256") not in {None, design.sha256}
+            or record.get("input_sha256") != _input_sha256(record, active_contract)
+        ):
+            raise GoldSampleError(
+                f"heldout candidate input {news_item_id} active contract binding drifted"
+            )
+        evidence = _mapping(
+            record.get("body_evidence"),
+            label=f"heldout candidate {news_item_id} body_evidence",
+        )
+        validate_body_evidence(
+            record,
+            label=f"heldout candidate input {news_item_id}",
+        )
+        if row.source == "cninfo" and (
+            record.get("body_state") != "announcement_body"
+            or evidence.get("required") is not True
+            or evidence.get("source") != "cninfo_pdf"
+            or evidence.get("url") != row.url
+            or evidence.get("pdf_persisted") is not False
+            or not isinstance(evidence.get("pdf_sha256"), str)
+            or SHA256_PATTERN.fullmatch(str(evidence.get("pdf_sha256"))) is None
+            or evidence.get("full_text_sha256") is None
+        ):
+            raise GoldSampleError(
+                f"CNInfo heldout input {news_item_id} lacks frozen announcement body"
+            )
+        validated[news_item_id] = record
+    if set(validated) != set(rows_by_id):
+        missing_ids = sorted(set(rows_by_id) - set(validated))
+        extra_ids = sorted(set(validated) - set(rows_by_id))
+        raise GoldSampleError(
+            "heldout candidate input coverage differs from DB batch: "
+            f"missing={missing_ids[:5]}, extra={extra_ids[:5]}"
+        )
+    return validated
+
+
+def materialize_heldout_candidate_inputs(
+    rows: Sequence[NewsRow],
+    design: FrozenEvaluationDesign,
+    active_contract: EventExtractContract,
+    *,
+    pdf_fetcher: PdfFetcher = download_cninfo_pdf,
+    pdf_text_extractor: PdfTextExtractor = extract_cninfo_pdf_text,
+) -> list[JsonObject]:
+    """Pure candidate materializer shared by the one-shot runner and tests."""
+
+    records = [
+        _candidate_input_from_row(
+            row,
+            base_contract=design.base_contract,
+            active_contract=active_contract,
+            design=design,
+            pdf_fetcher=pdf_fetcher,
+            pdf_text_extractor=pdf_text_extractor,
+        )
+        for row in rows
+    ]
+    validate_heldout_candidate_inputs(
+        records,
+        rows=rows,
+        design=design,
+        active_contract=active_contract,
+    )
+    return records
+
+
+def build_heldout_candidate_inputs(
+    design_path: Path = DEFAULT_EVALUATION_DESIGN,
+    database_path: Path | None = None,
+    *,
+    now: datetime | None = None,
+    pdf_fetcher: PdfFetcher = download_cninfo_pdf,
+    pdf_text_extractor: PdfTextExtractor = extract_cninfo_pdf_text,
+) -> JsonObject:
+    """Freeze the complete heldout batch once; this is the only CNInfo body fetch."""
+
+    design = load_evaluation_design(design_path)
+    current_time = now or datetime.now(UTC)
+    require_heldout_ready(design, current_time)
+    active_contract, receipt, receipt_sha256 = load_active_prediction_contract(design)
+    output = evaluation_artifact_path(design, "heldout_candidate_inputs_jsonl")
+    artifact_root = _project_path(design.document["artifact_root"], label="artifact_root")
+    output = _new_artifact_path(output, artifact_root)
+    database = _database_path(design.base_contract, database_path)
+    with open_read_only_database(database) as connection:
+        rows = _heldout_candidate_rows(connection, design)
+        records = materialize_heldout_candidate_inputs(
+            rows,
+            design,
+            active_contract,
+            pdf_fetcher=pdf_fetcher,
+            pdf_text_extractor=pdf_text_extractor,
+        )
+    payload = _json_line_bytes(records)
+    _write_new_bytes(output, payload)
+    return {
+        "mode": "heldout-inputs",
+        "row_count": len(records),
+        "cninfo_body_count": sum(record["source"] == "cninfo" for record in records),
+        "output": str(output.relative_to(PROJECT_DIR)),
+        "sha256": _sha256_bytes(payload),
+        "design_sha256": design.sha256,
+        "prediction_contract_sha256": active_contract.sha256,
+        "freeze_receipt_sha256": receipt_sha256,
+        "freeze_receipt_frozen_at_utc": receipt["frozen_at_utc"],
+        "database_open_mode": "mode=ro + PRAGMA query_only=ON",
+    }
+
+
+def validate_heldout_candidate_predictions(
+    records: Sequence[JsonObject],
+    *,
+    candidate_inputs: Mapping[int, JsonObject],
+    active_contract: EventExtractContract,
+) -> tuple[dict[int, JsonObject], int, int]:
+    """Validate complete one-shot predictions against exactly frozen candidate inputs."""
+
+    validator = Draft202012Validator(active_contract.schema)
+    predictions: dict[int, JsonObject] = {}
+    success_count = failure_count = 0
+    for record in records:
+        news_item_id = record.get("news_item_id")
+        if (
+            isinstance(news_item_id, bool)
+            or not isinstance(news_item_id, int)
+            or news_item_id <= 0
+        ):
+            raise GoldSampleError("heldout prediction has invalid news_item_id")
+        if news_item_id in predictions:
+            raise GoldSampleError(f"heldout predictions duplicate news item {news_item_id}")
+        frozen = candidate_inputs.get(news_item_id)
+        if frozen is None:
+            raise GoldSampleError(f"heldout prediction {news_item_id} is outside candidate batch")
+        if (
+            record.get("input_sha256") != frozen.get("input_sha256")
+            or record.get("text_sha256") != frozen.get("text_sha256")
+            or record.get("contract_sha256") != active_contract.sha256
+            or record.get("model") != active_contract.model
+        ):
+            raise GoldSampleError(
+                f"heldout prediction {news_item_id} frozen-input/contract binding drifted"
+            )
+        status = record.get("status")
+        prediction = record.get("prediction")
+        if status == "ok":
+            if not isinstance(prediction, Mapping):
+                raise GoldSampleError(
+                    f"successful heldout prediction {news_item_id} has no prediction"
+                )
+            candidate = {str(key): value for key, value in prediction.items()}
+            errors = sorted(validator.iter_errors(candidate), key=lambda item: list(item.path))
+            if errors:
+                raise GoldSampleError(
+                    f"heldout prediction {news_item_id} violates schema: {errors[0].message}"
+                )
+            original_text = str(frozen["original_text"])
+            ingested_symbol = frozen.get("ingested_symbol")
+            universe_symbols = set(re.findall(r"(?<!\d)[0-9]{6}(?!\d)", original_text))
+            if isinstance(ingested_symbol, str):
+                universe_symbols.add(ingested_symbol)
+            validate_event_result(
+                active_contract,
+                candidate,
+                original_text=original_text,
+                ingested_symbol=ingested_symbol if isinstance(ingested_symbol, str) else None,
+                universe_symbols=universe_symbols,
+            )
+            success_count += 1
+        else:
+            if prediction is not None:
+                raise GoldSampleError(
+                    f"failed heldout prediction {news_item_id} must have prediction=null"
+                )
+            failure_count += 1
+        predictions[news_item_id] = record
+    if set(predictions) != set(candidate_inputs):
+        raise GoldSampleError("heldout prediction coverage is not the exact candidate batch")
+    return predictions, success_count, failure_count
+
+
+def _validate_prediction_manifest(
+    manifest: Mapping[str, object],
+    *,
+    design: FrozenEvaluationDesign,
+    active_contract: EventExtractContract,
+    receipt_sha256: str,
+    inputs_sha256: str,
+    predictions_sha256: str,
+    candidate_records: Sequence[Mapping[str, object]],
+    success_count: int,
+    failure_count: int,
+) -> None:
+    candidate_ids = [record.get("news_item_id") for record in candidate_records]
+    if any(
+        isinstance(news_item_id, bool) or not isinstance(news_item_id, int)
+        for news_item_id in candidate_ids
+    ):
+        raise GoldSampleError("heldout prediction manifest candidate IDs are invalid")
+    candidate_identity_sha256 = _ordered_candidate_identity_sha256(candidate_records)
+    expected: dict[str, object] = {
+        "design_sha256": design.sha256,
+        "prediction_contract_sha256": active_contract.sha256,
+        "freeze_receipt_sha256": receipt_sha256,
+        "candidate_inputs_sha256": inputs_sha256,
+        "candidate_predictions_sha256": predictions_sha256,
+        "candidate_count": len(candidate_ids),
+        "prediction_attempted_count": len(candidate_ids),
+        "prediction_success_count": success_count,
+        "prediction_failure_count": failure_count,
+        "news_item_ids": list(candidate_ids),
+    }
+    for field, value in expected.items():
+        if manifest.get(field) != value:
+            raise GoldSampleError(f"heldout prediction manifest {field} drifted")
+    prediction_contract = _mapping(
+        manifest.get("prediction_contract"),
+        label="heldout prediction manifest prediction_contract",
+    )
+    candidate_inputs = _mapping(
+        manifest.get("candidate_inputs"),
+        label="heldout prediction manifest candidate_inputs",
+    )
+    predictions = _mapping(
+        manifest.get("predictions"),
+        label="heldout prediction manifest predictions",
+    )
+    expected_identities = [
+        {
+            "news_item_id": record["news_item_id"],
+            "input_sha256": record["input_sha256"],
+            "text_sha256": record["text_sha256"],
+        }
+        for record in candidate_records
+    ]
+    if (
+        prediction_contract.get("sha256") != active_contract.sha256
+        or prediction_contract.get("freeze_receipt_sha256") != receipt_sha256
+        or candidate_inputs.get("sha256") != inputs_sha256
+        or candidate_inputs.get("count") != len(candidate_records)
+        or candidate_inputs.get("identity_sha256") != candidate_identity_sha256
+        or candidate_inputs.get("identities") != expected_identities
+        or predictions.get("sha256") != predictions_sha256
+        or predictions.get("row_count") != len(candidate_records)
+        or predictions.get("attempted_count") != len(candidate_records)
+        or predictions.get("success_count") != success_count
+        or predictions.get("failure_count") != failure_count
+    ):
+        raise GoldSampleError("heldout prediction manifest nested binding drifted")
+
+
+def _heldout_owner_record(
+    *,
+    candidate: Mapping[str, object],
+    row: NewsRow,
+    base_contract: FrozenContract,
+    sample_index: int,
+) -> JsonObject:
+    original_text = _record_string(candidate, "original_text")
+    input_sha256 = _record_string(candidate, "input_sha256")
+    text_sha256 = _record_string(candidate, "text_sha256")
+    owner_rank = _sha256_bytes(
+        (
+            "blind-owner-record-v1.1\0"
+            f"{row.news_item_id}\0{input_sha256}\0{text_sha256}"
+        ).encode()
+    )
+    record: JsonObject = {
+        "schema_version": "p4.2a-gold-annotation-item-v1",
+        "sample_version": "p4.2a-gold-v1",
+        "contract_sha256": base_contract.sha256,
+        "sample_index": sample_index,
+        "sample_group": "heldout40",
+        "trading_date": row.available_time.astimezone(SHANGHAI).date().isoformat(),
+        "stratum": {
+            "source": row.source,
+            "symbol_state": row.symbol_state,
+            "require_announcement_body": row.source == "cninfo",
+        },
+        # This opaque row-identity hash is independent of model output and
+        # selection order. The real selection rank exists only in the manifest.
+        "rank_sha256": owner_rank,
+        "news_item_id": row.news_item_id,
+        "source": row.source,
+        "url": row.url,
+        "title": row.title,
+        "ingested_symbol": row.ingested_symbol,
+        "published_at": _iso_utc(row.published_at),
+        "available_time": _iso_utc(row.available_time),
+        "original_text": original_text,
+        "body_state": _record_string(candidate, "body_state"),
+        "content_hash": row.content_hash,
+        "text_sha256": text_sha256,
+        "body_evidence": candidate["body_evidence"],
+        "annotation_status": "pending",
+        "annotation_owner": None,
+        "annotated_at": None,
+        "gold": _gold_null_template(base_contract),
+        "input_sha256": input_sha256,
+    }
+    validate_blind_record(record, base_contract)
+    return record
+
+
+def build_heldout_owner_sample(
+    design_path: Path = DEFAULT_EVALUATION_DESIGN,
+    database_path: Path | None = None,
+    *,
+    now: datetime | None = None,
+) -> JsonObject:
+    """Blind-select heldout40 from the frozen positive pool without refetching bodies."""
+
+    design = load_evaluation_design(design_path)
+    current_time = now or datetime.now(UTC)
+    require_heldout_ready(design, current_time)
+    active_contract, receipt, receipt_sha256 = load_active_prediction_contract(design)
+    inference_state, inference_state_sha256 = load_completed_one_shot_state(
+        design,
+        scope="inference",
+    )
+    inputs_path = evaluation_artifact_path(design, "heldout_candidate_inputs_jsonl")
+    prediction_path = evaluation_artifact_path(
+        design,
+        "heldout_candidate_predictions_jsonl",
+    )
+    prediction_manifest_path = evaluation_artifact_path(
+        design,
+        "heldout_candidate_predictions_manifest_json",
+    )
+    candidate_records, inputs_sha256 = _load_jsonl_with_sha256(
+        inputs_path,
+        label="heldout candidate inputs",
+    )
+    prediction_records, predictions_sha256 = _load_jsonl_with_sha256(
+        prediction_path,
+        label="heldout candidate predictions",
+    )
+    prediction_manifest, prediction_manifest_sha256 = _load_json_with_sha256(
+        prediction_manifest_path,
+        label="heldout candidate prediction manifest",
+    )
+    database = _database_path(design.base_contract, database_path)
+    with open_read_only_database(database) as connection:
+        candidate_rows = _heldout_candidate_rows(connection, design)
+        candidate_inputs = validate_heldout_candidate_inputs(
+            candidate_records,
+            rows=candidate_rows,
+            design=design,
+            active_contract=active_contract,
+        )
+        predictions_by_id, success_count, failure_count = (
+            validate_heldout_candidate_predictions(
+                prediction_records,
+                candidate_inputs=candidate_inputs,
+                active_contract=active_contract,
+            )
+        )
+    _validate_prediction_manifest(
+        prediction_manifest,
+        design=design,
+        active_contract=active_contract,
+        receipt_sha256=receipt_sha256,
+        inputs_sha256=inputs_sha256,
+        predictions_sha256=predictions_sha256,
+        candidate_records=candidate_records,
+        success_count=success_count,
+        failure_count=failure_count,
+    )
+    validate_inference_completion_bindings(
+        inference_state,
+        design=design,
+        active_contract=active_contract,
+        receipt_sha256=receipt_sha256,
+        candidate_records=candidate_records,
+        candidate_inputs_sha256=inputs_sha256,
+        prediction_manifest_sha256=prediction_manifest_sha256,
+        attempted_count=len(prediction_records),
+        success_count=success_count,
+        failure_count=failure_count,
+    )
+    splits = _mapping(design.document.get("splits"), label="splits")
+    heldout = _mapping(splits.get("heldout_40"), label="splits.heldout_40")
+    sampling = _mapping(heldout.get("sampling"), label="heldout sampling")
+    selected_predictions, selection_evidence = select_heldout_positive_predictions(
+        list(predictions_by_id.values()),
+        seed=str(sampling["deterministic_seed"]),
+        count=int(sampling["selected_count"]),
+    )
+    selected_ids = [int(record["news_item_id"]) for record in selected_predictions]
+    rows_by_id = {row.news_item_id: row for row in candidate_rows}
+    heldout_records = [
+        _heldout_owner_record(
+            candidate=candidate_inputs[news_item_id],
+            row=rows_by_id[news_item_id],
+            base_contract=design.base_contract,
+            sample_index=index,
+        )
+        for index, news_item_id in enumerate(selected_ids, start=1)
+    ]
+
+    dev_path = evaluation_artifact_path(design, "dev_60_frozen_jsonl")
+    dev_records, dev_sha256 = _load_jsonl_with_sha256(dev_path, label="frozen dev60")
+    if len(dev_records) != 60:
+        raise GoldSampleError("frozen dev60 must contain exactly 60 rows")
+    for index, record in enumerate(dev_records, start=1):
+        validate_blind_record(record, design.base_contract)
+        if record.get("sample_index") != index:
+            raise GoldSampleError("frozen dev60 order drifted")
+    forbidden = _mapping(
+        design.document.get("owner_delivery"),
+        label="owner_delivery",
+    ).get("forbidden_fields")
+    if not isinstance(forbidden, list) or any(not isinstance(item, str) for item in forbidden):
+        raise GoldSampleError("owner-delivery forbidden fields are invalid")
+    violations = owner_forbidden_field_paths(heldout_records, frozenset(forbidden))
+    if violations:
+        raise GoldSampleError(
+            f"owner annotation payload leaks model/selection fields: {violations[:3]}"
+        )
+
+    heldout_payload = _json_line_bytes(heldout_records)
+    eligible_count = sum(
+        1
+        for record in predictions_by_id.values()
+        if record.get("status") == "ok"
+        and isinstance(record.get("prediction"), Mapping)
+        and int(_mapping(record["prediction"], label="prediction")["materiality"]) >= 2
+    )
+    selection_manifest: JsonObject = {
+        "schema_version": "p4.2a-heldout-selection-manifest-v1.1",
+        "created_at_utc": inference_state["terminal_at_utc"],
+        "design": {
+            "path": str(design.path.relative_to(PROJECT_DIR)),
+            "schema_version": design.document["schema_version"],
+            "sha256": design.sha256,
+        },
+        "annotation_contract": {
+            "path": str(design.base_contract.path.relative_to(PROJECT_DIR)),
+            "sha256": design.base_contract.sha256,
+        },
+        "prediction_contract": {
+            **receipt,
+            "freeze_receipt_sha256": receipt_sha256,
+        },
+        "inference": {
+            **inference_state,
+            "state_sha256": inference_state_sha256,
+        },
+        "candidate_inputs": {
+            "path": str(inputs_path.relative_to(PROJECT_DIR)),
+            "sha256": inputs_sha256,
+            "count": len(candidate_inputs),
+            "cninfo_bodies_frozen_before_prediction": True,
+        },
+        "candidate_predictions": {
+            "path": str(prediction_path.relative_to(PROJECT_DIR)),
+            "sha256": predictions_sha256,
+            "manifest_path": str(prediction_manifest_path.relative_to(PROJECT_DIR)),
+            "manifest_sha256": prediction_manifest_sha256,
+            "attempted_count": len(predictions_by_id),
+            "success_count": success_count,
+            "failure_count": failure_count,
+        },
+        "eligible_pool": {
+            "definition": "status=ok and prediction.materiality>=2",
+            "count": eligible_count,
+            "positive_rate_denominator": "successful_predictions",
+            "positive_rate": eligible_count / success_count if success_count else None,
+        },
+        "selection": {
+            "algorithm": sampling["algorithm"],
+            "seed": sampling["deterministic_seed"],
+            "without_replacement": True,
+            "selected_count": len(heldout_records),
+            "selected": selection_evidence,
+        },
+        "owner_delivery": {
+            "predictions_visible": False,
+            "selection_basis_visible": False,
+            "forbidden_field_violation_count": 0,
+            "heldout_blind_sample_path": str(
+                evaluation_artifact_path(
+                    design,
+                    "heldout_40_blind_sample_jsonl",
+                ).relative_to(PROJECT_DIR)
+            ),
+            "heldout_blind_sample_sha256": _sha256_bytes(heldout_payload),
+            "heldout_blind_sample_count": len(heldout_records),
+            "combined_target_path": str(
+                evaluation_artifact_path(
+                    design,
+                    "combined_100_annotations_jsonl",
+                ).relative_to(PROJECT_DIR)
+            ),
+            "combined_created": False,
+            "dev60_source_sha256": dev_sha256,
+        },
+    }
+    manifest_payload = (
+        json.dumps(
+            selection_manifest,
+            ensure_ascii=False,
+            indent=2,
+            sort_keys=True,
+        ).encode("utf-8")
+        + b"\n"
+    )
+    artifact_root = _project_path(design.document["artifact_root"], label="artifact_root")
+    heldout_path = _artifact_path(
+        evaluation_artifact_path(design, "heldout_40_blind_sample_jsonl"),
+        artifact_root,
+    )
+    manifest_path = _artifact_path(
+        evaluation_artifact_path(design, "heldout_selection_manifest_json"),
+        artifact_root,
+    )
+    hashes = _write_create_only_bundle(
+        {
+            heldout_path: heldout_payload,
+            manifest_path: manifest_payload,
+        }
+    )
+    return {
+        "mode": "heldout",
+        "candidate_count": len(candidate_inputs),
+        "prediction_success_count": success_count,
+        "prediction_failure_count": failure_count,
+        "predicted_positive_pool_count": eligible_count,
+        "predicted_positive_pool_rate": (
+            eligible_count / success_count if success_count else None
+        ),
+        "selected_count": len(heldout_records),
+        "heldout_blind_sample": str(heldout_path.relative_to(PROJECT_DIR)),
+        "heldout_blind_sample_sha256": hashes[heldout_path],
+        "combined_created": False,
+        "selection_manifest": str(manifest_path.relative_to(PROJECT_DIR)),
+        "selection_manifest_sha256": hashes[manifest_path],
+        "second_cninfo_body_fetch_count": 0,
+    }
+
+
+def _validate_completed_identity_against_blind(
+    *,
+    blind_records: Sequence[JsonObject],
+    owner_records: Sequence[JsonObject],
+    label: str,
+) -> None:
+    if len(blind_records) != len(owner_records):
+        raise GoldSampleError(f"{label} owner/blind row counts differ")
+    immutable_fields = ANNOTATION_ITEM_FIELDS - ANNOTATION_MUTABLE_FIELDS
+    for blind, owner in zip(blind_records, owner_records, strict=True):
+        news_item_id = blind.get("news_item_id")
+        if owner.get("news_item_id") != news_item_id:
+            raise GoldSampleError(f"{label} owner order/ID differs from blind source")
+        for field in immutable_fields:
+            if owner.get(field) != blind.get(field):
+                raise GoldSampleError(
+                    f"{label} owner news item {news_item_id} changed frozen field {field}"
+                )
+
+
+def _combined_ordered_identity_sha256(records: Sequence[Mapping[str, object]]) -> str:
+    digest = hashlib.sha256()
+    for record in records:
+        sample_index = record.get("sample_index")
+        news_item_id = record.get("news_item_id")
+        input_sha256 = record.get("input_sha256")
+        text_sha256 = record.get("text_sha256")
+        if (
+            isinstance(sample_index, bool)
+            or not isinstance(sample_index, int)
+            or isinstance(news_item_id, bool)
+            or not isinstance(news_item_id, int)
+            or not isinstance(input_sha256, str)
+            or SHA256_PATTERN.fullmatch(input_sha256) is None
+            or not isinstance(text_sha256, str)
+            or SHA256_PATTERN.fullmatch(text_sha256) is None
+        ):
+            raise GoldSampleError("combined owner identity tuple is invalid")
+        digest.update(
+            (
+                f"{sample_index}\0{news_item_id}\0"
+                f"{input_sha256}\0{text_sha256}\n"
+            ).encode("ascii")
+        )
+    return digest.hexdigest()
+
+
+def _normalized_completed_records(records: Sequence[JsonObject]) -> list[JsonObject]:
+    normalized = copy.deepcopy(list(records))
+    for record in normalized:
+        record["annotation_status"] = "completed"
+        record["annotation_owner"] = "owner"
+    return normalized
+
+
+def _owner_completion_time(
+    records: Sequence[Mapping[str, object]],
+) -> datetime:
+    """Return a deterministic completion time from the owner-supplied labels."""
+
+    completed: list[datetime] = []
+    for record in records:
+        news_item_id = record.get("news_item_id")
+        value = record.get("annotated_at")
+        if not isinstance(value, str) or not value.strip():
+            raise GoldSampleError(
+                f"owner annotation {news_item_id} must include annotated_at"
+            )
+        try:
+            parsed = datetime.fromisoformat(value.strip().replace("Z", "+00:00"))
+        except ValueError as exc:
+            raise GoldSampleError(
+                f"owner annotation {news_item_id} has invalid annotated_at"
+            ) from exc
+        if parsed.tzinfo is None or parsed.utcoffset() is None:
+            raise GoldSampleError(
+                f"owner annotation {news_item_id} annotated_at must include a timezone"
+            )
+        completed.append(parsed.astimezone(UTC))
+    if not completed:
+        raise GoldSampleError("owner annotations are empty")
+    return max(completed)
+
+
+def combine_owner_annotations(
+    *,
+    dev_owner_export: Path,
+    heldout_owner_export: Path,
+    design_path: Path = DEFAULT_EVALUATION_DESIGN,
+    now: datetime | None = None,
+    project_root: Path = PROJECT_DIR,
+) -> JsonObject:
+    """Create canonical completed split/combined artifacts only after owner labels."""
+
+    from scripts.evaluate_p4_2a_gold import (
+        GoldEvaluationError,
+        validate_owner_annotations,
+    )
+
+    root = project_root.resolve()
+    design = load_evaluation_design(design_path)
+    dev_owner_records, _dev_export_sha256 = _load_jsonl_with_sha256(
+        dev_owner_export.resolve(),
+        label="dev60 owner export",
+    )
+    heldout_owner_records, _heldout_export_sha256 = _load_jsonl_with_sha256(
+        heldout_owner_export.resolve(),
+        label="heldout40 owner export",
+    )
+    try:
+        validate_owner_annotations(
+            dev_owner_records,
+            design.base_contract,
+            expected_count=60,
+            expected_start_index=1,
+            expected_sample_group="inventory_60",
+        )
+        validate_owner_annotations(
+            heldout_owner_records,
+            design.base_contract,
+            expected_count=40,
+            expected_start_index=1,
+            expected_sample_group="heldout40",
+        )
+    except GoldEvaluationError as exc:
+        raise GoldSampleError(f"owner completion validation failed: {exc}") from exc
+
+    dev_blind_path = evaluation_artifact_path(
+        design,
+        "dev_60_frozen_jsonl",
+        project_root=root,
+    )
+    heldout_blind_path = evaluation_artifact_path(
+        design,
+        "heldout_40_blind_sample_jsonl",
+        project_root=root,
+    )
+    selection_manifest_path = evaluation_artifact_path(
+        design,
+        "heldout_selection_manifest_json",
+        project_root=root,
+    )
+    dev_blind, dev_blind_sha256 = _load_jsonl_with_sha256(
+        dev_blind_path,
+        label="frozen dev60 blind sample",
+    )
+    heldout_blind, heldout_blind_sha256 = _load_jsonl_with_sha256(
+        heldout_blind_path,
+        label="frozen heldout40 blind sample",
+    )
+    selection_manifest, selection_manifest_sha256 = _load_json_with_sha256(
+        selection_manifest_path,
+        label="heldout selection manifest",
+    )
+    if len(dev_blind) != 60 or len(heldout_blind) != 40:
+        raise GoldSampleError("owner-completion blind split counts drifted")
+    dev_artifact = _mapping(
+        _mapping(design.document.get("artifacts"), label="artifacts").get(
+            "dev_60_frozen_jsonl"
+        ),
+        label="artifacts.dev_60_frozen_jsonl",
+    )
+    if dev_artifact.get("sha256") != dev_blind_sha256:
+        raise GoldSampleError("frozen dev60 bytes differ from the evaluation design")
+    for blind in [*dev_blind, *heldout_blind]:
+        validate_blind_record(blind, design.base_contract)
+    _validate_completed_identity_against_blind(
+        blind_records=dev_blind,
+        owner_records=dev_owner_records,
+        label="dev60",
+    )
+    _validate_completed_identity_against_blind(
+        blind_records=heldout_blind,
+        owner_records=heldout_owner_records,
+        label="heldout40",
+    )
+    selection_owner = _mapping(
+        selection_manifest.get("owner_delivery"),
+        label="selection manifest owner_delivery",
+    )
+    if (
+        _mapping(selection_manifest.get("design"), label="selection manifest design").get(
+            "sha256"
+        )
+        != design.sha256
+        or selection_owner.get("heldout_blind_sample_path")
+        != str(heldout_blind_path.relative_to(root))
+        or selection_owner.get("heldout_blind_sample_sha256") != heldout_blind_sha256
+        or selection_owner.get("heldout_blind_sample_count") != 40
+    ):
+        raise GoldSampleError("selection manifest no longer binds heldout blind sample")
+
+    normalized_dev = _normalized_completed_records(dev_owner_records)
+    normalized_heldout = _normalized_completed_records(heldout_owner_records)
+    combined_heldout = copy.deepcopy(normalized_heldout)
+    for sample_index, record in enumerate(combined_heldout, start=61):
+        record["sample_index"] = sample_index
+    combined = [*normalized_dev, *combined_heldout]
+    try:
+        validate_owner_annotations(
+            combined,
+            design.base_contract,
+            expected_count=100,
+            expected_start_index=1,
+        )
+    except GoldEvaluationError as exc:
+        raise GoldSampleError(f"combined owner validation failed: {exc}") from exc
+    owner_contract = _mapping(
+        design.document.get("owner_delivery"),
+        label="owner_delivery",
+    )
+    forbidden = owner_contract.get("forbidden_fields")
+    if not isinstance(forbidden, list) or any(not isinstance(item, str) for item in forbidden):
+        raise GoldSampleError("owner forbidden field contract is invalid")
+    violations = owner_forbidden_field_paths(combined, frozenset(forbidden))
+    if violations:
+        raise GoldSampleError(f"owner completion leaks blind-forbidden fields: {violations[:3]}")
+
+    dev_payload = _json_line_bytes(normalized_dev)
+    heldout_payload = _json_line_bytes(normalized_heldout)
+    combined_payload = _json_line_bytes(combined)
+    completion = _mapping(
+        design.document.get("owner_annotation_completion"),
+        label="owner_annotation_completion",
+    )
+    combined_contract = _mapping(
+        completion.get("combined"),
+        label="owner_annotation_completion.combined",
+    )
+    renumbering_rule = combined_contract.get("renumbering_rule")
+    if renumbering_rule != "dev_preserve_1_60_then_heldout_add_60_to_61_100":
+        raise GoldSampleError("combined owner renumbering rule drifted")
+    dev_output = evaluation_artifact_path(
+        design,
+        "dev_60_owner_annotations_jsonl",
+        project_root=root,
+    )
+    heldout_output = evaluation_artifact_path(
+        design,
+        "heldout_40_owner_annotations_jsonl",
+        project_root=root,
+    )
+    combined_output = evaluation_artifact_path(
+        design,
+        "combined_100_annotations_jsonl",
+        project_root=root,
+    )
+    completion_manifest_path = evaluation_artifact_path(
+        design,
+        "owner_completion_manifest_json",
+        project_root=root,
+    )
+    if now is not None and (now.tzinfo is None or now.utcoffset() is None):
+        raise GoldSampleError("owner completion time must include a timezone")
+    completed_at = (
+        now.astimezone(UTC)
+        if now is not None
+        else _owner_completion_time([*normalized_dev, *normalized_heldout])
+    )
+    manifest: JsonObject = {
+        "schema_version": completion["schema_version"],
+        "design_sha256": design.sha256,
+        "annotation_contract_sha256": design.base_contract.sha256,
+        "dev_blind_sample_path": str(dev_blind_path.relative_to(root)),
+        "dev_blind_sample_sha256": dev_blind_sha256,
+        "dev_owner_annotations_path": str(dev_output.relative_to(root)),
+        "dev_owner_annotations_sha256": _sha256_bytes(dev_payload),
+        "dev_owner_annotations_row_count": 60,
+        "dev_completed_count": 60,
+        "heldout_blind_sample_path": str(heldout_blind_path.relative_to(root)),
+        "heldout_blind_sample_sha256": heldout_blind_sha256,
+        "heldout_selection_manifest_path": str(
+            selection_manifest_path.relative_to(root)
+        ),
+        "heldout_selection_manifest_sha256": selection_manifest_sha256,
+        "heldout_owner_annotations_path": str(heldout_output.relative_to(root)),
+        "heldout_owner_annotations_sha256": _sha256_bytes(heldout_payload),
+        "heldout_owner_annotations_row_count": 40,
+        "heldout_completed_count": 40,
+        "combined_annotations_path": str(combined_output.relative_to(root)),
+        "combined_annotations_sha256": _sha256_bytes(combined_payload),
+        "combined_annotations_row_count": 100,
+        "combined_ordered_identity_sha256": _combined_ordered_identity_sha256(combined),
+        "combined_renumbering_rule": renumbering_rule,
+        "identity_validation_passed": True,
+        "blindness_validation_passed": True,
+        "completed_at_utc": _iso_utc(completed_at),
+    }
+    required_manifest_fields = completion.get("required_manifest_fields")
+    if (
+        not isinstance(required_manifest_fields, list)
+        or any(not isinstance(field, str) for field in required_manifest_fields)
+        or set(manifest) != set(required_manifest_fields)
+    ):
+        raise GoldSampleError("owner-completion manifest fields drifted")
+    manifest_payload = (
+        json.dumps(manifest, ensure_ascii=False, indent=2, sort_keys=True).encode("utf-8")
+        + b"\n"
+    )
+    artifact_root_value = design.document.get("artifact_root")
+    if not isinstance(artifact_root_value, str) or not artifact_root_value:
+        raise GoldSampleError("artifact_root must be a non-empty path")
+    artifact_root_relative = Path(artifact_root_value)
+    if artifact_root_relative.is_absolute() or ".." in artifact_root_relative.parts:
+        raise GoldSampleError("artifact_root escapes project root")
+    artifact_root = (root / artifact_root_relative).resolve()
+    if not artifact_root.is_relative_to(root):
+        raise GoldSampleError("artifact_root escapes project root")
+    dev_output = _artifact_path(dev_output, artifact_root)
+    heldout_output = _artifact_path(heldout_output, artifact_root)
+    combined_output = _artifact_path(combined_output, artifact_root)
+    completion_manifest_path = _artifact_path(
+        completion_manifest_path,
+        artifact_root,
+    )
+    for target in (
+        dev_output,
+        heldout_output,
+        combined_output,
+        completion_manifest_path,
+    ):
+        if target.exists() or target.is_symlink():
+            raise FileExistsError(
+                f"refusing to overwrite completed owner artifact: {target}"
+            )
+    outputs = {
+        dev_output: dev_payload,
+        heldout_output: heldout_payload,
+        combined_output: combined_payload,
+        completion_manifest_path: manifest_payload,
+    }
+    hashes = _write_create_only_bundle(outputs)
+    return {
+        "mode": "combine-owner",
+        "dev_completed_count": 60,
+        "heldout_completed_count": 40,
+        "combined_row_count": 100,
+        "dev_owner_annotations": str(dev_output.relative_to(root)),
+        "dev_owner_annotations_sha256": hashes[dev_output],
+        "heldout_owner_annotations": str(heldout_output.relative_to(root)),
+        "heldout_owner_annotations_sha256": hashes[heldout_output],
+        "combined_annotations": str(combined_output.relative_to(root)),
+        "combined_annotations_sha256": hashes[combined_output],
+        "owner_completion_manifest": str(
+            completion_manifest_path.relative_to(root)
+        ),
+        "owner_completion_manifest_sha256": hashes[completion_manifest_path],
+        "identity_validation_passed": True,
+        "blindness_validation_passed": True,
+    }
 
 
 def _artifact_paths(contract: FrozenContract) -> tuple[Path, Path, Path, Path]:
@@ -1782,13 +3804,37 @@ def _arguments(argv: Sequence[str] | None = None) -> argparse.Namespace:
             "news_items snapshot. No database write path exists."
         )
     )
-    parser.add_argument("--mode", choices=("inventory", "future"), required=True)
+    parser.add_argument(
+        "--mode",
+        choices=("inventory", "heldout", "combine-owner"),
+        required=True,
+    )
     parser.add_argument("--config", type=Path, default=DEFAULT_CONFIG)
+    parser.add_argument(
+        "--evaluation-design",
+        type=Path,
+        default=DEFAULT_EVALUATION_DESIGN,
+    )
     parser.add_argument(
         "--database",
         type=Path,
         default=None,
-        help="SQLite input override; it is still opened mode=ro + query_only (test/recovery only).",
+        help=(
+            "SQLite input override for legacy inventory only; active heldout and "
+            "combine-owner modes reject it."
+        ),
+    )
+    parser.add_argument(
+        "--dev-owner-export",
+        type=Path,
+        default=None,
+        help="Completed owner-labelled dev60 JSONL; required by combine-owner.",
+    )
+    parser.add_argument(
+        "--heldout-owner-export",
+        type=Path,
+        default=None,
+        help="Completed owner-labelled heldout40 JSONL; required by combine-owner.",
     )
     return parser.parse_args(argv)
 
@@ -1796,13 +3842,34 @@ def _arguments(argv: Sequence[str] | None = None) -> argparse.Namespace:
 def main(argv: Sequence[str] | None = None) -> int:
     arguments = _arguments(argv)
     try:
+        if (
+            arguments.mode in {"heldout", "combine-owner"}
+            and arguments.database is not None
+        ):
+            raise GoldSampleError(
+                f"--database override is forbidden for active {arguments.mode} mode"
+            )
         if arguments.mode == "inventory":
             result = build_inventory_sample(arguments.config, arguments.database)
-        else:
-            result = build_future_sample(
-                arguments.config,
+        elif arguments.mode == "heldout":
+            result = build_heldout_owner_sample(
+                arguments.evaluation_design,
                 arguments.database,
                 now=datetime.now(UTC),
+            )
+        else:
+            if (
+                arguments.dev_owner_export is None
+                or arguments.heldout_owner_export is None
+            ):
+                raise GoldSampleError(
+                    "combine-owner requires --dev-owner-export and "
+                    "--heldout-owner-export"
+                )
+            result = combine_owner_annotations(
+                dev_owner_export=arguments.dev_owner_export,
+                heldout_owner_export=arguments.heldout_owner_export,
+                design_path=arguments.evaluation_design,
             )
     except (FileExistsError, GoldSampleError, OSError, ValueError) as exc:
         print(f"P4.2a gold sample failed: {exc}", file=sys.stderr)
