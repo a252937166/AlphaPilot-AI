@@ -276,6 +276,45 @@ def test_failed_first_run_keeps_report_open_for_explicit_retry(tmp_path: Path) -
         assert connection.execute("SELECT COUNT(*) FROM news_items").fetchone() == (423,)
 
 
+def test_non_retryable_failures_can_be_frozen_without_new_llm_calls(
+    tmp_path: Path,
+) -> None:
+    contract = _contract_for_root(tmp_path)
+    _create_production_fixture(tmp_path)
+    paths = runner._artifact_paths(contract, tmp_path)
+
+    first = runner.run_offline_extract(
+        project_root=tmp_path,
+        contract=contract,
+        settings=_settings(),
+        chat_json_fn=_fake_chat(failed_ids={1}),
+    )
+    assert first.failure_count == 1
+    assert not paths.offline_report.exists()
+
+    def must_not_call(*_args: object, **_kwargs: object) -> dict[str, Any]:
+        raise AssertionError("terminal report finalization must not call the LLM")
+
+    terminal = runner.run_offline_extract(
+        project_root=tmp_path,
+        contract=contract,
+        settings=_settings(),
+        finalize_report_with_failures=True,
+        chat_json_fn=must_not_call,
+    )
+
+    assert terminal.success_count == 422
+    assert terminal.failure_count == 1
+    assert terminal.newly_attempted_count == 0
+    assert terminal.skipped_exact_success_count == 422
+    assert terminal.skipped_failure_count == 1
+    report = json.loads(paths.offline_report.read_text(encoding="utf-8"))
+    assert report["trial_outcome"] == "completed_with_failures"
+    assert report["coverage"]["failure_count"] == 1
+    assert report["isolated_llm_audit"]["current_process_llm_call_rows"] == 0
+    assert report["isolated_llm_audit"]["checkpoint_success_evidence_check"] == "422/422"
+
+
 def test_total_deadline_is_fail_closed_after_model_returns(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
