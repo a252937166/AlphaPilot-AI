@@ -37,6 +37,15 @@ def _reject_json_constant(value: str) -> None:
     raise _InvalidJSONResponse(f"non-standard JSON constant: {value}")
 
 
+def _reject_duplicate_json_keys(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+    result: dict[str, Any] = {}
+    for key, value in pairs:
+        if key in result:
+            raise _InvalidJSONResponse(f"duplicate JSON key: {key}")
+        result[key] = value
+    return result
+
+
 def _resolve_model(settings: Settings, purpose: str) -> str | None:
     overrides = getattr(settings, "llm_purpose_models", {}) or {}
     override = overrides.get(purpose) if isinstance(overrides, dict) else None
@@ -160,7 +169,11 @@ def _validated_content(payload: Any, schema: dict[str, Any]) -> dict[str, Any]:
         raise _InvalidLLMResponse("missing assistant content") from error
     if not isinstance(content, str) or not content.strip():
         raise _InvalidLLMResponse("assistant content must be a non-empty string")
-    parsed = json.loads(content, parse_constant=_reject_json_constant)
+    parsed = json.loads(
+        content,
+        parse_constant=_reject_json_constant,
+        object_pairs_hook=_reject_duplicate_json_keys,
+    )
     if not isinstance(parsed, dict):
         raise _InvalidLLMResponse("assistant JSON must be an object")
     validate(instance=parsed, schema=schema)
@@ -174,6 +187,7 @@ def chat_json(
     schema: dict[str, Any],
     *,
     timeout: float | None = None,
+    max_tokens: int | None = None,
     max_retries: int = 1,
     settings: Settings | None = None,
     session: Session | None = None,
@@ -186,6 +200,11 @@ def chat_json(
     """
     if max_retries < 0:
         raise ValueError("max_retries must be zero or greater")
+    if max_tokens is not None:
+        if isinstance(max_tokens, bool) or not isinstance(max_tokens, int):
+            raise TypeError("max_tokens must be an integer")
+        if max_tokens <= 0:
+            raise ValueError("max_tokens must be greater than zero")
     purpose = purpose.strip()
     if not purpose:
         raise ValueError("purpose must not be blank")
@@ -222,7 +241,7 @@ def chat_json(
         "只返回一个严格符合以下 JSON Schema 的 JSON 对象，不得增加解释或 Markdown：\n"
         f"{schema_json}"
     )
-    request_payload = {
+    request_payload: dict[str, Any] = {
         "model": model,
         "messages": [
             {"role": "system", "content": structured_system},
@@ -233,6 +252,8 @@ def chat_json(
         # Qwen3 thinking mode adds unpredictable latency and must stay disabled.
         "enable_thinking": False,
     }
+    if max_tokens is not None:
+        request_payload["max_tokens"] = max_tokens
     headers = {
         "Authorization": f"Bearer {api_key}",
         "Content-Type": "application/json",
