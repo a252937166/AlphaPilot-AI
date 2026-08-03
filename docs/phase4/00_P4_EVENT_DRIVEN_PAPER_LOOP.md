@@ -196,6 +196,41 @@ P4.2 继续锁定，等待独立复核。
 - 尚欠 8/4、8/5 自然新增的 40 条（硬时间门 8/6 00:10 CST）及 owner 完整盲标；两项
   金标准指标尚未运行。故 **P4.2a 不标 done，P4.2b 继续冻结**。
 
+#### 评测设计修订 v1.1（2026-08-03，独立复核提出；标注开始前、零结果状态下记录）
+
+复核在 60 条冻结样本上实测到两处会使评测门失效的设计缺陷，按 owner 既有授权修订。
+**两项阈值（precision ≥ 0.80、symbol 准确率 ≥ 0.95）一字未改，本次修订只加严、不放水。**
+
+1. **precision 分母过小 → 剩余 40 条改为从预测正类抽样**。实测 60 条中仅 14 条被模型判为
+   `materiality>=2`，凑满 100 条约 23 条；n=23 时 precision 的 95% 置信区间约 ±0.16，
+   "测得 0.80"无法与真值 0.65 区分，门形同虚设。故 8/4–8/5 的 40 条改为**从该批次中模型
+   预测 `materiality>=2` 的条目内随机抽取**（IE 评测标准做法：估计 precision 应从预测正类
+   抽样），使分母升至约 55。owner 仍全程盲标、看不到任何预测值，抽样依据不写入交付给
+   owner 的标注文件。60 条按来源分层不变，继续提供无偏的整体分布与漏报（false negative）信号。
+2. **同一批样本反复调 prompt = 过拟合评测集 → 改为 dev/test 划分**。原合同允许"不达标就改
+   prompt 再评"，若始终在同一 100 条上迭代，通过阈值只反映记忆而非泛化。故：
+   **60 条现库存 = dev 集**（prompt 迭代仅可依据此集）；**40 条交易日样本 = held-out 测试集**，
+   仅在 prompt 冻结后运行**一次**，`materiality>=2` 的 precision 门在此集判定；
+   symbol 准确率在全部 100 条上判定并分别报告 dev/test 两组数字。测试集一经评测即失效，
+   如需二次评测必须新抽样本并登记。
+
+**执行顺序修订**：owner 对 60 条 dev 集的盲标即刻开始（不再等 8/6）；40 条测试集于
+8/6 00:10 CST 后按上述抽样规则冻结并盲标。
+
+#### 复核发现（非阻断，须在 P4.2b 处置）
+
+- **`post_validation_failed` 缺安全错误码**：16/423（3.8%）如实失败但未记录失败字段与约束
+  （`exception_detail_persisted=false`），无法定位根因。失败项 13/17 来自同花顺、标题与
+  长度均无异常，指向模型输出的 schema 符合性而非输入病理。P4.2b 须在不持久化原始 payload
+  的前提下补结构化安全错误码（违规字段名 + 约束类型），否则生产将静默丢失约 4% 资讯。
+- **触发量预警**：预测 `materiality>=2` 占 81/406 = **20.0%**；其中 `event_type != other`
+  且带 `symbols` 的为 42 条。按当前日均资讯量推算，P4.3/P4.4 每日约 40–80 次"重磅"触发，
+  若 precision 偏低即为噪声洪水。评测报告须显式列出该比例；P4.3 触发条件可据评测结果
+  收紧为 `materiality>=2 AND symbols 非空 AND event_type != other`（如需收紧，按 policy
+  新版本登记）。
+- **gold ∩ 失败集 = {news_item_id 190}**：该条无模型预测，评测时计入召回分母、不计入
+  precision 分母，须在报告中显式披露。
+
 - 事件 taxonomy v1（版本化常量）：`earnings_preannounce / major_contract / buyback_or_holder_change /
   regulatory_action / halt_resume / ma_restructure / policy_sector / dividend / other`。
 - 每条新闻 → 严格 JSON（走 `src/alphapilot/llm` 现有层，purpose model 配置）：
