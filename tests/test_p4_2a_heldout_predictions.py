@@ -249,6 +249,212 @@ def _v16_fixture_root(tmp_path: Path) -> EventEvaluationDesign:
     return design
 
 
+def _v17_fixture_root(tmp_path: Path) -> EventEvaluationDesign:
+    design = load_event_evaluation_design(
+        runner.PROJECT_ROOT / "config/p4_event_evaluation_v1_6.yaml",
+        project_root=runner.PROJECT_ROOT,
+    )
+    _copy_contract_files(tmp_path, design)
+    prediction_contract = design.prediction_contract
+    _copy_project_file(
+        tmp_path,
+        prediction_contract.path.relative_to(runner.PROJECT_ROOT).as_posix(),
+    )
+    contract_files = cast(
+        dict[str, dict[str, str]],
+        prediction_contract.document["contract_files"],
+    )
+    for name in ("prompt", "schema", "materialized_schema"):
+        _copy_project_file(tmp_path, contract_files[name]["path"])
+    incumbent = cast(
+        dict[str, dict[str, str]],
+        design.document["model_selection"]["incumbent"],
+    )
+    _copy_project_file(tmp_path, incumbent["freeze_receipt"]["path"])
+    _create_dev_only_database(tmp_path)
+    return design
+
+
+def _write_v17_selection_outcome(
+    root: Path,
+    design: EventEvaluationDesign,
+    *,
+    decision: str,
+) -> tuple[Path, Path, Path]:
+    _copy_project_file(root, "config/p4_event_evaluation_v1_6.yaml")
+    selection = cast(dict[str, Any], design.document["model_selection"])
+    incumbent = cast(dict[str, dict[str, str]], selection["incumbent"])
+    for name in (
+        "design",
+        "contract",
+        "dev_predictions",
+        "dev_manifest",
+        "dev_report",
+        "dev_final_predictions",
+        "dev_final_manifest",
+        "freeze_receipt",
+    ):
+        _copy_project_file(root, incumbent[name]["path"])
+
+    formal: dict[str, dict[str, str]] = {}
+    for name, suffix in (
+        ("predictions", ".predictions.jsonl"),
+        ("manifest", ".manifest.json"),
+        ("report", ".report.json"),
+    ):
+        path = (
+            root
+            / f"docs/phase4/eval/dev-iterations/P4.2a-dev60-v1.7-r1{suffix}"
+        )
+        path.parent.mkdir(parents=True, exist_ok=True)
+        if name == "manifest":
+            path.write_bytes(
+                _canonical_json({"completed_at_utc": "2026-08-05T14:59:00Z"})
+            )
+        elif name == "report":
+            path.write_bytes(_canonical_json({"fixture": True}))
+        else:
+            path.write_bytes(b'{"fixture":true}\n')
+        formal[name] = {
+            "path": path.relative_to(root).as_posix(),
+            "sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
+        }
+
+    candidate_receipt = _artifact(
+        root,
+        design,
+        "prediction_contract_freeze_receipt_json",
+    )
+    candidate_receipt.parent.mkdir(parents=True, exist_ok=True)
+    candidate_receipt.write_bytes(b"candidate-freeze-fixture\n")
+    candidate_receipt_sha256 = hashlib.sha256(candidate_receipt.read_bytes()).hexdigest()
+    incumbent_receipt = root / incumbent["freeze_receipt"]["path"]
+    all_passed = decision == "select_candidate"
+    candidate_freeze: dict[str, Any] = {
+        "path": candidate_receipt.relative_to(root).as_posix(),
+        "sha256": candidate_receipt_sha256 if all_passed else None,
+        "created": all_passed,
+        "validated": all_passed,
+    }
+    selected_contract = (
+        cast(dict[str, str], selection["candidate"]["contract"])
+        if all_passed
+        else incumbent["contract"]
+    )
+    selected_receipt = (
+        {
+            "path": candidate_receipt.relative_to(root).as_posix(),
+            "sha256": candidate_receipt_sha256,
+        }
+        if all_passed
+        else incumbent["freeze_receipt"]
+    )
+    tp, fp = (16, 2) if all_passed else (5, 5)
+    materiality = {
+        "formula": "tp_divided_by_tp_plus_fp",
+        "tp": tp,
+        "fp": fp,
+        "fn": 1,
+        "tn": 41 if all_passed else 49,
+        "predicted_positive_count": tp + fp,
+        "agreement": tp / (tp + fp),
+    }
+    symbol = {
+        "matches": 59,
+        "denominator": 60,
+        "agreement": 59 / 60,
+    }
+    candidate_metrics = {
+        "success_count": 60,
+        "failure_count": 0,
+        "failed_reference_positive_count": 0,
+        "materiality_positive": materiality,
+        "symbol_exact_set": symbol,
+    }
+    outcome = {
+        "schema_version": "p4.2a-model-selection-outcome-v1",
+        "official_round_id": selection["official_round_id"],
+        "recorded_at_utc": "2026-08-05T15:00:00Z",
+        "deadline_utc": selection["deadline_utc"],
+        "decision": decision,
+        "selected_model": "qwen3.7-flash" if all_passed else "qwen3.6-plus",
+        "design": {
+            "path": "config/p4_event_evaluation_v1_6.yaml",
+            "sha256": design.sha256,
+        },
+        "candidate": {
+            "model": "qwen3.7-flash",
+            "contract": selection["candidate"]["contract"],
+            "formal_round": formal,
+            "input_identity": {},
+            "metrics": candidate_metrics,
+            "runtime_evidence": {},
+            "cost": {},
+            "freeze_receipt": candidate_freeze,
+        },
+        "incumbent": {
+            "model": "qwen3.6-plus",
+            **incumbent,
+            "input_identity": {},
+            "metrics": {},
+            "runtime_evidence": {},
+            "cost": {},
+        },
+        "gates": {
+            "within_deadline": {
+                "passed": True,
+                "deadline_utc": selection["deadline_utc"],
+            },
+            "coverage": {
+                "passed": True,
+                "required_success_count": 60,
+                "required_failure_count": 0,
+                "actual_success_count": 60,
+                "actual_failure_count": 0,
+            },
+            "materiality_positive": {
+                "passed": all_passed,
+                "formula": "tp_divided_by_tp_plus_fp",
+                "minimum": 0.8,
+                "zero_predicted_positive_policy": "fail",
+                "actual": materiality,
+            },
+            "symbol_exact_set": {
+                "passed": True,
+                "formula": "exact_set_match_accuracy",
+                "minimum": 0.95,
+                "actual": symbol,
+            },
+            "all_passed": all_passed,
+        },
+        "per_item": [{"news_item_id": value} for value in range(60)],
+        "candidate_vs_incumbent": {},
+        "cost_comparison": {},
+        "selected_contract": selected_contract,
+        "selected_freeze_receipt": selected_receipt,
+        "operational_completion": {
+            "status": (
+                "candidate_frozen"
+                if all_passed
+                else "candidate_not_frozen_absolute_gates_failed"
+            ),
+            "error_code": None,
+            "model_calls_retried": 0,
+            "selected_incumbent_fail_closed": not all_passed,
+        },
+        "heldout_accessed": False,
+        "production_writes": 0,
+        "third_model_run": False,
+    }
+    outcome_path = _artifact(
+        root,
+        design,
+        "model_selection_outcome_receipt_json",
+    )
+    outcome_path.write_bytes(_canonical_json(outcome))
+    return outcome_path, candidate_receipt, incumbent_receipt
+
+
 def _pdf_fetcher(url: str, contract: AnnouncementBodyPolicy) -> bytes:
     assert url.startswith("https://static.cninfo.com.cn/")
     assert contract.tls_verify is True
@@ -1065,6 +1271,338 @@ def test_dev_final_global_seal_uses_authoritative_v1_1_owner_label_path(
         match=r"heldout_40_owner_annotations_jsonl@v1\.1",
     ):
         runner._ensure_dev_final_precedes_heldout(design, tmp_path)
+
+
+def test_v17_model_selection_preparation_preserves_exact_incumbent_receipt(
+    tmp_path: Path,
+) -> None:
+    design = _v17_fixture_root(tmp_path)
+    incumbent = cast(
+        dict[str, dict[str, str]],
+        design.document["model_selection"]["incumbent"],
+    )
+    receipt = tmp_path / incumbent["freeze_receipt"]["path"]
+
+    runner._ensure_v1_7_model_selection_preparation_is_safe(design, tmp_path)
+    runner._ensure_dev_final_precedes_heldout(design, tmp_path)
+
+    assert receipt.is_file()
+    assert hashlib.sha256(receipt.read_bytes()).hexdigest() == (
+        incumbent["freeze_receipt"]["sha256"]
+    )
+
+
+def test_v17_model_selection_preparation_rejects_incumbent_receipt_drift(
+    tmp_path: Path,
+) -> None:
+    design = _v17_fixture_root(tmp_path)
+    incumbent = cast(
+        dict[str, dict[str, str]],
+        design.document["model_selection"]["incumbent"],
+    )
+    receipt = tmp_path / incumbent["freeze_receipt"]["path"]
+    receipt.write_bytes(receipt.read_bytes() + b"\n")
+
+    with pytest.raises(
+        runner.HeldoutPredictionError,
+        match="incumbent prediction freeze receipt drifted",
+    ):
+        runner._ensure_dev_final_precedes_heldout(design, tmp_path)
+
+
+def test_v17_model_selection_preparation_rejects_any_true_heldout_artifact(
+    tmp_path: Path,
+) -> None:
+    design = _v17_fixture_root(tmp_path)
+    heldout = _artifact(tmp_path, design, "heldout_candidate_inputs_jsonl")
+    heldout.parent.mkdir(parents=True, exist_ok=True)
+    heldout.write_text("{}\n", encoding="utf-8")
+
+    with pytest.raises(
+        runner.HeldoutPredictionError,
+        match="locked after heldout artifact creation",
+    ):
+        runner._ensure_dev_final_precedes_heldout(design, tmp_path)
+
+
+def test_v17_model_selection_preparation_rejects_second_freeze_receipt(
+    tmp_path: Path,
+) -> None:
+    design = _v17_fixture_root(tmp_path)
+    candidate_receipt = _artifact(
+        tmp_path,
+        design,
+        "prediction_contract_freeze_receipt_json",
+    )
+    candidate_receipt.parent.mkdir(parents=True, exist_ok=True)
+    candidate_receipt.write_text("{}\n", encoding="utf-8")
+
+    with pytest.raises(
+        runner.HeldoutPredictionError,
+        match="permits only the exact incumbent freeze receipt",
+    ):
+        runner._ensure_dev_final_precedes_heldout(design, tmp_path)
+
+
+def test_historical_dev_seal_still_rejects_incumbent_freeze_receipt(
+    tmp_path: Path,
+) -> None:
+    design = _v16_fixture_root(tmp_path)
+    incumbent = _artifact(
+        tmp_path,
+        design,
+        "prediction_contract_freeze_receipt_json",
+    )
+    incumbent.parent.mkdir(parents=True, exist_ok=True)
+    incumbent.write_text("{}\n", encoding="utf-8")
+
+    with pytest.raises(
+        runner.HeldoutPredictionError,
+        match=r"prediction_contract_freeze_receipt_json@v1\.5",
+    ):
+        runner._ensure_dev_final_precedes_heldout(design, tmp_path)
+
+
+def test_v17_candidate_heldout_requires_final_selection_outcome(
+    tmp_path: Path,
+) -> None:
+    design = _v17_fixture_root(tmp_path)
+    calls: list[int] = []
+
+    with pytest.raises(
+        runner.HeldoutPredictionError,
+        match="locked until model selection is finalized",
+    ):
+        runner.run_heldout_predictions(
+            project_root=tmp_path,
+            design=design,
+            settings=_settings().model_copy(update={"llm_model": "qwen3.7-flash"}),
+            now=READY,
+            chat_json_fn=_fake_chat(calls),
+        )
+
+    assert calls == []
+
+
+def test_v17_candidate_outcome_makes_only_candidate_receipt_effective(
+    tmp_path: Path,
+) -> None:
+    candidate_design = _v17_fixture_root(tmp_path)
+    _, candidate_receipt, incumbent_receipt = _write_v17_selection_outcome(
+        tmp_path,
+        candidate_design,
+        decision="select_candidate",
+    )
+    candidate_sha256 = hashlib.sha256(candidate_receipt.read_bytes()).hexdigest()
+    incumbent_sha256 = hashlib.sha256(incumbent_receipt.read_bytes()).hexdigest()
+
+    outcome = runner._validate_model_selection_outcome_binding(
+        candidate_design,
+        tmp_path,
+        receipt_path=candidate_receipt,
+        receipt_sha256=candidate_sha256,
+    )
+    assert outcome is not None
+    assert outcome["decision"] == "select_candidate"
+
+    incumbent_design = load_event_evaluation_design(
+        runner.EVALUATION_DESIGN_V1_5_PATH,
+        project_root=runner.PROJECT_ROOT,
+    )
+    with pytest.raises(
+        runner.HeldoutPredictionError,
+        match="candidate selection outcome binding drifted",
+    ):
+        runner._validate_model_selection_outcome_binding(
+            incumbent_design,
+            tmp_path,
+            receipt_path=incumbent_receipt,
+            receipt_sha256=incumbent_sha256,
+        )
+
+
+def test_v17_retain_outcome_makes_only_incumbent_receipt_effective(
+    tmp_path: Path,
+) -> None:
+    candidate_design = _v17_fixture_root(tmp_path)
+    _, candidate_receipt, incumbent_receipt = _write_v17_selection_outcome(
+        tmp_path,
+        candidate_design,
+        decision="retain_incumbent",
+    )
+    candidate_sha256 = hashlib.sha256(candidate_receipt.read_bytes()).hexdigest()
+    incumbent_sha256 = hashlib.sha256(incumbent_receipt.read_bytes()).hexdigest()
+    incumbent_design = load_event_evaluation_design(
+        runner.EVALUATION_DESIGN_V1_5_PATH,
+        project_root=runner.PROJECT_ROOT,
+    )
+
+    outcome = runner._validate_model_selection_outcome_binding(
+        incumbent_design,
+        tmp_path,
+        receipt_path=incumbent_receipt,
+        receipt_sha256=incumbent_sha256,
+    )
+    assert outcome is not None
+    assert outcome["decision"] == "retain_incumbent"
+
+    with pytest.raises(
+        runner.HeldoutPredictionError,
+        match="incumbent retention outcome binding drifted",
+    ):
+        runner._validate_model_selection_outcome_binding(
+            candidate_design,
+            tmp_path,
+            receipt_path=candidate_receipt,
+            receipt_sha256=candidate_sha256,
+        )
+
+
+def test_v17_selection_outcome_rehashes_official_formal_artifacts(
+    tmp_path: Path,
+) -> None:
+    design = _v17_fixture_root(tmp_path)
+    _, candidate_receipt, _ = _write_v17_selection_outcome(
+        tmp_path,
+        design,
+        decision="select_candidate",
+    )
+    formal_report = (
+        tmp_path
+        / "docs/phase4/eval/dev-iterations/P4.2a-dev60-v1.7-r1.report.json"
+    )
+    formal_report.write_bytes(formal_report.read_bytes() + b"drift")
+
+    with pytest.raises(
+        runner.HeldoutPredictionError,
+        match="candidate formal report bytes drifted",
+    ):
+        runner._validate_model_selection_outcome_binding(
+            design,
+            tmp_path,
+            receipt_path=candidate_receipt,
+            receipt_sha256=hashlib.sha256(candidate_receipt.read_bytes()).hexdigest(),
+        )
+
+
+@pytest.mark.parametrize(
+    ("target", "expected_error"),
+    [
+        ("recorded_at", "candidate selection outcome binding drifted"),
+        ("formal_completed_at", "candidate selection outcome binding drifted"),
+    ],
+)
+def test_v17_candidate_selection_requires_completion_before_deadline(
+    tmp_path: Path,
+    target: str,
+    expected_error: str,
+) -> None:
+    design = _v17_fixture_root(tmp_path)
+    outcome_path, candidate_receipt, _ = _write_v17_selection_outcome(
+        tmp_path,
+        design,
+        decision="select_candidate",
+    )
+    if target == "recorded_at":
+        outcome = json.loads(outcome_path.read_text(encoding="utf-8"))
+        outcome["recorded_at_utc"] = "2026-08-05T16:10:00Z"
+        outcome_path.write_bytes(_canonical_json(outcome))
+    else:
+        formal_manifest = (
+            tmp_path
+            / "docs/phase4/eval/dev-iterations/P4.2a-dev60-v1.7-r1.manifest.json"
+        )
+        formal_manifest.write_bytes(
+            _canonical_json({"completed_at_utc": "2026-08-05T16:10:00Z"})
+        )
+        outcome = json.loads(outcome_path.read_text(encoding="utf-8"))
+        outcome["candidate"]["formal_round"]["manifest"]["sha256"] = hashlib.sha256(
+            formal_manifest.read_bytes()
+        ).hexdigest()
+        outcome_path.write_bytes(_canonical_json(outcome))
+
+    with pytest.raises(runner.HeldoutPredictionError, match=expected_error):
+        runner._validate_model_selection_outcome_binding(
+            design,
+            tmp_path,
+            receipt_path=candidate_receipt,
+            receipt_sha256=hashlib.sha256(candidate_receipt.read_bytes()).hexdigest(),
+        )
+
+
+def test_v17_selection_recomputes_registered_gate_evidence(
+    tmp_path: Path,
+) -> None:
+    design = _v17_fixture_root(tmp_path)
+    outcome_path, candidate_receipt, _ = _write_v17_selection_outcome(
+        tmp_path,
+        design,
+        decision="select_candidate",
+    )
+    outcome = json.loads(outcome_path.read_text(encoding="utf-8"))
+    outcome["gates"]["materiality_positive"]["minimum"] = 0.79
+    outcome_path.write_bytes(_canonical_json(outcome))
+
+    with pytest.raises(
+        runner.HeldoutPredictionError,
+        match="selection gate evidence drifted",
+    ):
+        runner._validate_model_selection_outcome_binding(
+            design,
+            tmp_path,
+            receipt_path=candidate_receipt,
+            receipt_sha256=hashlib.sha256(candidate_receipt.read_bytes()).hexdigest(),
+        )
+
+
+def test_v17_retain_after_unvalidated_candidate_receipt_locks_heldout(
+    tmp_path: Path,
+) -> None:
+    design = _v17_fixture_root(tmp_path)
+    outcome_path, _, incumbent_receipt = _write_v17_selection_outcome(
+        tmp_path,
+        design,
+        decision="retain_incumbent",
+    )
+    outcome = json.loads(outcome_path.read_text(encoding="utf-8"))
+    outcome["gates"]["materiality_positive"]["passed"] = True
+    outcome["gates"]["all_passed"] = True
+    outcome["candidate"]["metrics"]["materiality_positive"] = {
+        "formula": "tp_divided_by_tp_plus_fp",
+        "tp": 16,
+        "fp": 2,
+        "fn": 1,
+        "tn": 41,
+        "predicted_positive_count": 18,
+        "agreement": 16 / 18,
+    }
+    outcome["gates"]["materiality_positive"]["actual"] = outcome["candidate"][
+        "metrics"
+    ]["materiality_positive"]
+    outcome["candidate"]["freeze_receipt"]["created"] = True
+    outcome["candidate"]["freeze_receipt"]["validated"] = False
+    outcome["candidate"]["freeze_receipt"]["sha256"] = "1" * 64
+    outcome["operational_completion"] = {
+        "status": "blocked_candidate_freeze_failed",
+        "error_code": "authoritative dev-final freeze validation failed",
+        "model_calls_retried": 0,
+        "selected_incumbent_fail_closed": True,
+    }
+    outcome_path.write_bytes(_canonical_json(outcome))
+
+    with pytest.raises(
+        runner.HeldoutPredictionError,
+        match="incumbent retention outcome binding drifted",
+    ):
+        runner._validate_model_selection_outcome_binding(
+            load_event_evaluation_design(
+                runner.EVALUATION_DESIGN_V1_5_PATH,
+                project_root=runner.PROJECT_ROOT,
+            ),
+            tmp_path,
+            receipt_path=incumbent_receipt,
+            receipt_sha256=hashlib.sha256(incumbent_receipt.read_bytes()).hexdigest(),
+        )
 
 
 def test_time_gate_rejects_before_any_candidate_or_model_access(tmp_path: Path) -> None:

@@ -5,6 +5,7 @@ import copy
 import fcntl
 import hashlib
 import json
+import math
 import os
 import re
 import sqlite3
@@ -61,6 +62,7 @@ from alphapilot.llm.p4_news_eval import (
     EVALUATION_DESIGN_V1_3_PATH,
     EVALUATION_DESIGN_V1_4_PATH,
     EVALUATION_DESIGN_V1_5_PATH,
+    EVALUATION_DESIGN_V1_6_PATH,
     LEGACY_EVALUATION_DESIGN_PATH,
     EventEvaluationDesign,
     EventEvaluationDesignError,
@@ -1177,7 +1179,14 @@ def validate_prediction_contract_freeze(
         )
     except GoldSampleError as exc:
         raise HeldoutPredictionError("authoritative dev-final freeze validation failed") from exc
-    return receipt, _sha256_file(path), active_contract
+    receipt_sha256 = _sha256_file(path)
+    _validate_model_selection_outcome_binding(
+        design,
+        project_root,
+        receipt_path=path,
+        receipt_sha256=receipt_sha256,
+    )
+    return receipt, receipt_sha256, active_contract
 
 
 def _dev_final_inputs(
@@ -1325,6 +1334,10 @@ def _ensure_dev_final_precedes_heldout(
     design: EventEvaluationDesign,
     project_root: Path,
 ) -> None:
+    if design.document.get("schema_version") == "p4.2a-evaluation-design-v1.6":
+        _ensure_v1_7_model_selection_preparation_is_safe(design, project_root)
+        return
+
     names = (
         "prediction_contract_freeze_receipt_json",
         "heldout_candidate_inputs_jsonl",
@@ -1346,6 +1359,7 @@ def _ensure_dev_final_precedes_heldout(
         EVALUATION_DESIGN_V1_3_PATH,
         EVALUATION_DESIGN_V1_4_PATH,
         EVALUATION_DESIGN_V1_5_PATH,
+        EVALUATION_DESIGN_V1_6_PATH,
     ):
         # Load the immutable registry from the canonical project so a sparse
         # fixture cannot silently remove an older namespace. Artifact
@@ -1371,6 +1385,608 @@ def _ensure_dev_final_precedes_heldout(
             raise HeldoutPredictionError(
                 f"dev-final mode is locked after heldout artifact creation: {name}"
             )
+
+
+def _ensure_v1_7_model_selection_preparation_is_safe(
+    design: EventEvaluationDesign,
+    project_root: Path,
+) -> None:
+    """Admit v1.7 dev work without weakening the historical held-out seal."""
+
+    if design.document.get("schema_version") != "p4.2a-evaluation-design-v1.6":
+        raise HeldoutPredictionError(
+            "v1.7 model-selection preparation requires evaluation design v1.6"
+        )
+    model_selection = _mapping(
+        design.document.get("model_selection"),
+        "model_selection",
+    )
+    incumbent = _mapping(model_selection.get("incumbent"), "model_selection.incumbent")
+    incumbent_receipt = _mapping(
+        incumbent.get("freeze_receipt"),
+        "model_selection.incumbent.freeze_receipt",
+    )
+    incumbent_path = _project_file(
+        project_root,
+        incumbent_receipt.get("path"),
+        "incumbent prediction freeze receipt",
+    )
+    incumbent_sha256 = incumbent_receipt.get("sha256")
+    if (
+        not _valid_sha256(incumbent_sha256)
+        or _sha256_file(incumbent_path) != incumbent_sha256
+    ):
+        raise HeldoutPredictionError("incumbent prediction freeze receipt drifted")
+
+    outcome_artifact = model_selection.get("outcome_receipt_artifact")
+    if not isinstance(outcome_artifact, str) or not outcome_artifact:
+        raise HeldoutPredictionError("model-selection outcome artifact is invalid")
+    outcome_path = _artifact_path(design, project_root, outcome_artifact)
+    if outcome_path.exists() or outcome_path.is_symlink():
+        raise HeldoutPredictionError("v1.7 model selection is already finalized")
+
+    true_heldout_names = (
+        "heldout_candidate_inputs_jsonl",
+        "heldout_candidate_predictions_jsonl",
+        "heldout_candidate_predictions_manifest_json",
+        "heldout_inference_state_jsonl",
+        "heldout_selection_manifest_json",
+        "heldout_40_blind_sample_jsonl",
+        "heldout_evaluation_state_jsonl",
+        "heldout_40_owner_annotations_jsonl",
+        "combined_100_annotations_jsonl",
+        "owner_completion_manifest_json",
+    )
+    supported_designs = [design]
+    for design_path in (
+        LEGACY_EVALUATION_DESIGN_PATH,
+        EVALUATION_DESIGN_V1_2_PATH,
+        EVALUATION_DESIGN_V1_3_PATH,
+        EVALUATION_DESIGN_V1_4_PATH,
+        EVALUATION_DESIGN_V1_5_PATH,
+        EVALUATION_DESIGN_V1_6_PATH,
+    ):
+        historical = load_event_evaluation_design(
+            design_path,
+            project_root=PROJECT_ROOT,
+        )
+        if historical.sha256 != design.sha256:
+            supported_designs.append(historical)
+
+    seen_paths: set[Path] = set()
+    for supported in supported_designs:
+        artifacts = _mapping(supported.document.get("artifacts"), "artifacts")
+        version = str(supported.document.get("schema_version", "unknown")).removeprefix(
+            "p4.2a-evaluation-design-"
+        )
+        for name in true_heldout_names:
+            if name not in artifacts:
+                continue
+            path = _artifact_path(supported, project_root, name)
+            if path in seen_paths:
+                continue
+            seen_paths.add(path)
+            if path.exists() or path.is_symlink():
+                raise HeldoutPredictionError(
+                    "v1.7 model-selection preparation is locked after heldout "
+                    f"artifact creation: {name}@{version}"
+                )
+
+        if "prediction_contract_freeze_receipt_json" not in artifacts:
+            continue
+        receipt_path = _artifact_path(
+            supported,
+            project_root,
+            "prediction_contract_freeze_receipt_json",
+        )
+        if receipt_path == incumbent_path:
+            continue
+        if receipt_path.exists() or receipt_path.is_symlink():
+            raise HeldoutPredictionError(
+                "v1.7 model-selection preparation permits only the exact "
+                f"incumbent freeze receipt; found receipt@{version}"
+            )
+
+
+def _v1_7_selection_design(
+    design: EventEvaluationDesign,
+) -> EventEvaluationDesign:
+    if design.document.get("schema_version") == "p4.2a-evaluation-design-v1.6":
+        return design
+    return load_event_evaluation_design(
+        EVALUATION_DESIGN_V1_6_PATH,
+        project_root=PROJECT_ROOT,
+    )
+
+
+def _model_selection_outcome_path(
+    design: EventEvaluationDesign,
+    project_root: Path,
+) -> Path:
+    selection_design = _v1_7_selection_design(design)
+    selection = _mapping(
+        selection_design.document.get("model_selection"),
+        "model_selection",
+    )
+    artifact_name = selection.get("outcome_receipt_artifact")
+    if not isinstance(artifact_name, str) or not artifact_name:
+        raise HeldoutPredictionError("model-selection outcome artifact is invalid")
+    return _artifact_path(selection_design, project_root, artifact_name)
+
+
+def _selection_identity(
+    value: object,
+    name: str,
+    *,
+    expected: Mapping[str, Any],
+    project_root: Path,
+) -> JsonObject:
+    identity = _mapping(value, name)
+    if set(identity) != {"path", "sha256"} or dict(identity) != dict(expected):
+        raise HeldoutPredictionError(f"{name} identity drifted")
+    path = _project_file(project_root, identity.get("path"), name)
+    if (
+        not _valid_sha256(identity.get("sha256"))
+        or _sha256_file(path) != identity.get("sha256")
+    ):
+        raise HeldoutPredictionError(f"{name} bytes drifted")
+    return dict(identity)
+
+
+def _formal_selection_identity(
+    value: object,
+    name: str,
+    *,
+    expected_path: str,
+    project_root: Path,
+) -> JsonObject:
+    identity = _mapping(value, name)
+    if set(identity) != {"path", "sha256"} or identity.get("path") != expected_path:
+        raise HeldoutPredictionError(f"{name} identity drifted")
+    path = _project_file(project_root, identity.get("path"), name)
+    if (
+        not _valid_sha256(identity.get("sha256"))
+        or _sha256_file(path) != identity.get("sha256")
+    ):
+        raise HeldoutPredictionError(f"{name} bytes drifted")
+    return dict(identity)
+
+
+def _validate_model_selection_outcome_binding(
+    design: EventEvaluationDesign,
+    project_root: Path,
+    *,
+    receipt_path: Path,
+    receipt_sha256: str,
+) -> JsonObject | None:
+    """Bind an extant v1.7 outcome to exactly one held-out freeze receipt."""
+
+    selection_design = _v1_7_selection_design(design)
+    outcome_path = _model_selection_outcome_path(selection_design, project_root)
+    if not outcome_path.exists() and not outcome_path.is_symlink():
+        return None
+    outcome = _load_json(outcome_path, "v1.7 model-selection outcome")
+    expected_keys = {
+        "schema_version",
+        "official_round_id",
+        "recorded_at_utc",
+        "deadline_utc",
+        "decision",
+        "selected_model",
+        "design",
+        "candidate",
+        "incumbent",
+        "gates",
+        "per_item",
+        "candidate_vs_incumbent",
+        "cost_comparison",
+        "selected_contract",
+        "selected_freeze_receipt",
+        "operational_completion",
+        "heldout_accessed",
+        "production_writes",
+        "third_model_run",
+    }
+    if set(outcome) != expected_keys:
+        raise HeldoutPredictionError("v1.7 model-selection outcome fields drifted")
+
+    selection = _mapping(
+        selection_design.document.get("model_selection"),
+        "model_selection",
+    )
+    official_round = selection.get("official_round_id")
+    deadline = selection.get("deadline_utc")
+    if (
+        outcome.get("schema_version") != "p4.2a-model-selection-outcome-v1"
+        or outcome.get("official_round_id") != official_round
+        or outcome.get("deadline_utc") != deadline
+        or outcome.get("heldout_accessed") is not False
+        or outcome.get("production_writes") != 0
+        or outcome.get("third_model_run") is not False
+    ):
+        raise HeldoutPredictionError("v1.7 model-selection outcome policy drifted")
+    recorded_at = _parse_timestamp(
+        outcome.get("recorded_at_utc"),
+        "model-selection recorded_at_utc",
+    )
+    deadline_at = _parse_timestamp(deadline, "model-selection deadline_utc")
+
+    candidate_registration = _mapping(
+        selection.get("candidate"),
+        "model_selection.candidate",
+    )
+    candidate_contract = _mapping(
+        candidate_registration.get("contract"),
+        "model_selection.candidate.contract",
+    )
+    incumbent_registration = _mapping(
+        selection.get("incumbent"),
+        "model_selection.incumbent",
+    )
+    candidate = _mapping(outcome.get("candidate"), "outcome.candidate")
+    incumbent = _mapping(outcome.get("incumbent"), "outcome.incumbent")
+    if (
+        candidate.get("model") != candidate_registration.get("model")
+        or incumbent.get("model") != "qwen3.6-plus"
+    ):
+        raise HeldoutPredictionError("v1.7 selected model identities drifted")
+    _selection_identity(
+        candidate.get("contract"),
+        "outcome candidate contract",
+        expected=candidate_contract,
+        project_root=project_root,
+    )
+    for name in (
+        "design",
+        "contract",
+        "dev_predictions",
+        "dev_manifest",
+        "dev_report",
+        "dev_final_predictions",
+        "dev_final_manifest",
+        "freeze_receipt",
+    ):
+        _selection_identity(
+            incumbent.get(name),
+            f"outcome incumbent {name}",
+            expected=_mapping(
+                incumbent_registration.get(name),
+                f"model_selection.incumbent.{name}",
+            ),
+            project_root=project_root,
+        )
+
+    candidate_design_expected = {
+        "path": EVALUATION_DESIGN_V1_6_PATH.relative_to(PROJECT_ROOT).as_posix(),
+        "sha256": selection_design.sha256,
+    }
+    _selection_identity(
+        outcome.get("design"),
+        "outcome candidate design",
+        expected=candidate_design_expected,
+        project_root=project_root,
+    )
+    formal = _mapping(candidate.get("formal_round"), "outcome candidate formal_round")
+    if set(formal) != {"predictions", "manifest", "report"}:
+        raise HeldoutPredictionError("candidate formal-round artifact set drifted")
+    formal_prefix = (
+        f"docs/phase4/eval/dev-iterations/P4.2a-dev60-{official_round}"
+    )
+    for name, suffix in (
+        ("predictions", ".predictions.jsonl"),
+        ("manifest", ".manifest.json"),
+        ("report", ".report.json"),
+    ):
+        _formal_selection_identity(
+            formal.get(name),
+            f"outcome candidate formal {name}",
+            expected_path=f"{formal_prefix}{suffix}",
+            project_root=project_root,
+        )
+
+    formal_manifest_path = _project_file(
+        project_root,
+        _mapping(formal.get("manifest"), "outcome candidate formal manifest").get(
+            "path"
+        ),
+        "outcome candidate formal manifest",
+    )
+    formal_manifest = _load_json(formal_manifest_path, "candidate formal manifest")
+    formal_completed_at = _parse_timestamp(
+        formal_manifest.get("completed_at_utc"),
+        "candidate formal completed_at_utc",
+    )
+
+    gates = _mapping(outcome.get("gates"), "outcome gates")
+    registered_gates = _mapping(
+        selection.get("gates"),
+        "model_selection.gates",
+    )
+    registered_materiality = _mapping(
+        registered_gates.get("materiality"),
+        "model_selection.gates.materiality",
+    )
+    registered_symbol = _mapping(
+        registered_gates.get("symbol"),
+        "model_selection.gates.symbol",
+    )
+    candidate_metrics = _mapping(candidate.get("metrics"), "outcome candidate metrics")
+    materiality_metrics = _mapping(
+        candidate_metrics.get("materiality_positive"),
+        "outcome candidate materiality metrics",
+    )
+    symbol_metrics = _mapping(
+        candidate_metrics.get("symbol_exact_set"),
+        "outcome candidate symbol metrics",
+    )
+    success_count = candidate_metrics.get("success_count")
+    failure_count = candidate_metrics.get("failure_count")
+    tp = materiality_metrics.get("tp")
+    fp = materiality_metrics.get("fp")
+    predicted_positive_count = materiality_metrics.get("predicted_positive_count")
+    materiality_agreement = materiality_metrics.get("agreement")
+    symbol_matches = symbol_metrics.get("matches")
+    symbol_denominator = symbol_metrics.get("denominator")
+    symbol_agreement = symbol_metrics.get("agreement")
+    numeric_values = (
+        tp,
+        fp,
+        predicted_positive_count,
+        symbol_matches,
+        symbol_denominator,
+    )
+    if any(isinstance(value, bool) or not isinstance(value, int) for value in numeric_values):
+        raise HeldoutPredictionError("v1.7 selection metric counts drifted")
+    if (
+        isinstance(materiality_agreement, bool)
+        or not isinstance(materiality_agreement, (int, float))
+        or not math.isfinite(float(materiality_agreement))
+        or isinstance(symbol_agreement, bool)
+        or not isinstance(symbol_agreement, (int, float))
+        or not math.isfinite(float(symbol_agreement))
+    ):
+        raise HeldoutPredictionError("v1.7 selection metric ratios drifted")
+    materiality_denominator = cast(int, tp) + cast(int, fp)
+    if (
+        cast(int, predicted_positive_count) != materiality_denominator
+        or materiality_denominator <= 0
+        or not math.isclose(
+            float(materiality_agreement),
+            cast(int, tp) / materiality_denominator,
+            rel_tol=0.0,
+            abs_tol=1e-15,
+        )
+        or cast(int, symbol_denominator) <= 0
+        or not math.isclose(
+            float(symbol_agreement),
+            cast(int, symbol_matches) / cast(int, symbol_denominator),
+            rel_tol=0.0,
+            abs_tol=1e-15,
+        )
+    ):
+        raise HeldoutPredictionError("v1.7 selection metric arithmetic drifted")
+
+    coverage_passed = (
+        success_count == registered_gates.get("success_count")
+        and failure_count == registered_gates.get("failure_count")
+    )
+    materiality_passed = (
+        float(materiality_agreement)
+        >= float(cast(float, registered_materiality.get("minimum")))
+        and candidate_metrics.get("failed_reference_positive_count")
+        == registered_materiality.get("failed_reference_positive_count")
+    )
+    symbol_passed = (
+        symbol_denominator == registered_symbol.get("denominator")
+        and float(symbol_agreement)
+        >= float(cast(float, registered_symbol.get("minimum")))
+    )
+    within = _mapping(gates.get("within_deadline"), "outcome gates.within_deadline")
+    coverage = _mapping(gates.get("coverage"), "outcome gates.coverage")
+    materiality_gate = _mapping(
+        gates.get("materiality_positive"),
+        "outcome gates.materiality_positive",
+    )
+    symbol_gate = _mapping(
+        gates.get("symbol_exact_set"),
+        "outcome gates.symbol_exact_set",
+    )
+    within_passed = within.get("passed") is True
+    if (
+        within.get("deadline_utc") != deadline
+        or coverage
+        != {
+            "passed": coverage_passed,
+            "required_success_count": registered_gates.get("success_count"),
+            "required_failure_count": registered_gates.get("failure_count"),
+            "actual_success_count": success_count,
+            "actual_failure_count": failure_count,
+        }
+        or materiality_gate
+        != {
+            "passed": materiality_passed,
+            "formula": registered_materiality.get("formula"),
+            "minimum": registered_materiality.get("minimum"),
+            "zero_predicted_positive_policy": registered_materiality.get(
+                "zero_predicted_positive_policy"
+            ),
+            "actual": dict(materiality_metrics),
+        }
+        or symbol_gate
+        != {
+            "passed": symbol_passed,
+            "formula": registered_symbol.get("formula"),
+            "minimum": registered_symbol.get("minimum"),
+            "actual": dict(symbol_metrics),
+        }
+    ):
+        raise HeldoutPredictionError("v1.7 selection gate evidence drifted")
+    all_passed = gates.get("all_passed") is True
+    if all_passed != (
+        within_passed and coverage_passed and materiality_passed and symbol_passed
+    ):
+        raise HeldoutPredictionError("v1.7 aggregate selection gate drifted")
+    per_item = outcome.get("per_item")
+    if (
+        not isinstance(per_item, Sequence)
+        or isinstance(per_item, (str, bytes))
+        or len(per_item) != 60
+    ):
+        raise HeldoutPredictionError("v1.7 per-item comparison coverage drifted")
+
+    decision = outcome.get("decision")
+    selected_contract = _mapping(
+        outcome.get("selected_contract"),
+        "outcome selected_contract",
+    )
+    selected_receipt = _mapping(
+        outcome.get("selected_freeze_receipt"),
+        "outcome selected_freeze_receipt",
+    )
+    candidate_receipt = _mapping(
+        candidate.get("freeze_receipt"),
+        "outcome candidate freeze_receipt",
+    )
+    if set(candidate_receipt) != {"path", "sha256", "created", "validated"}:
+        raise HeldoutPredictionError("candidate freeze receipt fields drifted")
+    operational = _mapping(
+        outcome.get("operational_completion"),
+        "outcome operational_completion",
+    )
+    if (
+        set(operational)
+        != {
+            "status",
+            "error_code",
+            "model_calls_retried",
+            "selected_incumbent_fail_closed",
+        }
+        or operational.get("model_calls_retried") != 0
+    ):
+        raise HeldoutPredictionError("model-selection operational status drifted")
+    candidate_receipt_path = _artifact_path(
+        selection_design,
+        project_root,
+        "prediction_contract_freeze_receipt_json",
+    )
+    candidate_receipt_relative = candidate_receipt_path.relative_to(
+        project_root.resolve()
+    ).as_posix()
+    incumbent_receipt = _mapping(
+        incumbent_registration.get("freeze_receipt"),
+        "model_selection.incumbent.freeze_receipt",
+    )
+    requested_design_version = design.document.get("schema_version")
+    expected_selected_contract: Mapping[str, Any]
+    expected_selected_receipt: Mapping[str, Any]
+    if decision == "select_candidate":
+        expected_selected_contract = candidate_contract
+        expected_selected_receipt = {
+            "path": candidate_receipt_relative,
+            "sha256": receipt_sha256,
+        }
+        if (
+            not all_passed
+            or recorded_at >= deadline_at
+            or formal_completed_at >= deadline_at
+            or requested_design_version != "p4.2a-evaluation-design-v1.6"
+            or design.sha256 != selection_design.sha256
+            or candidate_receipt.get("created") is not True
+            or candidate_receipt.get("validated") is not True
+            or candidate_receipt.get("path") != candidate_receipt_relative
+            or candidate_receipt.get("sha256") != receipt_sha256
+            or outcome.get("selected_model") != candidate_registration.get("model")
+            or operational
+            != {
+                "status": "candidate_frozen",
+                "error_code": None,
+                "model_calls_retried": 0,
+                "selected_incumbent_fail_closed": False,
+            }
+        ):
+            raise HeldoutPredictionError("candidate selection outcome binding drifted")
+    elif decision == "retain_incumbent":
+        expected_selected_contract = _mapping(
+            incumbent_registration.get("contract"),
+            "model_selection.incumbent.contract",
+        )
+        expected_selected_receipt = incumbent_receipt
+        operational_status = operational.get("status")
+        gates_failed_retention = (
+            operational_status == "candidate_not_frozen_absolute_gates_failed"
+            and not all_passed
+            and candidate_receipt
+            == {
+                "path": candidate_receipt_relative,
+                "sha256": None,
+                "created": False,
+                "validated": False,
+            }
+            and operational.get("error_code") is None
+        )
+        freeze_failed_retention = (
+            operational_status == "blocked_candidate_freeze_failed"
+            and all_passed
+            and candidate_receipt
+            == {
+                "path": candidate_receipt_relative,
+                "sha256": None,
+                "created": False,
+                "validated": False,
+            }
+            and operational.get("error_code") is not None
+        )
+        deadline_retention = (
+            operational_status == "blocked_outcome_recorded_after_deadline"
+            and all_passed
+            and recorded_at >= deadline_at
+            and candidate_receipt.get("path") == candidate_receipt_relative
+            and candidate_receipt.get("created") is True
+            and candidate_receipt.get("validated") is True
+            and _valid_sha256(candidate_receipt.get("sha256"))
+            and operational.get("error_code") == "selection_deadline_elapsed"
+        )
+        if (
+            requested_design_version != "p4.2a-evaluation-design-v1.5"
+            or design.sha256
+            != _mapping(
+                incumbent_registration.get("design"),
+                "model_selection.incumbent.design",
+            ).get("sha256")
+            or outcome.get("selected_model") != "qwen3.6-plus"
+            or operational.get("selected_incumbent_fail_closed") is not True
+            or not (
+                gates_failed_retention
+                or freeze_failed_retention
+                or deadline_retention
+            )
+        ):
+            raise HeldoutPredictionError("incumbent retention outcome binding drifted")
+    else:
+        raise HeldoutPredictionError("v1.7 model-selection decision is invalid")
+
+    if (
+        dict(selected_contract) != dict(expected_selected_contract)
+        or dict(selected_receipt) != dict(expected_selected_receipt)
+        or receipt_path.resolve()
+        != (project_root.resolve() / str(expected_selected_receipt["path"])).resolve()
+        or receipt_sha256 != expected_selected_receipt["sha256"]
+    ):
+        raise HeldoutPredictionError("selected freeze receipt binding drifted")
+    return outcome
+
+
+def _require_model_selection_outcome_for_candidate_heldout(
+    design: EventEvaluationDesign,
+    project_root: Path,
+) -> None:
+    if design.document.get("schema_version") != "p4.2a-evaluation-design-v1.6":
+        return
+    outcome_path = _model_selection_outcome_path(design, project_root)
+    if outcome_path.is_symlink() or not outcome_path.is_file():
+        raise HeldoutPredictionError(
+            "v1.7 candidate heldout is locked until model selection is finalized"
+        )
 
 
 def _validate_dev_checkpoint_prefix(
@@ -2138,6 +2754,7 @@ def run_heldout_predictions(
         project_root=root,
     )
     _require_ready(active_design, now)
+    _require_model_selection_outcome_for_candidate_heldout(active_design, root)
     _, receipt_sha256, active_contract = validate_prediction_contract_freeze(
         active_design,
         root,
@@ -2311,6 +2928,7 @@ def finalize_existing_heldout_run(
         project_root=root,
     )
     _require_ready(active_design, now)
+    _require_model_selection_outcome_for_candidate_heldout(active_design, root)
     _, receipt_sha256, active_contract = validate_prediction_contract_freeze(
         active_design,
         root,
