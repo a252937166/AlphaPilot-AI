@@ -287,6 +287,38 @@ owner 确认该时段为**人为断网、周期性复发**，非代码或上游�
 - 时限约束：v1.7 全流程（预注册→dev60→若过则重冻结）须在 2026-08-06 00:10 CST
   held-out 解锁前完成；未完成则按 v1.6 执行 held-out。
 
+### P4.2a v1.7 正式模型选择结果（2026-08-04）
+
+- **预注册先于结果**：运行时合同、唯一轮次、绝对门、旧 plus 全链路哈希、费率和选择状态机
+  已先独立提交 `e9567ef`；抽取合同 SHA `68474e4b…b701`，评测设计 SHA
+  `57e04f99…39c9`。正式轮固定且仅执行 `v1.7-r1`，未重试、未运行第三个模型。
+- **机械门全过并选择 flash**：60/60 成功、0 失败；materiality≥2 的 AI dev
+  **模型间一致率**为 `16/17 = 0.9411764706`（FP=1、FN=0），symbol exact-set 为
+  `57/60 = 0.95`。后者恰等于预注册门，按未舍入原值 `>=0.95` 通过；没有拿 plus
+  的相对得分或成本反向调整门槛。最终 `decision=select_candidate`，
+  `selected_model=qwen3.7-flash`。
+- **与 v1.6 plus 同输入对照**：60 条逐 ID 的 legacy input、candidate input 与 text
+  三个 SHA 均相等；plus 为 60/60、materiality `15/17=0.8823529412`、symbol
+  `59/60=0.9833333333`。flash 平均延迟 `1564.43ms`，plus `3174.72ms`；
+  两轮 prompt tokens 均为 `209051`，completion 分别为 `6778/6757`。
+- **成本按冻结公式实算**（cache=false，15,000 calls/月）：flash 本轮 `¥0.0472326`、
+  月估 `¥11.80815`；plus 本轮 `¥0.499186`、月估 `¥124.7965`。成本只用于通过绝对门后的
+  预注册选择，不参与指标判定。
+- **正式证据**：predictions `533d2e00…edb4`、manifest `d91063fb…74fa`、report
+  `507ada91…5a9c`；本地晋升后的 dev-final predictions 与正式 predictions 同 SHA
+  `533d2e00…edb4`，manifest `c246bda5…2df2`；新 freeze receipt
+  `1b2aae88…31a1`。选择 outcome 为
+  `docs/phase4/eval/P4.2a-model-selection-v1.7.json`，SHA `38f20f4e…59e0`。
+- **唯一生效冻结**：旧 plus receipt SHA 仍为 `9adab49b…3f68`、字节未改，但 outcome
+  验证器已证明它不再可用于 held-out；新 v1.7 receipt 可独立重验为
+  `qwen3.7-flash / 60 success / 0 failure`。两套 receipt 共存不等于双重授权。
+- **隔离证据**：P4.1 冻结配置仍为 `d0dcd665…aa790b`；生产 DB
+  `mode=ro/query_only/total_changes=0`，提案/委托仍 1/1、非 SIMULATE 为 0；
+  60 行原始 prompt/transport payload 持久化数为 0，held-out 未访问，P4.2b 未解锁。
+- ⚠ **DEVIATION**：首次 CLI 启动因未给 Python 加仓库模块路径，在 import 阶段以
+  `ModuleNotFoundError: scripts` 退出；该次为 0 网络请求、0 模型调用、0 产物。随后在不改
+  合同与代码的前提下补 `PYTHONPATH=.` 启动唯一正式轮；没有补跑任何样本。
+
 ## P4.2 LLM 事件抽取
 
 > **拆分解锁（owner 质询后修订，2026-08-03）**：P4.2 拆为两半。**P4.2a 评测准备**即刻
