@@ -613,6 +613,35 @@ Codex 如实将 7 条 `post_validation_failed` 登记为"待验证假设"而未�
   双输入哈希、候选 schema、物化 schema 与候选切片证据；全局 seal 同时覆盖 v1.1–v1.5
   的所有 held-out 命名空间。
 
+### P4.2a v1.6 dev60 正式轮次结果（2026-08-04，通过开发门）
+
+- v1.6 抽取合同与评测设计已先由独立提交 `38d30a3`、`6458195` 冻结；正式调用前两轮
+  只读审计均核对了合同/提示词/双 schema/评测设计/P4.1 配置哈希、全局 create-only seal、
+  held-out 时间锁和 SQLite 只读安全。正式命令以进程环境强制关闭 live、paper、
+  paper-auto、Futu quote/query/trade、账户写入、scheduler 与 market poll，只执行一次
+  `v1.6-r1`，未补跑失败行。
+- 正式轮次 **60/60 成功、0 失败**，`formal_dev_round_valid=true`。`materiality>=2`
+  正类模型间一致率为 **15/17 = 0.8823529412**（开发目标 `>=0.80`；`FP=[303,414]`、
+  `FN=[309]`）；symbol exact-set 原始冻结标签口径为
+  **59/60 = 0.9833333333**（开发目标 `>=0.95`），唯一差异为已裁定的 AI dev
+  标注缺陷 `ID=44`。排除该缺陷的诊断口径为 `59/59=1.00`，仅作诊断、不替代原始门。
+- 60 条成功结果全部由已登记 candidate ID 物化为原文连续精确切片；active matcher 与
+  legacy exact shadow 均为 `60/60`。预测行同时具备两类输入哈希，`rows_with_both=60`、
+  `distinct_hash_pair_count=60`；冻结旧输入身份与真实候选请求身份未混用。
+- create-only 证据：
+  - `docs/phase4/eval/dev-iterations/P4.2a-dev60-v1.6-r1.predictions.jsonl`
+    SHA `44f09a0e20d51d392461980d0b3dce886dbaa9699448ca24d2a8ce1f27839e10`；
+  - `docs/phase4/eval/dev-iterations/P4.2a-dev60-v1.6-r1.manifest.json`
+    SHA `ef11067c94652262535c928140dd60d721dfb7638a7ac41ea05108cbda844dbd`；
+  - `docs/phase4/eval/dev-iterations/P4.2a-dev60-v1.6-r1.report.json`
+    SHA `6aa0fdaa3f105e87f4ac40975628b9dcc7d26117a07c945421fa899c7190afa4`。
+- manifest 实证生产库 `mode=ro / query_only=1 / total_changes=0`、`production_writes=0`、
+  交易表仍为 proposal/order `1/1` 且非 SIMULATE 委托为 `0`；P4.1 冻结配置 SHA 仍为
+  `d0dcd665472b50092a1b4fa7f65f7115778e1b89ac11aca0ed49dc70beaa790b`。
+  `heldout_accessed=false` 且当前仍早于 `2026-08-06 00:10 CST`。本轮只证明开发集已达
+  冻结条件，**不是 held-out phase gate，也不解锁 P4.2b**；下一步仅可另行创建
+  dev-final 与 prompt/model freeze receipt，然后继续等待人工裁定 held-out。
+
 ### P4.2a v1 评测合同预注册（2026-08-03，首次真实 LLM 试跑前）
 
 - Owner 解锁基线：`4c79373`。冻结配置 `config/p4_event_extract_eval_v1.yaml`，SHA-256
