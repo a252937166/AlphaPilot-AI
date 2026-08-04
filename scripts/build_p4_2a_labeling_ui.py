@@ -361,6 +361,7 @@ footer {{ position:fixed; bottom:0; left:0; right:0; background:#0b1220ee; backd
   <h1>P4.2a 盲标</h1>
   <span class="hint" id="counter">0 / 0</span>
   <span class="bar"><i id="prog"></i></span>
+  <input id="annotator" placeholder="标注人姓名/标识（必填）" style="width:190px">
   <button id="importBtn">导入旧版进度</button>
   <input id="importInput" type="file" accept=".jsonl,application/x-ndjson" hidden>
   <button id="exportBtn" class="primary">导出 JSONL</button>
@@ -595,7 +596,19 @@ document.onkeydown = (e) => {{
   else if ("zxc".includes(e.key)) {{ lab().direction = {{z:-1, x:0, c:1}}[e.key]; save(); paintSeg("direction", lab().direction); }}
 }};
 
+const ANNOTATOR_KEY = KEY + ":annotator";
+$("annotator").value = localStorage.getItem(ANNOTATOR_KEY) || "";
+$("annotator").oninput = (e) => localStorage.setItem(ANNOTATOR_KEY, e.target.value.trim());
+
 $("exportBtn").onclick = () => {{
+  // Provenance must be truthful: whoever labeled has to name themselves, and
+  // the identity is never defaulted to the project owner.
+  const annotator = ($("annotator").value || "").trim();
+  if (!annotator) {{
+    $("annotator").focus();
+    alert("请先填写标注人姓名/标识，导出文件需要如实记录标注来源。");
+    return;
+  }}
   const prepared = ITEMS.map((item, index) => {{
     const label = labelFor(item);
     const gold = normalizedGold(item, label);
@@ -616,7 +629,7 @@ $("exportBtn").onclick = () => {{
     entry.label.annotated_at = annotatedAt;
     return {{...entry.item,
       annotation_status: "completed",
-      annotation_owner: "owner",
+      annotation_owner: annotator,
       annotated_at: annotatedAt,
       gold: entry.gold,
     }};
