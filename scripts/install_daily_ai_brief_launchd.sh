@@ -77,7 +77,7 @@ fi
 /bin/launchctl bootstrap "${service_domain}" "${launch_agent_file}"
 
 if /bin/launchctl print "${service_target}" >/dev/null 2>&1; then
-    print "AlphaPilot daily AI brief is scheduled (weekdays 21:07 local)."
+    print "AlphaPilot daily AI brief is scheduled (idempotent poll every 3h)."
 else
     print -u2 "Daily-ai-brief service failed to load; inspect ${stderr_log}."
     exit 1
