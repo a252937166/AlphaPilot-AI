@@ -340,6 +340,9 @@ def _summary_evidence(summary: ExtractionSummary) -> JsonObject:
         "skipped_failure_count": summary.skipped_failure_count,
         "output_line_count": summary.output_line_count,
         "failures_by_reason": summary.failures_by_reason,
+        "failures_by_validation_field_and_constraint": (
+            summary.failures_by_validation_field_and_constraint
+        ),
         "isolated_audit_tables": list(summary.isolated_audit_tables),
         "isolated_audit_row_count": summary.isolated_audit_row_count,
         "checkpoint_audited_success_count": summary.checkpoint_audited_success_count,

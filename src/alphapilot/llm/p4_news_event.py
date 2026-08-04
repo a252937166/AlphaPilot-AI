@@ -80,7 +80,12 @@ class EventExtractContractError(ValueError):
 
 
 class EventExtractValidationError(ValueError):
-    """Raised when an extraction input or model result violates the contract."""
+    """Raised with safe structured metadata for one contract violation."""
+
+    def __init__(self, message: str, *, field: str, constraint: str) -> None:
+        super().__init__(message)
+        self.field = field
+        self.constraint = constraint
 
 
 # Descriptive aliases make the exception boundary discoverable to callers that
@@ -550,14 +555,22 @@ def _timestamp_json(value: datetime | str | None, field: str) -> str | None:
         return value.isoformat()
     if isinstance(value, str) and value.strip():
         return value
-    raise EventExtractValidationError(f"{field} must be a datetime, non-blank string, or null")
+    raise EventExtractValidationError(
+        f"{field} must be a datetime, non-blank string, or null",
+        field=field,
+        constraint="nullable_datetime_or_non_blank_string",
+    )
 
 
 def _ingested_symbol(value: str | None) -> str | None:
     if value is None:
         return None
     if not isinstance(value, str) or _SYMBOL.fullmatch(value) is None:
-        raise EventExtractValidationError("ingested_symbol must be null or a six-digit symbol")
+        raise EventExtractValidationError(
+            "ingested_symbol must be null or a six-digit symbol",
+            field="ingested_symbol",
+            constraint="nullable_six_digit_symbol",
+        )
     return value
 
 
@@ -575,15 +588,35 @@ def build_event_extract_user_input(
 ) -> str:
     """Serialize one news row as deterministic untrusted JSON model input."""
     if isinstance(news_item_id, bool) or not isinstance(news_item_id, int) or news_item_id <= 0:
-        raise EventExtractValidationError("news_item_id must be a positive integer")
+        raise EventExtractValidationError(
+            "news_item_id must be a positive integer",
+            field="news_item_id",
+            constraint="positive_integer",
+        )
     if not isinstance(source, str) or not source.strip():
-        raise EventExtractValidationError("source must be a non-blank string")
+        raise EventExtractValidationError(
+            "source must be a non-blank string",
+            field="source",
+            constraint="non_blank_string",
+        )
     if not isinstance(title, str) or not title.strip():
-        raise EventExtractValidationError("title must be a non-blank string")
+        raise EventExtractValidationError(
+            "title must be a non-blank string",
+            field="title",
+            constraint="non_blank_string",
+        )
     if not isinstance(original_text, str) or not original_text.strip():
-        raise EventExtractValidationError("original_text must be a non-blank string")
+        raise EventExtractValidationError(
+            "original_text must be a non-blank string",
+            field="original_text",
+            constraint="non_blank_string",
+        )
     if not isinstance(body_state, str) or not body_state.strip():
-        raise EventExtractValidationError("body_state must be a non-blank string")
+        raise EventExtractValidationError(
+            "body_state must be a non-blank string",
+            field="body_state",
+            constraint="non_blank_string",
+        )
 
     payload = {
         "available_time": _timestamp_json(available_time, "available_time"),
@@ -602,7 +635,11 @@ def build_event_extract_user_input(
         separators=(",", ":"),
     )
     if len(user_json) > contract.max_input_characters:
-        raise EventExtractValidationError("serialized model input exceeds the contract budget")
+        raise EventExtractValidationError(
+            "serialized model input exceeds the contract budget",
+            field="result",
+            constraint="serialized_input_character_budget",
+        )
     return user_json
 
 
@@ -615,12 +652,18 @@ def _allowed_symbols(
     original_text: str,
 ) -> set[str]:
     if isinstance(universe_symbols, (str, bytes)):
-        raise EventExtractValidationError("universe_symbols must be a symbol collection")
+        raise EventExtractValidationError(
+            "universe_symbols must be a symbol collection",
+            field="universe_symbols",
+            constraint="six_digit_symbol_collection",
+        )
     universe: set[str] = set()
     for symbol in universe_symbols:
         if not isinstance(symbol, str) or _SYMBOL.fullmatch(symbol) is None:
             raise EventExtractValidationError(
-                "universe_symbols must contain only six-digit symbols"
+                "universe_symbols must contain only six-digit symbols",
+                field="universe_symbols",
+                constraint="six_digit_symbol_collection",
             )
         universe.add(symbol)
     text_symbols = {match.group(1) for match in _SYMBOL_IN_TEXT.finditer(original_text)}
@@ -641,32 +684,75 @@ def validate_event_result(
 ) -> JsonObject:
     """Validate schema plus P4.2a grounding constraints without a fallback."""
     if not isinstance(result, Mapping):
-        raise EventExtractValidationError("model result must be an object")
+        raise EventExtractValidationError(
+            "model result must be an object",
+            field="result",
+            constraint="object",
+        )
     candidate = dict(result)
     try:
         Draft202012Validator(contract.schema).validate(candidate)
     except ValidationError as exc:
-        raise EventExtractValidationError("model result failed the strict JSON Schema") from exc
+        path = list(exc.absolute_path)
+        field = (
+            str(path[0])
+            if path and isinstance(path[0], str) and path[0] in EXPECTED_RESULT_FIELDS
+            else "result"
+        )
+        validator = {
+            "additionalProperties": "additional_properties",
+            "enum": "enum",
+            "maximum": "maximum",
+            "maxItems": "max_items",
+            "maxLength": "max_length",
+            "minimum": "minimum",
+            "minLength": "min_length",
+            "pattern": "pattern",
+            "required": "required",
+            "type": "type",
+            "uniqueItems": "unique_items",
+        }.get(str(exc.validator), "constraint")
+        raise EventExtractValidationError(
+            "model result failed the strict JSON Schema",
+            field=field,
+            constraint=f"json_schema_{validator}",
+        ) from exc
 
     if not isinstance(original_text, str) or not original_text:
-        raise EventExtractValidationError("original_text must be a non-empty string")
+        raise EventExtractValidationError(
+            "original_text must be a non-empty string",
+            field="original_text",
+            constraint="non_empty_string",
+        )
     symbols = cast(list[str], candidate["symbols"])
     if symbols != sorted(set(symbols)):
-        raise EventExtractValidationError("symbols must be sorted and unique")
+        raise EventExtractValidationError(
+            "symbols must be sorted and unique",
+            field="symbols",
+            constraint="sorted_unique",
+        )
     allowed = _allowed_symbols(universe_symbols, ingested_symbol, original_text)
     if any(symbol not in allowed for symbol in symbols):
         raise EventExtractValidationError(
             "symbols must appear as a bounded six-digit code in original_text and belong "
-            "to the security universe, or equal ingested_symbol"
+            "to the security universe, or equal ingested_symbol",
+            field="symbols",
+            constraint="original_text_or_ingested_symbol_grounding",
         )
 
     summary = cast(str, candidate["summary"])
     if not summary.strip() or _CHINESE.search(summary) is None:
-        raise EventExtractValidationError("summary must contain Chinese text")
+        raise EventExtractValidationError(
+            "summary must contain Chinese text",
+            field="summary",
+            constraint="contains_chinese_text",
+        )
     evidence_span = cast(str, candidate["evidence_span"])
     if not evidence_span.strip() or evidence_span not in original_text:
         raise EventExtractValidationError(
-            "evidence_span must be a contiguous substring of original_text"
+            "evidence_span must be a contiguous substring of original_text",
+            field="evidence_span",
+            constraint="exact_contiguous_substring",
         )
 
     return {

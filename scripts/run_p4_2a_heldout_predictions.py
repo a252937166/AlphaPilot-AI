@@ -48,6 +48,7 @@ from scripts.run_p4_2a_offline_extract import (
     _sqlite_tables,
     _validate_resumed_success,
     _validate_runtime_contract,
+    _validation_failure_counts,
     extract_records,
 )
 
@@ -1868,6 +1869,9 @@ def _manifest_payload(
             "success_count": success,
             "failure_count": failure_count,
             "failures_by_safe_reason": dict(sorted(failures.items())),
+            "failures_by_validation_field_and_constraint": (
+                _validation_failure_counts(prediction_rows)
+            ),
             "predicted_materiality_gte_2_count": positive,
             "predicted_materiality_gte_2_rate": positive_rate,
             "positive_rate_denominator": "successful_predictions",
@@ -2297,6 +2301,9 @@ def finalize_existing_heldout_run(
         skipped_failure_count=len(records) - success,
         output_line_count=len(prediction_rows),
         failures_by_reason=dict(failures),
+        failures_by_validation_field_and_constraint=_validation_failure_counts(
+            prediction_rows
+        ),
         isolated_audit_tables=("llm_calls",),
         isolated_audit_row_count=0,
         checkpoint_audited_success_count=success,
