@@ -562,6 +562,49 @@ Codex 如实将 7 条 `post_validation_failed` 登记为"待验证假设"而未�
   下一轮只允许依据冻结 dev 证据预注册新版本，不降阈值、不修改标签、不放宽 matcher、
   不启用显式缓存。
 
+### P4.2a v1.6 原文候选证据协议预注册（2026-08-04，任何新模型输出前）
+
+- v1.5-r1 的 predictions / manifest / report / blocker 已由提交 `86ff1a6` 原样冻结；
+  本轮仅使用该 dev 证据设计新输入协议，未读取 held-out、未改冻结 AI 标签、未放宽
+  `60/60`、materiality `>=0.80` 或 symbol `>=0.95` 任一门槛。
+- 安全 schema 诊断已先由独立提交 `20080dc` 补齐：`schema_validation_failed` 只允许持久化
+  冻结白名单中的顶层字段与固定约束码；模型 payload、动态键、异常文本和原始响应仍不落盘。
+- 新抽取合同 `config/p4_event_extract_eval_v1_6.yaml` SHA
+  `4e88990d2ee7671db316794aabd0a476f798b5e542f00bbb8ffbd3f7fd423269`；
+  prompt `config/prompts/p4_news_event_extract_v1_5.txt` SHA
+  `4b44ed5efe281b68664b415865b758b75b30ace6eda2617952de66a87596c204`；
+  模型原始结果 schema `config/schemas/p4_news_event_candidate_v1.schema.json` SHA
+  `c106cd15bd974de19ecc01d6e99e8f39c39fbf14df3a3b4dc74ee9b08ff6dd66`；
+  持久化最终结果 schema 继续绑定
+  `config/schemas/p4_news_event_v1.schema.json` SHA
+  `0ac68654ce23ecd4e537d849d695e092c76dcb9de0fb03793e65ae62b181947f`。
+- `original_text` 不再交给模型自由复制证据，而由确定性、无标签、无预测访问的算法按原文
+  顺序完整分区；模型输入仅包含紧凑候选
+  `[id, raw_start, raw_end, whitespace-folded display]`，模型只返回一个已登记
+  `evidence_candidate_id`。代码随后按登记的 `raw_start:raw_end` 物化精确原文连续切片，
+  再通过既有 Unicode 空白归一化 matcher；不存在的 ID、schema 漂移或 matcher 失败均
+  fail closed，禁止模糊匹配、自动修复、候选拼接或降级回自由文本。
+- 模型原始结果与持久化最终结果使用两个互不宽松兼容的严格 schema：原始结果必须含
+  `evidence_candidate_id` 且不得含 `evidence_span`；落盘结果必须含物化后的
+  `evidence_span` 且不得含候选 ID。断点恢复和 held-out 前置校验只验证持久化 schema，
+  不会把落盘结果误送回模型候选 schema。
+- dev60 冻结输入的旧 `input_sha256` 仍按原八字段 JSON 原样验证；v1.6 模型请求、checkpoint
+  与输出行另算候选 JSON SHA。预测行同时绑定
+  `declared_input_sha256`（冻结旧身份）与 `input_sha256`（真实请求身份），不得混用或改写
+  冻结样本字节。60 条 dev 输入的候选分区均无缺口/重叠、每段 raw `<=500`、display
+  `<=320`，最大序列化模型输入 `15,115 < 16,000` 字符。
+- prompt 保留 ID `44` 为 AI dev 标签缺陷的裁定：`ingested_symbol=null` 且原文无六位代码时
+  继续禁止猜代码；同时继续排除推荐对象、研报发布方、地点同名公司和顺带股东/支持方，
+  包括 v1.5 复发的 `393`，不靠放宽 symbol 规则提高比例。
+- 模型、endpoint、temperature `0.2`、max tokens `2000`、20 秒、零重试、
+  `enable_thinking=false` 与显式缓存关闭均不变。非重叠 320 raw-char 分段可能扩大单条
+  证据范围或在边界切断事实，故结果必须披露为“输入/证据协议变更后的新轮次”，禁止把改善
+  单变量归因于 prompt 或模型；不得看 dev 结果后原地调分段参数。
+- 正式轮次固定为 `v1.6-r1`，必须在新的 evaluation design、create-only namespace、历史
+  v1.5 四件套锚和全局 held-out seal 全部预注册并通过质量门后才可执行。只有 `60/60`
+  零失败且双指标达门才允许另行创建 dev-final 与冻结回执；held-out 至少到
+  `2026-08-06 00:10 CST` 后仍须 `ai_drafted_human_adjudicated`，本节不解锁、不读取。
+
 ### P4.2a v1 评测合同预注册（2026-08-03，首次真实 LLM 试跑前）
 
 - Owner 解锁基线：`4c79373`。冻结配置 `config/p4_event_extract_eval_v1.yaml`，SHA-256

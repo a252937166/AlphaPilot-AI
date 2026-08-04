@@ -36,6 +36,7 @@ from scripts.build_p4_2a_gold_sample import (
     validate_heldout_candidate_inputs,
 )
 from scripts.run_p4_2a_offline_extract import (
+    DECLARED_INPUT_LEGACY_V1,
     ChatJsonCallable,
     ExtractionSummary,
     ExtractRecord,
@@ -67,7 +68,7 @@ from alphapilot.llm.p4_news_eval import (
 from alphapilot.llm.p4_news_event import (
     EventExtractContract,
     validate_event_extract_contract_controls,
-    validate_event_result,
+    validate_materialized_event_result,
 )
 
 JsonObject = dict[str, Any]
@@ -546,6 +547,34 @@ def _load_active_contract(
     except ValueError as exc:
         raise HeldoutPredictionError("active LLM controls are invalid") from exc
 
+    # v1.6 deliberately changes the model-input representation and result
+    # schema. It is therefore admitted only as the exact byte-frozen contract
+    # already loaded and bound by the versioned evaluation design; no
+    # normalization against the legacy eight-field/base-schema contract is
+    # permitted.
+    if contract_version >= (1, 6):
+        if (
+            not versioned_runtime_contract
+            or resolved != prediction_contract.path
+            or _sha256_bytes(payload) != prediction_contract.sha256
+            or document != prediction_contract.document
+            or purpose != prediction_contract.purpose
+            or model != prediction_contract.model
+            or endpoint != prediction_contract.endpoint
+            or timeout != prediction_contract.timeout
+            or max_tokens != prediction_contract.max_tokens
+            or max_retries != prediction_contract.max_retries
+            or max_items != prediction_contract.max_items_per_run
+            or max_input_characters != prediction_contract.max_input_characters
+            or explicit_cache_enabled != prediction_contract.explicit_cache_enabled
+            or prediction_contract.evidence_candidate_selection is not True
+            or prediction_contract.materialized_schema is None
+        ):
+            raise HeldoutPredictionError(
+                "active v1.6 contract differs from the registered candidate contract"
+            )
+        return prediction_contract
+
     # The independent design freezes all deterministic, schema, taxonomy,
     # input, budget, isolation, and artifact semantics. Prompt bytes/path may
     # differ after dev60 iteration. Contract v1.3 additionally pre-registers
@@ -652,6 +681,7 @@ def _dev_prediction_identity_sha256(rows: Sequence[Mapping[str, Any]]) -> str:
     for row in rows:
         identifier = row.get("news_item_id")
         input_sha256 = row.get("input_sha256")
+        declared_input_sha256 = row.get("declared_input_sha256")
         text_sha256 = row.get("text_sha256")
         if (
             isinstance(identifier, bool)
@@ -659,12 +689,24 @@ def _dev_prediction_identity_sha256(rows: Sequence[Mapping[str, Any]]) -> str:
             or identifier <= prior_id
             or not _valid_sha256(input_sha256)
             or not _valid_sha256(text_sha256)
+            or (
+                declared_input_sha256 is not None
+                and not _valid_sha256(declared_input_sha256)
+            )
         ):
             raise HeldoutPredictionError("dev-final prediction identity fields are invalid")
         prior_id = identifier
-        payload += (
-            f"{identifier}\0{str(input_sha256).lower()}\0{str(text_sha256).lower()}\n"
-        ).encode("ascii")
+        if declared_input_sha256 is None:
+            payload += (
+                f"{identifier}\0{str(input_sha256).lower()}\0"
+                f"{str(text_sha256).lower()}\n"
+            ).encode("ascii")
+        else:
+            payload += (
+                f"{identifier}\0{str(input_sha256).lower()}\0"
+                f"{str(declared_input_sha256).lower()}\0"
+                f"{str(text_sha256).lower()}\n"
+            ).encode("ascii")
     return _sha256_bytes(payload)
 
 
@@ -696,6 +738,20 @@ def _validate_dev_final_predictions(
     dev_inputs = _load_jsonl(dev_inputs_path, "frozen dev60 inputs")
     if len(dev_inputs) != 60:
         raise HeldoutPredictionError("frozen dev60 inputs must contain exactly 60 rows")
+    bound_inputs, runtime_records = _dev_final_inputs(
+        design,
+        active_contract,
+        project_root,
+    )
+    ordered_dev_inputs = tuple(
+        sorted(dev_inputs, key=lambda row: int(row.get("news_item_id", 0)))
+    )
+    if ordered_dev_inputs != bound_inputs:
+        raise HeldoutPredictionError("dev-final frozen input binding drifted")
+    prepared_by_id = {
+        item.record.news_item_id: item
+        for item in _prepare_records(active_contract, runtime_records)
+    }
 
     predictions_file = _eval_artifact_file(
         project_root,
@@ -745,9 +801,15 @@ def _validate_dev_final_predictions(
     for prediction_row in predictions:
         identifier = cast(int, prediction_row["news_item_id"])
         dev = dev_by_id[identifier]
+        prepared = prepared_by_id[identifier]
         if (
             prediction_row.get("news_item_id") != identifier
-            or prediction_row.get("input_sha256") != dev.get("input_sha256")
+            or prediction_row.get("input_sha256") != prepared.input_sha256
+            or (
+                active_contract.evidence_candidate_selection
+                and prediction_row.get("declared_input_sha256")
+                != prepared.declared_input_sha256
+            )
             or prediction_row.get("text_sha256") != dev.get("text_sha256")
             or prediction_row.get("contract_sha256") != active_contract.sha256
             or prediction_row.get("model") != active_contract.model
@@ -767,7 +829,7 @@ def _validate_dev_final_predictions(
             if isinstance(ingested_symbol, str):
                 universe.add(ingested_symbol)
             try:
-                validate_event_result(
+                validate_materialized_event_result(
                     active_contract,
                     candidate,
                     original_text=original_text,
@@ -1190,6 +1252,22 @@ def _dev_final_inputs(
                 declared_text_sha256=cast(str, text_sha256),
             )
         )
+    if active_contract.evidence_candidate_selection:
+        # The immutable dev60 artifact predates the v1.6 selector protocol, so
+        # its declared input hash intentionally binds the legacy canonical
+        # eight-field JSON. _prepare_records verifies that historical hash
+        # separately while deriving the candidate request/checkpoint hash from
+        # the active v1.6 user JSON.
+        runtime_records = [
+            replace(
+                record,
+                declared_input_representation=DECLARED_INPUT_LEGACY_V1,
+            )
+            for record in records
+        ]
+        _prepare_records(active_contract, runtime_records)
+        return tuple(ordered), runtime_records
+
     # This proves the dev artifact still hashes to the same canonical model
     # input under the explicit active prompt contract.
     _prepare_records(active_contract, records)
@@ -1810,8 +1888,14 @@ def _validate_prediction_rows(
             raise HeldoutPredictionError("candidate prediction IDs are invalid")
         seen.add(identifier)
         candidate = candidate_by_id[identifier]
+        prepared = prepared_by_id[identifier]
         if (
-            row.get("input_sha256") != candidate.get("input_sha256")
+            row.get("input_sha256") != prepared.input_sha256
+            or (
+                active_contract.evidence_candidate_selection
+                and row.get("declared_input_sha256")
+                != prepared.declared_input_sha256
+            )
             or row.get("text_sha256") != candidate.get("text_sha256")
             or row.get("contract_sha256") != active_contract.sha256
             or row.get("model") != active_contract.model
@@ -1821,7 +1905,7 @@ def _validate_prediction_rows(
         if status == "ok":
             _validate_resumed_success(
                 row,
-                prepared_by_id[identifier],
+                prepared,
                 active_contract,
                 universe_symbols,
             )

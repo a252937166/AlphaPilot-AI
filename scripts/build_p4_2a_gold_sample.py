@@ -35,7 +35,7 @@ from alphapilot.llm.p4_news_event import (
     event_extract_input_sha256,
     load_event_extract_contract,
     validate_event_extract_contract_controls,
-    validate_event_result,
+    validate_materialized_event_result,
 )
 
 PROJECT_DIR = Path(__file__).resolve().parent.parent
@@ -2702,7 +2702,9 @@ def validate_heldout_candidate_predictions(
 ) -> tuple[dict[int, JsonObject], int, int]:
     """Validate complete one-shot predictions against exactly frozen candidate inputs."""
 
-    validator = Draft202012Validator(active_contract.schema)
+    if active_contract.materialized_schema is None:
+        raise GoldSampleError("prediction contract lacks a materialized result schema")
+    validator = Draft202012Validator(active_contract.materialized_schema)
     predictions: dict[int, JsonObject] = {}
     success_count = failure_count = 0
     for record in records:
@@ -2745,7 +2747,7 @@ def validate_heldout_candidate_predictions(
             universe_symbols = set(re.findall(r"(?<!\d)[0-9]{6}(?!\d)", original_text))
             if isinstance(ingested_symbol, str):
                 universe_symbols.add(ingested_symbol)
-            validate_event_result(
+            validate_materialized_event_result(
                 active_contract,
                 candidate,
                 original_text=original_text,

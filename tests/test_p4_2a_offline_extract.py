@@ -208,6 +208,94 @@ def _one_record() -> runner.ExtractRecord:
     )
 
 
+def test_v1_6_separates_frozen_legacy_hash_from_candidate_request_hash(
+    tmp_path: Path,
+) -> None:
+    legacy_contract = load_event_extract_contract(
+        Path("config/p4_event_extract_eval_v1_5.yaml")
+    )
+    candidate_contract = load_event_extract_contract(
+        Path("config/p4_event_extract_eval_v1_6.yaml")
+    )
+    base = _one_record()
+    legacy_user_json = build_event_extract_user_input(
+        legacy_contract,
+        news_item_id=base.news_item_id,
+        source=base.source,
+        ingested_symbol=base.ingested_symbol,
+        title=base.title,
+        original_text=base.original_text,
+        published_at=base.published_at,
+        available_time=base.available_time,
+        body_state=base.body_state,
+    )
+    declared_hash = event_extract_input_sha256(legacy_user_json)
+    record = replace(
+        base,
+        declared_input_sha256=declared_hash,
+        declared_input_representation=runner.DECLARED_INPUT_LEGACY_V1,
+    )
+    output = tmp_path / "eval" / "candidate-hashes.jsonl"
+    called = 0
+
+    def candidate_chat(
+        _purpose: str,
+        _system: str,
+        user: str,
+        _schema: dict[str, Any],
+        **kwargs: Any,
+    ) -> dict[str, Any]:
+        nonlocal called
+        called += 1
+        payload = json.loads(user)
+        assert "original_text" not in payload
+        assert payload["evidence_candidates"]
+        _record_audit(kwargs.get("session"), ok=True, error=None)
+        return {
+            "symbols": ["600519"],
+            "event_type": "other",
+            "direction": 0,
+            "materiality": 1,
+            "summary": "公告完成结构化抽取。",
+            "confidence": 0.8,
+            "evidence_candidate_id": payload["evidence_candidates"][0][0],
+        }
+
+    summary = runner.extract_records(
+        candidate_contract,
+        [record],
+        output_path=output,
+        eval_root=tmp_path / "eval",
+        universe_symbols={"600519"},
+        settings=_plus_settings(),
+        retry_failures=False,
+        chat_json_fn=candidate_chat,
+    )
+
+    assert called == 1
+    assert summary.success_count == 1
+    row = json.loads(output.read_text(encoding="utf-8"))
+    assert row["declared_input_sha256"] == declared_hash
+    assert row["input_sha256"] != declared_hash
+    assert row["prediction"]["evidence_span"] in base.original_text
+    assert "evidence_candidate_id" not in row["prediction"]
+
+    tampered = replace(record, declared_input_sha256="0" * 64)
+    with pytest.raises(runner.OfflineExtractError, match="declared representation"):
+        runner.extract_records(
+            candidate_contract,
+            [tampered],
+            output_path=tmp_path / "eval" / "must-not-exist.jsonl",
+            eval_root=tmp_path / "eval",
+            universe_symbols={"600519"},
+            settings=_plus_settings(),
+            retry_failures=False,
+            chat_json_fn=lambda *_args, **_kwargs: pytest.fail(
+                "identity drift must fail before the model call"
+            ),
+        )
+
+
 def test_production_database_is_read_only_and_frozen_max_time_is_enforced(
     tmp_path: Path,
 ) -> None:
