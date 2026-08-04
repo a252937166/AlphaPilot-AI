@@ -75,6 +75,34 @@ def test_load_event_extract_contract_verifies_frozen_artifacts() -> None:
     assert contract.schema["additionalProperties"] is False
 
 
+def test_load_v1_3_contract_binds_plus_mainland_and_reuses_v1_2_prompt() -> None:
+    contract = load_event_extract_contract(
+        p4_news_event.PROJECT_ROOT / "config/p4_event_extract_eval_v1_3.yaml"
+    )
+
+    assert contract.sha256 == p4_news_event.V1_3_CONTRACT_SHA256
+    assert contract.model == "qwen3.6-plus"
+    assert contract.endpoint == "https://dashscope.aliyuncs.com/compatible-mode/v1"
+    assert contract.explicit_cache_enabled is False
+    assert "[P4_NEWS_EVENT_EXTRACT v1.2.0]" in contract.prompt
+
+
+@pytest.mark.parametrize(
+    "endpoint",
+    [
+        "http://dashscope.aliyuncs.com/compatible-mode/v1",
+        "https://dashscope-intl.aliyuncs.com/compatible-mode/v1?region=sg",
+        "https://user@dashscope.aliyuncs.com/compatible-mode/v1",
+        "https://dashscope.aliyuncs.com/v1",
+    ],
+)
+def test_endpoint_normalization_rejects_unsafe_or_noncanonical_url(
+    endpoint: str,
+) -> None:
+    with pytest.raises(EventExtractContractError):
+        p4_news_event.normalize_llm_endpoint(endpoint)
+
+
 def test_load_event_extract_contract_rejects_byte_drift(tmp_path: Path) -> None:
     drifted = tmp_path / "p4_event_extract_eval_v1.yaml"
     original = p4_news_event.DEFAULT_CONTRACT_PATH.read_bytes()

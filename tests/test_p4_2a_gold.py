@@ -17,6 +17,10 @@ import pytest
 from scripts import build_p4_2a_gold_sample as builder
 from scripts import evaluate_p4_2a_gold as evaluator
 
+from alphapilot.llm.p4_news_eval import (
+    EVALUATION_DESIGN_V1_2_PATH,
+    load_event_evaluation_design,
+)
 from alphapilot.llm.p4_news_event import (
     EXPECTED_CONTRACT_SHA256,
     load_event_extract_contract,
@@ -642,6 +646,40 @@ def test_owner_annotations_require_timezone_aware_completion_time() -> None:
 
     with pytest.raises(evaluator.GoldEvaluationError, match="must include a timezone"):
         evaluator.validate_owner_annotations(records, contract)
+
+
+def test_v1_2_heldout_annotations_require_human_adjudication_provenance() -> None:
+    design = load_event_evaluation_design(EVALUATION_DESIGN_V1_2_PATH)
+    records = _owner_records(_blind_records(design.base_contract)[:40])
+    for record in records:
+        record["sample_group"] = "heldout40"
+        record["annotation_type"] = "ai_drafted_human_adjudicated"
+        record["drafter_id"] = "ChatGPT GPT-5.6 Pro"
+        record["adjudicator_id"] = "owner-ouyang"
+        record["annotation_owner"] = "owner-ouyang"
+
+    validated = evaluator.validate_owner_annotations(
+        records,
+        design.base_contract,
+        expected_count=40,
+        expected_sample_group="heldout40",
+        design=design,
+    )
+    assert len(validated) == 40
+
+    records[0]["adjudicator_id"] = records[0]["drafter_id"]
+    records[0]["annotation_owner"] = records[0]["drafter_id"]
+    with pytest.raises(
+        evaluator.GoldEvaluationError,
+        match="human adjudicator must differ",
+    ):
+        evaluator.validate_owner_annotations(
+            records,
+            design.base_contract,
+            expected_count=40,
+            expected_sample_group="heldout40",
+            design=design,
+        )
 
 
 def test_manifest_binds_all_100_unique_ordered_items() -> None:

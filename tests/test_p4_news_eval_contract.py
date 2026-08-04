@@ -12,6 +12,7 @@ from alphapilot.llm import p4_news_eval
 from alphapilot.llm.p4_news_eval import (
     EventEvaluationDesignError,
     load_event_evaluation_design,
+    validate_heldout_annotation_provenance,
 )
 
 
@@ -99,6 +100,81 @@ def test_load_event_evaluation_design_verifies_v1_1_contract() -> None:
         "owner_completion_artifact_bytes_and_counts_verified",
         "combined_annotations_sha256_and_identity_match_manifest",
     ]
+
+
+def test_load_event_evaluation_design_v1_2_binds_plus_mainland_and_preserves_split() -> None:
+    legacy = load_event_evaluation_design()
+    design = load_event_evaluation_design(p4_news_eval.EVALUATION_DESIGN_V1_2_PATH)
+
+    assert design.sha256 == p4_news_eval.EXPECTED_EVALUATION_DESIGN_V1_2_SHA256
+    assert design.document["schema_version"] == "p4.2a-evaluation-design-v1.2"
+    assert design.prediction_contract.model == "qwen3.6-plus"
+    assert (
+        design.prediction_contract.endpoint
+        == "https://dashscope.aliyuncs.com/compatible-mode/v1"
+    )
+    assert (
+        design.document["splits"]["heldout_40"]["sampling"]
+        == legacy.document["splits"]["heldout_40"]["sampling"]
+    )
+    assert (
+        design.document["splits"]["heldout_40"]["candidate_batch"]
+        == legacy.document["splits"]["heldout_40"]["candidate_batch"]
+    )
+    current_evaluation = dict(design.document["evaluation"])
+    legacy_evaluation = dict(legacy.document["evaluation"])
+    current_report_fields = current_evaluation.pop("required_report_fields")
+    legacy_report_fields = legacy_evaluation.pop("required_report_fields")
+    assert current_evaluation == legacy_evaluation
+    assert current_report_fields[: len(legacy_report_fields)] == legacy_report_fields
+    assert current_report_fields[len(legacy_report_fields) :] == [
+        "prediction_contract.endpoint",
+        "prediction_contract.explicit_cache_enabled",
+        "owner_completion.heldout_annotation_type",
+        "owner_completion.heldout_drafter_ids",
+        "owner_completion.heldout_adjudicator_ids",
+        "owner_completion.heldout_human_adjudication_validated",
+    ]
+    assert (
+        design.document["prediction_contract_freeze"]["required_model"]
+        == design.prediction_contract.model
+    )
+    assert (
+        design.document["prediction_contract_freeze"]["required_endpoint"]
+        == design.prediction_contract.endpoint
+    )
+    assert design.document["prediction_contract_freeze"][
+        "required_receipt_fields"
+    ][-2:] == ["endpoint", "explicit_cache_enabled"]
+    legacy_artifacts = legacy.document["artifacts"]
+    current_artifacts = design.document["artifacts"]
+    for name in p4_news_eval._V1_2_CREATE_ONLY_ARTIFACTS:
+        assert current_artifacts[name]["path"] != legacy_artifacts[name]["path"]
+        assert "v1.2" in current_artifacts[name]["path"]
+
+
+def test_v1_2_heldout_provenance_accepts_only_distinct_human_adjudicator() -> None:
+    design = load_event_evaluation_design(p4_news_eval.EVALUATION_DESIGN_V1_2_PATH)
+    record = {
+        "annotation_type": "ai_drafted_human_adjudicated",
+        "drafter_id": "ChatGPT GPT-5.6 Pro",
+        "adjudicator_id": "owner-ouyang",
+        "annotation_owner": "owner-ouyang",
+    }
+
+    assert validate_heldout_annotation_provenance(record, design) == {
+        "annotation_type": "ai_drafted_human_adjudicated",
+        "drafter_id": "ChatGPT GPT-5.6 Pro",
+        "adjudicator_id": "owner-ouyang",
+    }
+
+    pure_ai = {**record, "adjudicator_id": "ChatGPT GPT-5.6 Pro"}
+    with pytest.raises(EventEvaluationDesignError, match="must differ"):
+        validate_heldout_annotation_provenance(pure_ai, design)
+
+    missing_human = {**record, "adjudicator_id": "", "annotation_owner": ""}
+    with pytest.raises(EventEvaluationDesignError, match="adjudicator_id is missing"):
+        validate_heldout_annotation_provenance(missing_human, design)
 
 
 def test_base_event_extract_contract_remains_byte_frozen() -> None:

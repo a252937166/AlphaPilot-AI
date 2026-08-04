@@ -19,6 +19,11 @@ import sys
 from pathlib import Path
 from typing import Any
 
+from alphapilot.llm.p4_news_eval import (
+    EventEvaluationDesignError,
+    load_event_evaluation_design,
+)
+
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 MODEL_PREDICTION_KEYS = frozenset(
     {
@@ -310,12 +315,21 @@ def _script_json(value: object) -> str:
     )
 
 
-def _render(items: list[dict[str, Any]], *, sample_path: Path, title: str) -> str:
+def _render(
+    items: list[dict[str, Any]],
+    *,
+    sample_path: Path,
+    title: str,
+    annotation_type: str | None = None,
+    drafter_id: str | None = None,
+) -> str:
     payload = _script_json(items)
     sample_name = _script_json(sample_path.name)
     download_name = _script_json(sample_path.stem + ".labels.jsonl")
     event_types = _script_json(EVENT_TYPES)
     forbidden_import_keys = _script_json(tuple(sorted(FORBIDDEN_BLINDNESS_KEYS)))
+    annotation_type_json = _script_json(annotation_type)
+    drafter_id_json = _script_json(drafter_id)
     options = "".join(f'<option value="{name}">{name}</option>' for name in EVENT_TYPES)
     return f"""<!doctype html>
 <html lang="zh-CN"><head><meta charset="utf-8">
@@ -597,6 +611,8 @@ document.onkeydown = (e) => {{
 }};
 
 const ANNOTATOR_KEY = KEY + ":annotator";
+const ANNOTATION_TYPE = {annotation_type_json};
+const DRAFTER_ID = {drafter_id_json};
 $("annotator").value = localStorage.getItem(ANNOTATOR_KEY) || "";
 $("annotator").oninput = (e) => localStorage.setItem(ANNOTATOR_KEY, e.target.value.trim());
 
@@ -627,11 +643,17 @@ $("exportBtn").onclick = () => {{
       && !Number.isNaN(Date.parse(entry.label.annotated_at)))
       ? entry.label.annotated_at : completedAt;
     entry.label.annotated_at = annotatedAt;
+    const provenance = ANNOTATION_TYPE === null ? {{}} : {{
+      annotation_type: ANNOTATION_TYPE,
+      drafter_id: DRAFTER_ID,
+      adjudicator_id: annotator,
+    }};
     return {{...entry.item,
       annotation_status: "completed",
       annotation_owner: annotator,
       annotated_at: annotatedAt,
       gold: entry.gold,
+      ...provenance,
     }};
   }});
   save();
@@ -667,6 +689,20 @@ def main(argv: list[str] | None = None) -> int:
         default=PROJECT_ROOT / "docs/phase4/eval/P4.2a-gold-inventory60-v1.jsonl",
     )
     parser.add_argument("--output", type=Path, default=None)
+    parser.add_argument(
+        "--evaluation-design",
+        type=Path,
+        default=None,
+        help=(
+            "Explicit byte-frozen evaluation design. Required for the v1.2 "
+            "heldout human-adjudication provenance contract."
+        ),
+    )
+    parser.add_argument(
+        "--drafter-id",
+        default=None,
+        help="Truthful AI drafter identifier required by the v1.2 heldout design.",
+    )
     arguments = parser.parse_args(argv)
 
     try:
@@ -675,6 +711,37 @@ def main(argv: list[str] | None = None) -> int:
             raise LabelingUIError("sample must not be a symlink")
         sample_path = sample_candidate.resolve()
         items = _load_items(sample_path)
+        annotation_type: str | None = None
+        drafter_id: str | None = None
+        if arguments.evaluation_design is not None:
+            design = load_event_evaluation_design(
+                arguments.evaluation_design.expanduser().resolve(),
+                project_root=PROJECT_ROOT,
+            )
+            provenance = design.document.get("heldout_annotation_provenance")
+            if provenance is not None:
+                if not isinstance(provenance, dict):
+                    raise LabelingUIError(
+                        "heldout annotation provenance design is invalid"
+                    )
+                annotation_type_value = provenance.get("annotation_type")
+                if annotation_type_value != "ai_drafted_human_adjudicated":
+                    raise LabelingUIError(
+                        "unsupported heldout annotation provenance type"
+                    )
+                if (
+                    not isinstance(arguments.drafter_id, str)
+                    or not arguments.drafter_id.strip()
+                ):
+                    raise LabelingUIError(
+                        "v1.2 heldout labeling requires a truthful AI drafter ID"
+                    )
+                annotation_type = annotation_type_value
+                drafter_id = arguments.drafter_id.strip()
+        elif arguments.drafter_id is not None:
+            raise LabelingUIError(
+                "drafter ID is forbidden without an explicit provenance design"
+            )
         output_candidate = (
             arguments.output.expanduser()
             if arguments.output is not None
@@ -689,9 +756,17 @@ def main(argv: list[str] | None = None) -> int:
                 items,
                 sample_path=sample_path,
                 title=f"P4.2a 盲标 · {sample_path.stem}",
+                annotation_type=annotation_type,
+                drafter_id=drafter_id,
             ),
         )
-    except (LabelingUIError, FileExistsError, OSError, UnicodeError):
+    except (
+        EventEvaluationDesignError,
+        LabelingUIError,
+        FileExistsError,
+        OSError,
+        UnicodeError,
+    ):
         print(
             json.dumps(
                 {

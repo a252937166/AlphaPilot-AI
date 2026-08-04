@@ -5,9 +5,14 @@ import hashlib
 from pathlib import Path
 from typing import cast
 
+import pytest
+import yaml
 from scripts import run_p4_2a_heldout_predictions as runner
 
-from alphapilot.llm.p4_news_eval import load_event_evaluation_design
+from alphapilot.llm.p4_news_eval import (
+    EVALUATION_DESIGN_V1_2_PATH,
+    load_event_evaluation_design,
+)
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 BASE_CONTRACT_PATH = PROJECT_ROOT / "config/p4_event_extract_eval_v1.yaml"
@@ -16,6 +21,7 @@ ACTIVE_CONTRACT_PATH = PROJECT_ROOT / "config/p4_event_extract_eval_v1_1.yaml"
 ACTIVE_PROMPT_PATH = PROJECT_ROOT / "config/prompts/p4_news_event_extract_v1_1.txt"
 ACTIVE_V1_2_CONTRACT_PATH = PROJECT_ROOT / "config/p4_event_extract_eval_v1_2.yaml"
 ACTIVE_V1_2_PROMPT_PATH = PROJECT_ROOT / "config/prompts/p4_news_event_extract_v1_2.txt"
+ACTIVE_V1_3_CONTRACT_PATH = PROJECT_ROOT / "config/p4_event_extract_eval_v1_3.yaml"
 
 
 def _sha256(path: Path) -> str:
@@ -107,3 +113,68 @@ def test_v1_2_is_prompt_only_and_hardens_literal_evidence_copying() -> None:
         _sha256(ACTIVE_V1_2_PROMPT_PATH)
         == "5080bdb2b373f6360527c79465da8645884fd33308c9e3d061120b0a1298fe05"
     )
+
+
+def test_v1_3_changes_only_model_endpoint_and_runtime_provenance() -> None:
+    design = load_event_evaluation_design(EVALUATION_DESIGN_V1_2_PATH)
+    active = runner._load_active_contract(
+        design,
+        PROJECT_ROOT,
+        ACTIVE_V1_3_CONTRACT_PATH,
+    )
+
+    assert active.document["schema_version"] == "p4.2a-event-extract-eval-v1.3"
+    assert active.model == "qwen3.6-plus"
+    assert active.endpoint == "https://dashscope.aliyuncs.com/compatible-mode/v1"
+    assert active.explicit_cache_enabled is False
+    assert active.prompt == ACTIVE_V1_2_PROMPT_PATH.read_text(encoding="utf-8")
+    assert active.document["contract_files"]["prompt"] == {
+        "path": "config/prompts/p4_news_event_extract_v1_2.txt",
+        "sha256": "5080bdb2b373f6360527c79465da8645884fd33308c9e3d061120b0a1298fe05",
+    }
+    assert active.document["llm"]["explicit_cache"] == {
+        "enabled": False,
+        "cache_control": None,
+    }
+    assert (
+        _sha256(ACTIVE_V1_3_CONTRACT_PATH)
+        == "1e465f600039a587c26e9686e82a229baf948f8db748b68a5731b23af08fefd6"
+    )
+
+
+def test_v1_3_rejects_model_or_mainland_endpoint_drift(tmp_path: Path) -> None:
+    design = load_event_evaluation_design(EVALUATION_DESIGN_V1_2_PATH)
+    document = runner._load_strict_yaml_mapping(
+        ACTIVE_V1_3_CONTRACT_PATH.read_bytes()
+    )
+    for relative in (
+        "config/prompts/p4_news_event_extract_v1_2.txt",
+        "config/schemas/p4_news_event_v1.schema.json",
+    ):
+        target = tmp_path / relative
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes((PROJECT_ROOT / relative).read_bytes())
+
+    for field, value in (
+        ("model", "qwen3.6-flash"),
+        (
+            "endpoint",
+            "https://dashscope-intl.aliyuncs.com/compatible-mode/v1",
+        ),
+    ):
+        drifted = copy.deepcopy(document)
+        cast(dict[str, object], drifted["llm"])[field] = value
+        path = tmp_path / "config" / f"p4_event_extract_eval_v1_3-{field}.yaml"
+        path.write_text(
+            yaml.safe_dump(
+                drifted,
+                allow_unicode=True,
+                sort_keys=False,
+            ),
+            encoding="utf-8",
+        )
+        with pytest.raises(
+            runner.HeldoutPredictionError,
+            match="evaluation design prediction contract",
+        ):
+            runner._load_active_contract(design, tmp_path, path)

@@ -196,6 +196,27 @@ def test_render_keeps_storage_key_and_exports_only_mutable_overrides(
     assert 'a.download = "P4.2a-gold-inventory60-v1.labels.jsonl"' in rendered
 
 
+def test_render_v1_2_exports_dual_heldout_provenance() -> None:
+    row = _blind_row()
+    rendered = labeling._render(
+        [row],
+        sample_path=Path("heldout-v1.2.jsonl"),
+        title="P4.2a heldout 人工裁定",
+        annotation_type="ai_drafted_human_adjudicated",
+        drafter_id="ChatGPT GPT-5.6 Pro",
+    )
+
+    assert (
+        'const ANNOTATION_TYPE = "ai_drafted_human_adjudicated"'
+        in rendered
+    )
+    assert 'const DRAFTER_ID = "ChatGPT GPT-5.6 Pro"' in rendered
+    assert "annotation_type: ANNOTATION_TYPE" in rendered
+    assert "drafter_id: DRAFTER_ID" in rendered
+    assert "adjudicator_id: annotator" in rendered
+    assert "annotation_owner: annotator" in rendered
+
+
 def test_render_can_import_legacy_progress_without_importing_predictions(
     tmp_path: Path,
 ) -> None:

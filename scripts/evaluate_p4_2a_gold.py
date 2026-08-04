@@ -24,6 +24,11 @@ if __package__ in {None, ""}:
 
 from scripts import build_p4_2a_gold_sample as gold_builder  # noqa: E402
 
+from alphapilot.llm.p4_news_eval import (  # noqa: E402
+    EventEvaluationDesign,
+    EventEvaluationDesignError,
+    validate_heldout_annotation_provenance,
+)
 from alphapilot.llm.p4_news_event import (  # noqa: E402
     EventExtractContract,
     load_event_extract_contract,
@@ -225,6 +230,7 @@ def validate_owner_annotations(
     expected_count: int = 100,
     expected_start_index: int = 1,
     expected_sample_group: str | None = None,
+    design: EventEvaluationDesign | None = None,
 ) -> dict[int, JsonObject]:
     """Validate owner labels and recompute every frozen text/input hash."""
 
@@ -256,8 +262,20 @@ def validate_owner_annotations(
             raise GoldEvaluationError(
                 f"annotation news item {news_item_id} contains model predictions"
             )
-        unexpected_fields = set(record) - gold_builder.ANNOTATION_ITEM_FIELDS
-        missing_fields = gold_builder.ANNOTATION_ITEM_FIELDS - set(record)
+        heldout_record = (
+            expected_sample_group == "heldout40"
+            or record.get("sample_group") == "heldout40"
+        )
+        provenance_fields = (
+            {"annotation_type", "drafter_id", "adjudicator_id"}
+            if heldout_record
+            and design is not None
+            and "heldout_annotation_provenance" in design.document
+            else set()
+        )
+        expected_fields = gold_builder.ANNOTATION_ITEM_FIELDS | provenance_fields
+        unexpected_fields = set(record) - expected_fields
+        missing_fields = expected_fields - set(record)
         if unexpected_fields or missing_fields:
             raise GoldEvaluationError(
                 f"annotation news item {news_item_id} fields drifted: "
@@ -309,8 +327,24 @@ def validate_owner_annotations(
             raise GoldEvaluationError(str(exc)) from exc
         if record.get("annotation_status") not in COMPLETED_ANNOTATION_STATUSES:
             raise GoldEvaluationError(f"annotation news item {news_item_id} is not completed")
-        if _annotation_owner(record) != "owner":
-            raise GoldEvaluationError(f"annotation news item {news_item_id} is not owner-labelled")
+        if provenance_fields:
+            try:
+                validate_heldout_annotation_provenance(record, design)
+            except EventEvaluationDesignError as exc:
+                raise GoldEvaluationError(
+                    f"annotation news item {news_item_id} provenance failed: {exc}"
+                ) from exc
+        elif design is None or design.document.get("schema_version") == (
+            "p4.2a-evaluation-design-v1.1"
+        ):
+            if _annotation_owner(record) != "owner":
+                raise GoldEvaluationError(
+                    f"annotation news item {news_item_id} is not owner-labelled"
+                )
+        elif _annotation_owner(record) is None:
+            raise GoldEvaluationError(
+                f"annotation news item {news_item_id} has no annotator identity"
+            )
         _aware_iso_datetime(
             record.get("annotated_at"),
             label=f"annotation news item {news_item_id} annotated_at",
@@ -1218,6 +1252,18 @@ def validate_owner_completion_manifest(
     )
     if dev_frozen.get("sha256") != dev_blind_sha256:
         raise GoldEvaluationError("frozen dev60 bytes differ from the evaluation design")
+    dev_annotation_artifact = _mapping(
+        artifacts.get("dev_60_owner_annotations_jsonl"),
+        label="artifacts.dev_60_owner_annotations_jsonl",
+    )
+    expected_dev_annotation_sha256 = dev_annotation_artifact.get("sha256")
+    if (
+        expected_dev_annotation_sha256 is not None
+        and expected_dev_annotation_sha256 != dev_annotations_sha256
+    ):
+        raise GoldEvaluationError(
+            "dev60 AI-drafted annotations differ from the evaluation design"
+        )
 
     path_bindings: dict[str, Path] = {
         "dev_blind_sample_path": dev_blind_path,
@@ -1255,6 +1301,25 @@ def validate_owner_completion_manifest(
         "identity_validation_passed": True,
         "blindness_validation_passed": True,
     }
+    if "heldout_annotation_provenance" in design.document:
+        expected_values.update(
+            {
+                "heldout_annotation_type": "ai_drafted_human_adjudicated",
+                "heldout_drafter_ids": sorted(
+                    {
+                        str(record.get("drafter_id")).strip()
+                        for record in heldout_annotations
+                    }
+                ),
+                "heldout_adjudicator_ids": sorted(
+                    {
+                        str(record.get("adjudicator_id")).strip()
+                        for record in heldout_annotations
+                    }
+                ),
+                "heldout_human_adjudication_validated": True,
+            }
+        )
     for field, expected in expected_values.items():
         if manifest.get(field) != expected:
             raise GoldEvaluationError(f"owner completion {field} drifted")
@@ -1293,6 +1358,7 @@ def validate_owner_completion_manifest(
         expected_count=60,
         expected_start_index=1,
         expected_sample_group="inventory_60",
+        design=design,
     )
     validate_owner_annotations(
         heldout_annotations,
@@ -1300,6 +1366,7 @@ def validate_owner_completion_manifest(
         expected_count=40,
         expected_start_index=1,
         expected_sample_group="heldout40",
+        design=design,
     )
     if any(record.get("annotation_status") != "completed" for record in combined):
         raise GoldEvaluationError("canonical owner annotations must use completed status")
@@ -1358,6 +1425,22 @@ def validate_owner_completion_manifest(
         "combined_renumbering_rule": renumbering_rule,
         "identity_validation_passed": True,
         "blindness_validation_passed": True,
+        **(
+            {
+                "heldout_annotation_type": manifest[
+                    "heldout_annotation_type"
+                ],
+                "heldout_drafter_ids": manifest["heldout_drafter_ids"],
+                "heldout_adjudicator_ids": manifest[
+                    "heldout_adjudicator_ids"
+                ],
+                "heldout_human_adjudication_validated": manifest[
+                    "heldout_human_adjudication_validated"
+                ],
+            }
+            if "heldout_annotation_provenance" in design.document
+            else {}
+        ),
     }
 
 
@@ -1410,7 +1493,11 @@ def evaluate_gold_sample_v1_1(
             annotation_resolved,
             label="owner annotations",
         )
-        annotations = validate_owner_annotations(annotation_records, design.base_contract)
+        annotations = validate_owner_annotations(
+            annotation_records,
+            design.base_contract,
+            design=design,
+        )
         owner = _mapping(design.document.get("owner_delivery"), label="owner_delivery")
         forbidden = owner.get("forbidden_fields")
         if not isinstance(forbidden, list) or any(not isinstance(item, str) for item in forbidden):
@@ -1602,6 +1689,16 @@ def evaluate_gold_sample_v1_1(
                     "ordered_identity_sha256"
                 ],
                 "dev_final_predictions_contract_sha256": dev_final["contract_sha256"],
+                **(
+                    {
+                        "endpoint": receipt["endpoint"],
+                        "explicit_cache_enabled": receipt[
+                            "explicit_cache_enabled"
+                        ],
+                    }
+                    if "endpoint" in receipt
+                    else {}
+                ),
             },
             "splits": {
                 "dev60": {
@@ -1776,11 +1873,11 @@ def _arguments(argv: Sequence[str] | None = None) -> argparse.Namespace:
     )
     parser.add_argument(
         "--scope",
-        choices=("legacy-v1", "heldout-final-v1.1"),
+        choices=("legacy-v1", "heldout-final-v1.1", "heldout-final-v1.2"),
         default="heldout-final-v1.1",
         help=(
-            "heldout-final-v1.1 is the active contract; legacy-v1 is historical "
-            "and must be requested explicitly"
+            "Heldout scopes require their matching explicit evaluation design; "
+            "legacy-v1 is historical and must be requested explicitly."
         ),
     )
     parser.add_argument("--config", type=Path, default=DEFAULT_CONFIG)
@@ -1798,8 +1895,17 @@ def _arguments(argv: Sequence[str] | None = None) -> argparse.Namespace:
 def main(argv: Sequence[str] | None = None) -> int:
     arguments = _arguments(argv)
     try:
-        if arguments.scope == "heldout-final-v1.1":
+        if arguments.scope in {"heldout-final-v1.1", "heldout-final-v1.2"}:
             design = gold_builder.load_evaluation_design(arguments.evaluation_design)
+            expected_schema_version = (
+                "p4.2a-evaluation-design-v1.2"
+                if arguments.scope == "heldout-final-v1.2"
+                else "p4.2a-evaluation-design-v1.1"
+            )
+            if design.document.get("schema_version") != expected_schema_version:
+                raise GoldEvaluationError(
+                    "heldout evaluation scope/design version mismatch"
+                )
             annotation_path = (
                 arguments.annotations
                 if arguments.annotations is not None

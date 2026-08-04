@@ -9,6 +9,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, cast
+from urllib.parse import urlsplit
 
 import yaml
 from jsonschema import Draft202012Validator
@@ -25,8 +26,12 @@ DEFAULT_CONTRACT_PATH = PROJECT_ROOT / "config/p4_event_extract_eval_v1.yaml"
 EXPECTED_CONTRACT_SHA256 = (
     "b3eb24c63816043edf0ef728d8d9778cd9083d720649d6fff3ae6289bba74300"
 )
+V1_3_CONTRACT_SHA256 = (
+    "1e465f600039a587c26e9686e82a229baf948f8db748b68a5731b23af08fefd6"
+)
 
 EXPECTED_SCHEMA_VERSION = "p4.2a-event-extract-eval-v1"
+V1_3_SCHEMA_VERSION = "p4.2a-event-extract-eval-v1.3"
 EXPECTED_TAXONOMY = (
     "earnings_preannounce",
     "major_contract",
@@ -60,12 +65,14 @@ EXPECTED_FORBIDDEN_RUNTIME_CHANGES = frozenset(
 )
 
 _PROMPT_PATH = "config/prompts/p4_news_event_extract_v1.txt"
+_V1_3_PROMPT_PATH = "config/prompts/p4_news_event_extract_v1_2.txt"
 _SCHEMA_PATH = "config/schemas/p4_news_event_v1.schema.json"
 _ARTIFACT_ROOT = "docs/phase4/eval"
 _SYMBOL = re.compile(r"^[0-9]{6}$")
 _SYMBOL_IN_TEXT = re.compile(r"(?<!\d)([0-9]{6})(?!\d)")
 _CHINESE = re.compile(r"[\u3400-\u9fff]")
 _SHA256 = re.compile(r"^[0-9a-f]{64}$")
+_MODEL_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,99}$")
 
 
 class EventExtractContractError(ValueError):
@@ -90,12 +97,14 @@ class EventExtractContract:
     prompt: str
     schema: JsonObject
     model: str
+    endpoint: str | None
     purpose: str
     timeout: float
     max_tokens: int
     max_retries: int
     max_items_per_run: int
     max_input_characters: int
+    explicit_cache_enabled: bool
 
 
 P4NewsEventContract = EventExtractContract
@@ -131,6 +140,30 @@ def _positive_number(value: object, name: str) -> float:
     ):
         raise EventExtractContractError(f"{name} must be greater than zero")
     return float(value)
+
+
+def normalize_llm_endpoint(value: object, *, name: str = "llm.endpoint") -> str:
+    """Return a canonical HTTPS OpenAI-compatible base URL or fail closed."""
+    if not isinstance(value, str) or not value.strip():
+        raise EventExtractContractError(f"{name} must be a non-blank HTTPS URL")
+    candidate = value.strip()
+    parsed = urlsplit(candidate)
+    if (
+        parsed.scheme != "https"
+        or parsed.hostname is None
+        or parsed.username is not None
+        or parsed.password is not None
+        or parsed.port is not None
+        or parsed.query
+        or parsed.fragment
+        or parsed.path.rstrip("/") != "/compatible-mode/v1"
+    ):
+        raise EventExtractContractError(
+            f"{name} must be an HTTPS /compatible-mode/v1 base URL without credentials, "
+            "port, query, or fragment"
+        )
+    normalized = f"https://{parsed.hostname.lower()}/compatible-mode/v1"
+    return normalized
 
 
 def _decode_json_object(payload: bytes, name: str) -> JsonObject:
@@ -252,11 +285,13 @@ def _validate_result_schema(schema: JsonObject, taxonomy: tuple[str, ...]) -> No
 def _validate_budget_and_isolation(document: Mapping[str, Any]) -> tuple[
     str,
     str,
+    str | None,
     float,
     int,
     int,
     int,
     int,
+    bool,
 ]:
     if document.get("production_writes_allowed") is not False:
         raise EventExtractContractError("P4.2a production writes must remain forbidden")
@@ -266,8 +301,32 @@ def _validate_budget_and_isolation(document: Mapping[str, Any]) -> tuple[
     llm = _mapping(document.get("llm"), "llm")
     purpose = llm.get("purpose")
     model = llm.get("model")
-    if purpose != "p4_news_event_extract" or model != "qwen3.6-flash":
+    if (
+        purpose != "p4_news_event_extract"
+        or not isinstance(model, str)
+        or _MODEL_NAME.fullmatch(model) is None
+    ):
         raise EventExtractContractError("P4.2a purpose/model contract drifted")
+    endpoint_raw = llm.get("endpoint")
+    endpoint = (
+        None
+        if endpoint_raw is None
+        else normalize_llm_endpoint(endpoint_raw, name="llm.endpoint")
+    )
+    if endpoint_raw is not None and endpoint != endpoint_raw:
+        raise EventExtractContractError("P4.2a endpoint must use canonical URL bytes")
+    explicit_cache_raw = llm.get("explicit_cache")
+    explicit_cache_enabled = False
+    if explicit_cache_raw is not None:
+        explicit_cache = _mapping(explicit_cache_raw, "llm.explicit_cache")
+        if (
+            set(explicit_cache) != {"enabled", "cache_control"}
+            or explicit_cache.get("enabled") is not False
+            or explicit_cache.get("cache_control") is not None
+        ):
+            raise EventExtractContractError(
+                "P4.2a explicit cache must remain disabled for this contract"
+            )
     if (
         llm.get("temperature") != 0.2
         or llm.get("enable_thinking") is not False
@@ -362,13 +421,22 @@ def _validate_budget_and_isolation(document: Mapping[str, Any]) -> tuple[
 
     return (
         cast(str, purpose),
-        cast(str, model),
+        model,
+        endpoint,
         timeout,
         max_tokens,
         max_retries,
         max_items,
         max_input_characters,
+        explicit_cache_enabled,
     )
+
+
+def validate_event_extract_contract_controls(
+    document: Mapping[str, Any],
+) -> tuple[str, str, str | None, float, int, int, int, int, bool]:
+    """Validate and return the contract-controlled runtime settings."""
+    return _validate_budget_and_isolation(document)
 
 
 def load_event_extract_contract(
@@ -383,7 +451,19 @@ def load_event_extract_contract(
     except OSError as exc:
         raise EventExtractContractError("P4.2a event-extract contract is unavailable") from exc
     digest = _sha256_bytes(payload)
-    if digest != EXPECTED_CONTRACT_SHA256:
+    v1_3_path = (project_root.resolve() / "config/p4_event_extract_eval_v1_3.yaml").resolve()
+    is_v1_3 = resolved_path == v1_3_path
+    expected_digest = V1_3_CONTRACT_SHA256 if is_v1_3 else EXPECTED_CONTRACT_SHA256
+    expected_schema_version = (
+        V1_3_SCHEMA_VERSION if is_v1_3 else EXPECTED_SCHEMA_VERSION
+    )
+    expected_prompt_path = _V1_3_PROMPT_PATH if is_v1_3 else _PROMPT_PATH
+    expected_prompt_marker = (
+        "[P4_NEWS_EVENT_EXTRACT v1.2.0]"
+        if is_v1_3
+        else "[P4_NEWS_EVENT_EXTRACT v1.0.0]"
+    )
+    if digest != expected_digest:
         raise EventExtractContractError(
             "P4.2a event-extract contract bytes differ from the pre-registered SHA-256"
         )
@@ -395,7 +475,7 @@ def load_event_extract_contract(
     if not isinstance(loaded, dict):
         raise EventExtractContractError("P4.2a event-extract contract must be a mapping")
     document = cast(JsonObject, loaded)
-    if document.get("schema_version") != EXPECTED_SCHEMA_VERSION:
+    if document.get("schema_version") != expected_schema_version:
         raise EventExtractContractError("unsupported P4.2a event-extract contract version")
 
     taxonomy = _mapping(document.get("taxonomy"), "taxonomy")
@@ -410,7 +490,7 @@ def load_event_extract_contract(
     prompt_payload = _contract_artifact(
         root=project_root,
         entry=contract_files.get("prompt"),
-        expected_relative_path=_PROMPT_PATH,
+        expected_relative_path=expected_prompt_path,
         name="prompt",
     )
     schema_payload = _contract_artifact(
@@ -423,7 +503,7 @@ def load_event_extract_contract(
         prompt = prompt_payload.decode("utf-8")
     except UnicodeDecodeError as exc:
         raise EventExtractContractError("prompt contract must be UTF-8") from exc
-    if not prompt.strip() or "[P4_NEWS_EVENT_EXTRACT v1.0.0]" not in prompt:
+    if not prompt.strip() or expected_prompt_marker not in prompt:
         raise EventExtractContractError("prompt contract version is invalid")
 
     schema = _decode_json_object(schema_payload, "event result schema")
@@ -431,11 +511,13 @@ def load_event_extract_contract(
     (
         purpose,
         model,
+        endpoint,
         timeout,
         max_tokens,
         max_retries,
         max_items,
         max_input_characters,
+        explicit_cache_enabled,
     ) = _validate_budget_and_isolation(document)
 
     return EventExtractContract(
@@ -445,12 +527,14 @@ def load_event_extract_contract(
         prompt=prompt,
         schema=schema,
         model=model,
+        endpoint=endpoint,
         purpose=purpose,
         timeout=timeout,
         max_tokens=max_tokens,
         max_retries=max_retries,
         max_items_per_run=max_items,
         max_input_characters=max_input_characters,
+        explicit_cache_enabled=explicit_cache_enabled,
     )
 
 
@@ -607,6 +691,16 @@ def _settings_model(settings: Settings, purpose: str) -> str | None:
     return model.strip() if isinstance(model, str) and model.strip() else None
 
 
+def _settings_endpoint(settings: Settings) -> str | None:
+    value = settings.llm_base_url
+    if not isinstance(value, str) or not value.strip():
+        return None
+    try:
+        return normalize_llm_endpoint(value, name="Settings.llm_base_url")
+    except EventExtractContractError:
+        return None
+
+
 def extract_news_event(
     contract: EventExtractContract,
     *,
@@ -625,6 +719,10 @@ def extract_news_event(
     """Extract and strictly validate one event using an explicit audit session."""
     if _settings_model(settings, contract.purpose) != contract.model:
         raise EventExtractContractError("resolved purpose model differs from the frozen contract")
+    if contract.endpoint is not None and _settings_endpoint(settings) != contract.endpoint:
+        raise EventExtractContractError("resolved LLM endpoint differs from the frozen contract")
+    if contract.explicit_cache_enabled:
+        raise EventExtractContractError("explicit cache is not implemented by this evaluator")
     user_json = build_event_extract_user_input(
         contract,
         news_item_id=news_item_id,
@@ -672,6 +770,8 @@ __all__ = [
     "extract_news_event",
     "load_event_extract_contract",
     "load_p4_news_event_contract",
+    "normalize_llm_endpoint",
+    "validate_event_extract_contract_controls",
     "validate_event_result",
     "validate_p4_news_event_result",
 ]

@@ -32,6 +32,7 @@ def _fixture_root(tmp_path: Path) -> None:
         "config/prompts/p4_news_event_extract_v1.txt",
         "config/prompts/p4_news_event_extract_v1_1.txt",
         "config/schemas/p4_news_event_v1.schema.json",
+        "config/p4_news_poll_v1.yaml",
         "docs/phase4/eval/P4.2a-gold-inventory60-v1.jsonl",
         "docs/phase4/eval/P4.2a-gold-inventory60-v1.labels-ai-drafted.jsonl",
     ):
@@ -156,6 +157,21 @@ def test_dev_iteration_is_create_only_and_does_not_need_news_items(
     assert metrics["metric_semantics"] == "model_interagreement"
     assert metrics["not_phase_gate"] is True
     assert metrics["development_ready_to_freeze"] is False
+    assert result.report["formal_dev_round_valid"] is True
+    comparison = result.report["flash_baseline_comparison"]
+    assert comparison["baseline"]["materiality_positive"] == {
+        "matches": 7,
+        "denominator": 14,
+        "agreement": 0.5,
+    }
+    assert comparison["baseline"]["symbol_exact_set"]["matches"] == 58
+    assert comparison["baseline"]["symbol_exact_set"]["denominator"] == 59
+    assert comparison["candidate"]["success_count"] == 60
+    assert comparison["candidate"]["failure_count"] == 0
+    assert comparison["interpretation"] == (
+        "indicative_comparison_not_single_variable_causality"
+    )
+    assert result.report["runtime_evidence"]["successful_rows"] == 60
     assert result.report["heldout_accessed"] is False
     serialized = result.report_path.read_text(encoding="utf-8")
     assert "precision" not in serialized
