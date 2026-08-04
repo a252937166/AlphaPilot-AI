@@ -185,7 +185,11 @@ def test_render_keeps_storage_key_and_exports_only_mutable_overrides(
     assert 'const KEY = "p4.2a-labels:" + "P4.2a-gold-inventory60-v1.jsonl"' in rendered
     assert "return {...entry.item," in rendered
     assert 'annotation_status: "completed"' in rendered
-    assert 'annotation_owner: "owner"' in rendered
+    assert 'id="annotator"' in rendered
+    assert "const annotator = ($(\"annotator\").value || \"\").trim()" in rendered
+    assert "if (!annotator)" in rendered
+    assert "annotation_owner: annotator" in rendered
+    assert 'annotation_owner: "owner"' not in rendered
     assert "annotated_at: annotatedAt" in rendered
     assert "gold: entry.gold" in rendered
     assert "news_item_id: it.news_item_id" not in rendered

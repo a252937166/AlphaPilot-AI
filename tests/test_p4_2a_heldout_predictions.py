@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 import sqlite3
 from collections.abc import Callable, Mapping
 from datetime import datetime
@@ -61,6 +62,7 @@ def _copy_contract_files(root: Path, design: EventEvaluationDesign) -> None:
         base["prompt"]["path"],
         base["result_schema"]["path"],
         design.document["artifacts"]["dev_60_frozen_jsonl"]["path"],
+        "docs/phase4/eval/P4.2a-gold-inventory60-v1.labels-ai-drafted.jsonl",
     ):
         _copy_project_file(root, cast(str, relative))
 
@@ -147,10 +149,29 @@ def _create_dev_only_database(root: Path) -> Path:
                 id INTEGER PRIMARY KEY,
                 environment TEXT NOT NULL
             );
-            INSERT INTO securities(symbol) VALUES ('600519');
             INSERT INTO trade_proposals(id) VALUES (1);
             INSERT INTO broker_orders(id, environment) VALUES (1, 'SIMULATE');
             """
+        )
+        rows = [
+            json.loads(line)
+            for line in (
+                root / "docs/phase4/eval/P4.2a-gold-inventory60-v1.jsonl"
+            )
+            .read_text(encoding="utf-8")
+            .splitlines()
+        ]
+        symbols = {"600519"}
+        for row in rows:
+            ingested = row.get("ingested_symbol")
+            if isinstance(ingested, str):
+                symbols.add(ingested)
+            symbols.update(
+                re.findall(r"(?<!\d)[0-9]{6}(?!\d)", cast(str, row["original_text"]))
+            )
+        connection.executemany(
+            "INSERT INTO securities(symbol) VALUES (?)",
+            [(symbol,) for symbol in sorted(symbols)],
         )
     return database
 
@@ -203,6 +224,7 @@ def _fake_chat(
     failed_id: int | None = None,
     before_call: Callable[[int], None] | None = None,
     prediction_symbols: tuple[str, ...] = ("600519",),
+    predictions_by_id: Mapping[int, Mapping[str, Any]] | None = None,
 ) -> Callable[..., dict[str, Any]]:
     def fake(
         _purpose: str,
@@ -229,6 +251,10 @@ def _fake_chat(
             _record_audit(session, ok=False, error="request_timeout")
             raise LLMUnavailable("provider secret and raw response must not persist")
         _record_audit(session, ok=True, error=None)
+        if predictions_by_id is not None:
+            prediction = dict(predictions_by_id[identifier])
+            prediction["summary"] = "开发集预测与冻结的 AI 开发信号一致。"
+            return prediction
         return {
             "symbols": list(prediction_symbols),
             "event_type": "other",
@@ -240,6 +266,42 @@ def _fake_chat(
         }
 
     return fake
+
+
+def _ai_dev_predictions(root: Path) -> dict[int, dict[str, Any]]:
+    labels = {
+        int(row["news_item_id"]): row
+        for row in (
+            json.loads(line)
+            for line in (
+                root
+                / "docs/phase4/eval/P4.2a-gold-inventory60-v1.labels-ai-drafted.jsonl"
+            )
+            .read_text(encoding="utf-8")
+            .splitlines()
+        )
+    }
+    result: dict[int, dict[str, Any]] = {}
+    for identifier, row in labels.items():
+        gold = cast(dict[str, Any], row["gold"])
+        original_text = cast(str, row["original_text"])
+        ingested = row.get("ingested_symbol")
+        allowed = set(re.findall(r"(?<!\d)[0-9]{6}(?!\d)", original_text))
+        if isinstance(ingested, str):
+            allowed.add(ingested)
+        symbols = [
+            symbol for symbol in cast(list[str], gold["symbols"]) if symbol in allowed
+        ]
+        result[identifier] = {
+            "symbols": symbols,
+            "event_type": gold["event_type"],
+            "direction": gold["direction"],
+            "materiality": gold["materiality"],
+            "summary": "开发集预测与冻结的 AI 开发信号一致。",
+            "confidence": 0.8,
+            "evidence_span": gold["evidence_span"],
+        }
+    return result
 
 
 def _artifact(
@@ -287,8 +349,9 @@ def _create_dev_final_artifacts(
     ]
     dev_rows.sort(key=lambda row: int(row["news_item_id"]))
     predictions: list[dict[str, Any]] = []
+    by_id = _ai_dev_predictions(root)
     for row in dev_rows:
-        original_text = cast(str, row["original_text"])
+        prediction = by_id[cast(int, row["news_item_id"])]
         predictions.append(
             {
                 "news_item_id": row["news_item_id"],
@@ -297,15 +360,7 @@ def _create_dev_final_artifacts(
                 "contract_sha256": active_contract.sha256,
                 "model": active_contract.model,
                 "status": "ok",
-                "prediction": {
-                    "symbols": [],
-                    "event_type": "other",
-                    "direction": 0,
-                    "materiality": 1,
-                    "summary": "开发集最终预测。",
-                    "confidence": 0.8,
-                    "evidence_span": original_text[:8],
-                },
+                "prediction": prediction,
             }
         )
     predictions_path = _artifact(root, design, "dev_final_predictions_jsonl")
@@ -469,7 +524,7 @@ def test_dev_final_mode_closes_run_to_freeze_chain_without_heldout_read(
         clock=completion_clock,
         chat_json_fn=_fake_chat(
             calls,
-            prediction_symbols=(),
+            predictions_by_id=_ai_dev_predictions(tmp_path),
             before_call=lambda identifier: timeline.append(f"model:{identifier}"),
         ),
     )
@@ -581,6 +636,47 @@ def test_freeze_receipt_binds_dev_final_and_revalidates_bytes(tmp_path: Path) ->
     with pytest.raises(runner.HeldoutPredictionError, match="dev-final"):
         runner.validate_prediction_contract_freeze(design, tmp_path)
     assert receipt_path.is_file()
+
+
+def test_freeze_rejects_dev_final_that_did_not_pass_development_gate(
+    tmp_path: Path,
+) -> None:
+    design = load_event_evaluation_design()
+    _copy_contract_files(tmp_path, design)
+    active_contract = runner._load_active_contract(
+        design,
+        tmp_path,
+        tmp_path / "config/p4_event_extract_eval_v1.yaml",
+    )
+    predictions_path, manifest_path = _create_dev_final_artifacts(
+        tmp_path,
+        design,
+        active_contract,
+    )
+    predictions = [
+        json.loads(line)
+        for line in predictions_path.read_text(encoding="utf-8").splitlines()
+    ]
+    for row in predictions:
+        row["prediction"]["materiality"] = 1
+    payload = b"".join(_canonical_json(row) for row in predictions)
+    predictions_path.write_bytes(payload)
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["predictions_sha256"] = hashlib.sha256(payload).hexdigest()
+    manifest_path.write_bytes(_canonical_json(manifest))
+
+    with pytest.raises(
+        runner.HeldoutPredictionError,
+        match="model interagreement development gate",
+    ):
+        runner.freeze_prediction_contract(
+            active_contract.path,
+            predictions_path,
+            manifest_path,
+            project_root=tmp_path,
+            design=design,
+            now=datetime.fromisoformat("2026-08-04T08:00:00+08:00"),
+        )
 
 
 def test_versioned_prompt_contract_is_explicit_and_non_prompt_drift_fails(

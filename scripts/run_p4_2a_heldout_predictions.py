@@ -796,6 +796,57 @@ def _freeze_receipt_payload(
     return receipt
 
 
+def _validate_dev_model_interagreement_gate(
+    design: EventEvaluationDesign,
+    active_contract: EventExtractContract,
+    project_root: Path,
+    predictions_path: Path,
+) -> JsonObject:
+    """Recompute the AI-dev development gate before any prompt freeze."""
+
+    # Local import avoids a module cycle: the dev-only runner reuses this
+    # module's frozen input, active-contract, and read-only safety helpers.
+    from scripts import run_p4_2a_dev_iteration as dev_iteration
+
+    input_rows, _ = _dev_final_inputs(design, active_contract, project_root)
+    labels, _ = dev_iteration._load_dev_labels(project_root, input_rows)
+    predictions = _load_jsonl(predictions_path, "dev-final predictions")
+    metrics = dev_iteration._score_predictions(predictions, labels)
+    materiality = _mapping(
+        metrics.get("materiality_positive"),
+        "dev materiality model interagreement",
+    )
+    symbols = _mapping(
+        metrics.get("symbol_exact_set"),
+        "dev symbol model interagreement",
+    )
+    comparable = metrics.get("comparable_count")
+    failures = metrics.get("active_failure_count")
+    positive_agreement = materiality.get("positive_agreement")
+    symbol_agreement = symbols.get("agreement")
+    if (
+        metrics.get("metric_semantics") != "model_interagreement"
+        or metrics.get("not_phase_gate") is not True
+        or metrics.get("development_ready_to_freeze") is not True
+        or isinstance(comparable, bool)
+        or not isinstance(comparable, int)
+        or comparable != 60
+        or isinstance(failures, bool)
+        or not isinstance(failures, int)
+        or failures != 0
+        or isinstance(positive_agreement, bool)
+        or not isinstance(positive_agreement, (int, float))
+        or float(positive_agreement) < 0.80
+        or isinstance(symbol_agreement, bool)
+        or not isinstance(symbol_agreement, (int, float))
+        or float(symbol_agreement) < 0.95
+    ):
+        raise HeldoutPredictionError(
+            "dev-final model interagreement development gate did not pass"
+        )
+    return dict(metrics)
+
+
 def freeze_prediction_contract(
     active_contract_path: Path,
     dev_final_predictions_path: Path,
@@ -823,6 +874,12 @@ def freeze_prediction_contract(
         root,
         dev_final_predictions_path,
         dev_final_predictions_manifest_path,
+    )
+    _validate_dev_model_interagreement_gate(
+        active_design,
+        active_contract,
+        root,
+        dev_final_predictions_path,
     )
     receipt = _freeze_receipt_payload(
         active_design,
@@ -894,6 +951,16 @@ def validate_prediction_contract_freeze(
             project_root,
             receipt.get("dev_final_predictions_manifest_path"),
             "receipt dev-final manifest",
+        ),
+    )
+    _validate_dev_model_interagreement_gate(
+        design,
+        active_contract,
+        project_root,
+        _project_file(
+            project_root,
+            receipt.get("dev_final_predictions_path"),
+            "receipt dev-final predictions",
         ),
     )
     expected_without_time = _freeze_receipt_payload(
