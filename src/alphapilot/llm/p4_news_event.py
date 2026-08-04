@@ -7,6 +7,7 @@ import re
 from collections.abc import Collection, Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from itertools import pairwise
 from pathlib import Path
 from typing import Any, cast
 from urllib.parse import urlsplit
@@ -23,23 +24,17 @@ JsonObject = dict[str, Any]
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 DEFAULT_CONTRACT_PATH = PROJECT_ROOT / "config/p4_event_extract_eval_v1.yaml"
-EXPECTED_CONTRACT_SHA256 = (
-    "b3eb24c63816043edf0ef728d8d9778cd9083d720649d6fff3ae6289bba74300"
-)
-V1_3_CONTRACT_SHA256 = (
-    "1e465f600039a587c26e9686e82a229baf948f8db748b68a5731b23af08fefd6"
-)
-V1_4_CONTRACT_SHA256 = (
-    "e6d3e7db08e2d226c850092f0f794d7194eaf1935a56cbfe267a86e1297f37fc"
-)
-V1_5_CONTRACT_SHA256 = (
-    "a07f9f37e0877bd06ce3dc9e8a0e03c51bbb92fdc3ba6738b6932d7679aca560"
-)
+EXPECTED_CONTRACT_SHA256 = "b3eb24c63816043edf0ef728d8d9778cd9083d720649d6fff3ae6289bba74300"
+V1_3_CONTRACT_SHA256 = "1e465f600039a587c26e9686e82a229baf948f8db748b68a5731b23af08fefd6"
+V1_4_CONTRACT_SHA256 = "e6d3e7db08e2d226c850092f0f794d7194eaf1935a56cbfe267a86e1297f37fc"
+V1_5_CONTRACT_SHA256 = "a07f9f37e0877bd06ce3dc9e8a0e03c51bbb92fdc3ba6738b6932d7679aca560"
+V1_6_CONTRACT_SHA256 = "4e88990d2ee7671db316794aabd0a476f798b5e542f00bbb8ffbd3f7fd423269"
 
 EXPECTED_SCHEMA_VERSION = "p4.2a-event-extract-eval-v1"
 V1_3_SCHEMA_VERSION = "p4.2a-event-extract-eval-v1.3"
 V1_4_SCHEMA_VERSION = "p4.2a-event-extract-eval-v1.4"
 V1_5_SCHEMA_VERSION = "p4.2a-event-extract-eval-v1.5"
+V1_6_SCHEMA_VERSION = "p4.2a-event-extract-eval-v1.6"
 EXPECTED_TAXONOMY = (
     "earnings_preannounce",
     "major_contract",
@@ -60,6 +55,15 @@ EXPECTED_RESULT_FIELDS = (
     "confidence",
     "evidence_span",
 )
+CANDIDATE_RESULT_FIELDS = (
+    "symbols",
+    "event_type",
+    "direction",
+    "materiality",
+    "summary",
+    "confidence",
+    "evidence_candidate_id",
+)
 EXPECTED_FORBIDDEN_RUNTIME_CHANGES = frozenset(
     {
         "scheduler",
@@ -76,7 +80,9 @@ _PROMPT_PATH = "config/prompts/p4_news_event_extract_v1.txt"
 _V1_3_PROMPT_PATH = "config/prompts/p4_news_event_extract_v1_2.txt"
 _V1_4_PROMPT_PATH = "config/prompts/p4_news_event_extract_v1_3.txt"
 _V1_5_PROMPT_PATH = "config/prompts/p4_news_event_extract_v1_4.txt"
+_V1_6_PROMPT_PATH = "config/prompts/p4_news_event_extract_v1_5.txt"
 _SCHEMA_PATH = "config/schemas/p4_news_event_v1.schema.json"
+_CANDIDATE_SCHEMA_PATH = "config/schemas/p4_news_event_candidate_v1.schema.json"
 _ARTIFACT_ROOT = "docs/phase4/eval"
 _SYMBOL = re.compile(r"^[0-9]{6}$")
 _SYMBOL_IN_TEXT = re.compile(r"(?<!\d)([0-9]{6})(?!\d)")
@@ -84,9 +90,15 @@ _CHINESE = re.compile(r"[\u3400-\u9fff]")
 _SHA256 = re.compile(r"^[0-9a-f]{64}$")
 _MODEL_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,99}$")
 EXACT_EVIDENCE_SPAN_MATCH_MODE = "exact_contiguous_substring_v1"
-WHITESPACE_NORMALIZED_EVIDENCE_SPAN_MATCH_MODE = (
-    "unicode_whitespace_elided_contiguous_substring_v1"
-)
+WHITESPACE_NORMALIZED_EVIDENCE_SPAN_MATCH_MODE = "unicode_whitespace_elided_contiguous_substring_v1"
+EVIDENCE_CANDIDATE_ALGORITHM_VERSION = "ordered-raw-partition-unicode-whitespace-display-v1"
+EVIDENCE_CANDIDATE_INPUT_REPRESENTATION = "ordered_evidence_candidates_v1"
+EVIDENCE_CANDIDATE_ID_PATTERN = r"^e[0-9]{4}$"
+EVIDENCE_CANDIDATE_TARGET_RAW_CHARACTERS = 320
+EVIDENCE_CANDIDATE_DISPLAY_MAX_CHARACTERS = 320
+EVIDENCE_CANDIDATE_RAW_SPAN_MAX_CHARACTERS = 500
+_EVIDENCE_CANDIDATE_MAX_COUNT = 10_000
+_EVIDENCE_CANDIDATE_BREAK_CHARACTERS = "。！？!?；;\n\r\f"
 
 
 class EventExtractContractError(ValueError):
@@ -125,9 +137,24 @@ class EventExtractContract:
     max_input_characters: int
     explicit_cache_enabled: bool
     evidence_span_match_mode: str = EXACT_EVIDENCE_SPAN_MATCH_MODE
+    evidence_candidate_selection: bool = False
+    materialized_schema: JsonObject | None = None
 
 
 P4NewsEventContract = EventExtractContract
+
+
+@dataclass(frozen=True, slots=True)
+class EvidenceCandidate:
+    """One model-visible selector backed by an exact raw source span."""
+
+    candidate_id: str
+    start: int
+    end: int
+    display: str
+
+    def as_model_input(self) -> list[str | int]:
+        return [self.candidate_id, self.start, self.end, self.display]
 
 
 def _sha256_bytes(payload: bytes) -> str:
@@ -135,8 +162,111 @@ def _sha256_bytes(payload: bytes) -> str:
 
 
 def event_extract_input_sha256(user_json: str) -> str:
-    """Hash the exact canonical eight-field user message sent to the model."""
+    """Hash the exact canonical user message sent to the model."""
     return _sha256_bytes(user_json.encode("utf-8"))
+
+
+def segment_evidence_candidates(original_text: str) -> tuple[EvidenceCandidate, ...]:
+    """Partition source text deterministically without labels or model output."""
+    if not isinstance(original_text, str) or not original_text.strip():
+        raise EventExtractValidationError(
+            "original_text must be a non-blank string",
+            field="original_text",
+            constraint="non_blank_string",
+        )
+
+    candidates: list[EvidenceCandidate] = []
+    start = 0
+    text_length = len(original_text)
+    while start < text_length:
+        if len(candidates) >= _EVIDENCE_CANDIDATE_MAX_COUNT:
+            raise EventExtractValidationError(
+                "original_text produces too many evidence candidates",
+                field="original_text",
+                constraint="candidate_count_limit",
+            )
+
+        end = min(
+            text_length,
+            start + EVIDENCE_CANDIDATE_TARGET_RAW_CHARACTERS,
+        )
+        if end < text_length:
+            preferred_start = start + (EVIDENCE_CANDIDATE_TARGET_RAW_CHARACTERS * 2 // 3)
+            preferred_break = max(
+                (
+                    original_text.rfind(character, preferred_start, end)
+                    for character in _EVIDENCE_CANDIDATE_BREAK_CHARACTERS
+                ),
+                default=-1,
+            )
+            if preferred_break >= preferred_start:
+                end = preferred_break + 1
+
+        # A whitespace-only tail cannot become a candidate by itself. Absorb it
+        # into the current raw span when the hard raw limit permits; otherwise
+        # fail closed because all candidates must remain non-empty.
+        if end < text_length and not original_text[end:].strip():
+            if text_length - start > EVIDENCE_CANDIDATE_RAW_SPAN_MAX_CHARACTERS:
+                raise EventExtractValidationError(
+                    "trailing whitespace cannot be covered by a non-empty candidate",
+                    field="original_text",
+                    constraint="candidate_exact_partition",
+                )
+            end = text_length
+
+        raw_span = original_text[start:end]
+        display = " ".join(raw_span.split())
+        if not display:
+            next_non_whitespace = end
+            while (
+                next_non_whitespace < text_length and original_text[next_non_whitespace].isspace()
+            ):
+                next_non_whitespace += 1
+            if next_non_whitespace >= text_length:
+                raise EventExtractValidationError(
+                    "evidence candidates must contain visible source characters",
+                    field="original_text",
+                    constraint="candidate_non_empty",
+                )
+            end = next_non_whitespace + 1
+            raw_span = original_text[start:end]
+            display = " ".join(raw_span.split())
+
+        if end <= start or len(raw_span) > EVIDENCE_CANDIDATE_RAW_SPAN_MAX_CHARACTERS:
+            raise EventExtractValidationError(
+                "evidence candidate raw span exceeds the contract limit",
+                field="original_text",
+                constraint="candidate_raw_span_limit",
+            )
+        if not display or len(display) > EVIDENCE_CANDIDATE_DISPLAY_MAX_CHARACTERS:
+            raise EventExtractValidationError(
+                "evidence candidate display exceeds the contract limit",
+                field="original_text",
+                constraint="candidate_display_limit",
+            )
+
+        candidates.append(
+            EvidenceCandidate(
+                candidate_id=f"e{len(candidates):04d}",
+                start=start,
+                end=end,
+                display=display,
+            )
+        )
+        start = end
+
+    if (
+        not candidates
+        or candidates[0].start != 0
+        or candidates[-1].end != text_length
+        or any(left.end != right.start for left, right in pairwise(candidates))
+    ):
+        raise EventExtractValidationError(
+            "evidence candidates must exactly partition original_text",
+            field="original_text",
+            constraint="candidate_exact_partition",
+        )
+    return tuple(candidates)
 
 
 def _mapping(value: object, name: str) -> Mapping[str, Any]:
@@ -240,7 +370,12 @@ def _contract_artifact(
     return payload
 
 
-def _validate_result_schema(schema: JsonObject, taxonomy: tuple[str, ...]) -> None:
+def _validate_result_schema(
+    schema: JsonObject,
+    taxonomy: tuple[str, ...],
+    *,
+    evidence_candidate_selection: bool,
+) -> None:
     try:
         Draft202012Validator.check_schema(schema)
     except SchemaError as exc:
@@ -248,13 +383,16 @@ def _validate_result_schema(schema: JsonObject, taxonomy: tuple[str, ...]) -> No
 
     properties = _mapping(schema.get("properties"), "schema.properties")
     required = schema.get("required")
+    expected_fields = (
+        CANDIDATE_RESULT_FIELDS if evidence_candidate_selection else EXPECTED_RESULT_FIELDS
+    )
     if (
         schema.get("type") != "object"
         or schema.get("additionalProperties") is not False
         or not isinstance(required, list)
-        or set(required) != set(EXPECTED_RESULT_FIELDS)
-        or len(required) != len(EXPECTED_RESULT_FIELDS)
-        or set(properties) != set(EXPECTED_RESULT_FIELDS)
+        or set(required) != set(expected_fields)
+        or len(required) != len(expected_fields)
+        or set(properties) != set(expected_fields)
     ):
         raise EventExtractContractError("event result schema is not strict")
 
@@ -292,7 +430,7 @@ def _validate_result_schema(schema: JsonObject, taxonomy: tuple[str, ...]) -> No
     ):
         raise EventExtractContractError("confidence schema constraints drifted")
 
-    for field, maximum in (("summary", 240), ("evidence_span", 500)):
+    for field, maximum in (("summary", 240),):
         field_schema = _mapping(properties.get(field), f"schema.properties.{field}")
         if (
             field_schema.get("type") != "string"
@@ -301,8 +439,32 @@ def _validate_result_schema(schema: JsonObject, taxonomy: tuple[str, ...]) -> No
         ):
             raise EventExtractContractError(f"{field} schema constraints drifted")
 
+    if evidence_candidate_selection:
+        candidate_id = _mapping(
+            properties.get("evidence_candidate_id"),
+            "schema.properties.evidence_candidate_id",
+        )
+        if (
+            candidate_id.get("type") != "string"
+            or candidate_id.get("pattern") != EVIDENCE_CANDIDATE_ID_PATTERN
+        ):
+            raise EventExtractContractError("evidence_candidate_id schema constraints drifted")
+    else:
+        evidence_span = _mapping(
+            properties.get("evidence_span"),
+            "schema.properties.evidence_span",
+        )
+        if (
+            evidence_span.get("type") != "string"
+            or evidence_span.get("minLength") != 1
+            or evidence_span.get("maxLength") != 500
+        ):
+            raise EventExtractContractError("evidence_span schema constraints drifted")
 
-def _validate_budget_and_isolation(document: Mapping[str, Any]) -> tuple[
+
+def _validate_budget_and_isolation(
+    document: Mapping[str, Any],
+) -> tuple[
     str,
     str,
     str | None,
@@ -329,9 +491,7 @@ def _validate_budget_and_isolation(document: Mapping[str, Any]) -> tuple[
         raise EventExtractContractError("P4.2a purpose/model contract drifted")
     endpoint_raw = llm.get("endpoint")
     endpoint = (
-        None
-        if endpoint_raw is None
-        else normalize_llm_endpoint(endpoint_raw, name="llm.endpoint")
+        None if endpoint_raw is None else normalize_llm_endpoint(endpoint_raw, name="llm.endpoint")
     )
     if endpoint_raw is not None and endpoint != endpoint_raw:
         raise EventExtractContractError("P4.2a endpoint must use canonical URL bytes")
@@ -468,6 +628,34 @@ def validate_event_extract_contract_controls(
     return _validate_budget_and_isolation(document)
 
 
+def _validate_candidate_selection_input(document: Mapping[str, Any]) -> None:
+    input_contract = _mapping(document.get("input"), "input")
+    algorithm = _mapping(
+        input_contract.get("evidence_candidate_algorithm"),
+        "input.evidence_candidate_algorithm",
+    )
+    if (
+        input_contract.get("model_message_representation")
+        != EVIDENCE_CANDIDATE_INPUT_REPRESENTATION
+        or input_contract.get("original_text_in_model_message") is not False
+        or algorithm.get("version") != EVIDENCE_CANDIDATE_ALGORITHM_VERSION
+        or algorithm.get("source_data") != "original_text_only"
+        or algorithm.get("label_access") != "forbidden"
+        or algorithm.get("prediction_access") != "forbidden"
+        or algorithm.get("stable_id_format") != "e{index:04d}"
+        or algorithm.get("candidate_encoding") != ["id", "raw_start", "raw_end", "display"]
+        or algorithm.get("ordering") != "ascending_raw_start"
+        or algorithm.get("coverage") != "exact_partition_no_gaps_no_overlaps"
+        or algorithm.get("display_whitespace") != "collapse_unicode_whitespace_runs_to_ascii_space"
+        or algorithm.get("target_raw_characters") != EVIDENCE_CANDIDATE_TARGET_RAW_CHARACTERS
+        or algorithm.get("display_max_characters") != EVIDENCE_CANDIDATE_DISPLAY_MAX_CHARACTERS
+        or algorithm.get("raw_span_max_characters") != EVIDENCE_CANDIDATE_RAW_SPAN_MAX_CHARACTERS
+        or algorithm.get("candidate_non_empty") is not True
+        or algorithm.get("include_raw_start_end") is not True
+    ):
+        raise EventExtractContractError("P4.2a evidence-candidate input contract drifted")
+
+
 def load_event_extract_contract(
     path: Path = DEFAULT_CONTRACT_PATH,
     *,
@@ -483,32 +671,45 @@ def load_event_extract_contract(
     v1_3_path = (project_root.resolve() / "config/p4_event_extract_eval_v1_3.yaml").resolve()
     v1_4_path = (project_root.resolve() / "config/p4_event_extract_eval_v1_4.yaml").resolve()
     v1_5_path = (project_root.resolve() / "config/p4_event_extract_eval_v1_5.yaml").resolve()
+    v1_6_path = (project_root.resolve() / "config/p4_event_extract_eval_v1_6.yaml").resolve()
     is_v1_3 = resolved_path == v1_3_path
     is_v1_4 = resolved_path == v1_4_path
     is_v1_5 = resolved_path == v1_5_path
-    if is_v1_5:
+    is_v1_6 = resolved_path == v1_6_path
+    if is_v1_6:
+        expected_digest = V1_6_CONTRACT_SHA256
+        expected_schema_version = V1_6_SCHEMA_VERSION
+        expected_prompt_path = _V1_6_PROMPT_PATH
+        expected_prompt_marker = "[P4_NEWS_EVENT_EXTRACT v1.5.0]"
+        expected_schema_path = _CANDIDATE_SCHEMA_PATH
+        expected_match_mode = WHITESPACE_NORMALIZED_EVIDENCE_SPAN_MATCH_MODE
+    elif is_v1_5:
         expected_digest = V1_5_CONTRACT_SHA256
         expected_schema_version = V1_5_SCHEMA_VERSION
         expected_prompt_path = _V1_5_PROMPT_PATH
         expected_prompt_marker = "[P4_NEWS_EVENT_EXTRACT v1.4.0]"
+        expected_schema_path = _SCHEMA_PATH
         expected_match_mode = WHITESPACE_NORMALIZED_EVIDENCE_SPAN_MATCH_MODE
     elif is_v1_4:
         expected_digest = V1_4_CONTRACT_SHA256
         expected_schema_version = V1_4_SCHEMA_VERSION
         expected_prompt_path = _V1_4_PROMPT_PATH
         expected_prompt_marker = "[P4_NEWS_EVENT_EXTRACT v1.3.0]"
+        expected_schema_path = _SCHEMA_PATH
         expected_match_mode = WHITESPACE_NORMALIZED_EVIDENCE_SPAN_MATCH_MODE
     elif is_v1_3:
         expected_digest = V1_3_CONTRACT_SHA256
         expected_schema_version = V1_3_SCHEMA_VERSION
         expected_prompt_path = _V1_3_PROMPT_PATH
         expected_prompt_marker = "[P4_NEWS_EVENT_EXTRACT v1.2.0]"
+        expected_schema_path = _SCHEMA_PATH
         expected_match_mode = EXACT_EVIDENCE_SPAN_MATCH_MODE
     else:
         expected_digest = EXPECTED_CONTRACT_SHA256
         expected_schema_version = EXPECTED_SCHEMA_VERSION
         expected_prompt_path = _PROMPT_PATH
         expected_prompt_marker = "[P4_NEWS_EVENT_EXTRACT v1.0.0]"
+        expected_schema_path = _SCHEMA_PATH
         expected_match_mode = EXACT_EVIDENCE_SPAN_MATCH_MODE
     if digest != expected_digest:
         raise EventExtractContractError(
@@ -543,8 +744,18 @@ def load_event_extract_contract(
     schema_payload = _contract_artifact(
         root=project_root,
         entry=contract_files.get("schema"),
-        expected_relative_path=_SCHEMA_PATH,
+        expected_relative_path=expected_schema_path,
         name="schema",
+    )
+    materialized_schema_payload = (
+        _contract_artifact(
+            root=project_root,
+            entry=contract_files.get("materialized_schema"),
+            expected_relative_path=_SCHEMA_PATH,
+            name="materialized_schema",
+        )
+        if is_v1_6
+        else schema_payload
     )
     try:
         prompt = prompt_payload.decode("utf-8")
@@ -554,7 +765,20 @@ def load_event_extract_contract(
         raise EventExtractContractError("prompt contract version is invalid")
 
     schema = _decode_json_object(schema_payload, "event result schema")
-    _validate_result_schema(schema, taxonomy_values)
+    _validate_result_schema(
+        schema,
+        taxonomy_values,
+        evidence_candidate_selection=is_v1_6,
+    )
+    materialized_schema = _decode_json_object(
+        materialized_schema_payload,
+        "materialized event result schema",
+    )
+    _validate_result_schema(
+        materialized_schema,
+        taxonomy_values,
+        evidence_candidate_selection=False,
+    )
     (
         purpose,
         model,
@@ -578,6 +802,8 @@ def load_event_extract_contract(
         raise EventExtractContractError(
             "P4.2a evidence-span match mode differs from the frozen contract version"
         )
+    if is_v1_6:
+        _validate_candidate_selection_input(document)
 
     return EventExtractContract(
         path=resolved_path,
@@ -595,6 +821,8 @@ def load_event_extract_contract(
         max_input_characters=max_input_characters,
         explicit_cache_enabled=explicit_cache_enabled,
         evidence_span_match_mode=evidence_span_match_mode,
+        evidence_candidate_selection=is_v1_6,
+        materialized_schema=materialized_schema,
     )
 
 
@@ -673,16 +901,21 @@ def build_event_extract_user_input(
             constraint="non_blank_string",
         )
 
-    payload = {
+    payload: JsonObject = {
         "available_time": _timestamp_json(available_time, "available_time"),
         "body_state": body_state,
         "ingested_symbol": _ingested_symbol(ingested_symbol),
         "news_item_id": news_item_id,
-        "original_text": original_text,
         "published_at": _timestamp_json(published_at, "published_at"),
         "source": source,
         "title": title,
     }
+    if contract.evidence_candidate_selection:
+        payload["evidence_candidates"] = [
+            candidate.as_model_input() for candidate in segment_evidence_candidates(original_text)
+        ]
+    else:
+        payload["original_text"] = original_text
     user_json = json.dumps(
         payload,
         ensure_ascii=False,
@@ -739,10 +972,7 @@ def evidence_span_matches(
         return False
     if contract.evidence_span_match_mode == EXACT_EVIDENCE_SPAN_MATCH_MODE:
         return bool(evidence_span.strip()) and evidence_span in original_text
-    if (
-        contract.evidence_span_match_mode
-        == WHITESPACE_NORMALIZED_EVIDENCE_SPAN_MATCH_MODE
-    ):
+    if contract.evidence_span_match_mode == WHITESPACE_NORMALIZED_EVIDENCE_SPAN_MATCH_MODE:
         normalized_span = "".join(
             character for character in evidence_span if not character.isspace()
         )
@@ -753,15 +983,12 @@ def evidence_span_matches(
     raise EventExtractContractError("unsupported evidence-span match mode")
 
 
-def validate_event_result(
-    contract: EventExtractContract,
+def _validated_schema_candidate(
     result: Mapping[str, Any],
     *,
-    original_text: str,
-    ingested_symbol: str | None,
-    universe_symbols: Collection[str],
+    schema: JsonObject,
+    expected_result_fields: tuple[str, ...],
 ) -> JsonObject:
-    """Validate schema plus P4.2a grounding constraints without a fallback."""
     if not isinstance(result, Mapping):
         raise EventExtractValidationError(
             "model result must be an object",
@@ -770,11 +997,11 @@ def validate_event_result(
         )
     candidate = dict(result)
     try:
-        Draft202012Validator(contract.schema).validate(candidate)
+        Draft202012Validator(schema).validate(candidate)
     except ValidationError as exc:
         path = list(exc.absolute_path)
         missing_required = (
-            sorted(set(EXPECTED_RESULT_FIELDS).difference(candidate))
+            sorted(set(expected_result_fields).difference(candidate))
             if exc.validator == "required"
             else []
         )
@@ -783,9 +1010,7 @@ def validate_event_result(
         else:
             field = (
                 str(path[0])
-                if path
-                and isinstance(path[0], str)
-                and path[0] in EXPECTED_RESULT_FIELDS
+                if path and isinstance(path[0], str) and path[0] in expected_result_fields
                 else "result"
             )
         validator = {
@@ -806,7 +1031,16 @@ def validate_event_result(
             field=field,
             constraint=f"json_schema_{validator}",
         ) from exc
+    return candidate
 
+
+def _validated_grounded_fields(
+    candidate: JsonObject,
+    *,
+    original_text: str,
+    ingested_symbol: str | None,
+    universe_symbols: Collection[str],
+) -> tuple[list[str], str]:
     if not isinstance(original_text, str) or not original_text:
         raise EventExtractValidationError(
             "original_text must be a non-empty string",
@@ -836,7 +1070,16 @@ def validate_event_result(
             field="summary",
             constraint="contains_chinese_text",
         )
-    evidence_span = cast(str, candidate["evidence_span"])
+    return symbols, summary
+
+
+def _validated_evidence_span(
+    contract: EventExtractContract,
+    evidence_span: str,
+    *,
+    original_text: str,
+    field: str,
+) -> str:
     if not evidence_span_matches(contract, evidence_span, original_text):
         constraint = (
             "whitespace_normalized_contiguous_substring"
@@ -846,10 +1089,19 @@ def validate_event_result(
         )
         raise EventExtractValidationError(
             "evidence_span must be a contiguous substring of original_text",
-            field="evidence_span",
+            field=field,
             constraint=constraint,
         )
+    return evidence_span
 
+
+def _canonical_event_result(
+    candidate: Mapping[str, Any],
+    *,
+    symbols: list[str],
+    summary: str,
+    evidence_span: str,
+) -> JsonObject:
     return {
         "symbols": list(symbols),
         "event_type": cast(str, candidate["event_type"]),
@@ -859,6 +1111,103 @@ def validate_event_result(
         "confidence": float(cast(int | float, candidate["confidence"])),
         "evidence_span": evidence_span,
     }
+
+
+def validate_event_result(
+    contract: EventExtractContract,
+    result: Mapping[str, Any],
+    *,
+    original_text: str,
+    ingested_symbol: str | None,
+    universe_symbols: Collection[str],
+) -> JsonObject:
+    """Validate one raw model result and materialize canonical evidence."""
+    expected_result_fields = (
+        CANDIDATE_RESULT_FIELDS
+        if contract.evidence_candidate_selection
+        else EXPECTED_RESULT_FIELDS
+    )
+    candidate = _validated_schema_candidate(
+        result,
+        schema=contract.schema,
+        expected_result_fields=expected_result_fields,
+    )
+    symbols, summary = _validated_grounded_fields(
+        candidate,
+        original_text=original_text,
+        ingested_symbol=ingested_symbol,
+        universe_symbols=universe_symbols,
+    )
+
+    if contract.evidence_candidate_selection:
+        requested_candidate_id = cast(str, candidate["evidence_candidate_id"])
+        registered_candidates = {
+            item.candidate_id: item for item in segment_evidence_candidates(original_text)
+        }
+        selected_candidate = registered_candidates.get(requested_candidate_id)
+        if selected_candidate is None:
+            raise EventExtractValidationError(
+                "evidence_candidate_id is not registered for this source item",
+                field="evidence_candidate_id",
+                constraint="registered_candidate_id",
+            )
+        evidence_span = original_text[selected_candidate.start : selected_candidate.end]
+    else:
+        evidence_span = cast(str, candidate["evidence_span"])
+
+    validated_evidence = _validated_evidence_span(
+        contract,
+        evidence_span,
+        original_text=original_text,
+        field=(
+            "evidence_candidate_id"
+            if contract.evidence_candidate_selection
+            else "evidence_span"
+        ),
+    )
+    return _canonical_event_result(
+        candidate,
+        symbols=symbols,
+        summary=summary,
+        evidence_span=validated_evidence,
+    )
+
+
+def validate_materialized_event_result(
+    contract: EventExtractContract,
+    result: Mapping[str, Any],
+    *,
+    original_text: str,
+    ingested_symbol: str | None,
+    universe_symbols: Collection[str],
+) -> JsonObject:
+    """Revalidate one persisted canonical result without accepting model selector fields."""
+    schema = contract.materialized_schema
+    if schema is None:
+        raise EventExtractContractError("materialized event schema is unavailable")
+    candidate = _validated_schema_candidate(
+        result,
+        schema=schema,
+        expected_result_fields=EXPECTED_RESULT_FIELDS,
+    )
+    symbols, summary = _validated_grounded_fields(
+        candidate,
+        original_text=original_text,
+        ingested_symbol=ingested_symbol,
+        universe_symbols=universe_symbols,
+    )
+    evidence_span = _validated_evidence_span(
+        contract,
+        cast(str, candidate["evidence_span"]),
+        original_text=original_text,
+        field="evidence_span",
+    )
+    return _canonical_event_result(
+        candidate,
+        symbols=symbols,
+        summary=summary,
+        evidence_span=evidence_span,
+    )
 
 
 validate_p4_news_event_result = validate_event_result
@@ -937,15 +1286,20 @@ def extract_news_event(
 
 __all__ = [
     "DEFAULT_CONTRACT_PATH",
+    "EVIDENCE_CANDIDATE_ALGORITHM_VERSION",
+    "EVIDENCE_CANDIDATE_DISPLAY_MAX_CHARACTERS",
+    "EVIDENCE_CANDIDATE_RAW_SPAN_MAX_CHARACTERS",
     "EXACT_EVIDENCE_SPAN_MATCH_MODE",
     "EXPECTED_CONTRACT_SHA256",
     "EXPECTED_TAXONOMY",
     "V1_4_CONTRACT_SHA256",
     "V1_5_CONTRACT_SHA256",
+    "V1_6_CONTRACT_SHA256",
     "WHITESPACE_NORMALIZED_EVIDENCE_SPAN_MATCH_MODE",
     "EventExtractContract",
     "EventExtractContractError",
     "EventExtractValidationError",
+    "EvidenceCandidate",
     "P4NewsEventContract",
     "P4NewsEventContractError",
     "P4NewsEventValidationError",
@@ -957,7 +1311,9 @@ __all__ = [
     "load_event_extract_contract",
     "load_p4_news_event_contract",
     "normalize_llm_endpoint",
+    "segment_evidence_candidates",
     "validate_event_extract_contract_controls",
     "validate_event_result",
+    "validate_materialized_event_result",
     "validate_p4_news_event_result",
 ]

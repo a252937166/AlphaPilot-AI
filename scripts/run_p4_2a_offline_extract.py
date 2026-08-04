@@ -12,7 +12,7 @@ import tempfile
 from collections import Counter
 from collections.abc import Collection, Iterator, Mapping, Sequence
 from contextlib import contextmanager
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from pathlib import Path
 from time import monotonic_ns
@@ -35,6 +35,7 @@ from alphapilot.llm.p4_news_event import (
     load_event_extract_contract,
     normalize_llm_endpoint,
     validate_event_result,
+    validate_materialized_event_result,
 )
 
 JsonObject = dict[str, Any]
@@ -50,6 +51,8 @@ EXPECTED_MAX_RETRIES = 0
 EXPECTED_MAX_TOKENS = 2_000
 SUPPORTED_SOURCES = frozenset({"akshare_ths", "cninfo", "sina_company_news"})
 MAX_JSONL_LINE_BYTES = 1_000_000
+DECLARED_INPUT_ACTIVE = "active_model_user_json"
+DECLARED_INPUT_LEGACY_V1 = "legacy_eight_field_user_json_v1"
 
 
 class OfflineExtractError(RuntimeError):
@@ -92,6 +95,7 @@ class ExtractRecord:
     body_state: str
     declared_input_sha256: str | None = None
     declared_text_sha256: str | None = None
+    declared_input_representation: str = DECLARED_INPUT_ACTIVE
 
 
 @dataclass(frozen=True, slots=True)
@@ -100,6 +104,7 @@ class PreparedRecord:
     user_json: str
     input_sha256: str
     text_sha256: str
+    declared_input_sha256: str | None
 
 
 @dataclass(frozen=True, slots=True)
@@ -666,11 +671,40 @@ def _prepare_records(
         )
         input_sha256 = event_extract_input_sha256(user_json)
         text_sha256 = _sha256_text(record.original_text)
+        if record.declared_input_representation == DECLARED_INPUT_ACTIVE:
+            declared_input_sha256 = input_sha256
+        elif record.declared_input_representation == DECLARED_INPUT_LEGACY_V1:
+            materialized_schema = contract.materialized_schema
+            if materialized_schema is None:
+                raise OfflineExtractError(
+                    "legacy input identity requires a materialized result schema"
+                )
+            legacy_contract = replace(
+                contract,
+                schema=materialized_schema,
+                evidence_candidate_selection=False,
+            )
+            legacy_user_json = build_event_extract_user_input(
+                legacy_contract,
+                news_item_id=record.news_item_id,
+                source=record.source,
+                ingested_symbol=record.ingested_symbol,
+                title=record.title,
+                original_text=record.original_text,
+                published_at=record.published_at,
+                available_time=record.available_time,
+                body_state=record.body_state,
+            )
+            declared_input_sha256 = event_extract_input_sha256(legacy_user_json)
+        else:
+            raise OfflineExtractError("unsupported declared input representation")
         if (
             record.declared_input_sha256 is not None
-            and record.declared_input_sha256 != input_sha256
+            and record.declared_input_sha256 != declared_input_sha256
         ):
-            raise OfflineExtractError("gold input input_sha256 does not match model user JSON")
+            raise OfflineExtractError(
+                "gold input input_sha256 does not match its declared representation"
+            )
         if record.declared_text_sha256 is not None and record.declared_text_sha256 != text_sha256:
             raise OfflineExtractError("gold input text_sha256 does not match original_text")
         prepared.append(
@@ -679,6 +713,7 @@ def _prepare_records(
                 user_json=user_json,
                 input_sha256=input_sha256,
                 text_sha256=text_sha256,
+                declared_input_sha256=record.declared_input_sha256,
             )
         )
     return prepared
@@ -902,6 +937,7 @@ _SAFE_VALIDATION_FIELDS = frozenset(
         "body_state",
         "confidence",
         "direction",
+        "evidence_candidate_id",
         "evidence_span",
         "event_type",
         "ingested_symbol",
@@ -921,6 +957,7 @@ _SAFE_SCHEMA_VALIDATION_FIELDS = frozenset(
     {
         "confidence",
         "direction",
+        "evidence_candidate_id",
         "evidence_span",
         "event_type",
         "materiality",
@@ -950,6 +987,7 @@ _SAFE_VALIDATION_CONSTRAINTS = frozenset(
         "nullable_six_digit_symbol",
         "object",
         "original_text_or_ingested_symbol_grounding",
+        "registered_candidate_id",
         "positive_integer",
         "serialized_input_character_budget",
         "six_digit_symbol_collection",
@@ -1049,7 +1087,7 @@ def _base_output_row(
     elapsed_ms: int,
     audit: AuditEvidence,
 ) -> JsonObject:
-    return {
+    row: JsonObject = {
         "schema_version": "p4.2a-offline-extract-row-v1",
         "recorded_at_utc": _utc_now(),
         "news_item_id": prepared.record.news_item_id,
@@ -1066,6 +1104,9 @@ def _base_output_row(
         },
         "security": _security_record(audit),
     }
+    if contract.evidence_candidate_selection:
+        row["declared_input_sha256"] = prepared.declared_input_sha256
+    return row
 
 
 def _validate_resumed_success(
@@ -1084,6 +1125,11 @@ def _validate_resumed_success(
         "contract_sha256": contract.sha256,
         "model": contract.model,
     }
+    if contract.evidence_candidate_selection:
+        expected_scalars = {
+            **expected_scalars,
+            "declared_input_sha256": prepared.declared_input_sha256,
+        }
     for field, expected in expected_scalars.items():
         if row.get(field) != expected:
             raise OfflineExtractError(
@@ -1134,7 +1180,7 @@ def _validate_resumed_success(
     prediction = row.get("prediction")
     if not isinstance(prediction, Mapping):
         raise OfflineExtractError("checkpoint exact success lacks a prediction object")
-    validate_event_result(
+    validate_materialized_event_result(
         contract,
         cast(Mapping[str, Any], prediction),
         original_text=prepared.record.original_text,

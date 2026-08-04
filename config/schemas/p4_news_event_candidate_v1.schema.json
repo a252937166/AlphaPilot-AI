@@ -1,0 +1,64 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://alphapilot.local/schemas/p4_news_event_candidate_v1.schema.json",
+  "title": "AlphaPilot P4 News Event Candidate Selection v1",
+  "type": "object",
+  "required": [
+    "symbols",
+    "event_type",
+    "direction",
+    "materiality",
+    "summary",
+    "confidence",
+    "evidence_candidate_id"
+  ],
+  "properties": {
+    "symbols": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^[0-9]{6}$"
+      },
+      "maxItems": 12,
+      "uniqueItems": true
+    },
+    "event_type": {
+      "type": "string",
+      "enum": [
+        "earnings_preannounce",
+        "major_contract",
+        "buyback_or_holder_change",
+        "regulatory_action",
+        "halt_resume",
+        "ma_restructure",
+        "policy_sector",
+        "dividend",
+        "other"
+      ]
+    },
+    "direction": {
+      "type": "integer",
+      "enum": [-1, 0, 1]
+    },
+    "materiality": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 3
+    },
+    "summary": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 240
+    },
+    "confidence": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1
+    },
+    "evidence_candidate_id": {
+      "type": "string",
+      "pattern": "^e[0-9]{4}$"
+    }
+  },
+  "additionalProperties": false
+}
