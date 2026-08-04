@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import copy
 import hashlib
 import json
 import os
@@ -1480,13 +1481,20 @@ def _v1_3_report_extensions(
     predictions: Mapping[int, JsonObject | None],
     result: Mapping[str, Any],
 ) -> JsonObject:
-    if design.document.get("schema_version") != "p4.2a-evaluation-design-v1.3":
+    design_version = design.document.get("schema_version")
+    if design_version not in {
+        "p4.2a-evaluation-design-v1.3",
+        "p4.2a-evaluation-design-v1.4",
+    }:
         return {}
+    is_v1_4_design = design_version == "p4.2a-evaluation-design-v1.4"
     if (
         active_contract.evidence_span_match_mode
         != WHITESPACE_NORMALIZED_EVIDENCE_SPAN_MATCH_MODE
     ):
-        raise GoldEvaluationError("v1.3 heldout evaluation requires the v1.4 matcher")
+        raise GoldEvaluationError(
+            "versioned heldout evaluation requires the whitespace-safe matcher"
+        )
     historical = _mapping(
         design.document.get("historical_comparison"),
         label="historical_comparison",
@@ -1518,6 +1526,36 @@ def _v1_3_report_extensions(
         or adjudication.get("model_over_attribution_ids") != [75, 210, 232, 393]
     ):
         raise GoldEvaluationError("v1.3 historical comparison/adjudication drifted")
+    v1_4_r1_actual: JsonObject | None = None
+    if is_v1_4_design:
+        derived = _mapping(
+            historical.get("v1_4_r1_actual"),
+            label="historical v1.4-r1 actual",
+        )
+        extraction = _mapping(
+            derived.get("extraction"),
+            label="historical v1.4-r1 extraction",
+        )
+        metrics = _mapping(
+            derived.get("metrics"),
+            label="historical v1.4-r1 metrics",
+        )
+        if (
+            derived.get("round_id") != "v1.4-r1"
+            or derived.get("historical_round_immutable") is not True
+            or derived.get("formal_dev_round_valid") is not False
+            or derived.get("heldout_accessed") is not False
+            or extraction.get("success_count") != 54
+            or extraction.get("failure_count") != 6
+            or extraction.get("failure_ids") != [253, 258, 280, 304, 336, 340]
+            or _mapping(
+                metrics.get("symbol_exact_set"),
+                label="historical v1.4-r1 symbol metrics",
+            ).get("mismatch_ids")
+            != [28, 44, 67, 71, 96]
+        ):
+            raise GoldEvaluationError("v1.4-r1 historical anchor drifted")
+        v1_4_r1_actual = copy.deepcopy(dict(derived))
 
     exact_contract = replace(
         active_contract,
@@ -1599,42 +1637,70 @@ def _v1_3_report_extensions(
         "prior_constraint": "exact_contiguous_substring",
         "affected_count": 7,
     }
-    evidence_validation = {
+    fresh_actual_key = "v1_5_actual" if is_v1_4_design else "v1_4_actual"
+    fresh_shadow_key = (
+        "v1_5_legacy_exact_shadow"
+        if is_v1_4_design
+        else "v1_4_legacy_exact_shadow"
+    )
+    fresh_actual = {
+        "evidence_span_match_mode": active_contract.evidence_span_match_mode,
+        "expected_count": len(dev_prediction_records),
+        "success_count": len(dev_prediction_records) - len(actual_failure_ids),
+        "failure_count": len(actual_failure_ids),
+        "failure_ids": sorted(actual_failure_ids),
+        "failures_by_validation_field_and_constraint": {},
+        "all_successes_pass_active_matcher": (
+            len(normalized_match_ids)
+            == len(dev_prediction_records) - len(actual_failure_ids)
+        ),
+        "formal_round_valid": (
+            len(dev_prediction_records) == 60 and not actual_failure_ids
+        ),
+    }
+    fresh_shadow = {
+        "evidence_span_match_mode": EXACT_EVIDENCE_SPAN_MATCH_MODE,
+        "diagnostic_only": True,
+        "does_not_change_active_validation": True,
+        "comparable_count": exact_comparable,
+        "match_count": exact_matches,
+        "mismatch_count": len(exact_mismatch_ids),
+        "mismatch_ids": sorted(exact_mismatch_ids),
+        "whitespace_matcher_recovered_ids": sorted(
+            set(normalized_match_ids).intersection(exact_mismatch_ids)
+        ),
+    }
+    evidence_validation: JsonObject = {
         "v1_3_actual": v1_3_actual,
         "whitespace_normalized_counterfactual": counterfactual,
-        "v1_4_actual": {
-            "evidence_span_match_mode": active_contract.evidence_span_match_mode,
-            "expected_count": len(dev_prediction_records),
-            "success_count": len(dev_prediction_records) - len(actual_failure_ids),
-            "failure_count": len(actual_failure_ids),
-            "failure_ids": sorted(actual_failure_ids),
-            "failures_by_validation_field_and_constraint": {},
-            "all_successes_pass_active_matcher": (
-                len(normalized_match_ids)
-                == len(dev_prediction_records) - len(actual_failure_ids)
-            ),
-            "formal_round_valid": (
-                len(dev_prediction_records) == 60 and not actual_failure_ids
-            ),
-        },
-        "v1_4_legacy_exact_shadow": {
-            "evidence_span_match_mode": EXACT_EVIDENCE_SPAN_MATCH_MODE,
-            "diagnostic_only": True,
-            "does_not_change_v1_4_validation": True,
-            "comparable_count": exact_comparable,
-            "match_count": exact_matches,
-            "mismatch_count": len(exact_mismatch_ids),
-            "mismatch_ids": sorted(exact_mismatch_ids),
-            "whitespace_matcher_recovered_ids": sorted(
-                set(normalized_match_ids).intersection(exact_mismatch_ids)
-            ),
-        },
+        fresh_actual_key: fresh_actual,
+        fresh_shadow_key: fresh_shadow,
     }
+    if v1_4_r1_actual is not None:
+        historical_extraction = _mapping(
+            v1_4_r1_actual.get("extraction"),
+            label="historical v1.4-r1 extraction",
+        )
+        historical_shadow = dict(
+            _mapping(
+                historical_extraction.get("legacy_exact_shadow"),
+                label="historical v1.4-r1 exact shadow",
+            )
+        )
+        historical_shadow.update(
+            {
+                "evidence_span_match_mode": EXACT_EVIDENCE_SPAN_MATCH_MODE,
+                "diagnostic_only": True,
+                "historical_round_immutable": True,
+            }
+        )
+        evidence_validation["v1_4_actual"] = copy.deepcopy(v1_4_r1_actual)
+        evidence_validation["v1_4_r1_actual"] = copy.deepcopy(v1_4_r1_actual)
+        evidence_validation["v1_4_legacy_exact_shadow"] = historical_shadow
     symbol_diagnostics = {
         "raw_gate": dict(raw_symbol),
         "raw_gate_uses_frozen_labels_unchanged": True,
         "ai_label_defect_ids": [44],
-        "model_over_attribution_ids": [75, 210, 232, 393],
         "adjusted_exact_set": {
             "diagnostic_only": True,
             "not_a_gate": True,
@@ -1645,6 +1711,18 @@ def _v1_3_report_extensions(
             "mismatch_ids": adjusted_mismatch_ids,
         },
     }
+    if v1_4_r1_actual is None:
+        symbol_diagnostics["model_over_attribution_ids"] = [75, 210, 232, 393]
+    else:
+        symbol_diagnostics["v1_4_r1_actual"] = copy.deepcopy(
+            _mapping(
+                _mapping(
+                    v1_4_r1_actual.get("metrics"),
+                    label="historical v1.4-r1 metrics",
+                ).get("symbol_adjudication"),
+                label="historical v1.4-r1 symbol adjudication",
+            )
+        )
     return {
         "evidence_validation": evidence_validation,
         "symbol_diagnostics": symbol_diagnostics,
@@ -2084,6 +2162,7 @@ def _arguments(argv: Sequence[str] | None = None) -> argparse.Namespace:
             "heldout-final-v1.1",
             "heldout-final-v1.2",
             "heldout-final-v1.3",
+            "heldout-final-v1.4",
         ),
         default="heldout-final-v1.1",
         help=(
@@ -2110,12 +2189,14 @@ def main(argv: Sequence[str] | None = None) -> int:
             "heldout-final-v1.1",
             "heldout-final-v1.2",
             "heldout-final-v1.3",
+            "heldout-final-v1.4",
         }:
             design = gold_builder.load_evaluation_design(arguments.evaluation_design)
             expected_schema_version = {
                 "heldout-final-v1.1": "p4.2a-evaluation-design-v1.1",
                 "heldout-final-v1.2": "p4.2a-evaluation-design-v1.2",
                 "heldout-final-v1.3": "p4.2a-evaluation-design-v1.3",
+                "heldout-final-v1.4": "p4.2a-evaluation-design-v1.4",
             }[arguments.scope]
             if design.document.get("schema_version") != expected_schema_version:
                 raise GoldEvaluationError(

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import copy
 import json
 import re
 import sys
@@ -74,6 +75,25 @@ V1_3_WHITESPACE_RECOVERED_IDS = (250, 258, 287, 306, 358)
 V1_3_TRUE_SYNTHESIS_FAILURE_IDS = (304, 336)
 AI_LABEL_DEFECT_IDS = (44,)
 MODEL_OVER_ATTRIBUTION_IDS = (75, 210, 232, 393)
+_V1_3_DEV_REPORT_FIELDS = frozenset(
+    {
+        "prediction_contract.evidence_span_match_mode",
+        "evidence_validation.v1_3_actual",
+        "evidence_validation.whitespace_normalized_counterfactual",
+        "evidence_validation.v1_4_actual",
+        "evidence_validation.v1_4_legacy_exact_shadow",
+        "symbol_diagnostics.ai_label_defect_ids",
+        "symbol_diagnostics.adjusted_exact_set",
+    }
+)
+_V1_4_DEV_REPORT_FIELDS = frozenset(
+    {
+        "evidence_validation.v1_4_r1_actual",
+        "evidence_validation.v1_5_actual",
+        "evidence_validation.v1_5_legacy_exact_shadow",
+        "symbol_diagnostics.v1_4_r1_actual",
+    }
+)
 
 
 class DevIterationError(RuntimeError):
@@ -415,6 +435,8 @@ def _comparison_evidence(
     candidate_model: str,
     candidate_endpoint: str | None,
     candidate_prompt_sha256: object,
+    candidate_contract_schema_version: object,
+    candidate_evidence_span_match_mode: str,
 ) -> JsonObject:
     materiality = _mapping(
         metrics.get("materiality_positive"),
@@ -467,6 +489,16 @@ def _comparison_evidence(
                     candidate_prompt_sha256
                     != "4474d61f17f6c8f9a6c909228423f17cc06083b5776f481c4044c0146efbde9d",
                 ),
+                (
+                    "evidence_span_match_mode",
+                    candidate_evidence_span_match_mode
+                    != EXACT_EVIDENCE_SPAN_MATCH_MODE,
+                ),
+                (
+                    "validation_contract",
+                    candidate_contract_schema_version
+                    != "p4.2a-event-extract-eval-v1",
+                ),
             )
             if changed
         ],
@@ -516,6 +548,45 @@ def _historical_comparison(
     return v1_3_actual, counterfactual, adjudication
 
 
+def _v1_4_r1_anchor(design: EventEvaluationDesign) -> JsonObject:
+    historical = _mapping(
+        design.document.get("historical_comparison"),
+        "historical_comparison",
+    )
+    derived = copy.deepcopy(
+        dict(
+            _mapping(
+                historical.get("v1_4_r1_actual"),
+                "historical v1.4-r1 actual",
+            )
+        )
+    )
+    extraction = _mapping(
+        derived.get("extraction"),
+        "historical v1.4-r1 extraction",
+    )
+    metrics = _mapping(
+        derived.get("metrics"),
+        "historical v1.4-r1 metrics",
+    )
+    symbol_metrics = _mapping(
+        metrics.get("symbol_exact_set"),
+        "historical v1.4-r1 symbol metrics",
+    )
+    if (
+        derived.get("round_id") != "v1.4-r1"
+        or derived.get("historical_round_immutable") is not True
+        or derived.get("formal_dev_round_valid") is not False
+        or derived.get("heldout_accessed") is not False
+        or extraction.get("success_count") != 54
+        or extraction.get("failure_count") != 6
+        or extraction.get("failure_ids") != [253, 258, 280, 304, 336, 340]
+        or symbol_metrics.get("mismatch_ids") != [28, 44, 67, 71, 96]
+    ):
+        raise DevIterationError("v1.4-r1 historical anchor drifted")
+    return derived
+
+
 def _evidence_validation(
     *,
     design: EventEvaluationDesign,
@@ -524,11 +595,30 @@ def _evidence_validation(
     prediction_rows: Sequence[Mapping[str, Any]],
     labels: Mapping[int, Mapping[str, Any]],
 ) -> JsonObject:
+    design_version = design.document.get("schema_version")
+    contract_version = active_contract.document.get("schema_version")
+    version_pair = (design_version, contract_version)
+    if version_pair not in {
+        (
+            "p4.2a-evaluation-design-v1.3",
+            "p4.2a-event-extract-eval-v1.4",
+        ),
+        (
+            "p4.2a-evaluation-design-v1.4",
+            "p4.2a-event-extract-eval-v1.5",
+        ),
+    }:
+        raise DevIterationError(
+            "versioned evidence report design/contract pair drifted"
+        )
+    is_v1_5 = contract_version == "p4.2a-event-extract-eval-v1.5"
     if (
         active_contract.evidence_span_match_mode
         != WHITESPACE_NORMALIZED_EVIDENCE_SPAN_MATCH_MODE
     ):
-        raise DevIterationError("v1.4 report requires its frozen evidence matcher")
+        raise DevIterationError(
+            "versioned evidence report requires its frozen evidence matcher"
+        )
     v1_3_actual, counterfactual, _ = _historical_comparison(design)
     exact_contract = replace(
         active_contract,
@@ -595,10 +685,10 @@ def _evidence_validation(
             and summary.failure_count == 0
         ),
     }
-    legacy_exact_shadow = {
+    legacy_exact_shadow: JsonObject = {
         "evidence_span_match_mode": EXACT_EVIDENCE_SPAN_MATCH_MODE,
         "diagnostic_only": True,
-        "does_not_change_v1_4_validation": True,
+        "does_not_change_active_validation": True,
         "comparable_count": len(exact_comparable_ids),
         "match_count": len(exact_match_ids),
         "mismatch_count": len(exact_mismatch_ids),
@@ -607,15 +697,46 @@ def _evidence_validation(
             set(normalized_match_ids).intersection(exact_mismatch_ids)
         ),
     }
-    return {
+    actual_key = "v1_5_actual" if is_v1_5 else "v1_4_actual"
+    shadow_key = (
+        "v1_5_legacy_exact_shadow"
+        if is_v1_5
+        else "v1_4_legacy_exact_shadow"
+    )
+    result: JsonObject = {
         "comparison_semantics": (
             "immutable_actual_then_external_counterfactual_then_fresh_actual"
         ),
         "v1_3_actual": v1_3_actual,
         "whitespace_normalized_counterfactual": counterfactual,
-        "v1_4_actual": actual,
-        "v1_4_legacy_exact_shadow": legacy_exact_shadow,
+        actual_key: actual,
+        shadow_key: legacy_exact_shadow,
     }
+    if is_v1_5:
+        anchor = _v1_4_r1_anchor(design)
+        historical_extraction = _mapping(
+            anchor.get("extraction"),
+            "historical v1.4-r1 extraction",
+        )
+        historical_shadow = copy.deepcopy(
+            dict(
+                _mapping(
+                    historical_extraction.get("legacy_exact_shadow"),
+                    "historical v1.4-r1 exact shadow",
+                )
+            )
+        )
+        historical_shadow.update(
+            {
+                "evidence_span_match_mode": EXACT_EVIDENCE_SPAN_MATCH_MODE,
+                "diagnostic_only": True,
+                "historical_round_immutable": True,
+            }
+        )
+        result["v1_4_actual"] = copy.deepcopy(anchor)
+        result["v1_4_r1_actual"] = copy.deepcopy(anchor)
+        result["v1_4_legacy_exact_shadow"] = historical_shadow
+    return result
 
 
 def _symbol_diagnostics(
@@ -625,6 +746,12 @@ def _symbol_diagnostics(
     prediction_rows: Sequence[Mapping[str, Any]],
     labels: Mapping[int, Mapping[str, Any]],
 ) -> JsonObject:
+    design_version = design.document.get("schema_version")
+    if design_version not in {
+        "p4.2a-evaluation-design-v1.3",
+        "p4.2a-evaluation-design-v1.4",
+    }:
+        raise DevIterationError("symbol diagnostic design version drifted")
     _, _, adjudication = _historical_comparison(design)
     defect_ids = {
         cast(int, identifier) for identifier in adjudication["ai_label_defect_ids"]
@@ -655,11 +782,10 @@ def _symbol_diagnostics(
         else:
             mismatch_ids.append(identifier)
     raw = dict(_mapping(metrics.get("symbol_exact_set"), "raw symbol metrics"))
-    return {
+    result: JsonObject = {
         "raw_gate": raw,
         "raw_gate_uses_frozen_ai_labels_unchanged": True,
         "ai_label_defect_ids": sorted(defect_ids),
-        "model_over_attribution_ids": list(MODEL_OVER_ATTRIBUTION_IDS),
         "adjusted_exact_set": {
             "diagnostic_only": True,
             "not_a_gate": True,
@@ -670,6 +796,103 @@ def _symbol_diagnostics(
             "mismatch_ids": sorted(mismatch_ids),
         },
     }
+    if design_version == "p4.2a-evaluation-design-v1.3":
+        result["model_over_attribution_ids"] = list(
+            MODEL_OVER_ATTRIBUTION_IDS
+        )
+    else:
+        anchor = _v1_4_r1_anchor(design)
+        result["v1_4_r1_actual"] = copy.deepcopy(
+            dict(
+                _mapping(
+                    _mapping(
+                        anchor.get("metrics"),
+                        "historical v1.4-r1 metrics",
+                    ).get("symbol_adjudication"),
+                    "historical v1.4-r1 symbol adjudication",
+                )
+            )
+        )
+    return result
+
+
+def _validate_versioned_dev_report_fields(
+    design: EventEvaluationDesign,
+    report: Mapping[str, Any],
+) -> None:
+    evaluation = _mapping(design.document.get("evaluation"), "evaluation")
+    required = evaluation.get("required_report_fields")
+    if (
+        not isinstance(required, list)
+        or any(not isinstance(field, str) for field in required)
+    ):
+        raise DevIterationError("evaluation required report fields drifted")
+    applicable = [
+        field
+        for field in required
+        if field == "prediction_contract.evidence_span_match_mode"
+        or field.startswith("evidence_validation.")
+        or field.startswith("symbol_diagnostics.")
+    ]
+    missing: list[str] = []
+    for dotted_path in applicable:
+        value: object = report
+        for component in dotted_path.split("."):
+            if not isinstance(value, Mapping) or component not in value:
+                missing.append(dotted_path)
+                break
+            value = value[component]
+    if missing:
+        raise DevIterationError(
+            f"dev report omits versioned required fields: {missing}"
+        )
+
+
+def _validate_versioned_dev_contract_preflight(
+    design: EventEvaluationDesign,
+    active_contract: EventExtractContract,
+    round_id: str,
+) -> None:
+    design_version = design.document.get("schema_version")
+    contract_version = active_contract.document.get("schema_version")
+    expected_fields: frozenset[str]
+    if design_version == "p4.2a-evaluation-design-v1.3":
+        if contract_version != "p4.2a-event-extract-eval-v1.4":
+            raise DevIterationError(
+                "v1.3 evaluation design requires extraction contract v1.4"
+            )
+        expected_fields = _V1_3_DEV_REPORT_FIELDS
+    elif design_version == "p4.2a-evaluation-design-v1.4":
+        if contract_version != "p4.2a-event-extract-eval-v1.5":
+            raise DevIterationError(
+                "v1.4 evaluation design requires extraction contract v1.5"
+            )
+        if not round_id.startswith("v1.5-"):
+            raise DevIterationError(
+                "extraction contract v1.5 requires a v1.5-* round_id"
+            )
+        expected_fields = _V1_3_DEV_REPORT_FIELDS | _V1_4_DEV_REPORT_FIELDS
+    else:
+        return
+
+    evaluation = _mapping(design.document.get("evaluation"), "evaluation")
+    required = evaluation.get("required_report_fields")
+    if (
+        not isinstance(required, list)
+        or any(not isinstance(field, str) for field in required)
+    ):
+        raise DevIterationError("evaluation required report fields drifted")
+    versioned = frozenset(
+        field
+        for field in required
+        if field == "prediction_contract.evidence_span_match_mode"
+        or field.startswith("evidence_validation.")
+        or field.startswith("symbol_diagnostics.")
+    )
+    if versioned != expected_fields:
+        raise DevIterationError(
+            "evaluation versioned required report fields are unrecognized"
+        )
 
 
 def run_dev_iteration(
@@ -695,6 +918,11 @@ def run_dev_iteration(
         active_design,
         root,
         active_contract_path,
+    )
+    _validate_versioned_dev_contract_preflight(
+        active_design,
+        active_contract,
+        round_id,
     )
     heldout._ensure_dev_final_precedes_heldout(active_design, root)
     if _parse_utc(started_at, "started_at_utc") < _parse_utc(
@@ -835,10 +1063,12 @@ def run_dev_iteration(
         eval_root,
     )
     metrics = _score_predictions(prediction_rows, labels)
-    is_v1_4 = (
-        active_contract.evidence_span_match_mode
-        == WHITESPACE_NORMALIZED_EVIDENCE_SPAN_MATCH_MODE
-    )
+    is_versioned_evidence_design = active_design.document.get(
+        "schema_version"
+    ) in {
+        "p4.2a-evaluation-design-v1.3",
+        "p4.2a-evaluation-design-v1.4",
+    }
     report: JsonObject = {
         "schema_version": "p4.2a-dev-model-interagreement-report-v1",
         "round_id": round_id,
@@ -868,11 +1098,17 @@ def run_dev_iteration(
             candidate_model=active_contract.model,
             candidate_endpoint=active_contract.endpoint,
             candidate_prompt_sha256=prompt.get("sha256"),
+            candidate_contract_schema_version=active_contract.document.get(
+                "schema_version"
+            ),
+            candidate_evidence_span_match_mode=(
+                active_contract.evidence_span_match_mode
+            ),
         ),
         "heldout_accessed": False,
         "heldout_phase_unlocked": False,
     }
-    if is_v1_4:
+    if is_versioned_evidence_design:
         report["evidence_validation"] = _evidence_validation(
             design=active_design,
             active_contract=active_contract,
@@ -886,6 +1122,7 @@ def run_dev_iteration(
             prediction_rows=prediction_rows,
             labels=labels,
         )
+        _validate_versioned_dev_report_fields(active_design, report)
     heldout._create_only_bytes(
         report_path,
         heldout._canonical_json_bytes(report),

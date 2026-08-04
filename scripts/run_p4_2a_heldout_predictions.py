@@ -58,6 +58,7 @@ from alphapilot.llm.p4_news_eval import (
     DEFAULT_EVALUATION_DESIGN_PATH,
     EVALUATION_DESIGN_V1_2_PATH,
     EVALUATION_DESIGN_V1_3_PATH,
+    EVALUATION_DESIGN_V1_4_PATH,
     LEGACY_EVALUATION_DESIGN_PATH,
     EventEvaluationDesign,
     EventEvaluationDesignError,
@@ -609,7 +610,7 @@ def _load_active_contract(
     if normalized_active != normalized_base:
         raise HeldoutPredictionError(
             "active contract changed fields outside approved version, prompt, and "
-            "v1.3/v1.4 runtime provenance"
+            "v1.3+ runtime provenance"
         )
 
     # The unchanged schema file is re-hashed against the trusted base contract.
@@ -1255,6 +1256,7 @@ def _ensure_dev_final_precedes_heldout(
         LEGACY_EVALUATION_DESIGN_PATH,
         EVALUATION_DESIGN_V1_2_PATH,
         EVALUATION_DESIGN_V1_3_PATH,
+        EVALUATION_DESIGN_V1_4_PATH,
     ):
         historical = load_event_evaluation_design(
             design_path,

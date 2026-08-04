@@ -32,10 +32,14 @@ V1_3_CONTRACT_SHA256 = (
 V1_4_CONTRACT_SHA256 = (
     "e6d3e7db08e2d226c850092f0f794d7194eaf1935a56cbfe267a86e1297f37fc"
 )
+V1_5_CONTRACT_SHA256 = (
+    "a07f9f37e0877bd06ce3dc9e8a0e03c51bbb92fdc3ba6738b6932d7679aca560"
+)
 
 EXPECTED_SCHEMA_VERSION = "p4.2a-event-extract-eval-v1"
 V1_3_SCHEMA_VERSION = "p4.2a-event-extract-eval-v1.3"
 V1_4_SCHEMA_VERSION = "p4.2a-event-extract-eval-v1.4"
+V1_5_SCHEMA_VERSION = "p4.2a-event-extract-eval-v1.5"
 EXPECTED_TAXONOMY = (
     "earnings_preannounce",
     "major_contract",
@@ -71,6 +75,7 @@ EXPECTED_FORBIDDEN_RUNTIME_CHANGES = frozenset(
 _PROMPT_PATH = "config/prompts/p4_news_event_extract_v1.txt"
 _V1_3_PROMPT_PATH = "config/prompts/p4_news_event_extract_v1_2.txt"
 _V1_4_PROMPT_PATH = "config/prompts/p4_news_event_extract_v1_3.txt"
+_V1_5_PROMPT_PATH = "config/prompts/p4_news_event_extract_v1_4.txt"
 _SCHEMA_PATH = "config/schemas/p4_news_event_v1.schema.json"
 _ARTIFACT_ROOT = "docs/phase4/eval"
 _SYMBOL = re.compile(r"^[0-9]{6}$")
@@ -477,9 +482,17 @@ def load_event_extract_contract(
     digest = _sha256_bytes(payload)
     v1_3_path = (project_root.resolve() / "config/p4_event_extract_eval_v1_3.yaml").resolve()
     v1_4_path = (project_root.resolve() / "config/p4_event_extract_eval_v1_4.yaml").resolve()
+    v1_5_path = (project_root.resolve() / "config/p4_event_extract_eval_v1_5.yaml").resolve()
     is_v1_3 = resolved_path == v1_3_path
     is_v1_4 = resolved_path == v1_4_path
-    if is_v1_4:
+    is_v1_5 = resolved_path == v1_5_path
+    if is_v1_5:
+        expected_digest = V1_5_CONTRACT_SHA256
+        expected_schema_version = V1_5_SCHEMA_VERSION
+        expected_prompt_path = _V1_5_PROMPT_PATH
+        expected_prompt_marker = "[P4_NEWS_EVENT_EXTRACT v1.4.0]"
+        expected_match_mode = WHITESPACE_NORMALIZED_EVIDENCE_SPAN_MATCH_MODE
+    elif is_v1_4:
         expected_digest = V1_4_CONTRACT_SHA256
         expected_schema_version = V1_4_SCHEMA_VERSION
         expected_prompt_path = _V1_4_PROMPT_PATH
@@ -928,6 +941,7 @@ __all__ = [
     "EXPECTED_CONTRACT_SHA256",
     "EXPECTED_TAXONOMY",
     "V1_4_CONTRACT_SHA256",
+    "V1_5_CONTRACT_SHA256",
     "WHITESPACE_NORMALIZED_EVIDENCE_SPAN_MATCH_MODE",
     "EventExtractContract",
     "EventExtractContractError",

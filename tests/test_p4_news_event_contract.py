@@ -103,6 +103,22 @@ def test_load_v1_4_contract_binds_whitespace_match_and_v1_3_prompt() -> None:
     assert "[P4_NEWS_EVENT_EXTRACT v1.3.0]" in contract.prompt
 
 
+def test_load_v1_5_contract_binds_whitespace_match_and_v1_4_prompt() -> None:
+    contract = load_event_extract_contract(
+        p4_news_event.PROJECT_ROOT / "config/p4_event_extract_eval_v1_5.yaml"
+    )
+
+    assert contract.sha256 == p4_news_event.V1_5_CONTRACT_SHA256
+    assert contract.model == "qwen3.6-plus"
+    assert contract.endpoint == "https://dashscope.aliyuncs.com/compatible-mode/v1"
+    assert contract.explicit_cache_enabled is False
+    assert (
+        contract.evidence_span_match_mode
+        == p4_news_event.WHITESPACE_NORMALIZED_EVIDENCE_SPAN_MATCH_MODE
+    )
+    assert "[P4_NEWS_EVENT_EXTRACT v1.4.0]" in contract.prompt
+
+
 @pytest.mark.parametrize(
     "endpoint",
     [
