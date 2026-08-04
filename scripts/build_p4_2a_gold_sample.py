@@ -12,7 +12,7 @@ import sys
 import tempfile
 from collections.abc import Callable, Iterator, Mapping, Sequence
 from contextlib import contextmanager
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Any
@@ -1230,6 +1230,32 @@ def _input_sha256(record: Mapping[str, object], event_contract: EventExtractCont
     return digest
 
 
+def _declared_input_sha256(
+    record: Mapping[str, object],
+    event_contract: EventExtractContract,
+) -> str:
+    """Recompute the immutable input identity declared by a frozen record.
+
+    The v1.6 selector protocol deliberately preserves the pre-selector
+    eight-field hash in the frozen dev artifact while using a second hash for
+    the candidate-based model request.  Older contracts have only one identity.
+    """
+
+    if not event_contract.evidence_candidate_selection:
+        return _input_sha256(record, event_contract)
+    materialized_schema = event_contract.materialized_schema
+    if materialized_schema is None:
+        raise GoldSampleError(
+            "candidate selector contract lacks a materialized result schema"
+        )
+    legacy_contract = replace(
+        event_contract,
+        schema=materialized_schema,
+        evidence_candidate_selection=False,
+    )
+    return _input_sha256(record, legacy_contract)
+
+
 def compute_input_sha256(record: Mapping[str, object], contract_path: Path = DEFAULT_CONFIG) -> str:
     """Hash the complete canonical eight-field user JSON built by the core."""
 
@@ -1915,7 +1941,19 @@ def load_active_prediction_contract(
     )
     schema_binding = _mapping(
         contract_files.get("schema"),
-        label="active prediction contract schema",
+        label="active prediction contract model schema",
+    )
+    design_schema_version = design.document.get("schema_version")
+    candidate_selector_contract = (
+        design_schema_version == "p4.2a-evaluation-design-v1.5"
+    )
+    result_schema_binding = (
+        _mapping(
+            contract_files.get("materialized_schema"),
+            label="active prediction contract materialized schema",
+        )
+        if candidate_selector_contract
+        else schema_binding
     )
     llm = _mapping(document.get("llm"), label="active prediction contract.llm")
     taxonomy = _mapping(
@@ -1943,19 +1981,21 @@ def load_active_prediction_contract(
         or taxonomy.get("version") != receipt.get("taxonomy_version")
         or prompt_binding.get("path") != receipt.get("prompt_path")
         or prompt_binding.get("sha256") != receipt.get("prompt_sha256")
-        or schema_binding.get("path") != receipt.get("result_schema_path")
-        or schema_binding.get("sha256") != receipt.get("result_schema_sha256")
+        or result_schema_binding.get("path") != receipt.get("result_schema_path")
+        or result_schema_binding.get("sha256")
+        != receipt.get("result_schema_sha256")
         or dict(taxonomy) != dict(base_taxonomy)
     )
     if common_binding_drifted:
         raise GoldSampleError(
             "active prediction contract changed more than the versioned prompt binding"
         )
-    design_schema_version = design.document.get("schema_version")
+    registered_contract: EventExtractContract | None = None
     if design_schema_version in {
         "p4.2a-evaluation-design-v1.2",
         "p4.2a-evaluation-design-v1.3",
         "p4.2a-evaluation-design-v1.4",
+        "p4.2a-evaluation-design-v1.5",
     }:
         registered_design = load_event_evaluation_design(
             design.path,
@@ -1974,6 +2014,18 @@ def load_active_prediction_contract(
                 EXACT_EVIDENCE_SPAN_MATCH_MODE,
             )
             != registered_contract.evidence_span_match_mode
+            or (
+                candidate_selector_contract
+                and (
+                    registered_contract.evidence_candidate_selection is not True
+                    or registered_contract.materialized_schema is None
+                    or schema_binding.get("sha256")
+                    != _mapping(
+                        design.document.get("prediction_contract_freeze"),
+                        label="prediction_contract_freeze",
+                    ).get("required_model_result_schema_sha256")
+                )
+            )
         ):
             raise GoldSampleError(
                 "active prediction contract differs from the registered design"
@@ -1990,7 +2042,10 @@ def load_active_prediction_contract(
             "active prediction contract changed more than the versioned prompt binding"
         )
     prompt_path = _project_path(prompt_binding.get("path"), label="active prompt path")
-    schema_path = _project_path(schema_binding.get("path"), label="active schema path")
+    schema_path = _project_path(
+        result_schema_binding.get("path"),
+        label="active materialized schema path",
+    )
     try:
         prompt_bytes = prompt_path.read_bytes()
         schema_bytes = schema_path.read_bytes()
@@ -2083,28 +2138,35 @@ def load_active_prediction_contract(
         )
     ):
         raise GoldSampleError("active prediction contract budgets drifted")
-    active_contract = EventExtractContract(
-        path=contract_path,
-        sha256=str(receipt["contract_sha256"]),
-        document=document,
-        prompt=prompt,
-        schema=schema,
-        model=contract_model,
-        endpoint=endpoint,
-        purpose=purpose,
-        timeout=timeout,
-        max_tokens=max_tokens,
-        max_retries=max_retries,
-        max_items_per_run=max_items,
-        max_input_characters=max_input,
-        explicit_cache_enabled=explicit_cache_enabled,
-        evidence_span_match_mode=str(
-            input_contract.get(
-                "evidence_span_match_mode",
-                EXACT_EVIDENCE_SPAN_MATCH_MODE,
+    if candidate_selector_contract:
+        if registered_contract is None:
+            raise GoldSampleError(
+                "candidate selector contract lacks a registered design binding"
             )
-        ),
-    )
+        active_contract = registered_contract
+    else:
+        active_contract = EventExtractContract(
+            path=contract_path,
+            sha256=str(receipt["contract_sha256"]),
+            document=document,
+            prompt=prompt,
+            schema=schema,
+            model=contract_model,
+            endpoint=endpoint,
+            purpose=purpose,
+            timeout=timeout,
+            max_tokens=max_tokens,
+            max_retries=max_retries,
+            max_items_per_run=max_items,
+            max_input_characters=max_input,
+            explicit_cache_enabled=explicit_cache_enabled,
+            evidence_span_match_mode=str(
+                input_contract.get(
+                    "evidence_span_match_mode",
+                    EXACT_EVIDENCE_SPAN_MATCH_MODE,
+                )
+            ),
+        )
     validate_dev_final_prediction_freeze(
         design,
         active_contract=active_contract,
@@ -2115,22 +2177,48 @@ def load_active_prediction_contract(
 
 def _ordered_prediction_identity_sha256(records: Sequence[Mapping[str, object]]) -> str:
     digest = hashlib.sha256()
+    declared_presence = {
+        "declared_input_sha256" in record for record in records
+    }
+    if len(declared_presence) > 1:
+        raise GoldSampleError(
+            "prediction identity mixes single- and dual-hash rows"
+        )
+    dual_hash_identity = declared_presence == {True}
     for record in records:
         news_item_id = record.get("news_item_id")
         input_sha256 = record.get("input_sha256")
+        declared_input_sha256 = record.get("declared_input_sha256")
         text_sha256 = record.get("text_sha256")
         if (
             isinstance(news_item_id, bool)
             or not isinstance(news_item_id, int)
             or not isinstance(input_sha256, str)
             or SHA256_PATTERN.fullmatch(input_sha256) is None
+            or (
+                dual_hash_identity
+                and (
+                    not isinstance(declared_input_sha256, str)
+                    or SHA256_PATTERN.fullmatch(declared_input_sha256) is None
+                )
+            )
             or not isinstance(text_sha256, str)
             or SHA256_PATTERN.fullmatch(text_sha256) is None
         ):
             raise GoldSampleError("prediction identity tuple is invalid")
-        digest.update(
-            f"{news_item_id}\0{input_sha256}\0{text_sha256}\n".encode("ascii")
-        )
+        if dual_hash_identity:
+            digest.update(
+                (
+                    f"{news_item_id}\0{input_sha256}\0"
+                    f"{declared_input_sha256}\0{text_sha256}\n"
+                ).encode("ascii")
+            )
+        else:
+            digest.update(
+                f"{news_item_id}\0{input_sha256}\0{text_sha256}\n".encode(
+                    "ascii"
+                )
+            )
     return digest.hexdigest()
 
 
@@ -2182,11 +2270,22 @@ def validate_dev_final_prediction_freeze(
         news_item_id = record.get("news_item_id")
         if not isinstance(news_item_id, int) or news_item_id in candidate_inputs:
             raise GoldSampleError("frozen dev60 IDs are invalid")
-        if record.get("input_sha256") != _input_sha256(record, active_contract):
+        declared_input_sha256 = _declared_input_sha256(
+            record,
+            active_contract,
+        )
+        if record.get("input_sha256") != declared_input_sha256:
             raise GoldSampleError(
                 f"dev60 input {news_item_id} differs under active contract"
             )
-        candidate_inputs[news_item_id] = record
+        bound_record = dict(record)
+        if active_contract.evidence_candidate_selection:
+            bound_record["declared_input_sha256"] = declared_input_sha256
+            bound_record["input_sha256"] = _input_sha256(
+                record,
+                active_contract,
+            )
+        candidate_inputs[news_item_id] = bound_record
     ordered_ids = [record.get("news_item_id") for record in rows]
     if ordered_ids != sorted(candidate_inputs):
         raise GoldSampleError("dev-final predictions are not ordered by news_item_id")
@@ -2720,8 +2819,17 @@ def validate_heldout_candidate_predictions(
         frozen = candidate_inputs.get(news_item_id)
         if frozen is None:
             raise GoldSampleError(f"heldout prediction {news_item_id} is outside candidate batch")
+        expected_declared_input_sha256 = frozen.get(
+            "declared_input_sha256",
+            frozen.get("input_sha256"),
+        )
         if (
             record.get("input_sha256") != frozen.get("input_sha256")
+            or (
+                active_contract.evidence_candidate_selection
+                and record.get("declared_input_sha256")
+                != expected_declared_input_sha256
+            )
             or record.get("text_sha256") != frozen.get("text_sha256")
             or record.get("contract_sha256") != active_contract.sha256
             or record.get("model") != active_contract.model

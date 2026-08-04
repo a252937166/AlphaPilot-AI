@@ -28,7 +28,11 @@ from alphapilot.llm.p4_news_eval import (
     EventEvaluationDesign,
     load_event_evaluation_design,
 )
-from alphapilot.llm.p4_news_event import EventExtractContract
+from alphapilot.llm.p4_news_event import (
+    EventExtractContract,
+    build_event_extract_user_input,
+    event_extract_input_sha256,
+)
 
 READY = datetime.fromisoformat("2026-08-06T00:11:00+08:00")
 DEV_COMPLETED = "2026-08-03T00:00:00Z"
@@ -224,6 +228,27 @@ def _v15_fixture_root(tmp_path: Path) -> EventEvaluationDesign:
     return design
 
 
+def _v16_fixture_root(tmp_path: Path) -> EventEvaluationDesign:
+    design = load_event_evaluation_design(
+        runner.PROJECT_ROOT / "config/p4_event_evaluation_v1_5.yaml",
+        project_root=runner.PROJECT_ROOT,
+    )
+    _copy_contract_files(tmp_path, design)
+    prediction_contract = design.prediction_contract
+    _copy_project_file(
+        tmp_path,
+        prediction_contract.path.relative_to(runner.PROJECT_ROOT).as_posix(),
+    )
+    contract_files = cast(
+        dict[str, dict[str, str]],
+        prediction_contract.document["contract_files"],
+    )
+    for name in ("prompt", "schema", "materialized_schema"):
+        _copy_project_file(tmp_path, contract_files[name]["path"])
+    _create_dev_only_database(tmp_path)
+    return design
+
+
 def _pdf_fetcher(url: str, contract: AnnouncementBodyPolicy) -> bytes:
     assert url.startswith("https://static.cninfo.com.cn/")
     assert contract.tls_verify is True
@@ -369,11 +394,21 @@ def _canonical_json(value: Mapping[str, object]) -> bytes:
 def _dev_identity(rows: list[dict[str, Any]]) -> str:
     digest = hashlib.sha256()
     for row in rows:
-        digest.update(
-            (f"{row['news_item_id']}\0{row['input_sha256']}\0{row['text_sha256']}\n").encode(
-                "ascii"
+        declared = row.get("declared_input_sha256")
+        if isinstance(declared, str):
+            digest.update(
+                (
+                    f"{row['news_item_id']}\0{row['input_sha256']}\0"
+                    f"{declared}\0{row['text_sha256']}\n"
+                ).encode("ascii")
             )
-        )
+        else:
+            digest.update(
+                (
+                    f"{row['news_item_id']}\0{row['input_sha256']}\0"
+                    f"{row['text_sha256']}\n"
+                ).encode("ascii")
+            )
     return digest.hexdigest()
 
 
@@ -393,17 +428,30 @@ def _create_dev_final_artifacts(
     by_id = _ai_dev_predictions(root)
     for row in dev_rows:
         prediction = by_id[cast(int, row["news_item_id"])]
-        predictions.append(
-            {
-                "news_item_id": row["news_item_id"],
-                "input_sha256": row["input_sha256"],
-                "text_sha256": row["text_sha256"],
-                "contract_sha256": active_contract.sha256,
-                "model": active_contract.model,
-                "status": "ok",
-                "prediction": prediction,
-            }
-        )
+        output: dict[str, Any] = {
+            "news_item_id": row["news_item_id"],
+            "input_sha256": row["input_sha256"],
+            "text_sha256": row["text_sha256"],
+            "contract_sha256": active_contract.sha256,
+            "model": active_contract.model,
+            "status": "ok",
+            "prediction": prediction,
+        }
+        if active_contract.evidence_candidate_selection:
+            user_json = build_event_extract_user_input(
+                active_contract,
+                news_item_id=cast(int, row["news_item_id"]),
+                source=cast(str, row["source"]),
+                ingested_symbol=cast(str | None, row["ingested_symbol"]),
+                title=cast(str, row["title"]),
+                original_text=cast(str, row["original_text"]),
+                published_at=cast(str | None, row["published_at"]),
+                available_time=cast(str, row["available_time"]),
+                body_state=cast(str, row["body_state"]),
+            )
+            output["declared_input_sha256"] = row["input_sha256"]
+            output["input_sha256"] = event_extract_input_sha256(user_json)
+        predictions.append(output)
     predictions_path = _artifact(root, design, "dev_final_predictions_jsonl")
     predictions_path.parent.mkdir(parents=True, exist_ok=True)
     predictions_payload = b"".join(_canonical_json(row) for row in predictions)
@@ -900,6 +948,66 @@ def test_v15_dev_final_freeze_binds_v1_4_namespace_and_cache_off(
         "unicode_whitespace_elided_contiguous_substring_v1"
     )
     assert validated.sha256 == active_contract.sha256
+
+
+def test_v16_dev_final_freeze_binds_dual_hash_and_materialized_schema(
+    tmp_path: Path,
+) -> None:
+    design = _v16_fixture_root(tmp_path)
+    active_path = (
+        tmp_path
+        / design.prediction_contract.path.relative_to(runner.PROJECT_ROOT)
+    )
+    active_contract = runner._load_active_contract(
+        design,
+        tmp_path,
+        active_path,
+    )
+    assert active_contract.evidence_candidate_selection is True
+    assert active_contract.materialized_schema is not None
+
+    predictions_path, manifest_path = _create_dev_final_artifacts(
+        tmp_path,
+        design,
+        active_contract,
+    )
+    predictions = [
+        json.loads(line)
+        for line in predictions_path.read_text(encoding="utf-8").splitlines()
+    ]
+    assert len(predictions) == 60
+    assert all(
+        row["input_sha256"] != row["declared_input_sha256"]
+        for row in predictions
+    )
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    assert manifest["ordered_identity_sha256"] == _dev_identity(predictions)
+
+    receipt_path = runner.freeze_prediction_contract(
+        active_path,
+        predictions_path,
+        manifest_path,
+        project_root=tmp_path,
+        design=design,
+        now=datetime.fromisoformat("2026-08-04T21:00:00+08:00"),
+    )
+    receipt, _, validated = runner.validate_prediction_contract_freeze(
+        design,
+        tmp_path,
+    )
+
+    materialized = cast(
+        dict[str, str],
+        active_contract.document["contract_files"]["materialized_schema"],
+    )
+    assert receipt_path.name.endswith("-v1.5.json")
+    assert receipt["result_schema_path"] == materialized["path"]
+    assert receipt["result_schema_sha256"] == materialized["sha256"]
+    assert receipt["dev_final_predictions_identity_sha256"] == _dev_identity(
+        predictions
+    )
+    assert validated.evidence_candidate_selection is True
+    assert validated.materialized_schema == active_contract.materialized_schema
 
 
 def test_dev_final_global_seal_detects_historical_namespace(

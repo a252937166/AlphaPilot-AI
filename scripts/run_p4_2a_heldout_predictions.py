@@ -468,6 +468,7 @@ def _load_active_contract(
     versioned_runtime_contract = (
         prediction_contract.sha256 != design.base_contract.sha256
     )
+    registered_path: Path | None = None
     if versioned_runtime_contract:
         registered = _mapping(
             design.document.get("active_prediction_contract"),
@@ -556,7 +557,8 @@ def _load_active_contract(
     if contract_version >= (1, 6):
         if (
             not versioned_runtime_contract
-            or resolved != prediction_contract.path
+            or registered_path is None
+            or resolved != registered_path
             or _sha256_bytes(payload) != prediction_contract.sha256
             or document != prediction_contract.document
             or purpose != prediction_contract.purpose
@@ -574,7 +576,7 @@ def _load_active_contract(
             raise HeldoutPredictionError(
                 "active v1.6 contract differs from the registered candidate contract"
             )
-        return prediction_contract
+        return replace(prediction_contract, path=resolved)
 
     # The independent design freezes all deterministic, schema, taxonomy,
     # input, budget, isolation, and artifact semantics. Prompt bytes/path may
@@ -917,7 +919,14 @@ def _freeze_receipt_payload(
         "active contract files",
     )
     prompt = _mapping(contract_files.get("prompt"), "active prompt")
-    schema = _mapping(contract_files.get("schema"), "active result schema")
+    schema = _mapping(
+        contract_files.get(
+            "materialized_schema"
+            if active_contract.evidence_candidate_selection
+            else "schema"
+        ),
+        "active materialized result schema",
+    )
     contract_path = active_contract.path
     prompt_path = _project_file(project_root, prompt.get("path"), "active prompt")
     schema_path = _project_file(project_root, schema.get("path"), "active result schema")
