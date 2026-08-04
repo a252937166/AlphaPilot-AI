@@ -150,6 +150,33 @@ def test_load_v1_6_contract_binds_candidate_selection_and_v1_5_prompt() -> None:
     assert "evidence_span" not in contract.schema["required"]
 
 
+def test_load_v1_7_contract_changes_only_preregistered_model_metadata() -> None:
+    v1_6_path = p4_news_event.PROJECT_ROOT / "config/p4_event_extract_eval_v1_6.yaml"
+    v1_7_path = p4_news_event.PROJECT_ROOT / "config/p4_event_extract_eval_v1_7.yaml"
+    contract = load_event_extract_contract(v1_7_path)
+
+    assert contract.sha256 == p4_news_event.V1_7_CONTRACT_SHA256
+    assert contract.model == "qwen3.7-flash"
+    assert contract.endpoint == "https://dashscope.aliyuncs.com/compatible-mode/v1"
+    assert contract.explicit_cache_enabled is False
+    assert contract.evidence_candidate_selection is True
+    assert contract.document["schema_version"] == "p4.2a-event-extract-eval-v1.7"
+    assert contract.document["owner_spec_commit"] == (
+        "9c60ba7b5c2c912a77fdd99785302d76e4e3d7ca"
+    )
+    assert contract.document["pre_registered_at"] == "2026-08-04T13:32:53Z"
+    assert "[P4_NEWS_EVENT_EXTRACT v1.5.0]" in contract.prompt
+    assert contract.document["llm"]["enable_thinking"] is False
+
+    v1_6 = yaml.safe_load(v1_6_path.read_bytes())
+    normalized_v1_7 = yaml.safe_load(v1_7_path.read_bytes())
+    normalized_v1_7["schema_version"] = v1_6["schema_version"]
+    normalized_v1_7["owner_spec_commit"] = v1_6["owner_spec_commit"]
+    normalized_v1_7["pre_registered_at"] = v1_6["pre_registered_at"]
+    normalized_v1_7["llm"]["model"] = v1_6["llm"]["model"]
+    assert normalized_v1_7 == v1_6
+
+
 @pytest.mark.parametrize(
     "endpoint",
     [

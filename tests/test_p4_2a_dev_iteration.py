@@ -17,6 +17,7 @@ from sqlalchemy.orm import Session
 from alphapilot.core.config import Settings
 from alphapilot.db.models import LLMCall
 from alphapilot.llm.p4_news_eval import load_event_evaluation_design
+from alphapilot.llm.p4_news_event import load_event_extract_contract
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
@@ -547,6 +548,31 @@ def test_v1_6_rejects_wrong_round_namespace_before_model_call(
             chat_json_fn=_fake_candidate_chat,
         )
     assert calls == []
+
+
+def test_v1_7_accepts_only_the_single_preregistered_round() -> None:
+    design = load_event_evaluation_design(
+        PROJECT_ROOT / "config/p4_event_evaluation_v1_6.yaml"
+    )
+    contract = load_event_extract_contract(
+        PROJECT_ROOT / "config/p4_event_extract_eval_v1_7.yaml"
+    )
+
+    dev_runner._validate_versioned_dev_contract_preflight(
+        design,
+        contract,
+        "v1.7-r1",
+    )
+    for disallowed in ("v1.7-r2", "v1.7-retry", "v1.8-r1"):
+        with pytest.raises(
+            dev_runner.DevIterationError,
+            match=r"one official v1\.7-r1 round",
+        ):
+            dev_runner._validate_versioned_dev_contract_preflight(
+                design,
+                contract,
+                disallowed,
+            )
 
 
 def test_dev_iteration_rejects_ai_label_byte_drift(tmp_path: Path) -> None:

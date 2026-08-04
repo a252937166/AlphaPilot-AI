@@ -29,12 +29,14 @@ V1_3_CONTRACT_SHA256 = "1e465f600039a587c26e9686e82a229baf948f8db748b68a5731b23a
 V1_4_CONTRACT_SHA256 = "e6d3e7db08e2d226c850092f0f794d7194eaf1935a56cbfe267a86e1297f37fc"
 V1_5_CONTRACT_SHA256 = "a07f9f37e0877bd06ce3dc9e8a0e03c51bbb92fdc3ba6738b6932d7679aca560"
 V1_6_CONTRACT_SHA256 = "4e88990d2ee7671db316794aabd0a476f798b5e542f00bbb8ffbd3f7fd423269"
+V1_7_CONTRACT_SHA256 = "68474e4bd4fd5c9c88711dd5e102898ad1ed75a0fb984045efbd14e51a6db701"
 
 EXPECTED_SCHEMA_VERSION = "p4.2a-event-extract-eval-v1"
 V1_3_SCHEMA_VERSION = "p4.2a-event-extract-eval-v1.3"
 V1_4_SCHEMA_VERSION = "p4.2a-event-extract-eval-v1.4"
 V1_5_SCHEMA_VERSION = "p4.2a-event-extract-eval-v1.5"
 V1_6_SCHEMA_VERSION = "p4.2a-event-extract-eval-v1.6"
+V1_7_SCHEMA_VERSION = "p4.2a-event-extract-eval-v1.7"
 EXPECTED_TAXONOMY = (
     "earnings_preannounce",
     "major_contract",
@@ -672,11 +674,21 @@ def load_event_extract_contract(
     v1_4_path = (project_root.resolve() / "config/p4_event_extract_eval_v1_4.yaml").resolve()
     v1_5_path = (project_root.resolve() / "config/p4_event_extract_eval_v1_5.yaml").resolve()
     v1_6_path = (project_root.resolve() / "config/p4_event_extract_eval_v1_6.yaml").resolve()
+    v1_7_path = (project_root.resolve() / "config/p4_event_extract_eval_v1_7.yaml").resolve()
     is_v1_3 = resolved_path == v1_3_path
     is_v1_4 = resolved_path == v1_4_path
     is_v1_5 = resolved_path == v1_5_path
     is_v1_6 = resolved_path == v1_6_path
-    if is_v1_6:
+    is_v1_7 = resolved_path == v1_7_path
+    is_candidate_selection = is_v1_6 or is_v1_7
+    if is_v1_7:
+        expected_digest = V1_7_CONTRACT_SHA256
+        expected_schema_version = V1_7_SCHEMA_VERSION
+        expected_prompt_path = _V1_6_PROMPT_PATH
+        expected_prompt_marker = "[P4_NEWS_EVENT_EXTRACT v1.5.0]"
+        expected_schema_path = _CANDIDATE_SCHEMA_PATH
+        expected_match_mode = WHITESPACE_NORMALIZED_EVIDENCE_SPAN_MATCH_MODE
+    elif is_v1_6:
         expected_digest = V1_6_CONTRACT_SHA256
         expected_schema_version = V1_6_SCHEMA_VERSION
         expected_prompt_path = _V1_6_PROMPT_PATH
@@ -754,7 +766,7 @@ def load_event_extract_contract(
             expected_relative_path=_SCHEMA_PATH,
             name="materialized_schema",
         )
-        if is_v1_6
+        if is_candidate_selection
         else schema_payload
     )
     try:
@@ -768,7 +780,7 @@ def load_event_extract_contract(
     _validate_result_schema(
         schema,
         taxonomy_values,
-        evidence_candidate_selection=is_v1_6,
+        evidence_candidate_selection=is_candidate_selection,
     )
     materialized_schema = _decode_json_object(
         materialized_schema_payload,
@@ -802,7 +814,7 @@ def load_event_extract_contract(
         raise EventExtractContractError(
             "P4.2a evidence-span match mode differs from the frozen contract version"
         )
-    if is_v1_6:
+    if is_candidate_selection:
         _validate_candidate_selection_input(document)
 
     return EventExtractContract(
@@ -821,7 +833,7 @@ def load_event_extract_contract(
         max_input_characters=max_input_characters,
         explicit_cache_enabled=explicit_cache_enabled,
         evidence_span_match_mode=evidence_span_match_mode,
-        evidence_candidate_selection=is_v1_6,
+        evidence_candidate_selection=is_candidate_selection,
         materialized_schema=materialized_schema,
     )
 
@@ -1295,6 +1307,7 @@ __all__ = [
     "V1_4_CONTRACT_SHA256",
     "V1_5_CONTRACT_SHA256",
     "V1_6_CONTRACT_SHA256",
+    "V1_7_CONTRACT_SHA256",
     "WHITESPACE_NORMALIZED_EVIDENCE_SPAN_MATCH_MODE",
     "EventExtractContract",
     "EventExtractContractError",

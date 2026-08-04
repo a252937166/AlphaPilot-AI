@@ -806,6 +806,67 @@ def _v1_5_r1_report_layers(
     return actual, shadow
 
 
+def _v1_6_incumbent_report(design: EventEvaluationDesign) -> Mapping[str, Any]:
+    """Load the byte-pinned plus report used by the v1.7 model-selection round."""
+
+    selection = _mapping(design.document.get("model_selection"), "model_selection")
+    incumbent = _mapping(selection.get("incumbent"), "model_selection.incumbent")
+    entry = _mapping(
+        incumbent.get("dev_report"),
+        "model_selection.incumbent.dev_report",
+    )
+    relative = entry.get("path")
+    expected_sha256 = entry.get("sha256")
+    if (
+        not isinstance(relative, str)
+        or Path(relative).is_absolute()
+        or ".." in Path(relative).parts
+        or not isinstance(expected_sha256, str)
+    ):
+        raise DevIterationError("incumbent v1.6 report identity drifted")
+    root = design.path.parent.parent.resolve()
+    path = (root / relative).resolve()
+    eval_root = (root / "docs/phase4/eval").resolve()
+    if (
+        not path.is_relative_to(eval_root)
+        or path.is_symlink()
+        or not path.is_file()
+        or heldout._sha256_file(path) != expected_sha256
+    ):
+        raise DevIterationError("incumbent v1.6 report bytes drifted")
+    try:
+        raw: object = json.loads(path.read_bytes())
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise DevIterationError("incumbent v1.6 report is invalid JSON") from exc
+    report = _mapping(raw, "incumbent v1.6 report")
+    contract = _mapping(
+        report.get("prediction_contract"),
+        "incumbent v1.6 prediction contract",
+    )
+    metrics = _mapping(report.get("metrics"), "incumbent v1.6 metrics")
+    materiality = _mapping(
+        metrics.get("materiality_positive"),
+        "incumbent v1.6 materiality",
+    )
+    symbols = _mapping(
+        metrics.get("symbol_exact_set"),
+        "incumbent v1.6 symbols",
+    )
+    if (
+        report.get("round_id") != "v1.6-r1"
+        or report.get("formal_dev_round_valid") is not True
+        or contract.get("model") != "qwen3.6-plus"
+        or metrics.get("comparable_count") != 60
+        or metrics.get("active_failure_count") != 0
+        or materiality.get("tp") != 15
+        or materiality.get("predicted_positive_count") != 17
+        or symbols.get("matches") != 59
+        or symbols.get("denominator") != 60
+    ):
+        raise DevIterationError("incumbent v1.6 report semantics drifted")
+    return report
+
+
 def _evidence_validation(
     *,
     design: EventEvaluationDesign,
@@ -830,12 +891,17 @@ def _evidence_validation(
             "p4.2a-evaluation-design-v1.5",
             "p4.2a-event-extract-eval-v1.6",
         ),
+        (
+            "p4.2a-evaluation-design-v1.6",
+            "p4.2a-event-extract-eval-v1.7",
+        ),
     }:
         raise DevIterationError(
             "versioned evidence report design/contract pair drifted"
         )
     is_v1_5 = contract_version == "p4.2a-event-extract-eval-v1.5"
     is_v1_6 = contract_version == "p4.2a-event-extract-eval-v1.6"
+    is_v1_7 = contract_version == "p4.2a-event-extract-eval-v1.7"
     if (
         active_contract.evidence_span_match_mode
         != WHITESPACE_NORMALIZED_EVIDENCE_SPAN_MATCH_MODE
@@ -922,14 +988,18 @@ def _evidence_validation(
         ),
     }
     actual_key = (
-        "v1_6_actual"
+        "v1_7_actual"
+        if is_v1_7
+        else "v1_6_actual"
         if is_v1_6
         else "v1_5_actual"
         if is_v1_5
         else "v1_4_actual"
     )
     shadow_key = (
-        "v1_6_legacy_exact_shadow"
+        "v1_7_legacy_exact_shadow"
+        if is_v1_7
+        else "v1_6_legacy_exact_shadow"
         if is_v1_6
         else "v1_5_legacy_exact_shadow"
         if is_v1_5
@@ -968,7 +1038,7 @@ def _evidence_validation(
         result["v1_4_actual"] = copy.deepcopy(anchor)
         result["v1_4_r1_actual"] = copy.deepcopy(anchor)
         result["v1_4_legacy_exact_shadow"] = historical_shadow
-    elif is_v1_6:
+    elif is_v1_6 or is_v1_7:
         v1_4_anchor = _v1_4_r1_anchor(design)
         v1_5_anchor = _v1_5_r1_anchor(design)
         v1_5_actual, v1_5_shadow = _v1_5_r1_report_layers(design)
@@ -997,6 +1067,28 @@ def _evidence_validation(
         result["v1_5_actual"] = v1_5_actual
         result["v1_5_legacy_exact_shadow"] = v1_5_shadow
         result["v1_5_r1_actual"] = copy.deepcopy(v1_5_anchor)
+        if is_v1_7:
+            incumbent = _v1_6_incumbent_report(design)
+            incumbent_evidence = _mapping(
+                incumbent.get("evidence_validation"),
+                "incumbent v1.6 evidence validation",
+            )
+            result["v1_6_actual"] = copy.deepcopy(
+                dict(
+                    _mapping(
+                        incumbent_evidence.get("v1_6_actual"),
+                        "incumbent v1.6 actual evidence",
+                    )
+                )
+            )
+            result["v1_6_legacy_exact_shadow"] = copy.deepcopy(
+                dict(
+                    _mapping(
+                        incumbent_evidence.get("v1_6_legacy_exact_shadow"),
+                        "incumbent v1.6 exact shadow",
+                    )
+                )
+            )
     return result
 
 
@@ -1012,6 +1104,7 @@ def _symbol_diagnostics(
         "p4.2a-evaluation-design-v1.3",
         "p4.2a-evaluation-design-v1.4",
         "p4.2a-evaluation-design-v1.5",
+        "p4.2a-evaluation-design-v1.6",
     }:
         raise DevIterationError("symbol diagnostic design version drifted")
     _, _, adjudication = _historical_comparison(design)
@@ -1174,8 +1267,27 @@ def _validate_versioned_dev_contract_preflight(
             | _V1_4_DEV_REPORT_FIELDS
             | _V1_5_DEV_REPORT_FIELDS
         )
-    else:
+    elif design_version == "p4.2a-evaluation-design-v1.6":
+        if contract_version != "p4.2a-event-extract-eval-v1.7":
+            raise DevIterationError(
+                "v1.6 evaluation design requires extraction contract v1.7"
+            )
+        if round_id != "v1.7-r1":
+            raise DevIterationError(
+                "extraction contract v1.7 requires the one official v1.7-r1 round"
+            )
+        expected_fields = (
+            _V1_3_DEV_REPORT_FIELDS
+            | _V1_4_DEV_REPORT_FIELDS
+            | _V1_5_DEV_REPORT_FIELDS
+        )
+    elif design_version in {
+        "p4.2a-evaluation-design-v1.1",
+        "p4.2a-evaluation-design-v1.2",
+    }:
         return
+    else:
+        raise DevIterationError("unsupported evaluation design version")
 
     evaluation = _mapping(design.document.get("evaluation"), "evaluation")
     required = evaluation.get("required_report_fields")
@@ -1414,6 +1526,7 @@ def run_dev_iteration(
         "p4.2a-evaluation-design-v1.3",
         "p4.2a-evaluation-design-v1.4",
         "p4.2a-evaluation-design-v1.5",
+        "p4.2a-evaluation-design-v1.6",
     }
     report: JsonObject = {
         "schema_version": "p4.2a-dev-model-interagreement-report-v1",
