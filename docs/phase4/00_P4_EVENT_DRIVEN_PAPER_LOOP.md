@@ -485,6 +485,47 @@ Codex 如实将 7 条 `post_validation_failed` 登记为"待验证假设"而未�
   逐字证据“定位 → 复制 → Unicode 空白归一化自检 → 失败则缩短”的流程、严格 JSON
   字段预检，以及不依赖 materiality 的直接主体映射；规则和标签不放宽，显式缓存继续关闭。
 
+### P4.2a v1.5 dev60 预注册（2026-08-04，任何新模型输出前）
+
+- v1.4-r1 失败三件套与 blocker 已由提交 `a80cb8e` 原样冻结；本轮只能从这些
+  不可变 dev 证据派生 prompt，不得重写历史、变更 frozen labels 或读取 held-out。
+- 新 prompt `config/prompts/p4_news_event_extract_v1_4.txt` SHA
+  `ff42e6905e009e8a7a3a0ae7b7fedce043cbf73f55f3551cf76bbfdcfef33f2b`：
+  - 主体识别与 materiality 解耦；发行人、明确经营单元/产品/品牌及官方董秘/投资者关系回复
+    可沿用已审计的非空 `ingested_symbol`；
+  - 继续排除推荐对象、研报发布方、同名地点/市场及顺带股东/支持方；`ingested_symbol=null`
+    且原文无六位代码时禁止猜测，故 `44` 不得通过迎合 AI 标签修复；
+  - `evidence_span` 强制“先定位原文切片 → 原样复制 → 删除双方 Unicode 空白自检 →
+    失败则复制更短片段”，禁止跨表格单元格拼接、重述、润色；
+  - 返回前静默检查严格 JSON 的七个且仅七个字段，修复 `280` 类 schema 失败时仍保持
+    fail-closed，不编造其历史字段级根因。
+- 新抽取合同 `config/p4_event_extract_eval_v1_5.yaml` SHA
+  `a07f9f37e0877bd06ce3dc9e8a0e03c51bbb92fdc3ba6738b6932d7679aca560`。
+  仅版本时间与 prompt 绑定相对 v1.4 改变；模型 `qwen3.6-plus`、大陆 endpoint、
+  temperature `0.2`、max tokens `2000`、20 秒、零重试、`enable_thinking=false`、
+  taxonomy/schema 与
+  `unicode_whitespace_elided_contiguous_substring_v1` 全部保持。显式缓存仍为
+  `enabled=false / cache_control=null`。
+- 新评测设计 `config/p4_event_evaluation_v1_4.yaml` SHA
+  `3a392a6c834cdde219f54e149f22e235b0316765d0bd69501bb1f312d7ee0e33`：
+  - 继承并逐字节冻结 v1.3 设计的 dev60、held-out 时间窗/seed、阈值、标注与 provenance；
+  - 重新实算绑定 v1.4-r1 predictions / manifest / report / blocker 四个 SHA；
+  - 新报告必须同时含
+    `evidence_validation.v1_4_r1_actual`、
+    `evidence_validation.v1_5_actual`、
+    `evidence_validation.v1_5_legacy_exact_shadow`、
+    `symbol_diagnostics.v1_4_r1_actual`，不得把历史诊断冒充当前结果；
+  - dev runner 在首个模型调用前验证 design v1.4 ↔ contract v1.5、报告字段全集和
+    `v1.5-*` round namespace；dev-final、freeze receipt、held-out 全局 seal 与最终评测
+    使用新的 v1.4 create-only namespace。
+- 正式轮次固定为 `v1.5-r1`，仍须 **60/60 成功、零失败**，materiality 模型间一致率
+  `>=0.80` 且原始冻结 AI 标签口径 symbol `>=0.95` 才有效。只要任一门失败，即只追加
+  新 blocker，不创建 dev-final 或 freeze receipt；达标后才以独立 create-only 步骤生成
+  dev-final 并冻结 prompt+模型。held-out 至少到 2026-08-06 时间锁后仍须
+  `ai_drafted_human_adjudicated`，本预注册不解锁、不读取。
+- 全程生产库只读、P4.1 冻结配置零改动、P4.2b 继续锁定，禁止 scheduler、提案、委托和交易
+  写入。
+
 ### P4.2a v1 评测合同预注册（2026-08-03，首次真实 LLM 试跑前）
 
 - Owner 解锁基线：`4c79373`。冻结配置 `config/p4_event_extract_eval_v1.yaml`，SHA-256

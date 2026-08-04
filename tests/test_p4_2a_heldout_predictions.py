@@ -204,6 +204,26 @@ def _v14_fixture_root(tmp_path: Path) -> EventEvaluationDesign:
     return design
 
 
+def _v15_fixture_root(tmp_path: Path) -> EventEvaluationDesign:
+    design = load_event_evaluation_design(
+        runner.PROJECT_ROOT / "config/p4_event_evaluation_v1_4.yaml",
+        project_root=runner.PROJECT_ROOT,
+    )
+    _copy_contract_files(tmp_path, design)
+    prediction_contract = design.prediction_contract
+    _copy_project_file(
+        tmp_path,
+        prediction_contract.path.relative_to(runner.PROJECT_ROOT).as_posix(),
+    )
+    contract_files = cast(
+        dict[str, dict[str, str]],
+        prediction_contract.document["contract_files"],
+    )
+    _copy_project_file(tmp_path, contract_files["prompt"]["path"])
+    _create_dev_only_database(tmp_path)
+    return design
+
+
 def _pdf_fetcher(url: str, contract: AnnouncementBodyPolicy) -> bytes:
     assert url.startswith("https://static.cninfo.com.cn/")
     assert contract.tls_verify is True
@@ -824,6 +844,64 @@ def test_v14_contract_rejects_unregistered_input_drift(tmp_path: Path) -> None:
         runner._load_active_contract(altered_design, tmp_path, active_path)
 
 
+def test_v15_dev_final_freeze_binds_v1_4_namespace_and_cache_off(
+    tmp_path: Path,
+) -> None:
+    design = _v15_fixture_root(tmp_path)
+    active_path = (
+        tmp_path
+        / design.prediction_contract.path.relative_to(runner.PROJECT_ROOT)
+    )
+    active_contract = runner._load_active_contract(
+        design,
+        tmp_path,
+        active_path,
+    )
+    assert active_contract.document["schema_version"] == (
+        "p4.2a-event-extract-eval-v1.5"
+    )
+    assert active_contract.explicit_cache_enabled is False
+    assert active_contract.evidence_span_match_mode == (
+        "unicode_whitespace_elided_contiguous_substring_v1"
+    )
+    assert design.document["artifacts"]["dev_final_predictions_jsonl"][
+        "path"
+    ] == "docs/phase4/eval/P4.2a-dev60-final-predictions-v1.4.jsonl"
+    assert design.document["artifacts"][
+        "prediction_contract_freeze_receipt_json"
+    ]["path"] == (
+        "docs/phase4/eval/P4.2a-heldout-prediction-contract-freeze-v1.4.json"
+    )
+
+    predictions_path, manifest_path = _create_dev_final_artifacts(
+        tmp_path,
+        design,
+        active_contract,
+    )
+    receipt_path = runner.freeze_prediction_contract(
+        active_path,
+        predictions_path,
+        manifest_path,
+        project_root=tmp_path,
+        design=design,
+        now=datetime.fromisoformat("2026-08-04T20:00:00+08:00"),
+    )
+    receipt, _, validated = runner.validate_prediction_contract_freeze(
+        design,
+        tmp_path,
+    )
+
+    assert receipt_path.name.endswith("-v1.4.json")
+    assert receipt["contract_schema_version"] == (
+        "p4.2a-event-extract-eval-v1.5"
+    )
+    assert receipt["explicit_cache_enabled"] is False
+    assert receipt["evidence_span_match_mode"] == (
+        "unicode_whitespace_elided_contiguous_substring_v1"
+    )
+    assert validated.sha256 == active_contract.sha256
+
+
 def test_dev_final_global_seal_detects_historical_namespace(
     tmp_path: Path,
 ) -> None:
@@ -838,6 +916,27 @@ def test_dev_final_global_seal_detects_historical_namespace(
     with pytest.raises(
         runner.HeldoutPredictionError,
         match=r"heldout_candidate_inputs_jsonl@v1\.2",
+    ):
+        runner._ensure_dev_final_precedes_heldout(design, tmp_path)
+
+
+def test_dev_final_global_seal_detects_v1_4_namespace(
+    tmp_path: Path,
+) -> None:
+    design = load_event_evaluation_design(
+        runner.EVALUATION_DESIGN_V1_4_PATH,
+        project_root=runner.PROJECT_ROOT,
+    )
+    current = (
+        tmp_path
+        / "docs/phase4/eval/P4.2a-heldout-candidate-inputs-v1.4.jsonl"
+    )
+    current.parent.mkdir(parents=True, exist_ok=True)
+    current.write_text("{}\n", encoding="utf-8")
+
+    with pytest.raises(
+        runner.HeldoutPredictionError,
+        match=r"heldout_candidate_inputs_jsonl@v1\.4",
     ):
         runner._ensure_dev_final_precedes_heldout(design, tmp_path)
 

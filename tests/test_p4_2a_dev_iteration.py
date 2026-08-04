@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import copy
 import json
 import re
 import sqlite3
+from dataclasses import replace
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -33,13 +35,16 @@ def _fixture_root(tmp_path: Path) -> None:
         "config/p4_event_extract_eval_v1_2.yaml",
         "config/p4_event_extract_eval_v1_3.yaml",
         "config/p4_event_extract_eval_v1_4.yaml",
+        "config/p4_event_extract_eval_v1_5.yaml",
         "config/p4_event_evaluation_v1_1.yaml",
         "config/p4_event_evaluation_v1_2.yaml",
         "config/p4_event_evaluation_v1_3.yaml",
+        "config/p4_event_evaluation_v1_4.yaml",
         "config/prompts/p4_news_event_extract_v1.txt",
         "config/prompts/p4_news_event_extract_v1_1.txt",
         "config/prompts/p4_news_event_extract_v1_2.txt",
         "config/prompts/p4_news_event_extract_v1_3.txt",
+        "config/prompts/p4_news_event_extract_v1_4.txt",
         "config/schemas/p4_news_event_v1.schema.json",
         "config/p4_news_poll_v1.yaml",
         "docs/phase4/eval/P4.2a-gold-inventory60-v1.jsonl",
@@ -257,6 +262,120 @@ def test_v1_4_dev_iteration_reports_preregistered_three_layer_evidence(
     )
     assert result.report["heldout_accessed"] is False
     assert result.report["heldout_phase_unlocked"] is False
+
+
+def test_v1_5_dev_iteration_reports_failed_round_and_fresh_layers(
+    tmp_path: Path,
+) -> None:
+    _fixture_root(tmp_path)
+    design = load_event_evaluation_design(
+        PROJECT_ROOT / "config/p4_event_evaluation_v1_4.yaml",
+    )
+
+    result = dev_runner.run_dev_iteration(
+        Path("config/p4_event_extract_eval_v1_5.yaml"),
+        "v1.5-r1",
+        project_root=tmp_path,
+        design=design,
+        settings=_settings(
+            model="qwen3.6-plus",
+            endpoint="https://dashscope.aliyuncs.com/compatible-mode/v1",
+        ),
+        clock=lambda: datetime(2026, 8, 4, 11, 0, tzinfo=UTC),
+        chat_json_fn=_fake_chat,
+    )
+
+    evidence = result.report["evidence_validation"]
+    assert evidence["v1_4_actual"]["historical_round_immutable"] is True
+    assert evidence["v1_4_r1_actual"]["extraction"]["failure_ids"] == [
+        253,
+        258,
+        280,
+        304,
+        336,
+        340,
+    ]
+    assert evidence["v1_5_actual"]["success_count"] == 60
+    assert evidence["v1_5_actual"]["failure_count"] == 0
+    assert evidence["v1_5_legacy_exact_shadow"]["mismatch_count"] == 0
+    diagnostics = result.report["symbol_diagnostics"]
+    assert diagnostics["v1_4_r1_actual"][
+        "current_model_under_attribution_ids"
+    ] == [28, 67, 71, 96]
+    assert "model_over_attribution_ids" not in diagnostics
+    changed = result.report["flash_baseline_comparison"]["changed_dimensions"]
+    assert "evidence_span_match_mode" in changed
+    assert "validation_contract" in changed
+
+
+def test_v1_5_required_report_field_drift_fails_before_model_call(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _fixture_root(tmp_path)
+    design = load_event_evaluation_design(
+        PROJECT_ROOT / "config/p4_event_evaluation_v1_4.yaml",
+    )
+    document = copy.deepcopy(design.document)
+    required = document["evaluation"]["required_report_fields"]
+    required.remove("evidence_validation.v1_5_actual")
+    drifted = replace(design, document=document)
+    calls: list[str] = []
+
+    def forbidden_extract(*_args: object, **_kwargs: object) -> None:
+        calls.append("called")
+
+    monkeypatch.setattr(dev_runner, "extract_records", forbidden_extract)
+    with pytest.raises(
+        dev_runner.DevIterationError,
+        match="required report fields are unrecognized",
+    ):
+        dev_runner.run_dev_iteration(
+            Path("config/p4_event_extract_eval_v1_5.yaml"),
+            "v1.5-preflight",
+            project_root=tmp_path,
+            design=drifted,
+            settings=_settings(
+                model="qwen3.6-plus",
+                endpoint="https://dashscope.aliyuncs.com/compatible-mode/v1",
+            ),
+            clock=lambda: datetime(2026, 8, 4, 11, 0, tzinfo=UTC),
+            chat_json_fn=_fake_chat,
+        )
+    assert calls == []
+
+
+def test_v1_5_rejects_wrong_round_namespace_before_model_call(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _fixture_root(tmp_path)
+    design = load_event_evaluation_design(
+        PROJECT_ROOT / "config/p4_event_evaluation_v1_4.yaml",
+    )
+    calls: list[str] = []
+
+    def forbidden_extract(*_args: object, **_kwargs: object) -> None:
+        calls.append("called")
+
+    monkeypatch.setattr(dev_runner, "extract_records", forbidden_extract)
+    with pytest.raises(
+        dev_runner.DevIterationError,
+        match=r"requires a v1\.5-\* round_id",
+    ):
+        dev_runner.run_dev_iteration(
+            Path("config/p4_event_extract_eval_v1_5.yaml"),
+            "v1.4-r2",
+            project_root=tmp_path,
+            design=design,
+            settings=_settings(
+                model="qwen3.6-plus",
+                endpoint="https://dashscope.aliyuncs.com/compatible-mode/v1",
+            ),
+            clock=lambda: datetime(2026, 8, 4, 11, 0, tzinfo=UTC),
+            chat_json_fn=_fake_chat,
+        )
+    assert calls == []
 
 
 def test_dev_iteration_rejects_ai_label_byte_drift(tmp_path: Path) -> None:

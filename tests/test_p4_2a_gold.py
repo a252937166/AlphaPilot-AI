@@ -30,6 +30,7 @@ from alphapilot.llm.p4_news_event import (
 PROJECT_DIR = Path(__file__).resolve().parent.parent
 CONFIG_PATH = PROJECT_DIR / "config/p4_event_extract_eval_v1.yaml"
 EVALUATION_DESIGN_V1_3_PATH = PROJECT_DIR / "config/p4_event_evaluation_v1_3.yaml"
+EVALUATION_DESIGN_V1_4_PATH = PROJECT_DIR / "config/p4_event_evaluation_v1_4.yaml"
 
 
 def _hash(value: str) -> str:
@@ -1320,6 +1321,87 @@ def test_cli_accepts_heldout_final_v1_3_scope() -> None:
     )
 
     assert arguments.scope == "heldout-final-v1.3"
+
+
+def test_v1_4_heldout_report_extensions_preserve_failed_round_anchor() -> None:
+    design = load_event_evaluation_design(EVALUATION_DESIGN_V1_4_PATH)
+    active = design.prediction_contract
+    annotations: dict[int, dict[str, Any]] = {}
+    predictions: dict[int, dict[str, Any] | None] = {}
+    dev_records: list[dict[str, Any]] = []
+    for news_item_id in range(1, 101):
+        original_text = f"连续证据 {news_item_id}"
+        annotation = {
+            "record": {
+                "news_item_id": news_item_id,
+                "original_text": original_text,
+            },
+            "gold": {"symbols": ["000044"] if news_item_id == 44 else []},
+        }
+        prediction = {
+            "symbols": [],
+            "event_type": "other",
+            "direction": 0,
+            "materiality": 0,
+            "summary": "摘要",
+            "confidence": 0.8,
+            "evidence_span": original_text,
+        }
+        annotations[news_item_id] = annotation
+        predictions[news_item_id] = prediction
+        if news_item_id <= 60:
+            dev_records.append(
+                {
+                    "news_item_id": news_item_id,
+                    "status": "ok",
+                    "prediction": prediction,
+                }
+            )
+
+    extensions = evaluator._v1_3_report_extensions(
+        design=builder.load_evaluation_design(EVALUATION_DESIGN_V1_4_PATH),
+        active_contract=active,
+        dev_annotations={
+            news_item_id: annotations[news_item_id]
+            for news_item_id in range(1, 61)
+        },
+        dev_prediction_records=dev_records,
+        annotations=annotations,
+        predictions=predictions,
+        result={
+            "metrics": {
+                "symbol_exact_set": {
+                    "all100": {
+                        "matches": 99,
+                        "denominator": 100,
+                        "value": 0.99,
+                    }
+                }
+            }
+        },
+    )
+
+    evidence = extensions["evidence_validation"]
+    assert evidence["v1_4_r1_actual"]["extraction"]["failure_count"] == 6
+    assert evidence["v1_4_actual"]["historical_round_immutable"] is True
+    assert evidence["v1_5_actual"]["success_count"] == 60
+    assert evidence["v1_5_legacy_exact_shadow"]["mismatch_count"] == 0
+    symbols = extensions["symbol_diagnostics"]
+    assert symbols["v1_4_r1_actual"]["current_model_under_attribution_ids"] == [
+        28,
+        67,
+        71,
+        96,
+    ]
+    assert "model_over_attribution_ids" not in symbols
+
+
+def test_cli_accepts_heldout_final_v1_4_scope() -> None:
+    arguments = evaluator._arguments(
+        ["--scope", "heldout-final-v1.4", "--output", "report.json"]
+    )
+
+    assert arguments.scope == "heldout-final-v1.4"
 
 
 def test_v1_1_active_contract_allows_prompt_version_only() -> None:

@@ -1955,6 +1955,7 @@ def load_active_prediction_contract(
     if design_schema_version in {
         "p4.2a-evaluation-design-v1.2",
         "p4.2a-evaluation-design-v1.3",
+        "p4.2a-evaluation-design-v1.4",
     }:
         registered_design = load_event_evaluation_design(
             design.path,

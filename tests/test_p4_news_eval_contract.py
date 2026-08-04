@@ -314,6 +314,86 @@ def test_v1_3_historical_artifact_verifier_fails_closed_on_byte_drift(
         p4_news_eval._verify_v1_3_historical_artifacts(tmp_path, hashes)
 
 
+def test_load_event_evaluation_design_v1_4_binds_v1_5_and_failed_round() -> None:
+    previous = load_event_evaluation_design(p4_news_eval.EVALUATION_DESIGN_V1_3_PATH)
+    design = load_event_evaluation_design(p4_news_eval.EVALUATION_DESIGN_V1_4_PATH)
+
+    assert design.sha256 == p4_news_eval.EXPECTED_EVALUATION_DESIGN_V1_4_SHA256
+    assert design.document["schema_version"] == "p4.2a-evaluation-design-v1.4"
+    assert design.prediction_contract.sha256 == (
+        "a07f9f37e0877bd06ce3dc9e8a0e03c51bbb92fdc3ba6738b6932d7679aca560"
+    )
+    assert design.prediction_contract.model == "qwen3.6-plus"
+    assert design.prediction_contract.explicit_cache_enabled is False
+    assert (
+        design.prediction_contract.evidence_span_match_mode
+        == "unicode_whitespace_elided_contiguous_substring_v1"
+    )
+    assert design.document["splits"] == previous.document["splits"]
+    assert (
+        design.document["heldout_annotation_provenance"]
+        == previous.document["heldout_annotation_provenance"]
+    )
+
+    derived = design.document["derived_after_failed_round"]
+    assert derived["round_id"] == "v1.4-r1"
+    assert derived["formal_dev_round_valid"] is False
+    assert derived["heldout_accessed"] is False
+    assert derived["extraction"]["success_count"] == 54
+    assert derived["extraction"]["failure_ids"] == [253, 258, 280, 304, 336, 340]
+    assert derived["extraction"]["post_validation"]["root_cause"] == (
+        "unadjudicated_from_safe_artifacts"
+    )
+    assert derived["artifacts"]["blocker"]["sha256"] == (
+        "3d0038515e208bca37e096b280ec411da2086addd8696d2ee6e8afa36fad00f9"
+    )
+    assert derived["report_integrity_disclosure"] == {
+        "immutable_report_preserved": True,
+        "flash_baseline_changed_dimensions_omitted": [
+            "evidence_span_match_mode",
+            "validation_contract",
+        ],
+        "baseline_comparable_count": 59,
+        "candidate_comparable_count": 54,
+        "causal_reading_forbidden": True,
+    }
+    assert design.document["historical_comparison"]["v1_4_r1_actual"] == derived
+
+    previous_artifacts = previous.document["artifacts"]
+    current_artifacts = design.document["artifacts"]
+    for name in p4_news_eval._V1_2_CREATE_ONLY_ARTIFACTS:
+        assert current_artifacts[name]["path"] != previous_artifacts[name]["path"]
+        assert "v1.4" in current_artifacts[name]["path"]
+    assert design.document["prediction_contract_freeze"][
+        "required_evidence_span_match_mode"
+    ] == "unicode_whitespace_elided_contiguous_substring_v1"
+
+
+def test_v1_4_historical_artifact_verifier_fails_closed_on_byte_drift(
+    tmp_path: Path,
+) -> None:
+    entries: dict[str, dict[str, str]] = {}
+    for name, relative_path in p4_news_eval._V1_4_HISTORICAL_ARTIFACT_PATHS.items():
+        payload = f"fixture:{name}".encode()
+        path = tmp_path / relative_path
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(payload)
+        entries[name] = {
+            "path": relative_path.as_posix(),
+            "sha256": hashlib.sha256(payload).hexdigest(),
+        }
+    derived = {"artifacts": entries}
+
+    p4_news_eval._verify_v1_4_historical_artifacts(tmp_path, derived)
+    drifted_path = (
+        tmp_path / p4_news_eval._V1_4_HISTORICAL_ARTIFACT_PATHS["blocker"]
+    )
+    drifted_path.write_bytes(b"drifted")
+
+    with pytest.raises(EventEvaluationDesignError, match="frozen SHA-256"):
+        p4_news_eval._verify_v1_4_historical_artifacts(tmp_path, derived)
+
+
 @pytest.mark.parametrize(
     ("path", "value", "message"),
     [

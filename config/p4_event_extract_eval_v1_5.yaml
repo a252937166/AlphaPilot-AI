@@ -1,0 +1,160 @@
+schema_version: p4.2a-event-extract-eval-v1.5
+owner_spec_commit: c7510e75bd5a5fb2ad8f1d4f2409f4e0e67db359
+pre_registered_at: "2026-08-04T10:46:30Z"
+production_writes_allowed: false
+artifact_root: docs/phase4/eval
+
+contract_files:
+  prompt:
+    path: config/prompts/p4_news_event_extract_v1_4.txt
+    sha256: ff42e6905e009e8a7a3a0ae7b7fedce043cbf73f55f3551cf76bbfdcfef33f2b
+  schema:
+    path: config/schemas/p4_news_event_v1.schema.json
+    sha256: 0ac68654ce23ecd4e537d849d695e092c76dcb9de0fb03793e65ae62b181947f
+
+llm:
+  purpose: p4_news_event_extract
+  model: qwen3.6-plus
+  endpoint: https://dashscope.aliyuncs.com/compatible-mode/v1
+  temperature: 0.2
+  enable_thinking: false
+  max_output_tokens: 2000
+  total_deadline_seconds: 20.0
+  max_retries: 0
+  max_items_per_run: 2000
+  response_format: json_object
+  explicit_cache:
+    enabled: false
+    cache_control: null
+
+taxonomy:
+  version: p4-news-event-taxonomy-v1
+  values:
+    - earnings_preannounce
+    - major_contract
+    - buyback_or_holder_change
+    - regulatory_action
+    - halt_resume
+    - ma_restructure
+    - policy_sector
+    - dividend
+    - other
+
+input:
+  production_database: data/alphapilot.db
+  open_mode: read_only_query_only
+  inventory_snapshot:
+    observed_at_utc: "2026-08-03T02:13:20Z"
+    max_news_item_id: 423
+    expected_row_count: 423
+    max_available_time_utc: "2026-08-03T02:10:09.075785Z"
+  original_text_fields:
+    akshare_ths: [title, raw_payload.digest, raw_payload.short]
+    cninfo: [title]
+    sina_company_news: [title]
+  max_llm_input_characters: 16000
+  evidence_span_must_be_contiguous_substring: true
+  evidence_span_match_mode: unicode_whitespace_elided_contiguous_substring_v1
+  symbols_must_be_sorted_unique: true
+  symbols_must_be_in_original_text_and_security_universe_or_ingested_symbol: true
+
+offline_trial:
+  output_jsonl: docs/phase4/eval/P4.2a-offline-extract-qwen3.6-flash-v1.jsonl
+  report_json: docs/phase4/eval/P4.2a-offline-trial-v1.report.json
+  checkpoint_key_fields: [news_item_id, input_sha256, contract_sha256, model]
+  resume_exact_successes: true
+  retry_failures_requires_explicit_flag: true
+  keep_failed_rows: true
+  blind_gold_sampling_ignores_predictions: true
+
+gold_sample:
+  version: p4.2a-gold-v1
+  deterministic_seed: alphapilot-p4.2a-gold-v1-20260803
+  inventory_output_jsonl: docs/phase4/eval/P4.2a-gold-inventory60-v1.jsonl
+  final_output_jsonl: docs/phase4/eval/P4.2a-gold-annotation100-v1.jsonl
+  predictions_output_jsonl: docs/phase4/eval/P4.2a-gold-predictions-qwen3.6-flash-v1.jsonl
+  manifest_json: docs/phase4/eval/P4.2a-gold-annotation-v1.manifest.json
+  annotation_status_initial: pending
+  labels_must_be_null: true
+  model_predictions_must_be_absent: true
+  no_substitution_after_id_freeze: true
+  inventory_60:
+    cutoff_news_item_id: 423
+    strata:
+      - {source: cninfo, symbol_state: bound, count: 24, require_announcement_body: true}
+      - {source: akshare_ths, symbol_state: bound, count: 9, require_announcement_body: false}
+      - {source: akshare_ths, symbol_state: null, count: 9, require_announcement_body: false}
+      - {source: sina_company_news, symbol_state: bound, count: 9, require_announcement_body: false}
+      - {source: sina_company_news, symbol_state: null, count: 9, require_announcement_body: false}
+  future_40:
+    ready_after: "2026-08-06T00:10:00+08:00"
+    trading_dates: ["2026-08-04", "2026-08-05"]
+    per_date_strata:
+      - {source: cninfo, symbol_state: bound, count: 10, require_announcement_body: true}
+      - {source: akshare_ths, symbol_state: bound, count: 2, require_announcement_body: false}
+      - {source: akshare_ths, symbol_state: null, count: 3, require_announcement_body: false}
+      - {source: sina_company_news, symbol_state: bound, count: 2, require_announcement_body: false}
+      - {source: sina_company_news, symbol_state: null, count: 3, require_announcement_body: false}
+  insufficient_stratum_policy: fail_without_substitution
+
+announcement_body:
+  eval_only: true
+  source: cninfo_pdf
+  allowed_scheme: https
+  allowed_host: static.cninfo.com.cn
+  follow_redirects: false
+  tls_verify: true
+  connect_timeout_seconds: 3.0
+  read_timeout_seconds: 20.0
+  max_pdf_bytes: 8388608
+  required_magic: "%PDF-"
+  extractor_command: pdftotext
+  extractor_timeout_seconds: 20.0
+  max_annotation_text_characters: 14000
+  minimum_extracted_characters: 80
+  persist_pdf: false
+  record_pdf_sha256: true
+  record_full_text_sha256: true
+  failure_policy: block_sample_without_replacement
+
+annotation:
+  required_gold_fields:
+    - symbols
+    - event_type
+    - direction
+    - materiality
+    - evidence_span
+  optional_gold_fields: [notes]
+  symbols_format: sorted_unique_six_digit_strings
+  evidence_span_must_be_contiguous_substring: true
+  owner_labels_only: true
+
+evaluation:
+  sample_count: 100
+  materiality_positive_definition: materiality_gte_2
+  materiality_precision_formula: tp_divided_by_tp_plus_fp
+  materiality_zero_predicted_positive_policy: fail
+  materiality_precision_minimum: 0.80
+  symbol_mapping_formula: exact_set_match_accuracy
+  symbol_mapping_accuracy_minimum: 0.95
+  symbol_bearing_exact_set_accuracy_minimum: 0.95
+  report_null_gold_false_positive_rate: true
+  event_type_exact_match_is_diagnostic: true
+  direction_exact_match_is_diagnostic: true
+  threshold_changes_forbidden: true
+  failed_rounds_append_only: true
+  prompt_or_model_change_requires_new_contract_version: true
+
+isolation:
+  forbidden_production_tables:
+    - news_events
+  forbidden_runtime_changes:
+    - scheduler
+    - jobs_registry
+    - api_routes
+    - migrations
+    - orm_models
+    - p4_news_poll_config
+    - p4_1_acceptance
+  p4_2b_unlocked: false
+  proposals_or_orders_allowed: false
