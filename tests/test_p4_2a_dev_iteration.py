@@ -36,16 +36,20 @@ def _fixture_root(tmp_path: Path) -> None:
         "config/p4_event_extract_eval_v1_3.yaml",
         "config/p4_event_extract_eval_v1_4.yaml",
         "config/p4_event_extract_eval_v1_5.yaml",
+        "config/p4_event_extract_eval_v1_6.yaml",
         "config/p4_event_evaluation_v1_1.yaml",
         "config/p4_event_evaluation_v1_2.yaml",
         "config/p4_event_evaluation_v1_3.yaml",
         "config/p4_event_evaluation_v1_4.yaml",
+        "config/p4_event_evaluation_v1_5.yaml",
         "config/prompts/p4_news_event_extract_v1.txt",
         "config/prompts/p4_news_event_extract_v1_1.txt",
         "config/prompts/p4_news_event_extract_v1_2.txt",
         "config/prompts/p4_news_event_extract_v1_3.txt",
         "config/prompts/p4_news_event_extract_v1_4.txt",
+        "config/prompts/p4_news_event_extract_v1_5.txt",
         "config/schemas/p4_news_event_v1.schema.json",
+        "config/schemas/p4_news_event_candidate_v1.schema.json",
         "config/p4_news_poll_v1.yaml",
         "docs/phase4/eval/P4.2a-gold-inventory60-v1.jsonl",
         "docs/phase4/eval/P4.2a-gold-inventory60-v1.labels-ai-drafted.jsonl",
@@ -148,6 +152,57 @@ def _fake_chat(
         "summary": evidence[:100],
         "confidence": 0.8,
         "evidence_span": evidence[:500],
+    }
+
+
+def _fake_candidate_chat(
+    purpose: str,
+    system: str,
+    user: str,
+    schema: dict[str, Any],
+    *,
+    timeout: float | None = None,
+    max_tokens: int | None = None,
+    max_retries: int = 1,
+    settings: Settings | None = None,
+    session: Session | None = None,
+) -> dict[str, Any]:
+    assert purpose == "p4_news_event_extract"
+    assert system
+    assert schema
+    assert timeout == 20.0
+    assert max_tokens == 2_000
+    assert max_retries == 0
+    assert settings is not None
+    assert session is not None
+    payload = json.loads(user)
+    assert "original_text" not in payload
+    candidates = payload["evidence_candidates"]
+    assert isinstance(candidates, list) and candidates
+    first = candidates[0]
+    assert isinstance(first, list)
+    ingested_symbol = payload.get("ingested_symbol")
+    symbols = [ingested_symbol] if isinstance(ingested_symbol, str) else []
+    session.add(
+        LLMCall(
+            purpose="p4_news_event_extract",
+            model=settings.llm_model or "missing-test-model",
+            latency_ms=1,
+            ok=True,
+            prompt_tokens=12,
+            completion_tokens=8,
+            error=None,
+        )
+    )
+    session.flush()
+    return {
+        "symbols": symbols,
+        "event_type": "other",
+        "direction": 0,
+        "materiality": 1,
+        "summary": str(first[3])[:100],
+        "confidence": 0.8,
+        "evidence_candidate_id": first[0],
     }
 
 
@@ -374,6 +429,122 @@ def test_v1_5_rejects_wrong_round_namespace_before_model_call(
             ),
             clock=lambda: datetime(2026, 8, 4, 11, 0, tzinfo=UTC),
             chat_json_fn=_fake_chat,
+        )
+    assert calls == []
+
+
+def test_v1_6_dev_iteration_reports_candidate_materialization_and_dual_identity(
+    tmp_path: Path,
+) -> None:
+    _fixture_root(tmp_path)
+    loaded = load_event_evaluation_design(
+        PROJECT_ROOT / "config/p4_event_evaluation_v1_5.yaml",
+    )
+    design = replace(
+        loaded,
+        prediction_contract=replace(
+            loaded.prediction_contract,
+            path=tmp_path / "config/p4_event_extract_eval_v1_6.yaml",
+        ),
+    )
+
+    result = dev_runner.run_dev_iteration(
+        Path("config/p4_event_extract_eval_v1_6.yaml"),
+        "v1.6-r1",
+        project_root=tmp_path,
+        design=design,
+        settings=_settings(
+            model="qwen3.6-plus",
+            endpoint="https://dashscope.aliyuncs.com/compatible-mode/v1",
+        ),
+        clock=lambda: datetime(2026, 8, 4, 12, 0, tzinfo=UTC),
+        chat_json_fn=_fake_candidate_chat,
+    )
+
+    assert result.summary.success_count == 60
+    assert result.summary.failure_count == 0
+    report = result.report
+    contract = report["prediction_contract"]
+    assert contract["input_representation"]["name"] == (
+        "ordered_evidence_candidates_v1"
+    )
+    assert contract["model_result_schema"]["sha256"] == (
+        "c106cd15bd974de19ecc01d6e99e8f39c39fbf14df3a3b4dc74ee9b08ff6dd66"
+    )
+    assert contract["materialized_result_schema"]["sha256"] == (
+        "0ac68654ce23ecd4e537d849d695e092c76dcb9de0fb03793e65ae62b181947f"
+    )
+    assert contract["candidate_materialization"]["materialization"] == (
+        "exact_raw_slice_from_registered_start_end"
+    )
+    identity = report["input_identity"]
+    assert identity["declared_frozen_input_sha256"]["row_count"] == 60
+    assert identity["active_model_input_sha256"]["row_count"] == 60
+    assert identity["dual_hash_identity"]["rows_with_both"] == 60
+    assert identity["dual_hash_identity"]["distinct_hash_pair_count"] == 60
+    evidence = report["evidence_validation"]
+    assert evidence["v1_4_r1_actual"]["historical_round_immutable"] is True
+    assert evidence["v1_5_actual"]["failure_count"] == 10
+    assert evidence["v1_5_legacy_exact_shadow"]["mismatch_count"] == 12
+    assert evidence["v1_5_r1_actual"]["extraction"]["gold_intersection_failure_ids"] == [
+        272,
+        304,
+        306,
+        336,
+    ]
+    assert evidence["v1_6_actual"]["success_count"] == 60
+    assert report["symbol_diagnostics"]["v1_4_r1_actual"][
+        "ai_label_defect_ids"
+    ] == [44]
+    assert report["symbol_diagnostics"]["v1_5_r1_actual"][
+        "current_model_over_attribution_ids"
+    ] == [393]
+    disclosure = report["comparison_disclosure"]
+    assert disclosure["causal_reading_forbidden"] is True
+    assert {
+        "model_input_representation",
+        "model_result_schema",
+        "candidate_materialization",
+        "input_identity_contract",
+    }.issubset(disclosure["changed_dimensions"])
+
+    manifest = json.loads(result.manifest_path.read_text(encoding="utf-8"))
+    assert manifest["model_result_schema"] == contract["model_result_schema"]
+    assert manifest["materialized_result_schema"] == (
+        contract["materialized_result_schema"]
+    )
+    assert manifest["input_identity"] == identity
+
+
+def test_v1_6_rejects_wrong_round_namespace_before_model_call(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _fixture_root(tmp_path)
+    design = load_event_evaluation_design(
+        PROJECT_ROOT / "config/p4_event_evaluation_v1_5.yaml",
+    )
+    calls: list[str] = []
+
+    def forbidden_extract(*_args: object, **_kwargs: object) -> None:
+        calls.append("called")
+
+    monkeypatch.setattr(dev_runner, "extract_records", forbidden_extract)
+    with pytest.raises(
+        dev_runner.DevIterationError,
+        match=r"requires a v1\.6-\* round_id",
+    ):
+        dev_runner.run_dev_iteration(
+            Path("config/p4_event_extract_eval_v1_6.yaml"),
+            "v1.5-r2",
+            project_root=PROJECT_ROOT,
+            design=design,
+            settings=_settings(
+                model="qwen3.6-plus",
+                endpoint="https://dashscope.aliyuncs.com/compatible-mode/v1",
+            ),
+            clock=lambda: datetime(2026, 8, 4, 12, 0, tzinfo=UTC),
+            chat_json_fn=_fake_candidate_chat,
         )
     assert calls == []
 

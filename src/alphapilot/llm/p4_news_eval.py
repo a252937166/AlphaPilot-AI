@@ -22,6 +22,7 @@ LEGACY_EVALUATION_DESIGN_PATH = PROJECT_ROOT / "config/p4_event_evaluation_v1_1.
 EVALUATION_DESIGN_V1_2_PATH = PROJECT_ROOT / "config/p4_event_evaluation_v1_2.yaml"
 EVALUATION_DESIGN_V1_3_PATH = PROJECT_ROOT / "config/p4_event_evaluation_v1_3.yaml"
 EVALUATION_DESIGN_V1_4_PATH = PROJECT_ROOT / "config/p4_event_evaluation_v1_4.yaml"
+EVALUATION_DESIGN_V1_5_PATH = PROJECT_ROOT / "config/p4_event_evaluation_v1_5.yaml"
 DEFAULT_EVALUATION_DESIGN_PATH = LEGACY_EVALUATION_DESIGN_PATH
 EXPECTED_EVALUATION_DESIGN_SHA256 = (
     "8e9c1d107ef235f9c017dbfb679fa01e52e0ff966f01d9efad625110588ebf97"
@@ -35,10 +36,14 @@ EXPECTED_EVALUATION_DESIGN_V1_3_SHA256 = (
 EXPECTED_EVALUATION_DESIGN_V1_4_SHA256 = (
     "3a392a6c834cdde219f54e149f22e235b0316765d0bd69501bb1f312d7ee0e33"
 )
+EXPECTED_EVALUATION_DESIGN_V1_5_SHA256 = (
+    "6a8193828df380a94b36fd7b0bc995930e64909339cd009c834d3487d3ae3c05"
+)
 EXPECTED_EVALUATION_SCHEMA_VERSION = "p4.2a-evaluation-design-v1.1"
 EXPECTED_EVALUATION_V1_2_SCHEMA_VERSION = "p4.2a-evaluation-design-v1.2"
 EXPECTED_EVALUATION_V1_3_SCHEMA_VERSION = "p4.2a-evaluation-design-v1.3"
 EXPECTED_EVALUATION_V1_4_SCHEMA_VERSION = "p4.2a-evaluation-design-v1.4"
+EXPECTED_EVALUATION_V1_5_SCHEMA_VERSION = "p4.2a-evaluation-design-v1.5"
 EXPECTED_BASE_CONTRACT_SHA256 = "b3eb24c63816043edf0ef728d8d9778cd9083d720649d6fff3ae6289bba74300"
 
 EXPECTED_SUPERSEDED_FIELDS = (
@@ -261,6 +266,21 @@ _V1_4_HISTORICAL_ARTIFACT_PATHS = {
         "docs/phase4/eval/dev-iterations/P4.2a-dev60-v1.4-r1.blocker.json"
     ),
 }
+_V1_5_HISTORICAL_ARTIFACT_PATHS = {
+    "predictions": Path(
+        "docs/phase4/eval/dev-iterations/"
+        "P4.2a-dev60-v1.5-r1.predictions.jsonl"
+    ),
+    "manifest": Path(
+        "docs/phase4/eval/dev-iterations/P4.2a-dev60-v1.5-r1.manifest.json"
+    ),
+    "report": Path(
+        "docs/phase4/eval/dev-iterations/P4.2a-dev60-v1.5-r1.report.json"
+    ),
+    "blocker": Path(
+        "docs/phase4/eval/dev-iterations/P4.2a-dev60-v1.5-r1.blocker.json"
+    ),
+}
 
 
 class EventEvaluationDesignError(ValueError):
@@ -414,6 +434,54 @@ def _verify_v1_4_historical_artifacts(
         if _sha256_bytes(payload) != expected_sha256:
             raise EventEvaluationDesignError(
                 f"historical v1.4 {name} artifact differs from its frozen SHA-256"
+            )
+
+
+def _verify_v1_5_historical_artifacts(
+    project_root: Path,
+    derived: Mapping[str, Any],
+) -> None:
+    artifacts = _mapping(
+        derived.get("artifacts"),
+        "derived_after_failed_round.artifacts",
+    )
+    if set(artifacts) != set(_V1_5_HISTORICAL_ARTIFACT_PATHS):
+        raise EventEvaluationDesignError("historical v1.5 artifact set drifted")
+    root = project_root.resolve()
+    for name, expected_relative in _V1_5_HISTORICAL_ARTIFACT_PATHS.items():
+        entry = _mapping(
+            artifacts.get(name),
+            f"derived_after_failed_round.artifacts.{name}",
+        )
+        path = _artifact_path(
+            project_root,
+            entry.get("path"),
+            label=f"derived_after_failed_round.artifacts.{name}.path",
+        )
+        expected_sha256 = entry.get("sha256")
+        if (
+            path != root / expected_relative
+            or not isinstance(expected_sha256, str)
+            or len(expected_sha256) != _SHA256_LENGTH
+            or any(
+                character not in "0123456789abcdef"
+                for character in expected_sha256
+            )
+            or path.is_symlink()
+            or not path.is_file()
+        ):
+            raise EventEvaluationDesignError(
+                f"historical v1.5 {name} artifact is unavailable"
+            )
+        try:
+            payload = path.read_bytes()
+        except OSError as exc:
+            raise EventEvaluationDesignError(
+                f"historical v1.5 {name} artifact is unavailable"
+            ) from exc
+        if _sha256_bytes(payload) != expected_sha256:
+            raise EventEvaluationDesignError(
+                f"historical v1.5 {name} artifact differs from its frozen SHA-256"
             )
 
 
@@ -2009,6 +2077,510 @@ def _load_v1_4_event_evaluation_design(
     )
 
 
+def _load_v1_5_event_evaluation_design(
+    path: Path,
+    *,
+    project_root: Path,
+) -> EventEvaluationDesign:
+    """Load the v1.5 overlay and bind candidate-selection v1.6 exactly."""
+
+    try:
+        payload = path.resolve().read_bytes()
+    except OSError as exc:
+        raise EventEvaluationDesignError("P4.2a v1.5 design is unavailable") from exc
+    digest = _sha256_bytes(payload)
+    if digest != EXPECTED_EVALUATION_DESIGN_V1_5_SHA256:
+        raise EventEvaluationDesignError(
+            "P4.2a v1.5 design differs from its frozen SHA-256"
+        )
+    try:
+        loaded: object = yaml.safe_load(payload)
+    except yaml.YAMLError as exc:
+        raise EventEvaluationDesignError("P4.2a v1.5 design is invalid YAML") from exc
+    if not isinstance(loaded, dict):
+        raise EventEvaluationDesignError("P4.2a v1.5 design must be a mapping")
+    overlay = cast(JsonObject, loaded)
+    if set(overlay) != {
+        "schema_version",
+        "owner_spec_commit",
+        "pre_registered_at",
+        "production_writes_allowed",
+        "artifact_root",
+        "extends_design",
+        "active_prediction_contract",
+        "artifact_overrides",
+        "prediction_contract_freeze",
+        "derived_after_failed_round",
+        "evaluation",
+        "isolation",
+    }:
+        raise EventEvaluationDesignError("P4.2a v1.5 top-level contract drifted")
+    if (
+        overlay.get("schema_version") != EXPECTED_EVALUATION_V1_5_SCHEMA_VERSION
+        or overlay.get("owner_spec_commit")
+        != "c7510e75bd5a5fb2ad8f1d4f2409f4e0e67db359"
+        or overlay.get("production_writes_allowed") is not False
+        or overlay.get("artifact_root") != _ARTIFACT_ROOT.as_posix()
+    ):
+        raise EventEvaluationDesignError(
+            "P4.2a v1.5 identity/isolation binding drifted"
+        )
+
+    extends = _mapping(overlay.get("extends_design"), "extends_design")
+    inheritance = _mapping(extends.get("inheritance"), "extends_design.inheritance")
+    if (
+        extends.get("path") != "config/p4_event_evaluation_v1_4.yaml"
+        or extends.get("sha256") != EXPECTED_EVALUATION_DESIGN_V1_4_SHA256
+        or extends.get("schema_version") != EXPECTED_EVALUATION_V1_4_SCHEMA_VERSION
+        or dict(inheritance)
+        != {
+            "sample_identity": "byte_frozen",
+            "heldout_candidate_window": "byte_frozen",
+            "heldout_selection_seed": "byte_frozen",
+            "evaluation_thresholds": "byte_frozen",
+            "dev_annotation_bytes": "byte_frozen",
+            "heldout_annotation_provenance": "byte_frozen",
+            "historical_v1_3_evidence": "byte_frozen",
+            "historical_v1_4_evidence": "byte_frozen",
+        }
+    ):
+        raise EventEvaluationDesignError("P4.2a v1.5 inheritance contract drifted")
+    base_design = _load_v1_4_event_evaluation_design(
+        project_root / "config/p4_event_evaluation_v1_4.yaml",
+        project_root=project_root,
+    )
+
+    active = _mapping(
+        overlay.get("active_prediction_contract"),
+        "active_prediction_contract",
+    )
+    expected_active: JsonObject = {
+        "path": "config/p4_event_extract_eval_v1_6.yaml",
+        "sha256": "4e88990d2ee7671db316794aabd0a476f798b5e542f00bbb8ffbd3f7fd423269",
+        "schema_version": "p4.2a-event-extract-eval-v1.6",
+        "model": "qwen3.6-plus",
+        "endpoint": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+        "prompt": {
+            "path": "config/prompts/p4_news_event_extract_v1_5.txt",
+            "sha256": (
+                "4b44ed5efe281b68664b415865b758b75b30ace6eda2617952de66a87596c204"
+            ),
+        },
+        "model_result_schema": {
+            "path": "config/schemas/p4_news_event_candidate_v1.schema.json",
+            "sha256": (
+                "c106cd15bd974de19ecc01d6e99e8f39c39fbf14df3a3b4dc74ee9b08ff6dd66"
+            ),
+        },
+        "materialized_result_schema": {
+            "path": "config/schemas/p4_news_event_v1.schema.json",
+            "sha256": (
+                "0ac68654ce23ecd4e537d849d695e092c76dcb9de0fb03793e65ae62b181947f"
+            ),
+        },
+        "taxonomy_version": "p4-news-event-taxonomy-v1",
+        "input_representation": {
+            "name": "ordered_evidence_candidates_v1",
+            "original_text_in_model_message": False,
+            "declared_input_identity": "legacy_eight_field_user_json_v1",
+            "active_model_input_identity": (
+                "canonical_ordered_evidence_candidates_user_json_v1"
+            ),
+            "dual_hash_identity_required": True,
+        },
+        "candidate_materialization": {
+            "candidate_field": "evidence_candidate_id",
+            "final_field": "evidence_span",
+            "algorithm_version": (
+                "ordered-raw-partition-unicode-whitespace-display-v1"
+            ),
+            "materialization": "exact_raw_slice_from_registered_start_end",
+            "invalid_candidate_policy": "fail_closed_without_repair",
+            "matcher_revalidation_required": True,
+        },
+        "evidence_span_match_mode": (
+            "unicode_whitespace_elided_contiguous_substring_v1"
+        ),
+        "explicit_cache": {"enabled": False, "cache_control": None},
+    }
+    if dict(active) != expected_active:
+        raise EventEvaluationDesignError(
+            "P4.2a v1.5 active prediction contract identity drifted"
+        )
+    active_path = _artifact_path(
+        project_root,
+        active.get("path"),
+        label="active_prediction_contract.path",
+    )
+    try:
+        active_bytes = active_path.read_bytes()
+    except OSError as exc:
+        raise EventEvaluationDesignError(
+            "active prediction contract is unavailable"
+        ) from exc
+    if _sha256_bytes(active_bytes) != active.get("sha256"):
+        raise EventEvaluationDesignError(
+            "active prediction contract differs from its frozen SHA-256"
+        )
+    try:
+        prediction_contract = load_event_extract_contract(
+            active_path,
+            project_root=project_root,
+        )
+    except (EventExtractContractError, OSError) as exc:
+        raise EventEvaluationDesignError(
+            "active prediction contract validation failed"
+        ) from exc
+    contract_files = _mapping(
+        prediction_contract.document.get("contract_files"),
+        "active prediction contract files",
+    )
+    contract_prompt = _mapping(
+        contract_files.get("prompt"),
+        "active prediction contract prompt",
+    )
+    contract_schema = _mapping(
+        contract_files.get("schema"),
+        "active prediction contract model schema",
+    )
+    contract_materialized_schema = _mapping(
+        contract_files.get("materialized_schema"),
+        "active prediction contract materialized schema",
+    )
+    taxonomy = _mapping(
+        prediction_contract.document.get("taxonomy"),
+        "active prediction contract taxonomy",
+    )
+    input_contract = _mapping(
+        prediction_contract.document.get("input"),
+        "active prediction contract input",
+    )
+    output_contract = _mapping(
+        prediction_contract.document.get("output"),
+        "active prediction contract output",
+    )
+    if (
+        prediction_contract.document.get("schema_version")
+        != active.get("schema_version")
+        or prediction_contract.model != active.get("model")
+        or prediction_contract.endpoint != active.get("endpoint")
+        or dict(contract_prompt) != active.get("prompt")
+        or dict(contract_schema) != active.get("model_result_schema")
+        or dict(contract_materialized_schema)
+        != active.get("materialized_result_schema")
+        or taxonomy.get("version") != active.get("taxonomy_version")
+        or input_contract.get("model_message_representation")
+        != _mapping(
+            active.get("input_representation"),
+            "active input representation",
+        ).get("name")
+        or input_contract.get("original_text_in_model_message") is not False
+        or output_contract.get("model_field")
+        != _mapping(
+            active.get("candidate_materialization"),
+            "active candidate materialization",
+        ).get("candidate_field")
+        or output_contract.get("final_prediction_field")
+        != _mapping(
+            active.get("candidate_materialization"),
+            "active candidate materialization",
+        ).get("final_field")
+        or output_contract.get("materialization")
+        != _mapping(
+            active.get("candidate_materialization"),
+            "active candidate materialization",
+        ).get("materialization")
+        or prediction_contract.evidence_candidate_selection is not True
+        or prediction_contract.materialized_schema is None
+        or prediction_contract.evidence_span_match_mode
+        != active.get("evidence_span_match_mode")
+        or prediction_contract.explicit_cache_enabled is not False
+    ):
+        raise EventEvaluationDesignError(
+            "P4.2a v1.5 active prediction contract binding drifted"
+        )
+
+    artifacts = copy.deepcopy(cast(JsonObject, base_design.document["artifacts"]))
+    artifact_overrides = _mapping(
+        overlay.get("artifact_overrides"),
+        "artifact_overrides",
+    )
+    if set(artifact_overrides) != _V1_2_CREATE_ONLY_ARTIFACTS:
+        raise EventEvaluationDesignError(
+            "P4.2a v1.5 create-only artifact set drifted"
+        )
+    seen_paths: set[Path] = set()
+    eval_root = (project_root / _ARTIFACT_ROOT).resolve()
+    for name, raw_entry in artifact_overrides.items():
+        entry = _mapping(raw_entry, f"artifact_overrides.{name}")
+        path_value = _artifact_path(
+            project_root,
+            entry.get("path"),
+            label=f"artifact_overrides.{name}.path",
+        )
+        if path_value != eval_root and not path_value.is_relative_to(eval_root):
+            raise EventEvaluationDesignError(
+                f"artifact_overrides.{name} escapes the eval root"
+            )
+        if "/v1.5" not in path_value.as_posix() and "v1.5" not in path_value.name:
+            raise EventEvaluationDesignError(
+                f"artifact_overrides.{name} is not v1.5 namespaced"
+            )
+        if path_value in seen_paths:
+            raise EventEvaluationDesignError(
+                "P4.2a v1.5 artifact paths must be unique"
+            )
+        seen_paths.add(path_value)
+        create_only = (
+            entry.get("create_only_reports")
+            if name == "evaluation_report_directory"
+            else entry.get("create_only")
+        )
+        if create_only is not True:
+            raise EventEvaluationDesignError(
+                f"artifact_overrides.{name} must be create-only"
+            )
+        artifacts[name] = dict(entry)
+
+    freeze_overlay = _mapping(
+        overlay.get("prediction_contract_freeze"),
+        "prediction_contract_freeze",
+    )
+    expected_freeze: JsonObject = {
+        "required_contract_artifact": "active_prediction_contract",
+        "required_model": "qwen3.6-plus",
+        "required_endpoint": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+        "required_prompt_sha256": (
+            "4b44ed5efe281b68664b415865b758b75b30ace6eda2617952de66a87596c204"
+        ),
+        "required_result_schema_sha256": (
+            "0ac68654ce23ecd4e537d849d695e092c76dcb9de0fb03793e65ae62b181947f"
+        ),
+        "required_model_result_schema_sha256": (
+            "c106cd15bd974de19ecc01d6e99e8f39c39fbf14df3a3b4dc74ee9b08ff6dd66"
+        ),
+        "required_taxonomy_version": "p4-news-event-taxonomy-v1",
+        "required_explicit_cache_enabled": False,
+        "required_evidence_span_match_mode": (
+            "unicode_whitespace_elided_contiguous_substring_v1"
+        ),
+        "required_input_representation": "ordered_evidence_candidates_v1",
+        "required_dual_hash_identity": True,
+    }
+    if dict(freeze_overlay) != expected_freeze:
+        raise EventEvaluationDesignError(
+            "P4.2a v1.5 prediction freeze binding drifted"
+        )
+
+    derived = _mapping(
+        overlay.get("derived_after_failed_round"),
+        "derived_after_failed_round",
+    )
+    expected_artifacts: JsonObject = {
+        "predictions": {
+            "path": (
+                "docs/phase4/eval/dev-iterations/"
+                "P4.2a-dev60-v1.5-r1.predictions.jsonl"
+            ),
+            "sha256": (
+                "e9642568d50e0c4d9c1fe7726a117cb90269ed61ce116cd8665a989eb24dc297"
+            ),
+        },
+        "manifest": {
+            "path": (
+                "docs/phase4/eval/dev-iterations/"
+                "P4.2a-dev60-v1.5-r1.manifest.json"
+            ),
+            "sha256": (
+                "211212ba610a876dd107986c06e12501db08d7f03e9c87a1f5007d306f47f51e"
+            ),
+        },
+        "report": {
+            "path": (
+                "docs/phase4/eval/dev-iterations/"
+                "P4.2a-dev60-v1.5-r1.report.json"
+            ),
+            "sha256": (
+                "250545184031919e798a69dfd00dae9b8a06eb1b4168d628c0e5c48c00b7f845"
+            ),
+        },
+        "blocker": {
+            "path": (
+                "docs/phase4/eval/dev-iterations/"
+                "P4.2a-dev60-v1.5-r1.blocker.json"
+            ),
+            "sha256": (
+                "856cdd30972b4b287b2c944930c06531b7fd14b2897fa230c71faa9549bfc4a0"
+            ),
+        },
+    }
+    extraction = _mapping(
+        derived.get("extraction"),
+        "derived_after_failed_round.extraction",
+    )
+    metrics = _mapping(
+        derived.get("metrics"),
+        "derived_after_failed_round.metrics",
+    )
+    disclosure = _mapping(
+        derived.get("report_integrity_disclosure"),
+        "derived_after_failed_round.report_integrity_disclosure",
+    )
+    if (
+        set(derived)
+        != {
+            "round_id",
+            "historical_round_immutable",
+            "formal_dev_round_valid",
+            "heldout_accessed",
+            "active_contract",
+            "evaluation_design",
+            "prompt",
+            "artifacts",
+            "extraction",
+            "metrics",
+            "report_integrity_disclosure",
+        }
+        or derived.get("round_id") != "v1.5-r1"
+        or derived.get("historical_round_immutable") is not True
+        or derived.get("formal_dev_round_valid") is not False
+        or derived.get("heldout_accessed") is not False
+        or derived.get("active_contract")
+        != {
+            "path": "config/p4_event_extract_eval_v1_5.yaml",
+            "sha256": (
+                "a07f9f37e0877bd06ce3dc9e8a0e03c51bbb92fdc3ba6738b6932d7679aca560"
+            ),
+        }
+        or derived.get("evaluation_design")
+        != {
+            "path": "config/p4_event_evaluation_v1_4.yaml",
+            "sha256": EXPECTED_EVALUATION_DESIGN_V1_4_SHA256,
+        }
+        or derived.get("prompt")
+        != {
+            "path": "config/prompts/p4_news_event_extract_v1_4.txt",
+            "sha256": (
+                "ff42e6905e009e8a7a3a0ae7b7fedce043cbf73f55f3551cf76bbfdcfef33f2b"
+            ),
+        }
+        or derived.get("artifacts") != expected_artifacts
+        or dict(extraction)
+        != {
+            "expected_count": 60,
+            "success_count": 50,
+            "failure_count": 10,
+            "failure_ids": [9, 250, 272, 280, 303, 304, 306, 336, 340, 360],
+            "failures_by_reason": {
+                "post_validation_failed": 9,
+                "schema_validation_failed": 1,
+            },
+            "post_validation": {
+                "field": "evidence_span",
+                "constraint": "whitespace_normalized_contiguous_substring",
+                "failure_ids": [9, 250, 272, 303, 304, 306, 336, 340, 360],
+                "root_cause": "unadjudicated_from_safe_artifacts",
+            },
+            "schema_validation": {
+                "failure_ids": [280],
+                "root_cause": "unproven",
+            },
+            "gold_intersection_failure_ids": [272, 304, 306, 336],
+        }
+        or dict(metrics)
+        != {
+            "materiality_positive_agreement": {
+                "matches": 11,
+                "denominator": 12,
+                "agreement": 0.9166666666666666,
+                "formal_gate_usable": False,
+            },
+            "symbol_exact_set": {
+                "matches": 48,
+                "denominator": 50,
+                "agreement": 0.96,
+                "mismatch_ids": [44, 393],
+                "formal_gate_usable": False,
+            },
+            "symbol_adjudication": {
+                "ai_label_defect_ids": [44],
+                "current_model_over_attribution_ids": [393],
+                "frozen_dev_labels_remain_unchanged": True,
+                "symbol_rule_relaxation_allowed": False,
+            },
+        }
+        or dict(disclosure)
+        != {
+            "immutable_report_preserved": True,
+            "changed_dimensions": [
+                "model",
+                "endpoint",
+                "prompt_version",
+                "evidence_span_match_mode",
+                "validation_contract",
+            ],
+            "baseline_comparable_count": 59,
+            "candidate_comparable_count": 50,
+            "causal_reading_forbidden": True,
+        }
+    ):
+        raise EventEvaluationDesignError(
+            "P4.2a v1.5 failed-round derivation drifted"
+        )
+    _verify_v1_5_historical_artifacts(project_root, derived)
+
+    evaluation_overlay = _mapping(overlay.get("evaluation"), "evaluation")
+    expected_report_fields = [
+        "prediction_contract.input_representation",
+        "prediction_contract.model_result_schema",
+        "prediction_contract.materialized_result_schema",
+        "prediction_contract.candidate_materialization",
+        "input_identity.declared_frozen_input_sha256",
+        "input_identity.active_model_input_sha256",
+        "input_identity.dual_hash_identity",
+        "evidence_validation.v1_5_r1_actual",
+        "evidence_validation.v1_6_actual",
+        "symbol_diagnostics.v1_5_r1_actual",
+        "comparison_disclosure.changed_dimensions",
+        "comparison_disclosure.causal_reading_forbidden",
+    ]
+    if dict(evaluation_overlay) != {
+        "required_report_fields_append": expected_report_fields
+    }:
+        raise EventEvaluationDesignError(
+            "P4.2a v1.5 report comparison contract drifted"
+        )
+    isolation = _mapping(overlay.get("isolation"), "isolation")
+    if dict(isolation) != dict(base_design.document["isolation"]):
+        raise EventEvaluationDesignError(
+            "P4.2a v1.5 runtime isolation drifted"
+        )
+
+    document = copy.deepcopy(base_design.document)
+    document["schema_version"] = overlay["schema_version"]
+    document["owner_spec_commit"] = overlay["owner_spec_commit"]
+    document["pre_registered_at"] = overlay["pre_registered_at"]
+    document["artifacts"] = artifacts
+    document["active_prediction_contract"] = dict(active)
+    document["derived_after_failed_round"] = copy.deepcopy(dict(derived))
+    historical = cast(JsonObject, document["historical_comparison"])
+    historical["v1_5_r1_actual"] = copy.deepcopy(dict(derived))
+    freeze = cast(JsonObject, document["prediction_contract_freeze"])
+    freeze.update(dict(freeze_overlay))
+    evaluation = cast(JsonObject, document["evaluation"])
+    evaluation["required_report_fields"] = [
+        *cast(list[str], evaluation["required_report_fields"]),
+        *expected_report_fields,
+    ]
+    return EventEvaluationDesign(
+        path=path.resolve(),
+        sha256=digest,
+        document=document,
+        base_contract=base_design.base_contract,
+        prediction_contract=prediction_contract,
+    )
+
+
 def validate_heldout_annotation_provenance(
     record: Mapping[str, object],
     design: EventEvaluationDesign,
@@ -2053,6 +2625,11 @@ def load_event_evaluation_design(
     """Load one supported byte-frozen P4.2a evaluation design."""
 
     resolved = path.resolve()
+    if resolved == (project_root / "config/p4_event_evaluation_v1_5.yaml").resolve():
+        return _load_v1_5_event_evaluation_design(
+            resolved,
+            project_root=project_root,
+        )
     if resolved == (project_root / "config/p4_event_evaluation_v1_4.yaml").resolve():
         return _load_v1_4_event_evaluation_design(
             resolved,
@@ -2079,15 +2656,18 @@ __all__ = [
     "EVALUATION_DESIGN_V1_2_PATH",
     "EVALUATION_DESIGN_V1_3_PATH",
     "EVALUATION_DESIGN_V1_4_PATH",
+    "EVALUATION_DESIGN_V1_5_PATH",
     "EXPECTED_BASE_CONTRACT_SHA256",
     "EXPECTED_EVALUATION_DESIGN_SHA256",
     "EXPECTED_EVALUATION_DESIGN_V1_2_SHA256",
     "EXPECTED_EVALUATION_DESIGN_V1_3_SHA256",
     "EXPECTED_EVALUATION_DESIGN_V1_4_SHA256",
+    "EXPECTED_EVALUATION_DESIGN_V1_5_SHA256",
     "EXPECTED_EVALUATION_SCHEMA_VERSION",
     "EXPECTED_EVALUATION_V1_2_SCHEMA_VERSION",
     "EXPECTED_EVALUATION_V1_3_SCHEMA_VERSION",
     "EXPECTED_EVALUATION_V1_4_SCHEMA_VERSION",
+    "EXPECTED_EVALUATION_V1_5_SCHEMA_VERSION",
     "EXPECTED_OWNER_COMPLETION_MANIFEST_FIELDS",
     "EXPECTED_OWNER_FORBIDDEN_FIELDS",
     "EXPECTED_OWNER_REQUIRED_FIELDS",
