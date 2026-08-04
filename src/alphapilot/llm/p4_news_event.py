@@ -694,11 +694,21 @@ def validate_event_result(
         Draft202012Validator(contract.schema).validate(candidate)
     except ValidationError as exc:
         path = list(exc.absolute_path)
-        field = (
-            str(path[0])
-            if path and isinstance(path[0], str) and path[0] in EXPECTED_RESULT_FIELDS
-            else "result"
+        missing_required = (
+            sorted(set(EXPECTED_RESULT_FIELDS).difference(candidate))
+            if exc.validator == "required"
+            else []
         )
+        if len(missing_required) == 1:
+            field = missing_required[0]
+        else:
+            field = (
+                str(path[0])
+                if path
+                and isinstance(path[0], str)
+                and path[0] in EXPECTED_RESULT_FIELDS
+                else "result"
+            )
         validator = {
             "additionalProperties": "additional_properties",
             "enum": "enum",
