@@ -526,6 +526,42 @@ Codex 如实将 7 条 `post_validation_failed` 登记为"待验证假设"而未�
 - 全程生产库只读、P4.1 冻结配置零改动、P4.2b 继续锁定，禁止 scheduler、提案、委托和交易
   写入。
 
+### P4.2a v1.5 dev60 正式轮次结果（2026-08-04，未通过）
+
+- 预注册提交 `cea0ff2` 先于任何 v1.5 模型输出；首次直接启动因本地 `PYTHONPATH`
+  缺失在 Python import 阶段退出，未加载合同、未发请求、未建产物。随后补齐仓库根
+  `PYTHONPATH`，只执行一次正式模型轮次 `v1.5-r1`。
+- 结果 **50/60 成功、10 失败，正式轮次无效**：
+  - 9 条安全结构化
+    `post_validation_failed(field=evidence_span,
+    constraint=whitespace_normalized_contiguous_substring)`：
+    `9 / 250 / 272 / 303 / 304 / 306 / 336 / 340 / 360`；
+  - 1 条 `280` 为 `schema_validation_failed`，当前安全产物没有字段/约束，
+    继续登记为 `unproven`，不得猜测；
+  - 原始 response、候选 span 和异常细节均未持久化，故 9 条只能证明违规字段与约束，
+    不能仅凭本轮文件断言具体为重述、表格拼接或字符差异。
+- 可比行上 materiality 模型间一致率 `11/12 = 0.9166666667`、symbol 原始冻结标签口径
+  `48/50 = 0.96` 均达到开发目标，但 10 条失败中有 4 条参考正类
+  `272 / 304 / 306 / 336`，**60/60 零失败硬门未过，两个比例均不能作为冻结证据**。
+  symbol mismatch 为 `44 / 393`：`44` 仍是 AI 标签缺陷且禁止猜代码；`393` 是历史过度归属
+  的复发，下一 prompt 必须继续排除而不能放宽规则。
+- 冻结产物：
+  - predictions SHA
+    `e9642568d50e0c4d9c1fe7726a117cb90269ed61ce116cd8665a989eb24dc297`；
+  - manifest SHA
+    `211212ba610a876dd107986c06e12501db08d7f03e9c87a1f5007d306f47f51e`；
+  - report SHA
+    `250545184031919e798a69dfd00dae9b8a06eb1b4168d628c0e5c48c00b7f845`；
+  - create-only blocker SHA
+    `856cdd30972b4b287b2c944930c06531b7fd14b2897fa230c71faa9549bfc4a0`。
+- 运行时通过进程环境显式把本机 `.env` 中的 Futu trade 开关覆盖为 false；manifest 实证
+  research、live/paper-auto/account mutation/Futu trade 全安全，unlock 永久屏蔽。生产库
+  `mode=ro / query_only=1 / total_changes=0`，生产 `llm_calls` 前后均为 `109`，
+  提案/委托 `1/1`、非 SIMULATE `0`、`quick_check=ok`，P4.1 SHA 未变。
+- **未创建 dev-final 或 freeze receipt，held-out 未访问且继续封存。** 同合同不得重跑；
+  下一轮只允许依据冻结 dev 证据预注册新版本，不降阈值、不修改标签、不放宽 matcher、
+  不启用显式缓存。
+
 ### P4.2a v1 评测合同预注册（2026-08-03，首次真实 LLM 试跑前）
 
 - Owner 解锁基线：`4c79373`。冻结配置 `config/p4_event_extract_eval_v1.yaml`，SHA-256
