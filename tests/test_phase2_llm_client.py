@@ -215,6 +215,116 @@ def test_chat_json_second_invalid_response_fails_with_one_audit(
     assert rows[0]["error"] == "schema_validation_failed"
 
 
+@pytest.mark.parametrize(
+    ("case_name", "schema", "content", "expected_field", "expected_constraint"),
+    [
+        (
+            "single_required",
+            {
+                "type": "object",
+                "required": ["alpha"],
+                "properties": {"alpha": {"type": "string"}},
+                "additionalProperties": False,
+            },
+            "{}",
+            "alpha",
+            "json_schema_required",
+        ),
+        (
+            "multiple_required",
+            {
+                "type": "object",
+                "required": ["alpha", "beta"],
+                "properties": {
+                    "alpha": {"type": "string"},
+                    "beta": {"type": "string"},
+                },
+                "additionalProperties": False,
+            },
+            "{}",
+            "result",
+            "json_schema_required",
+        ),
+        (
+            "known_field_type",
+            {
+                "type": "object",
+                "required": ["alpha"],
+                "properties": {"alpha": {"type": "integer"}},
+                "additionalProperties": False,
+            },
+            '{"alpha":"secret-model-value"}',
+            "alpha",
+            "json_schema_type",
+        ),
+        (
+            "additional_property",
+            {
+                "type": "object",
+                "properties": {"alpha": {"type": "string"}},
+                "additionalProperties": False,
+            },
+            '{"secret_model_key":"secret-model-value"}',
+            "result",
+            "json_schema_additional_properties",
+        ),
+        (
+            "unknown_validator",
+            {
+                "type": "object",
+                "minProperties": 2,
+                "properties": {"alpha": {"type": "string"}},
+                "additionalProperties": False,
+            },
+            "{}",
+            "result",
+            "json_schema_constraint",
+        ),
+    ],
+)
+def test_chat_json_schema_failure_exposes_only_safe_structured_metadata(
+    monkeypatch: pytest.MonkeyPatch,
+    case_name: str,
+    schema: dict[str, Any],
+    content: str,
+    expected_field: str,
+    expected_constraint: str,
+) -> None:
+    purpose = f"test_safe_schema_{case_name}"
+    monkeypatch.setattr(
+        httpx,
+        "post",
+        lambda *_args, **_kwargs: _response(
+            {"choices": [{"message": {"content": content}}]}
+        ),
+    )
+
+    with pytest.raises(LLMUnavailable) as caught:
+        chat_json(
+            purpose,
+            "system",
+            "user",
+            schema,
+            max_retries=0,
+            settings=_configured_settings(),
+        )
+
+    assert caught.value.reason == "schema_validation_failed"
+    assert caught.value.field == expected_field
+    assert caught.value.constraint == expected_constraint
+    assert str(caught.value) == "LLM request failed: schema_validation_failed"
+    assert caught.value.__cause__ is None
+    assert caught.value.__context__ is None
+    assert "secret_model_key" not in str(caught.value)
+    assert "secret-model-value" not in str(caught.value)
+
+    rows = _audit_rows(purpose)
+    assert len(rows) == 1
+    assert rows[0]["error"] == "schema_validation_failed"
+    assert "secret_model_key" not in str(rows[0])
+    assert "secret-model-value" not in str(rows[0])
+
+
 def test_chat_json_non_utf8_response_retries_and_degrades_with_audit(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

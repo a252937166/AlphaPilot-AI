@@ -900,8 +900,12 @@ _SAFE_VALIDATION_FIELDS = frozenset(
     {
         "available_time",
         "body_state",
+        "confidence",
+        "direction",
         "evidence_span",
+        "event_type",
         "ingested_symbol",
+        "materiality",
         "news_item_id",
         "original_text",
         "published_at",
@@ -911,6 +915,17 @@ _SAFE_VALIDATION_FIELDS = frozenset(
         "symbols",
         "title",
         "universe_symbols",
+    }
+)
+_SAFE_SCHEMA_VALIDATION_FIELDS = frozenset(
+    {
+        "confidence",
+        "direction",
+        "evidence_span",
+        "event_type",
+        "materiality",
+        "summary",
+        "symbols",
     }
 )
 _SAFE_VALIDATION_CONSTRAINTS = frozenset(
@@ -942,6 +957,22 @@ _SAFE_VALIDATION_CONSTRAINTS = frozenset(
         "whitespace_normalized_contiguous_substring",
     }
 )
+_SAFE_SCHEMA_VALIDATION_CONSTRAINTS = frozenset(
+    {
+        "json_schema_additional_properties",
+        "json_schema_constraint",
+        "json_schema_enum",
+        "json_schema_max_items",
+        "json_schema_max_length",
+        "json_schema_maximum",
+        "json_schema_min_length",
+        "json_schema_minimum",
+        "json_schema_pattern",
+        "json_schema_required",
+        "json_schema_type",
+        "json_schema_unique_items",
+    }
+)
 
 
 def _safe_validation_details(error: EventExtractValidationError) -> JsonObject:
@@ -950,6 +981,25 @@ def _safe_validation_details(error: EventExtractValidationError) -> JsonObject:
         error.constraint
         if error.constraint in _SAFE_VALIDATION_CONSTRAINTS
         else "unknown_constraint"
+    )
+    return {
+        "field": field,
+        "constraint": constraint,
+    }
+
+
+def _safe_llm_schema_validation_details(error: LLMUnavailable) -> JsonObject:
+    if error.reason != "schema_validation_failed":
+        return {}
+    field = (
+        error.field
+        if error.field in _SAFE_SCHEMA_VALIDATION_FIELDS
+        else "result"
+    )
+    constraint = (
+        error.constraint
+        if error.constraint in _SAFE_SCHEMA_VALIDATION_CONSTRAINTS
+        else "json_schema_constraint"
     )
     return {
         "field": field,
@@ -1192,6 +1242,8 @@ def extract_records(
                 }
                 if isinstance(caught, EventExtractValidationError):
                     failure.update(_safe_validation_details(caught))
+                elif isinstance(caught, LLMUnavailable):
+                    failure.update(_safe_llm_schema_validation_details(caught))
                 base.update(
                     {
                         "status": "extract_failed",

@@ -24,6 +24,19 @@ PURPOSE_TIMEOUT_SECONDS: dict[str, float] = {
 class LLMUnavailable(RuntimeError):
     """Raised when the optional LLM path cannot return a validated result."""
 
+    def __init__(
+        self,
+        message: str,
+        *,
+        reason: str | None = None,
+        field: str | None = None,
+        constraint: str | None = None,
+    ) -> None:
+        super().__init__(message)
+        self.reason = reason
+        self.field = field
+        self.constraint = constraint
+
 
 class _InvalidLLMResponse(ValueError):
     """Internal marker for malformed OpenAI-compatible response envelopes."""
@@ -31,6 +44,30 @@ class _InvalidLLMResponse(ValueError):
 
 class _InvalidJSONResponse(ValueError):
     """Internal marker for non-standard JSON constants such as NaN/Infinity."""
+
+
+class _SchemaValidationFailure(ValueError):
+    """Internal schema failure carrying only allowlisted, payload-free metadata."""
+
+    def __init__(self, *, field: str, constraint: str) -> None:
+        super().__init__("schema validation failed")
+        self.field = field
+        self.constraint = constraint
+
+
+_SCHEMA_VALIDATOR_CONSTRAINTS: dict[str, str] = {
+    "additionalProperties": "json_schema_additional_properties",
+    "enum": "json_schema_enum",
+    "maximum": "json_schema_maximum",
+    "maxItems": "json_schema_max_items",
+    "maxLength": "json_schema_max_length",
+    "minimum": "json_schema_minimum",
+    "minLength": "json_schema_min_length",
+    "pattern": "json_schema_pattern",
+    "required": "json_schema_required",
+    "type": "json_schema_type",
+    "uniqueItems": "json_schema_unique_items",
+}
 
 
 def _reject_json_constant(value: str) -> None:
@@ -89,13 +126,55 @@ def _safe_error(error: BaseException) -> str:
         return f"http_status_{error.response.status_code}"
     if isinstance(error, httpx.HTTPError):
         return "http_error"
-    if isinstance(error, ValidationError):
+    if isinstance(error, _SchemaValidationFailure):
         return "schema_validation_failed"
     if isinstance(error, (json.JSONDecodeError, UnicodeDecodeError, _InvalidJSONResponse)):
         return "invalid_json"
     if isinstance(error, _InvalidLLMResponse):
         return "invalid_response"
     return f"unexpected_{type(error).__name__}"
+
+
+def _safe_schema_violation(
+    error: ValidationError,
+    schema: dict[str, Any],
+    *,
+    candidate_keys: frozenset[str],
+) -> tuple[str, str]:
+    """Reduce jsonschema diagnostics to frozen top-level names and fixed codes."""
+    properties = schema.get("properties")
+    allowed_fields = (
+        frozenset(key for key in properties if isinstance(key, str))
+        if isinstance(properties, dict)
+        else frozenset()
+    )
+    validator = str(error.validator)
+    constraint = _SCHEMA_VALIDATOR_CONSTRAINTS.get(
+        validator,
+        "json_schema_constraint",
+    )
+
+    # An unexpected model-provided key is raw payload, so never expose it.
+    if validator == "additionalProperties":
+        return "result", constraint
+
+    if validator == "required":
+        required = schema.get("required")
+        if not isinstance(required, list) or not all(
+            isinstance(field, str) for field in required
+        ):
+            return "result", constraint
+        missing = frozenset(required).difference(candidate_keys)
+        if len(missing) == 1:
+            field = next(iter(missing))
+            if field in allowed_fields:
+                return field, constraint
+        return "result", constraint
+
+    path = tuple(error.absolute_path)
+    if path and isinstance(path[0], str) and path[0] in allowed_fields:
+        return path[0], constraint
+    return "result", constraint
 
 
 def _record_call(
@@ -176,7 +255,18 @@ def _validated_content(payload: Any, schema: dict[str, Any]) -> dict[str, Any]:
     )
     if not isinstance(parsed, dict):
         raise _InvalidLLMResponse("assistant JSON must be an object")
-    validate(instance=parsed, schema=schema)
+    try:
+        validate(instance=parsed, schema=schema)
+    except ValidationError as error:
+        field, constraint = _safe_schema_violation(
+            error,
+            schema,
+            candidate_keys=frozenset(parsed),
+        )
+        raise _SchemaValidationFailure(
+            field=field,
+            constraint=constraint,
+        ) from None
     return parsed
 
 
@@ -262,6 +352,8 @@ def chat_json(
     prompt_tokens: int | None = None
     completion_tokens: int | None = None
     last_error = "unknown_failure"
+    last_schema_field: str | None = None
+    last_schema_constraint: str | None = None
 
     for _attempt in range(max_retries + 1):
         response_payload: Any = None
@@ -282,18 +374,26 @@ def chat_json(
             )
             result = _validated_content(response_payload, schema)
         except (
-            ValidationError,
+            _SchemaValidationFailure,
             json.JSONDecodeError,
             UnicodeDecodeError,
             _InvalidJSONResponse,
             _InvalidLLMResponse,
         ) as error:
             last_error = _safe_error(error)
+            if isinstance(error, _SchemaValidationFailure):
+                last_schema_field = error.field
+                last_schema_constraint = error.constraint
+            else:
+                last_schema_field = None
+                last_schema_constraint = None
             continue
         except httpx.HTTPError as error:
             # Retries are reserved for malformed/schema-invalid model output.
             # A network timeout must not silently double the purpose-level budget.
             last_error = _safe_error(error)
+            last_schema_field = None
+            last_schema_constraint = None
             break
 
         audit_written = _record_call_safely(
@@ -320,4 +420,9 @@ def chat_json(
         error=last_error,
         session=session,
     )
-    raise LLMUnavailable(f"LLM request failed: {last_error}")
+    raise LLMUnavailable(
+        f"LLM request failed: {last_error}",
+        reason=last_error,
+        field=last_schema_field,
+        constraint=last_schema_constraint,
+    )
