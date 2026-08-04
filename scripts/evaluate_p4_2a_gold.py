@@ -9,6 +9,7 @@ import sys
 import tempfile
 from collections.abc import Mapping, Sequence
 from contextlib import suppress
+from dataclasses import replace
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -30,7 +31,10 @@ from alphapilot.llm.p4_news_eval import (  # noqa: E402
     validate_heldout_annotation_provenance,
 )
 from alphapilot.llm.p4_news_event import (  # noqa: E402
+    EXACT_EVIDENCE_SPAN_MATCH_MODE,
+    WHITESPACE_NORMALIZED_EVIDENCE_SPAN_MATCH_MODE,
     EventExtractContract,
+    evidence_span_matches,
     load_event_extract_contract,
 )
 
@@ -436,6 +440,7 @@ def _prediction_payload(
     annotation: JsonObject,
     *,
     validator: Draft202012Validator,
+    active_contract: EventExtractContract,
     expected_prediction_contract_sha256: str,
     expected_model: str,
 ) -> JsonObject | None:
@@ -476,7 +481,7 @@ def _prediction_payload(
     if (
         not isinstance(evidence, str)
         or not isinstance(original_text, str)
-        or evidence not in original_text
+        or not evidence_span_matches(active_contract, evidence, original_text)
     ):
         raise GoldEvaluationError(
             f"prediction evidence_span for news item {news_item_id} is not in frozen text"
@@ -527,6 +532,7 @@ def join_predictions(
             predictions_by_id[news_item_id],
             _mapping(item["record"], label=f"annotation {news_item_id}"),
             validator=validator,
+            active_contract=event_contract,
             expected_prediction_contract_sha256=expected_contract_sha256,
             expected_model=event_contract.model,
         )
@@ -1464,6 +1470,187 @@ def validate_required_report_fields(
         raise GoldEvaluationError(f"evaluation report omits required fields: {missing}")
 
 
+def _v1_3_report_extensions(
+    *,
+    design: gold_builder.FrozenEvaluationDesign,
+    active_contract: EventExtractContract,
+    dev_annotations: Mapping[int, JsonObject],
+    dev_prediction_records: Sequence[JsonObject],
+    annotations: Mapping[int, JsonObject],
+    predictions: Mapping[int, JsonObject | None],
+    result: Mapping[str, Any],
+) -> JsonObject:
+    if design.document.get("schema_version") != "p4.2a-evaluation-design-v1.3":
+        return {}
+    if (
+        active_contract.evidence_span_match_mode
+        != WHITESPACE_NORMALIZED_EVIDENCE_SPAN_MATCH_MODE
+    ):
+        raise GoldEvaluationError("v1.3 heldout evaluation requires the v1.4 matcher")
+    historical = _mapping(
+        design.document.get("historical_comparison"),
+        label="historical_comparison",
+    )
+    v1_3_actual = dict(
+        _mapping(historical.get("v1_3_actual"), label="historical v1.3 actual")
+    )
+    counterfactual = dict(
+        _mapping(
+            historical.get("whitespace_normalized_counterfactual"),
+            label="historical whitespace counterfactual",
+        )
+    )
+    adjudication = _mapping(
+        historical.get("symbol_adjudication"),
+        label="historical symbol adjudication",
+    )
+    if (
+        v1_3_actual.get("success_count") != 53
+        or v1_3_actual.get("failure_count") != 7
+        or v1_3_actual.get("failure_ids")
+        != [250, 258, 287, 304, 306, 336, 358]
+        or counterfactual.get("success_count") != 58
+        or counterfactual.get("failure_count") != 2
+        or counterfactual.get("normalization_recovered_ids")
+        != [250, 258, 287, 306, 358]
+        or counterfactual.get("true_synthesis_failure_ids") != [304, 336]
+        or adjudication.get("ai_label_defect_ids") != [44]
+        or adjudication.get("model_over_attribution_ids") != [75, 210, 232, 393]
+    ):
+        raise GoldEvaluationError("v1.3 historical comparison/adjudication drifted")
+
+    exact_contract = replace(
+        active_contract,
+        evidence_span_match_mode=EXACT_EVIDENCE_SPAN_MATCH_MODE,
+    )
+    actual_failure_ids: list[int] = []
+    exact_mismatch_ids: list[int] = []
+    normalized_match_ids: list[int] = []
+    exact_comparable = 0
+    exact_matches = 0
+    for row in dev_prediction_records:
+        news_item_id = row.get("news_item_id")
+        if isinstance(news_item_id, bool) or not isinstance(news_item_id, int):
+            raise GoldEvaluationError("dev-final prediction contains an invalid ID")
+        if row.get("status") != "ok":
+            actual_failure_ids.append(news_item_id)
+            continue
+        prediction = _mapping(
+            row.get("prediction"),
+            label=f"dev-final prediction {news_item_id}",
+        )
+        annotation = dev_annotations.get(news_item_id)
+        if annotation is None:
+            raise GoldEvaluationError("dev-final prediction is outside dev60")
+        record = _mapping(
+            annotation.get("record"),
+            label=f"dev-final annotation {news_item_id}",
+        )
+        evidence = prediction.get("evidence_span")
+        original_text = record.get("original_text")
+        if not isinstance(evidence, str) or not isinstance(original_text, str):
+            raise GoldEvaluationError("dev-final evidence text is invalid")
+        exact_comparable += 1
+        if evidence_span_matches(active_contract, evidence, original_text):
+            normalized_match_ids.append(news_item_id)
+        if evidence_span_matches(exact_contract, evidence, original_text):
+            exact_matches += 1
+        else:
+            exact_mismatch_ids.append(news_item_id)
+
+    symbol_metrics = _mapping(result.get("metrics"), label="evaluation metrics")
+    raw_symbol = _mapping(
+        _mapping(
+            symbol_metrics.get("symbol_exact_set"),
+            label="symbol exact-set metrics",
+        ).get("all100"),
+        label="all100 symbol exact-set metrics",
+    )
+    defect_ids = {44}
+    adjusted_matches = 0
+    adjusted_mismatch_ids: list[int] = []
+    adjusted_denominator = 0
+    for news_item_id, annotation in annotations.items():
+        if news_item_id in defect_ids:
+            continue
+        adjusted_denominator += 1
+        gold = _mapping(annotation.get("gold"), label=f"gold {news_item_id}")
+        scored_prediction = predictions[news_item_id]
+        if (
+            scored_prediction is not None
+            and scored_prediction.get("symbols") == gold.get("symbols")
+        ):
+            adjusted_matches += 1
+        else:
+            adjusted_mismatch_ids.append(news_item_id)
+
+    v1_3_actual["historical_round_immutable"] = True
+    v1_3_actual["persisted_failure_detail"] = {
+        "reason": "post_validation_failed",
+        "field": None,
+        "constraint": None,
+        "count": 7,
+    }
+    counterfactual["historical_round_immutable"] = True
+    counterfactual["not_a_rewrite_of_v1_3"] = True
+    counterfactual["reviewer_adjudicated_root_cause"] = {
+        "evidence_source": "independent_reviewer_external_reproduction",
+        "field": "evidence_span",
+        "prior_constraint": "exact_contiguous_substring",
+        "affected_count": 7,
+    }
+    evidence_validation = {
+        "v1_3_actual": v1_3_actual,
+        "whitespace_normalized_counterfactual": counterfactual,
+        "v1_4_actual": {
+            "evidence_span_match_mode": active_contract.evidence_span_match_mode,
+            "expected_count": len(dev_prediction_records),
+            "success_count": len(dev_prediction_records) - len(actual_failure_ids),
+            "failure_count": len(actual_failure_ids),
+            "failure_ids": sorted(actual_failure_ids),
+            "failures_by_validation_field_and_constraint": {},
+            "all_successes_pass_active_matcher": (
+                len(normalized_match_ids)
+                == len(dev_prediction_records) - len(actual_failure_ids)
+            ),
+            "formal_round_valid": (
+                len(dev_prediction_records) == 60 and not actual_failure_ids
+            ),
+        },
+        "v1_4_legacy_exact_shadow": {
+            "evidence_span_match_mode": EXACT_EVIDENCE_SPAN_MATCH_MODE,
+            "diagnostic_only": True,
+            "does_not_change_v1_4_validation": True,
+            "comparable_count": exact_comparable,
+            "match_count": exact_matches,
+            "mismatch_count": len(exact_mismatch_ids),
+            "mismatch_ids": sorted(exact_mismatch_ids),
+            "whitespace_matcher_recovered_ids": sorted(
+                set(normalized_match_ids).intersection(exact_mismatch_ids)
+            ),
+        },
+    }
+    symbol_diagnostics = {
+        "raw_gate": dict(raw_symbol),
+        "raw_gate_uses_frozen_labels_unchanged": True,
+        "ai_label_defect_ids": [44],
+        "model_over_attribution_ids": [75, 210, 232, 393],
+        "adjusted_exact_set": {
+            "diagnostic_only": True,
+            "not_a_gate": True,
+            "excluded_ai_label_defect_ids": [44],
+            "matches": adjusted_matches,
+            "denominator": adjusted_denominator,
+            "agreement": _ratio(adjusted_matches, adjusted_denominator),
+            "mismatch_ids": adjusted_mismatch_ids,
+        },
+    }
+    return {
+        "evidence_validation": evidence_validation,
+        "symbol_diagnostics": symbol_diagnostics,
+    }
+
+
 def evaluate_gold_sample_v1_1(
     annotation_path: Path,
     output_path: Path,
@@ -1653,6 +1840,15 @@ def evaluate_gold_sample_v1_1(
         )
         claimed = True
         result = evaluate_split_records(annotations, predictions, design)
+        v1_3_extensions = _v1_3_report_extensions(
+            design=design,
+            active_contract=active_contract,
+            dev_annotations=dev_annotations,
+            dev_prediction_records=dev_prediction_records,
+            annotations=annotations,
+            predictions=predictions,
+            result=result,
+        )
         offline_diagnostics = _offline_trial_diagnostics(design, set(annotations))
         active_failure_ids = sorted(
             news_item_id
@@ -1695,6 +1891,15 @@ def evaluate_gold_sample_v1_1(
                         "explicit_cache_enabled": receipt[
                             "explicit_cache_enabled"
                         ],
+                        **(
+                            {
+                                "evidence_span_match_mode": receipt[
+                                    "evidence_span_match_mode"
+                                ]
+                            }
+                            if "evidence_span_match_mode" in receipt
+                            else {}
+                        ),
                     }
                     if "endpoint" in receipt
                     else {}
@@ -1748,6 +1953,7 @@ def evaluate_gold_sample_v1_1(
             },
             "gates": result["gates"],
             "passed": result["passed"],
+            **v1_3_extensions,
             "phase_gate": {
                 "p4_2a_evaluation_passed": result["passed"],
                 "p4_2b_unlocked": False,
@@ -1873,7 +2079,12 @@ def _arguments(argv: Sequence[str] | None = None) -> argparse.Namespace:
     )
     parser.add_argument(
         "--scope",
-        choices=("legacy-v1", "heldout-final-v1.1", "heldout-final-v1.2"),
+        choices=(
+            "legacy-v1",
+            "heldout-final-v1.1",
+            "heldout-final-v1.2",
+            "heldout-final-v1.3",
+        ),
         default="heldout-final-v1.1",
         help=(
             "Heldout scopes require their matching explicit evaluation design; "
@@ -1895,13 +2106,17 @@ def _arguments(argv: Sequence[str] | None = None) -> argparse.Namespace:
 def main(argv: Sequence[str] | None = None) -> int:
     arguments = _arguments(argv)
     try:
-        if arguments.scope in {"heldout-final-v1.1", "heldout-final-v1.2"}:
+        if arguments.scope in {
+            "heldout-final-v1.1",
+            "heldout-final-v1.2",
+            "heldout-final-v1.3",
+        }:
             design = gold_builder.load_evaluation_design(arguments.evaluation_design)
-            expected_schema_version = (
-                "p4.2a-evaluation-design-v1.2"
-                if arguments.scope == "heldout-final-v1.2"
-                else "p4.2a-evaluation-design-v1.1"
-            )
+            expected_schema_version = {
+                "heldout-final-v1.1": "p4.2a-evaluation-design-v1.1",
+                "heldout-final-v1.2": "p4.2a-evaluation-design-v1.2",
+                "heldout-final-v1.3": "p4.2a-evaluation-design-v1.3",
+            }[arguments.scope]
             if design.document.get("schema_version") != expected_schema_version:
                 raise GoldEvaluationError(
                     "heldout evaluation scope/design version mismatch"

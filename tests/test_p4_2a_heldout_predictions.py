@@ -5,6 +5,7 @@ import json
 import re
 import sqlite3
 from collections.abc import Callable, Mapping
+from dataclasses import replace
 from datetime import datetime
 from pathlib import Path
 from typing import Any, cast
@@ -180,6 +181,26 @@ def _fixture_root(tmp_path: Path) -> EventEvaluationDesign:
     design = load_event_evaluation_design()
     _copy_contract_files(tmp_path, design)
     _create_database(tmp_path)
+    return design
+
+
+def _v14_fixture_root(tmp_path: Path) -> EventEvaluationDesign:
+    design = load_event_evaluation_design(
+        runner.PROJECT_ROOT / "config/p4_event_evaluation_v1_3.yaml",
+        project_root=runner.PROJECT_ROOT,
+    )
+    _copy_contract_files(tmp_path, design)
+    prediction_contract = design.prediction_contract
+    _copy_project_file(
+        tmp_path,
+        prediction_contract.path.relative_to(runner.PROJECT_ROOT).as_posix(),
+    )
+    contract_files = cast(
+        dict[str, dict[str, str]],
+        prediction_contract.document["contract_files"],
+    )
+    _copy_project_file(tmp_path, contract_files["prompt"]["path"])
+    _create_dev_only_database(tmp_path)
     return design
 
 
@@ -707,6 +728,136 @@ def test_versioned_prompt_contract_is_explicit_and_non_prompt_drift_fails(
         match="active LLM controls are invalid",
     ):
         runner.validate_prediction_contract_freeze(design, tmp_path)
+
+
+def test_v14_contract_and_freeze_receipt_bind_registered_evidence_mode(
+    tmp_path: Path,
+) -> None:
+    design = _v14_fixture_root(tmp_path)
+    active_path = (
+        tmp_path
+        / design.prediction_contract.path.relative_to(runner.PROJECT_ROOT)
+    )
+    active_contract = runner._load_active_contract(
+        design,
+        tmp_path,
+        active_path,
+    )
+    assert (
+        active_contract.evidence_span_match_mode
+        == "unicode_whitespace_elided_contiguous_substring_v1"
+    )
+    assert (
+        design.document["artifacts"]["dev_final_predictions_jsonl"]["path"]
+        == "docs/phase4/eval/P4.2a-dev60-final-predictions-v1.3.jsonl"
+    )
+    assert (
+        design.document["artifacts"]["prediction_contract_freeze_receipt_json"]["path"]
+        == "docs/phase4/eval/P4.2a-heldout-prediction-contract-freeze-v1.3.json"
+    )
+    predictions_path, manifest_path = _create_dev_final_artifacts(
+        tmp_path,
+        design,
+        active_contract,
+    )
+    receipt_path = runner.freeze_prediction_contract(
+        active_path,
+        predictions_path,
+        manifest_path,
+        project_root=tmp_path,
+        design=design,
+        now=datetime.fromisoformat("2026-08-04T20:00:00+08:00"),
+    )
+    receipt, _, validated = runner.validate_prediction_contract_freeze(
+        design,
+        tmp_path,
+    )
+
+    assert receipt_path.name.endswith("-v1.3.json")
+    assert (
+        receipt["evidence_span_match_mode"]
+        == "unicode_whitespace_elided_contiguous_substring_v1"
+    )
+    assert (
+        validated.evidence_span_match_mode
+        == receipt["evidence_span_match_mode"]
+    )
+
+    receipt["evidence_span_match_mode"] = "exact_contiguous_substring_v1"
+    receipt_path.write_bytes(_canonical_json(receipt))
+    with pytest.raises(
+        runner.HeldoutPredictionError,
+        match="evidence_span_match_mode",
+    ):
+        runner.validate_prediction_contract_freeze(design, tmp_path)
+
+
+def test_v14_contract_rejects_unregistered_input_drift(tmp_path: Path) -> None:
+    design = _v14_fixture_root(tmp_path)
+    active_path = (
+        tmp_path
+        / design.prediction_contract.path.relative_to(runner.PROJECT_ROOT)
+    )
+    document = cast(dict[str, Any], yaml.safe_load(active_path.read_bytes()))
+    document["input"]["max_original_text_characters"] = 9_999
+    active_path.write_text(
+        yaml.safe_dump(document, allow_unicode=True, sort_keys=False),
+        encoding="utf-8",
+    )
+    altered_design = EventEvaluationDesign(
+        path=design.path,
+        sha256=design.sha256,
+        document=design.document,
+        base_contract=design.base_contract,
+        prediction_contract=replace(
+            design.prediction_contract,
+            sha256=hashlib.sha256(active_path.read_bytes()).hexdigest(),
+            document=document,
+            path=active_path,
+        ),
+    )
+
+    with pytest.raises(
+        runner.HeldoutPredictionError,
+        match="outside evidence-span match mode",
+    ):
+        runner._load_active_contract(altered_design, tmp_path, active_path)
+
+
+def test_dev_final_global_seal_detects_historical_namespace(
+    tmp_path: Path,
+) -> None:
+    design = _v14_fixture_root(tmp_path)
+    historical = (
+        tmp_path
+        / "docs/phase4/eval/P4.2a-heldout-candidate-inputs-v1.2.jsonl"
+    )
+    historical.parent.mkdir(parents=True, exist_ok=True)
+    historical.write_text("{}\n", encoding="utf-8")
+
+    with pytest.raises(
+        runner.HeldoutPredictionError,
+        match=r"heldout_candidate_inputs_jsonl@v1\.2",
+    ):
+        runner._ensure_dev_final_precedes_heldout(design, tmp_path)
+
+
+def test_dev_final_global_seal_uses_authoritative_v1_1_owner_label_path(
+    tmp_path: Path,
+) -> None:
+    design = _v14_fixture_root(tmp_path)
+    legacy_owner_labels = (
+        tmp_path
+        / "docs/phase4/eval/P4.2a-gold-heldout40-owner-labels-v1.1.jsonl"
+    )
+    legacy_owner_labels.parent.mkdir(parents=True, exist_ok=True)
+    legacy_owner_labels.write_text("{}\n", encoding="utf-8")
+
+    with pytest.raises(
+        runner.HeldoutPredictionError,
+        match=r"heldout_40_owner_annotations_jsonl@v1\.1",
+    ):
+        runner._ensure_dev_final_precedes_heldout(design, tmp_path)
 
 
 def test_time_gate_rejects_before_any_candidate_or_model_access(tmp_path: Path) -> None:

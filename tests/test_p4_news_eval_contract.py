@@ -46,6 +46,27 @@ def _variant(
     return path
 
 
+def _v1_3_variant(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    mutate: Callable[[dict[str, Any]], None],
+) -> Path:
+    document = yaml.safe_load(p4_news_eval.EVALUATION_DESIGN_V1_3_PATH.read_bytes())
+    assert isinstance(document, dict)
+    mutate(document)
+    path = tmp_path / "p4_event_evaluation_v1_3.yaml"
+    path.write_text(
+        yaml.safe_dump(document, allow_unicode=True, sort_keys=False),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        p4_news_eval,
+        "EXPECTED_EVALUATION_DESIGN_V1_3_SHA256",
+        hashlib.sha256(path.read_bytes()).hexdigest(),
+    )
+    return path
+
+
 def test_load_event_evaluation_design_verifies_v1_1_contract() -> None:
     design = load_event_evaluation_design()
     artifacts = design.document["artifacts"]
@@ -83,9 +104,7 @@ def test_load_event_evaluation_design_verifies_v1_1_contract() -> None:
         "dev_final_predictions_contract_matches_active_contract",
     ]
     assert heldout["owner_blind_sample_artifact"] == "heldout_40_blind_sample_jsonl"
-    assert heldout["owner_completed_annotation_artifact"] == (
-        "heldout_40_owner_annotations_jsonl"
-    )
+    assert heldout["owner_completed_annotation_artifact"] == ("heldout_40_owner_annotations_jsonl")
     assert heldout["selection_must_not_create"] == [
         "heldout_40_owner_annotations_jsonl",
         "combined_100_annotations_jsonl",
@@ -110,8 +129,7 @@ def test_load_event_evaluation_design_v1_2_binds_plus_mainland_and_preserves_spl
     assert design.document["schema_version"] == "p4.2a-evaluation-design-v1.2"
     assert design.prediction_contract.model == "qwen3.6-plus"
     assert (
-        design.prediction_contract.endpoint
-        == "https://dashscope.aliyuncs.com/compatible-mode/v1"
+        design.prediction_contract.endpoint == "https://dashscope.aliyuncs.com/compatible-mode/v1"
     )
     assert (
         design.document["splits"]["heldout_40"]["sampling"]
@@ -143,9 +161,10 @@ def test_load_event_evaluation_design_v1_2_binds_plus_mainland_and_preserves_spl
         design.document["prediction_contract_freeze"]["required_endpoint"]
         == design.prediction_contract.endpoint
     )
-    assert design.document["prediction_contract_freeze"][
-        "required_receipt_fields"
-    ][-2:] == ["endpoint", "explicit_cache_enabled"]
+    assert design.document["prediction_contract_freeze"]["required_receipt_fields"][-2:] == [
+        "endpoint",
+        "explicit_cache_enabled",
+    ]
     legacy_artifacts = legacy.document["artifacts"]
     current_artifacts = design.document["artifacts"]
     for name in p4_news_eval._V1_2_CREATE_ONLY_ARTIFACTS:
@@ -177,10 +196,183 @@ def test_v1_2_heldout_provenance_accepts_only_distinct_human_adjudicator() -> No
         validate_heldout_annotation_provenance(missing_human, design)
 
 
+def test_load_event_evaluation_design_v1_3_extends_v1_2_without_split_drift() -> None:
+    previous = load_event_evaluation_design(p4_news_eval.EVALUATION_DESIGN_V1_2_PATH)
+    design = load_event_evaluation_design(p4_news_eval.EVALUATION_DESIGN_V1_3_PATH)
+
+    assert design.sha256 == p4_news_eval.EXPECTED_EVALUATION_DESIGN_V1_3_SHA256
+    assert design.document["schema_version"] == "p4.2a-evaluation-design-v1.3"
+    assert design.prediction_contract.sha256 == (
+        "e6d3e7db08e2d226c850092f0f794d7194eaf1935a56cbfe267a86e1297f37fc"
+    )
+    assert design.prediction_contract.model == "qwen3.6-plus"
+    assert (
+        design.prediction_contract.endpoint == "https://dashscope.aliyuncs.com/compatible-mode/v1"
+    )
+    assert design.prediction_contract.evidence_span_match_mode == (
+        "unicode_whitespace_elided_contiguous_substring_v1"
+    )
+    assert design.prediction_contract.explicit_cache_enabled is False
+    assert design.document["splits"] == previous.document["splits"]
+    assert (
+        design.document["heldout_annotation_provenance"]
+        == previous.document["heldout_annotation_provenance"]
+    )
+    assert (
+        design.document["owner_annotation_completion"]
+        == previous.document["owner_annotation_completion"]
+    )
+
+    previous_evaluation = dict(previous.document["evaluation"])
+    current_evaluation = dict(design.document["evaluation"])
+    previous_report_fields = previous_evaluation.pop("required_report_fields")
+    current_report_fields = current_evaluation.pop("required_report_fields")
+    assert current_evaluation == previous_evaluation
+    assert current_report_fields[: len(previous_report_fields)] == previous_report_fields
+    assert current_report_fields[len(previous_report_fields) :] == [
+        "prediction_contract.evidence_span_match_mode",
+        "evidence_validation.v1_3_actual",
+        "evidence_validation.whitespace_normalized_counterfactual",
+        "evidence_validation.v1_4_actual",
+        "evidence_validation.v1_4_legacy_exact_shadow",
+        "symbol_diagnostics.ai_label_defect_ids",
+        "symbol_diagnostics.adjusted_exact_set",
+    ]
+
+    current_artifacts = design.document["artifacts"]
+    previous_artifacts = previous.document["artifacts"]
+    for name in p4_news_eval._V1_2_CREATE_ONLY_ARTIFACTS:
+        assert current_artifacts[name]["path"] != previous_artifacts[name]["path"]
+        assert "v1.3" in current_artifacts[name]["path"]
+    freeze = design.document["prediction_contract_freeze"]
+    assert freeze["required_evidence_span_match_mode"] == (
+        "unicode_whitespace_elided_contiguous_substring_v1"
+    )
+    assert freeze["required_receipt_fields"][-1] == "evidence_span_match_mode"
+
+
+def test_v1_3_binds_append_only_historical_comparison() -> None:
+    design = load_event_evaluation_design(p4_news_eval.EVALUATION_DESIGN_V1_3_PATH)
+    historical = design.document["historical_comparison"]
+
+    assert historical["v1_3_actual"] == {
+        "evidence_source": "immutable_local_artifacts",
+        "success_count": 53,
+        "failure_count": 7,
+        "failure_ids": [250, 258, 287, 304, 306, 336, 358],
+        "predictions_sha256": ("b882a5cdad7025f8499eae75b617e189174ef866ab949749dd58c4a193229134"),
+        "manifest_sha256": ("4eb7f05e8196ac5dd4d646bb1b8be7a56b93123e4866b0ba4a79121ffb370262"),
+        "report_sha256": ("781f6b7f30d97b9a43978feccec6891fa9b959aca0572a53784527a7e0e926e9"),
+        "blocker_sha256": (
+            "6efed45a618a9892fdcd321dd43db2232b3ddf1a4eb2ada7d371cb0da9a3dc3d"
+        ),
+    }
+    assert historical["whitespace_normalized_counterfactual"] == {
+        "evidence_source": "independent_reviewer_external_reproduction",
+        "locally_recomputed_from_persisted_raw_payload": False,
+        "success_count": 58,
+        "failure_count": 2,
+        "normalization_recovered_ids": [250, 258, 287, 306, 358],
+        "true_synthesis_failure_ids": [304, 336],
+    }
+    assert historical["v1_4_required"] == {
+        "success_count": 60,
+        "failure_count": 0,
+        "materiality_positive_agreement_minimum": 0.80,
+        "symbol_exact_set_agreement_minimum": 0.95,
+    }
+    assert historical["symbol_adjudication"] == {
+        "ai_label_defect_ids": [44],
+        "model_over_attribution_ids": [75, 210, 232, 393],
+        "frozen_dev_labels_must_remain_unchanged": True,
+        "raw_gate_uses_frozen_labels": True,
+        "adjusted_diagnostic_excludes_label_defects": True,
+    }
+
+
+def test_v1_3_historical_artifact_verifier_fails_closed_on_byte_drift(
+    tmp_path: Path,
+) -> None:
+    hashes: dict[str, str] = {}
+    for sha_field, relative_path in (
+        p4_news_eval._V1_3_HISTORICAL_ARTIFACT_PATHS.items()
+    ):
+        payload = f"fixture:{sha_field}".encode()
+        path = tmp_path / relative_path
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(payload)
+        hashes[sha_field] = hashlib.sha256(payload).hexdigest()
+
+    p4_news_eval._verify_v1_3_historical_artifacts(tmp_path, hashes)
+    drifted_path = (
+        tmp_path
+        / p4_news_eval._V1_3_HISTORICAL_ARTIFACT_PATHS["blocker_sha256"]
+    )
+    drifted_path.write_bytes(b"drifted")
+
+    with pytest.raises(EventEvaluationDesignError, match="frozen SHA-256"):
+        p4_news_eval._verify_v1_3_historical_artifacts(tmp_path, hashes)
+
+
+@pytest.mark.parametrize(
+    ("path", "value", "message"),
+    [
+        (
+            ("extends_design", "sha256"),
+            "0" * 64,
+            "inheritance",
+        ),
+        (
+            ("active_prediction_contract", "sha256"),
+            "0" * 64,
+            "active prediction contract identity",
+        ),
+        (
+            (
+                "prediction_contract_freeze",
+                "required_evidence_span_match_mode",
+            ),
+            "exact_contiguous_substring_v1",
+            "prediction freeze",
+        ),
+        (
+            (
+                "historical_comparison",
+                "whitespace_normalized_counterfactual",
+                "normalization_recovered_ids",
+            ),
+            [250, 258, 287, 304, 306, 358],
+            "historical comparison",
+        ),
+        (
+            ("evaluation", "required_report_fields_append"),
+            ["prediction_contract.evidence_span_match_mode"],
+            "report comparison",
+        ),
+    ],
+)
+def test_v1_3_rejects_inheritance_and_comparison_drift(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    path: tuple[str, ...],
+    value: object,
+    message: str,
+) -> None:
+    variant = _v1_3_variant(
+        tmp_path,
+        monkeypatch,
+        lambda document: _set_nested(document, path, value),
+    )
+
+    with pytest.raises(EventEvaluationDesignError, match=message):
+        p4_news_eval._load_v1_3_event_evaluation_design(
+            variant,
+            project_root=p4_news_eval.PROJECT_ROOT,
+        )
+
+
 def test_base_event_extract_contract_remains_byte_frozen() -> None:
-    payload = (
-        p4_news_eval.PROJECT_ROOT / "config/p4_event_extract_eval_v1.yaml"
-    ).read_bytes()
+    payload = (p4_news_eval.PROJECT_ROOT / "config/p4_event_extract_eval_v1.yaml").read_bytes()
 
     assert hashlib.sha256(payload).hexdigest() == p4_news_eval.EXPECTED_BASE_CONTRACT_SHA256
 

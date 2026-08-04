@@ -23,11 +23,13 @@ from alphapilot.llm.p4_news_eval import (
 )
 from alphapilot.llm.p4_news_event import (
     EXPECTED_CONTRACT_SHA256,
+    WHITESPACE_NORMALIZED_EVIDENCE_SPAN_MATCH_MODE,
     load_event_extract_contract,
 )
 
 PROJECT_DIR = Path(__file__).resolve().parent.parent
 CONFIG_PATH = PROJECT_DIR / "config/p4_event_extract_eval_v1.yaml"
+EVALUATION_DESIGN_V1_3_PATH = PROJECT_DIR / "config/p4_event_evaluation_v1_3.yaml"
 
 
 def _hash(value: str) -> str:
@@ -1184,6 +1186,142 @@ def test_v1_1_prediction_contract_may_differ_from_annotation_contract() -> None:
     assert extras == 0
 
 
+def test_prediction_join_uses_active_contract_evidence_span_match_mode() -> None:
+    contract = builder.load_contract(CONFIG_PATH)
+    exact = load_event_extract_contract(CONFIG_PATH)
+    normalized = replace(
+        exact,
+        sha256="b" * 64,
+        evidence_span_match_mode=WHITESPACE_NORMALIZED_EVIDENCE_SPAN_MATCH_MODE,
+    )
+    annotation = {
+        "news_item_id": 1,
+        "contract_sha256": contract.sha256,
+        "input_sha256": _hash("input"),
+        "text_sha256": _hash("text"),
+        "original_text": "公司公告：本次\n\t回购股份。",
+    }
+    annotations = {1: {"record": annotation}}
+    prediction = {
+        "news_item_id": 1,
+        "contract_sha256": normalized.sha256,
+        "model": normalized.model,
+        "input_sha256": annotation["input_sha256"],
+        "text_sha256": annotation["text_sha256"],
+        "status": "ok",
+        "prediction": {
+            "symbols": [],
+            "event_type": "other",
+            "direction": 0,
+            "materiality": 0,
+            "summary": "摘要",
+            "confidence": 0.8,
+            "evidence_span": "本次回购",
+        },
+    }
+
+    joined, extras = evaluator.join_predictions(
+        [prediction],
+        annotations,
+        contract,
+        active_contract=normalized,
+    )
+
+    assert joined[1] is not None
+    assert extras == 0
+
+    prediction["contract_sha256"] = exact.sha256
+    with pytest.raises(evaluator.GoldEvaluationError, match="not in frozen text"):
+        evaluator.join_predictions(
+            [prediction],
+            annotations,
+            contract,
+            active_contract=exact,
+        )
+
+
+def test_v1_3_heldout_report_extensions_bind_v1_4_evidence_and_id44() -> None:
+    design = load_event_evaluation_design(
+        PROJECT_DIR / "config/p4_event_evaluation_v1_3.yaml"
+    )
+    active = design.prediction_contract
+    annotations: dict[int, dict[str, Any]] = {}
+    predictions: dict[int, dict[str, Any] | None] = {}
+    dev_records: list[dict[str, Any]] = []
+    for news_item_id in range(1, 101):
+        original_text = f"连续证据 {news_item_id}"
+        gold_symbols = ["000044"] if news_item_id == 44 else []
+        annotation = {
+            "record": {
+                "news_item_id": news_item_id,
+                "original_text": original_text,
+            },
+            "gold": {"symbols": gold_symbols},
+        }
+        prediction = {
+            "symbols": [],
+            "event_type": "other",
+            "direction": 0,
+            "materiality": 0,
+            "summary": "摘要",
+            "confidence": 0.8,
+            "evidence_span": original_text,
+        }
+        annotations[news_item_id] = annotation
+        predictions[news_item_id] = prediction
+        if news_item_id <= 60:
+            dev_records.append(
+                {
+                    "news_item_id": news_item_id,
+                    "status": "ok",
+                    "prediction": prediction,
+                }
+            )
+
+    extensions = evaluator._v1_3_report_extensions(
+        design=design,
+        active_contract=active,
+        dev_annotations={
+            news_item_id: annotations[news_item_id]
+            for news_item_id in range(1, 61)
+        },
+        dev_prediction_records=dev_records,
+        annotations=annotations,
+        predictions=predictions,
+        result={
+            "metrics": {
+                "symbol_exact_set": {
+                    "all100": {
+                        "matches": 99,
+                        "denominator": 100,
+                        "value": 0.99,
+                    }
+                }
+            }
+        },
+    )
+
+    evidence = extensions["evidence_validation"]
+    assert evidence["v1_3_actual"]["failure_count"] == 7
+    assert evidence["whitespace_normalized_counterfactual"]["failure_count"] == 2
+    assert evidence["v1_4_actual"]["success_count"] == 60
+    assert evidence["v1_4_legacy_exact_shadow"]["mismatch_count"] == 0
+    symbols = extensions["symbol_diagnostics"]
+    assert symbols["raw_gate"]["denominator"] == 100
+    assert symbols["ai_label_defect_ids"] == [44]
+    assert symbols["adjusted_exact_set"]["matches"] == 99
+    assert symbols["adjusted_exact_set"]["denominator"] == 99
+    assert symbols["adjusted_exact_set"]["agreement"] == 1.0
+
+
+def test_cli_accepts_heldout_final_v1_3_scope() -> None:
+    arguments = evaluator._arguments(
+        ["--scope", "heldout-final-v1.3", "--output", "report.json"]
+    )
+
+    assert arguments.scope == "heldout-final-v1.3"
+
+
 def test_v1_1_active_contract_allows_prompt_version_only() -> None:
     base = builder.load_contract(CONFIG_PATH).document
     active = copy.deepcopy(base)
@@ -1488,6 +1626,99 @@ def test_v1_1_dev_final_predictions_are_receipt_bound(
             receipt=receipt,
             project_root=tmp_path,
         )
+
+
+def _v14_freeze_receipt(
+    design: builder.FrozenEvaluationDesign,
+) -> dict[str, object]:
+    registered = load_event_evaluation_design(EVALUATION_DESIGN_V1_3_PATH)
+    contract = registered.prediction_contract
+    files = contract.document["contract_files"]
+    required = design.document["prediction_contract_freeze"][
+        "required_receipt_fields"
+    ]
+    receipt: dict[str, object] = {field: "f" * 64 for field in required}
+    receipt.update(
+        {
+            "design_schema_version": design.document["schema_version"],
+            "design_sha256": design.sha256,
+            "frozen_at_utc": "2026-08-04T12:00:00Z",
+            "contract_path": str(contract.path.relative_to(PROJECT_DIR)),
+            "contract_sha256": contract.sha256,
+            "contract_schema_version": contract.document["schema_version"],
+            "model": contract.model,
+            "endpoint": contract.endpoint,
+            "explicit_cache_enabled": False,
+            "evidence_span_match_mode": contract.evidence_span_match_mode,
+            "prompt_path": files["prompt"]["path"],
+            "prompt_sha256": files["prompt"]["sha256"],
+            "result_schema_path": files["schema"]["path"],
+            "result_schema_sha256": files["schema"]["sha256"],
+            "taxonomy_version": contract.document["taxonomy"]["version"],
+            "dev_final_predictions_path": design.document["artifacts"][
+                "dev_final_predictions_jsonl"
+            ]["path"],
+            "dev_final_predictions_row_count": 60,
+            "dev_final_predictions_success_count": 60,
+            "dev_final_predictions_failure_count": 0,
+            "dev_final_predictions_contract_sha256": contract.sha256,
+        }
+    )
+    assert set(receipt) == set(required)
+    return receipt
+
+
+def test_v14_freeze_receipt_and_active_loader_bind_evidence_mode(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    design = builder.load_evaluation_design(EVALUATION_DESIGN_V1_3_PATH)
+    receipt = _v14_freeze_receipt(design)
+    receipt_path = tmp_path / "freeze.json"
+    receipt_path.write_text(
+        json.dumps(receipt, sort_keys=True, separators=(",", ":")) + "\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        builder,
+        "evaluation_artifact_path",
+        lambda _design, _name: receipt_path,
+    )
+    loaded, _ = builder.load_prediction_contract_freeze_receipt(design)
+    assert (
+        loaded["evidence_span_match_mode"]
+        == WHITESPACE_NORMALIZED_EVIDENCE_SPAN_MATCH_MODE
+    )
+
+    monkeypatch.setattr(
+        builder,
+        "load_prediction_contract_freeze_receipt",
+        lambda _design: (receipt, "a" * 64),
+    )
+    monkeypatch.setattr(
+        builder,
+        "validate_dev_final_prediction_freeze",
+        lambda *_args, **_kwargs: {},
+    )
+    active, _, _ = builder.load_active_prediction_contract(design)
+    assert (
+        active.evidence_span_match_mode
+        == WHITESPACE_NORMALIZED_EVIDENCE_SPAN_MATCH_MODE
+    )
+
+    receipt["evidence_span_match_mode"] = "exact_contiguous_substring_v1"
+    monkeypatch.undo()
+    receipt_path.write_text(
+        json.dumps(receipt, sort_keys=True, separators=(",", ":")) + "\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        builder,
+        "evaluation_artifact_path",
+        lambda _design, _name: receipt_path,
+    )
+    with pytest.raises(builder.GoldSampleError, match="evidence-span match mode"):
+        builder.load_prediction_contract_freeze_receipt(design)
 
 
 def test_v1_1_malformed_preflight_does_not_consume_evaluation_one_shot(

@@ -56,6 +56,9 @@ from alphapilot.core.config import Settings
 from alphapilot.futu.client import PERMANENTLY_BLOCKED_METHODS
 from alphapilot.llm.p4_news_eval import (
     DEFAULT_EVALUATION_DESIGN_PATH,
+    EVALUATION_DESIGN_V1_2_PATH,
+    EVALUATION_DESIGN_V1_3_PATH,
+    LEGACY_EVALUATION_DESIGN_PATH,
     EventEvaluationDesign,
     EventEvaluationDesignError,
     load_event_evaluation_design,
@@ -462,13 +465,30 @@ def _load_active_contract(
     versioned_runtime_contract = (
         prediction_contract.sha256 != design.base_contract.sha256
     )
-    if versioned_runtime_contract and (
-        resolved != prediction_contract.path.resolve()
-        or _sha256_bytes(payload) != prediction_contract.sha256
-    ):
-        raise HeldoutPredictionError(
-            "active contract differs from the evaluation design prediction contract"
+    if versioned_runtime_contract:
+        registered = _mapping(
+            design.document.get("active_prediction_contract"),
+            "evaluation design active prediction contract",
         )
+        registered_value = registered.get("path")
+        if not isinstance(registered_value, str) or not registered_value.strip():
+            raise HeldoutPredictionError(
+                "evaluation design prediction contract path is invalid"
+            )
+        registered_relative = Path(registered_value)
+        if registered_relative.is_absolute() or ".." in registered_relative.parts:
+            raise HeldoutPredictionError(
+                "evaluation design prediction contract path escapes the project"
+            )
+        registered_path = (root / registered_relative).resolve()
+        if (
+            not registered_path.is_relative_to(root)
+            or resolved != registered_path
+            or _sha256_bytes(payload) != prediction_contract.sha256
+        ):
+            raise HeldoutPredictionError(
+                "active contract differs from the evaluation design prediction contract"
+            )
     document = _load_strict_yaml_mapping(payload)
     schema_version = document.get("schema_version")
     owner_commit = document.get("owner_spec_commit")
@@ -528,7 +548,8 @@ def _load_active_contract(
     # The independent design freezes all deterministic, schema, taxonomy,
     # input, budget, isolation, and artifact semantics. Prompt bytes/path may
     # differ after dev60 iteration. Contract v1.3 additionally pre-registers
-    # one model/endpoint change; every other LLM control stays byte-equivalent.
+    # one model/endpoint change. Contract v1.4 additionally pre-registers one
+    # evidence-span comparison mode; every other control stays byte-equivalent.
     normalized_active = copy.deepcopy(document)
     normalized_base = copy.deepcopy(design.base_contract.document)
     for key in ("schema_version", "owner_spec_commit", "pre_registered_at"):
@@ -538,9 +559,12 @@ def _load_active_contract(
     active_files["prompt"] = copy.deepcopy(base_files["prompt"])
     active_llm = cast(JsonObject, normalized_active["llm"])
     base_llm = cast(JsonObject, normalized_base["llm"])
+    active_input = cast(JsonObject, normalized_active["input"])
+    base_input = cast(JsonObject, normalized_base["input"])
     model_changed = active_llm.get("model") != base_llm.get("model")
     endpoint_present = "endpoint" in active_llm
     cache_policy_present = "explicit_cache" in active_llm
+    evidence_span_match_mode = active_input.get("evidence_span_match_mode")
     if contract_version < (1, 3) and (
         model_changed or endpoint_present or cache_policy_present
     ):
@@ -562,10 +586,30 @@ def _load_active_contract(
         active_llm["model"] = base_llm["model"]
         active_llm.pop("endpoint", None)
         active_llm.pop("explicit_cache", None)
+    if contract_version < (1, 4):
+        if "evidence_span_match_mode" in active_input:
+            raise HeldoutPredictionError(
+                "evidence-span match mode requires active contract v1.4+"
+            )
+    else:
+        if (
+            not versioned_runtime_contract
+            or evidence_span_match_mode
+            != prediction_contract.evidence_span_match_mode
+        ):
+            raise HeldoutPredictionError(
+                "active v1.4 evidence-span match mode drifted"
+            )
+        active_input.pop("evidence_span_match_mode", None)
+        if active_input != base_input:
+            raise HeldoutPredictionError(
+                "active v1.4 changed input fields outside evidence-span match mode"
+            )
+        normalized_active["input"] = copy.deepcopy(base_input)
     if normalized_active != normalized_base:
         raise HeldoutPredictionError(
             "active contract changed fields outside approved version, prompt, and "
-            "v1.3 runtime provenance"
+            "v1.3/v1.4 runtime provenance"
         )
 
     # The unchanged schema file is re-hashed against the trusted base contract.
@@ -597,6 +641,7 @@ def _load_active_contract(
         max_items_per_run=max_items,
         max_input_characters=max_input_characters,
         explicit_cache_enabled=explicit_cache_enabled,
+        evidence_span_match_mode=prediction_contract.evidence_span_match_mode,
     )
 
 
@@ -857,6 +902,10 @@ def _freeze_receipt_payload(
             receipt["endpoint"] = active_contract.endpoint
         if "explicit_cache_enabled" in required:
             receipt["explicit_cache_enabled"] = active_contract.explicit_cache_enabled
+        if "evidence_span_match_mode" in required:
+            receipt["evidence_span_match_mode"] = (
+                active_contract.evidence_span_match_mode
+            )
     if (
         not isinstance(required, Sequence)
         or isinstance(required, (str, bytes))
@@ -1187,7 +1236,6 @@ def _ensure_dev_final_precedes_heldout(
     design: EventEvaluationDesign,
     project_root: Path,
 ) -> None:
-    artifacts = _mapping(design.document.get("artifacts"), "artifacts")
     names = (
         "prediction_contract_freeze_receipt_json",
         "heldout_candidate_inputs_jsonl",
@@ -1201,10 +1249,30 @@ def _ensure_dev_final_precedes_heldout(
         "combined_100_annotations_jsonl",
         "owner_completion_manifest_json",
     )
-    for name in names:
-        if name not in artifacts:
-            continue
-        path = _artifact_path(design, project_root, name)
+    sealed_paths: dict[Path, str] = {}
+    supported_designs = [design]
+    for design_path in (
+        LEGACY_EVALUATION_DESIGN_PATH,
+        EVALUATION_DESIGN_V1_2_PATH,
+        EVALUATION_DESIGN_V1_3_PATH,
+    ):
+        historical = load_event_evaluation_design(
+            design_path,
+            project_root=PROJECT_ROOT,
+        )
+        if historical.sha256 != design.sha256:
+            supported_designs.append(historical)
+    for supported in supported_designs:
+        artifacts = _mapping(supported.document.get("artifacts"), "artifacts")
+        version = str(supported.document.get("schema_version", "unknown")).removeprefix(
+            "p4.2a-evaluation-design-"
+        )
+        for name in names:
+            if name not in artifacts:
+                continue
+            path = _artifact_path(supported, project_root, name)
+            sealed_paths.setdefault(path, f"{name}@{version}")
+    for path, name in sealed_paths.items():
         if path.exists() or path.is_symlink():
             raise HeldoutPredictionError(
                 f"dev-final mode is locked after heldout artifact creation: {name}"

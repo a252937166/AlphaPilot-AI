@@ -87,6 +87,22 @@ def test_load_v1_3_contract_binds_plus_mainland_and_reuses_v1_2_prompt() -> None
     assert "[P4_NEWS_EVENT_EXTRACT v1.2.0]" in contract.prompt
 
 
+def test_load_v1_4_contract_binds_whitespace_match_and_v1_3_prompt() -> None:
+    contract = load_event_extract_contract(
+        p4_news_event.PROJECT_ROOT / "config/p4_event_extract_eval_v1_4.yaml"
+    )
+
+    assert contract.sha256 == p4_news_event.V1_4_CONTRACT_SHA256
+    assert contract.model == "qwen3.6-plus"
+    assert contract.endpoint == "https://dashscope.aliyuncs.com/compatible-mode/v1"
+    assert contract.explicit_cache_enabled is False
+    assert (
+        contract.evidence_span_match_mode
+        == p4_news_event.WHITESPACE_NORMALIZED_EVIDENCE_SPAN_MATCH_MODE
+    )
+    assert "[P4_NEWS_EVENT_EXTRACT v1.3.0]" in contract.prompt
+
+
 @pytest.mark.parametrize(
     "endpoint",
     [
@@ -309,6 +325,116 @@ def test_validate_event_result_rejects_non_contiguous_evidence() -> None:
         )
     assert caught.value.field == "evidence_span"
     assert caught.value.constraint == "exact_contiguous_substring"
+
+
+def test_schema_required_error_identifies_one_safe_missing_field() -> None:
+    contract = load_event_extract_contract()
+    result = _valid_result()
+    del result["evidence_span"]
+
+    with pytest.raises(EventExtractValidationError) as caught:
+        validate_event_result(
+            contract,
+            result,
+            original_text="公司公告拟回购公司股份。",
+            ingested_symbol="600519",
+            universe_symbols={"600519"},
+        )
+
+    assert caught.value.field == "evidence_span"
+    assert caught.value.constraint == "json_schema_required"
+
+
+def test_schema_required_error_aggregates_multiple_missing_fields_safely() -> None:
+    contract = load_event_extract_contract()
+    result = _valid_result()
+    del result["evidence_span"]
+    del result["summary"]
+
+    with pytest.raises(EventExtractValidationError) as caught:
+        validate_event_result(
+            contract,
+            result,
+            original_text="公司公告拟回购公司股份。",
+            ingested_symbol="600519",
+            universe_symbols={"600519"},
+        )
+
+    assert caught.value.field == "result"
+    assert caught.value.constraint == "json_schema_required"
+
+
+@pytest.mark.parametrize("separator", ["\n", "\r\n", "\t", "\u3000", "\u00a0"])
+def test_v1_4_evidence_match_elides_unicode_whitespace(separator: str) -> None:
+    contract = load_event_extract_contract(
+        p4_news_event.PROJECT_ROOT / "config/p4_event_extract_eval_v1_4.yaml"
+    )
+    result = {
+        **_valid_result(),
+        "evidence_span": "本次回购股份金额不低于人民币3,000万元",
+    }
+
+    validated = validate_event_result(
+        contract,
+        result,
+        original_text=f"公告称本次{separator}回购股份金额不低于人民币 3,000 万元。",
+        ingested_symbol="600519",
+        universe_symbols={"600519"},
+    )
+
+    assert validated["evidence_span"] == result["evidence_span"]
+
+
+def test_v1_3_evidence_match_remains_exact_after_v1_4_registration() -> None:
+    contract = load_event_extract_contract(
+        p4_news_event.PROJECT_ROOT / "config/p4_event_extract_eval_v1_3.yaml"
+    )
+    result = {**_valid_result(), "evidence_span": "本次回购股份"}
+
+    with pytest.raises(EventExtractValidationError) as caught:
+        validate_event_result(
+            contract,
+            result,
+            original_text="本次\n回购股份",
+            ingested_symbol="600519",
+            universe_symbols={"600519"},
+        )
+
+    assert caught.value.constraint == "exact_contiguous_substring"
+
+
+@pytest.mark.parametrize(
+    ("evidence_span", "original_text"),
+    [
+        (
+            "归属于股东的净利润49,597,601.47-46.78",
+            "归属于股东的净利润 其他指标 49,597,601.47 -46.78",
+        ),
+        ("公司将完成首次上市", "公司股票将于交易所上市"),
+        ("回购本次股份", "本次回购股份"),
+        ("\n\t\u3000", "原文只有可核验事实"),
+    ],
+)
+def test_v1_4_evidence_match_rejects_synthesis_or_nonliteral_text(
+    evidence_span: str,
+    original_text: str,
+) -> None:
+    contract = load_event_extract_contract(
+        p4_news_event.PROJECT_ROOT / "config/p4_event_extract_eval_v1_4.yaml"
+    )
+    result = {**_valid_result(), "evidence_span": evidence_span}
+
+    with pytest.raises(EventExtractValidationError) as caught:
+        validate_event_result(
+            contract,
+            result,
+            original_text=original_text,
+            ingested_symbol="600519",
+            universe_symbols={"600519"},
+        )
+
+    assert caught.value.field == "evidence_span"
+    assert caught.value.constraint == "whitespace_normalized_contiguous_substring"
 
 
 def test_validate_event_result_rejects_summary_without_chinese() -> None:
