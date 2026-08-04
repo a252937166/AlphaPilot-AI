@@ -6,7 +6,7 @@ import re
 import sys
 from collections import Counter
 from collections.abc import Callable, Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, cast
@@ -25,6 +25,12 @@ from alphapilot.llm.p4_news_eval import (
     DEFAULT_EVALUATION_DESIGN_PATH,
     EventEvaluationDesign,
     load_event_evaluation_design,
+)
+from alphapilot.llm.p4_news_event import (
+    EXACT_EVIDENCE_SPAN_MATCH_MODE,
+    WHITESPACE_NORMALIZED_EVIDENCE_SPAN_MATCH_MODE,
+    EventExtractContract,
+    evidence_span_matches,
 )
 
 JsonObject = dict[str, Any]
@@ -63,6 +69,11 @@ P4_1_CONFIG_SHA256 = (
 MATERIALITY_TARGET = 0.80
 SYMBOL_TARGET = 0.95
 ROUND_ID = re.compile(r"^[a-z0-9][a-z0-9._-]{0,63}$")
+V1_3_ACTUAL_FAILURE_IDS = (250, 258, 287, 304, 306, 336, 358)
+V1_3_WHITESPACE_RECOVERED_IDS = (250, 258, 287, 306, 358)
+V1_3_TRUE_SYNTHESIS_FAILURE_IDS = (304, 336)
+AI_LABEL_DEFECT_IDS = (44,)
+MODEL_OVER_ATTRIBUTION_IDS = (75, 210, 232, 393)
 
 
 class DevIterationError(RuntimeError):
@@ -462,6 +473,205 @@ def _comparison_evidence(
     }
 
 
+def _historical_comparison(
+    design: EventEvaluationDesign,
+) -> tuple[JsonObject, JsonObject, JsonObject]:
+    historical = _mapping(
+        design.document.get("historical_comparison"),
+        "historical_comparison",
+    )
+    v1_3_actual = dict(
+        _mapping(historical.get("v1_3_actual"), "historical v1.3 actual")
+    )
+    counterfactual = dict(
+        _mapping(
+            historical.get("whitespace_normalized_counterfactual"),
+            "historical whitespace counterfactual",
+        )
+    )
+    adjudication = dict(
+        _mapping(
+            historical.get("symbol_adjudication"),
+            "historical symbol adjudication",
+        )
+    )
+    if (
+        v1_3_actual.get("success_count") != 53
+        or v1_3_actual.get("failure_count") != 7
+        or v1_3_actual.get("failure_ids") != list(V1_3_ACTUAL_FAILURE_IDS)
+        or counterfactual.get("success_count") != 58
+        or counterfactual.get("failure_count") != 2
+        or counterfactual.get("normalization_recovered_ids")
+        != list(V1_3_WHITESPACE_RECOVERED_IDS)
+        or counterfactual.get("true_synthesis_failure_ids")
+        != list(V1_3_TRUE_SYNTHESIS_FAILURE_IDS)
+        or adjudication.get("ai_label_defect_ids") != list(AI_LABEL_DEFECT_IDS)
+        or adjudication.get("model_over_attribution_ids")
+        != list(MODEL_OVER_ATTRIBUTION_IDS)
+        or adjudication.get("frozen_dev_labels_must_remain_unchanged") is not True
+        or adjudication.get("raw_gate_uses_frozen_labels") is not True
+        or adjudication.get("adjusted_diagnostic_excludes_label_defects") is not True
+    ):
+        raise DevIterationError("v1.4 historical comparison/adjudication drifted")
+    return v1_3_actual, counterfactual, adjudication
+
+
+def _evidence_validation(
+    *,
+    design: EventEvaluationDesign,
+    active_contract: EventExtractContract,
+    summary: ExtractionSummary,
+    prediction_rows: Sequence[Mapping[str, Any]],
+    labels: Mapping[int, Mapping[str, Any]],
+) -> JsonObject:
+    if (
+        active_contract.evidence_span_match_mode
+        != WHITESPACE_NORMALIZED_EVIDENCE_SPAN_MATCH_MODE
+    ):
+        raise DevIterationError("v1.4 report requires its frozen evidence matcher")
+    v1_3_actual, counterfactual, _ = _historical_comparison(design)
+    exact_contract = replace(
+        active_contract,
+        evidence_span_match_mode=EXACT_EVIDENCE_SPAN_MATCH_MODE,
+    )
+    exact_comparable_ids: list[int] = []
+    exact_match_ids: list[int] = []
+    exact_mismatch_ids: list[int] = []
+    normalized_match_ids: list[int] = []
+    actual_failure_ids: list[int] = []
+    for row in prediction_rows:
+        identifier = row.get("news_item_id")
+        if isinstance(identifier, bool) or not isinstance(identifier, int):
+            raise DevIterationError("v1.4 evidence report found an invalid ID")
+        if row.get("status") != "ok":
+            actual_failure_ids.append(identifier)
+            continue
+        prediction = _mapping(row.get("prediction"), "v1.4 prediction")
+        evidence = prediction.get("evidence_span")
+        label = labels.get(identifier)
+        if label is None:
+            raise DevIterationError("v1.4 evidence report found an unknown ID")
+        original_text = label.get("original_text")
+        if not isinstance(evidence, str) or not isinstance(original_text, str):
+            raise DevIterationError("v1.4 evidence report found invalid text")
+        exact_comparable_ids.append(identifier)
+        if evidence_span_matches(active_contract, evidence, original_text):
+            normalized_match_ids.append(identifier)
+        if evidence_span_matches(exact_contract, evidence, original_text):
+            exact_match_ids.append(identifier)
+        else:
+            exact_mismatch_ids.append(identifier)
+
+    v1_3_actual["historical_round_immutable"] = True
+    v1_3_actual["persisted_failure_detail"] = {
+        "reason": "post_validation_failed",
+        "field": None,
+        "constraint": None,
+        "count": 7,
+    }
+    counterfactual["historical_round_immutable"] = True
+    counterfactual["not_a_rewrite_of_v1_3"] = True
+    counterfactual["reviewer_adjudicated_root_cause"] = {
+        "evidence_source": "independent_reviewer_external_reproduction",
+        "field": "evidence_span",
+        "prior_constraint": "exact_contiguous_substring",
+        "affected_count": 7,
+    }
+    actual = {
+        "evidence_span_match_mode": active_contract.evidence_span_match_mode,
+        "expected_count": summary.expected_count,
+        "success_count": summary.success_count,
+        "failure_count": summary.failure_count,
+        "failure_ids": sorted(actual_failure_ids),
+        "failures_by_validation_field_and_constraint": (
+            summary.failures_by_validation_field_and_constraint
+        ),
+        "all_successes_pass_active_matcher": (
+            len(normalized_match_ids) == summary.success_count
+        ),
+        "formal_round_valid": (
+            summary.expected_count == 60
+            and summary.success_count == 60
+            and summary.failure_count == 0
+        ),
+    }
+    legacy_exact_shadow = {
+        "evidence_span_match_mode": EXACT_EVIDENCE_SPAN_MATCH_MODE,
+        "diagnostic_only": True,
+        "does_not_change_v1_4_validation": True,
+        "comparable_count": len(exact_comparable_ids),
+        "match_count": len(exact_match_ids),
+        "mismatch_count": len(exact_mismatch_ids),
+        "mismatch_ids": sorted(exact_mismatch_ids),
+        "whitespace_matcher_recovered_ids": sorted(
+            set(normalized_match_ids).intersection(exact_mismatch_ids)
+        ),
+    }
+    return {
+        "comparison_semantics": (
+            "immutable_actual_then_external_counterfactual_then_fresh_actual"
+        ),
+        "v1_3_actual": v1_3_actual,
+        "whitespace_normalized_counterfactual": counterfactual,
+        "v1_4_actual": actual,
+        "v1_4_legacy_exact_shadow": legacy_exact_shadow,
+    }
+
+
+def _symbol_diagnostics(
+    *,
+    design: EventEvaluationDesign,
+    metrics: Mapping[str, Any],
+    prediction_rows: Sequence[Mapping[str, Any]],
+    labels: Mapping[int, Mapping[str, Any]],
+) -> JsonObject:
+    _, _, adjudication = _historical_comparison(design)
+    defect_ids = {
+        cast(int, identifier) for identifier in adjudication["ai_label_defect_ids"]
+    }
+    matches = 0
+    mismatch_ids: list[int] = []
+    excluded_ids: list[int] = []
+    denominator = 0
+    for row in prediction_rows:
+        identifier = row.get("news_item_id")
+        if (
+            isinstance(identifier, bool)
+            or not isinstance(identifier, int)
+            or row.get("status") != "ok"
+        ):
+            continue
+        if identifier in defect_ids:
+            excluded_ids.append(identifier)
+            continue
+        label = labels.get(identifier)
+        if label is None:
+            raise DevIterationError("symbol diagnostics found an unknown ID")
+        gold = _mapping(label.get("gold"), "AI-drafted dev gold")
+        prediction = _mapping(row.get("prediction"), "dev prediction")
+        denominator += 1
+        if prediction.get("symbols") == gold.get("symbols"):
+            matches += 1
+        else:
+            mismatch_ids.append(identifier)
+    raw = dict(_mapping(metrics.get("symbol_exact_set"), "raw symbol metrics"))
+    return {
+        "raw_gate": raw,
+        "raw_gate_uses_frozen_ai_labels_unchanged": True,
+        "ai_label_defect_ids": sorted(defect_ids),
+        "model_over_attribution_ids": list(MODEL_OVER_ATTRIBUTION_IDS),
+        "adjusted_exact_set": {
+            "diagnostic_only": True,
+            "not_a_gate": True,
+            "excluded_ai_label_defect_ids": sorted(excluded_ids),
+            "matches": matches,
+            "denominator": denominator,
+            "agreement": _ratio(matches, denominator),
+            "mismatch_ids": sorted(mismatch_ids),
+        },
+    }
+
+
 def run_dev_iteration(
     active_contract_path: Path,
     round_id: str,
@@ -591,6 +801,7 @@ def run_dev_iteration(
             "explicit_cache": active_contract.document["llm"].get(
                 "explicit_cache"
             ),
+            "evidence_span_match_mode": active_contract.evidence_span_match_mode,
         },
         "p4_1_frozen_config": {
             "path": P4_1_CONFIG_PATH.as_posix(),
@@ -624,6 +835,10 @@ def run_dev_iteration(
         eval_root,
     )
     metrics = _score_predictions(prediction_rows, labels)
+    is_v1_4 = (
+        active_contract.evidence_span_match_mode
+        == WHITESPACE_NORMALIZED_EVIDENCE_SPAN_MATCH_MODE
+    )
     report: JsonObject = {
         "schema_version": "p4.2a-dev-model-interagreement-report-v1",
         "round_id": round_id,
@@ -634,6 +849,15 @@ def run_dev_iteration(
         "dev_inputs_sha256": DEV_INPUT_SHA256,
         "dev_labels_sha256": DEV_LABELS_SHA256,
         "dev_labeler": DEV_LABELER,
+        "prediction_contract": {
+            "path": active_contract.path.relative_to(root).as_posix(),
+            "sha256": active_contract.sha256,
+            "model": active_contract.model,
+            "endpoint": active_contract.endpoint,
+            "prompt_path": prompt.get("path"),
+            "prompt_sha256": prompt.get("sha256"),
+            "evidence_span_match_mode": active_contract.evidence_span_match_mode,
+        },
         "metrics": metrics,
         "formal_dev_round_valid": (
             summary.success_count == 60 and summary.failure_count == 0
@@ -648,6 +872,20 @@ def run_dev_iteration(
         "heldout_accessed": False,
         "heldout_phase_unlocked": False,
     }
+    if is_v1_4:
+        report["evidence_validation"] = _evidence_validation(
+            design=active_design,
+            active_contract=active_contract,
+            summary=summary,
+            prediction_rows=prediction_rows,
+            labels=labels,
+        )
+        report["symbol_diagnostics"] = _symbol_diagnostics(
+            design=active_design,
+            metrics=metrics,
+            prediction_rows=prediction_rows,
+            labels=labels,
+        )
     heldout._create_only_bytes(
         report_path,
         heldout._canonical_json_bytes(report),

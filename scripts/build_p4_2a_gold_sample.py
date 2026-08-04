@@ -29,6 +29,7 @@ from alphapilot.llm.p4_news_eval import (
     load_event_evaluation_design,
 )
 from alphapilot.llm.p4_news_event import (
+    EXACT_EVIDENCE_SPAN_MATCH_MODE,
     EventExtractContract,
     build_event_extract_user_input,
     event_extract_input_sha256,
@@ -1828,6 +1829,13 @@ def load_prediction_contract_freeze_receipt(
         raise GoldSampleError(
             "prediction freeze receipt endpoint/cache values drifted"
         )
+    if "required_evidence_span_match_mode" in freeze and (
+        receipt.get("evidence_span_match_mode")
+        != freeze.get("required_evidence_span_match_mode")
+    ):
+        raise GoldSampleError(
+            "prediction freeze receipt evidence-span match mode drifted"
+        )
     for path_field, sha_field in (
         ("contract_path", "contract_sha256"),
         ("prompt_path", "prompt_sha256"),
@@ -1937,14 +1945,17 @@ def load_active_prediction_contract(
         or prompt_binding.get("sha256") != receipt.get("prompt_sha256")
         or schema_binding.get("path") != receipt.get("result_schema_path")
         or schema_binding.get("sha256") != receipt.get("result_schema_sha256")
-        or dict(input_contract) != dict(base_input)
         or dict(taxonomy) != dict(base_taxonomy)
     )
     if common_binding_drifted:
         raise GoldSampleError(
             "active prediction contract changed more than the versioned prompt binding"
         )
-    if design.document.get("schema_version") == "p4.2a-evaluation-design-v1.2":
+    design_schema_version = design.document.get("schema_version")
+    if design_schema_version in {
+        "p4.2a-evaluation-design-v1.2",
+        "p4.2a-evaluation-design-v1.3",
+    }:
         registered_design = load_event_evaluation_design(
             design.path,
             project_root=PROJECT_DIR,
@@ -1957,12 +1968,18 @@ def load_active_prediction_contract(
             or receipt.get("endpoint") != registered_contract.endpoint
             or receipt.get("explicit_cache_enabled")
             is not registered_contract.explicit_cache_enabled
+            or receipt.get(
+                "evidence_span_match_mode",
+                EXACT_EVIDENCE_SPAN_MATCH_MODE,
+            )
+            != registered_contract.evidence_span_match_mode
         ):
             raise GoldSampleError(
-                "active prediction contract differs from the v1.2 design"
+                "active prediction contract differs from the registered design"
             )
     elif (
         dict(llm) != dict(base_llm)
+        or dict(input_contract) != dict(base_input)
         or not prediction_contract_changes_are_prompt_only(
             design.base_contract.document,
             document,
@@ -2080,6 +2097,12 @@ def load_active_prediction_contract(
         max_items_per_run=max_items,
         max_input_characters=max_input,
         explicit_cache_enabled=explicit_cache_enabled,
+        evidence_span_match_mode=str(
+            input_contract.get(
+                "evidence_span_match_mode",
+                EXACT_EVIDENCE_SPAN_MATCH_MODE,
+            )
+        ),
     )
     validate_dev_final_prediction_freeze(
         design,

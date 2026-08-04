@@ -29,9 +29,13 @@ EXPECTED_CONTRACT_SHA256 = (
 V1_3_CONTRACT_SHA256 = (
     "1e465f600039a587c26e9686e82a229baf948f8db748b68a5731b23af08fefd6"
 )
+V1_4_CONTRACT_SHA256 = (
+    "e6d3e7db08e2d226c850092f0f794d7194eaf1935a56cbfe267a86e1297f37fc"
+)
 
 EXPECTED_SCHEMA_VERSION = "p4.2a-event-extract-eval-v1"
 V1_3_SCHEMA_VERSION = "p4.2a-event-extract-eval-v1.3"
+V1_4_SCHEMA_VERSION = "p4.2a-event-extract-eval-v1.4"
 EXPECTED_TAXONOMY = (
     "earnings_preannounce",
     "major_contract",
@@ -66,6 +70,7 @@ EXPECTED_FORBIDDEN_RUNTIME_CHANGES = frozenset(
 
 _PROMPT_PATH = "config/prompts/p4_news_event_extract_v1.txt"
 _V1_3_PROMPT_PATH = "config/prompts/p4_news_event_extract_v1_2.txt"
+_V1_4_PROMPT_PATH = "config/prompts/p4_news_event_extract_v1_3.txt"
 _SCHEMA_PATH = "config/schemas/p4_news_event_v1.schema.json"
 _ARTIFACT_ROOT = "docs/phase4/eval"
 _SYMBOL = re.compile(r"^[0-9]{6}$")
@@ -73,6 +78,10 @@ _SYMBOL_IN_TEXT = re.compile(r"(?<!\d)([0-9]{6})(?!\d)")
 _CHINESE = re.compile(r"[\u3400-\u9fff]")
 _SHA256 = re.compile(r"^[0-9a-f]{64}$")
 _MODEL_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,99}$")
+EXACT_EVIDENCE_SPAN_MATCH_MODE = "exact_contiguous_substring_v1"
+WHITESPACE_NORMALIZED_EVIDENCE_SPAN_MATCH_MODE = (
+    "unicode_whitespace_elided_contiguous_substring_v1"
+)
 
 
 class EventExtractContractError(ValueError):
@@ -110,6 +119,7 @@ class EventExtractContract:
     max_items_per_run: int
     max_input_characters: int
     explicit_cache_enabled: bool
+    evidence_span_match_mode: str = EXACT_EVIDENCE_SPAN_MATCH_MODE
 
 
 P4NewsEventContract = EventExtractContract
@@ -372,6 +382,15 @@ def _validate_budget_and_isolation(document: Mapping[str, Any]) -> tuple[
         is not True
     ):
         raise EventExtractContractError("P4.2a read-only input contract drifted")
+    match_mode = input_contract.get(
+        "evidence_span_match_mode",
+        EXACT_EVIDENCE_SPAN_MATCH_MODE,
+    )
+    if match_mode not in {
+        EXACT_EVIDENCE_SPAN_MATCH_MODE,
+        WHITESPACE_NORMALIZED_EVIDENCE_SPAN_MATCH_MODE,
+    }:
+        raise EventExtractContractError("P4.2a evidence-span match mode drifted")
 
     isolation = _mapping(document.get("isolation"), "isolation")
     forbidden_tables = isolation.get("forbidden_production_tables")
@@ -457,17 +476,27 @@ def load_event_extract_contract(
         raise EventExtractContractError("P4.2a event-extract contract is unavailable") from exc
     digest = _sha256_bytes(payload)
     v1_3_path = (project_root.resolve() / "config/p4_event_extract_eval_v1_3.yaml").resolve()
+    v1_4_path = (project_root.resolve() / "config/p4_event_extract_eval_v1_4.yaml").resolve()
     is_v1_3 = resolved_path == v1_3_path
-    expected_digest = V1_3_CONTRACT_SHA256 if is_v1_3 else EXPECTED_CONTRACT_SHA256
-    expected_schema_version = (
-        V1_3_SCHEMA_VERSION if is_v1_3 else EXPECTED_SCHEMA_VERSION
-    )
-    expected_prompt_path = _V1_3_PROMPT_PATH if is_v1_3 else _PROMPT_PATH
-    expected_prompt_marker = (
-        "[P4_NEWS_EVENT_EXTRACT v1.2.0]"
-        if is_v1_3
-        else "[P4_NEWS_EVENT_EXTRACT v1.0.0]"
-    )
+    is_v1_4 = resolved_path == v1_4_path
+    if is_v1_4:
+        expected_digest = V1_4_CONTRACT_SHA256
+        expected_schema_version = V1_4_SCHEMA_VERSION
+        expected_prompt_path = _V1_4_PROMPT_PATH
+        expected_prompt_marker = "[P4_NEWS_EVENT_EXTRACT v1.3.0]"
+        expected_match_mode = WHITESPACE_NORMALIZED_EVIDENCE_SPAN_MATCH_MODE
+    elif is_v1_3:
+        expected_digest = V1_3_CONTRACT_SHA256
+        expected_schema_version = V1_3_SCHEMA_VERSION
+        expected_prompt_path = _V1_3_PROMPT_PATH
+        expected_prompt_marker = "[P4_NEWS_EVENT_EXTRACT v1.2.0]"
+        expected_match_mode = EXACT_EVIDENCE_SPAN_MATCH_MODE
+    else:
+        expected_digest = EXPECTED_CONTRACT_SHA256
+        expected_schema_version = EXPECTED_SCHEMA_VERSION
+        expected_prompt_path = _PROMPT_PATH
+        expected_prompt_marker = "[P4_NEWS_EVENT_EXTRACT v1.0.0]"
+        expected_match_mode = EXACT_EVIDENCE_SPAN_MATCH_MODE
     if digest != expected_digest:
         raise EventExtractContractError(
             "P4.2a event-extract contract bytes differ from the pre-registered SHA-256"
@@ -524,6 +553,18 @@ def load_event_extract_contract(
         max_input_characters,
         explicit_cache_enabled,
     ) = _validate_budget_and_isolation(document)
+    input_contract = _mapping(document.get("input"), "input")
+    evidence_span_match_mode = cast(
+        str,
+        input_contract.get(
+            "evidence_span_match_mode",
+            EXACT_EVIDENCE_SPAN_MATCH_MODE,
+        ),
+    )
+    if evidence_span_match_mode != expected_match_mode:
+        raise EventExtractContractError(
+            "P4.2a evidence-span match mode differs from the frozen contract version"
+        )
 
     return EventExtractContract(
         path=resolved_path,
@@ -540,6 +581,7 @@ def load_event_extract_contract(
         max_items_per_run=max_items,
         max_input_characters=max_input_characters,
         explicit_cache_enabled=explicit_cache_enabled,
+        evidence_span_match_mode=evidence_span_match_mode,
     )
 
 
@@ -674,6 +716,30 @@ def _allowed_symbols(
     return allowed
 
 
+def evidence_span_matches(
+    contract: EventExtractContract,
+    evidence_span: str,
+    original_text: str,
+) -> bool:
+    """Apply the contract's byte-frozen anti-synthesis evidence matcher."""
+    if not isinstance(evidence_span, str) or not isinstance(original_text, str):
+        return False
+    if contract.evidence_span_match_mode == EXACT_EVIDENCE_SPAN_MATCH_MODE:
+        return bool(evidence_span.strip()) and evidence_span in original_text
+    if (
+        contract.evidence_span_match_mode
+        == WHITESPACE_NORMALIZED_EVIDENCE_SPAN_MATCH_MODE
+    ):
+        normalized_span = "".join(
+            character for character in evidence_span if not character.isspace()
+        )
+        normalized_text = "".join(
+            character for character in original_text if not character.isspace()
+        )
+        return bool(normalized_span) and normalized_span in normalized_text
+    raise EventExtractContractError("unsupported evidence-span match mode")
+
+
 def validate_event_result(
     contract: EventExtractContract,
     result: Mapping[str, Any],
@@ -758,11 +824,17 @@ def validate_event_result(
             constraint="contains_chinese_text",
         )
     evidence_span = cast(str, candidate["evidence_span"])
-    if not evidence_span.strip() or evidence_span not in original_text:
+    if not evidence_span_matches(contract, evidence_span, original_text):
+        constraint = (
+            "whitespace_normalized_contiguous_substring"
+            if contract.evidence_span_match_mode
+            == WHITESPACE_NORMALIZED_EVIDENCE_SPAN_MATCH_MODE
+            else "exact_contiguous_substring"
+        )
         raise EventExtractValidationError(
             "evidence_span must be a contiguous substring of original_text",
             field="evidence_span",
-            constraint="exact_contiguous_substring",
+            constraint=constraint,
         )
 
     return {
@@ -852,8 +924,11 @@ def extract_news_event(
 
 __all__ = [
     "DEFAULT_CONTRACT_PATH",
+    "EXACT_EVIDENCE_SPAN_MATCH_MODE",
     "EXPECTED_CONTRACT_SHA256",
     "EXPECTED_TAXONOMY",
+    "V1_4_CONTRACT_SHA256",
+    "WHITESPACE_NORMALIZED_EVIDENCE_SPAN_MATCH_MODE",
     "EventExtractContract",
     "EventExtractContractError",
     "EventExtractValidationError",
@@ -863,6 +938,7 @@ __all__ = [
     "build_event_extract_user_input",
     "build_p4_news_event_user_input",
     "event_extract_input_sha256",
+    "evidence_span_matches",
     "extract_news_event",
     "load_event_extract_contract",
     "load_p4_news_event_contract",

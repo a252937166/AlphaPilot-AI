@@ -9,6 +9,7 @@ from typing import Any
 
 import pytest
 from scripts import run_p4_2a_dev_iteration as dev_runner
+from scripts.run_p4_2a_offline_extract import ExtractionSummary
 from sqlalchemy.orm import Session
 
 from alphapilot.core.config import Settings
@@ -29,8 +30,16 @@ def _fixture_root(tmp_path: Path) -> None:
     for relative in (
         "config/p4_event_extract_eval_v1.yaml",
         "config/p4_event_extract_eval_v1_1.yaml",
+        "config/p4_event_extract_eval_v1_2.yaml",
+        "config/p4_event_extract_eval_v1_3.yaml",
+        "config/p4_event_extract_eval_v1_4.yaml",
+        "config/p4_event_evaluation_v1_1.yaml",
+        "config/p4_event_evaluation_v1_2.yaml",
+        "config/p4_event_evaluation_v1_3.yaml",
         "config/prompts/p4_news_event_extract_v1.txt",
         "config/prompts/p4_news_event_extract_v1_1.txt",
+        "config/prompts/p4_news_event_extract_v1_2.txt",
+        "config/prompts/p4_news_event_extract_v1_3.txt",
         "config/schemas/p4_news_event_v1.schema.json",
         "config/p4_news_poll_v1.yaml",
         "docs/phase4/eval/P4.2a-gold-inventory60-v1.jsonl",
@@ -69,16 +78,20 @@ def _fixture_root(tmp_path: Path) -> None:
         )
 
 
-def _settings() -> Settings:
+def _settings(
+    *,
+    model: str = "qwen3.6-flash",
+    endpoint: str = "https://llm.example.test/compatible-mode/v1",
+) -> Settings:
     return Settings(
         trading_mode="research",
         live_trading_enabled=False,
         paper_auto_trading_enabled=False,
         futu_enable_account_mutation=False,
         futu_enable_trade=False,
-        llm_base_url="https://llm.example.test/compatible-mode/v1",
+        llm_base_url=endpoint,
         llm_api_key="test-only-key",
-        llm_model="qwen3.6-flash",
+        llm_model=model,
     )
 
 
@@ -113,7 +126,7 @@ def _fake_chat(
     session.add(
         LLMCall(
             purpose="p4_news_event_extract",
-            model="qwen3.6-flash",
+            model=settings.llm_model or "missing-test-model",
             latency_ms=1,
             ok=True,
             prompt_tokens=12,
@@ -199,6 +212,53 @@ def test_dev_iteration_is_create_only_and_does_not_need_news_items(
         )
 
 
+def test_v1_4_dev_iteration_reports_preregistered_three_layer_evidence(
+    tmp_path: Path,
+) -> None:
+    _fixture_root(tmp_path)
+    design = load_event_evaluation_design(
+        PROJECT_ROOT / "config/p4_event_evaluation_v1_3.yaml",
+    )
+
+    result = dev_runner.run_dev_iteration(
+        Path("config/p4_event_extract_eval_v1_4.yaml"),
+        "v1.4-r1",
+        project_root=tmp_path,
+        design=design,
+        settings=_settings(
+            model="qwen3.6-plus",
+            endpoint="https://dashscope.aliyuncs.com/compatible-mode/v1",
+        ),
+        clock=lambda: datetime(2026, 8, 4, 11, 0, tzinfo=UTC),
+        chat_json_fn=_fake_chat,
+    )
+
+    assert result.summary.success_count == 60
+    assert result.summary.failure_count == 0
+    assert result.report["formal_dev_round_valid"] is True
+    assert result.report["prediction_contract"]["evidence_span_match_mode"] == (
+        "unicode_whitespace_elided_contiguous_substring_v1"
+    )
+    evidence = result.report["evidence_validation"]
+    assert evidence["v1_3_actual"]["failure_count"] == 7
+    assert evidence["whitespace_normalized_counterfactual"]["failure_count"] == 2
+    assert evidence["v1_4_actual"]["success_count"] == 60
+    assert evidence["v1_4_actual"]["failure_count"] == 0
+    assert evidence["v1_4_actual"][
+        "failures_by_validation_field_and_constraint"
+    ] == {}
+    assert result.report["symbol_diagnostics"]["raw_gate"] == (
+        result.report["metrics"]["symbol_exact_set"]
+    )
+    assert result.report["symbol_diagnostics"]["ai_label_defect_ids"] == [44]
+    manifest = json.loads(result.manifest_path.read_text(encoding="utf-8"))
+    assert manifest["request_contract"]["evidence_span_match_mode"] == (
+        "unicode_whitespace_elided_contiguous_substring_v1"
+    )
+    assert result.report["heldout_accessed"] is False
+    assert result.report["heldout_phase_unlocked"] is False
+
+
 def test_dev_iteration_rejects_ai_label_byte_drift(tmp_path: Path) -> None:
     _fixture_root(tmp_path)
     labels = (
@@ -265,3 +325,136 @@ def test_failed_reference_positive_is_not_hidden_by_comparable_metrics() -> None
         metrics["materiality_positive"]["comparable_positive_capture"]
         is None
     )
+
+
+def test_v1_4_report_keeps_three_evidence_layers_and_exact_shadow() -> None:
+    design = load_event_evaluation_design(
+        PROJECT_ROOT / "config/p4_event_evaluation_v1_3.yaml"
+    )
+    labels = {
+        250: {"original_text": "公司公告：本次\n回购股份。"},
+        999: {"original_text": "连续逐字证据"},
+    }
+    predictions = [
+        {
+            "news_item_id": 250,
+            "status": "ok",
+            "prediction": {"evidence_span": "本次回购"},
+        },
+        {
+            "news_item_id": 999,
+            "status": "ok",
+            "prediction": {"evidence_span": "连续逐字证据"},
+        },
+    ]
+    summary = ExtractionSummary(
+        expected_count=2,
+        success_count=2,
+        failure_count=0,
+        newly_attempted_count=2,
+        retried_failure_count=0,
+        skipped_exact_success_count=0,
+        skipped_failure_count=0,
+        output_line_count=2,
+        failures_by_reason={},
+        failures_by_validation_field_and_constraint={},
+        isolated_audit_tables=("llm_calls",),
+        isolated_audit_row_count=2,
+        checkpoint_audited_success_count=2,
+    )
+
+    evidence = dev_runner._evidence_validation(
+        design=design,
+        active_contract=design.prediction_contract,
+        summary=summary,
+        prediction_rows=predictions,
+        labels=labels,
+    )
+
+    assert evidence["v1_3_actual"]["success_count"] == 53
+    assert evidence["v1_3_actual"]["failure_count"] == 7
+    assert evidence["v1_3_actual"]["historical_round_immutable"] is True
+    assert evidence["v1_3_actual"]["persisted_failure_detail"] == {
+        "reason": "post_validation_failed",
+        "field": None,
+        "constraint": None,
+        "count": 7,
+    }
+    counterfactual = evidence["whitespace_normalized_counterfactual"]
+    assert counterfactual["success_count"] == 58
+    assert counterfactual["normalization_recovered_ids"] == [
+        250,
+        258,
+        287,
+        306,
+        358,
+    ]
+    assert counterfactual["true_synthesis_failure_ids"] == [304, 336]
+    assert counterfactual["not_a_rewrite_of_v1_3"] is True
+    assert counterfactual["reviewer_adjudicated_root_cause"] == {
+        "evidence_source": "independent_reviewer_external_reproduction",
+        "field": "evidence_span",
+        "prior_constraint": "exact_contiguous_substring",
+        "affected_count": 7,
+    }
+    assert evidence["v1_4_actual"]["evidence_span_match_mode"] == (
+        "unicode_whitespace_elided_contiguous_substring_v1"
+    )
+    shadow = evidence["v1_4_legacy_exact_shadow"]
+    assert shadow["mismatch_ids"] == [250]
+    assert shadow["whitespace_matcher_recovered_ids"] == [250]
+
+
+def test_v1_4_symbol_diagnostic_keeps_raw_gate_and_excludes_only_id44() -> None:
+    design = load_event_evaluation_design(
+        PROJECT_ROOT / "config/p4_event_evaluation_v1_3.yaml"
+    )
+    labels = {
+        44: {"gold": {"symbols": ["000044"]}},
+        75: {"gold": {"symbols": []}},
+        100: {"gold": {"symbols": ["000100"]}},
+    }
+    predictions = [
+        {
+            "news_item_id": 44,
+            "status": "ok",
+            "prediction": {"symbols": []},
+        },
+        {
+            "news_item_id": 75,
+            "status": "ok",
+            "prediction": {"symbols": ["000075"]},
+        },
+        {
+            "news_item_id": 100,
+            "status": "ok",
+            "prediction": {"symbols": ["000100"]},
+        },
+    ]
+    raw = {
+        "matches": 1,
+        "denominator": 3,
+        "agreement": 1 / 3,
+        "mismatch_ids": [44, 75],
+    }
+
+    diagnostics = dev_runner._symbol_diagnostics(
+        design=design,
+        metrics={"symbol_exact_set": raw},
+        prediction_rows=predictions,
+        labels=labels,
+    )
+
+    assert diagnostics["raw_gate"] == raw
+    assert diagnostics["raw_gate_uses_frozen_ai_labels_unchanged"] is True
+    assert diagnostics["ai_label_defect_ids"] == [44]
+    assert diagnostics["model_over_attribution_ids"] == [75, 210, 232, 393]
+    assert diagnostics["adjusted_exact_set"] == {
+        "diagnostic_only": True,
+        "not_a_gate": True,
+        "excluded_ai_label_defect_ids": [44],
+        "matches": 1,
+        "denominator": 2,
+        "agreement": 0.5,
+        "mismatch_ids": [75],
+    }
