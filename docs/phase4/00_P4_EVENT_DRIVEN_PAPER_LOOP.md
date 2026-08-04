@@ -641,6 +641,29 @@ Codex 如实将 7 条 `post_validation_failed` 登记为"待验证假设"而未�
   `heldout_accessed=false` 且当前仍早于 `2026-08-06 00:10 CST`。本轮只证明开发集已达
   冻结条件，**不是 held-out phase gate，也不解锁 P4.2b**；下一步仅可另行创建
   dev-final 与 prompt/model freeze receipt，然后继续等待人工裁定 held-out。
+- 预注册的 dev-final 随后独立执行并再次得到 **60/60 成功、0 失败**；重新计算的
+  materiality/symbol 模型间一致率仍为 `0.8823529412 / 0.9833333333`。create-only
+  predictions SHA 为 `e419c06a0e1112753490b66cfb3709dd9fb311361d0a4c392c5e78029e193685`，
+  manifest SHA 为 `1ef00b10876c3f4ca8cbb0e02efaeeac17d057b7758297b9decaab89e501c79f`，
+  双输入有序身份 SHA 为
+  `48235e5ed026f22f19b1d571b42f0166489de1e035df0aacefa59f94ab157dea`。
+- ⚠ **DEVIATION（冻结验证器漏接双哈希，结果数据未改写）**：首次纯本地 freeze 在创建
+  receipt 前被 `heldout_safety_gate_failed` 拒绝。分段复核证明 dev-final 逐行及两项开发门
+  均通过，真实根因是 `validate_dev_final_prediction_freeze` 仍沿用 v1.5 单哈希身份，把
+  冻结 legacy `input_sha256` 错当成 v1.6 candidate request SHA；同时 freeze receipt
+  尚未切换到 materialized result schema。修复只让 authoritative validator 落实预注册的
+  `required_dual_hash_identity=true` 与 model/materialized 双 schema 绑定，未改合同、
+  prompt、模型输出、标签、matcher、symbol 规则或阈值；新增隔离回归测试后，原 dev-final
+  文件原样通过。未重跑模型，失败尝试未产生 receipt。
+- prompt/model freeze receipt 已于 `2026-08-04T12:17:31.297151Z` create-only 生成：
+  `docs/phase4/eval/P4.2a-heldout-prediction-contract-freeze-v1.5.json`，SHA
+  `9adab49b5b5e8d0bf942a591878c1718fc3d158f5638144db7c5cb80b1e63f68`。它绑定
+  `qwen3.6-plus`、大陆 DashScope、prompt SHA `4b44ed5e…c204`、materialized schema
+  SHA `0ac68654…947f`、contract SHA `4e88990d…3269`、cache=false 与上述双哈希
+  dev-final。runner 与独立 gold-builder 两条加载路径均重新验真通过。
+- 截至冻结完成，held-out v1.5 candidate/selection/prediction/annotation/report 产物仍全部
+  不存在，未读取任何 held-out 标签或正文；时间锁与
+  `ai_drafted_human_adjudicated` 要求不变。**P4.2a 尚未完成，P4.2b 仍未解锁。**
 
 ### P4.2a v1 评测合同预注册（2026-08-03，首次真实 LLM 试跑前）
 
