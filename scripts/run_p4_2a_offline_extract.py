@@ -138,6 +138,7 @@ class ExtractionSummary:
     skipped_failure_count: int
     output_line_count: int
     failures_by_reason: dict[str, int]
+    failures_by_validation_field_and_constraint: dict[str, dict[str, int]]
     isolated_audit_tables: tuple[str, ...]
     isolated_audit_row_count: int
     checkpoint_audited_success_count: int
@@ -895,6 +896,89 @@ def _retryable_failure(reason: str) -> bool:
     } or reason.startswith("http_status_5")
 
 
+_SAFE_VALIDATION_FIELDS = frozenset(
+    {
+        "available_time",
+        "body_state",
+        "evidence_span",
+        "ingested_symbol",
+        "news_item_id",
+        "original_text",
+        "published_at",
+        "result",
+        "source",
+        "summary",
+        "symbols",
+        "title",
+        "universe_symbols",
+    }
+)
+_SAFE_VALIDATION_CONSTRAINTS = frozenset(
+    {
+        "contains_chinese_text",
+        "exact_contiguous_substring",
+        "json_schema_additional_properties",
+        "json_schema_constraint",
+        "json_schema_enum",
+        "json_schema_max_items",
+        "json_schema_max_length",
+        "json_schema_maximum",
+        "json_schema_min_length",
+        "json_schema_minimum",
+        "json_schema_pattern",
+        "json_schema_required",
+        "json_schema_type",
+        "json_schema_unique_items",
+        "non_blank_string",
+        "non_empty_string",
+        "nullable_datetime_or_non_blank_string",
+        "nullable_six_digit_symbol",
+        "object",
+        "original_text_or_ingested_symbol_grounding",
+        "positive_integer",
+        "serialized_input_character_budget",
+        "six_digit_symbol_collection",
+        "sorted_unique",
+        "whitespace_normalized_contiguous_substring",
+    }
+)
+
+
+def _safe_validation_details(error: EventExtractValidationError) -> JsonObject:
+    field = error.field if error.field in _SAFE_VALIDATION_FIELDS else "result"
+    constraint = (
+        error.constraint
+        if error.constraint in _SAFE_VALIDATION_CONSTRAINTS
+        else "unknown_constraint"
+    )
+    return {
+        "field": field,
+        "constraint": constraint,
+    }
+
+
+def _validation_failure_counts(
+    rows: Sequence[Mapping[str, Any]],
+) -> dict[str, dict[str, int]]:
+    counts: dict[str, Counter[str]] = {}
+    for row in rows:
+        failure = row.get("extract_failed")
+        if not isinstance(failure, Mapping):
+            continue
+        field = failure.get("field")
+        constraint = failure.get("constraint")
+        if (
+            field not in _SAFE_VALIDATION_FIELDS
+            or constraint not in _SAFE_VALIDATION_CONSTRAINTS
+        ):
+            continue
+        counts.setdefault(cast(str, field), Counter())[cast(str, constraint)] += 1
+    return {
+        field: dict(sorted(constraints.items()))
+        for field, constraints in sorted(counts.items())
+    }
+
+
 def _security_record(audit: AuditEvidence) -> JsonObject:
     return {
         "credentials_persisted": False,
@@ -1102,15 +1186,18 @@ def extract_records(
             else:
                 assert caught is not None
                 reason = _safe_failure_reason(caught, audit)
+                failure: JsonObject = {
+                    "reason": reason,
+                    "retryable": _retryable_failure(reason),
+                }
+                if isinstance(caught, EventExtractValidationError):
+                    failure.update(_safe_validation_details(caught))
                 base.update(
                     {
                         "status": "extract_failed",
                         "prediction": None,
                         "error": reason,
-                        "extract_failed": {
-                            "reason": reason,
-                            "retryable": _retryable_failure(reason),
-                        },
+                        "extract_failed": failure,
                     }
                 )
             sink.append(base)
@@ -1154,6 +1241,9 @@ def extract_records(
             skipped_failure_count=skipped_failures,
             output_line_count=sink.checkpoint.line_count,
             failures_by_reason=dict(sorted(failures.items())),
+            failures_by_validation_field_and_constraint=_validation_failure_counts(
+                final_rows
+            ),
             isolated_audit_tables=audit_tables,
             isolated_audit_row_count=audit_row_count,
             checkpoint_audited_success_count=checkpoint_audited_success_count,
@@ -1259,6 +1349,9 @@ def _offline_report(
         "failures": {
             "count": summary.failure_count,
             "by_safe_reason": summary.failures_by_reason,
+            "by_validation_field_and_constraint": (
+                summary.failures_by_validation_field_and_constraint
+            ),
             "raw_exception_or_transport_payload_persisted": False,
         },
         "database_safety_table": {

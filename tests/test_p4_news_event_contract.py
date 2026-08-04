@@ -186,7 +186,7 @@ def test_validate_event_result_enforces_strict_schema() -> None:
     contract = load_event_extract_contract()
     result = {**_valid_result(), "unexpected": "not allowed"}
 
-    with pytest.raises(EventExtractValidationError, match="strict JSON Schema"):
+    with pytest.raises(EventExtractValidationError, match="strict JSON Schema") as caught:
         validate_event_result(
             contract,
             result,
@@ -194,6 +194,8 @@ def test_validate_event_result_enforces_strict_schema() -> None:
             ingested_symbol="600519",
             universe_symbols={"600519"},
         )
+    assert caught.value.field == "result"
+    assert caught.value.constraint == "json_schema_additional_properties"
 
 
 @pytest.mark.parametrize(
@@ -297,7 +299,7 @@ def test_validate_event_result_rejects_non_contiguous_evidence() -> None:
     contract = load_event_extract_contract()
     result = {**_valid_result(), "evidence_span": "公司股份拟回购"}
 
-    with pytest.raises(EventExtractValidationError, match="contiguous substring"):
+    with pytest.raises(EventExtractValidationError, match="contiguous substring") as caught:
         validate_event_result(
             contract,
             result,
@@ -305,6 +307,8 @@ def test_validate_event_result_rejects_non_contiguous_evidence() -> None:
             ingested_symbol="600519",
             universe_symbols={"600519"},
         )
+    assert caught.value.field == "evidence_span"
+    assert caught.value.constraint == "exact_contiguous_substring"
 
 
 def test_validate_event_result_rejects_summary_without_chinese() -> None:

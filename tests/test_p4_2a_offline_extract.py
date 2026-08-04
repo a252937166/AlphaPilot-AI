@@ -387,6 +387,68 @@ def test_total_deadline_is_fail_closed_after_model_returns(
     assert row["security"]["llm_audit_status"] == "recorded"
 
 
+def test_post_validation_failure_persists_only_safe_field_and_constraint(
+    tmp_path: Path,
+) -> None:
+    contract = load_event_extract_contract()
+    output = tmp_path / "eval" / "post-validation.jsonl"
+
+    def invalid_evidence_chat(
+        _purpose: str,
+        _system: str,
+        _user: str,
+        _schema: dict[str, Any],
+        *,
+        timeout: float | None = None,
+        max_tokens: int | None = None,
+        max_retries: int = 1,
+        settings: Settings | None = None,
+        session: Session | None = None,
+    ) -> dict[str, Any]:
+        assert timeout == 20.0
+        assert max_tokens == 2_000
+        assert max_retries == 0
+        assert settings is not None
+        _record_audit(session, ok=True, error=None)
+        return {
+            "symbols": ["600519"],
+            "event_type": "other",
+            "direction": 0,
+            "materiality": 1,
+            "summary": "公告完成结构化抽取。",
+            "confidence": 0.8,
+            "evidence_span": "raw model text must never persist",
+        }
+
+    summary = runner.extract_records(
+        contract,
+        [_one_record()],
+        output_path=output,
+        eval_root=tmp_path / "eval",
+        universe_symbols={"600519"},
+        settings=_settings(),
+        retry_failures=False,
+        chat_json_fn=invalid_evidence_chat,
+    )
+
+    assert summary.failure_count == 1
+    assert summary.failures_by_validation_field_and_constraint == {
+        "evidence_span": {"exact_contiguous_substring": 1}
+    }
+    row = json.loads(output.read_text(encoding="utf-8"))
+    assert row["error"] == "post_validation_failed"
+    assert row["extract_failed"] == {
+        "reason": "post_validation_failed",
+        "retryable": False,
+        "field": "evidence_span",
+        "constraint": "exact_contiguous_substring",
+    }
+    serialized = json.dumps(row, ensure_ascii=False)
+    assert "raw model text must never persist" not in serialized
+    assert row["security"]["exception_detail_persisted"] is False
+    assert row["security"]["raw_transport_response_persisted"] is False
+
+
 def test_success_without_isolated_audit_is_rejected(tmp_path: Path) -> None:
     contract = load_event_extract_contract()
     output = tmp_path / "eval" / "missing-audit.jsonl"
@@ -467,6 +529,7 @@ def test_report_exposes_checkpoint_audit_evidence_when_current_rows_are_zero(
         skipped_failure_count=0,
         output_line_count=1,
         failures_by_reason={},
+        failures_by_validation_field_and_constraint={},
         isolated_audit_tables=("llm_calls",),
         isolated_audit_row_count=0,
         checkpoint_audited_success_count=1,
