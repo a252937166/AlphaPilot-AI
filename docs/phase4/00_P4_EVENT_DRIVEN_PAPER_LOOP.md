@@ -300,6 +300,41 @@ owner 确认该时段为**人为断网、周期性复发**，非代码或上游�
   "对该标的股价的潜在影响"，非新闻重要性；② 无明确个股指向的宏观/政策资讯上限为 1；
   ③ 交易所正式公告按事件类型定级，不因文本冗长平实而降分；④ "进展公告"与原始事件分级区分。
 
+#### P4.2a dev prompt 迭代实跑（2026-08-04，外部额度阻断，未冻结）
+
+- 新增严格 dev-only、create-only 的迭代入口
+  `scripts/run_p4_2a_dev_iteration.py`。它只读取冻结 dev60 与 AI 起草标签，生产库仅以
+  `mode=ro/query_only` 读取证券全集和交易安全计数；产物只写
+  `docs/phase4/eval/dev-iterations/`。报告字段固定为
+  `metric_semantics=model_interagreement / not_phase_gate=true`，不复用正式 held-out 的
+  precision 或人工金标准语义，也不占用 dev-final、freeze receipt 或 held-out one-shot 路径。
+- prompt v1.1 及 active contract 在真实调用前完成版本化预注册；只改 prompt 与版本溯源，
+  schema、taxonomy、模型、预算、输入和隔离合同均与 v1 相同。唯一候选轮 `v1.1-r1`
+  原样留档：60 条中 30 成功 / 30 失败；失败为 `post_validation_failed=20`、
+  `http_status_403=10`。仅在 30 条可比子集上的 materiality 正类模型间一致率虽为
+  `6/6=1.00`，但覆盖损失 50%，symbol 模型间一致率 `28/30=0.933`，故**明确不通过**，
+  不得据此冻结。原始 create-only report 的 `positive_capture=1.00` 也只在可比子集计算；
+  30 条失败中有 10 条 AI 参考正类，不能把该值解释成全 dev 召回。blocker 证据已显式列出
+  这 10 个 ID；后续报告改名为 `comparable_positive_capture`。
+- 20 条后置校验失败全部来自巨潮正文；当前安全错误只持久化通用
+  `post_validation_failed`，原始 payload 按合同未保存，因此**不能把具体违规字段写成已证实
+  根因**。结合失败集中在长正文、且 v1.1 新增了"引用实质正文"要求，v1.2 做保守的
+  `evidence_span` 防错强化：选择短的单行原文片段，禁止删除/增加/规范化空白；其余
+  materiality 规则不变。该修正仍是待实测假设，也再次说明 P4.2b 必须落地"违规字段 + 约束
+  类型"安全错误码。v1.2 active contract 已在任何 v1.2 输出产生前预注册，尚未启动真实轮次。
+- 10 条 HTTP 403 不是限流猜测。失败后一次单条合同探测仍为 403；随后唯一一次最小诊断
+  请求得到服务端结构化错误
+  `AllocationQuota.FreeTierOnly`（免费额度耗尽，需要补支付信息或关闭“仅使用免费额度”）。
+  诊断零自动重试，不持久化 key、请求正文或原始响应。阻断证据：
+  `docs/phase4/eval/dev-iterations/P4.2a-dev60-v1.1-r1.blocker.json`。
+- **当前裁定**：P4.2a 仍未完成，prompt 未冻结，held-out40 持续封存；不得改模型规避额度，
+  也不得把失败轮可比子集的 1.00 当成通过。恢复同一冻结模型 `qwen3.6-flash` 的访问后，
+  才能在预注册 v1.2 合同上创建新一轮 dev-only 证据；只有完整覆盖下达到开发阈值，才首次
+  生成 dev-final 并创建 freeze receipt。冻结入口新增 fail-closed 重算门：必须 60/60 成功、
+  无 active failure、materiality 正类模型间一致率 ≥0.80、symbol
+  exact-set 模型间一致率 ≥0.95；receipt 每次验真时对其绑定的 dev-final 重新计算，不能仅凭
+  manifest 技术成功绕过开发门。
+
 ### P4.2a v1 评测合同预注册（2026-08-03，首次真实 LLM 试跑前）
 
 - Owner 解锁基线：`4c79373`。冻结配置 `config/p4_event_extract_eval_v1.yaml`，SHA-256
