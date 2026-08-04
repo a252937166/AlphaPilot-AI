@@ -438,6 +438,53 @@ Codex 如实将 7 条 `post_validation_failed` 登记为"待验证假设"而未�
 模型与标注均为 m≥2，故 materiality 一致率仍为 1.00，但**分母由 10 增至 13**，
 结论稳健性提升。symbol 一致率仍需按 §symbol 偏差单独裁定，不因本修正而改变。
 
+### P4.2a v1.4 dev60 正式轮次结果（2026-08-04，未通过）
+
+- 结构化 `post_validation_failed` 安全码先以独立提交
+  `00fccf5` / `8dcccb2` 落地，再由提交 `199f724` 预注册 v1.4，顺序早于任何
+  v1.4 模型输出。v1.3-r1 原始三件套与 blocker 均未改写。
+- v1.4 合同 SHA
+  `e6d3e7db08e2d226c850092f0f794d7194eaf1935a56cbfe267a86e1297f37fc`，
+  将 `evidence_span` 约束改为
+  `unicode_whitespace_elided_contiguous_substring_v1`；模型仍为
+  `qwen3.6-plus`，大陆 endpoint、temperature `0.2`、max tokens `2000`、
+  20 秒、零重试、`enable_thinking=false` 和显式缓存关闭均不变。
+- 正式 dev-only 轮次 `v1.4-r1` 只执行一次，结果 **54/60 成功、6 失败，正式轮次无效**：
+  - 5 条为安全结构化
+    `post_validation_failed(field=evidence_span,
+    constraint=whitespace_normalized_contiguous_substring)`：
+    `253 / 258 / 304 / 336 / 340`；
+  - 1 条 `280` 为底层 `schema_validation_failed`。当前安全错误码未暴露字段或约束，
+    故根因登记为 `unproven`，不得猜测；
+  - 安全产物未持久化候选 span 或原始 payload，因此上述 5 条只能证明违规字段与约束，
+    **不能**仅凭本地产物进一步声称是重述、表格拼接或其他具体原因。
+- 可比行上的 materiality 模型间一致率为 `11/13 = 0.8461538461`，达到开发目标
+  `0.80`，但 6 条失败中含 4 条参考正类，不能据此冻结。symbol 原始冻结标签口径为
+  `49/54 = 0.9074074074`，低于 `0.95`：
+  - `44` 延续独立裁定为 AI dev 标签缺陷，不得靠猜代码迎合；
+  - `28 / 67 / 71 / 96` 为本轮新闻主体漏映射，应由下一版 prompt 收紧主体定义修复；
+  - v1.3 的 `75 / 210 / 232 / 393` 四个过度归属在 v1.4 已正确修复。不可改写的
+    v1.4 report 仍把该历史列表显示为当前诊断，blocker 已显式勘误。
+- v1.4 report 的 flash 指示性对照还漏列了
+  `evidence_span_match_mode / validation_contract` 两个变化维度，且可比集为
+  `59 vs 54`；blocker 明确禁止把该对照读成单变量因果结论。
+- 冻结产物：
+  - predictions SHA
+    `5aaa4deded34dc858bc7e90b4db5dc2b2cf656f4d4dd673e5a9980d3152257b2`；
+  - manifest SHA
+    `fa56b4f167530c7da1d0887f0163b13aa69b0a73de8e48a75cc6335cbbb1904a`；
+  - report SHA
+    `5cf0722fb8851122720ea59c53cb355be9095f1b2a4d1658b827cf48a2dbf969`；
+  - create-only blocker SHA
+    `3d0038515e208bca37e096b280ec411da2086addd8696d2ee6e8afa36fad00f9`。
+- 本轮生产库以 `mode=ro / query_only=1` 打开，`total_changes=0`，生产
+  `llm_calls` 前后均为 `109`；提案/委托 `1/1`、非 SIMULATE 委托 `0`、
+  `quick_check=ok`，P4.1 冻结配置 SHA 未变。**未创建 dev-final 或冻结 receipt，
+  held-out 未访问，P4.2a 不标 done，P4.2b 不解锁。**
+- 同合同不得重跑。下一轮必须先以新版本合同预注册：
+  逐字证据“定位 → 复制 → Unicode 空白归一化自检 → 失败则缩短”的流程、严格 JSON
+  字段预检，以及不依赖 materiality 的直接主体映射；规则和标签不放宽，显式缓存继续关闭。
+
 ### P4.2a v1 评测合同预注册（2026-08-03，首次真实 LLM 试跑前）
 
 - Owner 解锁基线：`4c79373`。冻结配置 `config/p4_event_extract_eval_v1.yaml`，SHA-256
