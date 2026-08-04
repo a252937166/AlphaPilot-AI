@@ -449,6 +449,88 @@ def test_post_validation_failure_persists_only_safe_field_and_constraint(
     assert row["security"]["raw_transport_response_persisted"] is False
 
 
+@pytest.mark.parametrize(
+    ("field", "constraint", "expected_field", "expected_constraint"),
+    [
+        (
+            "event_type",
+            "json_schema_enum",
+            "event_type",
+            "json_schema_enum",
+        ),
+        (
+            "secret_model_key",
+            "secret_model_constraint",
+            "result",
+            "json_schema_constraint",
+        ),
+    ],
+)
+def test_schema_validation_failure_persists_only_safe_structured_metadata(
+    tmp_path: Path,
+    field: str,
+    constraint: str,
+    expected_field: str,
+    expected_constraint: str,
+) -> None:
+    contract = load_event_extract_contract()
+    output = tmp_path / "eval" / f"schema-validation-{expected_field}.jsonl"
+
+    def schema_failure_chat(
+        _purpose: str,
+        _system: str,
+        _user: str,
+        _schema: dict[str, Any],
+        *,
+        timeout: float | None = None,
+        max_tokens: int | None = None,
+        max_retries: int = 1,
+        settings: Settings | None = None,
+        session: Session | None = None,
+    ) -> dict[str, Any]:
+        assert timeout == 20.0
+        assert max_tokens == 2_000
+        assert max_retries == 0
+        assert settings is not None
+        _record_audit(session, ok=False, error="schema_validation_failed")
+        raise LLMUnavailable(
+            "raw provider payload and exception detail must not persist",
+            reason="schema_validation_failed",
+            field=field,
+            constraint=constraint,
+        )
+
+    summary = runner.extract_records(
+        contract,
+        [_one_record()],
+        output_path=output,
+        eval_root=tmp_path / "eval",
+        universe_symbols={"600519"},
+        settings=_settings(),
+        retry_failures=False,
+        chat_json_fn=schema_failure_chat,
+    )
+
+    assert summary.failure_count == 1
+    assert summary.failures_by_validation_field_and_constraint == {
+        expected_field: {expected_constraint: 1}
+    }
+    row = json.loads(output.read_text(encoding="utf-8"))
+    assert row["error"] == "schema_validation_failed"
+    assert row["extract_failed"] == {
+        "reason": "schema_validation_failed",
+        "retryable": False,
+        "field": expected_field,
+        "constraint": expected_constraint,
+    }
+    serialized = json.dumps(row, ensure_ascii=False)
+    assert "raw provider payload" not in serialized
+    assert "secret_model_key" not in serialized
+    assert "secret_model_constraint" not in serialized
+    assert row["security"]["exception_detail_persisted"] is False
+    assert row["security"]["raw_transport_response_persisted"] is False
+
+
 def test_success_without_isolated_audit_is_rejected(tmp_path: Path) -> None:
     contract = load_event_extract_contract()
     output = tmp_path / "eval" / "missing-audit.jsonl"
