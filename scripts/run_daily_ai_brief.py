@@ -211,6 +211,7 @@ def _write_note(
         f"date: {brief_date}",
         "tags: [alphapilot, ai-brief, advisory]",
         "advisory: true",
+        f"llm_ok: {'true' if llm_error is None else 'false'}",
         f"generated_at: {generated_at}",
         "---",
         "",
@@ -256,26 +257,36 @@ def _write_note(
     return target
 
 
+def _existing_brief_is_complete(brief_date: str) -> bool:
+    target = VAULT_DIR / f"{brief_date}.md"
+    if not target.is_file():
+        return False
+    # A brief whose LLM section failed is a placeholder: allow a later retry to
+    # replace it once the model is reachable again.
+    return "llm_ok: false" not in target.read_text(encoding="utf-8")
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Write the advisory daily AI brief.")
     parser.add_argument(
         "--force",
         action="store_true",
-        help="Run even when today is not the latest audited trading date.",
+        help="Rewrite even when a complete brief already exists for the date.",
     )
     arguments = parser.parse_args(argv)
 
-    today = datetime.now(SHANGHAI).date().isoformat()
+    # The brief covers the most recent audited trading session, never the wall
+    # clock date: the host runs in a non-CST timezone, so "today" would point at
+    # a session that has not produced data yet.
     with _connect() as connection:
-        latest = _latest_trading_date(connection)
-        if latest != today and not arguments.force:
+        brief_date = _latest_trading_date(connection)
+        if brief_date is None:
+            print(json.dumps({"skipped": "no_audited_trading_date"}, ensure_ascii=False))
+            return 0
+        if _existing_brief_is_complete(brief_date) and not arguments.force:
             print(
                 json.dumps(
-                    {
-                        "skipped": "non_trading_day",
-                        "today": today,
-                        "latest_audited_trade_date": latest,
-                    },
+                    {"skipped": "already_written", "brief_date": brief_date},
                     ensure_ascii=False,
                 )
             )
@@ -289,10 +300,11 @@ def main(argv: list[str] | None = None) -> int:
     except Exception as exc:  # honest degradation: keep the data, note the miss
         llm_error = f"{type(exc).__name__}: {exc}"
 
-    target = _write_note(today, body, payload, llm_error=llm_error)
+    target = _write_note(brief_date, body, payload, llm_error=llm_error)
     print(
         json.dumps(
             {
+                "brief_date": brief_date,
                 "written": str(target),
                 "news_count": payload["news_count"],
                 "llm_ok": llm_error is None,

@@ -13,14 +13,11 @@
     <string>__BRIEF_PROJECT_DIR__</string>
     <key>RunAtLoad</key>
     <false/>
-    <key>StartCalendarInterval</key>
-    <array>
-        <dict><key>Weekday</key><integer>1</integer><key>Hour</key><integer>21</integer><key>Minute</key><integer>7</integer></dict>
-        <dict><key>Weekday</key><integer>2</integer><key>Hour</key><integer>21</integer><key>Minute</key><integer>7</integer></dict>
-        <dict><key>Weekday</key><integer>3</integer><key>Hour</key><integer>21</integer><key>Minute</key><integer>7</integer></dict>
-        <dict><key>Weekday</key><integer>4</integer><key>Hour</key><integer>21</integer><key>Minute</key><integer>7</integer></dict>
-        <dict><key>Weekday</key><integer>5</integer><key>Hour</key><integer>21</integer><key>Minute</key><integer>7</integer></dict>
-    </array>
+    <!-- The host runs outside CST, so wall-clock scheduling mis-targets the
+         A-share session. The runner is idempotent (it writes one brief per
+         audited trading date), so poll instead of guessing the right hour. -->
+    <key>StartInterval</key>
+    <integer>10800</integer>
     <key>ProcessType</key>
     <string>Background</string>
     <key>LowPriorityIO</key>
