@@ -33,6 +33,7 @@ from alphapilot.llm.p4_news_event import (
     build_event_extract_user_input,
     event_extract_input_sha256,
     load_event_extract_contract,
+    normalize_llm_endpoint,
     validate_event_result,
 )
 
@@ -44,7 +45,6 @@ EVAL_ROOT = Path("docs/phase4/eval")
 FROZEN_MAX_NEWS_ITEM_ID = 423
 FROZEN_EXPECTED_COUNT = 423
 EXPECTED_PURPOSE = "p4_news_event_extract"
-EXPECTED_MODEL = "qwen3.6-flash"
 EXPECTED_TIMEOUT_SECONDS = 20.0
 EXPECTED_MAX_RETRIES = 0
 EXPECTED_MAX_TOKENS = 2_000
@@ -276,17 +276,32 @@ def _resolve_settings_model(settings: Settings, purpose: str) -> str | None:
 def _validate_runtime_contract(contract: EventExtractContract, settings: Settings) -> None:
     if (
         contract.purpose != EXPECTED_PURPOSE
-        or contract.model != EXPECTED_MODEL
         or contract.timeout != EXPECTED_TIMEOUT_SECONDS
         or contract.max_tokens != EXPECTED_MAX_TOKENS
         or contract.max_retries != EXPECTED_MAX_RETRIES
+        or contract.explicit_cache_enabled
     ):
         raise OfflineExtractError("frozen LLM purpose, model, or budget drifted")
-    if _resolve_settings_model(settings, contract.purpose) != EXPECTED_MODEL:
+    if _resolve_settings_model(settings, contract.purpose) != contract.model:
         raise OfflineExtractError(
-            "Settings .env must resolve p4_news_event_extract to qwen3.6-flash"
+            "Settings .env purpose model differs from the frozen contract"
         )
-    if not (settings.llm_base_url or "").strip() or not (settings.llm_api_key or "").strip():
+    raw_endpoint = (settings.llm_base_url or "").strip()
+    if contract.endpoint is not None:
+        try:
+            resolved_endpoint = normalize_llm_endpoint(
+                raw_endpoint,
+                name="Settings.llm_base_url",
+            )
+        except EventExtractContractError as exc:
+            raise OfflineExtractError(
+                "Settings .env LLM endpoint is invalid"
+            ) from exc
+        if resolved_endpoint != contract.endpoint:
+            raise OfflineExtractError(
+                "Settings .env LLM endpoint differs from the frozen contract"
+            )
+    if not raw_endpoint or not (settings.llm_api_key or "").strip():
         raise OfflineExtractError("Settings .env does not contain a complete LLM configuration")
 
 

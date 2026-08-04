@@ -1,0 +1,137 @@
+schema_version: p4.2a-evaluation-design-v1.2
+owner_spec_commit: 5a7225b5e47c84949eb159d85703180f33a40cc7
+pre_registered_at: "2026-08-04T09:02:00Z"
+production_writes_allowed: false
+artifact_root: docs/phase4/eval
+
+extends_design:
+  path: config/p4_event_evaluation_v1_1.yaml
+  sha256: 8e9c1d107ef235f9c017dbfb679fa01e52e0ff966f01d9efad625110588ebf97
+  schema_version: p4.2a-evaluation-design-v1.1
+  inheritance:
+    sample_identity: byte_frozen
+    heldout_candidate_window: byte_frozen
+    heldout_selection_seed: byte_frozen
+    evaluation_thresholds: byte_frozen
+
+active_prediction_contract:
+  path: config/p4_event_extract_eval_v1_3.yaml
+  sha256: 1e465f600039a587c26e9686e82a229baf948f8db748b68a5731b23af08fefd6
+  schema_version: p4.2a-event-extract-eval-v1.3
+  model: qwen3.6-plus
+  endpoint: https://dashscope.aliyuncs.com/compatible-mode/v1
+  prompt:
+    path: config/prompts/p4_news_event_extract_v1_2.txt
+    sha256: 5080bdb2b373f6360527c79465da8645884fd33308c9e3d061120b0a1298fe05
+  result_schema:
+    path: config/schemas/p4_news_event_v1.schema.json
+    sha256: 0ac68654ce23ecd4e537d849d695e092c76dcb9de0fb03793e65ae62b181947f
+  taxonomy_version: p4-news-event-taxonomy-v1
+  explicit_cache:
+    enabled: false
+    cache_control: null
+
+artifact_overrides:
+  dev_final_predictions_jsonl:
+    path: docs/phase4/eval/P4.2a-dev60-final-predictions-v1.2.jsonl
+    create_only: true
+  dev_final_predictions_manifest_json:
+    path: docs/phase4/eval/P4.2a-dev60-final-predictions-v1.2.manifest.json
+    create_only: true
+  prediction_contract_freeze_receipt_json:
+    path: docs/phase4/eval/P4.2a-heldout-prediction-contract-freeze-v1.2.json
+    create_only: true
+  heldout_candidate_inputs_jsonl:
+    path: docs/phase4/eval/P4.2a-heldout-candidate-inputs-v1.2.jsonl
+    create_only: true
+  heldout_candidate_predictions_jsonl:
+    path: docs/phase4/eval/P4.2a-heldout-candidate-predictions-v1.2.jsonl
+    create_only: true
+  heldout_candidate_predictions_manifest_json:
+    path: docs/phase4/eval/P4.2a-heldout-candidate-predictions-v1.2.manifest.json
+    create_only: true
+  heldout_inference_state_jsonl:
+    path: docs/phase4/eval/P4.2a-heldout-inference-one-shot-v1.2.state.jsonl
+    create_only: true
+  heldout_selection_manifest_json:
+    path: docs/phase4/eval/P4.2a-heldout40-selection-v1.2.manifest.json
+    create_only: true
+  heldout_evaluation_state_jsonl:
+    path: docs/phase4/eval/P4.2a-heldout-evaluation-one-shot-v1.2.state.jsonl
+    create_only: true
+  heldout_40_blind_sample_jsonl:
+    path: docs/phase4/eval/P4.2a-gold-heldout40-blind-sample-v1.2.jsonl
+    create_only: true
+  heldout_40_owner_annotations_jsonl:
+    path: docs/phase4/eval/P4.2a-gold-heldout40-human-adjudicated-v1.2.jsonl
+    create_only: true
+  combined_100_annotations_jsonl:
+    path: docs/phase4/eval/P4.2a-gold-annotation100-v1.2.jsonl
+    create_only: true
+  owner_completion_manifest_json:
+    path: docs/phase4/eval/P4.2a-owner-completion-v1.2.manifest.json
+    create_only: true
+  evaluation_report_directory:
+    path: docs/phase4/eval/reports/v1.2
+    create_only_reports: true
+    append_only_failed_rounds: true
+
+frozen_artifact_overrides:
+  dev_60_owner_annotations_jsonl:
+    path: docs/phase4/eval/P4.2a-gold-inventory60-v1.labels-ai-drafted.jsonl
+    sha256: d1b9720dc06a4ff4989b65d2c1c302f614b0fbc427bedabde4ef87ad606a011d
+    annotation_type: ai_drafted
+    metric_semantics: model_interagreement
+    human_gold_claim_allowed: false
+
+prediction_contract_freeze:
+  required_contract_artifact: active_prediction_contract
+  required_model: qwen3.6-plus
+  required_endpoint: https://dashscope.aliyuncs.com/compatible-mode/v1
+  required_prompt_sha256: 5080bdb2b373f6360527c79465da8645884fd33308c9e3d061120b0a1298fe05
+  required_result_schema_sha256: 0ac68654ce23ecd4e537d849d695e092c76dcb9de0fb03793e65ae62b181947f
+  required_taxonomy_version: p4-news-event-taxonomy-v1
+  required_explicit_cache_enabled: false
+  required_receipt_fields_append:
+    - endpoint
+    - explicit_cache_enabled
+
+heldout_annotation_provenance:
+  annotation_type: ai_drafted_human_adjudicated
+  required_record_fields:
+    - annotation_type
+    - drafter_id
+    - adjudicator_id
+  drafter_id_required: true
+  adjudicator_id_required: true
+  drafter_and_adjudicator_must_differ: true
+  annotation_owner_must_equal: adjudicator_id
+  pure_ai_annotation_policy: fail_closed
+  accepted_metric_semantics: human_adjudicated_gold
+
+owner_annotation_completion:
+  schema_version: p4.2a-owner-completion-v1.2
+  dev_annotation_semantics: model_interagreement_only
+  heldout_annotation_semantics: human_adjudicated_gold
+  required_manifest_fields_append:
+    - heldout_annotation_type
+    - heldout_drafter_ids
+    - heldout_adjudicator_ids
+    - heldout_human_adjudication_validated
+
+evaluation:
+  required_report_fields_append:
+    - prediction_contract.endpoint
+    - prediction_contract.explicit_cache_enabled
+    - owner_completion.heldout_annotation_type
+    - owner_completion.heldout_drafter_ids
+    - owner_completion.heldout_adjudicator_ids
+    - owner_completion.heldout_human_adjudication_validated
+
+isolation:
+  p4_1_files_must_remain_unchanged: true
+  p4_2b_unlocked: false
+  production_database_mode: read_only_query_only
+  production_writes_allowed: false
+  scheduler_changes_allowed: false
+  proposals_or_orders_allowed: false

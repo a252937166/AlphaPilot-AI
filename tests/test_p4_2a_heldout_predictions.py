@@ -704,7 +704,7 @@ def test_versioned_prompt_contract_is_explicit_and_non_prompt_drift_fails(
     )
     with pytest.raises(
         runner.HeldoutPredictionError,
-        match="outside version provenance and prompt",
+        match="active LLM controls are invalid",
     ):
         runner.validate_prediction_contract_freeze(design, tmp_path)
 

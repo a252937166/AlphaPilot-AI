@@ -32,6 +32,48 @@ def _settings() -> Settings:
     )
 
 
+def _plus_settings(
+    *,
+    base_url: str = "https://dashscope.aliyuncs.com/compatible-mode/v1",
+    model: str = "qwen3.6-plus",
+    purpose_models: dict[str, str] | None = None,
+) -> Settings:
+    return Settings(
+        llm_base_url=base_url,
+        llm_api_key="test-only-key",
+        llm_model=model,
+        llm_purpose_models=purpose_models or {},
+    )
+
+
+def test_runtime_contract_uses_frozen_model_and_mainland_endpoint() -> None:
+    contract = load_event_extract_contract(
+        Path("config/p4_event_extract_eval_v1_3.yaml")
+    )
+
+    runner._validate_runtime_contract(contract, _plus_settings())
+
+    with pytest.raises(runner.OfflineExtractError, match="purpose model differs"):
+        runner._validate_runtime_contract(
+            contract,
+            _plus_settings(model="qwen3.6-flash"),
+        )
+    with pytest.raises(runner.OfflineExtractError, match="purpose model differs"):
+        runner._validate_runtime_contract(
+            contract,
+            _plus_settings(
+                purpose_models={"p4_news_event_extract": "qwen3.6-flash"}
+            ),
+        )
+    with pytest.raises(runner.OfflineExtractError, match="endpoint differs"):
+        runner._validate_runtime_contract(
+            contract,
+            _plus_settings(
+                base_url="https://dashscope-intl.aliyuncs.com/compatible-mode/v1"
+            ),
+        )
+
+
 def _contract_for_root(root: Path) -> EventExtractContract:
     contract = load_event_extract_contract()
     path = root / "config" / "p4_event_extract_eval_v1.yaml"

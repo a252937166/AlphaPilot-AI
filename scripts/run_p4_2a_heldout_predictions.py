@@ -61,6 +61,7 @@ from alphapilot.llm.p4_news_eval import (
 )
 from alphapilot.llm.p4_news_event import (
     EventExtractContract,
+    validate_event_extract_contract_controls,
     validate_event_result,
 )
 
@@ -456,6 +457,17 @@ def _load_active_contract(
     if not resolved.is_relative_to(config_root) or resolved.is_symlink() or not resolved.is_file():
         raise HeldoutPredictionError("active contract must be one regular config file")
     payload = resolved.read_bytes()
+    prediction_contract = design.prediction_contract
+    versioned_runtime_contract = (
+        prediction_contract.sha256 != design.base_contract.sha256
+    )
+    if versioned_runtime_contract and (
+        resolved != prediction_contract.path.resolve()
+        or _sha256_bytes(payload) != prediction_contract.sha256
+    ):
+        raise HeldoutPredictionError(
+            "active contract differs from the evaluation design prediction contract"
+        )
     document = _load_strict_yaml_mapping(payload)
     schema_version = document.get("schema_version")
     owner_commit = document.get("owner_spec_commit")
@@ -489,17 +501,33 @@ def _load_active_contract(
     except UnicodeDecodeError as exc:
         raise HeldoutPredictionError("active prompt must be UTF-8") from exc
     prompt_version = PROMPT_VERSION_MARKER.search(prompt)
+    contract_version = _normalized_version(schema_match.group("version"))
     if (
         not prompt.strip()
         or prompt_version is None
-        or _normalized_version(prompt_version.group("version"))
-        != _normalized_version(schema_match.group("version"))
+        or _normalized_version(prompt_version.group("version")) > contract_version
     ):
         raise HeldoutPredictionError("active prompt version marker drifted")
 
+    try:
+        (
+            purpose,
+            model,
+            endpoint,
+            timeout,
+            max_tokens,
+            max_retries,
+            max_items,
+            max_input_characters,
+            explicit_cache_enabled,
+        ) = validate_event_extract_contract_controls(document)
+    except ValueError as exc:
+        raise HeldoutPredictionError("active LLM controls are invalid") from exc
+
     # The independent design freezes all deterministic, schema, taxonomy,
-    # input, budget, isolation, and artifact semantics. Only prompt bytes/path
-    # plus explicit version provenance may differ after dev60 iteration.
+    # input, budget, isolation, and artifact semantics. Prompt bytes/path may
+    # differ after dev60 iteration. Contract v1.3 additionally pre-registers
+    # one model/endpoint change; every other LLM control stays byte-equivalent.
     normalized_active = copy.deepcopy(document)
     normalized_base = copy.deepcopy(design.base_contract.document)
     for key in ("schema_version", "owner_spec_commit", "pre_registered_at"):
@@ -507,9 +535,36 @@ def _load_active_contract(
     active_files = cast(JsonObject, normalized_active["contract_files"])
     base_files = cast(JsonObject, normalized_base["contract_files"])
     active_files["prompt"] = copy.deepcopy(base_files["prompt"])
+    active_llm = cast(JsonObject, normalized_active["llm"])
+    base_llm = cast(JsonObject, normalized_base["llm"])
+    model_changed = active_llm.get("model") != base_llm.get("model")
+    endpoint_present = "endpoint" in active_llm
+    cache_policy_present = "explicit_cache" in active_llm
+    if contract_version < (1, 3) and (
+        model_changed or endpoint_present or cache_policy_present
+    ):
+        raise HeldoutPredictionError(
+            "model, endpoint, or cache policy requires active contract v1.3+"
+        )
+    if contract_version >= (1, 3):
+        if (
+            not versioned_runtime_contract
+            or model != prediction_contract.model
+            or endpoint != prediction_contract.endpoint
+            or explicit_cache_enabled
+            or active_llm.get("explicit_cache")
+            != {"enabled": False, "cache_control": None}
+        ):
+            raise HeldoutPredictionError(
+                "active v1.3 model, mainland endpoint, or cache policy drifted"
+            )
+        active_llm["model"] = base_llm["model"]
+        active_llm.pop("endpoint", None)
+        active_llm.pop("explicit_cache", None)
     if normalized_active != normalized_base:
         raise HeldoutPredictionError(
-            "active contract changed fields outside version provenance and prompt"
+            "active contract changed fields outside approved version, prompt, and "
+            "v1.3 runtime provenance"
         )
 
     # The unchanged schema file is re-hashed against the trusted base contract.
@@ -532,6 +587,15 @@ def _load_active_contract(
         sha256=_sha256_bytes(payload),
         document=document,
         prompt=prompt,
+        model=model,
+        endpoint=endpoint,
+        purpose=purpose,
+        timeout=timeout,
+        max_tokens=max_tokens,
+        max_retries=max_retries,
+        max_items_per_run=max_items,
+        max_input_characters=max_input_characters,
+        explicit_cache_enabled=explicit_cache_enabled,
     )
 
 
@@ -787,6 +851,11 @@ def _freeze_receipt_payload(
         **dict(dev_final_evidence),
     }
     required = freeze.get("required_receipt_fields")
+    if isinstance(required, Sequence) and not isinstance(required, (str, bytes)):
+        if "endpoint" in required:
+            receipt["endpoint"] = active_contract.endpoint
+        if "explicit_cache_enabled" in required:
+            receipt["explicit_cache_enabled"] = active_contract.explicit_cache_enabled
     if (
         not isinstance(required, Sequence)
         or isinstance(required, (str, bytes))
@@ -1764,6 +1833,8 @@ def _manifest_payload(
             "path": active_contract.path.relative_to(project_root.resolve()).as_posix(),
             "sha256": active_contract.sha256,
             "model": active_contract.model,
+            "endpoint": active_contract.endpoint,
+            "explicit_cache_enabled": active_contract.explicit_cache_enabled,
             "prompt_path": prompt.get("path"),
             "prompt_sha256": prompt.get("sha256"),
             "result_schema_path": schema.get("path"),
@@ -2244,9 +2315,15 @@ def finalize_existing_heldout_run(
 def _arguments(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
-            "Freeze or run the P4.2a v1.1 held-out candidate prediction contract. "
+            "Freeze or run one explicit P4.2a held-out evaluation design. "
             "The production database is always SQLite mode=ro + query_only."
         )
+    )
+    parser.add_argument(
+        "--evaluation-design",
+        type=Path,
+        default=DEFAULT_EVALUATION_DESIGN_PATH,
+        help="byte-frozen evaluation design; defaults to the legacy v1.1 design",
     )
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument(
@@ -2294,6 +2371,10 @@ def _arguments(argv: Sequence[str] | None = None) -> argparse.Namespace:
 def main(argv: Sequence[str] | None = None) -> int:
     arguments = _arguments(argv)
     try:
+        active_design = load_event_evaluation_design(
+            cast(Path, arguments.evaluation_design),
+            project_root=PROJECT_ROOT,
+        )
         dev_artifact_arguments = (
             arguments.dev_final_predictions,
             arguments.dev_final_predictions_manifest,
@@ -2321,6 +2402,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 cast(Path, arguments.active_contract),
                 cast(Path, arguments.dev_final_predictions),
                 cast(Path, arguments.dev_final_predictions_manifest),
+                design=active_design,
             )
             payload: JsonObject = {
                 "mode": "freeze_contract",
@@ -2331,6 +2413,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         elif arguments.run_dev_final:
             dev_result = run_dev_final_predictions(
                 cast(Path, arguments.active_contract),
+                design=active_design,
             )
             payload = {
                 "mode": "dev_final_predictions",
@@ -2344,7 +2427,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 "manifest_path": dev_result.manifest_path.relative_to(PROJECT_ROOT).as_posix(),
             }
         elif arguments.finalize_existing:
-            finalized = finalize_existing_heldout_run()
+            finalized = finalize_existing_heldout_run(design=active_design)
             payload = {
                 "mode": "finalize_existing",
                 "status": "ok",
@@ -2354,7 +2437,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 "model_calls": 0,
             }
         else:
-            heldout_result = run_heldout_predictions()
+            heldout_result = run_heldout_predictions(design=active_design)
             payload = {
                 "mode": "heldout_candidate_predictions",
                 "status": "ok",

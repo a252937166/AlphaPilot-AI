@@ -33,6 +33,7 @@ from alphapilot.llm.p4_news_event import (
     build_event_extract_user_input,
     event_extract_input_sha256,
     load_event_extract_contract,
+    validate_event_extract_contract_controls,
     validate_event_result,
 )
 
@@ -1819,6 +1820,14 @@ def load_prediction_contract_freeze_receipt(
         or receipt.get("taxonomy_version") != freeze.get("required_taxonomy_version")
     ):
         raise GoldSampleError("prediction freeze receipt contract values drifted")
+    if "required_endpoint" in freeze and (
+        receipt.get("endpoint") != freeze.get("required_endpoint")
+        or receipt.get("explicit_cache_enabled")
+        is not freeze.get("required_explicit_cache_enabled")
+    ):
+        raise GoldSampleError(
+            "prediction freeze receipt endpoint/cache values drifted"
+        )
     for path_field, sha_field in (
         ("contract_path", "contract_sha256"),
         ("prompt_path", "prompt_sha256"),
@@ -1918,7 +1927,7 @@ def load_active_prediction_contract(
         label="base annotation contract.taxonomy",
     )
     input_contract = _mapping(document.get("input"), label="active prediction contract.input")
-    if (
+    common_binding_drifted = (
         llm.get("purpose") != "p4_news_event_extract"
         or llm.get("model") != receipt.get("model")
         or llm.get("enable_thinking") is not False
@@ -1928,9 +1937,32 @@ def load_active_prediction_contract(
         or prompt_binding.get("sha256") != receipt.get("prompt_sha256")
         or schema_binding.get("path") != receipt.get("result_schema_path")
         or schema_binding.get("sha256") != receipt.get("result_schema_sha256")
-        or dict(llm) != dict(base_llm)
         or dict(input_contract) != dict(base_input)
         or dict(taxonomy) != dict(base_taxonomy)
+    )
+    if common_binding_drifted:
+        raise GoldSampleError(
+            "active prediction contract changed more than the versioned prompt binding"
+        )
+    if design.document.get("schema_version") == "p4.2a-evaluation-design-v1.2":
+        registered_design = load_event_evaluation_design(
+            design.path,
+            project_root=PROJECT_DIR,
+        )
+        registered_contract = registered_design.prediction_contract
+        if (
+            contract_path != registered_contract.path
+            or receipt.get("contract_sha256") != registered_contract.sha256
+            or document != registered_contract.document
+            or receipt.get("endpoint") != registered_contract.endpoint
+            or receipt.get("explicit_cache_enabled")
+            is not registered_contract.explicit_cache_enabled
+        ):
+            raise GoldSampleError(
+                "active prediction contract differs from the v1.2 design"
+            )
+    elif (
+        dict(llm) != dict(base_llm)
         or not prediction_contract_changes_are_prompt_only(
             design.base_contract.document,
             document,
@@ -2007,27 +2039,30 @@ def load_active_prediction_contract(
     except Exception as exc:
         raise GoldSampleError("active prediction result schema is invalid") from exc
 
-    max_tokens = llm.get("max_output_tokens")
-    max_retries = llm.get("max_retries")
-    max_items = llm.get("max_items_per_run")
-    timeout = llm.get("total_deadline_seconds")
-    max_input = input_contract.get("max_llm_input_characters")
+    try:
+        (
+            purpose,
+            contract_model,
+            endpoint,
+            timeout,
+            max_tokens,
+            max_retries,
+            max_items,
+            max_input,
+            explicit_cache_enabled,
+        ) = validate_event_extract_contract_controls(document)
+    except ValueError as exc:
+        raise GoldSampleError("active prediction contract controls drifted") from exc
     if (
-        isinstance(max_tokens, bool)
-        or not isinstance(max_tokens, int)
-        or max_tokens <= 0
-        or isinstance(max_retries, bool)
-        or not isinstance(max_retries, int)
-        or max_retries != 0
-        or isinstance(max_items, bool)
-        or not isinstance(max_items, int)
-        or max_items <= 0
-        or isinstance(timeout, bool)
-        or not isinstance(timeout, (int, float))
-        or timeout <= 0
-        or isinstance(max_input, bool)
-        or not isinstance(max_input, int)
-        or max_input <= 0
+        contract_model != receipt.get("model")
+        or (
+            "endpoint" in receipt
+            and endpoint != receipt.get("endpoint")
+        )
+        or (
+            "explicit_cache_enabled" in receipt
+            and explicit_cache_enabled != receipt.get("explicit_cache_enabled")
+        )
     ):
         raise GoldSampleError("active prediction contract budgets drifted")
     active_contract = EventExtractContract(
@@ -2036,13 +2071,15 @@ def load_active_prediction_contract(
         document=document,
         prompt=prompt,
         schema=schema,
-        model=str(receipt["model"]),
-        purpose=str(llm["purpose"]),
-        timeout=float(timeout),
+        model=contract_model,
+        endpoint=endpoint,
+        purpose=purpose,
+        timeout=timeout,
         max_tokens=max_tokens,
         max_retries=max_retries,
         max_items_per_run=max_items,
         max_input_characters=max_input,
+        explicit_cache_enabled=explicit_cache_enabled,
     )
     validate_dev_final_prediction_freeze(
         design,
@@ -3115,7 +3152,6 @@ def _normalized_completed_records(records: Sequence[JsonObject]) -> list[JsonObj
     normalized = copy.deepcopy(list(records))
     for record in normalized:
         record["annotation_status"] = "completed"
-        record["annotation_owner"] = "owner"
     return normalized
 
 
@@ -3165,7 +3201,7 @@ def combine_owner_annotations(
 
     root = project_root.resolve()
     design = load_evaluation_design(design_path)
-    dev_owner_records, _dev_export_sha256 = _load_jsonl_with_sha256(
+    dev_owner_records, dev_export_sha256 = _load_jsonl_with_sha256(
         dev_owner_export.resolve(),
         label="dev60 owner export",
     )
@@ -3173,6 +3209,17 @@ def combine_owner_annotations(
         heldout_owner_export.resolve(),
         label="heldout40 owner export",
     )
+    dev_annotation_artifact = _mapping(
+        _mapping(design.document.get("artifacts"), label="artifacts").get(
+            "dev_60_owner_annotations_jsonl"
+        ),
+        label="artifacts.dev_60_owner_annotations_jsonl",
+    )
+    frozen_dev_sha256 = dev_annotation_artifact.get("sha256")
+    if frozen_dev_sha256 is not None and dev_export_sha256 != frozen_dev_sha256:
+        raise GoldSampleError(
+            "dev60 AI-drafted annotation bytes differ from the frozen design"
+        )
     try:
         validate_owner_annotations(
             dev_owner_records,
@@ -3180,6 +3227,7 @@ def combine_owner_annotations(
             expected_count=60,
             expected_start_index=1,
             expected_sample_group="inventory_60",
+            design=design,
         )
         validate_owner_annotations(
             heldout_owner_records,
@@ -3187,6 +3235,7 @@ def combine_owner_annotations(
             expected_count=40,
             expected_start_index=1,
             expected_sample_group="heldout40",
+            design=design,
         )
     except GoldEvaluationError as exc:
         raise GoldSampleError(f"owner completion validation failed: {exc}") from exc
@@ -3268,6 +3317,7 @@ def combine_owner_annotations(
             design.base_contract,
             expected_count=100,
             expected_start_index=1,
+            design=design,
         )
     except GoldEvaluationError as exc:
         raise GoldSampleError(f"combined owner validation failed: {exc}") from exc
@@ -3352,6 +3402,27 @@ def combine_owner_annotations(
         "blindness_validation_passed": True,
         "completed_at_utc": _iso_utc(completed_at),
     }
+    if "heldout_annotation_provenance" in design.document:
+        heldout_drafter_ids = sorted(
+            {
+                str(record["drafter_id"]).strip()
+                for record in normalized_heldout
+            }
+        )
+        heldout_adjudicator_ids = sorted(
+            {
+                str(record["adjudicator_id"]).strip()
+                for record in normalized_heldout
+            }
+        )
+        manifest.update(
+            {
+                "heldout_annotation_type": "ai_drafted_human_adjudicated",
+                "heldout_drafter_ids": heldout_drafter_ids,
+                "heldout_adjudicator_ids": heldout_adjudicator_ids,
+                "heldout_human_adjudication_validated": True,
+            }
+        )
     required_manifest_fields = completion.get("required_manifest_fields")
     if (
         not isinstance(required_manifest_fields, list)

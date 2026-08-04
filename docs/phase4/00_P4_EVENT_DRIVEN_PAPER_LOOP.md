@@ -335,6 +335,42 @@ owner 确认该时段为**人为断网、周期性复发**，非代码或上游�
   exact-set 模型间一致率 ≥0.95；receipt 每次验真时对其绑定的 dev-final 重新计算，不能仅凭
   manifest 技术成功绕过开发门。
 
+#### P4.2a v1.3 大陆站模型迁移预注册（2026-08-04，尚未产生 v1.3 输出）
+
+- Owner 新裁定明确取代上一段“恢复同一 `qwen3.6-flash` 后再继续”的临时阻断处置：
+  阿里云大陆站为独立账号，使用
+  `https://dashscope.aliyuncs.com/compatible-mode/v1` 与 `qwen3.6-plus`。这不是在旧额度
+  错误上静默换模型，而是新的版本化评测条件；旧 v1.1 失败证据继续原样保留。
+- 新合同 `config/p4_event_extract_eval_v1_3.yaml` SHA-256
+  `1e465f600039a587c26e9686e82a229baf948f8db748b68a5731b23af08fefd6`。它继续绑定 v1.2
+  prompt 原文件与 SHA
+  `5080bdb2b373f6360527c79465da8645884fd33308c9e3d061120b0a1298fe05`，没有复制或伪装
+  成 v1.3 prompt；taxonomy、JSON Schema、temperature `0.2`、max tokens `2000`、
+  total deadline `20s`、零重试与 `enable_thinking=false` 均不变。
+- 合同加载与运行时守卫改为从**冻结合同**取得期望 model/endpoint，再与 `.env` 的
+  purpose-resolved model 和规范化 base URL 精确对拍；purpose override 残留 flash、国际站
+  endpoint、非 HTTPS/带 query 或凭证的 endpoint 均 fail-closed。守卫本身没有移除。
+- 新 evaluation design `config/p4_event_evaluation_v1_2.yaml` SHA-256
+  `1f4e5f6f65a609842c0074735174a23de582c2aff1053b42716eb7ed8434b780` 以旧 v1.1 设计
+  SHA 为继承锚，保持 dev60 身份、held-out 窗口、选择 seed、阈值和 one-shot 纪律不变；
+  只绑定 v1.3 prediction contract，并为 dev-final、freeze receipt、held-out 与最终报告使用
+  独立的 v1.2 create-only 路径。旧 design 默认入口保持不变，新流程必须显式传入 v1.2。
+- held-out 标注 provenance 同时预注册为
+  `ai_drafted_human_adjudicated`：每条必须同时保留非空且不同的 `drafter_id` 与
+  `adjudicator_id`，`annotation_owner` 必须等于人工裁定者；纯 AI 标注 fail-closed。dev60
+  的 AI 标签仍只用于 `model_interagreement`，不得称 precision 或人工金标准。
+- 显式缓存在 v1.3 固定为 `enabled=false / cache_control=null`。阿里云官方文档说明批量抽取
+  可在 system message 上用 `cache_control`，但这会改变请求结构；本轮为保持预注册与可比性
+  不启用。若以后评估成本优化，必须另发合同并在任何输出前冻结缓存标记、作用域和审计字段。
+- 正式 v1.3 dev60 轮次尚未运行。有效轮必须 60/60 成功且失败为 0，再报告 materiality 与
+  symbol 模型间一致率，并与 flash 基线 `7/14=0.50`、`58/59≈0.98` 作**指示性对照**。
+  因 model、endpoint 与 prompt version 同时变化，不得把改善写成模型能力的单变量因果证明。
+  达到 `0.80 / 0.95` 开发门后才允许创建 dev-final 与冻结 receipt；held-out 仍锁到
+  2026-08-06 00:10 CST，复核方 4 条探测不进入正式分母。
+- P4.1 冻结配置继续保持 SHA-256
+  `d0dcd665472b50092a1b4fa7f65f7115778e1b89ac11aca0ed49dc70beaa790b`；本批不改观察窗
+  配置、scheduler、服务或生产表，不创建提案、委托或交易。
+
 ### P4.2a v1 评测合同预注册（2026-08-03，首次真实 LLM 试跑前）
 
 - Owner 解锁基线：`4c79373`。冻结配置 `config/p4_event_extract_eval_v1.yaml`，SHA-256
