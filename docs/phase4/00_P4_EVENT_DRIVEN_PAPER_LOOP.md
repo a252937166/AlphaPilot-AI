@@ -604,6 +604,14 @@ Codex 如实将 7 条 `post_validation_failed` 登记为"待验证假设"而未�
   v1.5 四件套锚和全局 held-out seal 全部预注册并通过质量门后才可执行。只有 `60/60`
   零失败且双指标达门才允许另行创建 dev-final 与冻结回执；held-out 至少到
   `2026-08-06 00:10 CST` 后仍须 `ai_drafted_human_adjudicated`，本节不解锁、不读取。
+- 配套评测设计 `config/p4_event_evaluation_v1_5.yaml` SHA
+  `6a8193828df380a94b36fd7b0bc995930e64909339cd009c834d3487d3ae3c05`：
+  逐字节继承 v1.4 的样本、时间窗、seed、阈值、标注与 provenance；绑定 v1.5-r1
+  predictions / manifest / report / blocker 四件套及 `50/60`、10 个失败 ID、
+  gold∩失败 `[272,304,306,336]`；为 dev-final、freeze receipt、held-out 和最终报告
+  启用全新的 v1.5 create-only namespace。报告必须同时保留 v1.4/v1.5 历史层，并新增
+  双输入哈希、候选 schema、物化 schema 与候选切片证据；全局 seal 同时覆盖 v1.1–v1.5
+  的所有 held-out 命名空间。
 
 ### P4.2a v1 评测合同预注册（2026-08-03，首次真实 LLM 试跑前）
 

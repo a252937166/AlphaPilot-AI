@@ -60,6 +60,7 @@ from alphapilot.llm.p4_news_eval import (
     EVALUATION_DESIGN_V1_2_PATH,
     EVALUATION_DESIGN_V1_3_PATH,
     EVALUATION_DESIGN_V1_4_PATH,
+    EVALUATION_DESIGN_V1_5_PATH,
     LEGACY_EVALUATION_DESIGN_PATH,
     EventEvaluationDesign,
     EventEvaluationDesignError,
@@ -1335,7 +1336,11 @@ def _ensure_dev_final_precedes_heldout(
         EVALUATION_DESIGN_V1_2_PATH,
         EVALUATION_DESIGN_V1_3_PATH,
         EVALUATION_DESIGN_V1_4_PATH,
+        EVALUATION_DESIGN_V1_5_PATH,
     ):
+        # Load the immutable registry from the canonical project so a sparse
+        # fixture cannot silently remove an older namespace. Artifact
+        # existence is still checked below under the caller's project_root.
         historical = load_event_evaluation_design(
             design_path,
             project_root=PROJECT_ROOT,
