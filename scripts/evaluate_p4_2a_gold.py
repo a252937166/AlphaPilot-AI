@@ -452,8 +452,22 @@ def _prediction_payload(
         )
     if row.get("model") != expected_model:
         raise GoldEvaluationError(f"prediction news item {news_item_id} model differs")
-    if row.get("input_sha256") != annotation.get("input_sha256"):
-        raise GoldEvaluationError(f"prediction news item {news_item_id} input hash differs")
+    if active_contract.evidence_candidate_selection:
+        active_input_sha256 = row.get("input_sha256")
+        declared_input_sha256 = row.get("declared_input_sha256")
+        if (
+            not isinstance(active_input_sha256, str)
+            or SHA256_PATTERN.fullmatch(active_input_sha256) is None
+            or declared_input_sha256 != annotation.get("input_sha256")
+            or active_input_sha256 == declared_input_sha256
+        ):
+            raise GoldEvaluationError(
+                f"prediction news item {news_item_id} dual input hash differs"
+            )
+    elif row.get("input_sha256") != annotation.get("input_sha256"):
+        raise GoldEvaluationError(
+            f"prediction news item {news_item_id} input hash differs"
+        )
     if row.get("text_sha256") != annotation.get("text_sha256"):
         raise GoldEvaluationError(f"prediction news item {news_item_id} text hash differs")
 
@@ -859,9 +873,55 @@ def evaluate_split_records(
         "owner_delivery_blind": True,
         "heldout_one_shot": True,
     }
-    return {
-        "splits": split_results,
-        "metrics": {
+    human_provenance = "heldout_annotation_provenance" in design.document
+    if human_provenance:
+        metrics: JsonObject = {
+            "annotation_semantics": {
+                "dev60": {
+                    "annotation_type": "ai_drafted_dev_signal",
+                    "metric_semantics": "model_interagreement",
+                    "human_ground_truth": False,
+                },
+                "heldout40": {
+                    "annotation_type": "ai_drafted_human_adjudicated",
+                    "metric_semantics": "human_adjudicated_gold",
+                    "human_ground_truth": True,
+                },
+                "all100": {
+                    "annotation_type": "mixed_ai_dev_and_human_heldout",
+                    "metric_semantics": "mixed_reference_diagnostic",
+                    "human_ground_truth": False,
+                },
+            },
+            "materiality_model_interagreement": {
+                "dev60": split_results["dev60"]["materiality_precision"],
+            },
+            "materiality_precision": {
+                "heldout40": split_results["heldout40"]["materiality_precision"],
+            },
+            "materiality_mixed_reference_diagnostic": {
+                "all100": split_results["all100"]["materiality_precision"],
+            },
+            "materiality_model_interagreement_recall": {
+                "dev60": split_results["dev60"]["materiality_recall"],
+            },
+            "materiality_recall": {
+                "heldout40": split_results["heldout40"]["materiality_recall"],
+            },
+            "materiality_mixed_reference_recall_diagnostic": {
+                "all100": split_results["all100"]["materiality_recall"],
+            },
+            "symbol_exact_set": {
+                name: result["symbol_exact_set"]
+                for name, result in split_results.items()
+            },
+            "symbol_bearing_exact_set": {
+                name: result["symbol_bearing_exact_set"]
+                for name, result in split_results.items()
+            },
+        }
+    else:
+        metrics = {
             "materiality_precision": {
                 name: result["materiality_precision"]
                 for name, result in split_results.items()
@@ -871,13 +931,17 @@ def evaluate_split_records(
                 for name, result in split_results.items()
             },
             "symbol_exact_set": {
-                name: result["symbol_exact_set"] for name, result in split_results.items()
+                name: result["symbol_exact_set"]
+                for name, result in split_results.items()
             },
             "symbol_bearing_exact_set": {
                 name: result["symbol_bearing_exact_set"]
                 for name, result in split_results.items()
             },
-        },
+        }
+    return {
+        "splits": split_results,
+        "metrics": metrics,
         "gates": gates,
         "passed": all(bool(value) for value in gates.values()),
     }
@@ -1119,14 +1183,23 @@ def _validate_selection_manifest(
         if not isinstance(news_item_id, int) or news_item_id not in annotations:
             raise GoldEvaluationError("heldout selection manifest contains unknown ID")
         record = _mapping(annotations[news_item_id]["record"], label="heldout annotation")
+        selection_input_sha256 = item.get("input_sha256")
+        declared_input_matches = (
+            item.get("declared_input_sha256") == record.get("input_sha256")
+            and selection_input_sha256 != item.get("declared_input_sha256")
+            if active_contract.evidence_candidate_selection
+            else selection_input_sha256 == record.get("input_sha256")
+        )
         if (
-            item.get("input_sha256") != record.get("input_sha256")
+            not isinstance(selection_input_sha256, str)
+            or SHA256_PATTERN.fullmatch(selection_input_sha256) is None
+            or not declared_input_matches
             or item.get("text_sha256") != record.get("text_sha256")
             or item.get("selection_rank_sha256")
             != gold_builder.heldout_prediction_rank(
                 seed=seed,
                 news_item_id=news_item_id,
-                input_sha256=str(record["input_sha256"]),
+                input_sha256=selection_input_sha256,
             )
         ):
             raise GoldEvaluationError(
@@ -1451,6 +1524,156 @@ def validate_owner_completion_manifest(
     }
 
 
+def validate_heldout_adjudication_evidence(
+    design: gold_builder.FrozenEvaluationDesign,
+    *,
+    adjudicated_path: Path,
+    ai_draft_path: Path,
+    project_root: Path = PROJECT_DIR,
+) -> JsonObject:
+    """Revalidate the UI audit export and bind it to canonical heldout gold."""
+
+    if "heldout_annotation_provenance" not in design.document:
+        raise GoldEvaluationError(
+            "heldout adjudication evidence requires a human-provenance design"
+        )
+    root = project_root.resolve()
+    artifact_root_value = design.document.get("artifact_root")
+    if not isinstance(artifact_root_value, str) or not artifact_root_value:
+        raise GoldEvaluationError("artifact_root must be a non-empty path")
+    artifact_root_relative = Path(artifact_root_value)
+    if artifact_root_relative.is_absolute() or ".." in artifact_root_relative.parts:
+        raise GoldEvaluationError("artifact_root escapes project root")
+    artifact_root = (root / artifact_root_relative).resolve()
+    if not artifact_root.is_relative_to(root):
+        raise GoldEvaluationError("artifact_root escapes project root")
+
+    adjudicated_resolved = adjudicated_path.resolve()
+    ai_draft_resolved = ai_draft_path.resolve()
+    for label, path in (
+        ("heldout adjudication export", adjudicated_resolved),
+        ("heldout AI draft", ai_draft_resolved),
+    ):
+        if not path.is_relative_to(artifact_root):
+            raise GoldEvaluationError(f"{label} must stay under docs/phase4/eval")
+    if adjudicated_resolved == ai_draft_resolved:
+        raise GoldEvaluationError("heldout adjudication export and AI draft must differ")
+
+    blind_path = gold_builder.evaluation_artifact_path(
+        design,
+        "heldout_40_blind_sample_jsonl",
+        project_root=root,
+    )
+    canonical_path = gold_builder.evaluation_artifact_path(
+        design,
+        "heldout_40_owner_annotations_jsonl",
+        project_root=root,
+    )
+    blind_records, blind_sha256 = _read_jsonl(
+        blind_path,
+        label="frozen heldout40 blind sample",
+    )
+    ai_draft_records, ai_draft_sha256 = _read_jsonl(
+        ai_draft_resolved,
+        label="heldout40 explicit AI draft",
+    )
+    adjudicated_records, adjudicated_sha256 = _read_jsonl(
+        adjudicated_resolved,
+        label="heldout40 adjudication export",
+    )
+    canonical_records, canonical_sha256 = _read_jsonl(
+        canonical_path,
+        label="canonical heldout40 owner annotations",
+    )
+    try:
+        reconstructed = gold_builder._normalize_heldout_adjudication_export(
+            blind_records=blind_records,
+            draft_records=ai_draft_records,
+            adjudicated_records=adjudicated_records,
+            design=design,
+        )
+    except gold_builder.GoldSampleError as exc:
+        raise GoldEvaluationError(
+            f"heldout adjudication evidence validation failed: {exc}"
+        ) from exc
+    if reconstructed != canonical_records:
+        raise GoldEvaluationError(
+            "heldout adjudication evidence does not reconstruct canonical gold"
+        )
+
+    changed_count = 0
+    changed_fields: dict[str, int] = {}
+    adjudicated_times: list[datetime] = []
+    identities: list[JsonObject] = []
+    for record in adjudicated_records:
+        news_item_id = record.get("news_item_id")
+        audit = _mapping(
+            record.get("adjudication"),
+            label=f"heldout adjudication news item {news_item_id}",
+        )
+        changed = audit.get("adjudicated_changed")
+        fields = audit.get("changed_fields")
+        if not isinstance(changed, bool) or not isinstance(fields, list) or any(
+            not isinstance(field, str) for field in fields
+        ):
+            raise GoldEvaluationError(
+                f"heldout adjudication news item {news_item_id} audit summary is invalid"
+            )
+        if changed:
+            changed_count += 1
+        for field in fields:
+            changed_fields[field] = changed_fields.get(field, 0) + 1
+        adjudicated_at = _aware_iso_datetime(
+            audit.get("adjudicated_at"),
+            label=f"heldout adjudication news item {news_item_id} adjudicated_at",
+        )
+        adjudicated_times.append(adjudicated_at)
+        identities.append(
+            {
+                "news_item_id": news_item_id,
+                "draft_annotator": audit.get("draft_annotator"),
+                "adjudicator": audit.get("adjudicator"),
+                "adjudicated_changed": changed,
+                "changed_fields": fields,
+                "adjudicated_at_utc": adjudicated_at.isoformat().replace(
+                    "+00:00",
+                    "Z",
+                ),
+            }
+        )
+    identity_sha256 = _sha256_bytes(
+        json.dumps(
+            identities,
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode("utf-8")
+    )
+    return {
+        "annotation_type": "ai_drafted_human_adjudicated",
+        "adjudication_export_path": str(adjudicated_resolved.relative_to(root)),
+        "adjudication_export_sha256": adjudicated_sha256,
+        "ai_draft_path": str(ai_draft_resolved.relative_to(root)),
+        "ai_draft_sha256": ai_draft_sha256,
+        "blind_sample_sha256": blind_sha256,
+        "canonical_heldout_annotations_sha256": canonical_sha256,
+        "row_count": len(adjudicated_records),
+        "confirmed_unchanged_count": len(adjudicated_records) - changed_count,
+        "changed_count": changed_count,
+        "changed_fields": dict(sorted(changed_fields.items())),
+        "adjudication_identity_sha256": identity_sha256,
+        "first_adjudicated_at_utc": min(adjudicated_times)
+        .isoformat()
+        .replace("+00:00", "Z"),
+        "last_adjudicated_at_utc": max(adjudicated_times)
+        .isoformat()
+        .replace("+00:00", "Z"),
+        "canonical_reconstruction_passed": True,
+        "blindness_validation_passed": True,
+        "human_adjudication_validated": True,
+    }
+
+
 def validate_required_report_fields(
     report: Mapping[str, object],
     design: gold_builder.FrozenEvaluationDesign,
@@ -1459,12 +1682,35 @@ def validate_required_report_fields(
     required = evaluation.get("required_report_fields")
     if not isinstance(required, list) or any(not isinstance(item, str) for item in required):
         raise GoldEvaluationError("required report field contract is invalid")
+    semantic_replacements = (
+        {
+            "metrics.materiality_precision.dev60": (
+                "metrics.materiality_model_interagreement.dev60"
+            ),
+            "metrics.materiality_recall.dev60": (
+                "metrics.materiality_model_interagreement_recall.dev60"
+            ),
+        }
+        if "heldout_annotation_provenance" in design.document
+        else {}
+    )
     missing: list[str] = []
     for dotted_path in required:
+        effective_path = dotted_path
+        for inherited_prefix, replacement_prefix in semantic_replacements.items():
+            if dotted_path == inherited_prefix or dotted_path.startswith(
+                f"{inherited_prefix}."
+            ):
+                effective_path = dotted_path.replace(
+                    inherited_prefix,
+                    replacement_prefix,
+                    1,
+                )
+                break
         value: object = report
-        for component in dotted_path.split("."):
+        for component in effective_path.split("."):
             if not isinstance(value, Mapping) or component not in value:
-                missing.append(dotted_path)
+                missing.append(effective_path)
                 break
             value = value[component]
     if missing:
@@ -1485,8 +1731,20 @@ def _v1_3_report_extensions(
     if design_version not in {
         "p4.2a-evaluation-design-v1.3",
         "p4.2a-evaluation-design-v1.4",
+        "p4.2a-evaluation-design-v1.5",
+        "p4.2a-evaluation-design-v1.6",
     }:
         return {}
+    if design_version in {
+        "p4.2a-evaluation-design-v1.5",
+        "p4.2a-evaluation-design-v1.6",
+    }:
+        return _v1_5_candidate_report_extensions(
+            design=design,
+            active_contract=active_contract,
+            dev_annotations=dev_annotations,
+            dev_prediction_records=dev_prediction_records,
+        )
     is_v1_4_design = design_version == "p4.2a-evaluation-design-v1.4"
     if (
         active_contract.evidence_span_match_mode
@@ -1729,16 +1987,172 @@ def _v1_3_report_extensions(
     }
 
 
+def _v1_5_candidate_report_extensions(
+    *,
+    design: gold_builder.FrozenEvaluationDesign,
+    active_contract: EventExtractContract,
+    dev_annotations: Mapping[int, JsonObject],
+    dev_prediction_records: Sequence[JsonObject],
+) -> JsonObject:
+    """Recompute the registered candidate-selector evidence for v1.5/v1.6."""
+
+    from scripts import run_p4_2a_dev_iteration as dev_iteration
+    from scripts.run_p4_2a_offline_extract import (
+        ExtractionSummary,
+        _validation_failure_counts,
+    )
+
+    if not active_contract.evidence_candidate_selection:
+        raise GoldEvaluationError(
+            "candidate-selector heldout evaluation requires the frozen selector"
+        )
+    try:
+        full_design = dev_iteration.load_event_evaluation_design(
+            design.path,
+            project_root=PROJECT_DIR,
+        )
+    except (EventEvaluationDesignError, OSError) as exc:
+        raise GoldEvaluationError(
+            "heldout evaluation design could not be reloaded"
+        ) from exc
+    if full_design.sha256 != design.sha256:
+        raise GoldEvaluationError("heldout evaluation design hash drifted")
+
+    labels: dict[int, JsonObject] = {}
+    for news_item_id, annotation in dev_annotations.items():
+        record = _mapping(
+            annotation.get("record"),
+            label=f"dev60 annotation record {news_item_id}",
+        )
+        gold = _mapping(
+            annotation.get("gold"),
+            label=f"dev60 annotation gold {news_item_id}",
+        )
+        labels[news_item_id] = {**record, "gold": gold}
+    if len(labels) != 60 or len(dev_prediction_records) != 60:
+        raise GoldEvaluationError(
+            "dev-final evidence must cover exactly 60 rows"
+        )
+
+    success_count = sum(
+        row.get("status") == "ok" for row in dev_prediction_records
+    )
+    failure_rows = [
+        row for row in dev_prediction_records if row.get("status") != "ok"
+    ]
+    failures_by_reason: dict[str, int] = {}
+    for row in failure_rows:
+        reason = row.get("error")
+        safe_reason = reason if isinstance(reason, str) else "unknown_failure"
+        failures_by_reason[safe_reason] = failures_by_reason.get(safe_reason, 0) + 1
+    summary = ExtractionSummary(
+        expected_count=len(dev_prediction_records),
+        success_count=success_count,
+        failure_count=len(failure_rows),
+        newly_attempted_count=0,
+        retried_failure_count=0,
+        skipped_exact_success_count=success_count,
+        skipped_failure_count=len(failure_rows),
+        output_line_count=len(dev_prediction_records),
+        failures_by_reason=failures_by_reason,
+        failures_by_validation_field_and_constraint=_validation_failure_counts(
+            dev_prediction_records
+        ),
+        isolated_audit_tables=(),
+        isolated_audit_row_count=0,
+        checkpoint_audited_success_count=success_count,
+    )
+    metrics = dev_iteration._score_predictions(dev_prediction_records, labels)
+    evidence_validation = dev_iteration._evidence_validation(
+        design=full_design,
+        active_contract=active_contract,
+        summary=summary,
+        prediction_rows=dev_prediction_records,
+        labels=labels,
+    )
+    symbol_diagnostics = dev_iteration._symbol_diagnostics(
+        design=full_design,
+        metrics=metrics,
+        prediction_rows=dev_prediction_records,
+        labels=labels,
+    )
+    input_identity = dev_iteration._candidate_input_identity(dev_prediction_records)
+
+    registration = _mapping(
+        design.document.get("active_prediction_contract"),
+        label="active prediction contract registration",
+    )
+    contract_files = _mapping(
+        active_contract.document.get("contract_files"),
+        label="active prediction contract files",
+    )
+    prompt = _mapping(contract_files.get("prompt"), label="active prediction prompt")
+    model_schema = _mapping(
+        contract_files.get("schema"),
+        label="active model result schema",
+    )
+    materialized_schema = _mapping(
+        contract_files.get("materialized_schema"),
+        label="active materialized result schema",
+    )
+    comparison = dev_iteration._comparison_evidence(
+        metrics,
+        candidate_model=active_contract.model,
+        candidate_endpoint=active_contract.endpoint,
+        candidate_prompt_sha256=prompt.get("sha256"),
+        candidate_contract_schema_version=active_contract.document.get(
+            "schema_version"
+        ),
+        candidate_evidence_span_match_mode=active_contract.evidence_span_match_mode,
+        candidate_selection=True,
+    )
+    changed_dimensions = comparison.get("changed_dimensions")
+    if not isinstance(changed_dimensions, list) or any(
+        not isinstance(item, str) for item in changed_dimensions
+    ):
+        raise GoldEvaluationError("comparison changed dimensions are invalid")
+    return {
+        "_prediction_contract_append": {
+            "input_representation": copy.deepcopy(
+                _mapping(
+                    registration.get("input_representation"),
+                    label="registered input representation",
+                )
+            ),
+            "model_result_schema": model_schema,
+            "materialized_result_schema": materialized_schema,
+            "candidate_materialization": copy.deepcopy(
+                _mapping(
+                    registration.get("candidate_materialization"),
+                    label="registered candidate materialization",
+                )
+            ),
+        },
+        "input_identity": input_identity,
+        "evidence_validation": evidence_validation,
+        "symbol_diagnostics": symbol_diagnostics,
+        "comparison_disclosure": {
+            "changed_dimensions": changed_dimensions,
+            "causal_reading_forbidden": True,
+            "interpretation": "indicative_only_not_single_variable_causality",
+        },
+    }
+
+
 def evaluate_gold_sample_v1_1(
     annotation_path: Path,
     output_path: Path,
     design_path: Path = gold_builder.DEFAULT_EVALUATION_DESIGN,
     *,
+    heldout_adjudicated_path: Path | None = None,
+    heldout_ai_draft_path: Path | None = None,
     now: datetime | None = None,
 ) -> JsonObject:
     """Run the single pre-registered heldout evaluation and consume its one-shot."""
 
     design = gold_builder.load_evaluation_design(design_path)
+    current_time = now or datetime.now(UTC)
+    gold_builder.require_heldout_ready(design, current_time)
     artifact_root = _project_path(design.document.get("artifact_root"), label="artifact_root")
     annotation_resolved = annotation_path.resolve()
     if not annotation_resolved.is_relative_to(artifact_root):
@@ -1781,6 +2195,22 @@ def evaluate_gold_sample_v1_1(
             annotation_records=annotation_records,
             annotation_sha256=annotation_sha256,
         )
+        adjudication_evidence: JsonObject | None = None
+        if "heldout_annotation_provenance" in design.document:
+            if heldout_adjudicated_path is None or heldout_ai_draft_path is None:
+                raise GoldEvaluationError(
+                    "human-provenance heldout evaluation requires both "
+                    "--heldout-adjudicated-export and --heldout-ai-draft"
+                )
+            adjudication_evidence = validate_heldout_adjudication_evidence(
+                design,
+                adjudicated_path=heldout_adjudicated_path,
+                ai_draft_path=heldout_ai_draft_path,
+            )
+        elif heldout_adjudicated_path is not None or heldout_ai_draft_path is not None:
+            raise GoldEvaluationError(
+                "heldout adjudication inputs require a human-provenance design"
+            )
 
         active_contract, receipt, receipt_sha256 = (
             gold_builder.load_active_prediction_contract(design)
@@ -1927,6 +2357,10 @@ def evaluate_gold_sample_v1_1(
             predictions=predictions,
             result=result,
         )
+        prediction_contract_append = _mapping(
+            v1_3_extensions.pop("_prediction_contract_append", {}),
+            label="versioned prediction contract report fields",
+        )
         offline_diagnostics = _offline_trial_diagnostics(design, set(annotations))
         active_failure_ids = sorted(
             news_item_id
@@ -2019,6 +2453,11 @@ def evaluate_gold_sample_v1_1(
                 "annotation_path": str(annotation_resolved.relative_to(PROJECT_DIR)),
                 "annotation_sha256": annotation_sha256,
                 "forbidden_field_violation_count": 0,
+                **(
+                    {"heldout_adjudication": adjudication_evidence}
+                    if adjudication_evidence is not None
+                    else {}
+                ),
             },
             "owner_completion": owner_completion,
             "metrics": result["metrics"],
@@ -2043,6 +2482,12 @@ def evaluate_gold_sample_v1_1(
                 "create_only": True,
             },
         }
+        prediction_contract_report = _mapping(
+            report.get("prediction_contract"),
+            label="prediction contract report",
+        )
+        prediction_contract_report.update(prediction_contract_append)
+        report["prediction_contract"] = prediction_contract_report
         validate_required_report_fields(report, design)
         report_sha256 = _write_new_json(report_path, report)
         _append_evaluation_terminal(
@@ -2163,6 +2608,8 @@ def _arguments(argv: Sequence[str] | None = None) -> argparse.Namespace:
             "heldout-final-v1.2",
             "heldout-final-v1.3",
             "heldout-final-v1.4",
+            "heldout-final-v1.5",
+            "heldout-final-v1.6",
         ),
         default="heldout-final-v1.1",
         help=(
@@ -2178,6 +2625,24 @@ def _arguments(argv: Sequence[str] | None = None) -> argparse.Namespace:
     )
     parser.add_argument("--annotations", type=Path, default=None)
     parser.add_argument("--predictions", type=Path, default=None)
+    parser.add_argument(
+        "--heldout-adjudicated-export",
+        type=Path,
+        default=None,
+        help=(
+            "Create-only .adjudicated.jsonl exported by the human adjudication UI; "
+            "required by human-provenance heldout scopes."
+        ),
+    )
+    parser.add_argument(
+        "--heldout-ai-draft",
+        type=Path,
+        default=None,
+        help=(
+            "The exact blind AI draft used to prefill the adjudication UI; required "
+            "with --heldout-adjudicated-export."
+        ),
+    )
     parser.add_argument("--output", type=Path, required=True)
     return parser.parse_args(argv)
 
@@ -2190,6 +2655,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             "heldout-final-v1.2",
             "heldout-final-v1.3",
             "heldout-final-v1.4",
+            "heldout-final-v1.5",
+            "heldout-final-v1.6",
         }:
             design = gold_builder.load_evaluation_design(arguments.evaluation_design)
             expected_schema_version = {
@@ -2197,6 +2664,8 @@ def main(argv: Sequence[str] | None = None) -> int:
                 "heldout-final-v1.2": "p4.2a-evaluation-design-v1.2",
                 "heldout-final-v1.3": "p4.2a-evaluation-design-v1.3",
                 "heldout-final-v1.4": "p4.2a-evaluation-design-v1.4",
+                "heldout-final-v1.5": "p4.2a-evaluation-design-v1.5",
+                "heldout-final-v1.6": "p4.2a-evaluation-design-v1.6",
             }[arguments.scope]
             if design.document.get("schema_version") != expected_schema_version:
                 raise GoldEvaluationError(
@@ -2214,9 +2683,18 @@ def main(argv: Sequence[str] | None = None) -> int:
                 annotation_path,
                 arguments.output,
                 arguments.evaluation_design,
+                heldout_adjudicated_path=arguments.heldout_adjudicated_export,
+                heldout_ai_draft_path=arguments.heldout_ai_draft,
             )
             print(json.dumps(report, ensure_ascii=False, indent=2, sort_keys=True))
             return 0 if report["passed"] is True else 2
+        if (
+            arguments.heldout_adjudicated_export is not None
+            or arguments.heldout_ai_draft is not None
+        ):
+            raise GoldEvaluationError(
+                "heldout adjudication inputs are invalid for legacy-v1"
+            )
         contract = gold_builder.load_contract(arguments.config)
         gold_sample = _mapping(contract.document.get("gold_sample"), label="gold_sample")
         annotation_path = (

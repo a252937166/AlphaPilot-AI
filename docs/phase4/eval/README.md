@@ -9,7 +9,8 @@
   `config/p4_event_evaluation_v1_1.yaml`。v1.1 只加严评测设计，不改写 v1 taxonomy、
   JSON Schema、60 条冻结样本或验收阈值。
 - 生产数据库只能以 SQLite `mode=ro` + `PRAGMA query_only=ON` 打开。
-- LLM 固定为 `.env` 中为 purpose 解析出的 `qwen3.6-flash`；密钥、Authorization header、
+- held-out 生效模型由冻结 outcome 选择为 `qwen3.7-flash`；运行时仍须与 v1.7 合同、
+  v1.6 evaluation design 和 freeze receipt 逐哈希对拍。密钥、Authorization header、
   原始异常响应不得进入本目录。
 - 现库存全量试跑只覆盖冻结快照 `news_items id<=423`。
 - 60 条现库存是 dev 集，prompt 迭代只能看这一组；40 条测试集必须在
@@ -23,6 +24,8 @@
   标题伪装成正文，也不静默换样本。
 - 最终 prompt 必须先对 dev60 生成 create-only 最终预测与 manifest，再冻结 active contract
   回执；held-out 推理和评测分别只有一次 started 机会，失败后不得复用该测试集。
+- 候选全集大于单批 2,000 条时，只能在同一个 one-shot started 状态下按冻结 ID 顺序做
+  确定性连续分批；每条最多一次调用、零重试。任一中间批未闭合即整轮作废，不能续跑。
 
 ## Owner 标注规则
 
@@ -42,6 +45,36 @@ completion manifest。评测器会重算固定 ID、原文哈希、输入哈希�
 - `materiality>=2` precision 只在 heldout40 判门，阈值仍为 `>=0.80`；
 - symbol exact-set 在 all100 判门，阈值仍为 `>=0.95`，并分报 dev/test；
 - prompt 迭代只允许依据 dev60；heldout40 只评一次，不达标必须登记新设计并换测试集。
+
+heldout40 使用 AI 起草 + owner 人工裁定时，起草 AI 看到的必须仍是同一份盲文件，且其
+`gold.notes` 固定为 `null`。先生成裁定页：
+
+```bash
+PYTHONPATH=. .venv/bin/python scripts/build_p4_2a_adjudication_ui.py \
+  --evaluation-design config/p4_event_evaluation_v1_6.yaml \
+  --sample docs/phase4/eval/P4.2a-gold-heldout40-blind-sample-v1.6.jsonl \
+  --draft docs/phase4/eval/P4.2a-gold-heldout40-ai-draft-v1.6.jsonl \
+  --output docs/phase4/eval/P4.2a-gold-heldout40-adjudication-v1.6.html
+```
+
+owner 导出的 `.adjudicated.jsonl` 必须保存在 `docs/phase4/eval/`。`combine-owner` 同时接收
+它和原 AI draft；最终 evaluator 也必须显式接收二者，重新对拍逐条 audit 与 canonical gold：
+
+```bash
+PYTHONPATH=. .venv/bin/python scripts/build_p4_2a_gold_sample.py \
+  --mode combine-owner \
+  --evaluation-design config/p4_event_evaluation_v1_6.yaml \
+  --dev-owner-export docs/phase4/eval/P4.2a-gold-inventory60-v1.labels-ai-drafted.jsonl \
+  --heldout-owner-export docs/phase4/eval/P4.2a-gold-heldout40-blind-sample-v1.6.adjudicated.jsonl \
+  --heldout-ai-draft docs/phase4/eval/P4.2a-gold-heldout40-ai-draft-v1.6.jsonl
+
+PYTHONPATH=. .venv/bin/python scripts/evaluate_p4_2a_gold.py \
+  --scope heldout-final-v1.6 \
+  --evaluation-design config/p4_event_evaluation_v1_6.yaml \
+  --heldout-adjudicated-export docs/phase4/eval/P4.2a-gold-heldout40-blind-sample-v1.6.adjudicated.jsonl \
+  --heldout-ai-draft docs/phase4/eval/P4.2a-gold-heldout40-ai-draft-v1.6.jsonl \
+  --output docs/phase4/eval/reports/v1.6/P4.2a-heldout-final.json
+```
 
 ## 未完成条件
 

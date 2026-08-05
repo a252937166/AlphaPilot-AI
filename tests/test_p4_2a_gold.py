@@ -308,6 +308,40 @@ def test_future_ready_gate_is_timezone_aware_and_not_early() -> None:
         builder.require_future_ready(contract, datetime(2026, 8, 6, 0, 10))
 
 
+def test_heldout_owner_and_evaluation_entries_enforce_unlock_before_file_access(
+    tmp_path: Path,
+) -> None:
+    locked = datetime.fromisoformat("2026-08-06T00:09:59.999999+08:00")
+    ready = datetime.fromisoformat("2026-08-06T00:10:00+08:00")
+    missing = tmp_path / "missing.jsonl"
+
+    with pytest.raises(builder.GoldSampleNotReady):
+        builder.combine_owner_annotations(
+            dev_owner_export=missing,
+            heldout_owner_export=missing,
+            now=locked,
+        )
+    with pytest.raises(FileNotFoundError):
+        builder.combine_owner_annotations(
+            dev_owner_export=missing,
+            heldout_owner_export=missing,
+            now=ready,
+        )
+
+    with pytest.raises(builder.GoldSampleNotReady):
+        evaluator.evaluate_gold_sample_v1_1(
+            missing,
+            tmp_path / "report.json",
+            now=locked,
+        )
+    with pytest.raises(evaluator.GoldEvaluationError, match="artifact must stay"):
+        evaluator.evaluate_gold_sample_v1_1(
+            missing,
+            tmp_path / "report.json",
+            now=ready,
+        )
+
+
 def test_cli_does_not_expose_a_future_clock_override() -> None:
     with pytest.raises(SystemExit):
         builder._arguments(
@@ -1052,6 +1086,7 @@ def test_v1_1_combine_owner_is_create_only_and_binds_completion_manifest(
     evidence = builder.combine_owner_annotations(
         dev_owner_export=dev_export,
         heldout_owner_export=heldout_export,
+        now=datetime.fromisoformat("2026-08-06T00:30:00+08:00"),
         project_root=tmp_path,
     )
 
@@ -1093,6 +1128,7 @@ def test_v1_1_combine_owner_is_create_only_and_binds_completion_manifest(
         builder.combine_owner_annotations(
             dev_owner_export=dev_export,
             heldout_owner_export=heldout_export,
+            now=datetime.fromisoformat("2026-08-06T00:30:00+08:00"),
             project_root=tmp_path,
         )
 
@@ -1145,6 +1181,28 @@ def test_v1_1_split_gates_do_not_apply_dev_precision_to_heldout_gate() -> None:
     assert result["gates"]["materiality_precision_heldout40"] is True
     assert result["metrics"]["symbol_exact_set"]["all100"]["value"] == 0.95
     assert result["passed"] is True
+
+    human_design = builder.load_evaluation_design(EVALUATION_DESIGN_V1_2_PATH)
+    human_result = evaluator.evaluate_split_records(
+        annotations,
+        predictions,
+        human_design,
+    )
+    assert "dev60" not in human_result["metrics"]["materiality_precision"]
+    assert (
+        human_result["metrics"]["materiality_model_interagreement"]["dev60"][
+            "value"
+        ]
+        == 0
+    )
+    assert human_result["metrics"]["annotation_semantics"]["dev60"] == {
+        "annotation_type": "ai_drafted_dev_signal",
+        "metric_semantics": "model_interagreement",
+        "human_ground_truth": False,
+    }
+    assert human_result["metrics"]["annotation_semantics"]["heldout40"][
+        "human_ground_truth"
+    ] is True
 
 
 def test_v1_1_prediction_contract_may_differ_from_annotation_contract() -> None:
@@ -1832,6 +1890,7 @@ def test_v1_1_malformed_preflight_does_not_consume_evaluation_one_shot(
         evaluator.evaluate_gold_sample_v1_1(
             annotation_path,
             eval_root / "reports/round.json",
+            now=datetime.fromisoformat("2026-08-06T00:30:00+08:00"),
         )
 
     assert not state_path.exists()

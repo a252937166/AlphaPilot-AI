@@ -1688,6 +1688,36 @@ def test_whole_candidate_batch_runs_once_with_blind_frozen_inputs(
     assert manifest["predictions"]["attempted_count"] == 40
     assert manifest["predictions"]["positive_rate_denominator"] == ("successful_predictions")
     assert manifest["predictions"]["predicted_materiality_gte_2_rate"] == 0.5
+    assert manifest["batch_execution"] == {
+        "algorithm": "frozen_candidate_order_contiguous_v1",
+        "max_items_per_batch": 2000,
+        "batch_count": 1,
+        "candidate_count": 40,
+        "each_candidate_model_calls_maximum": 1,
+        "automatic_retries": 0,
+        "batches": [
+            {
+                "batch_index": 1,
+                "start_offset": 0,
+                "end_offset_exclusive": 40,
+                "first_news_item_id": 424,
+                "last_news_item_id": 463,
+                "candidate_count": 40,
+                "attempted_count": 40,
+                "success_count": 40,
+                "failure_count": 0,
+                "model_calls_retried": 0,
+                "successful_rows_retried": 0,
+            }
+        ],
+        "totals": {
+            "attempted_count": 40,
+            "success_count": 40,
+            "failure_count": 0,
+            "model_calls_retried": 0,
+            "successful_rows_retried": 0,
+        },
+    }
     assert "inference_state_sha256" not in manifest
     state = [
         json.loads(line) for line in result.state_path.read_text(encoding="utf-8").splitlines()
@@ -1697,6 +1727,8 @@ def test_whole_candidate_batch_runs_once_with_blind_frozen_inputs(
         "inference_completed",
     ]
     assert state[0]["model_calls_started"] == 0
+    assert state[0]["batch_plan"]["batch_count"] == 1
+    assert state[1]["batch_execution"] == manifest["batch_execution"]
     assert (
         state[1]["prediction_manifest_sha256"]
         == hashlib.sha256(result.manifest_path.read_bytes()).hexdigest()
@@ -1719,6 +1751,102 @@ def test_whole_candidate_batch_runs_once_with_blind_frozen_inputs(
         assert connection.execute("SELECT COUNT(*) FROM news_items").fetchone() == (40,)
         assert connection.execute("SELECT COUNT(*) FROM trade_proposals").fetchone() == (1,)
         assert connection.execute("SELECT COUNT(*) FROM broker_orders").fetchone() == (1,)
+
+
+def test_candidate_scope_larger_than_per_batch_budget_is_split_once(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    design = _fixture_root(tmp_path)
+    _freeze(tmp_path, design)
+    receipt, receipt_sha256, active_contract = (
+        runner.validate_prediction_contract_freeze(design, tmp_path)
+    )
+    batch_limited_contract = replace(
+        active_contract,
+        max_items_per_run=20,
+    )
+    monkeypatch.setattr(
+        runner,
+        "validate_prediction_contract_freeze",
+        lambda *_args, **_kwargs: (
+            receipt,
+            receipt_sha256,
+            batch_limited_contract,
+        ),
+    )
+    calls: list[int] = []
+
+    result = runner.run_heldout_predictions(
+        project_root=tmp_path,
+        design=design,
+        settings=_settings(),
+        now=READY,
+        pdf_fetcher=_pdf_fetcher,
+        pdf_text_extractor=_pdf_text_extractor,
+        chat_json_fn=_fake_chat(calls),
+    )
+
+    assert calls == list(range(424, 464))
+    assert len(calls) == len(set(calls)) == 40
+    assert result.summary.expected_count == 40
+    assert result.summary.newly_attempted_count == 40
+    assert result.summary.retried_failure_count == 0
+    assert result.summary.skipped_exact_success_count == 0
+    manifest = json.loads(result.manifest_path.read_text(encoding="utf-8"))
+    execution = manifest["batch_execution"]
+    assert execution["max_items_per_batch"] == 20
+    assert execution["batch_count"] == 2
+    assert execution["candidate_count"] == 40
+    assert execution["batches"] == [
+        {
+            "batch_index": 1,
+            "start_offset": 0,
+            "end_offset_exclusive": 20,
+            "first_news_item_id": 424,
+            "last_news_item_id": 443,
+            "candidate_count": 20,
+            "attempted_count": 20,
+            "success_count": 20,
+            "failure_count": 0,
+            "model_calls_retried": 0,
+            "successful_rows_retried": 0,
+        },
+        {
+            "batch_index": 2,
+            "start_offset": 20,
+            "end_offset_exclusive": 40,
+            "first_news_item_id": 444,
+            "last_news_item_id": 463,
+            "candidate_count": 20,
+            "attempted_count": 20,
+            "success_count": 20,
+            "failure_count": 0,
+            "model_calls_retried": 0,
+            "successful_rows_retried": 0,
+        },
+    ]
+    state = [
+        json.loads(line)
+        for line in result.state_path.read_text(encoding="utf-8").splitlines()
+    ]
+    assert len(state) == 2
+    assert state[0]["batch_plan"]["batches"] == [
+        {
+            key: value
+            for key, value in batch.items()
+            if key
+            not in {
+                "attempted_count",
+                "success_count",
+                "failure_count",
+                "model_calls_retried",
+                "successful_rows_retried",
+            }
+        }
+        for batch in execution["batches"]
+    ]
+    assert state[1]["batch_execution"] == execution
 
 
 def test_existing_authoritative_candidate_inputs_are_reused_without_refetch(

@@ -319,6 +319,33 @@ owner 确认该时段为**人为断网、周期性复发**，非代码或上游�
   `ModuleNotFoundError: scripts` 退出；该次为 0 网络请求、0 模型调用、0 产物。随后在不改
   合同与代码的前提下补 `PYTHONPATH=.` 启动唯一正式轮；没有补跑任何样本。
 
+### P4.2a held-out 解锁前运行加固（2026-08-05，纯代码/测试，未读 held-out）
+
+- 复核方提供的 `scripts/build_p4_2a_adjudication_ui.py` 保留并加固，没有重建另一套 UI。
+  入口现在逐字绑定冻结盲样本与显式 AI 草稿，严格拒绝重复 JSON key、非有限数、重复 ID、
+  顺序/不可变字段漂移、预测或抽样字段泄漏；AI 草稿 `notes` 必须保持为空，避免预锚定人工
+  裁定。页面每条均须由与起草 AI 身份不同的人工裁定者明确确认或修改，任何字段变化会撤销
+  该条确认；导出 `.adjudicated.jsonl` 的 `gold` 是裁定终值，`draft_gold` 与
+  `adjudication` 是逐条溯源证据。
+- `combine-owner` 明确消费 `.adjudicated.jsonl + 同一份 AI draft`，重新计算
+  `adjudicated_changed/changed_fields` 后才生成冻结 canonical owner 文件。最终 one-shot
+  evaluator 还必须显式接收并独立复验这两份源文件，报告完整文件 SHA、逐条裁定身份摘要
+  SHA、确认/修改计数与时间范围；不能只信 canonical 文件。两入口均补齐
+  `2026-08-06 00:10 CST` 时间锁，锁前连输入文件都不得读取。
+- dev60 仍是 AI 起草开发信号：最终报告仅称
+  `materiality_model_interagreement`；只有 held-out40 的人工裁定结果可称
+  `materiality_precision`。all100 materiality 只作 mixed-reference diagnostic；
+  symbol exact-set 继续分报 dev/test/all，并同时披露各 split 标注来源。
+- ⚠ **DEVIATION（候选全集大于单批合同上限，范围与预算未改）**：8/4–8/5 候选全集已超过
+  合同 `max_items_per_run=2000`。one-shot runner 改为在**一个持久化 inference started
+  状态**下，按冻结候选 ID 原始升序做确定性连续分批，每批 `<=2000`；每个候选最多一次模型
+  调用、零自动重试，最终只生成一份全集 predictions/manifest/selection。分批不提高合同
+  上限、不删样本、不换样本、不改变选择 seed 或测试窗口。若任一中间批发生进程中断或模型
+  失败导致全集无法闭合，本 held-out 轮即按 one-shot 合同作废，禁止续跑成功项；须登记新设计
+  与新测试集后另行复核，不能把恢复机制变成隐式重试。
+- 本节只实现入口和离线 fixture 测试；截至登记时仍处 8/5 观察窗，未物化候选、未调用
+  held-out 模型、未生成盲文件、未打开 owner 评测门，P4.2b 继续锁定。
+
 ## P4.2 LLM 事件抽取
 
 > **拆分解锁（owner 质询后修订，2026-08-03）**：P4.2 拆为两半。**P4.2a 评测准备**即刻

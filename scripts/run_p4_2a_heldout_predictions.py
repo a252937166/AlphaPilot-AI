@@ -37,6 +37,7 @@ from scripts.build_p4_2a_gold_sample import (
     validate_heldout_candidate_inputs,
 )
 from scripts.run_p4_2a_offline_extract import (
+    DECLARED_INPUT_ACTIVE,
     DECLARED_INPUT_LEGACY_V1,
     ChatJsonCallable,
     ExtractionSummary,
@@ -2325,8 +2326,16 @@ def _validate_candidate_inputs(
             published_at=cast(str | None, record["published_at"]),
             available_time=cast(str, record["available_time"]),
             body_state=cast(str, record["body_state"]),
-            declared_input_sha256=cast(str, record["input_sha256"]),
+            declared_input_sha256=cast(
+                str,
+                record.get("declared_input_sha256", record["input_sha256"]),
+            ),
             declared_text_sha256=cast(str, record["text_sha256"]),
+            declared_input_representation=(
+                DECLARED_INPUT_LEGACY_V1
+                if active_contract.evidence_candidate_selection
+                else DECLARED_INPUT_ACTIVE
+            ),
         )
         for identifier, record in validated.items()
     ]
@@ -2346,9 +2355,16 @@ def _validate_candidate_inputs(
 def _candidate_identity_sha256(rows: Sequence[Mapping[str, Any]]) -> str:
     payload = b""
     prior_id = 0
+    declared_presence = {"declared_input_sha256" in row for row in rows}
+    if len(declared_presence) > 1:
+        raise HeldoutPredictionError(
+            "candidate identity mixes single- and dual-hash rows"
+        )
+    dual_hash_identity = declared_presence == {True}
     for row in rows:
         identifier = row.get("news_item_id")
         input_sha256 = row.get("input_sha256")
+        declared_input_sha256 = row.get("declared_input_sha256")
         text_sha256 = row.get("text_sha256")
         if (
             isinstance(identifier, bool)
@@ -2356,12 +2372,27 @@ def _candidate_identity_sha256(rows: Sequence[Mapping[str, Any]]) -> str:
             or identifier <= prior_id
             or not _valid_sha256(input_sha256)
             or not _valid_sha256(text_sha256)
+            or (
+                dual_hash_identity
+                and (
+                    not _valid_sha256(declared_input_sha256)
+                    or declared_input_sha256 == input_sha256
+                )
+            )
         ):
             raise HeldoutPredictionError("candidate identity fields are invalid")
         prior_id = identifier
-        payload += (
-            f"{identifier}\0{str(input_sha256).lower()}\0{str(text_sha256).lower()}\n"
-        ).encode("ascii")
+        identity = (
+            f"{identifier}\0{str(input_sha256).lower()}\0"
+            f"{str(declared_input_sha256).lower()}\0"
+            f"{str(text_sha256).lower()}\n"
+            if dual_hash_identity
+            else (
+                f"{identifier}\0{str(input_sha256).lower()}\0"
+                f"{str(text_sha256).lower()}\n"
+            )
+        )
+        payload += identity.encode("ascii")
     return _sha256_bytes(payload)
 
 
@@ -2505,8 +2536,14 @@ def _validate_prediction_rows(
     positive = 0
     failures: Counter[str] = Counter()
     prepared_by_id = {
-        item.record.news_item_id: item for item in _prepare_records(active_contract, records)
+        item.record.news_item_id: item
+        for batch in _deterministic_record_batches(
+            records,
+            active_contract.max_items_per_run,
+        )
+        for item in _prepare_records(active_contract, batch)
     }
+    observed_ids: list[int] = []
     for row in prediction_rows:
         identifier = row.get("news_item_id")
         if (
@@ -2517,6 +2554,7 @@ def _validate_prediction_rows(
         ):
             raise HeldoutPredictionError("candidate prediction IDs are invalid")
         seen.add(identifier)
+        observed_ids.append(identifier)
         candidate = candidate_by_id[identifier]
         prepared = prepared_by_id[identifier]
         if (
@@ -2561,7 +2599,183 @@ def _validate_prediction_rows(
             failures[reason] += 1
         else:
             raise HeldoutPredictionError("candidate prediction status is invalid")
+    expected_ids = [int(row["news_item_id"]) for row in candidate_rows]
+    if observed_ids != expected_ids:
+        raise HeldoutPredictionError(
+            "candidate predictions differ from the frozen original order"
+        )
     return success, positive, failures
+
+
+def _deterministic_record_batches(
+    records: Sequence[ExtractRecord],
+    max_items_per_batch: int,
+) -> tuple[tuple[ExtractRecord, ...], ...]:
+    """Partition the frozen candidate order without changing scope or identity."""
+
+    if max_items_per_batch <= 0:
+        raise HeldoutPredictionError("frozen per-batch LLM budget must be positive")
+    if not records:
+        raise HeldoutPredictionError("heldout candidate records must not be empty")
+    identifiers = [record.news_item_id for record in records]
+    if identifiers != sorted(set(identifiers)):
+        raise HeldoutPredictionError(
+            "heldout candidate records must be unique in ascending frozen order"
+        )
+    return tuple(
+        tuple(records[offset : offset + max_items_per_batch])
+        for offset in range(0, len(records), max_items_per_batch)
+    )
+
+
+def _batch_plan_evidence(
+    identifiers: Sequence[int],
+    *,
+    max_items_per_batch: int,
+) -> JsonObject:
+    if (
+        max_items_per_batch <= 0
+        or not identifiers
+        or list(identifiers) != sorted(set(identifiers))
+    ):
+        raise HeldoutPredictionError("batch plan candidate identity/order is invalid")
+    bounds: list[JsonObject] = []
+    for batch_index, start in enumerate(
+        range(0, len(identifiers), max_items_per_batch),
+        start=1,
+    ):
+        end = min(start + max_items_per_batch, len(identifiers))
+        bounds.append(
+            {
+                "batch_index": batch_index,
+                "start_offset": start,
+                "end_offset_exclusive": end,
+                "first_news_item_id": identifiers[start],
+                "last_news_item_id": identifiers[end - 1],
+                "candidate_count": end - start,
+            }
+        )
+    return {
+        "algorithm": "frozen_candidate_order_contiguous_v1",
+        "max_items_per_batch": max_items_per_batch,
+        "batch_count": len(bounds),
+        "candidate_count": len(identifiers),
+        "batches": bounds,
+    }
+
+
+def _batch_execution_evidence(
+    candidate_rows: Sequence[Mapping[str, Any]],
+    prediction_rows: Sequence[Mapping[str, Any]],
+    *,
+    max_items_per_batch: int,
+) -> JsonObject:
+    """Describe deterministic batch bounds and counts from final frozen rows."""
+
+    if len(candidate_rows) != len(prediction_rows):
+        raise HeldoutPredictionError(
+            "batch evidence requires complete candidate prediction coverage"
+        )
+    candidate_ids = [int(row["news_item_id"]) for row in candidate_rows]
+    prediction_ids = [int(row["news_item_id"]) for row in prediction_rows]
+    if prediction_ids != candidate_ids:
+        raise HeldoutPredictionError(
+            "batch evidence prediction order differs from frozen candidates"
+        )
+    batch_plan = _batch_plan_evidence(
+        candidate_ids,
+        max_items_per_batch=max_items_per_batch,
+    )
+    batches: list[JsonObject] = []
+    for bound in cast(list[JsonObject], batch_plan["batches"]):
+        start = cast(int, bound["start_offset"])
+        end = cast(int, bound["end_offset_exclusive"])
+        rows = prediction_rows[start:end]
+        success_count = sum(row.get("status") == "ok" for row in rows)
+        failure_count = len(rows) - success_count
+        batches.append(
+            {
+                **bound,
+                "attempted_count": end - start,
+                "success_count": success_count,
+                "failure_count": failure_count,
+                "model_calls_retried": 0,
+                "successful_rows_retried": 0,
+            }
+        )
+    success_total = sum(row.get("status") == "ok" for row in prediction_rows)
+    return {
+        **{key: value for key, value in batch_plan.items() if key != "batches"},
+        "each_candidate_model_calls_maximum": 1,
+        "automatic_retries": 0,
+        "batches": batches,
+        "totals": {
+            "attempted_count": len(prediction_rows),
+            "success_count": success_total,
+            "failure_count": len(prediction_rows) - success_total,
+            "model_calls_retried": 0,
+            "successful_rows_retried": 0,
+        },
+    }
+
+
+def _aggregate_batch_summaries(
+    summaries: Sequence[ExtractionSummary],
+    *,
+    expected_count: int,
+) -> ExtractionSummary:
+    """Merge disjoint batch summaries into the original one-shot scope."""
+
+    if not summaries:
+        raise HeldoutPredictionError("heldout extraction produced no batch summaries")
+    if (
+        sum(summary.expected_count for summary in summaries) != expected_count
+        or sum(summary.newly_attempted_count for summary in summaries)
+        != expected_count
+        or any(
+            summary.retried_failure_count != 0
+            or summary.skipped_exact_success_count != 0
+            or summary.skipped_failure_count != 0
+            for summary in summaries
+        )
+        or summaries[-1].output_line_count != expected_count
+    ):
+        raise HeldoutPredictionError(
+            "heldout batch execution violated one-call, zero-retry coverage"
+        )
+    failure_reasons: Counter[str] = Counter()
+    validation_failures: Counter[str] = Counter()
+    audit_tables = summaries[0].isolated_audit_tables
+    for summary in summaries:
+        if summary.isolated_audit_tables != audit_tables:
+            raise HeldoutPredictionError("heldout batch audit table scope drifted")
+        failure_reasons.update(summary.failures_by_reason)
+        validation_failures.update(
+            summary.failures_by_validation_field_and_constraint
+        )
+    return ExtractionSummary(
+        expected_count=expected_count,
+        success_count=sum(summary.success_count for summary in summaries),
+        failure_count=sum(summary.failure_count for summary in summaries),
+        newly_attempted_count=sum(
+            summary.newly_attempted_count for summary in summaries
+        ),
+        retried_failure_count=0,
+        skipped_exact_success_count=0,
+        skipped_failure_count=0,
+        output_line_count=summaries[-1].output_line_count,
+        failures_by_reason=dict(sorted(failure_reasons.items())),
+        failures_by_validation_field_and_constraint=dict(
+            sorted(validation_failures.items())
+        ),
+        isolated_audit_tables=audit_tables,
+        isolated_audit_row_count=sum(
+            summary.isolated_audit_row_count for summary in summaries
+        ),
+        checkpoint_audited_success_count=sum(
+            summary.checkpoint_audited_success_count for summary in summaries
+        ),
+    )
 
 
 def _manifest_payload(
@@ -2596,7 +2810,32 @@ def _manifest_payload(
     )
     prompt = _mapping(contract_files.get("prompt"), "active prompt")
     schema = _mapping(contract_files.get("schema"), "active result schema")
+    selector_manifest_fields: JsonObject = {}
+    if active_contract.evidence_candidate_selection:
+        materialized_schema = _mapping(
+            contract_files.get("materialized_schema"),
+            "active materialized result schema",
+        )
+        active_registration = _mapping(
+            design.document.get("active_prediction_contract"),
+            "active prediction contract registration",
+        )
+        selector_manifest_fields = {
+            "input_representation": active_registration.get(
+                "input_representation"
+            ),
+            "model_result_schema": schema,
+            "materialized_result_schema": materialized_schema,
+            "candidate_materialization": active_registration.get(
+                "candidate_materialization"
+            ),
+        }
     candidate_ids = [int(row["news_item_id"]) for row in candidate_rows]
+    batch_execution = _batch_execution_evidence(
+        candidate_rows,
+        prediction_rows,
+        max_items_per_batch=active_contract.max_items_per_run,
+    )
     return {
         "schema_version": "p4.2a-heldout-candidate-predictions-manifest-v1.1",
         "generated_at_utc": _utc_now(now),
@@ -2630,6 +2869,7 @@ def _manifest_payload(
             ).get("version"),
             "freeze_receipt_sha256": receipt_sha256,
             "max_retries": active_contract.max_retries,
+            **selector_manifest_fields,
         },
         "candidate_inputs": {
             "path": candidate_inputs_path.relative_to(project_root.resolve()).as_posix(),
@@ -2640,6 +2880,15 @@ def _manifest_payload(
                 {
                     "news_item_id": row["news_item_id"],
                     "input_sha256": row["input_sha256"],
+                    **(
+                        {
+                            "declared_input_sha256": row[
+                                "declared_input_sha256"
+                            ]
+                        }
+                        if active_contract.evidence_candidate_selection
+                        else {}
+                    ),
                     "text_sha256": row["text_sha256"],
                 }
                 for row in candidate_rows
@@ -2661,6 +2910,7 @@ def _manifest_payload(
             "positive_rate_denominator": "successful_predictions",
             "raw_prompt_or_transport_payload_persisted": False,
         },
+        "batch_execution": batch_execution,
         "database_safety": {
             "path": database.relative_path,
             "sqlite_uri_mode": database.sqlite_uri_mode,
@@ -2801,7 +3051,15 @@ def run_heldout_predictions(
         pdf_fetcher=pdf_fetcher,
         pdf_text_extractor=pdf_text_extractor,
     )
-    prepared = _prepare_records(active_contract, records)
+    record_batches = _deterministic_record_batches(
+        records,
+        active_contract.max_items_per_run,
+    )
+    prepared = [
+        item
+        for batch in record_batches
+        for item in _prepare_records(active_contract, batch)
+    ]
     if len(prepared) != len(candidate_rows):
         raise HeldoutPredictionError("candidate preparation count drifted")
     candidate_inputs_sha256 = _sha256_file(candidate_inputs_path)
@@ -2825,19 +3083,30 @@ def run_heldout_predictions(
             },
             "settings_safety": dict(settings_safety),
             "model_calls_started": 0,
+            "batch_plan": _batch_plan_evidence(
+                [record.news_item_id for record in records],
+                max_items_per_batch=active_contract.max_items_per_run,
+            ),
         },
     )
 
     try:
-        summary = extract_records(
-            active_contract,
-            records,
-            output_path=predictions_path,
-            eval_root=state_root,
-            universe_symbols=universe,
-            settings=active_settings,
-            retry_failures=False,
-            chat_json_fn=chat_json_fn,
+        batch_summaries = [
+            extract_records(
+                active_contract,
+                batch,
+                output_path=predictions_path,
+                eval_root=state_root,
+                universe_symbols=universe,
+                settings=active_settings,
+                retry_failures=False,
+                chat_json_fn=chat_json_fn,
+            )
+            for batch in record_batches
+        ]
+        summary = _aggregate_batch_summaries(
+            batch_summaries,
+            expected_count=len(records),
         )
         prediction_rows = _load_jsonl(
             predictions_path,
@@ -2884,6 +3153,11 @@ def run_heldout_predictions(
                 "success_count": success,
                 "failure_count": len(prediction_rows) - success,
                 "prediction_manifest_sha256": _sha256_file(actual_manifest_path),
+                "batch_execution": _batch_execution_evidence(
+                    candidate_rows,
+                    prediction_rows,
+                    max_items_per_batch=active_contract.max_items_per_run,
+                ),
             },
         )
         return HeldoutPredictionResult(
@@ -2974,6 +3248,12 @@ def finalize_existing_heldout_run(
     )
     if started.get("candidate_identity_sha256") != _candidate_identity_sha256(candidate_rows):
         raise HeldoutPredictionError("one-shot candidate identity binding drifted")
+    expected_batch_plan = _batch_plan_evidence(
+        [record.news_item_id for record in records],
+        max_items_per_batch=active_contract.max_items_per_run,
+    )
+    if started.get("batch_plan") != expected_batch_plan:
+        raise HeldoutPredictionError("one-shot deterministic batch plan drifted")
     prediction_rows = _load_jsonl(predictions_path, "heldout candidate predictions")
     database = _mapping(started.get("database"), "inference started database")
     if (
@@ -2989,6 +3269,11 @@ def finalize_existing_heldout_run(
         records,
         prediction_rows,
         universe,
+    )
+    batch_execution = _batch_execution_evidence(
+        candidate_rows,
+        prediction_rows,
+        max_items_per_batch=active_contract.max_items_per_run,
     )
     settings_safety = _validate_settings_safety_snapshot(
         _mapping(
@@ -3051,6 +3336,7 @@ def finalize_existing_heldout_run(
             or terminal.get("success_count") != success
             or terminal.get("failure_count") != len(prediction_rows) - success
             or terminal.get("prediction_manifest_sha256") != expected_manifest_sha256
+            or terminal.get("batch_execution") != batch_execution
         ):
             raise HeldoutPredictionError("existing inference terminal state drifted")
         _parse_timestamp(terminal.get("at_utc"), "inference terminal timestamp")
@@ -3073,6 +3359,7 @@ def finalize_existing_heldout_run(
                 "success_count": success,
                 "failure_count": len(prediction_rows) - success,
                 "prediction_manifest_sha256": manifest_sha256,
+                "batch_execution": batch_execution,
                 "terminal_recovery_without_model_calls": True,
                 "model_calls": 0,
             },
