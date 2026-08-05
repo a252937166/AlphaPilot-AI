@@ -879,12 +879,21 @@ def select_heldout_positive_predictions(
         if materiality < 2:
             continue
         input_sha256 = record.get("input_sha256")
+        declared_input_sha256 = record.get("declared_input_sha256")
         text_sha256 = record.get("text_sha256")
         if (
             not isinstance(input_sha256, str)
             or SHA256_PATTERN.fullmatch(input_sha256) is None
             or not isinstance(text_sha256, str)
             or SHA256_PATTERN.fullmatch(text_sha256) is None
+            or (
+                declared_input_sha256 is not None
+                and (
+                    not isinstance(declared_input_sha256, str)
+                    or SHA256_PATTERN.fullmatch(declared_input_sha256) is None
+                    or declared_input_sha256 == input_sha256
+                )
+            )
         ):
             raise GoldSampleError(
                 f"heldout prediction {news_item_id} input/text SHA-256 is invalid"
@@ -906,6 +915,11 @@ def select_heldout_positive_predictions(
         {
             "news_item_id": news_item_id,
             "input_sha256": record["input_sha256"],
+            **(
+                {"declared_input_sha256": record["declared_input_sha256"]}
+                if "declared_input_sha256" in record
+                else {}
+            ),
             "text_sha256": record["text_sha256"],
             "selection_rank_sha256": rank,
         }
@@ -2438,9 +2452,14 @@ def _ordered_candidate_identity_sha256(
 ) -> str:
     digest = hashlib.sha256()
     prior_news_item_id = 0
+    declared_presence = {"declared_input_sha256" in record for record in records}
+    if len(declared_presence) > 1:
+        raise GoldSampleError("candidate identity mixes single- and dual-hash rows")
+    dual_hash_identity = declared_presence == {True}
     for record in records:
         news_item_id = record.get("news_item_id")
         input_sha256 = record.get("input_sha256")
+        declared_input_sha256 = record.get("declared_input_sha256")
         text_sha256 = record.get("text_sha256")
         if (
             isinstance(news_item_id, bool)
@@ -2450,12 +2469,24 @@ def _ordered_candidate_identity_sha256(
             or SHA256_PATTERN.fullmatch(input_sha256) is None
             or not isinstance(text_sha256, str)
             or SHA256_PATTERN.fullmatch(text_sha256) is None
+            or (
+                dual_hash_identity
+                and (
+                    not isinstance(declared_input_sha256, str)
+                    or SHA256_PATTERN.fullmatch(declared_input_sha256) is None
+                    or declared_input_sha256 == input_sha256
+                )
+            )
         ):
             raise GoldSampleError("candidate identity/order is invalid")
         prior_news_item_id = news_item_id
-        digest.update(
-            f"{news_item_id}\0{input_sha256}\0{text_sha256}\n".encode("ascii")
+        identity = (
+            f"{news_item_id}\0{input_sha256}\0{declared_input_sha256}"
+            f"\0{text_sha256}\n"
+            if dual_hash_identity
+            else f"{news_item_id}\0{input_sha256}\0{text_sha256}\n"
         )
+        digest.update(identity.encode("ascii"))
     return digest.hexdigest()
 
 
@@ -2611,6 +2642,11 @@ def _candidate_input_from_row(
         "body_evidence": body_evidence,
     }
     record["input_sha256"] = _input_sha256(record, active_contract)
+    if active_contract.evidence_candidate_selection:
+        declared_input_sha256 = _declared_input_sha256(record, active_contract)
+        if declared_input_sha256 == record["input_sha256"]:
+            raise GoldSampleError("candidate selector input identities must be distinct")
+        record["declared_input_sha256"] = declared_input_sha256
     return record
 
 
@@ -2638,6 +2674,8 @@ def validate_heldout_candidate_inputs(
         "input_sha256",
         "body_evidence",
     }
+    if active_contract.evidence_candidate_selection:
+        required.add("declared_input_sha256")
     validated: dict[int, JsonObject] = {}
     for record in records:
         missing = required - set(record)
@@ -2679,11 +2717,25 @@ def validate_heldout_candidate_inputs(
             raise GoldSampleError(
                 f"heldout candidate input {news_item_id} text SHA-256 drifted"
             )
+        expected_active_input_sha256 = _input_sha256(record, active_contract)
+        expected_declared_input_sha256 = _declared_input_sha256(
+            record,
+            active_contract,
+        )
         if (
             record.get("contract_sha256") not in {None, active_contract.sha256}
             or record.get("model") not in {None, active_contract.model}
             or record.get("design_sha256") not in {None, design.sha256}
-            or record.get("input_sha256") != _input_sha256(record, active_contract)
+            or record.get("input_sha256") != expected_active_input_sha256
+            or (
+                active_contract.evidence_candidate_selection
+                and (
+                    record.get("declared_input_sha256")
+                    != expected_declared_input_sha256
+                    or expected_declared_input_sha256
+                    == expected_active_input_sha256
+                )
+            )
         ):
             raise GoldSampleError(
                 f"heldout candidate input {news_item_id} active contract binding drifted"
@@ -2921,17 +2973,40 @@ def _validate_prediction_manifest(
         manifest.get("predictions"),
         label="heldout prediction manifest predictions",
     )
-    expected_identities = [
-        {
+    expected_identities = []
+    for record in candidate_records:
+        identity = {
             "news_item_id": record["news_item_id"],
             "input_sha256": record["input_sha256"],
             "text_sha256": record["text_sha256"],
         }
-        for record in candidate_records
-    ]
+        if active_contract.evidence_candidate_selection:
+            identity["declared_input_sha256"] = record["declared_input_sha256"]
+        expected_identities.append(identity)
+    candidate_contract_bindings_valid = True
+    if active_contract.evidence_candidate_selection:
+        contract_files = _mapping(
+            active_contract.document.get("contract_files"),
+            label="active contract files",
+        )
+        registration = _mapping(
+            design.document.get("active_prediction_contract"),
+            label="registered active prediction contract",
+        )
+        candidate_contract_bindings_valid = (
+            prediction_contract.get("input_representation")
+            == registration.get("input_representation")
+            and prediction_contract.get("model_result_schema")
+            == contract_files.get("schema")
+            and prediction_contract.get("materialized_result_schema")
+            == contract_files.get("materialized_schema")
+            and prediction_contract.get("candidate_materialization")
+            == registration.get("candidate_materialization")
+        )
     if (
         prediction_contract.get("sha256") != active_contract.sha256
         or prediction_contract.get("freeze_receipt_sha256") != receipt_sha256
+        or not candidate_contract_bindings_valid
         or candidate_inputs.get("sha256") != inputs_sha256
         or candidate_inputs.get("count") != len(candidate_records)
         or candidate_inputs.get("identity_sha256") != candidate_identity_sha256
@@ -2953,7 +3028,12 @@ def _heldout_owner_record(
     sample_index: int,
 ) -> JsonObject:
     original_text = _record_string(candidate, "original_text")
-    input_sha256 = _record_string(candidate, "input_sha256")
+    active_input_sha256 = _record_string(candidate, "input_sha256")
+    input_sha256 = (
+        _record_string(candidate, "declared_input_sha256")
+        if "declared_input_sha256" in candidate
+        else active_input_sha256
+    )
     text_sha256 = _record_string(candidate, "text_sha256")
     owner_rank = _sha256_bytes(
         (
@@ -3318,10 +3398,288 @@ def _owner_completion_time(
     return max(completed)
 
 
+ADJUDICATION_EXPORT_FIELDS = frozenset(
+    {
+        "schema_version",
+        "news_item_id",
+        "gold",
+        "draft_gold",
+        "annotation_status",
+        "adjudication",
+    }
+)
+ADJUDICATION_AUDIT_FIELDS = frozenset(
+    {
+        "method",
+        "draft_annotator",
+        "adjudicator",
+        "adjudicated_changed",
+        "changed_fields",
+        "adjudicated_at",
+    }
+)
+ADJUDICATION_GOLD_FIELDS = (
+    "symbols",
+    "event_type",
+    "direction",
+    "materiality",
+    "evidence_span",
+    "notes",
+)
+
+
+def _strict_aware_datetime(value: object, *, label: str) -> datetime:
+    if not isinstance(value, str) or not value.strip():
+        raise GoldSampleError(f"{label} must be a timezone-aware ISO datetime")
+    try:
+        parsed = datetime.fromisoformat(value.strip().replace("Z", "+00:00"))
+    except ValueError as exc:
+        raise GoldSampleError(f"{label} is not an ISO datetime") from exc
+    if parsed.tzinfo is None or parsed.utcoffset() is None:
+        raise GoldSampleError(f"{label} must include a timezone")
+    return parsed.astimezone(UTC)
+
+
+def _validated_adjudication_gold(
+    value: object,
+    *,
+    original_text: str,
+    taxonomy: frozenset[str],
+    label: str,
+) -> JsonObject:
+    if not isinstance(value, Mapping) or set(value) != set(ADJUDICATION_GOLD_FIELDS):
+        raise GoldSampleError(f"{label} fields drifted")
+    symbols = value.get("symbols")
+    if (
+        not isinstance(symbols, Sequence)
+        or isinstance(symbols, (str, bytes))
+        or any(not isinstance(symbol, str) for symbol in symbols)
+    ):
+        raise GoldSampleError(f"{label}.symbols must be an array")
+    normalized_symbols = [str(symbol) for symbol in symbols]
+    if (
+        any(SIX_DIGIT_SYMBOL.fullmatch(symbol) is None for symbol in normalized_symbols)
+        or normalized_symbols != sorted(set(normalized_symbols))
+    ):
+        raise GoldSampleError(
+            f"{label}.symbols must contain sorted unique six-digit symbols"
+        )
+    event_type = value.get("event_type")
+    if not isinstance(event_type, str) or event_type not in taxonomy:
+        raise GoldSampleError(f"{label}.event_type is invalid")
+    direction = value.get("direction")
+    if (
+        isinstance(direction, bool)
+        or not isinstance(direction, int)
+        or direction not in {-1, 0, 1}
+    ):
+        raise GoldSampleError(f"{label}.direction is invalid")
+    materiality = value.get("materiality")
+    if (
+        isinstance(materiality, bool)
+        or not isinstance(materiality, int)
+        or materiality not in {0, 1, 2, 3}
+    ):
+        raise GoldSampleError(f"{label}.materiality is invalid")
+    evidence_span = value.get("evidence_span")
+    if (
+        not isinstance(evidence_span, str)
+        or not evidence_span
+        or evidence_span not in original_text
+    ):
+        raise GoldSampleError(f"{label}.evidence_span is not a contiguous substring")
+    notes = value.get("notes")
+    if notes is not None and not isinstance(notes, str):
+        raise GoldSampleError(f"{label}.notes is invalid")
+    return {
+        "symbols": normalized_symbols,
+        "event_type": event_type,
+        "direction": direction,
+        "materiality": materiality,
+        "evidence_span": evidence_span,
+        "notes": notes,
+    }
+
+
+def _normalize_heldout_adjudication_export(
+    *,
+    blind_records: Sequence[JsonObject],
+    draft_records: Sequence[JsonObject],
+    adjudicated_records: Sequence[JsonObject],
+    design: FrozenEvaluationDesign,
+) -> list[JsonObject]:
+    """Bind a compact adjudication audit export back to frozen canonical rows."""
+
+    expected_count = len(blind_records)
+    if (
+        expected_count == 0
+        or len(draft_records) != expected_count
+        or len(adjudicated_records) != expected_count
+    ):
+        raise GoldSampleError(
+            "heldout blind, AI draft, and adjudication export row counts differ"
+        )
+    taxonomy_record = _mapping(
+        design.base_contract.document.get("taxonomy"),
+        label="taxonomy",
+    )
+    taxonomy_values = taxonomy_record.get("values")
+    if not isinstance(taxonomy_values, list) or any(
+        not isinstance(item, str) for item in taxonomy_values
+    ):
+        raise GoldSampleError("heldout annotation taxonomy is invalid")
+    taxonomy = frozenset(taxonomy_values)
+    immutable_fields = ANNOTATION_ITEM_FIELDS - ANNOTATION_MUTABLE_FIELDS
+    draft_annotator: str | None = None
+    adjudicator: str | None = None
+    canonical: list[JsonObject] = []
+
+    for blind, draft, adjudicated in zip(
+        blind_records,
+        draft_records,
+        adjudicated_records,
+        strict=True,
+    ):
+        news_item_id = blind.get("news_item_id")
+        if (
+            draft.get("news_item_id") != news_item_id
+            or adjudicated.get("news_item_id") != news_item_id
+        ):
+            raise GoldSampleError(
+                "heldout AI draft/adjudication order or news_item_id differs from blind source"
+            )
+        if set(draft) != ANNOTATION_ITEM_FIELDS:
+            raise GoldSampleError(f"AI draft news item {news_item_id} fields drifted")
+        for field in immutable_fields:
+            if draft.get(field) != blind.get(field):
+                raise GoldSampleError(
+                    f"AI draft news item {news_item_id} changed frozen field {field}"
+                )
+        if draft.get("annotation_status") not in {"annotated", "complete", "completed"}:
+            raise GoldSampleError(f"AI draft news item {news_item_id} is not completed")
+        raw_draft_annotator = draft.get("annotation_owner")
+        if not isinstance(raw_draft_annotator, str) or not raw_draft_annotator.strip():
+            raise GoldSampleError(
+                f"AI draft news item {news_item_id} has no annotator identity"
+            )
+        row_draft_annotator = raw_draft_annotator.strip()
+        if draft_annotator is None:
+            draft_annotator = row_draft_annotator
+        elif row_draft_annotator != draft_annotator:
+            raise GoldSampleError("AI draft uses inconsistent annotator identities")
+        _strict_aware_datetime(
+            draft.get("annotated_at"),
+            label=f"AI draft news item {news_item_id} annotated_at",
+        )
+        original_text = blind.get("original_text")
+        if not isinstance(original_text, str) or not original_text:
+            raise GoldSampleError(f"heldout blind news item {news_item_id} has no text")
+        draft_gold = _validated_adjudication_gold(
+            draft.get("gold"),
+            original_text=original_text,
+            taxonomy=taxonomy,
+            label=f"AI draft news item {news_item_id} gold",
+        )
+        if draft_gold["notes"] is not None:
+            raise GoldSampleError(
+                f"AI draft news item {news_item_id} must keep notes empty"
+            )
+
+        if set(adjudicated) != ADJUDICATION_EXPORT_FIELDS:
+            raise GoldSampleError(
+                f"adjudication news item {news_item_id} fields drifted"
+            )
+        if (
+            adjudicated.get("schema_version")
+            != "p4.2a-heldout-adjudication-export-v1"
+            or adjudicated.get("annotation_status") != "adjudicated"
+        ):
+            raise GoldSampleError(
+                f"adjudication news item {news_item_id} schema/status drifted"
+            )
+        export_draft_gold = _validated_adjudication_gold(
+            adjudicated.get("draft_gold"),
+            original_text=original_text,
+            taxonomy=taxonomy,
+            label=f"adjudication news item {news_item_id} draft_gold",
+        )
+        if export_draft_gold != draft_gold:
+            raise GoldSampleError(
+                f"adjudication news item {news_item_id} draft_gold differs from explicit AI draft"
+            )
+        final_gold = _validated_adjudication_gold(
+            adjudicated.get("gold"),
+            original_text=original_text,
+            taxonomy=taxonomy,
+            label=f"adjudication news item {news_item_id} gold",
+        )
+        audit = _mapping(
+            adjudicated.get("adjudication"),
+            label=f"adjudication news item {news_item_id} audit",
+        )
+        if set(audit) != ADJUDICATION_AUDIT_FIELDS:
+            raise GoldSampleError(
+                f"adjudication news item {news_item_id} audit fields drifted"
+            )
+        if (
+            audit.get("method") != "ai_drafted_human_adjudicated"
+            or audit.get("draft_annotator") != row_draft_annotator
+        ):
+            raise GoldSampleError(
+                f"adjudication news item {news_item_id} AI provenance drifted"
+            )
+        raw_adjudicator = audit.get("adjudicator")
+        if not isinstance(raw_adjudicator, str) or not raw_adjudicator.strip():
+            raise GoldSampleError(
+                f"adjudication news item {news_item_id} has no human adjudicator"
+            )
+        row_adjudicator = raw_adjudicator.strip()
+        if row_adjudicator.casefold() == row_draft_annotator.casefold():
+            raise GoldSampleError(
+                f"adjudication news item {news_item_id} AI and human identities match"
+            )
+        if adjudicator is None:
+            adjudicator = row_adjudicator
+        elif row_adjudicator != adjudicator:
+            raise GoldSampleError("adjudication export uses inconsistent human identities")
+        adjudicated_at = _strict_aware_datetime(
+            audit.get("adjudicated_at"),
+            label=f"adjudication news item {news_item_id} adjudicated_at",
+        )
+        changed_fields = [
+            field
+            for field in ADJUDICATION_GOLD_FIELDS
+            if final_gold[field] != draft_gold[field]
+        ]
+        adjudicated_changed = bool(changed_fields)
+        if (
+            audit.get("adjudicated_changed") is not adjudicated_changed
+            or audit.get("changed_fields") != changed_fields
+        ):
+            raise GoldSampleError(
+                f"adjudication news item {news_item_id} changed_fields drifted"
+            )
+        record = copy.deepcopy(blind)
+        record.update(
+            {
+                "annotation_status": "completed",
+                "annotation_owner": row_adjudicator,
+                "annotated_at": _iso_utc(adjudicated_at),
+                "gold": final_gold,
+                "annotation_type": "ai_drafted_human_adjudicated",
+                "drafter_id": row_draft_annotator,
+                "adjudicator_id": row_adjudicator,
+            }
+        )
+        canonical.append(record)
+    return canonical
+
+
 def combine_owner_annotations(
     *,
     dev_owner_export: Path,
     heldout_owner_export: Path,
+    heldout_ai_draft: Path | None = None,
     design_path: Path = DEFAULT_EVALUATION_DESIGN,
     now: datetime | None = None,
     project_root: Path = PROJECT_DIR,
@@ -3335,11 +3693,13 @@ def combine_owner_annotations(
 
     root = project_root.resolve()
     design = load_evaluation_design(design_path)
+    current_time = now or datetime.now(UTC)
+    require_heldout_ready(design, current_time)
     dev_owner_records, dev_export_sha256 = _load_jsonl_with_sha256(
         dev_owner_export.resolve(),
         label="dev60 owner export",
     )
-    heldout_owner_records, _heldout_export_sha256 = _load_jsonl_with_sha256(
+    heldout_export_records, _heldout_export_sha256 = _load_jsonl_with_sha256(
         heldout_owner_export.resolve(),
         label="heldout40 owner export",
     )
@@ -3354,26 +3714,6 @@ def combine_owner_annotations(
         raise GoldSampleError(
             "dev60 AI-drafted annotation bytes differ from the frozen design"
         )
-    try:
-        validate_owner_annotations(
-            dev_owner_records,
-            design.base_contract,
-            expected_count=60,
-            expected_start_index=1,
-            expected_sample_group="inventory_60",
-            design=design,
-        )
-        validate_owner_annotations(
-            heldout_owner_records,
-            design.base_contract,
-            expected_count=40,
-            expected_start_index=1,
-            expected_sample_group="heldout40",
-            design=design,
-        )
-    except GoldEvaluationError as exc:
-        raise GoldSampleError(f"owner completion validation failed: {exc}") from exc
-
     dev_blind_path = evaluation_artifact_path(
         design,
         "dev_60_frozen_jsonl",
@@ -3413,6 +3753,82 @@ def combine_owner_annotations(
         raise GoldSampleError("frozen dev60 bytes differ from the evaluation design")
     for blind in [*dev_blind, *heldout_blind]:
         validate_blind_record(blind, design.base_contract)
+
+    compact_adjudication = any(
+        "adjudication" in record or "draft_gold" in record
+        for record in heldout_export_records
+    )
+    adjudication_source_evidence: JsonObject = {}
+    if compact_adjudication:
+        if "heldout_annotation_provenance" not in design.document:
+            raise GoldSampleError(
+                "compact adjudication export requires a human-provenance evaluation design"
+            )
+        if heldout_ai_draft is None:
+            raise GoldSampleError(
+                "compact adjudication export requires --heldout-ai-draft for explicit binding"
+            )
+        artifact_root_value = design.document.get("artifact_root")
+        if not isinstance(artifact_root_value, str) or not artifact_root_value:
+            raise GoldSampleError("artifact_root must be a non-empty path")
+        adjudication_artifact_root = (root / artifact_root_value).resolve()
+        heldout_export_resolved = heldout_owner_export.resolve()
+        heldout_ai_draft_resolved = heldout_ai_draft.resolve()
+        if (
+            not heldout_export_resolved.is_relative_to(adjudication_artifact_root)
+            or not heldout_ai_draft_resolved.is_relative_to(adjudication_artifact_root)
+        ):
+            raise GoldSampleError(
+                "compact adjudication export and AI draft must stay under docs/phase4/eval"
+            )
+        if heldout_export_resolved == heldout_ai_draft_resolved:
+            raise GoldSampleError(
+                "compact adjudication export and AI draft must be distinct files"
+            )
+        draft_records, _draft_sha256 = _load_jsonl_with_sha256(
+            heldout_ai_draft_resolved,
+            label="heldout40 explicit AI draft",
+        )
+        heldout_owner_records = _normalize_heldout_adjudication_export(
+            blind_records=heldout_blind,
+            draft_records=draft_records,
+            adjudicated_records=heldout_export_records,
+            design=design,
+        )
+        adjudication_source_evidence = {
+            "heldout_adjudication_export": str(
+                heldout_export_resolved.relative_to(root)
+            ),
+            "heldout_adjudication_export_sha256": _heldout_export_sha256,
+            "heldout_ai_draft": str(heldout_ai_draft_resolved.relative_to(root)),
+            "heldout_ai_draft_sha256": _draft_sha256,
+        }
+    else:
+        if heldout_ai_draft is not None:
+            raise GoldSampleError(
+                "--heldout-ai-draft is only valid with a compact adjudication export"
+            )
+        heldout_owner_records = heldout_export_records
+
+    try:
+        validate_owner_annotations(
+            dev_owner_records,
+            design.base_contract,
+            expected_count=60,
+            expected_start_index=1,
+            expected_sample_group="inventory_60",
+            design=design,
+        )
+        validate_owner_annotations(
+            heldout_owner_records,
+            design.base_contract,
+            expected_count=40,
+            expected_start_index=1,
+            expected_sample_group="heldout40",
+            design=design,
+        )
+    except GoldEvaluationError as exc:
+        raise GoldSampleError(f"owner completion validation failed: {exc}") from exc
     _validate_completed_identity_against_blind(
         blind_records=dev_blind,
         owner_records=dev_owner_records,
@@ -3618,6 +4034,7 @@ def combine_owner_annotations(
         "owner_completion_manifest_sha256": hashes[completion_manifest_path],
         "identity_validation_passed": True,
         "blindness_validation_passed": True,
+        **adjudication_source_evidence,
     }
 
 
@@ -4041,6 +4458,15 @@ def _arguments(argv: Sequence[str] | None = None) -> argparse.Namespace:
         default=None,
         help="Completed owner-labelled heldout40 JSONL; required by combine-owner.",
     )
+    parser.add_argument(
+        "--heldout-ai-draft",
+        type=Path,
+        default=None,
+        help=(
+            "Explicit AI-drafted heldout40 JSONL required when the owner export "
+            "is a compact .adjudicated.jsonl audit artifact."
+        ),
+    )
     return parser.parse_args(argv)
 
 
@@ -4074,6 +4500,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             result = combine_owner_annotations(
                 dev_owner_export=arguments.dev_owner_export,
                 heldout_owner_export=arguments.heldout_owner_export,
+                heldout_ai_draft=arguments.heldout_ai_draft,
                 design_path=arguments.evaluation_design,
             )
     except (FileExistsError, GoldSampleError, OSError, ValueError) as exc:
