@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import sqlite3
+from copy import deepcopy
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from typing import Any
@@ -75,7 +76,14 @@ def _source_stats(
         "db_commit_completed_at": commit_completed.isoformat(),
     }
     return {
-        "cninfo": {**common, "tls_verification": True},
+        "cninfo": {
+            **common,
+            "tls_verification": True,
+            "watermark_before": "2026-08-03T13:37:29+00:00",
+            "watermark_floor": "2026-08-03T13:07:29+00:00",
+            "watermark_after": "2026-08-03T13:37:29+00:00",
+            "columns_complete": {"sse": True, "szse": True},
+        },
         "sina_company_news": {**common, "request_count": 1, "inserted": 0},
         "akshare_ths": {**common, "request_count": 1, "inserted": 0},
         "akshare_cls": {
@@ -214,6 +222,23 @@ def _ready_time() -> datetime:
     return datetime(2026, 8, 5, 16, 15, tzinfo=UTC)
 
 
+def _fixture_context(*, expected_continuity_rows: int = 991) -> acceptance.ObservationContext:
+    config = acceptance.load_config(CONFIG_PATH)
+    context = acceptance.load_observation_context(
+        PROJECT_DIR / acceptance.DEFAULT_OBSERVATION_CONTEXT,
+        config,
+    )
+    document = deepcopy(context.document)
+    document["publication_continuity_attestation"][
+        "expected_local_strict_row_count"
+    ] = expected_continuity_rows
+    return acceptance.ObservationContext(
+        path=context.path,
+        sha256="fixture-context-sha256",
+        document=document,
+    )
+
+
 def test_frozen_config_has_64_slots_and_fail_closed_source_contract() -> None:
     config = acceptance.load_config(CONFIG_PATH)
 
@@ -247,6 +272,24 @@ def test_final_acceptance_passes_complete_read_only_fixture(tmp_path: Path) -> N
     assert report["read_only"] is True
     assert report["cadence"]["expected_slots"] == 192
     assert report["cadence"]["matched_slots"] == 192
+    assert report["schema_version"] == "p4.1-news-acceptance-report-v2"
+    assert report["observation_context"]["sha256"]
+    assert report["coverage"]["timezone_basis"] == "Asia/Shanghai"
+    for target in ("2026-08-03", "2026-08-04", "2026-08-05"):
+        day = report["coverage"]["days"][target]
+        assert day["expected_slots"] == 64
+        assert day["matched_slots"] == 64
+        assert day["successful_slots"] == 64
+        assert day["failed_slots"] == 0
+        assert day["missing_slots"] == 0
+        assert day["operational_coverage_status"] == "pass"
+        assert day["window_start"]["shanghai"].startswith(target)
+        assert day["window_start"]["utc"].endswith("+00:00")
+    assert report["coverage"]["operational_all_success"] is True
+    assert report["external_evidence"]["does_not_override_gate"] is True
+    assert report["external_evidence"]["runner_network_policy"][
+        "network_calls_performed_by_acceptance_runner"
+    ] is False
     assert report["news_items"]["row_count"] == 3
     assert report["news_items"]["available_time_coverage"] == 1.0
     assert report["sources"]["issues"] == []
@@ -262,6 +305,27 @@ def test_final_acceptance_passes_complete_read_only_fixture(tmp_path: Path) -> N
     assert report["sources"]["runs"][0]["observed_sources"]["futu_auxiliary"][
         "trade_methods_called"
     ] == []
+    assert report["watermark_semantics_0730"][
+        "non_advance_consistent_with_current_semantics"
+    ] is True
+    assert report["watermark_semantics_0730"]["query_window_root_cause"] == {
+        "classification": "utc_cst_query_window_date_defect",
+        "query_end_date_expression": "now.date()",
+        "runtime_now_timezone": "UTC",
+        "expected_market_timezone": "Asia/Shanghai",
+        "query_end_date_used": "2026-08-03",
+        "market_date_at_poll": "2026-08-04",
+        "date_mismatch_observed": True,
+        "effect": (
+            "07:30 CST poll queried only through the prior UTC date, so same-day "
+            "Shanghai announcements were outside the request window"
+        ),
+        "implementation_reference": (
+            "src/alphapilot/jobs/news_poll.py:run_news_poll/"
+            "_last_successful_watermark/_fetch_cninfo"
+        ),
+        "v2_fix_required": True,
+    }
     assert report["gate"]["all_pass"] is True
     with sqlite3.connect(database) as connection:
         assert connection.execute("SELECT COUNT(*) FROM news_items").fetchone()[0] == 3
@@ -480,3 +544,279 @@ def test_daily_gate_refuses_premature_evidence_and_writer_is_create_only(
     with pytest.raises(FileExistsError, match="refusing to overwrite"):
         acceptance._write_new_json(report_path, {"gate": {"all_pass": True}})
     assert json.loads(report_path.read_text(encoding="utf-8"))["gate"]["all_pass"] is False
+
+
+def test_coverage_reports_dual_timezone_and_multilabel_root_causes(tmp_path: Path) -> None:
+    config = acceptance.load_config(CONFIG_PATH)
+    database = tmp_path / "coverage-root-causes.db"
+    _create_database(database)
+    _seed_complete_evidence(database, config)
+    with sqlite3.connect(database) as connection:
+        rows = connection.execute("SELECT id, stats FROM job_runs ORDER BY id").fetchall()
+        ids_by_slot: dict[str, int] = {}
+        stats_by_id: dict[int, dict[str, Any]] = {}
+        for run_id, raw_stats in rows:
+            stats = json.loads(raw_stats)
+            local = datetime.fromisoformat(stats["poll_started_at"]).astimezone(
+                acceptance.SHANGHAI
+            )
+            ids_by_slot[local.isoformat(timespec="minutes")] = int(run_id)
+            stats_by_id[int(run_id)] = stats
+        missing_id = ids_by_slot["2026-08-03T09:30+08:00"]
+        failed_id = ids_by_slot["2026-08-03T09:50+08:00"]
+        connection.execute("DELETE FROM job_runs WHERE id=?", (missing_id,))
+        failed_stats = stats_by_id[failed_id]
+        failed_stats["sources"]["cninfo"].update(
+            {
+                "status": "unavailable",
+                "failure_count": 1,
+                "failures": [
+                    {
+                        "code": "transport_error",
+                        "blocked": False,
+                        "error_type": "NewsSourceError",
+                        "message": "ConnectError",
+                    }
+                ],
+            }
+        )
+        failed_stats["sources"]["akshare_ths"].update(
+            {
+                "status": "unavailable",
+                "failure_count": 1,
+                "failures": [
+                    {
+                        "code": "request_budget_exhausted",
+                        "blocked": True,
+                        "error_type": "NewsSourceError",
+                        "message": "akshare_ths exceeded request budget 1",
+                    }
+                ],
+                "requests": [{"attempt": 1, "failure_code": "transport_error"}],
+            }
+        )
+        connection.execute(
+            "UPDATE job_runs SET status='failed', error=?, stats=? WHERE id=?",
+            (
+                "JobExecutionError: P4.1 critical news source failed",
+                json.dumps(failed_stats),
+                failed_id,
+            ),
+        )
+
+    report = acceptance.evaluate_acceptance(
+        database=database,
+        config=config,
+        scope="daily",
+        target_date=date(2026, 8, 3),
+        now=_ready_time(),
+    )
+
+    day = report["coverage"]["days"]["2026-08-03"]
+    assert day["expected_slots"] == 64
+    assert day["matched_slots"] == 63
+    assert day["successful_slots"] == 62
+    assert day["failed_slots"] == 1
+    assert day["missing_slots"] == 1
+    assert day["operational_coverage_status"] == "fail"
+    missing = day["trading_window"]["missing_slot_details"]
+    assert missing[0]["slot_shanghai"] == "2026-08-03T09:30:00+08:00"
+    assert missing[0]["slot_utc"] == "2026-08-03T01:30:00+00:00"
+    assert {cause["classification"] for cause in missing[0]["root_causes"]} == {
+        "host_unreachable"
+    }
+    failure = day["trading_window"]["failed_slot_details"][0]
+    assert {cause["classification"] for cause in failure["root_causes"]} == {
+        "retry_budget_semantics_defect",
+        "upstream_unavailable",
+    }
+    assert report["gate"]["expected_slots_complete"] is False
+    assert report["gate"]["critical_source_failures_zero"] is False
+    assert report["gate"]["all_pass"] is False
+
+
+def test_all_slots_matched_but_pagination_failure_remains_operationally_red(
+    tmp_path: Path,
+) -> None:
+    config = acceptance.load_config(CONFIG_PATH)
+    database = tmp_path / "pagination-red.db"
+    _create_database(database)
+    _seed_complete_evidence(database, config)
+    with sqlite3.connect(database) as connection:
+        rows = connection.execute("SELECT id, stats FROM job_runs ORDER BY id").fetchall()
+        for run_id, raw_stats in rows:
+            stats = json.loads(raw_stats)
+            local = datetime.fromisoformat(stats["poll_started_at"]).astimezone(
+                acceptance.SHANGHAI
+            )
+            if local.isoformat(timespec="minutes") != "2026-08-05T09:30+08:00":
+                continue
+            stats["sources"]["cninfo"].update(
+                {
+                    "status": "unavailable",
+                    "failure_count": 1,
+                    "failures": [
+                        {
+                            "code": "pagination_incomplete",
+                            "blocked": False,
+                            "error_type": "NewsSourceError",
+                            "message": "CNInfo exceeded page cap",
+                        }
+                    ],
+                }
+            )
+            connection.execute(
+                "UPDATE job_runs SET status='failed', error=?, stats=? WHERE id=?",
+                (
+                    "JobExecutionError: P4.1 critical news source failed",
+                    json.dumps(stats),
+                    run_id,
+                ),
+            )
+            break
+        else:
+            raise AssertionError("fixture lacks the 2026-08-05 09:30 slot")
+
+    report = acceptance.evaluate_acceptance(
+        database=database,
+        config=config,
+        scope="daily",
+        target_date=date(2026, 8, 5),
+        now=_ready_time(),
+    )
+
+    day = report["coverage"]["days"]["2026-08-05"]
+    assert day["matched_slots"] == 64
+    assert day["successful_slots"] == 63
+    assert day["failed_slots"] == 1
+    assert day["operational_coverage_status"] == "fail"
+    assert report["coverage"]["root_cause_counts"] == {
+        "pagination_capacity_watermark_deadlock": 1
+    }
+    assert report["gate"]["expected_slots_complete"] is True
+    assert report["gate"]["critical_source_failures_zero"] is False
+    assert report["external_evidence"]["direct_reachability_attestation"][
+        "http_status"
+    ] == 200
+    assert report["external_evidence"]["does_not_override_gate"] is True
+    assert report["gate"]["all_pass"] is False
+
+
+def test_publication_continuity_uses_strict_parsed_datetime_bounds(tmp_path: Path) -> None:
+    database = tmp_path / "publication-continuity.db"
+    _create_database(database)
+    context = _fixture_context(expected_continuity_rows=1)
+    with sqlite3.connect(database) as connection:
+        connection.row_factory = sqlite3.Row
+        for index, published in enumerate(
+            (
+                "2026-08-03 13:37:29.000000",
+                "2026-08-03 13:37:29.000001",
+            ),
+            start=1,
+        ):
+            connection.execute(
+                """
+                INSERT INTO news_items (
+                    source, symbol, title, url, published_at, available_time,
+                    content_hash, raw_payload
+                ) VALUES ('cninfo', NULL, ?, ?, ?, ?, ?, '{}')
+                """,
+                (
+                    f"公告 {index}",
+                    f"https://example.test/continuity/{index}",
+                    published,
+                    "2026-08-04 00:00:00.000000",
+                    f"{index:064x}",
+                ),
+            )
+        report = acceptance._publication_continuity_audit(connection, context)
+
+    assert report["window"]["start_operator"] == ">"
+    assert report["window"]["end_operator"] == "<"
+    assert report["local_strict_row_count"] == 1
+    assert report["local_count_matches_attestation"] is True
+    assert report["external_attestation_reproduced_by_local_count"] is True
+    assert report["local_rows_alone_prove_upstream_completeness"] is False
+    assert report["does_not_override_jobrun_failures"] is True
+
+
+def test_0730_duplicate_only_success_explains_non_advancing_watermark() -> None:
+    config = acceptance.load_config(CONFIG_PATH)
+    context = _fixture_context()
+    target = datetime(2026, 8, 3, 23, 30, tzinfo=UTC)
+    run = acceptance.JobEvidence(
+        run_id=55487,
+        status="ok",
+        started_at=target,
+        finished_at=target + timedelta(seconds=7),
+        error=None,
+        stats={
+            "sources": {
+                "cninfo": {
+                    "status": "ok",
+                    "watermark_before": "2026-08-03T13:37:29+00:00",
+                    "watermark_floor": "2026-08-03T13:07:29+00:00",
+                    "watermark_after": "2026-08-03T13:37:29+00:00",
+                    "columns_complete": {"sse": True, "szse": True},
+                    "fetched": 4,
+                    "inserted": 0,
+                    "duplicate_url": 4,
+                    "duplicate_content_hash": 0,
+                    "failure_count": 0,
+                }
+            }
+        },
+        poll_started_at=target,
+        poll_completed_at=target + timedelta(seconds=6),
+    )
+
+    report = acceptance._watermark_semantics_audit(config, [run], context)
+
+    assert report["matched_job_run_id"] == 55487
+    assert report["target_slot"]["shanghai"] == "2026-08-04T07:30:00+08:00"
+    assert report["duplicate_only_batch"] is True
+    assert report["watermark_did_not_advance"] is True
+    assert report["non_advance_consistent_with_current_semantics"] is True
+    root_cause = report["query_window_root_cause"]
+    assert root_cause["query_end_date_used"] == "2026-08-03"
+    assert root_cause["market_date_at_poll"] == "2026-08-04"
+    assert root_cause["date_mismatch_observed"] is True
+    assert root_cause["classification"] == "utc_cst_query_window_date_defect"
+    assert report["interpretation"].startswith("query_end_date_used_utc_date")
+
+
+def test_final_time_gate_is_exact_and_context_is_honest_about_direct_200(
+    tmp_path: Path,
+) -> None:
+    config = acceptance.load_config(CONFIG_PATH)
+    context = acceptance.load_observation_context(
+        PROJECT_DIR / acceptance.DEFAULT_OBSERVATION_CONTEXT,
+        config,
+    )
+    database = tmp_path / "final-time-gate.db"
+    _create_database(database)
+
+    with pytest.raises(acceptance.AcceptanceNotReady, match="frozen until"):
+        acceptance.evaluate_acceptance(
+            database=database,
+            config=config,
+            scope="final",
+            now=datetime(2026, 8, 5, 16, 9, 59, tzinfo=UTC),
+            observation_context=context,
+        )
+    report = acceptance.evaluate_acceptance(
+        database=database,
+        config=config,
+        scope="final",
+        now=datetime(2026, 8, 5, 16, 10, tzinfo=UTC),
+        observation_context=context,
+    )
+
+    direct = report["external_evidence"]["direct_reachability_attestation"]
+    assert direct["host"] == "www.cninfo.com.cn"
+    assert direct["method"] is None
+    assert direct["path"] is None
+    assert direct["exact_request_details_supplied"] is False
+    assert direct["does_not_override_jobrun_failures"] is True
+    assert report["gate"]["all_pass"] is False

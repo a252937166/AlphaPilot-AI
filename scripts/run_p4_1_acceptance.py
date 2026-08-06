@@ -18,6 +18,9 @@ import yaml
 PROJECT_DIR = Path(__file__).resolve().parent.parent
 DEFAULT_CONFIG = Path("config/p4_news_poll_v1.yaml")
 DEFAULT_DATABASE = Path("data/alphapilot.db")
+DEFAULT_OBSERVATION_CONTEXT = Path(
+    "docs/phase4/reports/P4.1-observation-context-20260806.json"
+)
 SHANGHAI = ZoneInfo("Asia/Shanghai")
 TERMINAL_JOB_STATUSES = frozenset({"ok", "failed"})
 ENABLED_SOURCE_STATUSES = frozenset(
@@ -33,6 +36,13 @@ class AcceptanceNotReady(RuntimeError):
 
 @dataclass(frozen=True, slots=True)
 class FrozenConfig:
+    path: Path
+    sha256: str
+    document: JsonObject
+
+
+@dataclass(frozen=True, slots=True)
+class ObservationContext:
     path: Path
     sha256: str
     document: JsonObject
@@ -107,6 +117,14 @@ def _nonnegative_integer(value: object) -> int | None:
 def _require(condition: bool, message: str) -> None:
     if not condition:
         raise ValueError(message)
+
+
+def _dual_timestamp(value: datetime) -> JsonObject:
+    observed = value.astimezone(UTC)
+    return {
+        "utc": observed.isoformat(),
+        "shanghai": observed.astimezone(SHANGHAI).isoformat(),
+    }
 
 
 def load_config(path: Path) -> FrozenConfig:
@@ -228,6 +246,104 @@ def load_config(path: Path) -> FrozenConfig:
     _require(safety.get("required_unlock_trade_blocked") is True, "unlock_trade must be blocked")
     _require(phase_gate.get("p4_2_unlocked") is False, "P4.2 must remain locked")
     return FrozenConfig(path=resolved, sha256=_sha256(resolved), document=document)
+
+
+def load_observation_context(path: Path, config: FrozenConfig) -> ObservationContext:
+    resolved = path.resolve()
+    loaded: object = json.loads(resolved.read_text(encoding="utf-8"))
+    document = _mapping(loaded)
+    if document is None:
+        raise ValueError("P4.1 observation context must be a JSON object")
+    _require(
+        document.get("schema_version") == "p4.1-observation-context-v1",
+        "unexpected observation-context schema_version",
+    )
+    _require(
+        document.get("frozen_config_sha256") == config.sha256,
+        "observation context is not bound to the frozen P4.1 config",
+    )
+    network = _mapping(document.get("reporter_network_policy"))
+    gate_policy = _mapping(document.get("gate_policy"))
+    direct = _mapping(document.get("direct_reachability_attestation"))
+    continuity = _mapping(document.get("publication_continuity_attestation"))
+    watermark = _mapping(document.get("watermark_semantics_target"))
+    intervals = document.get("host_unavailability_intervals")
+    _require(network is not None, "observation context network policy missing")
+    _require(gate_policy is not None, "observation context gate policy missing")
+    _require(direct is not None, "direct reachability attestation missing")
+    _require(continuity is not None, "publication continuity attestation missing")
+    _require(watermark is not None, "watermark semantics target missing")
+    _require(isinstance(intervals, list), "host-unavailability intervals must be a list")
+    assert network is not None
+    assert gate_policy is not None
+    assert direct is not None
+    assert continuity is not None
+    assert watermark is not None
+    assert isinstance(intervals, list)
+    _require(
+        network.get("network_calls_performed_by_acceptance_runner") is False,
+        "acceptance runner must not claim external network access",
+    )
+    _require(
+        network.get("network_calls_permitted_during_report_generation") is False,
+        "acceptance report generation must remain offline",
+    )
+    for field in (
+        "does_not_override_expected_slots_complete",
+        "does_not_override_critical_source_failures_zero",
+        "does_not_turn_operational_failures_green",
+    ):
+        _require(gate_policy.get(field) is True, f"observation context gate policy {field} drifted")
+    _require(direct.get("http_status") == 200, "direct reachability attestation must record 200")
+    _require(
+        direct.get("does_not_override_jobrun_failures") is True,
+        "direct reachability attestation must not override JobRun failures",
+    )
+    _require(
+        continuity.get("window_start_operator") == ">"
+        and continuity.get("window_end_operator") == "<",
+        "publication continuity window must remain strict-open",
+    )
+    _require(
+        _aware_datetime(continuity.get("window_start_utc")) is not None
+        and _aware_datetime(continuity.get("window_end_utc")) is not None,
+        "publication continuity window timestamps must be timezone-aware",
+    )
+    _require(
+        _nonnegative_integer(continuity.get("expected_local_strict_row_count")) is not None,
+        "publication continuity expected count must be non-negative",
+    )
+    _require(
+        continuity.get("local_rows_alone_prove_upstream_completeness") is False,
+        "local rows must not claim to prove upstream completeness",
+    )
+    _require(
+        continuity.get("does_not_override_jobrun_failures") is True,
+        "continuity attestation must not override JobRun failures",
+    )
+    _require(
+        _aware_datetime(watermark.get("target_slot_shanghai")) is not None,
+        "watermark target slot must be timezone-aware",
+    )
+    _require(
+        watermark.get("query_end_date_expression") == "now.date()"
+        and watermark.get("runtime_now_timezone") == "UTC"
+        and watermark.get("expected_market_timezone") == "Asia/Shanghai"
+        and watermark.get("defect_classification") == "utc_cst_query_window_date_defect",
+        "watermark query-date root-cause evidence drifted",
+    )
+    for index, raw_interval in enumerate(intervals):
+        interval = _mapping(raw_interval)
+        _require(interval is not None, f"host-unavailability interval {index} must be an object")
+        assert interval is not None
+        start = _aware_datetime(interval.get("start_shanghai"))
+        end = _aware_datetime(interval.get("end_shanghai"))
+        _require(start is not None and end is not None and start <= end, "invalid host interval")
+        _require(
+            interval.get("classification") == "host_unreachable",
+            "host interval classification drifted",
+        )
+    return ObservationContext(path=resolved, sha256=_sha256(resolved), document=document)
 
 
 def _parse_clock(value: object) -> time:
@@ -358,19 +474,332 @@ def _cadence_audit(
             continue
         delta, matched = min(candidates, key=lambda item: (item[0], item[1].run_id))
         remaining.remove(matched)
+        poll_started = matched.poll_started_at
+        poll_completed = matched.poll_completed_at
         matches.append(
             {
                 "slot": slot.isoformat(),
+                "slot_utc": slot_utc.isoformat(),
                 "job_run_id": matched.run_id,
+                "job_status": matched.status,
+                "job_error": matched.error,
+                "poll_started_at_utc": (
+                    poll_started.astimezone(UTC).isoformat() if poll_started is not None else None
+                ),
+                "poll_started_at_shanghai": (
+                    poll_started.astimezone(SHANGHAI).isoformat()
+                    if poll_started is not None
+                    else None
+                ),
+                "poll_completed_at_utc": (
+                    poll_completed.astimezone(UTC).isoformat()
+                    if poll_completed is not None
+                    else None
+                ),
+                "poll_completed_at_shanghai": (
+                    poll_completed.astimezone(SHANGHAI).isoformat()
+                    if poll_completed is not None
+                    else None
+                ),
                 "start_delta_seconds": round(delta, 6),
             }
         )
+    missing_details = [
+        {
+            "slot": value,
+            "slot_utc": datetime.fromisoformat(value).astimezone(UTC).isoformat(),
+        }
+        for value in missing
+    ]
     return {
         "expected_slots": len(expected),
         "matched_slots": len(matches),
         "missing_slots": missing,
+        "missing_slot_details": missing_details,
         "unexpected_run_ids": [run.run_id for run in remaining],
         "matches": matches,
+    }
+
+
+def _host_context_causes(context: ObservationContext, slot: datetime) -> list[JsonObject]:
+    raw_intervals = context.document.get("host_unavailability_intervals")
+    intervals = raw_intervals if isinstance(raw_intervals, list) else []
+    causes: list[JsonObject] = []
+    slot_utc = slot.astimezone(UTC)
+    for raw_interval in intervals:
+        interval = _mapping(raw_interval)
+        if interval is None:
+            continue
+        start = _aware_datetime(interval.get("start_shanghai"))
+        end = _aware_datetime(interval.get("end_shanghai"))
+        if start is None or end is None or not (start <= slot_utc <= end):
+            continue
+        causes.append(
+            {
+                "classification": "host_unreachable",
+                "label_zh": "宿主不可达",
+                "evidence_basis": "external_owner_pmset_interval",
+                "evidence_id": interval.get("evidence_id"),
+                "interval_start_utc": start.isoformat(),
+                "interval_end_utc": end.isoformat(),
+                "interval_start_shanghai": start.astimezone(SHANGHAI).isoformat(),
+                "interval_end_shanghai": end.astimezone(SHANGHAI).isoformat(),
+            }
+        )
+    return causes
+
+
+def _failure_observations(run: JobEvidence) -> list[JsonObject]:
+    raw_sources = _mapping(run.stats.get("sources")) or {}
+    observations: list[JsonObject] = []
+    for source_id, raw_source in sorted(raw_sources.items()):
+        source = _mapping(raw_source)
+        if source is None:
+            continue
+        raw_failures = source.get("failures")
+        failures = raw_failures if isinstance(raw_failures, list) else []
+        for raw_failure in failures:
+            failure = _mapping(raw_failure)
+            if failure is None:
+                continue
+            raw_requests = source.get("requests")
+            requests = raw_requests if isinstance(raw_requests, list) else []
+            observations.append(
+                {
+                    "source_id": source_id,
+                    "source_status": source.get("status"),
+                    "code": failure.get("code"),
+                    "blocked": failure.get("blocked"),
+                    "error_type": failure.get("error_type"),
+                    "message": failure.get("message"),
+                    "symbol": failure.get("symbol"),
+                    "request_count": source.get("request_count"),
+                    "retry_count": source.get("retry_count"),
+                    "request_failure_codes": [
+                        request.get("failure_code")
+                        for raw_request in requests
+                        if (request := _mapping(raw_request)) is not None
+                    ],
+                }
+            )
+    return observations
+
+
+def _classified_failure_causes(
+    config: FrozenConfig,
+    failures: Sequence[JsonObject],
+) -> list[JsonObject]:
+    config_sources = _mapping(config.document.get("sources")) or {}
+    grouped: dict[str, JsonObject] = {}
+    labels = {
+        "pagination_capacity_watermark_deadlock": "翻页容量/水位死锁",
+        "retry_budget_semantics_defect": "重试预算缺陷",
+        "upstream_unavailable": "上游不可用",
+        "unclassified": "未分类",
+    }
+    for failure in failures:
+        source_id = str(failure.get("source_id") or "")
+        code = str(failure.get("code") or "")
+        evidence_basis = "jobrun_explicit_failure"
+        if code == "pagination_incomplete":
+            classification = "pagination_capacity_watermark_deadlock"
+        elif code == "request_budget_exhausted":
+            source_contract = _mapping(config_sources.get(source_id)) or {}
+            request_failure_codes = failure.get("request_failure_codes")
+            has_transport_failure = isinstance(request_failure_codes, list) and (
+                "transport_error" in request_failure_codes
+            )
+            incompatible_budget = (
+                source_contract.get("max_requests_per_run") == 1
+                and source_contract.get("max_attempts_per_request") == 2
+            )
+            if source_id == "akshare_ths" and has_transport_failure and incompatible_budget:
+                classification = "retry_budget_semantics_defect"
+                evidence_basis = "jobrun_request_trace_plus_frozen_budget_contract"
+            else:
+                classification = "unclassified"
+        elif code == "transport_error":
+            classification = "upstream_unavailable"
+            evidence_basis = "client_observed_transport_unavailability"
+        else:
+            classification = "unclassified"
+        item = grouped.setdefault(
+            classification,
+            {
+                "classification": classification,
+                "label_zh": labels[classification],
+                "evidence_basis": evidence_basis,
+                "source_ids": [],
+                "failure_codes": [],
+                "caveat": (
+                    "client-observed transport failure does not independently prove "
+                    "an upstream-wide outage"
+                    if classification == "upstream_unavailable"
+                    else None
+                ),
+            },
+        )
+        source_ids = item["source_ids"]
+        failure_codes = item["failure_codes"]
+        assert isinstance(source_ids, list)
+        assert isinstance(failure_codes, list)
+        if source_id and source_id not in source_ids:
+            source_ids.append(source_id)
+        if code and code not in failure_codes:
+            failure_codes.append(code)
+    return [grouped[key] for key in sorted(grouped)]
+
+
+def _slot_detail(
+    *,
+    config: FrozenConfig,
+    context: ObservationContext,
+    slot: datetime,
+    run: JobEvidence | None,
+) -> JsonObject:
+    failures = _failure_observations(run) if run is not None else []
+    causes = _host_context_causes(context, slot)
+    causes.extend(_classified_failure_causes(config, failures))
+    if not causes:
+        causes.append(
+            {
+                "classification": "unclassified",
+                "label_zh": "未分类",
+                "evidence_basis": "no_matching_external_or_jobrun_evidence",
+            }
+        )
+    return {
+        "slot_shanghai": slot.astimezone(SHANGHAI).isoformat(),
+        "slot_utc": slot.astimezone(UTC).isoformat(),
+        "job_run_id": run.run_id if run is not None else None,
+        "job_status": run.status if run is not None else "missing",
+        "job_error": run.error if run is not None else None,
+        "poll_started_at": (
+            _dual_timestamp(run.poll_started_at)
+            if run is not None and run.poll_started_at is not None
+            else None
+        ),
+        "source_failures": failures,
+        "root_causes": causes,
+    }
+
+
+def _coverage_audit(
+    config: FrozenConfig,
+    dates: Sequence[date],
+    runs: Sequence[JobEvidence],
+    cadence: JsonObject,
+    context: ObservationContext,
+) -> JsonObject:
+    runs_by_id = {run.run_id: run for run in runs}
+    raw_matches = cadence.get("matches")
+    matches = raw_matches if isinstance(raw_matches, list) else []
+    match_by_slot: dict[str, JobEvidence] = {}
+    for raw_match in matches:
+        match = _mapping(raw_match)
+        if match is None:
+            continue
+        run_id = match.get("job_run_id")
+        slot = match.get("slot")
+        if isinstance(run_id, int) and isinstance(slot, str) and run_id in runs_by_id:
+            match_by_slot[slot] = runs_by_id[run_id]
+
+    days: dict[str, JsonObject] = {}
+    root_cause_counts: dict[str, int] = {}
+    unclassified_slots: list[str] = []
+    for target in dates:
+        expected = expected_poll_slots(config, target)
+        successful = 0
+        failed = 0
+        nonterminal = 0
+        failed_details: list[JsonObject] = []
+        missing_details: list[JsonObject] = []
+        for slot in expected:
+            run = match_by_slot.get(slot.isoformat())
+            if run is None:
+                detail = _slot_detail(config=config, context=context, slot=slot, run=None)
+                missing_details.append(detail)
+            elif run.status == "ok":
+                successful += 1
+                continue
+            else:
+                if run.status == "failed":
+                    failed += 1
+                else:
+                    nonterminal += 1
+                detail = _slot_detail(config=config, context=context, slot=slot, run=run)
+                failed_details.append(detail)
+
+            causes = detail["root_causes"]
+            assert isinstance(causes, list)
+            classifications = {
+                str(cause.get("classification"))
+                for raw_cause in causes
+                if (cause := _mapping(raw_cause)) is not None
+            }
+            for classification in classifications:
+                root_cause_counts[classification] = (
+                    root_cause_counts.get(classification, 0) + 1
+                )
+            if not classifications or "unclassified" in classifications:
+                unclassified_slots.append(slot.isoformat())
+
+        matched = len(expected) - len(missing_details)
+        trading_failed = [
+            detail
+            for detail in failed_details
+            if time(9, 25)
+            <= datetime.fromisoformat(str(detail["slot_shanghai"])).time()
+            <= time(15, 5)
+        ]
+        trading_missing = [
+            detail
+            for detail in missing_details
+            if time(9, 25)
+            <= datetime.fromisoformat(str(detail["slot_shanghai"])).time()
+            <= time(15, 5)
+        ]
+        start = datetime.combine(target, time.min, tzinfo=SHANGHAI)
+        end = start + timedelta(days=1)
+        days[target.isoformat()] = {
+            "window_start": _dual_timestamp(start),
+            "window_end": _dual_timestamp(end),
+            "expected_slots": len(expected),
+            "matched_slots": matched,
+            "successful_slots": successful,
+            "failed_slots": failed,
+            "nonterminal_slots": nonterminal,
+            "missing_slots": len(missing_details),
+            "execution_coverage": round(matched / len(expected), 6),
+            "success_coverage": round(successful / len(expected), 6),
+            "operational_coverage_status": (
+                "pass"
+                if matched == len(expected) and successful == len(expected)
+                else "fail"
+            ),
+            "failed_slot_details": failed_details,
+            "missing_slot_details": missing_details,
+            "trading_window": {
+                "definition": "09:25 <= expected slot <= 15:05 Asia/Shanghai",
+                "failed_slot_details": trading_failed,
+                "missing_slot_details": trading_missing,
+            },
+        }
+    return {
+        "timezone_basis": "Asia/Shanghai",
+        "stored_timestamp_basis": "UTC",
+        "days": days,
+        "root_cause_counts": dict(sorted(root_cause_counts.items())),
+        "unclassified_slots": unclassified_slots,
+        "root_cause_accounting_complete": not unclassified_slots,
+        "operational_all_success": all(
+            day["operational_coverage_status"] == "pass" for day in days.values()
+        ),
+        "gate_separation": {
+            "coverage_is_descriptive": True,
+            "expected_slots_complete_gate_preserved": True,
+            "critical_source_failures_zero_gate_preserved": True,
+        },
     }
 
 
@@ -803,6 +1232,260 @@ def _news_audit(
     }
 
 
+def _publication_continuity_audit(
+    connection: sqlite3.Connection,
+    context: ObservationContext,
+) -> JsonObject:
+    raw_attestation = _mapping(
+        context.document.get("publication_continuity_attestation")
+    )
+    assert raw_attestation is not None
+    start = _aware_datetime(raw_attestation.get("window_start_utc"))
+    end = _aware_datetime(raw_attestation.get("window_end_utc"))
+    assert start is not None
+    assert end is not None
+    expected = _nonnegative_integer(raw_attestation.get("expected_local_strict_row_count"))
+    assert expected is not None
+    if not _table_exists(connection, "news_items"):
+        return {
+            "source": "cninfo",
+            "local_strict_row_count": 0,
+            "attested_expected_row_count": expected,
+            "local_count_matches_attestation": False,
+            "external_continuity_attested": True,
+            "external_attestation_reproduced_by_local_count": False,
+            "local_rows_alone_prove_upstream_completeness": False,
+            "does_not_restore_decision_timeliness": True,
+            "does_not_override_jobrun_failures": True,
+            "issues": ["news_items table missing"],
+        }
+    rows = connection.execute(
+        """
+        SELECT id, published_at, available_time
+        FROM news_items
+        WHERE source='cninfo' AND published_at IS NOT NULL
+        ORDER BY published_at, id
+        """
+    ).fetchall()
+    selected: list[tuple[int, datetime, datetime | None]] = []
+    for row in rows:
+        published = _sqlite_utc_datetime(row["published_at"])
+        if published is None or not (start < published < end):
+            continue
+        selected.append(
+            (
+                int(row["id"]),
+                published,
+                _sqlite_utc_datetime(row["available_time"]),
+            )
+        )
+    hour_counts: dict[str, int] = {}
+    delays: list[float] = []
+    identities: list[str] = []
+    for row_id, published, available in selected:
+        local_hour = published.astimezone(SHANGHAI).replace(
+            minute=0,
+            second=0,
+            microsecond=0,
+        )
+        key = local_hour.isoformat()
+        hour_counts[key] = hour_counts.get(key, 0) + 1
+        if available is not None:
+            delays.append((available - published).total_seconds())
+        identities.append(
+            "|".join(
+                (
+                    str(row_id),
+                    published.isoformat(),
+                    available.isoformat() if available is not None else "null",
+                )
+            )
+        )
+    identity_sha256 = hashlib.sha256("\n".join(identities).encode("utf-8")).hexdigest()
+    count_matches = len(selected) == expected
+    externally_attested = (
+        raw_attestation.get("conclusion")
+        == "publication_intervals_observed_continuous_in_review_scope"
+    )
+    return {
+        "source": "cninfo",
+        "method": (
+            "select source=cninfo; parse published_at as UTC; apply strict datetime "
+            "bounds; group retained rows by Shanghai publication hour"
+        ),
+        "window": {
+            "start_operator": ">",
+            "start": _dual_timestamp(start),
+            "end_operator": "<",
+            "end": _dual_timestamp(end),
+        },
+        "local_strict_row_count": len(selected),
+        "attested_expected_row_count": expected,
+        "local_count_matches_attestation": count_matches,
+        "local_identity_sha256": identity_sha256,
+        "first_published_at": (
+            _dual_timestamp(selected[0][1]) if selected else None
+        ),
+        "last_published_at": (
+            _dual_timestamp(selected[-1][1]) if selected else None
+        ),
+        "publication_hour_counts_shanghai": dict(sorted(hour_counts.items())),
+        "ingestion_delay_seconds": {
+            "minimum": round(min(delays), 6) if delays else None,
+            "maximum": round(max(delays), 6) if delays else None,
+        },
+        "external_continuity_attested": externally_attested,
+        "external_attestation_reproduced_by_local_count": (
+            externally_attested and count_matches
+        ),
+        "local_rows_alone_prove_upstream_completeness": False,
+        "does_not_restore_decision_timeliness": True,
+        "does_not_override_jobrun_failures": True,
+        "evidence_source": raw_attestation.get("evidence_source"),
+        "issues": [],
+    }
+
+
+def _watermark_semantics_audit(
+    config: FrozenConfig,
+    runs: Sequence[JobEvidence],
+    context: ObservationContext,
+) -> JsonObject:
+    raw_target = _mapping(context.document.get("watermark_semantics_target"))
+    assert raw_target is not None
+    target = _aware_datetime(raw_target.get("target_slot_shanghai"))
+    assert target is not None
+    schedule = _mapping(config.document.get("schedule")) or {}
+    tolerance = float(schedule.get("slot_tolerance_seconds", 0))
+    candidates = [
+        run
+        for run in runs
+        if run.poll_started_at is not None
+        and abs((run.poll_started_at - target).total_seconds()) <= tolerance
+    ]
+    candidates.sort(
+        key=lambda run: (
+            abs(((run.poll_started_at or target) - target).total_seconds()),
+            run.run_id,
+        )
+    )
+    if not candidates:
+        return {
+            "target_slot": _dual_timestamp(target),
+            "matched_job_run_id": None,
+            "issues": ["no news_poll JobRun matched the 07:30 Shanghai target"],
+            "interpretation": "inconclusive",
+        }
+    run = candidates[0]
+    sources = _mapping(run.stats.get("sources")) or {}
+    source_id = str(raw_target.get("source"))
+    source = _mapping(sources.get(source_id)) or {}
+    before = _aware_datetime(source.get("watermark_before"))
+    floor = _aware_datetime(source.get("watermark_floor"))
+    after = _aware_datetime(source.get("watermark_after"))
+    fetched = _nonnegative_integer(source.get("fetched"))
+    inserted = _nonnegative_integer(source.get("inserted"))
+    duplicate_url = _nonnegative_integer(source.get("duplicate_url"))
+    duplicate_hash = _nonnegative_integer(source.get("duplicate_content_hash"))
+    failure_count = _nonnegative_integer(source.get("failure_count"))
+    columns_complete = _mapping(source.get("columns_complete"))
+    duplicates = (
+        duplicate_url + duplicate_hash
+        if duplicate_url is not None and duplicate_hash is not None
+        else None
+    )
+    duplicate_only = (
+        fetched is not None
+        and duplicates is not None
+        and inserted == 0
+        and fetched == duplicates
+    )
+    non_advance = before is not None and after is not None and before == after
+    complete = (
+        bool(columns_complete)
+        and all(value is True for value in columns_complete.values())
+        if columns_complete is not None
+        else False
+    )
+    consistent = (
+        run.status == "ok"
+        and failure_count == 0
+        and non_advance
+        and duplicate_only
+        and complete
+    )
+    poll_started = run.poll_started_at
+    query_end_date_utc = poll_started.astimezone(UTC).date() if poll_started is not None else None
+    query_end_date_shanghai = (
+        poll_started.astimezone(SHANGHAI).date() if poll_started is not None else None
+    )
+    query_date_mismatch = (
+        query_end_date_utc is not None
+        and query_end_date_shanghai is not None
+        and query_end_date_utc != query_end_date_shanghai
+    )
+    issues: list[str] = []
+    if len(candidates) > 1:
+        issues.append("multiple JobRuns matched the 07:30 target")
+    if not consistent:
+        issues.append("07:30 evidence does not satisfy the duplicate-only non-advance pattern")
+    return {
+        "target_slot": _dual_timestamp(target),
+        "matched_job_run_id": run.run_id,
+        "matched_poll_started_at": (
+            _dual_timestamp(run.poll_started_at) if run.poll_started_at is not None else None
+        ),
+        "job_status": run.status,
+        "job_error": run.error,
+        "source_status": source.get("status"),
+        "watermark_before": _dual_timestamp(before) if before is not None else None,
+        "watermark_floor": _dual_timestamp(floor) if floor is not None else None,
+        "watermark_after": _dual_timestamp(after) if after is not None else None,
+        "fetched": fetched,
+        "inserted": inserted,
+        "duplicate_url": duplicate_url,
+        "duplicate_content_hash": duplicate_hash,
+        "columns_complete": columns_complete,
+        "failure_count": failure_count,
+        "duplicate_only_batch": duplicate_only,
+        "watermark_did_not_advance": non_advance,
+        "non_advance_consistent_with_current_semantics": consistent,
+        "query_window_root_cause": {
+            "classification": raw_target.get("defect_classification"),
+            "query_end_date_expression": raw_target.get("query_end_date_expression"),
+            "runtime_now_timezone": raw_target.get("runtime_now_timezone"),
+            "expected_market_timezone": raw_target.get("expected_market_timezone"),
+            "query_end_date_used": (
+                query_end_date_utc.isoformat() if query_end_date_utc is not None else None
+            ),
+            "market_date_at_poll": (
+                query_end_date_shanghai.isoformat()
+                if query_end_date_shanghai is not None
+                else None
+            ),
+            "date_mismatch_observed": query_date_mismatch,
+            "effect": (
+                "07:30 CST poll queried only through the prior UTC date, so same-day "
+                "Shanghai announcements were outside the request window"
+                if query_date_mismatch
+                else "not_observed"
+            ),
+            "implementation_reference": raw_target.get("implementation_reference"),
+            "v2_fix_required": True,
+        },
+        "interpretation": (
+            "query_end_date_used_utc_date_before_shanghai_market_date; only duplicates "
+            "were observed; successful poll time is not a watermark"
+            if consistent
+            else "inconclusive"
+        ),
+        "interpretation_contract": raw_target.get("interpretation_contract"),
+        "implementation_reference": raw_target.get("implementation_reference"),
+        "v2_partial_failure_watermark_work_remains": True,
+        "issues": issues,
+    }
+
+
 def _created_in_window(value: object, start: datetime, end: datetime) -> bool:
     parsed = _sqlite_utc_datetime(value)
     return parsed is not None and start <= parsed < end
@@ -908,7 +1591,12 @@ def evaluate_acceptance(
     scope: str,
     target_date: date | None = None,
     now: datetime | None = None,
+    observation_context: ObservationContext | None = None,
 ) -> JsonObject:
+    context = observation_context or load_observation_context(
+        PROJECT_DIR / DEFAULT_OBSERVATION_CONTEXT,
+        config,
+    )
     all_dates = _acceptance_dates(config)
     if scope == "daily":
         if target_date is None or target_date not in all_dates:
@@ -938,10 +1626,13 @@ def evaluate_acceptance(
         source = _source_audit(config, dates, selected)
         schema = _schema_audit(connection)
         news = _news_audit(config, connection, runs_by_id)
+        publication_continuity = _publication_continuity_audit(connection, context)
         trading = _trading_audit(connection, dates)
+    coverage = _coverage_audit(config, dates, selected, cadence, context)
+    watermark_semantics = _watermark_semantics_audit(config, all_runs, context)
     gate = _gate(config, scope, dates, cadence, jobrun, source, schema, news, trading)
     return {
-        "schema_version": "p4.1-news-acceptance-report-v1",
+        "schema_version": "p4.1-news-acceptance-report-v2",
         "generated_at": observed_now.astimezone(UTC).isoformat(),
         "scope": scope,
         "dates": [value.isoformat() for value in dates],
@@ -952,12 +1643,33 @@ def evaluate_acceptance(
             "sha256": config.sha256,
             "schema_version": config.document["schema_version"],
         },
+        "observation_context": {
+            "path": str(context.path),
+            "sha256": context.sha256,
+            "schema_version": context.document["schema_version"],
+            "frozen_config_sha256": context.document["frozen_config_sha256"],
+        },
         "ready_at": ready_at.isoformat(),
         "cadence": cadence,
+        "coverage": coverage,
         "jobrun": jobrun,
         "sources": source,
         "schema": schema,
         "news_items": news,
+        "publication_continuity": publication_continuity,
+        "watermark_semantics_0730": watermark_semantics,
+        "external_evidence": {
+            "runner_network_policy": context.document["reporter_network_policy"],
+            "gate_policy": context.document["gate_policy"],
+            "direct_reachability_attestation": context.document[
+                "direct_reachability_attestation"
+            ],
+            "publication_continuity_attestation": context.document[
+                "publication_continuity_attestation"
+            ],
+            "day3_owner_adjudication": context.document["day3_owner_adjudication"],
+            "does_not_override_gate": True,
+        },
         "trading_safety": trading,
         "gate": gate,
     }
@@ -1011,6 +1723,11 @@ def _arguments() -> argparse.Namespace:
     )
     parser.add_argument("--db", type=Path, default=DEFAULT_DATABASE)
     parser.add_argument("--config", type=Path, default=DEFAULT_CONFIG)
+    parser.add_argument(
+        "--observation-context",
+        type=Path,
+        default=DEFAULT_OBSERVATION_CONTEXT,
+    )
     parser.add_argument("--scope", choices=("daily", "final"), required=True)
     parser.add_argument("--date", type=date.fromisoformat)
     parser.add_argument("--report", type=Path)
@@ -1021,11 +1738,16 @@ def main() -> int:
     arguments = _arguments()
     os.chdir(PROJECT_DIR)
     config = load_config(PROJECT_DIR / arguments.config)
+    observation_context = load_observation_context(
+        PROJECT_DIR / arguments.observation_context,
+        config,
+    )
     report = evaluate_acceptance(
         database=PROJECT_DIR / arguments.db,
         config=config,
         scope=str(arguments.scope),
         target_date=arguments.date,
+        observation_context=observation_context,
     )
     report_path = (
         (PROJECT_DIR / arguments.report).resolve()

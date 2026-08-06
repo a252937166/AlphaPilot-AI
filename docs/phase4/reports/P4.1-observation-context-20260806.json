@@ -1,0 +1,90 @@
+{
+  "schema_version": "p4.1-observation-context-v1",
+  "recorded_at": "2026-08-06T14:11:21+08:00",
+  "frozen_config_sha256": "d0dcd665472b50092a1b4fa7f65f7115778e1b89ac11aca0ed49dc70beaa790b",
+  "reporter_network_policy": {
+    "network_calls_performed_by_acceptance_runner": false,
+    "network_calls_permitted_during_report_generation": false,
+    "external_facts_are_attestations_not_runner_observations": true
+  },
+  "gate_policy": {
+    "does_not_override_expected_slots_complete": true,
+    "does_not_override_critical_source_failures_zero": true,
+    "does_not_turn_operational_failures_green": true
+  },
+  "host_unavailability_intervals": [
+    {
+      "evidence_id": "day1-owner-pmset-clamshell",
+      "classification": "host_unreachable",
+      "start_shanghai": "2026-08-03T08:46:02+08:00",
+      "end_shanghai": "2026-08-03T09:42:43+08:00",
+      "interval_semantics": "closed",
+      "owner_adjudication": "人为断网且合盖睡眠，缺口不得补造或回填",
+      "pmset_evidence": {
+        "sleep_event_local": "2026-08-02T20:46:02-04:00",
+        "wake_event_local": "2026-08-02T21:42:43-04:00",
+        "reason": "Clamshell Sleep"
+      },
+      "evidence_source": {
+        "path": "docs/phase4/00_P4_EVENT_DRIVEN_PAPER_LOOP.md",
+        "section": "P4.1 观察窗 Day 1 覆盖缺口与部署时区风险",
+        "decision_commit": "5251ccc",
+        "source_kind": "owner_adjudication_plus_pmset_log"
+      }
+    }
+  ],
+  "direct_reachability_attestation": {
+    "evidence_id": "day3-independent-cninfo-direct-200",
+    "reviewer_role": "independent_architecture_reviewer",
+    "observed_date_shanghai": "2026-08-05",
+    "observed_at_exact": null,
+    "host": "www.cninfo.com.cn",
+    "method": null,
+    "path": null,
+    "exact_request_details_supplied": false,
+    "http_status": 200,
+    "tls": true,
+    "response_body_persisted": false,
+    "source_kind": "independent_reviewer_attestation_supplied_by_owner",
+    "repository_artifact_available_before_this_context": false,
+    "evidence_limit": "证明独立复核当时上游可达，不证明每个历史轮询成功，也不覆盖 JobRun 失败门",
+    "does_not_override_jobrun_failures": true
+  },
+  "publication_continuity_attestation": {
+    "evidence_id": "day2-independent-cninfo-publication-continuity",
+    "reviewer_role": "independent_architecture_reviewer",
+    "source": "cninfo",
+    "window_start_utc": "2026-08-03T13:37:29+00:00",
+    "window_start_operator": ">",
+    "window_end_utc": "2026-08-04T16:00:00+00:00",
+    "window_end_operator": "<",
+    "expected_local_strict_row_count": 991,
+    "conclusion": "publication_intervals_observed_continuous_in_review_scope",
+    "evidence_source": {
+      "path": "docs/phase4/00_P4_EVENT_DRIVEN_PAPER_LOOP.md",
+      "section": "P4.1 观察窗 Day 2 发现：cninfo 翻页水位死锁",
+      "decision_commit": "eeb58e9",
+      "source_kind": "independent_reviewer_attestation"
+    },
+    "local_rows_alone_prove_upstream_completeness": false,
+    "does_not_restore_decision_timeliness": true,
+    "does_not_override_jobrun_failures": true
+  },
+  "watermark_semantics_target": {
+    "source": "cninfo",
+    "target_slot_shanghai": "2026-08-04T07:30:00+08:00",
+    "implementation_reference": "src/alphapilot/jobs/news_poll.py:run_news_poll/_last_successful_watermark/_fetch_cninfo",
+    "query_end_date_expression": "now.date()",
+    "runtime_now_timezone": "UTC",
+    "expected_market_timezone": "Asia/Shanghai",
+    "defect_classification": "utc_cst_query_window_date_defect",
+    "interpretation_contract": "watermark_after tracks newest observed published_at, never poll time"
+  },
+  "day3_owner_adjudication": {
+    "classification": "pagination_capacity_watermark_deadlock",
+    "source_kind": "owner_instruction_in_current_task",
+    "repository_artifact_available_before_this_context": false,
+    "statement": "Day 3 的 cninfo 失败与 Day 2 为同一水位死锁根因；独立直连 200 仅用于排除当时上游整体不可达",
+    "does_not_override_jobrun_failures": true
+  }
+}
