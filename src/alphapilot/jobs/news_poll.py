@@ -35,7 +35,7 @@ from alphapilot.db.models import (
     utcnow,
 )
 from alphapilot.futu.client import PERMANENTLY_BLOCKED_METHODS
-from alphapilot.jobs.registry import JobExecutionError, JobSpec, register
+from alphapilot.jobs.registry import JobExecutionError, JobOutcome, JobSpec, register
 
 JsonObject = dict[str, Any]
 HttpClientFactory = Callable[[str], Any]
@@ -1514,17 +1514,188 @@ def _batch_stats(batch: SourceBatch, persistence: JsonObject | None = None) -> J
     return result
 
 
+def _safe_v2_failure(failure: Mapping[str, object]) -> JsonObject:
+    """Keep only bounded machine-readable failure evidence for v2 stats."""
+
+    result: JsonObject = {
+        "code": str(failure.get("code") or "unexpected_error")[:80],
+        "blocked": failure.get("blocked") is True,
+        "error_type": str(failure.get("error_type") or "UnknownError")[:80],
+    }
+    column = failure.get("column")
+    if isinstance(column, str):
+        result["column"] = column[:32]
+    suppression = failure.get("suppression")
+    if isinstance(suppression, Mapping):
+        result["suppression"] = {
+            key: value
+            for key, value in suppression.items()
+            if key
+            in {
+                "code",
+                "constraint",
+                "source_id",
+                "logical_request_count",
+                "physical_attempt_count",
+                "max_physical_attempts",
+                "retry_suppressed",
+            }
+            and isinstance(value, (str, int, float, bool, type(None)))
+        }
+    return result
+
+
+def _v2_terminal_diagnostic(
+    *,
+    code: str,
+    source: str,
+    constraint: str,
+    recoverable: bool,
+    retry_suppressed: bool = False,
+) -> JsonObject:
+    return {
+        "code": code,
+        "source": source,
+        "constraint": constraint,
+        "recoverable": recoverable,
+        "retry_suppressed": retry_suppressed,
+    }
+
+
+def _v2_cninfo_failure_diagnostic(source: Mapping[str, object]) -> JsonObject:
+    failures = source.get("failures")
+    first = (
+        failures[0]
+        if isinstance(failures, list) and failures and isinstance(failures[0], dict)
+        else {}
+    )
+    code = str(first.get("code") or "cninfo_invalid_terminal_state")[:80]
+    retry_suppressed = isinstance(first.get("suppression"), dict)
+    if code in {
+        "transport_timeout",
+        "transport_error",
+        "client_error",
+        "http_server_error",
+    }:
+        constraint = "critical_transport"
+        recoverable = True
+    elif code in {
+        "http_forbidden_or_antibot",
+        "http_rate_limited",
+        "http_client_error",
+        "redirect_not_followed",
+        "forbidden_upstream",
+        "logical_request_budget_exhausted",
+        "physical_attempt_budget_exhausted",
+    }:
+        constraint = "critical_transport_policy"
+        recoverable = False
+    elif code in {"decode_error", "schema_changed"}:
+        constraint = "critical_schema"
+        recoverable = False
+    elif code in {"persistence_failed", "source_not_audited"}:
+        constraint = "critical_persistence"
+        recoverable = False
+    elif str(source.get("status")) == "degraded":
+        code = "cninfo_invalid_degraded_state"
+        constraint = "degraded_cause_allowlist"
+        recoverable = False
+    else:
+        constraint = "critical_unknown"
+        recoverable = False
+    return _v2_terminal_diagnostic(
+        code=code,
+        source="cninfo",
+        constraint=constraint,
+        recoverable=recoverable,
+        retry_suppressed=retry_suppressed,
+    )
+
+
+def _v2_cninfo_page_cap_only(
+    source: Mapping[str, object],
+    *,
+    expected_columns: list[str],
+) -> bool:
+    """Accept only the pre-registered page-cap incomplete shape as degraded."""
+
+    if source.get("status") != "degraded" or source.get("tls_verification") is not True:
+        return False
+    failures = source.get("failures")
+    if not isinstance(failures, list) or not failures:
+        return False
+    failure_columns: list[str] = []
+    for failure in failures:
+        if not isinstance(failure, dict) or failure.get("code") != "pagination_incomplete":
+            return False
+        column = failure.get("column")
+        if not isinstance(column, str):
+            return False
+        failure_columns.append(column)
+
+    checkpoints = source.get("column_watermarks")
+    if not isinstance(checkpoints, dict) or set(checkpoints) != set(expected_columns):
+        return False
+    capped_columns: list[str] = []
+    for column in expected_columns:
+        checkpoint = checkpoints.get(column)
+        if not isinstance(checkpoint, dict):
+            return False
+        if (
+            checkpoint.get("attempted") is not True
+            or checkpoint.get("skipped_due_to_prior_critical_failure") is not False
+        ):
+            return False
+        if checkpoint.get("page_cap_hit") is True:
+            if (
+                checkpoint.get("pagination_complete") is not False
+                or checkpoint.get("checkpoint_committed") is not False
+            ):
+                return False
+            capped_columns.append(column)
+        elif (
+            checkpoint.get("pagination_complete") is not True
+            or checkpoint.get("checkpoint_committed") is not True
+        ):
+            return False
+    return bool(capped_columns) and sorted(failure_columns) == sorted(capped_columns)
+
+
+def _v2_cninfo_complete(
+    source: Mapping[str, object],
+    *,
+    expected_columns: list[str],
+) -> bool:
+    if (
+        source.get("status") != "ok"
+        or source.get("failure_count") != 0
+        or source.get("tls_verification") is not True
+    ):
+        return False
+    checkpoints = source.get("column_watermarks")
+    if not isinstance(checkpoints, dict) or set(checkpoints) != set(expected_columns):
+        return False
+    return all(
+        isinstance(checkpoints.get(column), dict)
+        and checkpoints[column].get("attempted") is True
+        and checkpoints[column].get("skipped_due_to_prior_critical_failure") is False
+        and checkpoints[column].get("page_cap_hit") is False
+        and checkpoints[column].get("pagination_complete") is True
+        and checkpoints[column].get("checkpoint_committed") is True
+        for column in expected_columns
+    )
+
+
 def run_news_poll(
     *,
     config_path: Path = DEFAULT_CONFIG_PATH,
     now: datetime | None = None,
     http_client_factory: HttpClientFactory | None = None,
-) -> JsonObject:
+) -> JsonObject | JobOutcome:
     config = load_news_poll_config(config_path)
-    if (
-        config.document.get("schema_version") == "p4.1-news-poll-v2"
-        and not V2_IMPLEMENTATION_READY
-    ):
+    is_v2 = config.document.get("schema_version") == "p4.1-news-poll-v2"
+    if is_v2 and not V2_IMPLEMENTATION_READY:
+        gate_started_at = utcnow()
         raise JobExecutionError(
             "P4.1 v2 is pre-registered but implementation is not ready",
             stats={
@@ -1536,8 +1707,20 @@ def run_news_poll(
                 "fail_closed_before_job_context": True,
                 "network_attempted": False,
                 "fetch_started": False,
+                "poll_started_at": gate_started_at.isoformat(),
+                "poll_completed_at": utcnow().isoformat(),
+                "run_mode": "regular_incremental",
+                "coverage_gap": False,
+                "safety_unchanged": True,
+                "sources": {},
                 "p4_2b_production_wiring_unlocked": False,
                 "p4_3_unlocked": False,
+                "terminal_diagnostics": _v2_terminal_diagnostic(
+                    code="v2_implementation_not_ready",
+                    source="news_poll",
+                    constraint="implementation_gate",
+                    recoverable=False,
+                ),
             },
         )
     context = current_job_run()
@@ -1566,9 +1749,27 @@ def run_news_poll(
         "safety_before": safety_before,
         "p4_2_unlocked": False,
     }
+    if is_v2:
+        stats.update(
+            {
+                "run_mode": "regular_incremental",
+                "coverage_gap": False,
+                "terminal_diagnostics": None,
+            }
+        )
     issues = _safety_issues(safety_before)
     if issues:
         stats["safety_issues"] = issues
+        if is_v2:
+            stats["safety_after"] = safety_before
+            stats["safety_unchanged"] = True
+            stats["poll_completed_at"] = utcnow().isoformat()
+            stats["terminal_diagnostics"] = _v2_terminal_diagnostic(
+                code="safety_preflight_failed",
+                source="news_poll",
+                constraint="trading_safety_invariants",
+                recoverable=False,
+            )
         raise JobExecutionError("P4.1 news poll safety preflight failed", stats=stats)
 
     source_contract = cast(dict[str, Any], config.document["sources"])
@@ -1648,11 +1849,23 @@ def run_news_poll(
                     job_run_id=context.run_id,
                 )
             except Exception as exc:
-                failure = _source_failure(exc)
+                failure = (
+                    {
+                        "code": "persistence_failed",
+                        "blocked": True,
+                        "error_type": type(exc).__name__[:80],
+                    }
+                    if is_v2
+                    else _source_failure(exc)
+                )
                 batch.status = "unavailable"
                 batch.failures.append(failure)
                 persistence = None
             source_results[source_id] = _batch_stats(batch, persistence)
+            if is_v2 and source_id == "cninfo":
+                source_results[source_id]["failures"] = [
+                    _safe_v2_failure(failure) for failure in batch.failures[:20]
+                ]
             if batch.status in {"ok", "degraded", "skipped_no_watchlist"}:
                 enabled_successes += 1
             elif contract.get("critical") is True:
@@ -1661,12 +1874,23 @@ def run_news_poll(
                 stats["source_failures"] = [
                     *cast(list[JsonObject], stats["source_failures"]),
                     *(
-                        {"source_id": source_id, **failure}
+                        {
+                            "source_id": source_id,
+                            **(
+                                _safe_v2_failure(failure)
+                                if is_v2 and source_id == "cninfo"
+                                else failure
+                            ),
+                        }
                         for failure in batch.failures
                     ),
                 ]
         except Exception as exc:
-            failure = _source_failure(exc)
+            failure = (
+                _safe_v2_failure(_source_failure(exc))
+                if is_v2 and source_id == "cninfo"
+                else _source_failure(exc)
+            )
             source_results[source_id] = {
                 "status": "unavailable",
                 "attempted": True,
@@ -1692,6 +1916,13 @@ def run_news_poll(
     if safety_before != safety_after or post_issues:
         stats["safety_issues"] = post_issues or ["proposal/order identity changed"]
         stats["poll_completed_at"] = utcnow().isoformat()
+        if is_v2:
+            stats["terminal_diagnostics"] = _v2_terminal_diagnostic(
+                code="safety_postflight_failed",
+                source="news_poll",
+                constraint="trading_safety_invariants",
+                recoverable=False,
+            )
         raise JobExecutionError("P4.1 news poll safety postflight failed", stats=stats)
 
     source_values = list(source_results.values())
@@ -1715,6 +1946,30 @@ def run_news_poll(
         "published_at_never_substitutes_available_time": True,
     }
     stats["poll_completed_at"] = utcnow().isoformat()
+    if is_v2:
+        cninfo_result = source_results.get("cninfo", {})
+        columns = [str(item) for item in cast(list[object], source_contract["cninfo"]["columns"])]
+        if _v2_cninfo_complete(cninfo_result, expected_columns=columns):
+            stats["terminal_diagnostics"] = None
+            return JobOutcome(status="ok", stats=cast(JsonObject, _json_safe(stats)))
+        if _v2_cninfo_page_cap_only(cninfo_result, expected_columns=columns):
+            stats["terminal_diagnostics"] = _v2_terminal_diagnostic(
+                code="cninfo_column_pagination_incomplete",
+                source="cninfo",
+                constraint="max_pages_per_column",
+                recoverable=True,
+            )
+            return JobOutcome(
+                status="degraded",
+                stats=cast(JsonObject, _json_safe(stats)),
+            )
+        diagnostic = _v2_cninfo_failure_diagnostic(cninfo_result)
+        stats["terminal_diagnostics"] = diagnostic
+        stats["critical_failures"] = ["cninfo"]
+        raise JobExecutionError(
+            f"P4.1 critical source failed: cninfo/{diagnostic['code']}",
+            stats=stats,
+        )
     if critical_failures or enabled_successes == 0:
         stats["critical_failures"] = critical_failures
         raise JobExecutionError("P4.1 critical news source failed", stats=stats)

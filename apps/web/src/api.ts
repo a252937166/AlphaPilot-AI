@@ -996,12 +996,14 @@ export interface CrossMarketResponse {
   northbound: CrossMarketDatum
 }
 
+export type JobRunStatus = 'running' | 'ok' | 'degraded' | 'failed'
+
 export interface JobRunItem {
   id: number
   job_name: string
   started_at: string
   finished_at: string | null
-  status: string
+  status: JobRunStatus
   stats: Record<string, unknown>
   error: string | null
 }
