@@ -613,6 +613,121 @@ def test_v2_cninfo_blocked_failure_stops_before_next_column_network_call(
     assert client.closed is True
 
 
+def test_v2_cninfo_two_columns_stop_at_frozen_forty_page_boundary(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    config = news_poll.load_news_poll_config(news_poll.V2_CONFIG_PATH)
+    document = deepcopy(config.document)
+    source = document["sources"]["cninfo"]
+    source["min_interval_seconds"] = 0
+    fixture_config = news_poll.NewsPollConfig(
+        path=config.path,
+        sha256=config.sha256,
+        document=document,
+    )
+    before = datetime(2026, 8, 4, 8, tzinfo=UTC)
+    monkeypatch.setattr(
+        news_poll,
+        "_last_committed_column_watermarks",
+        lambda *_args: {"sse": before, "szse": before},
+    )
+    responses = [
+        _FakeResponse(
+            payload={
+                "announcements": [
+                    _cninfo_row(
+                        code=f"{600000 + index:06d}",
+                        title=f"洪峰边界公告第{index + 1}条",
+                        published_at=before + timedelta(hours=1, seconds=index),
+                    )
+                ],
+                "hasMore": True,
+            }
+        )
+        for index in range(80)
+    ]
+    client = _FakeClient(responses)
+
+    batch = news_poll._fetch_cninfo_v2(
+        fixture_config,
+        datetime(2026, 8, 5, 1, tzinfo=UTC),
+        lambda _source_id: client,
+    )
+
+    assert source["page_size"] == 30
+    assert source["max_pages_per_column"] == 40
+    assert source["max_logical_requests_per_run"] == 80
+    assert source["max_physical_attempts_per_run"] == 160
+    assert batch.status == "degraded"
+    assert batch.logical_request_count == 80
+    assert batch.physical_attempt_count == batch.request_count == 80
+    assert batch.retry_count == 0
+    assert len(batch.candidates) == len(batch.details["requests"]) == 80
+    called_columns: list[object] = []
+    called_pages: list[object] = []
+    for _method, _url, kwargs in client.calls:
+        data = kwargs["data"]
+        assert isinstance(data, dict)
+        called_columns.append(data["column"])
+        called_pages.append(data["pageNum"])
+    assert called_columns == ["sse"] * 40 + ["szse"] * 40
+    assert called_pages == list(range(1, 41)) * 2
+    assert 41 not in called_pages
+    assert [failure["code"] for failure in batch.failures] == [
+        "pagination_incomplete",
+        "pagination_incomplete",
+    ]
+    checkpoints = batch.details["column_watermarks"]
+    assert checkpoints["sse"]["verified_watermark_after_utc"] == before.isoformat()
+    assert checkpoints["szse"]["verified_watermark_after_utc"] == before.isoformat()
+    assert checkpoints["sse"]["checkpoint_committed"] is False
+    assert checkpoints["szse"]["checkpoint_committed"] is False
+    stats = news_poll._batch_stats(batch)
+    assert stats["logical_request_count"] == 80
+    assert stats["physical_attempt_count"] == 80
+
+
+def test_v1_cninfo_transport_and_report_fields_remain_legacy_compatible(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    config = news_poll.load_news_poll_config(news_poll.V1_CONFIG_PATH)
+    document = deepcopy(config.document)
+    document["sources"]["cninfo"]["min_interval_seconds"] = 0
+    fixture_config = news_poll.NewsPollConfig(
+        path=config.path,
+        sha256=config.sha256,
+        document=document,
+    )
+    before = datetime(2026, 8, 4, 8, tzinfo=UTC)
+    monkeypatch.setattr(news_poll, "_last_successful_watermark", lambda _source: before)
+    client = _FakeClient(
+        [
+            _FakeResponse(payload={"announcements": [], "hasMore": False}),
+            _FakeResponse(payload={"announcements": [], "hasMore": False}),
+        ]
+    )
+
+    batch = news_poll._fetch_cninfo(
+        fixture_config,
+        datetime(2026, 8, 5, 1, tzinfo=UTC),
+        lambda _source_id: client,
+    )
+    stats = news_poll._batch_stats(batch)
+
+    assert batch.status == "ok"
+    assert batch.request_count == 2
+    assert batch.retry_count == 0
+    assert batch.logical_request_count is None
+    assert batch.physical_attempt_count is None
+    assert "logical_request_count" not in stats
+    assert "physical_attempt_count" not in stats
+    assert stats["request_count"] == 2
+    assert stats["retry_count"] == 0
+    assert batch.details["watermark_before"] == before.isoformat()
+    assert batch.details["watermark_after"] == before.isoformat()
+    assert batch.details["columns_complete"] == {"sse": True, "szse": True}
+
+
 def test_dual_dedupe_preserves_first_available_time_and_ingestion_evidence(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -716,6 +831,106 @@ def test_sina_symbol_binding_requires_explicit_title_evidence(
     assert batch.candidates[0].raw_payload["symbol_binding"] == "none"
 
 
+def test_v2_noncritical_sources_report_frozen_dual_budget_counters(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    config = news_poll.load_news_poll_config(news_poll.V2_CONFIG_PATH)
+    monkeypatch.setattr(
+        news_poll,
+        "_load_security_names",
+        lambda *, watchlist_only=False: [("600519", "贵州茅台")],
+    )
+    ths_client = _FakeClient(
+        [
+            _FakeResponse(
+                payload={
+                    "data": {
+                        "list": [
+                            {
+                                "title": "贵州茅台发布经营公告",
+                                "url": "https://news.10jqka.com.cn/fixture",
+                                "digest": "贵州茅台经营情况保持稳定",
+                                "rtime": 1_786_000_000,
+                            }
+                        ]
+                    }
+                }
+            )
+        ]
+    )
+    sina_client = _FakeClient(
+        [
+            _FakeResponse(
+                text=(
+                    '<html><body><div class="datelist">'
+                    '<a href="https://finance.sina.com.cn/stock/maotai.shtml">'
+                    "贵州茅台发布经营公告</a></div></body></html>"
+                )
+            )
+        ]
+    )
+
+    ths = news_poll._fetch_ths(
+        config,
+        datetime.now(UTC),
+        lambda _source_id: ths_client,
+    )
+    sina = news_poll._fetch_sina(
+        config,
+        datetime.now(UTC),
+        lambda _source_id: sina_client,
+    )
+
+    for batch in (ths, sina):
+        assert batch.status == "ok"
+        assert batch.logical_request_count == 1
+        assert batch.physical_attempt_count == batch.request_count == 1
+        assert batch.retry_count == 0
+        stats = news_poll._batch_stats(batch)
+        assert stats["logical_request_count"] == 1
+        assert stats["physical_attempt_count"] == 1
+        assert stats["retry_count"] == 0
+
+
+def test_v2_sina_no_watchlist_reports_zero_dual_budget_counters(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    config = news_poll.load_news_poll_config(news_poll.V2_CONFIG_PATH)
+    monkeypatch.setattr(news_poll, "_load_security_names", lambda **_kwargs: [])
+    client = _FakeClient([])
+
+    batch = news_poll._fetch_sina(
+        config,
+        datetime.now(UTC),
+        lambda _source_id: client,
+    )
+
+    assert batch.status == "skipped_no_watchlist"
+    assert batch.logical_request_count == 0
+    assert batch.physical_attempt_count == batch.request_count == 0
+    assert batch.retry_count == 0
+    assert news_poll._batch_stats(batch)["logical_request_count"] == 0
+    assert news_poll._batch_stats(batch)["physical_attempt_count"] == 0
+    assert client.calls == []
+    assert client.closed is True
+
+
+def test_zero_request_stats_are_v2_only() -> None:
+    v1 = news_poll.load_news_poll_config(news_poll.V1_CONFIG_PATH)
+    v2 = news_poll.load_news_poll_config(news_poll.V2_CONFIG_PATH)
+
+    assert news_poll._zero_request_counter_stats(v1) == {
+        "request_count": 0,
+        "retry_count": 0,
+    }
+    assert news_poll._zero_request_counter_stats(v2) == {
+        "request_count": 0,
+        "retry_count": 0,
+        "logical_request_count": 0,
+        "physical_attempt_count": 0,
+    }
+
+
 def test_critical_source_failure_keeps_complete_jobrun_stats(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -770,6 +985,129 @@ def test_rate_limit_stops_without_retry() -> None:
     assert transport.request_count == 1
     assert transport.retry_count == 0
     assert len(client.calls) == 1
+
+
+def _v2_transport(
+    client: _FakeClient,
+    *,
+    max_logical_requests: int,
+    max_physical_attempts: int,
+    max_attempts_per_logical_request: int,
+) -> news_poll._BoundedHttp:
+    return news_poll._BoundedHttp(
+        source_id="fixture-v2",
+        client=client,
+        allowed_hosts={"example.test"},
+        max_requests=max_physical_attempts,
+        max_attempts=max_attempts_per_logical_request,
+        max_logical_requests=max_logical_requests,
+        max_physical_attempts=max_physical_attempts,
+        max_attempts_per_logical_request=max_attempts_per_logical_request,
+        min_interval_seconds=0,
+        retry_backoff_seconds=[0],
+    )
+
+
+def test_v2_transport_one_logical_request_can_use_two_physical_attempts() -> None:
+    client = _FakeClient(
+        [_FakeResponse(status_code=500), _FakeResponse(status_code=200)]
+    )
+    transport = _v2_transport(
+        client,
+        max_logical_requests=1,
+        max_physical_attempts=2,
+        max_attempts_per_logical_request=2,
+    )
+
+    response = transport.request("GET", "https://example.test/news")
+
+    assert response.status_code == 200
+    assert transport.logical_request_count == 1
+    assert transport.physical_attempt_count == transport.request_count == 2
+    assert transport.retry_count == 1
+    assert [(item["logical_request"], item["attempt"]) for item in transport.requests] == [
+        (1, 1),
+        (1, 2),
+    ]
+    assert len(client.calls) == 2
+
+
+def test_v2_transport_physical_budget_suppresses_retry_without_overwriting_error() -> None:
+    client = _FakeClient([_FakeResponse(status_code=500)])
+    transport = _v2_transport(
+        client,
+        max_logical_requests=1,
+        max_physical_attempts=1,
+        max_attempts_per_logical_request=2,
+    )
+
+    with pytest.raises(news_poll.NewsSourceError) as caught:
+        transport.request("GET", "https://example.test/news")
+
+    assert caught.value.code == "http_server_error"
+    assert caught.value.blocked is False
+    assert caught.value.suppression == {
+        "code": "retry_suppressed_physical_attempt_budget",
+        "constraint": "max_physical_attempts_per_run",
+        "source_id": "fixture-v2",
+        "logical_request_count": 1,
+        "physical_attempt_count": 1,
+        "max_physical_attempts": 1,
+        "retry_suppressed": True,
+    }
+    assert news_poll._source_failure(caught.value)["code"] == "http_server_error"
+    assert transport.logical_request_count == 1
+    assert transport.physical_attempt_count == transport.request_count == 1
+    assert transport.retry_count == 0
+    assert transport.requests[0]["failure_code"] == "http_server_error"
+    assert transport.requests[0]["retry_suppression"] == caught.value.suppression
+    assert len(client.calls) == 1
+
+
+def test_v2_transport_logical_budget_rejects_new_operation_before_network() -> None:
+    client = _FakeClient([_FakeResponse(status_code=200)])
+    transport = _v2_transport(
+        client,
+        max_logical_requests=1,
+        max_physical_attempts=2,
+        max_attempts_per_logical_request=2,
+    )
+    transport.request("GET", "https://example.test/news/first")
+
+    with pytest.raises(news_poll.NewsSourceError) as caught:
+        transport.request("GET", "https://example.test/news/second")
+
+    assert caught.value.code == "logical_request_budget_exhausted"
+    assert caught.value.blocked is True
+    assert transport.logical_request_count == 1
+    assert transport.physical_attempt_count == transport.request_count == 1
+    assert transport.retry_count == 0
+    assert len(transport.requests) == len(client.calls) == 1
+
+
+def test_v2_transport_exhausted_physical_budget_rejects_before_logical_acceptance() -> None:
+    client = _FakeClient([_FakeResponse(status_code=200)])
+    transport = _v2_transport(
+        client,
+        max_logical_requests=2,
+        max_physical_attempts=1,
+        max_attempts_per_logical_request=1,
+    )
+    transport.request("GET", "https://example.test/news/first")
+
+    with pytest.raises(news_poll.NewsSourceError) as caught:
+        transport.request("GET", "https://example.test/news/second")
+
+    assert caught.value.code == "physical_attempt_budget_exhausted"
+    assert caught.value.blocked is True
+    assert transport.logical_request_count == 1
+    assert transport.physical_attempt_count == transport.request_count == 1
+    assert transport.retry_count == 0
+    assert (
+        transport.retry_count
+        == transport.physical_attempt_count - transport.logical_request_count
+    )
+    assert len(transport.requests) == len(client.calls) == 1
 
 
 def test_news_poll_scheduler_requires_explicit_env_enable(

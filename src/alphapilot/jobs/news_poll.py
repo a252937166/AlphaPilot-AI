@@ -90,15 +90,25 @@ class SourceBatch:
     candidates: list[NewsCandidate] = field(default_factory=list)
     request_count: int = 0
     retry_count: int = 0
+    logical_request_count: int | None = None
+    physical_attempt_count: int | None = None
     failures: list[JsonObject] = field(default_factory=list)
     details: JsonObject = field(default_factory=dict)
 
 
 class NewsSourceError(RuntimeError):
-    def __init__(self, code: str, message: str, *, blocked: bool = False) -> None:
+    def __init__(
+        self,
+        code: str,
+        message: str,
+        *,
+        blocked: bool = False,
+        suppression: JsonObject | None = None,
+    ) -> None:
         super().__init__(message)
         self.code = code
         self.blocked = blocked
+        self.suppression = dict(suppression) if suppression is not None else None
 
 
 def _sha256_bytes(value: bytes) -> str:
@@ -268,12 +278,15 @@ def content_hash(candidate: NewsCandidate) -> str:
 
 def _source_failure(exc: Exception) -> JsonObject:
     if isinstance(exc, NewsSourceError):
-        return {
+        result: JsonObject = {
             "code": exc.code,
             "blocked": exc.blocked,
             "error_type": type(exc).__name__,
             "message": str(exc)[:300],
         }
+        if exc.suppression is not None:
+            result["suppression"] = exc.suppression
+        return result
     return {
         "code": "unexpected_error",
         "blocked": False,
@@ -293,6 +306,9 @@ class _BoundedHttp:
         max_attempts: int,
         min_interval_seconds: float,
         retry_backoff_seconds: list[float],
+        max_logical_requests: int | None = None,
+        max_physical_attempts: int | None = None,
+        max_attempts_per_logical_request: int | None = None,
     ) -> None:
         self.source_id = source_id
         self.client = client
@@ -301,8 +317,23 @@ class _BoundedHttp:
         self.max_attempts = max_attempts
         self.min_interval_seconds = min_interval_seconds
         self.retry_backoff_seconds = retry_backoff_seconds
+        dual_values = (
+            max_logical_requests,
+            max_physical_attempts,
+            max_attempts_per_logical_request,
+        )
+        if any(value is not None for value in dual_values) and not all(
+            value is not None and value > 0 for value in dual_values
+        ):
+            raise ValueError("v2 HTTP budgets must all be positive")
+        self.max_logical_requests = max_logical_requests
+        self.max_physical_attempts = max_physical_attempts
+        self.max_attempts_per_logical_request = max_attempts_per_logical_request
+        self.uses_dual_budget = max_logical_requests is not None
         self.request_count = 0
         self.retry_count = 0
+        self.logical_request_count = 0
+        self.physical_attempt_count = 0
         self.requests: list[JsonObject] = []
         self._last_started: float | None = None
 
@@ -314,6 +345,17 @@ class _BoundedHttp:
                 f"{self.source_id} attempted non-audited host {host or '<missing>'}",
                 blocked=True,
             )
+        if self.uses_dual_budget:
+            return self._request_v2(method, url, host, kwargs)
+        return self._request_v1(method, url, host, kwargs)
+
+    def _request_v1(
+        self,
+        method: str,
+        url: str,
+        host: str,
+        kwargs: dict[str, object],
+    ) -> Any:
         last_error: NewsSourceError | None = None
         for attempt in range(1, self.max_attempts + 1):
             if self.request_count >= self.max_requests:
@@ -392,6 +434,159 @@ class _BoundedHttp:
                 raise last_error
         raise RuntimeError("unreachable request retry state")
 
+    def _request_v2(
+        self,
+        method: str,
+        url: str,
+        host: str,
+        kwargs: dict[str, object],
+    ) -> Any:
+        assert self.max_logical_requests is not None
+        assert self.max_physical_attempts is not None
+        assert self.max_attempts_per_logical_request is not None
+        if self.logical_request_count >= self.max_logical_requests:
+            raise NewsSourceError(
+                "logical_request_budget_exhausted",
+                (
+                    f"{self.source_id} exceeded logical request budget "
+                    f"{self.max_logical_requests}"
+                ),
+                blocked=True,
+            )
+        # A logical operation is only accepted when its first physical attempt
+        # can cross the network boundary.  This keeps the frozen accounting
+        # identity ``retry_count = physical_attempt_count - logical_request_count``
+        # non-negative even at an exhausted physical-attempt boundary.
+        if self.physical_attempt_count >= self.max_physical_attempts:
+            raise NewsSourceError(
+                "physical_attempt_budget_exhausted",
+                (
+                    f"{self.source_id} exceeded physical attempt budget "
+                    f"{self.max_physical_attempts}"
+                ),
+                blocked=True,
+            )
+        self.logical_request_count += 1
+        logical_request = self.logical_request_count
+        last_error: NewsSourceError | None = None
+        for attempt in range(1, self.max_attempts_per_logical_request + 1):
+            if self.physical_attempt_count >= self.max_physical_attempts:
+                if attempt > 1 and last_error is not None:
+                    suppression: JsonObject = {
+                        "code": "retry_suppressed_physical_attempt_budget",
+                        "constraint": "max_physical_attempts_per_run",
+                        "source_id": self.source_id,
+                        "logical_request_count": self.logical_request_count,
+                        "physical_attempt_count": self.physical_attempt_count,
+                        "max_physical_attempts": self.max_physical_attempts,
+                        "retry_suppressed": True,
+                    }
+                    if self.requests:
+                        self.requests[-1]["retry_suppression"] = suppression
+                    raise NewsSourceError(
+                        last_error.code,
+                        str(last_error),
+                        blocked=last_error.blocked,
+                        suppression=suppression,
+                    )
+                raise NewsSourceError(
+                    "physical_attempt_budget_exhausted",
+                    (
+                        f"{self.source_id} exceeded physical attempt budget "
+                        f"{self.max_physical_attempts}"
+                    ),
+                    blocked=True,
+                )
+            if self._last_started is not None:
+                remaining = self.min_interval_seconds - (monotonic() - self._last_started)
+                if remaining > 0:
+                    sleep(remaining)
+            if attempt > 1:
+                backoff_index = min(attempt - 2, len(self.retry_backoff_seconds) - 1)
+                if backoff_index >= 0:
+                    sleep(self.retry_backoff_seconds[backoff_index])
+
+            requested_at = utcnow()
+            started = monotonic()
+            self._last_started = started
+            # Count only an attempt that is immediately about to cross the
+            # network boundary.  A budget-suppressed retry never reaches here.
+            self.physical_attempt_count += 1
+            self.request_count += 1
+            if attempt > 1:
+                self.retry_count += 1
+            evidence: JsonObject = {
+                "logical_request": logical_request,
+                "attempt": attempt,
+                "method": method.upper(),
+                "host": host,
+                "path": urlparse(url).path,
+                "requested_at": requested_at.isoformat(),
+                "received_at": None,
+                "latency_ms": None,
+                "http_status": None,
+                "failure_code": None,
+            }
+            self.requests.append(evidence)
+            try:
+                response = self.client.request(method, url, **kwargs)
+                read = getattr(response, "read", None)
+                if callable(read):
+                    read()
+            except httpx.TimeoutException as exc:
+                last_error = NewsSourceError("transport_timeout", type(exc).__name__)
+            except httpx.TransportError as exc:
+                last_error = NewsSourceError("transport_error", type(exc).__name__)
+            except Exception as exc:
+                last_error = NewsSourceError("client_error", type(exc).__name__)
+            else:
+                status = int(getattr(response, "status_code", 0))
+                evidence["http_status"] = status
+                if status in {403, 429}:
+                    evidence["failure_code"] = (
+                        "http_forbidden_or_antibot" if status == 403 else "http_rate_limited"
+                    )
+                    raise NewsSourceError(
+                        str(evidence["failure_code"]),
+                        f"HTTP {status}",
+                        blocked=True,
+                    )
+                if status >= 500:
+                    last_error = NewsSourceError("http_server_error", f"HTTP {status}")
+                elif status >= 400:
+                    evidence["failure_code"] = "http_client_error"
+                    raise NewsSourceError("http_client_error", f"HTTP {status}")
+                elif 300 <= status < 400:
+                    evidence["failure_code"] = "redirect_not_followed"
+                    raise NewsSourceError("redirect_not_followed", f"HTTP {status}")
+                else:
+                    evidence["received_at"] = utcnow().isoformat()
+                    evidence["latency_ms"] = round((monotonic() - started) * 1000, 3)
+                    return response
+
+            assert last_error is not None
+            evidence["received_at"] = utcnow().isoformat()
+            evidence["latency_ms"] = round((monotonic() - started) * 1000, 3)
+            evidence["failure_code"] = last_error.code
+            if attempt >= self.max_attempts_per_logical_request:
+                raise last_error
+        raise RuntimeError("unreachable v2 request retry state")
+
+
+def _copy_transport_counts(batch: SourceBatch, transport: _BoundedHttp) -> None:
+    batch.request_count = transport.request_count
+    batch.retry_count = transport.retry_count
+    if transport.uses_dual_budget:
+        batch.logical_request_count = transport.logical_request_count
+        batch.physical_attempt_count = transport.physical_attempt_count
+
+
+def _zero_request_counter_stats(config: NewsPollConfig) -> JsonObject:
+    result: JsonObject = {"request_count": 0, "retry_count": 0}
+    if config.document.get("schema_version") == "p4.1-news-poll-v2":
+        result.update({"logical_request_count": 0, "physical_attempt_count": 0})
+    return result
+
 
 def _new_http_client(config: NewsPollConfig) -> httpx.Client:
     network = cast(dict[str, Any], config.document["network"])
@@ -417,30 +612,58 @@ def _transport(
     client: Any,
 ) -> _BoundedHttp:
     network = cast(dict[str, Any], config.document["network"])
-    # P4.1 v2 step 1 only changes CNInfo checkpoint semantics.  Until the
-    # separately pre-registered budget step lands, v2 still runs through the
-    # original single physical-attempt counter.
-    max_requests = source.get(
-        "max_requests_per_run", source.get("max_logical_requests_per_run")
-    )
-    max_attempts = source.get(
-        "max_attempts_per_request",
-        source.get(
-            "max_attempts_per_logical_request",
-            network.get(
-                "max_attempts_per_request",
-                network.get("max_attempts_per_logical_request"),
+    if config.document.get("schema_version") == "p4.1-news-poll-v2":
+        max_logical_requests = source.get("max_logical_requests_per_run")
+        max_physical_attempts = source.get("max_physical_attempts_per_run")
+        max_attempts_per_logical_request = source.get(
+            "max_attempts_per_logical_request"
+        )
+        if (
+            max_logical_requests is None
+            or max_physical_attempts is None
+            or max_attempts_per_logical_request is None
+        ):
+            raise ValueError(f"{source_id} v2 request budget contract is missing")
+        return _BoundedHttp(
+            source_id=source_id,
+            client=client,
+            allowed_hosts={
+                str(host).lower() for host in cast(list[str], source["allowed_hosts"])
+            },
+            # These compatibility attributes are not used for v2 decisions;
+            # request_count continues to mirror physical attempts for callers
+            # that have not yet migrated their aggregate totals.
+            max_requests=int(str(max_physical_attempts)),
+            max_attempts=int(str(max_attempts_per_logical_request)),
+            max_logical_requests=int(str(max_logical_requests)),
+            max_physical_attempts=int(str(max_physical_attempts)),
+            max_attempts_per_logical_request=int(
+                str(max_attempts_per_logical_request)
             ),
-        ),
-    )
-    if max_requests is None or max_attempts is None:
-        raise ValueError(f"{source_id} request budget contract is missing")
+            min_interval_seconds=float(str(source["min_interval_seconds"])),
+            retry_backoff_seconds=[
+                float(str(item))
+                for item in cast(
+                    list[object],
+                    source.get(
+                        "retry_backoff_seconds", network["retry_backoff_seconds"]
+                    ),
+                )
+            ],
+        )
     return _BoundedHttp(
         source_id=source_id,
         client=client,
         allowed_hosts={str(host).lower() for host in cast(list[str], source["allowed_hosts"])},
-        max_requests=int(str(max_requests)),
-        max_attempts=int(str(max_attempts)),
+        max_requests=int(str(source["max_requests_per_run"])),
+        max_attempts=int(
+            str(
+                source.get(
+                    "max_attempts_per_request",
+                    network["max_attempts_per_request"],
+                )
+            )
+        ),
         min_interval_seconds=float(str(source["min_interval_seconds"])),
         retry_backoff_seconds=[float(item) for item in network["retry_backoff_seconds"]],
     )
@@ -652,8 +875,7 @@ def _fetch_cninfo_v1(
         close = getattr(client, "close", None)
         if callable(close):
             close()
-    batch.request_count = transport.request_count
-    batch.retry_count = transport.retry_count
+    _copy_transport_counts(batch, transport)
     batch.details = {
         "watermark_before": prior_watermark.isoformat(),
         "watermark_floor": floor.isoformat(),
@@ -808,8 +1030,7 @@ def _fetch_cninfo_v2(
         close = getattr(client, "close", None)
         if callable(close):
             close()
-    batch.request_count = transport.request_count
-    batch.retry_count = transport.retry_count
+    _copy_transport_counts(batch, transport)
     batch.details = {
         "column_watermarks": column_watermarks,
         "requests": transport.requests,
@@ -922,8 +1143,7 @@ def _fetch_ths(
         close = getattr(client, "close", None)
         if callable(close):
             close()
-    batch.request_count = transport.request_count
-    batch.retry_count = transport.retry_count
+    _copy_transport_counts(batch, transport)
     return batch
 
 
@@ -996,6 +1216,7 @@ def _fetch_sina(
     if not targets:
         batch.status = "skipped_no_watchlist"
         batch.details = {"attempted": False}
+        _copy_transport_counts(batch, transport)
         close = getattr(client, "close", None)
         if callable(close):
             close()
@@ -1066,8 +1287,7 @@ def _fetch_sina(
         close = getattr(client, "close", None)
         if callable(close):
             close()
-    batch.request_count = transport.request_count
-    batch.retry_count = transport.retry_count
+    _copy_transport_counts(batch, transport)
     return batch
 
 
@@ -1276,6 +1496,10 @@ def _batch_stats(batch: SourceBatch, persistence: JsonObject | None = None) -> J
         "failures": batch.failures[:20],
         **batch.details,
     }
+    if batch.logical_request_count is not None:
+        result["logical_request_count"] = batch.logical_request_count
+    if batch.physical_attempt_count is not None:
+        result["physical_attempt_count"] = batch.physical_attempt_count
     if persistence is not None:
         result.update(persistence)
     else:
@@ -1352,8 +1576,7 @@ def run_news_poll(
         "akshare_cls": {
             "status": "unavailable",
             "attempted": False,
-            "request_count": 0,
-            "retry_count": 0,
+            **_zero_request_counter_stats(config),
             "failure_count": 0,
             "failures": [],
             "reason": str(source_contract["akshare_cls"]["reason"]),
@@ -1365,8 +1588,7 @@ def run_news_poll(
         "akshare_caixin": {
             "status": "excluded_missing_native_title",
             "attempted": False,
-            "request_count": 0,
-            "retry_count": 0,
+            **_zero_request_counter_stats(config),
             "failure_count": 0,
             "failures": [],
             "fetched": 0,
@@ -1380,8 +1602,7 @@ def run_news_poll(
             "attempted": False,
             "quote_methods_called": [],
             "trade_methods_called": [],
-            "request_count": 0,
-            "retry_count": 0,
+            **_zero_request_counter_stats(config),
             "failure_count": 0,
             "failures": [],
             "fetched": 0,
@@ -1408,8 +1629,7 @@ def run_news_poll(
             source_results[source_id] = {
                 "status": "disabled",
                 "attempted": False,
-                "request_count": 0,
-                "retry_count": 0,
+                **_zero_request_counter_stats(config),
                 "failure_count": 0,
                 "failures": [],
                 "fetched": 0,
@@ -1450,8 +1670,7 @@ def run_news_poll(
             source_results[source_id] = {
                 "status": "unavailable",
                 "attempted": True,
-                "request_count": 0,
-                "retry_count": 0,
+                **_zero_request_counter_stats(config),
                 "failure_count": 1,
                 "failures": [failure],
                 "fetched": 0,
