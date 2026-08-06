@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import sqlite3
+from collections.abc import Iterator
+from copy import deepcopy
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from threading import Event, Thread
@@ -13,7 +15,7 @@ from alphapilot.core.config import get_settings
 from alphapilot.db.engine import get_session
 from alphapilot.db.models import JobRun, NewsItem
 from alphapilot.jobs import news_poll
-from alphapilot.jobs.registry import JOBS, run_job
+from alphapilot.jobs.registry import JOBS, JobExecutionError, run_job
 
 
 class _FakeResponse:
@@ -50,7 +52,7 @@ class _FakeClient:
 
 
 @pytest.fixture(autouse=True)
-def _clean_news_rows() -> None:
+def _clean_news_rows() -> Iterator[None]:
     with get_session() as session:
         session.execute(delete(NewsItem))
         session.execute(delete(JobRun).where(JobRun.job_name == "news_poll"))
@@ -124,6 +126,491 @@ def test_config_is_hash_locked_and_keeps_excluded_sources_disabled(tmp_path: Pat
     changed.write_bytes(config.path.read_bytes() + b"\n")
     with pytest.raises(ValueError, match="pre-registered SHA-256"):
         news_poll.load_news_poll_config(changed)
+
+
+def test_config_loader_explicitly_accepts_hash_locked_v1_and_v2(tmp_path: Path) -> None:
+    v1 = news_poll.load_news_poll_config(news_poll.V1_CONFIG_PATH)
+    v2 = news_poll.load_news_poll_config(news_poll.V2_CONFIG_PATH)
+
+    assert v1.sha256 == news_poll.EXPECTED_CONFIG_SHA256
+    assert v1.document["schema_version"] == "p4.1-news-poll-v1"
+    assert v2.sha256 == news_poll.EXPECTED_V2_CONFIG_SHA256
+    assert v2.document["schema_version"] == "p4.1-news-poll-v2"
+    assert news_poll.DEFAULT_CONFIG_PATH == news_poll.V1_CONFIG_PATH
+
+    changed_v2 = tmp_path / "changed-v2.yaml"
+    changed_v2.write_bytes(v2.path.read_bytes() + b"\n")
+    with pytest.raises(ValueError, match="pre-registered SHA-256"):
+        news_poll.load_news_poll_config(changed_v2)
+
+
+def test_v2_runtime_gate_fails_before_context_fetch_or_http(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls = {"context": 0, "fetch": 0, "http": 0}
+
+    def context() -> None:
+        calls["context"] += 1
+        return None
+
+    def fetch(*_args: object) -> news_poll.SourceBatch:
+        calls["fetch"] += 1
+        return _ok_batch("cninfo")
+
+    def http_factory(_source_id: str) -> _FakeClient:
+        calls["http"] += 1
+        return _FakeClient([])
+
+    monkeypatch.setattr(news_poll, "current_job_run", context)
+    monkeypatch.setattr(news_poll, "_fetch_cninfo", fetch)
+
+    with pytest.raises(JobExecutionError, match="implementation is not ready") as caught:
+        news_poll.run_news_poll(
+            config_path=news_poll.V2_CONFIG_PATH,
+            http_client_factory=http_factory,
+        )
+
+    assert news_poll.V2_IMPLEMENTATION_READY is False
+    assert calls == {"context": 0, "fetch": 0, "http": 0}
+    assert caught.value.stats == {
+        "config_version": "p4.1-news-poll-v2",
+        "config_path": "config/p4_news_poll_v2.yaml",
+        "config_sha256": news_poll.EXPECTED_V2_CONFIG_SHA256,
+        "implementation_gate": "prereg_not_ready",
+        "v2_implementation_ready": False,
+        "fail_closed_before_job_context": True,
+        "network_attempted": False,
+        "fetch_started": False,
+        "p4_2b_production_wiring_unlocked": False,
+        "p4_3_unlocked": False,
+    }
+
+
+def _add_news_poll_run(
+    *,
+    status: str,
+    config_version: str,
+    config_sha256: str | None,
+    cninfo: dict[str, object],
+) -> None:
+    stats: dict[str, object] = {
+        "config_version": config_version,
+        "sources": {"cninfo": cninfo},
+    }
+    if config_sha256 is not None:
+        stats["config_sha256"] = config_sha256
+    with get_session() as session:
+        session.add(
+            JobRun(
+                job_name="news_poll",
+                status=status,
+                stats=stats,
+            )
+        )
+
+
+def _column_checkpoint(value: datetime, *, committed: bool = True) -> dict[str, object]:
+    return {
+        "verified_watermark_after_utc": value.isoformat(),
+        "checkpoint_committed": committed,
+    }
+
+
+def test_v2_column_watermark_lookup_accepts_ok_and_degraded_but_ignores_failed() -> None:
+    legacy = datetime(2026, 8, 3, 10, tzinfo=UTC)
+    sse_ok = datetime(2026, 8, 4, 10, tzinfo=UTC)
+    failed_newer = datetime(2026, 8, 4, 11, tzinfo=UTC)
+    szse_degraded = datetime(2026, 8, 4, 12, tzinfo=UTC)
+    _add_news_poll_run(
+        status="ok",
+        config_version="p4.1-news-poll-v1",
+        config_sha256=news_poll.EXPECTED_CONFIG_SHA256,
+        cninfo={"watermark_after": legacy.isoformat()},
+    )
+    _add_news_poll_run(
+        status="ok",
+        config_version="p4.1-news-poll-v2",
+        config_sha256=news_poll.EXPECTED_V2_CONFIG_SHA256,
+        cninfo={
+            "column_watermarks": {
+                "sse": _column_checkpoint(sse_ok),
+                "szse": _column_checkpoint(failed_newer, committed=False),
+            }
+        },
+    )
+    _add_news_poll_run(
+        status="failed",
+        config_version="p4.1-news-poll-v2",
+        config_sha256=news_poll.EXPECTED_V2_CONFIG_SHA256,
+        cninfo={
+            "column_watermarks": {
+                "sse": _column_checkpoint(failed_newer),
+                "szse": _column_checkpoint(failed_newer),
+            }
+        },
+    )
+    _add_news_poll_run(
+        status="degraded",
+        config_version="p4.1-news-poll-v2",
+        config_sha256=news_poll.EXPECTED_V2_CONFIG_SHA256,
+        cninfo={
+            "column_watermarks": {
+                "sse": _column_checkpoint(failed_newer, committed=False),
+                "szse": _column_checkpoint(szse_degraded),
+            }
+        },
+    )
+    _add_news_poll_run(
+        status="ok",
+        config_version="p4.1-news-poll-v2",
+        config_sha256="0" * 64,
+        cninfo={
+            "column_watermarks": {
+                "sse": _column_checkpoint(failed_newer + timedelta(hours=1)),
+                "szse": _column_checkpoint(failed_newer + timedelta(hours=1)),
+            }
+        },
+    )
+    _add_news_poll_run(
+        status="degraded",
+        config_version="p4.1-news-poll-v2",
+        config_sha256=None,
+        cninfo={
+            "column_watermarks": {
+                "sse": _column_checkpoint(failed_newer + timedelta(hours=2)),
+                "szse": _column_checkpoint(failed_newer + timedelta(hours=2)),
+            }
+        },
+    )
+
+    result = news_poll._last_committed_column_watermarks(
+        news_poll.load_news_poll_config(news_poll.V2_CONFIG_PATH),
+        "cninfo",
+        ["sse", "szse"],
+    )
+
+    assert result == {"sse": sse_ok, "szse": szse_degraded}
+
+
+def test_v2_column_watermark_uses_v1_global_only_for_unmigrated_columns() -> None:
+    legacy = datetime(2026, 8, 3, 10, tzinfo=UTC)
+    sse_v2 = datetime(2026, 8, 4, 10, tzinfo=UTC)
+    _add_news_poll_run(
+        status="ok",
+        config_version="p4.1-news-poll-v1",
+        config_sha256=news_poll.EXPECTED_CONFIG_SHA256,
+        cninfo={"watermark_after": legacy.isoformat()},
+    )
+    _add_news_poll_run(
+        status="ok",
+        config_version="p4.1-news-poll-v1",
+        config_sha256="0" * 64,
+        cninfo={"watermark_after": (legacy + timedelta(hours=1)).isoformat()},
+    )
+    _add_news_poll_run(
+        status="ok",
+        config_version="p4.1-news-poll-v1",
+        config_sha256=None,
+        cninfo={"watermark_after": (legacy + timedelta(hours=2)).isoformat()},
+    )
+    _add_news_poll_run(
+        status="ok",
+        config_version="p4.1-news-poll-v2",
+        config_sha256=news_poll.EXPECTED_V2_CONFIG_SHA256,
+        cninfo={"column_watermarks": {"sse": _column_checkpoint(sse_v2)}},
+    )
+
+    result = news_poll._last_committed_column_watermarks(
+        news_poll.load_news_poll_config(news_poll.V2_CONFIG_PATH),
+        "cninfo",
+        ["sse", "szse"],
+    )
+
+    assert result == {"sse": sse_v2, "szse": legacy}
+
+
+def _cninfo_row(
+    *,
+    code: str,
+    title: str,
+    published_at: datetime,
+) -> dict[str, object]:
+    return {
+        "secCode": code,
+        "announcementTitle": title,
+        "adjunctUrl": f"finalpage/{code}-{int(published_at.timestamp())}.PDF",
+        "announcementTime": int(published_at.timestamp() * 1000),
+    }
+
+
+def test_v2_cninfo_incomplete_column_keeps_candidates_and_does_not_block_other_column(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    config = news_poll.load_news_poll_config(news_poll.V2_CONFIG_PATH)
+    document = deepcopy(config.document)
+    source = document["sources"]["cninfo"]
+    source["max_pages_per_column"] = 2
+    source["max_logical_requests_per_run"] = 4
+    source["min_interval_seconds"] = 0
+    fixture_config = news_poll.NewsPollConfig(
+        path=config.path,
+        sha256=config.sha256,
+        document=document,
+    )
+    sse_before = datetime(2026, 8, 4, 8, tzinfo=UTC)
+    szse_before = datetime(2026, 8, 4, 9, tzinfo=UTC)
+    sse_newest = datetime(2026, 8, 4, 10, tzinfo=UTC)
+    szse_newest = datetime(2026, 8, 4, 11, tzinfo=UTC)
+    monkeypatch.setattr(
+        news_poll,
+        "_last_committed_column_watermarks",
+        lambda *_args: {"sse": sse_before, "szse": szse_before},
+    )
+    client = _FakeClient(
+        [
+            _FakeResponse(
+                payload={
+                    "announcements": [
+                        _cninfo_row(
+                            code="600001",
+                            title="上交所第一页公告",
+                            published_at=sse_newest,
+                        )
+                    ],
+                    "hasMore": True,
+                }
+            ),
+            _FakeResponse(
+                payload={
+                    "announcements": [
+                        _cninfo_row(
+                            code="600002",
+                            title="上交所第二页公告",
+                            published_at=sse_newest - timedelta(minutes=1),
+                        )
+                    ],
+                    "hasMore": True,
+                }
+            ),
+            _FakeResponse(
+                payload={
+                    "announcements": [
+                        _cninfo_row(
+                            code="000001",
+                            title="深交所完整公告",
+                            published_at=szse_newest,
+                        )
+                    ],
+                    "hasMore": False,
+                }
+            ),
+        ]
+    )
+
+    batch = news_poll._fetch_cninfo(
+        fixture_config,
+        datetime(2026, 8, 5, 1, tzinfo=UTC),
+        lambda _source_id: client,
+    )
+
+    assert batch.status == "degraded"
+    assert [item.symbol for item in batch.candidates] == ["600001", "600002", "000001"]
+    called_columns: list[object] = []
+    for _method, _url, kwargs in client.calls:
+        data = kwargs["data"]
+        assert isinstance(data, dict)
+        called_columns.append(data["column"])
+    assert called_columns == ["sse", "sse", "szse"]
+    checkpoints = batch.details["column_watermarks"]
+    assert checkpoints["sse"] == {
+        "verified_watermark_before_utc": sse_before.isoformat(),
+        "verified_watermark_floor_utc": (sse_before - timedelta(minutes=30)).isoformat(),
+        "newest_observed_at_utc": sse_newest.isoformat(),
+        "verified_watermark_after_utc": sse_before.isoformat(),
+        "pagination_complete": False,
+        "checkpoint_committed": False,
+        "page_cap_hit": True,
+        "attempted": True,
+        "skipped_due_to_prior_critical_failure": False,
+    }
+    assert checkpoints["szse"] == {
+        "verified_watermark_before_utc": szse_before.isoformat(),
+        "verified_watermark_floor_utc": (
+            szse_before - timedelta(minutes=30)
+        ).isoformat(),
+        "newest_observed_at_utc": szse_newest.isoformat(),
+        "verified_watermark_after_utc": szse_newest.isoformat(),
+        "pagination_complete": True,
+        "checkpoint_committed": True,
+        "page_cap_hit": False,
+        "attempted": True,
+        "skipped_due_to_prior_critical_failure": False,
+    }
+    assert [failure["code"] for failure in batch.failures] == ["pagination_incomplete"]
+    assert client.closed is True
+
+
+def test_v2_page_cap_candidates_persist_but_only_complete_column_advances() -> None:
+    config = news_poll.load_news_poll_config(news_poll.V2_CONFIG_PATH)
+    document = deepcopy(config.document)
+    source = document["sources"]["cninfo"]
+    source["max_pages_per_column"] = 2
+    source["max_logical_requests_per_run"] = 4
+    source["min_interval_seconds"] = 0
+    fixture_config = news_poll.NewsPollConfig(
+        path=config.path,
+        sha256=config.sha256,
+        document=document,
+    )
+    legacy = datetime(2026, 8, 4, 8, tzinfo=UTC)
+    sse_newest = datetime(2026, 8, 4, 10, tzinfo=UTC)
+    szse_newest = datetime(2026, 8, 4, 11, tzinfo=UTC)
+    _add_news_poll_run(
+        status="ok",
+        config_version="p4.1-news-poll-v1",
+        config_sha256=news_poll.EXPECTED_CONFIG_SHA256,
+        cninfo={"watermark_after": legacy.isoformat()},
+    )
+    client = _FakeClient(
+        [
+            _FakeResponse(
+                payload={
+                    "announcements": [
+                        _cninfo_row(
+                            code="600011",
+                            title="页限内第一条上交所公告",
+                            published_at=sse_newest,
+                        )
+                    ],
+                    "hasMore": True,
+                }
+            ),
+            _FakeResponse(
+                payload={
+                    "announcements": [
+                        _cninfo_row(
+                            code="600012",
+                            title="页限内第二条上交所公告",
+                            published_at=sse_newest - timedelta(minutes=1),
+                        )
+                    ],
+                    "hasMore": True,
+                }
+            ),
+            _FakeResponse(
+                payload={
+                    "announcements": [
+                        _cninfo_row(
+                            code="000011",
+                            title="完整深交所公告",
+                            published_at=szse_newest,
+                        )
+                    ],
+                    "hasMore": False,
+                }
+            ),
+        ]
+    )
+
+    batch = news_poll._fetch_cninfo_v2(
+        fixture_config,
+        datetime(2026, 8, 5, 1, tzinfo=UTC),
+        lambda _source_id: client,
+    )
+    persistence = news_poll._persist_candidates(
+        batch.candidates,
+        datetime.now(UTC),
+        job_run_id=999_991,
+    )
+    _add_news_poll_run(
+        status="degraded",
+        config_version="p4.1-news-poll-v2",
+        config_sha256=news_poll.EXPECTED_V2_CONFIG_SHA256,
+        cninfo=news_poll._batch_stats(batch, persistence),
+    )
+
+    next_watermarks = news_poll._last_committed_column_watermarks(
+        config,
+        "cninfo",
+        ["sse", "szse"],
+    )
+    with get_session() as session:
+        persisted_symbols = list(
+            session.scalars(select(NewsItem.symbol).order_by(NewsItem.symbol))
+        )
+
+    assert persistence["inserted"] == 3
+    assert persisted_symbols == ["000011", "600011", "600012"]
+    assert next_watermarks == {"sse": legacy, "szse": szse_newest}
+
+
+def test_v2_cninfo_blocked_failure_stops_before_next_column_network_call(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    config = news_poll.load_news_poll_config(news_poll.V2_CONFIG_PATH)
+    document = deepcopy(config.document)
+    source = document["sources"]["cninfo"]
+    source["max_pages_per_column"] = 2
+    source["max_logical_requests_per_run"] = 4
+    source["min_interval_seconds"] = 0
+    fixture_config = news_poll.NewsPollConfig(
+        path=config.path,
+        sha256=config.sha256,
+        document=document,
+    )
+    sse_before = datetime(2026, 8, 4, 8, tzinfo=UTC)
+    szse_before = datetime(2026, 8, 4, 9, tzinfo=UTC)
+    monkeypatch.setattr(
+        news_poll,
+        "_last_committed_column_watermarks",
+        lambda *_args: {"sse": sse_before, "szse": szse_before},
+    )
+    client = _FakeClient([_FakeResponse(status_code=403)])
+
+    batch = news_poll._fetch_cninfo(
+        fixture_config,
+        datetime(2026, 8, 5, 1, tzinfo=UTC),
+        lambda _source_id: client,
+    )
+
+    assert batch.status == "unavailable"
+    assert batch.request_count == 1
+    assert len(client.calls) == 1
+    assert batch.failures == [
+        {
+            "code": "http_forbidden_or_antibot",
+            "blocked": True,
+            "error_type": "NewsSourceError",
+            "message": "HTTP 403",
+            "column": "sse",
+        }
+    ]
+    checkpoints = batch.details["column_watermarks"]
+    assert checkpoints["sse"] == {
+        "verified_watermark_before_utc": sse_before.isoformat(),
+        "verified_watermark_floor_utc": (sse_before - timedelta(minutes=30)).isoformat(),
+        "newest_observed_at_utc": sse_before.isoformat(),
+        "verified_watermark_after_utc": sse_before.isoformat(),
+        "pagination_complete": False,
+        "checkpoint_committed": False,
+        "page_cap_hit": False,
+        "attempted": True,
+        "skipped_due_to_prior_critical_failure": False,
+    }
+    assert checkpoints["szse"] == {
+        "verified_watermark_before_utc": szse_before.isoformat(),
+        "verified_watermark_floor_utc": (
+            szse_before - timedelta(minutes=30)
+        ).isoformat(),
+        "newest_observed_at_utc": szse_before.isoformat(),
+        "verified_watermark_after_utc": szse_before.isoformat(),
+        "pagination_complete": False,
+        "checkpoint_committed": False,
+        "page_cap_hit": False,
+        "attempted": False,
+        "skipped_due_to_prior_critical_failure": True,
+    }
+    assert client.closed is True
 
 
 def test_dual_dedupe_preserves_first_available_time_and_ingestion_evidence(
