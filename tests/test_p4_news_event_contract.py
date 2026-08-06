@@ -18,6 +18,7 @@ from alphapilot.llm.client import chat_json
 from alphapilot.llm.p4_news_event import (
     EventExtractContractError,
     EventExtractValidationError,
+    build_declared_legacy_input_identity,
     build_event_extract_user_input,
     event_extract_input_sha256,
     evidence_span_matches,
@@ -297,6 +298,34 @@ def test_v1_6_user_input_replaces_original_text_with_ordered_candidates() -> Non
         candidate.as_model_input() for candidate in segment_evidence_candidates(original_text)
     ]
     assert payload["evidence_candidates"][0][3] == ("第一段事实。 第二段含有 Unicode 空白。")
+
+
+def test_declared_legacy_identity_is_not_misclassified_as_a_model_request() -> None:
+    contract = load_event_extract_contract(
+        p4_news_event.PROJECT_ROOT / "config/p4_event_extract_eval_v1_7.yaml"
+    )
+    original_text = ("甲" + ("\n" * 99)) * 85
+    kwargs: dict[str, Any] = {
+        "news_item_id": 1419,
+        "source": "cninfo",
+        "ingested_symbol": "001419",
+        "title": "长公告",
+        "original_text": original_text,
+        "published_at": "2026-08-05T01:00:00Z",
+        "available_time": "2026-08-05T02:00:00Z",
+        "body_state": "announcement_body",
+    }
+
+    candidate_json = build_event_extract_user_input(contract, **kwargs)
+    declared_legacy_json = build_declared_legacy_input_identity(contract, **kwargs)
+
+    assert len(candidate_json) <= contract.max_input_characters
+    assert len(declared_legacy_json) > contract.max_input_characters
+    assert json.loads(declared_legacy_json)["original_text"] == original_text
+    assert "evidence_candidates" not in json.loads(declared_legacy_json)
+    assert event_extract_input_sha256(candidate_json) != event_extract_input_sha256(
+        declared_legacy_json
+    )
 
 
 def test_v1_6_candidate_materializes_exact_raw_span_in_final_prediction() -> None:

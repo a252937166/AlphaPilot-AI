@@ -5,7 +5,7 @@ import json
 import math
 import re
 from collections.abc import Collection, Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from itertools import pairwise
 from pathlib import Path
@@ -869,7 +869,7 @@ def _ingested_symbol(value: str | None) -> str | None:
     return value
 
 
-def build_event_extract_user_input(
+def _build_event_extract_user_input(
     contract: EventExtractContract,
     *,
     news_item_id: int,
@@ -880,8 +880,9 @@ def build_event_extract_user_input(
     published_at: datetime | str | None,
     available_time: datetime | str,
     body_state: str,
+    enforce_character_budget: bool,
 ) -> str:
-    """Serialize one news row as deterministic untrusted JSON model input."""
+    """Serialize deterministic untrusted JSON, optionally enforcing transport size."""
     if isinstance(news_item_id, bool) or not isinstance(news_item_id, int) or news_item_id <= 0:
         raise EventExtractValidationError(
             "news_item_id must be a positive integer",
@@ -934,13 +935,84 @@ def build_event_extract_user_input(
         sort_keys=True,
         separators=(",", ":"),
     )
-    if len(user_json) > contract.max_input_characters:
+    if enforce_character_budget and len(user_json) > contract.max_input_characters:
         raise EventExtractValidationError(
             "serialized model input exceeds the contract budget",
             field="result",
             constraint="serialized_input_character_budget",
         )
     return user_json
+
+
+def build_event_extract_user_input(
+    contract: EventExtractContract,
+    *,
+    news_item_id: int,
+    source: str,
+    ingested_symbol: str | None,
+    title: str,
+    original_text: str,
+    published_at: datetime | str | None,
+    available_time: datetime | str,
+    body_state: str,
+) -> str:
+    """Serialize one news row as deterministic, budget-checked model input."""
+
+    return _build_event_extract_user_input(
+        contract,
+        news_item_id=news_item_id,
+        source=source,
+        ingested_symbol=ingested_symbol,
+        title=title,
+        original_text=original_text,
+        published_at=published_at,
+        available_time=available_time,
+        body_state=body_state,
+        enforce_character_budget=True,
+    )
+
+
+def build_declared_legacy_input_identity(
+    contract: EventExtractContract,
+    *,
+    news_item_id: int,
+    source: str,
+    ingested_symbol: str | None,
+    title: str,
+    original_text: str,
+    published_at: datetime | str | None,
+    available_time: datetime | str,
+    body_state: str,
+) -> str:
+    """Serialize the frozen pre-selector identity without treating it as a request.
+
+    Candidate-selector rows retain a legacy eight-field SHA for lineage. That
+    JSON is never sent to a model, so the active transport budget must not
+    reject its identity when escaped source text is larger than the request
+    representation.
+    """
+
+    if not contract.evidence_candidate_selection or contract.materialized_schema is None:
+        raise EventExtractContractError(
+            "legacy input identity requires a candidate-selector contract"
+        )
+    legacy_contract = replace(
+        contract,
+        schema=contract.materialized_schema,
+        evidence_candidate_selection=False,
+    )
+    return _build_event_extract_user_input(
+        legacy_contract,
+        news_item_id=news_item_id,
+        source=source,
+        ingested_symbol=ingested_symbol,
+        title=title,
+        original_text=original_text,
+        published_at=published_at,
+        available_time=available_time,
+        body_state=body_state,
+        enforce_character_budget=False,
+    )
 
 
 build_p4_news_event_user_input = build_event_extract_user_input
@@ -1316,6 +1388,7 @@ __all__ = [
     "P4NewsEventContract",
     "P4NewsEventContractError",
     "P4NewsEventValidationError",
+    "build_declared_legacy_input_identity",
     "build_event_extract_user_input",
     "build_p4_news_event_user_input",
     "event_extract_input_sha256",
