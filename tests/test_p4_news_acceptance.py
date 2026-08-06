@@ -13,6 +13,7 @@ from scripts import run_p4_1_acceptance as acceptance
 PROJECT_DIR = Path(__file__).resolve().parent.parent
 CONFIG_PATH = PROJECT_DIR / "config/p4_news_poll_v1.yaml"
 V2_CONFIG_PATH = PROJECT_DIR / "config/p4_news_poll_v2.yaml"
+V2_1_CONFIG_PATH = PROJECT_DIR / "config/p4_news_poll_v2_1.yaml"
 
 
 def _create_database(path: Path, *, enforce_unique: bool = True) -> None:
@@ -1158,6 +1159,13 @@ def test_v2_final_acceptance_passes_complete_fixture_and_recomputes_catchup_mark
         "counts_match": True,
     }
     assert report["coverage_gap_catchup"]["phase_locks_ok"] is True
+    assert report["database_read_only_evidence"] == {
+        "sqlite_uri_mode": "ro",
+        "pragma_query_only": 1,
+        "total_changes_before": 0,
+        "total_changes_after": 0,
+    }
+    assert report["gate"]["database_opened_read_only"] is True
     assert report["gate"]["all_pass"] is True
 
 
@@ -1252,4 +1260,562 @@ def test_v2_catchup_marker_mismatch_fails_closed(tmp_path: Path) -> None:
     assert report["coverage_gap_catchup"]["issues"]
     assert report["gate"]["coverage_gap_catchup_accounting_ok"] is False
     assert report["gate"]["coverage_gap_row_markers_reconcile"] is False
+    assert report["gate"]["all_pass"] is False
+
+
+def _v2_1_safety(*, paper_trading_enabled: bool = False) -> dict[str, Any]:
+    safety = _v2_safety()
+    safety["settings"].update(
+        {
+            "paper_trading_enabled": paper_trading_enabled,
+            "futu_enable_trade": False,
+        }
+    )
+    return safety
+
+
+def _v2_1_sources(
+    *,
+    started: datetime,
+    prior_observed: datetime,
+    newest_observed: datetime,
+    checkpoint_before: str = "2026-08-09",
+    checkpoint_after: str = "2026-08-09",
+    cninfo_status: str = "ok",
+) -> dict[str, Any]:
+    market_date = started.astimezone(acceptance.SHANGHAI).date().isoformat()
+    floor = prior_observed - timedelta(minutes=30)
+    common = {
+        "status": "ok",
+        "request_count": 1,
+        "logical_request_count": 1,
+        "physical_attempt_count": 1,
+        "retry_count": 0,
+        "fetched": 0,
+        "inserted": 0,
+        "duplicate_url": 0,
+        "duplicate_content_hash": 0,
+        "failure_count": 0,
+        "failures": [],
+    }
+    sources: dict[str, Any] = {
+        "cninfo": {
+            **common,
+            "status": cninfo_status,
+            "fetched": 1,
+            "inserted": 1,
+            "canonical_column": "szse",
+            "slice_dates_shanghai": [market_date],
+            "slices": [
+                {
+                    "date_shanghai": market_date,
+                    "date_closed": False,
+                    "mode": "current_date_incremental",
+                    "incremental_floor_utc": floor.isoformat(),
+                    "attempted": True,
+                    "page_count": 1,
+                    "logical_request_count": 1,
+                    "physical_attempt_count": 1,
+                    "fetched": 1,
+                    "newest_observed_at_utc": newest_observed.isoformat(),
+                    "pagination_complete": True,
+                    "coverage_proven": True,
+                    "checkpoint_committed": True,
+                    "page_cap_hit": False,
+                    "failure": None,
+                }
+            ],
+            "request_budget": {
+                "page_size": 30,
+                "max_pages_per_day": 80,
+                "max_dates_per_run": 2,
+                "max_logical_requests_per_run": 160,
+                "max_physical_attempts_per_run": 320,
+                "logical_request_count": 1,
+                "physical_attempt_count": 1,
+            },
+            "daily_checkpoint": {
+                "lineage_before": "v2.1_daily_checkpoint",
+                "verified_checkpoint_date_shanghai_before": checkpoint_before,
+                "verified_checkpoint_date_shanghai_after": checkpoint_after,
+                "newest_observed_at_utc": newest_observed.isoformat(),
+                "latest_attempt_observed_at_utc": newest_observed.isoformat(),
+                "checkpoint_committed": True,
+                "partial_checkpoint": False,
+                "initial_backlog_migration": False,
+            },
+            "poll_started_at_utc": started.isoformat(),
+            "market_date_at_poll": market_date,
+            "tls_verification": True,
+        },
+        "sina_company_news": dict(common),
+        "akshare_ths": dict(common),
+    }
+    for source_id, status in (
+        ("akshare_cls", "unavailable"),
+        ("akshare_caixin", "excluded_missing_native_title"),
+        ("futu_auxiliary", "pending_trading_day_latency_retest"),
+    ):
+        sources[source_id] = {
+            "status": status,
+            "attempted": False,
+            "request_count": 0,
+            "logical_request_count": 0,
+            "physical_attempt_count": 0,
+            "retry_count": 0,
+            "fetched": 0,
+            "inserted": 0,
+            "duplicate_url": 0,
+            "duplicate_content_hash": 0,
+            "failure_count": 0,
+            "failures": [],
+        }
+    sources["futu_auxiliary"].update({"quote_methods_called": [], "trade_methods_called": []})
+    return sources
+
+
+def _v2_1_run(
+    config: acceptance.FrozenConfig,
+    *,
+    run_id: int,
+    started: datetime,
+    prior_observed: datetime,
+    newest_observed: datetime,
+    checkpoint_before: str = "2026-08-09",
+    checkpoint_after: str = "2026-08-09",
+    cninfo_status: str = "ok",
+    paper_trading_enabled: bool = False,
+) -> acceptance.JobEvidence:
+    safety = _v2_1_safety(paper_trading_enabled=paper_trading_enabled)
+    completed = started + timedelta(seconds=20)
+    stats = {
+        "config_version": config.document["schema_version"],
+        "config_sha256": config.sha256,
+        "poll_started_at": started.isoformat(),
+        "poll_completed_at": completed.isoformat(),
+        "run_mode": "regular_incremental",
+        "coverage_gap": False,
+        "safety_unchanged": True,
+        "safety_before": safety,
+        "safety_after": deepcopy(safety),
+        "sources": _v2_1_sources(
+            started=started,
+            prior_observed=prior_observed,
+            newest_observed=newest_observed,
+            checkpoint_before=checkpoint_before,
+            checkpoint_after=checkpoint_after,
+            cninfo_status=cninfo_status,
+        ),
+        "terminal_diagnostics": None,
+    }
+    return acceptance.JobEvidence(
+        run_id=run_id,
+        status="ok",
+        started_at=started - timedelta(seconds=1),
+        finished_at=completed + timedelta(seconds=1),
+        error=None,
+        stats=stats,
+        poll_started_at=started,
+        poll_completed_at=completed,
+    )
+
+
+def _v2_1_seed_run(
+    config: acceptance.FrozenConfig,
+    *,
+    checkpoint_after: str = "2026-08-09",
+    newest_observed: datetime | None = None,
+) -> acceptance.JobEvidence:
+    started = datetime(2026, 8, 9, 15, 50, tzinfo=UTC)
+    newest = newest_observed or started - timedelta(minutes=5)
+    return _v2_1_run(
+        config,
+        run_id=900,
+        started=started,
+        prior_observed=newest - timedelta(minutes=10),
+        newest_observed=newest,
+        checkpoint_before=checkpoint_after,
+        checkpoint_after=checkpoint_after,
+    )
+
+
+def test_v2_1_config_receipt_and_frozen_report_path_are_enforced(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    config = acceptance.load_config(V2_1_CONFIG_PATH)
+
+    assert config.sha256 == "9d56e137baf10bd0858723a93aff02c57bf7b35f8705f1817b16a89ec615183f"
+    assert config.receipt_sha256 == (
+        "485f710398698c1692d8afd8de6cd06c71ddf2fbdf42713c6bd4defc4bdfd84b"
+    )
+    assert acceptance._resolved_report_path(config, "final", None, None) == (
+        acceptance._default_report(config, "final", None).resolve()
+    )
+    with pytest.raises(ValueError, match="frozen standard output path"):
+        acceptance._resolved_report_path(config, "final", None, tmp_path / "custom.json")
+
+    monkeypatch.setitem(
+        acceptance.EXPECTED_V2_RECEIPT_SHA256,
+        "p4.1-news-poll-v2.1",
+        "0" * 64,
+    )
+    with pytest.raises(ValueError, match="receipt SHA-256 drifted"):
+        acceptance.load_config(V2_1_CONFIG_PATH)
+
+
+def test_v2_1_jobrun_rejects_dangerous_safety_and_sensitive_diagnostics() -> None:
+    config = acceptance.load_config(V2_1_CONFIG_PATH)
+    started = datetime(2026, 8, 10, 1, 50, tzinfo=UTC)
+    run = _v2_1_run(
+        config,
+        run_id=901,
+        started=started,
+        prior_observed=started - timedelta(minutes=10),
+        newest_observed=started - timedelta(minutes=1),
+        paper_trading_enabled=True,
+    )
+
+    audit = acceptance._v2_jobrun_audit(config, [run])
+    assert any("paper_trading_enabled=True" in issue for issue in audit["issues"])
+
+    stats = deepcopy(run.stats)
+    stats["terminal_diagnostics"] = {
+        "code": "transport_error",
+        "source": "cninfo",
+        "constraint": "network",
+        "message": "Authorization token was rejected",
+    }
+    failed = acceptance.JobEvidence(
+        run_id=2,
+        status="failed",
+        started_at=run.started_at,
+        finished_at=run.finished_at,
+        error="password must never be persisted",
+        stats=stats,
+        poll_started_at=run.poll_started_at,
+        poll_completed_at=run.poll_completed_at,
+    )
+    failed_audit = acceptance._v2_jobrun_audit(config, [failed])
+    assert any("error contains sensitive evidence" in issue for issue in failed_audit["issues"])
+    assert any(
+        "terminal_diagnostics contains sensitive evidence" in issue
+        for issue in failed_audit["issues"]
+    )
+
+
+def test_v2_1_daily_slice_chain_accepts_good_runs_and_rejects_broken_chain() -> None:
+    config = acceptance.load_config(V2_1_CONFIG_PATH)
+    seed = _v2_1_seed_run(config)
+    seed_newest = acceptance._aware_datetime(
+        seed.stats["sources"]["cninfo"]["daily_checkpoint"]["newest_observed_at_utc"]
+    )
+    assert seed_newest is not None
+    started = datetime(2026, 8, 10, 1, 50, tzinfo=UTC)
+    first_newest = started - timedelta(minutes=2)
+    second_started = started + timedelta(minutes=10)
+    second_newest = second_started - timedelta(minutes=1)
+    first = _v2_1_run(
+        config,
+        run_id=901,
+        started=started,
+        prior_observed=seed_newest,
+        newest_observed=first_newest,
+    )
+    second = _v2_1_run(
+        config,
+        run_id=902,
+        started=second_started,
+        prior_observed=first_newest,
+        newest_observed=second_newest,
+    )
+
+    window_start = datetime(2026, 8, 9, 16, tzinfo=UTC)
+    good = acceptance._v2_source_audit(
+        config,
+        [date(2026, 8, 10)],
+        [first, second],
+        all_runs=[seed, first, second],
+        window_start=window_start,
+    )
+    assert good["issues"] == []
+    assert good["cninfo_checkpoint_chain_issues"] == []
+    assert len(good["cninfo_daily_slice_checkpoints"]) == 2
+
+    broken = deepcopy(second.stats)
+    broken["sources"]["cninfo"]["daily_checkpoint"]["verified_checkpoint_date_shanghai_before"] = (
+        "2026-08-08"
+    )
+    broken_run = acceptance.JobEvidence(
+        run_id=902,
+        status=second.status,
+        started_at=second.started_at,
+        finished_at=second.finished_at,
+        error=second.error,
+        stats=broken,
+        poll_started_at=second.poll_started_at,
+        poll_completed_at=second.poll_completed_at,
+    )
+    audit = acceptance._v2_source_audit(
+        config,
+        [date(2026, 8, 10)],
+        [first, broken_run],
+        all_runs=[seed, first, broken_run],
+        window_start=window_start,
+    )
+    assert any("breaks prior after chain" in issue for issue in audit["issues"])
+
+    tampered_stats = deepcopy(first.stats)
+    invented_newest = started + timedelta(minutes=1)
+    tampered_checkpoint = tampered_stats["sources"]["cninfo"]["daily_checkpoint"]
+    tampered_checkpoint["newest_observed_at_utc"] = invented_newest.isoformat()
+    tampered_checkpoint["latest_attempt_observed_at_utc"] = invented_newest.isoformat()
+    tampered_first = acceptance.JobEvidence(
+        run_id=first.run_id,
+        status=first.status,
+        started_at=first.started_at,
+        finished_at=first.finished_at,
+        error=first.error,
+        stats=tampered_stats,
+        poll_started_at=first.poll_started_at,
+        poll_completed_at=first.poll_completed_at,
+    )
+    tampered_audit = acceptance._v2_source_audit(
+        config,
+        [date(2026, 8, 10)],
+        [tampered_first],
+        all_runs=[seed, tampered_first],
+        window_start=window_start,
+    )
+    assert any(
+        "first committed observed high breaks slice lineage" in issue
+        for issue in tampered_audit["issues"]
+    )
+
+
+def test_v2_1_top_level_ok_with_cninfo_degraded_fails_source_and_gate() -> None:
+    config = acceptance.load_config(V2_1_CONFIG_PATH)
+    seed = _v2_1_seed_run(config)
+    seed_newest = acceptance._aware_datetime(
+        seed.stats["sources"]["cninfo"]["daily_checkpoint"]["newest_observed_at_utc"]
+    )
+    assert seed_newest is not None
+    started = datetime(2026, 8, 10, 1, 50, tzinfo=UTC)
+    run = _v2_1_run(
+        config,
+        run_id=901,
+        started=started,
+        prior_observed=seed_newest,
+        newest_observed=started - timedelta(minutes=1),
+        cninfo_status="degraded",
+    )
+    sources = acceptance._v2_source_audit(
+        config,
+        [date(2026, 8, 10)],
+        [run],
+        all_runs=[seed, run],
+        window_start=datetime(2026, 8, 9, 16, tzinfo=UTC),
+    )
+    assert sources["issues"]
+    assert sources["critical_failures"]
+
+    gate = acceptance._v2_gate(
+        config,
+        "daily",
+        [date(2026, 8, 10)],
+        {"missing_slots": [], "unexpected_run_ids": []},
+        {"operational_all_success": True, "root_cause_accounting_complete": True},
+        {"status_counts": {"ok": 1, "degraded": 0, "failed": 0}, "issues": []},
+        sources,
+        {"exists": True, "issues": []},
+        {
+            "rows_by_available_date_shanghai": {"2026-08-10": 1},
+            "duplicate_url_groups": 0,
+            "duplicate_content_hash_groups": 0,
+            "available_time_coverage": 1.0,
+            "published_at_equals_available_time": 0,
+            "row_count": 1,
+            "pit_anomalies": [],
+            "source_anomalies": [],
+        },
+        {
+            "issues": [],
+            "row_marker_recomputation": {"counts_match": True},
+            "phase_locks": {
+                "p4_1_v2_done_before_three_day_acceptance": False,
+                "p4_2b_production_wiring_unlocked": False,
+                "p4_3_unlocked": False,
+            },
+        },
+        {
+            "trade_proposals_created_in_window": 0,
+            "broker_orders_created_in_window": 0,
+            "non_simulate_broker_orders": 0,
+        },
+        {
+            "sqlite_uri_mode": "ro",
+            "pragma_query_only": 1,
+            "total_changes_before": 0,
+            "total_changes_after": 0,
+        },
+    )
+    assert gate["source_accounting_ok"] is False
+    assert gate["critical_source_failures_zero"] is False
+    assert gate["all_pass"] is False
+
+
+def test_v2_1_seed_rejects_failed_run_and_accepts_cross_day_floor_lineage() -> None:
+    config = acceptance.load_config(V2_1_CONFIG_PATH)
+    seed_newest = datetime(2026, 8, 9, 15, 40, tzinfo=UTC)
+    seed = _v2_1_seed_run(
+        config,
+        checkpoint_after="2026-08-08",
+        newest_observed=seed_newest,
+    )
+    started = datetime(2026, 8, 10, 1, 50, tzinfo=UTC)
+    current_newest = started - timedelta(minutes=1)
+    run = _v2_1_run(
+        config,
+        run_id=901,
+        started=started,
+        prior_observed=seed_newest,
+        newest_observed=current_newest,
+        checkpoint_before="2026-08-08",
+        checkpoint_after="2026-08-09",
+    )
+    cninfo = run.stats["sources"]["cninfo"]
+    closed_newest = datetime(2026, 8, 9, 15, 50, tzinfo=UTC)
+    current_slice = cninfo["slices"][0]
+    current_slice["incremental_floor_utc"] = (closed_newest - timedelta(minutes=30)).isoformat()
+    cninfo["slices"] = [
+        {
+            **current_slice,
+            "date_shanghai": "2026-08-09",
+            "date_closed": True,
+            "mode": "closed_date_reconciliation",
+            "incremental_floor_utc": None,
+            "newest_observed_at_utc": closed_newest.isoformat(),
+        },
+        current_slice,
+    ]
+    cninfo["slice_dates_shanghai"] = ["2026-08-09", "2026-08-10"]
+    cninfo.update(
+        {
+            "request_count": 2,
+            "logical_request_count": 2,
+            "physical_attempt_count": 2,
+            "fetched": 2,
+            "inserted": 2,
+        }
+    )
+    cninfo["request_budget"].update({"logical_request_count": 2, "physical_attempt_count": 2})
+    window_start = datetime(2026, 8, 9, 16, tzinfo=UTC)
+    accepted = acceptance._v2_source_audit(
+        config,
+        [date(2026, 8, 10)],
+        [run],
+        all_runs=[seed, run],
+        window_start=window_start,
+    )
+    assert accepted["cninfo_checkpoint_chain_issues"] == []
+
+    failed_seed = acceptance.JobEvidence(
+        run_id=seed.run_id,
+        status="failed",
+        started_at=seed.started_at,
+        finished_at=seed.finished_at,
+        error="fixture failure",
+        stats=seed.stats,
+        poll_started_at=seed.poll_started_at,
+        poll_completed_at=seed.poll_completed_at,
+    )
+    rejected = acceptance._v2_source_audit(
+        config,
+        [date(2026, 8, 10)],
+        [run],
+        all_runs=[failed_seed, run],
+        window_start=window_start,
+    )
+    assert any(
+        "no trusted pre-window checkpoint seed" in issue
+        for issue in rejected["cninfo_checkpoint_chain_issues"]
+    )
+
+    v1_sha256 = config.document["superseded_v1"]["config_sha256"]
+    legacy = acceptance.JobEvidence(
+        run_id=899,
+        status="ok",
+        started_at=seed.started_at,
+        finished_at=seed.finished_at,
+        error=None,
+        stats={
+            "config_version": acceptance.V1_SCHEMA_VERSION,
+            "config_sha256": v1_sha256,
+            "sources": {"cninfo": {"watermark_after": seed_newest.isoformat()}},
+        },
+        poll_started_at=seed.poll_started_at,
+        poll_completed_at=seed.poll_completed_at,
+    )
+    legacy_seed, legacy_issues = acceptance._v2_1_pre_window_seed(config, [legacy], 901)
+    assert legacy_issues == []
+    assert legacy_seed is not None
+    assert legacy_seed["lineage"] == "legacy_v1_global_watermark"
+
+
+def test_v2_report_redacts_sensitive_error_and_diagnostic_values(tmp_path: Path) -> None:
+    config = acceptance.load_config(V2_CONFIG_PATH)
+    context = _v2_context(config, tmp_path)
+    database = tmp_path / "v2-sensitive.db"
+    _create_database(database)
+    _seed_complete_v2_evidence(database, config)
+    with sqlite3.connect(database) as connection:
+        run_id, raw_stats = connection.execute(
+            "SELECT id, stats FROM job_runs ORDER BY id LIMIT 1"
+        ).fetchone()
+        stats = json.loads(raw_stats)
+        stats["terminal_diagnostics"] = {
+            "code": "transport_error",
+            "source": "cninfo",
+            "constraint": "network",
+            "message": "P4_TOKEN_SENTINEL",
+            "nested": {
+                "password_value": "P4_PASSWORD_SENTINEL",
+                "api_key": "P4_API_KEY_SENTINEL",
+                "cookie": "P4_COOKIE_SENTINEL",
+                "credential": "P4_CREDENTIAL_SENTINEL",
+                "accessKey": "P4_ACCESS_KEY_SENTINEL",
+                "privateKey": "P4_PRIVATE_KEY_SENTINEL",
+                "sessionCookie": "P4_SESSION_COOKIE_SENTINEL",
+                "aws_access_key_id": "P4_AWS_ACCESS_KEY_SENTINEL",
+                "client_credentials": "P4_CLIENT_CREDENTIALS_SENTINEL",
+                "checkpoint_key": "BENIGN_CHECKPOINT_KEY",
+            },
+        }
+        connection.execute(
+            "UPDATE job_runs SET status='failed', error=?, stats=? WHERE id=?",
+            ("P4_PASSWORD_SENTINEL P4_TOKEN_SENTINEL", json.dumps(stats), run_id),
+        )
+
+    report = acceptance.evaluate_acceptance(
+        database=database,
+        config=config,
+        scope="final",
+        now=_v2_ready_time(),
+        observation_context=context,
+    )
+    serialized = json.dumps(report, ensure_ascii=False)
+
+    assert "P4_PASSWORD_SENTINEL" not in serialized
+    assert "P4_TOKEN_SENTINEL" not in serialized
+    assert "P4_API_KEY_SENTINEL" not in serialized
+    assert "P4_COOKIE_SENTINEL" not in serialized
+    assert "P4_CREDENTIAL_SENTINEL" not in serialized
+    assert "P4_ACCESS_KEY_SENTINEL" not in serialized
+    assert "P4_PRIVATE_KEY_SENTINEL" not in serialized
+    assert "P4_SESSION_COOKIE_SENTINEL" not in serialized
+    assert "P4_AWS_ACCESS_KEY_SENTINEL" not in serialized
+    assert "P4_CLIENT_CREDENTIALS_SENTINEL" not in serialized
+    assert "BENIGN_CHECKPOINT_KEY" in serialized
+    assert "[REDACTED]" in serialized
+    assert report["gate"]["jobrun_contract_ok"] is False
     assert report["gate"]["all_pass"] is False
