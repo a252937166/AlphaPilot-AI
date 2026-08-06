@@ -1419,7 +1419,20 @@ def _persist_candidates(
     fetch_completed_at: datetime,
     *,
     job_run_id: int,
+    run_mode: str | None = None,
+    preceded_by_coverage_gap: bool | None = None,
 ) -> JsonObject:
+    if (run_mode is None) != (preceded_by_coverage_gap is None):
+        raise ValueError("v2 ingestion context must be supplied as one complete pair")
+    if run_mode is not None and run_mode not in {
+        "regular_incremental",
+        "coverage_gap_catchup",
+    }:
+        raise ValueError("unsupported news-poll run_mode")
+    if run_mode is not None and (
+        (run_mode == "coverage_gap_catchup") != preceded_by_coverage_gap
+    ):
+        raise ValueError("news-poll run_mode and coverage-gap marker disagree")
     prepared: list[tuple[NewsCandidate, str, str]] = []
     filtered = 0
     for candidate in candidates:
@@ -1511,6 +1524,13 @@ def _persist_candidates(
                 "available_time_assigned_at_utc": available_time.isoformat(),
                 "available_time_basis": "write_locked_immediately_before_flush_utc",
             }
+            if run_mode is not None:
+                ingestion.update(
+                    {
+                        "run_mode": run_mode,
+                        "preceded_by_coverage_gap": preceded_by_coverage_gap,
+                    }
+                )
             raw_payload = {
                 **candidate.raw_payload,
                 "_alphapilot_ingestion": ingestion,
@@ -1536,7 +1556,7 @@ def _persist_candidates(
         session.commit()
         commit_completed_at = utcnow()
 
-    return {
+    result: JsonObject = {
         "fetched": len(candidates),
         "prepared": len(prepared),
         "filtered": filtered,
@@ -1553,6 +1573,11 @@ def _persist_candidates(
         "last_available_time": max(available_times).isoformat() if available_times else None,
         "available_time_coverage": 1.0 if inserted else None,
     }
+    if run_mode is not None:
+        result["preceded_by_coverage_gap_inserted"] = (
+            inserted if preceded_by_coverage_gap else 0
+        )
+    return result
 
 
 def _safety_snapshot(settings: Settings) -> JsonObject:
@@ -1809,6 +1834,117 @@ def _v2_cninfo_complete(
     )
 
 
+def _v2_run_context(config: NewsPollConfig, started_at: datetime) -> JsonObject:
+    """Derive the frozen Monday recovery semantics from the actual poll time."""
+
+    local = started_at.astimezone(MARKET_TIMEZONE)
+    schedule = cast(dict[str, Any], config.document["schedule"])
+    policy = cast(dict[str, Any], schedule["monday_host_gap_policy"])
+    recovery_hour, recovery_minute = (
+        int(part) for part in str(policy["recovery_catchup_slot_shanghai"]).split(":")
+    )
+    recovery_start = local.replace(
+        hour=recovery_hour,
+        minute=recovery_minute,
+        second=0,
+        microsecond=0,
+    )
+    recovery_end = recovery_start + timedelta(minutes=int(schedule["scheduler_tick_minutes"]))
+    is_catchup = local.weekday() == 0 and recovery_start <= local < recovery_end
+    if not is_catchup:
+        return {
+            "run_mode": "regular_incremental",
+            "coverage_gap": False,
+            "coverage_gap_details": None,
+        }
+
+    suppressed = [
+        str(item)
+        for item in cast(
+            list[object],
+            policy["intentionally_suppressed_slots_shanghai"],
+        )
+    ]
+    suppressed_at: list[datetime] = []
+    for item in suppressed:
+        hour, minute = (int(part) for part in item.split(":"))
+        suppressed_at.append(
+            local.replace(hour=hour, minute=minute, second=0, microsecond=0)
+        )
+    first_suppressed = min(suppressed_at)
+    return {
+        "run_mode": "coverage_gap_catchup",
+        "coverage_gap": True,
+        "coverage_gap_details": {
+            "reason": "owner_confirmed_periodic_host_unavailability",
+            "timezone": "Asia/Shanghai",
+            "suppressed_slots_shanghai": [item.isoformat() for item in suppressed_at],
+            "suppressed_slot_count": len(suppressed_at),
+            "first_suppressed_slot_shanghai": first_suppressed.isoformat(),
+            "recovery_poll_started_at_utc": started_at.isoformat(),
+            "recovery_poll_started_at_shanghai": local.isoformat(),
+            "span_seconds": int((local - first_suppressed).total_seconds()),
+            "span_basis": "first_suppressed_slot_to_actual_poll_started_at",
+        },
+    }
+
+
+def _v2_catchup_stats(
+    *,
+    started_at: datetime,
+    source_results: Mapping[str, JsonObject],
+) -> JsonObject:
+    cninfo = source_results.get("cninfo", {})
+    checkpoints = cninfo.get("column_watermarks")
+    ranges: JsonObject = {}
+    if isinstance(checkpoints, Mapping):
+        for column, raw in checkpoints.items():
+            if not isinstance(column, str) or not isinstance(raw, Mapping):
+                continue
+            start_raw = raw.get("verified_watermark_floor_utc")
+            start = _parsed_utc_watermark(start_raw)
+            ranges[column] = {
+                "start_utc": start.isoformat() if start is not None else None,
+                "end_utc": started_at.isoformat(),
+                "span_seconds": (
+                    max(0, int((started_at - start).total_seconds()))
+                    if start is not None
+                    else None
+                ),
+            }
+
+    by_source: JsonObject = {}
+    for source_id, source in source_results.items():
+        by_source[source_id] = {
+            key: int(source.get(key, 0))
+            for key in (
+                "fetched",
+                "inserted",
+                "duplicate_url",
+                "duplicate_content_hash",
+                "preceded_by_coverage_gap_inserted",
+            )
+        }
+    return {
+        "range_basis": "per_column_verified_watermark_minus_overlap_to_actual_poll",
+        "cninfo_column_ranges": ranges,
+        "range_end_utc": started_at.isoformat(),
+        "counts_by_source": by_source,
+        "counts_all_sources": {
+            key: sum(int(source.get(key, 0)) for source in source_results.values())
+            for key in (
+                "fetched",
+                "inserted",
+                "duplicate_url",
+                "duplicate_content_hash",
+                "preceded_by_coverage_gap_inserted",
+            )
+        },
+        "available_time_policy": "actual_write_locked_ingestion_time_utc",
+        "restores_completeness_not_timeliness": True,
+    }
+
+
 def run_news_poll(
     *,
     config_path: Path = DEFAULT_CONFIG_PATH,
@@ -1857,6 +1993,15 @@ def run_news_poll(
         )
     started_at = _ensure_utc(now) if now is not None else utcnow()
     assert started_at is not None
+    run_context = (
+        _v2_run_context(config, started_at)
+        if is_v2
+        else {
+            "run_mode": "regular_incremental",
+            "coverage_gap": False,
+            "coverage_gap_details": None,
+        }
+    )
     settings = get_settings()
     safety_before = _safety_snapshot(settings)
     stats: JsonObject = {
@@ -1875,8 +2020,10 @@ def run_news_poll(
     if is_v2:
         stats.update(
             {
-                "run_mode": "regular_incremental",
-                "coverage_gap": False,
+                "run_mode": run_context["run_mode"],
+                "coverage_gap": run_context["coverage_gap"],
+                "coverage_gap_details": run_context["coverage_gap_details"],
+                "catchup": None,
                 "terminal_diagnostics": None,
             }
         )
@@ -1970,6 +2117,10 @@ def run_news_poll(
                     batch.candidates,
                     fetch_completed_at,
                     job_run_id=context.run_id,
+                    run_mode=(str(run_context["run_mode"]) if is_v2 else None),
+                    preceded_by_coverage_gap=(
+                        bool(run_context["coverage_gap"]) if is_v2 else None
+                    ),
                 )
             except Exception as exc:
                 failure = (
@@ -2068,6 +2219,11 @@ def run_news_poll(
         "decision_visibility_operator": "<",
         "published_at_never_substitutes_available_time": True,
     }
+    if is_v2 and run_context["coverage_gap"] is True:
+        stats["catchup"] = _v2_catchup_stats(
+            started_at=started_at,
+            source_results=source_results,
+        )
     stats["poll_completed_at"] = utcnow().isoformat()
     if is_v2:
         cninfo_result = source_results.get("cninfo", {})
@@ -2076,8 +2232,13 @@ def run_news_poll(
             stats["terminal_diagnostics"] = None
             return JobOutcome(status="ok", stats=cast(JsonObject, _json_safe(stats)))
         if _v2_cninfo_page_cap_only(cninfo_result, expected_columns=columns):
+            catchup = run_context["coverage_gap"] is True
             stats["terminal_diagnostics"] = _v2_terminal_diagnostic(
-                code="cninfo_column_pagination_incomplete",
+                code=(
+                    "recovery_catchup_incomplete"
+                    if catchup
+                    else "cninfo_column_pagination_incomplete"
+                ),
                 source="cninfo",
                 constraint="max_pages_per_column",
                 recoverable=True,
@@ -2099,7 +2260,7 @@ def run_news_poll(
     return cast(JsonObject, _json_safe(stats))
 
 
-def _news_poll_trigger() -> OrTrigger:
+def _news_poll_trigger_v1() -> OrTrigger:
     baseline = CronTrigger(minute="0,30", timezone=MARKET_TIMEZONE)
     trading_extras = [
         CronTrigger(day_of_week="mon-fri", hour=9, minute="40,50", timezone=MARKET_TIMEZONE),
@@ -2118,6 +2279,72 @@ def _news_poll_trigger() -> OrTrigger:
         ),
     ]
     return OrTrigger([baseline, *trading_extras])
+
+
+def _v2_shared_trading_extras() -> list[CronTrigger]:
+    return [
+        CronTrigger(
+            day_of_week="mon-fri",
+            hour=10,
+            minute="10,20,40,50",
+            timezone=MARKET_TIMEZONE,
+        ),
+        CronTrigger(
+            day_of_week="mon-fri",
+            hour=11,
+            minute="10,20",
+            timezone=MARKET_TIMEZONE,
+        ),
+        CronTrigger(
+            day_of_week="mon-fri",
+            hour="13-14",
+            minute="10,20,40,50",
+            timezone=MARKET_TIMEZONE,
+        ),
+    ]
+
+
+def _news_poll_trigger_v2() -> OrTrigger:
+    non_monday_baseline = CronTrigger(
+        day_of_week="tue-sun",
+        minute="0,30",
+        timezone=MARKET_TIMEZONE,
+    )
+    monday_baseline = CronTrigger(
+        day_of_week="mon",
+        hour="0-8,10-23",
+        minute="0,30",
+        timezone=MARKET_TIMEZONE,
+    )
+    normal_opening_extras = CronTrigger(
+        day_of_week="tue-fri",
+        hour=9,
+        minute="40,50",
+        timezone=MARKET_TIMEZONE,
+    )
+    monday_recovery = CronTrigger(
+        day_of_week="mon",
+        hour=9,
+        minute=50,
+        timezone=MARKET_TIMEZONE,
+    )
+    return OrTrigger(
+        [
+            non_monday_baseline,
+            monday_baseline,
+            normal_opening_extras,
+            monday_recovery,
+            *_v2_shared_trading_extras(),
+        ]
+    )
+
+
+def _news_poll_trigger(config_path: Path = DEFAULT_CONFIG_PATH) -> OrTrigger:
+    return (
+        _news_poll_trigger_v2()
+        if config_path == V2_CONFIG_PATH
+        else _news_poll_trigger_v1()
+    )
 
 
 def _news_poll_scheduler_enabled() -> bool:

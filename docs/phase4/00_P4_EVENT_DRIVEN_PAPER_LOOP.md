@@ -332,6 +332,21 @@ owner 确认该时段为**人为断网、周期性复发**，非代码或上游�
 > 降级口径，继续保留原始错误并 fail-closed。待 owner 另发版本化数值合同前，不宣称实现了
 > `older_than_catchup_floor` 提前闭合。
 
+- **P4.1-v2-⑥ code-complete（2026-08-06）**：v1 trigger 保持原样；v2 trigger 在周一
+  明确让位 `09:00/09:30/09:40`，仅保留 `09:50` 恢复轮，枚举结果为
+  `2026-08-10/11/12 = 61/64/64`。周一 `[09:50,10:00)` 的 JobRun 记为
+  `coverage_gap_catchup`，其余为 `regular_incremental`；恢复轮按 column 记录
+  `verified_watermark_floor_utc → actual poll_started_at` 区间及逐源抓取/插入/去重/标记计数。
+  v2 新落库行写入 `preceded_by_coverage_gap`，但 `available_time` 仍只取真实写锁内 UTC
+  时刻；重放不会覆盖首次时刻或标记。恢复轮若巨潮页限未闭合，诊断为
+  `recovery_catchup_incomplete`，不得伪报 `ok`。
+
+> ⚠ DEVIATION（P4.1-v2-⑥，2026-08-06）：预注册固定了三个让位槽与 `09:50` 恢复点，
+> 但未冻结连续缺口的结构化字段名及精确 span 起点。实现未改配置字节，统一以“首个让位槽
+> `09:00 CST` 到真实恢复轮 `poll_started_at`”作为派生跨度，并以
+> `span_basis=first_suppressed_slot_to_actual_poll_started_at` 明示。该跨度用于覆盖审计，不会
+> 回拨事件 `available_time`，也不宣称已恢复缺口期间的决策时效性。
+
 ### P4.2a 模型成本复审与 v1.7 选择准则预注册（2026-08-04，held-out 解锁前）
 
 - **动机**：held-out 一次性，验证哪个模型就应是生产模型。owner 提出试 `qwen3.7-flash`
