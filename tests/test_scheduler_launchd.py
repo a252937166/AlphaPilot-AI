@@ -41,8 +41,10 @@ def test_api_and_scheduler_plists_cannot_both_enable_scheduler() -> None:
     assert scheduler_environment["ALPHAPILOT_SCHEDULER_ENABLED"] == "true"
     assert scheduler_environment["ALPHAPILOT_TRADING_MODE"] == "research"
     assert scheduler_environment["ALPHAPILOT_LIVE_TRADING_ENABLED"] == "false"
+    assert scheduler_environment["ALPHAPILOT_PAPER_TRADING_ENABLED"] == "false"
     assert scheduler_environment["ALPHAPILOT_PAPER_AUTO_TRADING_ENABLED"] == "false"
     assert scheduler_environment["ALPHAPILOT_FUTU_ENABLE_ACCOUNT_MUTATION"] == "false"
+    assert scheduler_environment["ALPHAPILOT_FUTU_ENABLE_TRADE"] == "false"
     assert scheduler_environment["ALPHAPILOT_BAOSTOCK_FINANCIAL_SYNC_ENABLED"] == "false"
     assert scheduler_environment["ALPHAPILOT_NEWS_POLL_ENABLED"] == "true"
     assert scheduler["KeepAlive"] is True

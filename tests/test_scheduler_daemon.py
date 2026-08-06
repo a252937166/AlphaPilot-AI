@@ -17,8 +17,10 @@ def _safe_settings(**overrides: Any) -> Settings:
         "scheduler_enabled": True,
         "trading_mode": "research",
         "live_trading_enabled": False,
+        "paper_trading_enabled": False,
         "paper_auto_trading_enabled": False,
         "futu_enable_account_mutation": False,
+        "futu_enable_trade": False,
         "baostock_financial_sync_enabled": False,
     }
     values.update(overrides)
@@ -31,6 +33,7 @@ def _safe_settings(**overrides: Any) -> Settings:
         ("scheduler_enabled", False, "scheduler_enabled"),
         ("trading_mode", "paper", "trading_mode"),
         ("live_trading_enabled", True, "live_trading_enabled"),
+        ("paper_trading_enabled", True, "paper_trading_enabled"),
         (
             "paper_auto_trading_enabled",
             True,
@@ -41,6 +44,7 @@ def _safe_settings(**overrides: Any) -> Settings:
             True,
             "futu_enable_account_mutation",
         ),
+        ("futu_enable_trade", True, "futu_enable_trade"),
         (
             "baostock_financial_sync_enabled",
             True,

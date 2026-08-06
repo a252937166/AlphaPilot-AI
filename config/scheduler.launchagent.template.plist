@@ -20,9 +20,13 @@
         <string>research</string>
         <key>ALPHAPILOT_LIVE_TRADING_ENABLED</key>
         <string>false</string>
+        <key>ALPHAPILOT_PAPER_TRADING_ENABLED</key>
+        <string>false</string>
         <key>ALPHAPILOT_PAPER_AUTO_TRADING_ENABLED</key>
         <string>false</string>
         <key>ALPHAPILOT_FUTU_ENABLE_ACCOUNT_MUTATION</key>
+        <string>false</string>
+        <key>ALPHAPILOT_FUTU_ENABLE_TRADE</key>
         <string>false</string>
         <key>ALPHAPILOT_BAOSTOCK_FINANCIAL_SYNC_ENABLED</key>
         <string>false</string>
