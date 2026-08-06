@@ -6,6 +6,7 @@ import re
 import shutil
 import sqlite3
 from collections.abc import Callable, Mapping
+from contextlib import suppress
 from dataclasses import replace
 from datetime import datetime
 from pathlib import Path
@@ -281,11 +282,36 @@ def _materialization_successor_fixture_root(
     *,
     raw_candidate_count: int = 42,
 ) -> EventEvaluationDesign:
+    successor_config = cast(
+        dict[str, Any],
+        yaml.safe_load(
+            (runner.PROJECT_ROOT / "config/p4_event_evaluation_v1_7.yaml").read_text(
+                encoding="utf-8"
+            )
+        ),
+    )
     shutil.copytree(runner.PROJECT_ROOT / "config", tmp_path / "config")
     shutil.copytree(
         runner.PROJECT_ROOT / "docs/phase4/eval",
         tmp_path / "docs/phase4/eval",
     )
+    runtime_artifacts = cast(
+        dict[str, dict[str, Any]],
+        successor_config["artifact_overrides"],
+    )
+    runtime_parents: set[Path] = set()
+    for artifact in runtime_artifacts.values():
+        target = tmp_path / cast(str, artifact["path"])
+        runtime_parents.add(target.parent)
+        if target.is_symlink() or target.is_file():
+            target.unlink()
+        elif target.is_dir():
+            shutil.rmtree(target)
+    evaluation_root = tmp_path / "docs/phase4/eval"
+    for parent in sorted(runtime_parents, key=lambda path: len(path.parts), reverse=True):
+        if parent != evaluation_root:
+            with suppress(OSError):
+                parent.rmdir()
     _create_database(tmp_path)
     if raw_candidate_count < 40:
         raise AssertionError("fixture raw candidate count must be at least 40")
