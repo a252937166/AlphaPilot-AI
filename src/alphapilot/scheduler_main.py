@@ -33,10 +33,14 @@ def validate_scheduler_settings(settings: Settings) -> None:
         violations.append("trading_mode must be research")
     if settings.live_trading_enabled:
         violations.append("live_trading_enabled must be false")
+    if settings.paper_trading_enabled:
+        violations.append("paper_trading_enabled must be false")
     if settings.paper_auto_trading_enabled:
         violations.append("paper_auto_trading_enabled must be false")
     if settings.futu_enable_account_mutation:
         violations.append("futu_enable_account_mutation must be false")
+    if settings.futu_enable_trade:
+        violations.append("futu_enable_trade must be false")
     if bool(getattr(settings, "baostock_financial_sync_enabled", False)):
         violations.append("baostock_financial_sync_enabled must be false")
     if violations:
