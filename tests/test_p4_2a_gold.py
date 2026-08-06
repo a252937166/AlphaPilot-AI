@@ -10,7 +10,7 @@ from collections.abc import Mapping
 from dataclasses import replace
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
-from typing import Any
+from typing import Any, ClassVar
 
 import httpx
 import pytest
@@ -604,6 +604,55 @@ def test_pdf_download_uses_tls_no_redirect_and_bounded_stream(
     assert requests == [("GET", url)]
 
 
+def test_negative_pdf_content_length_is_transport_failure_not_ineligibility(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    policy = builder.announcement_body_policy(builder.load_contract(CONFIG_PATH))
+
+    class FakeResponse:
+        status_code = 200
+        headers: ClassVar[dict[str, str]] = {"content-length": "-1"}
+
+        def __enter__(self) -> FakeResponse:
+            return self
+
+        def __exit__(self, *_args: object) -> None:
+            return None
+
+        def iter_bytes(self) -> list[bytes]:
+            raise AssertionError("invalid transport metadata must fail before streaming")
+
+    class FakeClient:
+        def __init__(self, **_options: object) -> None:
+            pass
+
+        def __enter__(self) -> FakeClient:
+            return self
+
+        def __exit__(self, *_args: object) -> None:
+            return None
+
+        def stream(
+            self,
+            _method: str,
+            _url: str,
+            *,
+            headers: Mapping[str, str],
+        ) -> FakeResponse:
+            assert headers == {"Accept": "application/pdf"}
+            return FakeResponse()
+
+    monkeypatch.setattr(httpx, "Client", FakeClient)
+    url = "https://static.cninfo.com.cn/finalpage/2026-08-03/fixture.PDF"
+
+    with pytest.raises(
+        builder.GoldSampleError,
+        match="Content-Length must be non-negative",
+    ) as caught:
+        builder.download_cninfo_pdf(url, policy)
+    assert not isinstance(caught.value, builder.CandidateDocumentIneligible)
+
+
 def test_database_open_is_uri_read_only_and_query_only(tmp_path: Path) -> None:
     database = tmp_path / "fixture.db"
     with sqlite3.connect(database) as connection:
@@ -983,7 +1032,10 @@ def test_v1_1_candidate_body_is_frozen_once_for_prediction_and_owner() -> None:
         pdf_fetcher=fake_fetch,
         pdf_text_extractor=fake_extract,
     )
-    candidate = candidates[0]
+    assert candidates.reason_counts == {}
+    assert len(candidates.all_candidates) == 1
+    assert candidates.ineligible_candidates == ()
+    candidate = candidates.eligible_records[0]
     owner = builder._heldout_owner_record(
         candidate=candidate,
         row=row,
@@ -1007,6 +1059,127 @@ def test_v1_1_candidate_body_is_frozen_once_for_prediction_and_owner() -> None:
     leaked["body_evidence"]["selection_reason"] = "model_positive"
     with pytest.raises(builder.GoldSampleError, match="body_evidence fields drifted"):
         builder.validate_blind_record(leaked, design.base_contract)
+
+
+def _eligibility_fixture_design() -> builder.FrozenEvaluationDesign:
+    design = builder.load_evaluation_design()
+    document = copy.deepcopy(design.document)
+    document["candidate_eligibility"] = {
+        "schema_version": "p4.2a-heldout-candidate-eligibility-v1",
+        "deterministic_document_ineligible_reasons": [
+            "pdf_text_below_min_char_gate",
+            "pdf_exceeds_size_bound",
+        ],
+        "minimum_extracted_characters": 80,
+        "max_pdf_bytes": 8 * 1024 * 1024,
+        "transient_download_failures_fail_closed": True,
+        "sample_only_from_eligible_pool": True,
+        "insufficient_stratum_policy": "fail_without_substitution",
+    }
+    return builder.FrozenEvaluationDesign(
+        path=design.path,
+        sha256="1" * 64,
+        document=document,
+        base_contract=design.base_contract,
+    )
+
+
+def test_heldout_materialization_excludes_only_deterministic_pdf_properties() -> None:
+    design = _eligibility_fixture_design()
+    active_contract = load_event_extract_contract(CONFIG_PATH)
+    rows = [
+        _row(500, source="cninfo", bound=True),
+        _row(501, source="cninfo", bound=True),
+        _row(502, source="akshare_ths", bound=True),
+    ]
+    short_pdf = b"%PDF-short-scan"
+    oversized_pdf = b"%PDF-" + (b"x" * (8 * 1024 * 1024))
+
+    def fake_fetch(url: str, _policy: builder.AnnouncementBodyPolicy) -> bytes:
+        if url.endswith("/500.PDF"):
+            return short_pdf
+        if url.endswith("/501.PDF"):
+            return oversized_pdf
+        raise AssertionError(f"unexpected PDF URL {url}")
+
+    def fake_extract(
+        payload: bytes,
+        _policy: builder.AnnouncementBodyPolicy,
+    ) -> builder.ExtractedPdfText:
+        assert payload == short_pdf
+        return builder.extracted_pdf_text_fixture("扫描件")
+
+    result = builder.materialize_heldout_candidate_inputs(
+        rows,
+        design,
+        active_contract,
+        pdf_fetcher=fake_fetch,
+        pdf_text_extractor=fake_extract,
+    )
+
+    assert [item["news_item_id"] for item in result.all_candidates] == [500, 501, 502]
+    assert [item["news_item_id"] for item in result.eligible_records] == [502]
+    assert result.reason_counts == {
+        "pdf_exceeds_size_bound": 1,
+        "pdf_text_below_min_char_gate": 1,
+    }
+    excluded = {int(item["news_item_id"]): item for item in result.ineligible_candidates}
+    assert excluded[500] == {
+        "news_item_id": 500,
+        "url": rows[0].url,
+        "reason": "pdf_text_below_min_char_gate",
+        "measured_value": 3,
+        "gate_value": 80,
+        "pdf_sha256": hashlib.sha256(short_pdf).hexdigest(),
+    }
+    assert excluded[501] == {
+        "news_item_id": 501,
+        "url": rows[1].url,
+        "reason": "pdf_exceeds_size_bound",
+        "measured_value": len(oversized_pdf),
+        "gate_value": 8 * 1024 * 1024,
+        "pdf_sha256": hashlib.sha256(oversized_pdf).hexdigest(),
+    }
+
+
+def test_heldout_materialization_keeps_transient_pdf_failure_batch_fatal() -> None:
+    design = _eligibility_fixture_design()
+    active_contract = load_event_extract_contract(CONFIG_PATH)
+    row = _row(503, source="cninfo", bound=True)
+
+    def transient_fetch(
+        _url: str,
+        _policy: builder.AnnouncementBodyPolicy,
+    ) -> bytes:
+        raise builder.GoldSampleError("CNInfo PDF download failed: ConnectError")
+
+    with pytest.raises(builder.GoldSampleError, match="ConnectError"):
+        builder.materialize_heldout_candidate_inputs(
+            [row],
+            design,
+            active_contract,
+            pdf_fetcher=transient_fetch,
+            pdf_text_extractor=lambda *_args: pytest.fail("extractor must not run"),
+        )
+
+
+def test_v1_6_materialization_remains_batch_fatal_without_new_design_semantics() -> None:
+    design = builder.load_evaluation_design(
+        PROJECT_DIR / "config/p4_event_evaluation_v1_6.yaml"
+    )
+    active_contract = load_event_extract_contract(
+        PROJECT_DIR / "config/p4_event_extract_eval_v1_7.yaml"
+    )
+    row = _row(504, source="cninfo", bound=True)
+
+    with pytest.raises(builder.GoldSampleError, match="minimum extracted-character"):
+        builder.materialize_heldout_candidate_inputs(
+            [row],
+            design,
+            active_contract,
+            pdf_fetcher=lambda *_args: b"%PDF-scan",
+            pdf_text_extractor=lambda *_args: builder.extracted_pdf_text_fixture("扫描件"),
+        )
 
 
 def test_v1_1_combine_owner_is_create_only_and_binds_completion_manifest(

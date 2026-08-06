@@ -41,6 +41,9 @@ from alphapilot.llm.p4_news_event import (
 PROJECT_DIR = Path(__file__).resolve().parent.parent
 DEFAULT_CONFIG = Path("config/p4_event_extract_eval_v1.yaml")
 DEFAULT_EVALUATION_DESIGN = Path("config/p4_event_evaluation_v1_1.yaml")
+MATERIALIZATION_SUCCESSOR_ORIGIN_DESIGN = Path(
+    "config/p4_event_evaluation_v1_6.yaml"
+)
 SHANGHAI = ZoneInfo("Asia/Shanghai")
 PDF_MAGIC = b"%PDF-"
 SHA256_PATTERN = re.compile(r"^[0-9a-f]{64}$")
@@ -144,6 +147,24 @@ class GoldSampleNotReady(GoldSampleError):
     """The future sample is still inside its pre-registered observation window."""
 
 
+class CandidateDocumentIneligible(GoldSampleError):
+    """One deterministic document property makes a held-out candidate ineligible."""
+
+    def __init__(
+        self,
+        *,
+        reason: str,
+        measured_value: int,
+        gate_value: int,
+        pdf_sha256: str | None,
+    ) -> None:
+        super().__init__(reason)
+        self.reason = reason
+        self.measured_value = measured_value
+        self.gate_value = gate_value
+        self.pdf_sha256 = pdf_sha256
+
+
 def _reject_non_finite_json(value: str) -> None:
     raise ValueError(f"non-finite JSON numeric constant is forbidden: {value}")
 
@@ -242,6 +263,25 @@ class ExtractedPdfText:
     text: str
     text_sha256: str
     full_character_count: int
+
+
+@dataclass(frozen=True, slots=True)
+class HeldoutCandidateMaterialization:
+    """Three-layer deterministic materialization result, before any prediction."""
+
+    all_candidates: tuple[JsonObject, ...]
+    eligible_records: tuple[JsonObject, ...]
+    ineligible_candidates: tuple[JsonObject, ...]
+    reason_counts: JsonObject
+
+
+MATERIALIZATION_MANIFEST_SCHEMA_VERSION = (
+    "p4.2a-heldout-candidate-materialization-manifest-v1"
+)
+MATERIALIZATION_INELIGIBLE_REASONS = (
+    "pdf_text_below_min_char_gate",
+    "pdf_exceeds_size_bound",
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -601,6 +641,28 @@ def announcement_body_policy(contract: FrozenContract) -> AnnouncementBodyPolicy
         max_annotation_text_characters=int(raw["max_annotation_text_characters"]),
         minimum_extracted_characters=int(raw["minimum_extracted_characters"]),
     )
+
+
+def _candidate_eligibility_enabled(design: FrozenEvaluationDesign) -> bool:
+    raw = design.document.get("candidate_eligibility")
+    if raw is None:
+        return False
+    policy = _mapping(raw, label="candidate_eligibility")
+    body = announcement_body_policy(design.base_contract)
+    expected = {
+        "schema_version": "p4.2a-heldout-candidate-eligibility-v1",
+        "deterministic_document_ineligible_reasons": list(
+            MATERIALIZATION_INELIGIBLE_REASONS
+        ),
+        "minimum_extracted_characters": body.minimum_extracted_characters,
+        "max_pdf_bytes": body.max_pdf_bytes,
+        "transient_download_failures_fail_closed": True,
+        "sample_only_from_eligible_pool": True,
+        "insufficient_stratum_policy": "fail_without_substitution",
+    }
+    if policy != expected:
+        raise GoldSampleError("candidate eligibility contract drifted")
+    return True
 
 
 @contextmanager
@@ -1035,14 +1097,26 @@ def download_cninfo_pdf(url: str, policy: AnnouncementBodyPolicy) -> bytes:
                     declared_size = int(content_length)
                 except ValueError as exc:
                     raise GoldSampleError("CNInfo PDF Content-Length is invalid") from exc
-                if declared_size < 0 or declared_size > policy.max_pdf_bytes:
-                    raise GoldSampleError("CNInfo PDF exceeds the 8 MiB bound")
+                if declared_size < 0:
+                    raise GoldSampleError("CNInfo PDF Content-Length must be non-negative")
+                if declared_size > policy.max_pdf_bytes:
+                    raise CandidateDocumentIneligible(
+                        reason="pdf_exceeds_size_bound",
+                        measured_value=declared_size,
+                        gate_value=policy.max_pdf_bytes,
+                        pdf_sha256=None,
+                    )
             chunks: list[bytes] = []
             total = 0
             for chunk in response.iter_bytes():
                 total += len(chunk)
                 if total > policy.max_pdf_bytes:
-                    raise GoldSampleError("CNInfo PDF exceeds the 8 MiB bound")
+                    raise CandidateDocumentIneligible(
+                        reason="pdf_exceeds_size_bound",
+                        measured_value=total,
+                        gate_value=policy.max_pdf_bytes,
+                        pdf_sha256=None,
+                    )
                 chunks.append(chunk)
     except GoldSampleError:
         raise
@@ -1087,8 +1161,11 @@ def extract_cninfo_pdf_text(pdf_bytes: bytes, policy: AnnouncementBodyPolicy) ->
     except UnicodeDecodeError as exc:
         raise GoldSampleError("pdftotext output is not UTF-8") from exc
     if len(text.strip()) < policy.minimum_extracted_characters:
-        raise GoldSampleError(
-            "pdftotext output is shorter than the minimum extracted-character gate"
+        raise CandidateDocumentIneligible(
+            reason="pdf_text_below_min_char_gate",
+            measured_value=len(text.strip()),
+            gate_value=policy.minimum_extracted_characters,
+            pdf_sha256=_sha256_bytes(pdf_bytes),
         )
     return ExtractedPdfText(
         text=text,
@@ -1174,7 +1251,12 @@ def _original_text_and_body_evidence(
     _validate_pdf_url(row.url, policy)
     pdf_bytes = pdf_fetcher(row.url, policy)
     if len(pdf_bytes) > policy.max_pdf_bytes:
-        raise GoldSampleError("mocked CNInfo PDF exceeds the 8 MiB bound")
+        raise CandidateDocumentIneligible(
+            reason="pdf_exceeds_size_bound",
+            measured_value=len(pdf_bytes),
+            gate_value=policy.max_pdf_bytes,
+            pdf_sha256=_sha256_bytes(pdf_bytes),
+        )
     if not pdf_bytes.startswith(policy.required_magic):
         raise GoldSampleError("CNInfo response does not start with %PDF-")
     extracted = pdf_text_extractor(pdf_bytes, policy)
@@ -1183,8 +1265,11 @@ def _original_text_and_body_evidence(
     if extracted.text_sha256 != _sha256_bytes(extracted.text.encode("utf-8")):
         raise GoldSampleError("pdftotext full text SHA-256 is inconsistent")
     if len(extracted.text.strip()) < policy.minimum_extracted_characters:
-        raise GoldSampleError(
-            "pdftotext output is shorter than the minimum extracted-character gate"
+        raise CandidateDocumentIneligible(
+            reason="pdf_text_below_min_char_gate",
+            measured_value=len(extracted.text.strip()),
+            gate_value=policy.minimum_extracted_characters,
+            pdf_sha256=_sha256_bytes(pdf_bytes),
         )
 
     # The annotation and model must see the same deterministic prefix of the
@@ -1927,6 +2012,81 @@ def load_active_prediction_contract(
     receipt-to-contract-to-prompt/schema binding used for heldout inference.
     """
 
+    design_schema_version = design.document.get("schema_version")
+    if design_schema_version == "p4.2a-evaluation-design-v1.7":
+        origin = load_evaluation_design(MATERIALIZATION_SUCCESSOR_ORIGIN_DESIGN)
+        active_contract, receipt, receipt_sha256 = load_active_prediction_contract(
+            origin
+        )
+        rounds = _mapping(
+            design.document.get("materialization_rounds"),
+            label="materialization_rounds",
+        )
+        failed_origin = _mapping(
+            rounds.get("failed_origin"),
+            label="materialization_rounds.failed_origin",
+        )
+        successor = _mapping(
+            rounds.get("authorized_successor"),
+            label="materialization_rounds.authorized_successor",
+        )
+        frozen_bindings = {
+            "failed materialization round": _mapping(
+                failed_origin.get("record"),
+                label="failed_origin.record",
+            ),
+            "prediction contract": _mapping(
+                successor.get("prediction_contract"),
+                label="authorized_successor.prediction_contract",
+            ),
+            "prompt": _mapping(
+                successor.get("prompt"),
+                label="authorized_successor.prompt",
+            ),
+            "freeze receipt": _mapping(
+                successor.get("freeze_receipt"),
+                label="authorized_successor.freeze_receipt",
+            ),
+            "model selection outcome": _mapping(
+                successor.get("model_selection_outcome"),
+                label="authorized_successor.model_selection_outcome",
+            ),
+        }
+        for label, binding in frozen_bindings.items():
+            path = _project_path(binding.get("path"), label=f"{label} path")
+            expected_sha256 = binding.get("sha256")
+            if (
+                not isinstance(expected_sha256, str)
+                or SHA256_PATTERN.fullmatch(expected_sha256) is None
+                or not path.is_file()
+                or path.is_symlink()
+                or _sha256_file(path) != expected_sha256
+            ):
+                raise GoldSampleError(f"materialization successor {label} drifted")
+        if (
+            failed_origin.get("status") != "materialization_failed_no_inference"
+            or failed_origin.get("inference_started") is not False
+            or failed_origin.get("model_calls") != 0
+            or successor.get("round_id") != "heldout-v1.7-r1"
+            or successor.get("exactly_one_one_shot") is not True
+            or successor.get("predecessor_must_remain_failed") is not True
+            or successor.get("model") != active_contract.model
+            or _mapping(
+                successor.get("prediction_contract"),
+                label="authorized_successor.prediction_contract",
+            ).get("sha256")
+            != active_contract.sha256
+            or _mapping(
+                successor.get("freeze_receipt"),
+                label="authorized_successor.freeze_receipt",
+            ).get("sha256")
+            != receipt_sha256
+            or successor.get("automatic_retries") != 0
+            or successor.get("failed_candidate_retries") != 0
+        ):
+            raise GoldSampleError("materialization successor frozen lineage drifted")
+        return active_contract, receipt, receipt_sha256
+
     receipt, receipt_sha256 = load_prediction_contract_freeze_receipt(design)
     contract_path = _project_path(receipt.get("contract_path"), label="contract_path")
     try:
@@ -1957,9 +2117,12 @@ def load_active_prediction_contract(
         contract_files.get("schema"),
         label="active prediction contract model schema",
     )
-    design_schema_version = design.document.get("schema_version")
     candidate_selector_contract = (
-        design_schema_version == "p4.2a-evaluation-design-v1.5"
+        design_schema_version
+        in {
+            "p4.2a-evaluation-design-v1.5",
+            "p4.2a-evaluation-design-v1.6",
+        }
     )
     result_schema_binding = (
         _mapping(
@@ -2010,6 +2173,7 @@ def load_active_prediction_contract(
         "p4.2a-evaluation-design-v1.3",
         "p4.2a-evaluation-design-v1.4",
         "p4.2a-evaluation-design-v1.5",
+        "p4.2a-evaluation-design-v1.6",
     }:
         registered_design = load_event_evaluation_design(
             design.path,
@@ -2502,6 +2666,7 @@ def validate_inference_completion_bindings(
     attempted_count: int,
     success_count: int,
     failure_count: int,
+    materialization_binding: Mapping[str, object] | None = None,
 ) -> None:
     """Independently bind one-shot state to frozen inputs and terminal manifest."""
 
@@ -2517,6 +2682,9 @@ def validate_inference_completion_bindings(
     terminal = _mapping(raw_events[1], label="inference completed state")
     candidate_count = len(candidate_records)
     candidate_identity_sha256 = _ordered_candidate_identity_sha256(candidate_records)
+    expected_materialization = (
+        dict(materialization_binding) if materialization_binding is not None else None
+    )
     if (
         started.get("event") != "inference_started"
         or started.get("design_sha256") != design.sha256
@@ -2525,6 +2693,7 @@ def validate_inference_completion_bindings(
         or started.get("candidate_inputs_sha256") != candidate_inputs_sha256
         or started.get("candidate_identity_sha256") != candidate_identity_sha256
         or started.get("candidate_count") != candidate_count
+        or started.get("materialization") != expected_materialization
     ):
         raise GoldSampleError("inference started receipt/contract/candidate binding drifted")
     if (
@@ -2536,6 +2705,7 @@ def validate_inference_completion_bindings(
         or terminal.get("success_count") != success_count
         or terminal.get("failure_count") != failure_count
         or terminal.get("prediction_manifest_sha256") != prediction_manifest_sha256
+        or terminal.get("materialization") != expected_materialization
         or attempted_count != candidate_count
         or success_count + failure_count != attempted_count
     ):
@@ -2779,27 +2949,661 @@ def materialize_heldout_candidate_inputs(
     *,
     pdf_fetcher: PdfFetcher = download_cninfo_pdf,
     pdf_text_extractor: PdfTextExtractor = extract_cninfo_pdf_text,
-) -> list[JsonObject]:
+) -> HeldoutCandidateMaterialization:
     """Pure candidate materializer shared by the one-shot runner and tests."""
 
-    records = [
-        _candidate_input_from_row(
-            row,
-            base_contract=design.base_contract,
-            active_contract=active_contract,
-            design=design,
-            pdf_fetcher=pdf_fetcher,
-            pdf_text_extractor=pdf_text_extractor,
+    eligibility_enabled = _candidate_eligibility_enabled(design)
+    all_candidates: list[JsonObject] = []
+    eligible_rows: list[NewsRow] = []
+    eligible_records: list[JsonObject] = []
+    ineligible_candidates: list[JsonObject] = []
+    reason_counts: dict[str, int] = {}
+    for row in rows:
+        all_candidates.append(
+            {
+                "news_item_id": row.news_item_id,
+                "source": row.source,
+                "url": row.url,
+                "content_hash": row.content_hash,
+            }
         )
-        for row in rows
-    ]
+        try:
+            record = _candidate_input_from_row(
+                row,
+                base_contract=design.base_contract,
+                active_contract=active_contract,
+                design=design,
+                pdf_fetcher=pdf_fetcher,
+                pdf_text_extractor=pdf_text_extractor,
+            )
+        except CandidateDocumentIneligible as exc:
+            if not eligibility_enabled:
+                raise GoldSampleError(
+                    "pdftotext output is shorter than the minimum extracted-character gate"
+                    if exc.reason == "pdf_text_below_min_char_gate"
+                    else "CNInfo PDF exceeds the 8 MiB bound"
+                ) from exc
+            ineligible_candidates.append(
+                {
+                    "news_item_id": row.news_item_id,
+                    "url": row.url,
+                    "reason": exc.reason,
+                    "measured_value": exc.measured_value,
+                    "gate_value": exc.gate_value,
+                    "pdf_sha256": exc.pdf_sha256,
+                }
+            )
+            reason_counts[exc.reason] = reason_counts.get(exc.reason, 0) + 1
+            continue
+        eligible_rows.append(row)
+        eligible_records.append(record)
     validate_heldout_candidate_inputs(
-        records,
-        rows=rows,
+        eligible_records,
+        rows=eligible_rows,
         design=design,
         active_contract=active_contract,
     )
-    return records
+    return HeldoutCandidateMaterialization(
+        all_candidates=tuple(all_candidates),
+        eligible_records=tuple(eligible_records),
+        ineligible_candidates=tuple(ineligible_candidates),
+        reason_counts=dict(sorted(reason_counts.items())),
+    )
+
+
+def _manifest_mapping(value: object, *, label: str) -> JsonObject:
+    if not isinstance(value, Mapping):
+        raise GoldSampleError(f"{label} must be an object")
+    return {str(key): item for key, item in value.items()}
+
+
+def _manifest_exact_keys(
+    value: Mapping[str, object],
+    expected: set[str],
+    *,
+    label: str,
+) -> None:
+    observed = set(value)
+    if observed != expected:
+        raise GoldSampleError(
+            f"{label} fields drifted: missing={sorted(expected - observed)}, "
+            f"extra={sorted(observed - expected)}"
+        )
+
+
+def _manifest_project_relative(path: Path, *, project_root: Path, label: str) -> str:
+    root = project_root.resolve()
+    resolved = path.resolve()
+    if not resolved.is_relative_to(root):
+        raise GoldSampleError(f"{label} escapes the project root")
+    return resolved.relative_to(root).as_posix()
+
+
+def _full_candidate_manifest_identity(candidate: Mapping[str, object]) -> JsonObject:
+    item = _manifest_mapping(candidate, label="materialization all candidate")
+    _manifest_exact_keys(
+        item,
+        {"news_item_id", "source", "url", "content_hash"},
+        label="materialization all candidate",
+    )
+    news_item_id = item.get("news_item_id")
+    if (
+        isinstance(news_item_id, bool)
+        or not isinstance(news_item_id, int)
+        or news_item_id <= 0
+        or not isinstance(item.get("source"), str)
+        or not item["source"]
+        or not isinstance(item.get("url"), str)
+        or not item["url"]
+        or not isinstance(item.get("content_hash"), str)
+        or SHA256_PATTERN.fullmatch(str(item["content_hash"])) is None
+    ):
+        raise GoldSampleError("materialization all candidate identity is invalid")
+    return item
+
+
+def _eligible_candidate_manifest_identity(record: Mapping[str, object]) -> JsonObject:
+    news_item_id = record.get("news_item_id")
+    source = record.get("source")
+    url = record.get("url")
+    content_hash = record.get("content_hash")
+    input_sha256 = record.get("input_sha256")
+    declared_input_sha256 = record.get("declared_input_sha256")
+    text_sha256 = record.get("text_sha256")
+    body_evidence = _manifest_mapping(
+        record.get("body_evidence"),
+        label="eligible candidate body_evidence",
+    )
+    pdf_sha256 = body_evidence.get("pdf_sha256")
+    if (
+        isinstance(news_item_id, bool)
+        or not isinstance(news_item_id, int)
+        or news_item_id <= 0
+        or not isinstance(source, str)
+        or not source
+        or not isinstance(url, str)
+        or not url
+        or not isinstance(content_hash, str)
+        or SHA256_PATTERN.fullmatch(content_hash) is None
+        or not isinstance(input_sha256, str)
+        or SHA256_PATTERN.fullmatch(input_sha256) is None
+        or (
+            declared_input_sha256 is not None
+            and (
+                not isinstance(declared_input_sha256, str)
+                or SHA256_PATTERN.fullmatch(declared_input_sha256) is None
+            )
+        )
+        or not isinstance(text_sha256, str)
+        or SHA256_PATTERN.fullmatch(text_sha256) is None
+        or (
+            pdf_sha256 is not None
+            and (
+                not isinstance(pdf_sha256, str)
+                or SHA256_PATTERN.fullmatch(pdf_sha256) is None
+            )
+        )
+    ):
+        raise GoldSampleError("eligible materialization identity is invalid")
+    return {
+        "news_item_id": news_item_id,
+        "source": source,
+        "url": url,
+        "content_hash": content_hash,
+        "input_sha256": input_sha256,
+        "declared_input_sha256": declared_input_sha256,
+        "text_sha256": text_sha256,
+        "pdf_sha256": pdf_sha256,
+    }
+
+
+def _ineligible_candidate_manifest_identity(
+    candidate: Mapping[str, object],
+    *,
+    policy: AnnouncementBodyPolicy,
+) -> JsonObject:
+    item = _manifest_mapping(candidate, label="ineligible candidate")
+    _manifest_exact_keys(
+        item,
+        {
+            "news_item_id",
+            "url",
+            "reason",
+            "measured_value",
+            "gate_value",
+            "pdf_sha256",
+        },
+        label="ineligible candidate",
+    )
+    news_item_id = item.get("news_item_id")
+    url = item.get("url")
+    reason = item.get("reason")
+    measured_value = item.get("measured_value")
+    gate_value = item.get("gate_value")
+    pdf_sha256 = item.get("pdf_sha256")
+    if (
+        isinstance(news_item_id, bool)
+        or not isinstance(news_item_id, int)
+        or news_item_id <= 0
+        or not isinstance(url, str)
+        or not url
+        or reason not in MATERIALIZATION_INELIGIBLE_REASONS
+        or isinstance(measured_value, bool)
+        or not isinstance(measured_value, int)
+        or measured_value < 0
+        or isinstance(gate_value, bool)
+        or not isinstance(gate_value, int)
+        or gate_value <= 0
+        or (
+            pdf_sha256 is not None
+            and (
+                not isinstance(pdf_sha256, str)
+                or SHA256_PATTERN.fullmatch(pdf_sha256) is None
+            )
+        )
+    ):
+        raise GoldSampleError("ineligible materialization record is invalid")
+    if reason == "pdf_text_below_min_char_gate":
+        if (
+            gate_value != policy.minimum_extracted_characters
+            or measured_value >= gate_value
+            or pdf_sha256 is None
+        ):
+            raise GoldSampleError("short-PDF ineligibility evidence is invalid")
+    elif gate_value != policy.max_pdf_bytes or measured_value <= gate_value:
+        raise GoldSampleError("oversized-PDF ineligibility evidence is invalid")
+    return item
+
+
+def _materialization_manifest_lineage(
+    *,
+    design: FrozenEvaluationDesign,
+    active_contract: EventExtractContract,
+    freeze_receipt_sha256: str,
+    project_root: Path,
+) -> JsonObject:
+    if SHA256_PATTERN.fullmatch(freeze_receipt_sha256) is None:
+        raise GoldSampleError("materialization freeze receipt SHA-256 is invalid")
+    receipt_path = evaluation_artifact_path(
+        design,
+        "prediction_contract_freeze_receipt_json",
+        project_root=project_root,
+    )
+    return {
+        "evaluation_design": {
+            "path": _manifest_project_relative(
+                design.path,
+                project_root=project_root,
+                label="evaluation design",
+            ),
+            "schema_version": design.document.get("schema_version"),
+            "sha256": design.sha256,
+        },
+        "prediction_contract": {
+            "path": _manifest_project_relative(
+                active_contract.path,
+                project_root=project_root,
+                label="prediction contract",
+            ),
+            "schema_version": active_contract.document.get("schema_version"),
+            "sha256": active_contract.sha256,
+            "model": active_contract.model,
+        },
+        "freeze_receipt": {
+            "path": _manifest_project_relative(
+                receipt_path,
+                project_root=project_root,
+                label="prediction freeze receipt",
+            ),
+            "sha256": freeze_receipt_sha256,
+        },
+    }
+
+
+def _validate_materialization_manifest_document(
+    manifest: Mapping[str, object],
+    *,
+    expected_all_candidates: Sequence[Mapping[str, object]],
+    eligible_records: Sequence[Mapping[str, object]],
+    design: FrozenEvaluationDesign,
+    active_contract: EventExtractContract,
+    freeze_receipt_sha256: str,
+    project_root: Path,
+) -> JsonObject:
+    document = _manifest_mapping(manifest, label="materialization manifest")
+    _manifest_exact_keys(
+        document,
+        {
+            "schema_version",
+            "lineage",
+            "artifacts",
+            "partition_contract",
+            "counts",
+            "layers",
+        },
+        label="materialization manifest",
+    )
+    if document.get("schema_version") != MATERIALIZATION_MANIFEST_SCHEMA_VERSION:
+        raise GoldSampleError("materialization manifest schema version drifted")
+
+    expected_lineage = _materialization_manifest_lineage(
+        design=design,
+        active_contract=active_contract,
+        freeze_receipt_sha256=freeze_receipt_sha256,
+        project_root=project_root,
+    )
+    if document.get("lineage") != expected_lineage:
+        raise GoldSampleError("materialization manifest lineage drifted")
+
+    inputs_path = evaluation_artifact_path(
+        design,
+        "heldout_candidate_inputs_jsonl",
+        project_root=project_root,
+    )
+    manifest_path = evaluation_artifact_path(
+        design,
+        "heldout_candidate_materialization_manifest_json",
+        project_root=project_root,
+    )
+    eligible_payload_sha256 = _sha256_bytes(
+        _json_line_bytes([dict(record) for record in eligible_records])
+    )
+    expected_artifacts = {
+        "eligible_inputs_jsonl": {
+            "path": _manifest_project_relative(
+                inputs_path,
+                project_root=project_root,
+                label="eligible inputs",
+            ),
+            "sha256": eligible_payload_sha256,
+            "format": "canonical-jsonl-utf8-lf",
+            "create_only": True,
+        },
+        "materialization_manifest_json": {
+            "path": _manifest_project_relative(
+                manifest_path,
+                project_root=project_root,
+                label="materialization manifest",
+            ),
+            "create_only": True,
+        },
+    }
+    if document.get("artifacts") != expected_artifacts:
+        raise GoldSampleError("materialization artifact path/SHA binding drifted")
+    if document.get("partition_contract") != {
+        "identity_key": "news_item_id",
+        "relation": "all=eligible_disjoint_union_ineligible",
+        "order": "frozen_database_id_ascending",
+    }:
+        raise GoldSampleError("materialization partition contract drifted")
+
+    expected_all = [
+        _full_candidate_manifest_identity(candidate)
+        for candidate in expected_all_candidates
+    ]
+    expected_eligible = [
+        _eligible_candidate_manifest_identity(record) for record in eligible_records
+    ]
+    if active_contract.evidence_candidate_selection and any(
+        candidate["declared_input_sha256"] is None
+        for candidate in expected_eligible
+    ):
+        raise GoldSampleError(
+            "eligible materialization lacks candidate-selector declared input identity"
+        )
+    all_ids = [int(candidate["news_item_id"]) for candidate in expected_all]
+    eligible_ids = [int(candidate["news_item_id"]) for candidate in expected_eligible]
+    if all_ids != sorted(all_ids) or len(all_ids) != len(set(all_ids)):
+        raise GoldSampleError("materialization full candidate order/identity is invalid")
+    if len(eligible_ids) != len(set(eligible_ids)):
+        raise GoldSampleError("materialization eligible candidate identity is duplicated")
+    all_by_id = {int(candidate["news_item_id"]): candidate for candidate in expected_all}
+    for eligible in expected_eligible:
+        news_item_id = int(eligible["news_item_id"])
+        full = all_by_id.get(news_item_id)
+        if full is None or any(
+            eligible[field] != full[field]
+            for field in ("source", "url", "content_hash")
+        ):
+            raise GoldSampleError("eligible layer is not an identity-preserving subset")
+
+    layers = _manifest_mapping(document.get("layers"), label="materialization layers")
+    _manifest_exact_keys(
+        layers,
+        {"all_candidates", "eligible_candidates", "ineligible_candidates"},
+        label="materialization layers",
+    )
+    if layers.get("all_candidates") != expected_all:
+        raise GoldSampleError("materialization full layer drifted")
+    if layers.get("eligible_candidates") != expected_eligible:
+        raise GoldSampleError("materialization eligible layer drifted")
+    raw_ineligible = layers.get("ineligible_candidates")
+    if not isinstance(raw_ineligible, list):
+        raise GoldSampleError("materialization ineligible layer must be a list")
+    policy = announcement_body_policy(design.base_contract)
+    ineligible = [
+        _ineligible_candidate_manifest_identity(candidate, policy=policy)
+        for candidate in raw_ineligible
+    ]
+    ineligible_ids = [int(candidate["news_item_id"]) for candidate in ineligible]
+    if len(ineligible_ids) != len(set(ineligible_ids)):
+        raise GoldSampleError("materialization ineligible identity is duplicated")
+    if set(eligible_ids) & set(ineligible_ids):
+        raise GoldSampleError("materialization eligible/ineligible layers overlap")
+    if set(all_ids) != set(eligible_ids) | set(ineligible_ids):
+        raise GoldSampleError("materialization layers do not close over the full pool")
+    if eligible_ids != [item for item in all_ids if item in set(eligible_ids)]:
+        raise GoldSampleError("materialization eligible order drifted")
+    if ineligible_ids != [item for item in all_ids if item in set(ineligible_ids)]:
+        raise GoldSampleError("materialization ineligible order drifted")
+    for candidate in ineligible:
+        full = all_by_id.get(int(candidate["news_item_id"]))
+        if full is None or candidate["url"] != full["url"]:
+            raise GoldSampleError("ineligible layer is not bound to the full pool")
+
+    reason_counts = {reason: 0 for reason in MATERIALIZATION_INELIGIBLE_REASONS}
+    for candidate in ineligible:
+        reason_counts[str(candidate["reason"])] += 1
+    expected_counts = {
+        "all_candidates": len(expected_all),
+        "eligible_candidates": len(expected_eligible),
+        "ineligible_candidates": len(ineligible),
+        "ineligible_by_reason": reason_counts,
+    }
+    if document.get("counts") != expected_counts:
+        raise GoldSampleError("materialization counts/reasons drifted")
+    return document
+
+
+def heldout_materialization_manifest_payload(
+    materialization: HeldoutCandidateMaterialization,
+    *,
+    design: FrozenEvaluationDesign,
+    active_contract: EventExtractContract,
+    freeze_receipt_sha256: str,
+    project_root: Path = PROJECT_DIR,
+) -> tuple[JsonObject, bytes]:
+    """Build deterministic create-only manifest bytes for one materialization."""
+
+    all_candidates = [dict(candidate) for candidate in materialization.all_candidates]
+    eligible_records = [dict(record) for record in materialization.eligible_records]
+    ineligible_candidates = [
+        dict(candidate) for candidate in materialization.ineligible_candidates
+    ]
+    observed_reason_counts: dict[str, int] = {}
+    for candidate in ineligible_candidates:
+        reason = candidate.get("reason")
+        if isinstance(reason, str):
+            observed_reason_counts[reason] = observed_reason_counts.get(reason, 0) + 1
+    if materialization.reason_counts != dict(sorted(observed_reason_counts.items())):
+        raise GoldSampleError("materialization result reason counts drifted")
+    expected_lineage = _materialization_manifest_lineage(
+        design=design,
+        active_contract=active_contract,
+        freeze_receipt_sha256=freeze_receipt_sha256,
+        project_root=project_root,
+    )
+    inputs_path = evaluation_artifact_path(
+        design,
+        "heldout_candidate_inputs_jsonl",
+        project_root=project_root,
+    )
+    manifest_path = evaluation_artifact_path(
+        design,
+        "heldout_candidate_materialization_manifest_json",
+        project_root=project_root,
+    )
+    inputs_sha256 = _sha256_bytes(_json_line_bytes(eligible_records))
+    reason_counts = {reason: 0 for reason in MATERIALIZATION_INELIGIBLE_REASONS}
+    reason_counts.update(observed_reason_counts)
+    document: JsonObject = {
+        "schema_version": MATERIALIZATION_MANIFEST_SCHEMA_VERSION,
+        "lineage": expected_lineage,
+        "artifacts": {
+            "eligible_inputs_jsonl": {
+                "path": _manifest_project_relative(
+                    inputs_path,
+                    project_root=project_root,
+                    label="eligible inputs",
+                ),
+                "sha256": inputs_sha256,
+                "format": "canonical-jsonl-utf8-lf",
+                "create_only": True,
+            },
+            "materialization_manifest_json": {
+                "path": _manifest_project_relative(
+                    manifest_path,
+                    project_root=project_root,
+                    label="materialization manifest",
+                ),
+                "create_only": True,
+            },
+        },
+        "partition_contract": {
+            "identity_key": "news_item_id",
+            "relation": "all=eligible_disjoint_union_ineligible",
+            "order": "frozen_database_id_ascending",
+        },
+        "counts": {
+            "all_candidates": len(all_candidates),
+            "eligible_candidates": len(eligible_records),
+            "ineligible_candidates": len(ineligible_candidates),
+            "ineligible_by_reason": reason_counts,
+        },
+        "layers": {
+            "all_candidates": all_candidates,
+            "eligible_candidates": [
+                _eligible_candidate_manifest_identity(record)
+                for record in eligible_records
+            ],
+            "ineligible_candidates": ineligible_candidates,
+        },
+    }
+    validated = _validate_materialization_manifest_document(
+        document,
+        expected_all_candidates=all_candidates,
+        eligible_records=eligible_records,
+        design=design,
+        active_contract=active_contract,
+        freeze_receipt_sha256=freeze_receipt_sha256,
+        project_root=project_root,
+    )
+    payload = (
+        json.dumps(
+            validated,
+            ensure_ascii=False,
+            indent=2,
+            sort_keys=True,
+        ).encode("utf-8")
+        + b"\n"
+    )
+    return validated, payload
+
+
+def validate_heldout_materialization_manifest(
+    manifest: Mapping[str, object],
+    *,
+    rows: Sequence[NewsRow],
+    eligible_records: Sequence[Mapping[str, object]],
+    design: FrozenEvaluationDesign,
+    active_contract: EventExtractContract,
+    freeze_receipt_sha256: str,
+    project_root: Path = PROJECT_DIR,
+) -> JsonObject:
+    """Fail closed unless the immutable manifest proves an ordered partition."""
+
+    expected_all = [
+        {
+            "news_item_id": row.news_item_id,
+            "source": row.source,
+            "url": row.url,
+            "content_hash": row.content_hash,
+        }
+        for row in rows
+    ]
+    return _validate_materialization_manifest_document(
+        manifest,
+        expected_all_candidates=expected_all,
+        eligible_records=eligible_records,
+        design=design,
+        active_contract=active_contract,
+        freeze_receipt_sha256=freeze_receipt_sha256,
+        project_root=project_root,
+    )
+
+
+def heldout_materialization_binding(
+    manifest: Mapping[str, object],
+    *,
+    manifest_path: Path,
+    manifest_sha256: str,
+    project_root: Path = PROJECT_DIR,
+) -> JsonObject:
+    """Return the canonical evidence binding shared by every downstream artifact."""
+
+    if SHA256_PATTERN.fullmatch(manifest_sha256) is None:
+        raise GoldSampleError("materialization manifest SHA-256 is invalid")
+    root = project_root.resolve()
+    resolved_path = manifest_path.resolve()
+    if resolved_path.is_symlink() or not resolved_path.is_file():
+        raise GoldSampleError("materialization manifest file is missing or unsafe")
+    if not resolved_path.is_relative_to(root):
+        raise GoldSampleError("materialization manifest path escapes project root")
+    if _sha256_file(resolved_path) != manifest_sha256:
+        raise GoldSampleError("materialization manifest bytes drifted")
+    counts = _manifest_mapping(
+        manifest.get("counts"), label="materialization manifest counts"
+    )
+    reason_counts = _manifest_mapping(
+        counts.get("ineligible_by_reason"),
+        label="materialization ineligible reason counts",
+    )
+    expected_count_fields = {
+        "all_candidates",
+        "eligible_candidates",
+        "ineligible_candidates",
+        "ineligible_by_reason",
+    }
+    _manifest_exact_keys(
+        counts,
+        expected_count_fields,
+        label="materialization manifest counts",
+    )
+    for field in (
+        "all_candidates",
+        "eligible_candidates",
+        "ineligible_candidates",
+    ):
+        value = counts.get(field)
+        if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+            raise GoldSampleError(f"materialization manifest {field} is invalid")
+    return {
+        "manifest_path": resolved_path.relative_to(root).as_posix(),
+        "manifest_sha256": manifest_sha256,
+        "raw_candidate_count": counts["all_candidates"],
+        "eligible_candidate_count": counts["eligible_candidates"],
+        "ineligible_candidate_count": counts["ineligible_candidates"],
+        "ineligible_by_reason": dict(reason_counts),
+    }
+
+
+def heldout_eligible_rows_from_materialization(
+    rows: Sequence[NewsRow],
+    manifest: Mapping[str, object],
+) -> tuple[NewsRow, ...]:
+    """Derive the only DB subset eligible for inference or owner selection."""
+
+    layers = _manifest_mapping(manifest.get("layers"), label="materialization layers")
+    raw_eligible = layers.get("eligible_candidates")
+    raw_ineligible = layers.get("ineligible_candidates")
+    if not isinstance(raw_eligible, list) or not isinstance(raw_ineligible, list):
+        raise GoldSampleError("materialization eligible/ineligible layers are invalid")
+    eligible_ids = [
+        int(
+            _manifest_mapping(item, label="materialization eligible candidate")[
+                "news_item_id"
+            ]
+        )
+        for item in raw_eligible
+    ]
+    ineligible_ids = {
+        int(
+            _manifest_mapping(item, label="materialization ineligible candidate")[
+                "news_item_id"
+            ]
+        )
+        for item in raw_ineligible
+    }
+    rows_by_id = {row.news_item_id: row for row in rows}
+    if set(eligible_ids) & ineligible_ids:
+        raise GoldSampleError("materialization eligible/ineligible IDs overlap")
+    try:
+        eligible_rows = tuple(rows_by_id[news_item_id] for news_item_id in eligible_ids)
+    except KeyError as exc:
+        raise GoldSampleError("materialization eligible ID is absent from DB pool") from exc
+    if [row.news_item_id for row in eligible_rows] != eligible_ids:
+        raise GoldSampleError("materialization eligible DB order drifted")
+    return eligible_rows
 
 
 def build_heldout_candidate_inputs(
@@ -2816,27 +3620,72 @@ def build_heldout_candidate_inputs(
     current_time = now or datetime.now(UTC)
     require_heldout_ready(design, current_time)
     active_contract, receipt, receipt_sha256 = load_active_prediction_contract(design)
+    materialization_enabled = (
+        design.document.get("schema_version") == "p4.2a-evaluation-design-v1.7"
+    )
     output = evaluation_artifact_path(design, "heldout_candidate_inputs_jsonl")
     artifact_root = _project_path(design.document["artifact_root"], label="artifact_root")
-    output = _new_artifact_path(output, artifact_root)
+    output = (
+        _artifact_path(output, artifact_root)
+        if materialization_enabled
+        else _new_artifact_path(output, artifact_root)
+    )
     database = _database_path(design.base_contract, database_path)
     with open_read_only_database(database) as connection:
         rows = _heldout_candidate_rows(connection, design)
-        records = materialize_heldout_candidate_inputs(
+        materialization = materialize_heldout_candidate_inputs(
             rows,
             design,
             active_contract,
             pdf_fetcher=pdf_fetcher,
             pdf_text_extractor=pdf_text_extractor,
         )
+    records = list(materialization.eligible_records)
     payload = _json_line_bytes(records)
-    _write_new_bytes(output, payload)
+    materialization_evidence: JsonObject = {}
+    if materialization_enabled:
+        materialization_manifest_path = _artifact_path(
+            evaluation_artifact_path(
+                design,
+                "heldout_candidate_materialization_manifest_json",
+            ),
+            artifact_root,
+        )
+        manifest, manifest_payload = heldout_materialization_manifest_payload(
+            materialization,
+            design=design,
+            active_contract=active_contract,
+            freeze_receipt_sha256=receipt_sha256,
+        )
+        hashes = _write_create_only_bundle(
+            {
+                output: payload,
+                materialization_manifest_path: manifest_payload,
+            }
+        )
+        materialization_evidence = {
+            "materialization_manifest": str(
+                materialization_manifest_path.relative_to(PROJECT_DIR)
+            ),
+            "materialization_manifest_sha256": hashes[
+                materialization_manifest_path
+            ],
+            "materialization_manifest_schema_version": manifest["schema_version"],
+        }
+        output_sha256 = hashes[output]
+    else:
+        _write_new_bytes(output, payload)
+        output_sha256 = _sha256_bytes(payload)
     return {
         "mode": "heldout-inputs",
+        "full_candidate_count": len(materialization.all_candidates),
         "row_count": len(records),
+        "ineligible_count": len(materialization.ineligible_candidates),
+        "ineligible_reason_counts": materialization.reason_counts,
         "cninfo_body_count": sum(record["source"] == "cninfo" for record in records),
         "output": str(output.relative_to(PROJECT_DIR)),
-        "sha256": _sha256_bytes(payload),
+        "sha256": output_sha256,
+        **materialization_evidence,
         "design_sha256": design.sha256,
         "prediction_contract_sha256": active_contract.sha256,
         "freeze_receipt_sha256": receipt_sha256,
@@ -2938,6 +3787,7 @@ def _validate_prediction_manifest(
     candidate_records: Sequence[Mapping[str, object]],
     success_count: int,
     failure_count: int,
+    materialization_binding: Mapping[str, object] | None = None,
 ) -> None:
     candidate_ids = [record.get("news_item_id") for record in candidate_records]
     if any(
@@ -2958,6 +3808,11 @@ def _validate_prediction_manifest(
         "prediction_failure_count": failure_count,
         "news_item_ids": list(candidate_ids),
     }
+    expected_materialization = (
+        dict(materialization_binding) if materialization_binding is not None else None
+    )
+    if manifest.get("materialization") != expected_materialization:
+        raise GoldSampleError("heldout prediction manifest materialization binding drifted")
     for field, value in expected.items():
         if manifest.get(field) != value:
             raise GoldSampleError(f"heldout prediction manifest {field} drifted")
@@ -3115,9 +3970,52 @@ def build_heldout_owner_sample(
         prediction_manifest_path,
         label="heldout candidate prediction manifest",
     )
+    materialization_manifest: JsonObject | None = None
+    materialization_manifest_path: Path | None = None
+    materialization_manifest_sha256: str | None = None
+    materialization_binding: JsonObject | None = None
+    materialization_enabled = (
+        design.document.get("schema_version") == "p4.2a-evaluation-design-v1.7"
+    )
+    if materialization_enabled:
+        materialization_manifest_path = evaluation_artifact_path(
+            design,
+            "heldout_candidate_materialization_manifest_json",
+        )
+        materialization_manifest, materialization_manifest_sha256 = (
+            _load_json_with_sha256(
+                materialization_manifest_path,
+                label="heldout candidate materialization manifest",
+            )
+        )
     database = _database_path(design.base_contract, database_path)
     with open_read_only_database(database) as connection:
-        candidate_rows = _heldout_candidate_rows(connection, design)
+        raw_candidate_rows = _heldout_candidate_rows(connection, design)
+        if materialization_enabled:
+            assert materialization_manifest is not None
+            assert materialization_manifest_path is not None
+            assert materialization_manifest_sha256 is not None
+            materialization_manifest = validate_heldout_materialization_manifest(
+                materialization_manifest,
+                rows=raw_candidate_rows,
+                eligible_records=candidate_records,
+                design=design,
+                active_contract=active_contract,
+                freeze_receipt_sha256=receipt_sha256,
+            )
+            candidate_rows = list(
+                heldout_eligible_rows_from_materialization(
+                    raw_candidate_rows,
+                    materialization_manifest,
+                )
+            )
+            materialization_binding = heldout_materialization_binding(
+                materialization_manifest,
+                manifest_path=materialization_manifest_path,
+                manifest_sha256=materialization_manifest_sha256,
+            )
+        else:
+            candidate_rows = raw_candidate_rows
         candidate_inputs = validate_heldout_candidate_inputs(
             candidate_records,
             rows=candidate_rows,
@@ -3141,6 +4039,7 @@ def build_heldout_owner_sample(
         candidate_records=candidate_records,
         success_count=success_count,
         failure_count=failure_count,
+        materialization_binding=materialization_binding,
     )
     validate_inference_completion_bindings(
         inference_state,
@@ -3153,6 +4052,7 @@ def build_heldout_owner_sample(
         attempted_count=len(prediction_records),
         success_count=success_count,
         failure_count=failure_count,
+        materialization_binding=materialization_binding,
     )
     splits = _mapping(design.document.get("splits"), label="splits")
     heldout = _mapping(splits.get("heldout_40"), label="splits.heldout_40")
@@ -3203,7 +4103,11 @@ def build_heldout_owner_sample(
         and int(_mapping(record["prediction"], label="prediction")["materiality"]) >= 2
     )
     selection_manifest: JsonObject = {
-        "schema_version": "p4.2a-heldout-selection-manifest-v1.1",
+        "schema_version": (
+            "p4.2a-heldout-selection-manifest-v1.2"
+            if materialization_binding is not None
+            else "p4.2a-heldout-selection-manifest-v1.1"
+        ),
         "created_at_utc": inference_state["terminal_at_utc"],
         "design": {
             "path": str(design.path.relative_to(PROJECT_DIR)),
@@ -3228,6 +4132,11 @@ def build_heldout_owner_sample(
             "count": len(candidate_inputs),
             "cninfo_bodies_frozen_before_prediction": True,
         },
+        **(
+            {"materialization": materialization_binding}
+            if materialization_binding is not None
+            else {}
+        ),
         "candidate_predictions": {
             "path": str(prediction_path.relative_to(PROJECT_DIR)),
             "sha256": predictions_sha256,
@@ -3299,6 +4208,12 @@ def build_heldout_owner_sample(
     return {
         "mode": "heldout",
         "candidate_count": len(candidate_inputs),
+        "raw_candidate_count": len(raw_candidate_rows),
+        "ineligible_candidate_count": (
+            int(materialization_binding["ineligible_candidate_count"])
+            if materialization_binding is not None
+            else 0
+        ),
         "prediction_success_count": success_count,
         "prediction_failure_count": failure_count,
         "predicted_positive_pool_count": eligible_count,

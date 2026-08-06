@@ -29,6 +29,7 @@ from scripts import build_p4_2a_gold_sample as gold_builder  # noqa: E402
 from alphapilot.llm.p4_news_eval import (  # noqa: E402
     EventEvaluationDesign,
     EventEvaluationDesignError,
+    load_event_evaluation_design,
     validate_heldout_annotation_provenance,
 )
 from alphapilot.llm.p4_news_event import (  # noqa: E402
@@ -1117,6 +1118,127 @@ def _append_evaluation_terminal(
         os.close(descriptor)
 
 
+def _materialization_binding_for_evaluation(
+    *,
+    design: gold_builder.FrozenEvaluationDesign,
+    active_contract: EventExtractContract,
+    receipt_sha256: str,
+    candidate_rows: Sequence[gold_builder.NewsRow],
+    candidate_records: Sequence[Mapping[str, object]],
+) -> tuple[list[gold_builder.NewsRow], JsonObject | None, frozenset[int]]:
+    """Validate v1.7's immutable partition and return only eligible DB rows.
+
+    Earlier designs predate document-eligibility materialization, so their
+    candidate batch remains the full database slice.  Once a design registers
+    ``candidate_eligibility``, absence or drift of any materialization evidence
+    is terminal: evaluation must not silently fall back to the raw pool.
+    """
+
+    if "candidate_eligibility" not in design.document:
+        return list(candidate_rows), None, frozenset()
+
+    manifest_path = gold_builder.evaluation_artifact_path(
+        design,
+        "heldout_candidate_materialization_manifest_json",
+    )
+    manifest, manifest_sha256 = _read_json(
+        manifest_path,
+        label="heldout candidate materialization manifest",
+    )
+    try:
+        validated = gold_builder.validate_heldout_materialization_manifest(
+            manifest,
+            rows=candidate_rows,
+            eligible_records=candidate_records,
+            design=design,
+            active_contract=active_contract,
+            freeze_receipt_sha256=receipt_sha256,
+            project_root=PROJECT_DIR,
+        )
+    except gold_builder.GoldSampleError as exc:
+        raise GoldEvaluationError(
+            "heldout candidate materialization manifest is invalid"
+        ) from exc
+
+    layers = _mapping(validated.get("layers"), label="materialization layers")
+    raw_eligible = layers.get("eligible_candidates")
+    raw_ineligible = layers.get("ineligible_candidates")
+    if (
+        not isinstance(raw_eligible, list)
+        or not isinstance(raw_ineligible, list)
+        or any(not isinstance(item, Mapping) for item in (*raw_eligible, *raw_ineligible))
+    ):
+        raise GoldEvaluationError("materialization candidate layers are invalid")
+    raw_ineligible_ids = [
+        _mapping(item, label="ineligible materialization candidate").get("news_item_id")
+        for item in raw_ineligible
+    ]
+    ineligible_ids: list[int] = []
+    for news_item_id in raw_ineligible_ids:
+        if isinstance(news_item_id, bool) or not isinstance(news_item_id, int):
+            raise GoldEvaluationError("materialization candidate IDs are invalid")
+        ineligible_ids.append(news_item_id)
+    try:
+        eligible_rows = list(
+            gold_builder.heldout_eligible_rows_from_materialization(
+                candidate_rows,
+                validated,
+            )
+        )
+        binding = gold_builder.heldout_materialization_binding(
+            validated,
+            manifest_path=manifest_path,
+            manifest_sha256=manifest_sha256,
+            project_root=PROJECT_DIR,
+        )
+    except gold_builder.GoldSampleError as exc:
+        raise GoldEvaluationError(
+            "heldout materialization partition binding is invalid"
+        ) from exc
+    record_ids = [record.get("news_item_id") for record in candidate_records]
+    if record_ids != [row.news_item_id for row in eligible_rows]:
+        raise GoldEvaluationError(
+            "heldout candidate inputs are not the exact eligible materialization layer"
+        )
+
+    counts = _mapping(validated.get("counts"), label="materialization counts")
+    reason_counts = _mapping(
+        counts.get("ineligible_by_reason"),
+        label="materialization ineligible reason counts",
+    )
+    expected_counts = {
+        "all_candidates": len(candidate_rows),
+        "eligible_candidates": len(eligible_rows),
+        "ineligible_candidates": len(ineligible_ids),
+        "ineligible_by_reason": dict(reason_counts),
+    }
+    if counts != expected_counts or binding != {
+        "manifest_path": str(manifest_path.relative_to(PROJECT_DIR)),
+        "manifest_sha256": manifest_sha256,
+        "raw_candidate_count": len(candidate_rows),
+        "eligible_candidate_count": len(eligible_rows),
+        "ineligible_candidate_count": len(ineligible_ids),
+        "ineligible_by_reason": dict(reason_counts),
+    }:
+        raise GoldEvaluationError("materialization manifest counts drifted")
+    return eligible_rows, binding, frozenset(ineligible_ids)
+
+
+def _require_materialization_binding(
+    container: Mapping[str, object],
+    *,
+    expected: Mapping[str, object] | None,
+    label: str,
+) -> None:
+    actual = container.get("materialization")
+    if expected is None:
+        if actual is not None:
+            raise GoldEvaluationError(f"{label} has unregistered materialization evidence")
+        return
+    if not isinstance(actual, Mapping) or dict(actual) != dict(expected):
+        raise GoldEvaluationError(f"{label} materialization binding drifted")
+
+
 def _validate_selection_manifest(
     manifest: JsonObject,
     *,
@@ -1129,8 +1251,15 @@ def _validate_selection_manifest(
     candidate_predictions_sha256: str,
     candidate_prediction_manifest_sha256: str,
     inference_state_sha256: str,
+    materialization_binding: Mapping[str, object] | None = None,
+    ineligible_ids: frozenset[int] = frozenset(),
 ) -> JsonObject:
-    if manifest.get("schema_version") != "p4.2a-heldout-selection-manifest-v1.1":
+    expected_schema = (
+        "p4.2a-heldout-selection-manifest-v1.2"
+        if materialization_binding is not None
+        else "p4.2a-heldout-selection-manifest-v1.1"
+    )
+    if manifest.get("schema_version") != expected_schema:
         raise GoldEvaluationError("heldout selection manifest schema drifted")
     design_binding = _mapping(manifest.get("design"), label="selection manifest design")
     annotation_binding = _mapping(
@@ -1153,6 +1282,11 @@ def _validate_selection_manifest(
     pool = _mapping(manifest.get("eligible_pool"), label="selection manifest eligible pool")
     selection = _mapping(manifest.get("selection"), label="selection manifest selection")
     owner = _mapping(manifest.get("owner_delivery"), label="selection manifest owner delivery")
+    _require_materialization_binding(
+        manifest,
+        expected=materialization_binding,
+        label="heldout selection manifest",
+    )
     if (
         design_binding.get("sha256") != design.sha256
         or annotation_binding.get("sha256") != design.base_contract.sha256
@@ -1182,6 +1316,10 @@ def _validate_selection_manifest(
         news_item_id = item.get("news_item_id")
         if not isinstance(news_item_id, int) or news_item_id not in annotations:
             raise GoldEvaluationError("heldout selection manifest contains unknown ID")
+        if news_item_id in ineligible_ids:
+            raise GoldEvaluationError(
+                "heldout selection manifest contains a materialization-ineligible ID"
+            )
         record = _mapping(annotations[news_item_id]["record"], label="heldout annotation")
         selection_input_sha256 = item.get("input_sha256")
         declared_input_matches = (
@@ -1223,7 +1361,7 @@ def _validate_selection_manifest(
         or pool.get("positive_rate") != expected_rate
     ):
         raise GoldEvaluationError("heldout positive-pool statistics drifted")
-    return {
+    evidence: JsonObject = {
         "manifest_sha256": manifest_sha256,
         "selection_manifest_sha256": manifest_sha256,
         "candidate_batch_count": candidate_inputs.get("count"),
@@ -1238,6 +1376,15 @@ def _validate_selection_manifest(
         "selection_algorithm": selection.get("algorithm"),
         "selection_seed": seed,
     }
+    if materialization_binding is not None:
+        if candidate_inputs.get("count") != materialization_binding.get(
+            "eligible_candidate_count"
+        ):
+            raise GoldEvaluationError(
+                "heldout selection candidate count differs from the eligible pool"
+            )
+        evidence["materialization"] = dict(materialization_binding)
+    return evidence
 
 
 def validate_owner_completion_manifest(
@@ -1733,11 +1880,13 @@ def _v1_3_report_extensions(
         "p4.2a-evaluation-design-v1.4",
         "p4.2a-evaluation-design-v1.5",
         "p4.2a-evaluation-design-v1.6",
+        "p4.2a-evaluation-design-v1.7",
     }:
         return {}
     if design_version in {
         "p4.2a-evaluation-design-v1.5",
         "p4.2a-evaluation-design-v1.6",
+        "p4.2a-evaluation-design-v1.7",
     }:
         return _v1_5_candidate_report_extensions(
             design=design,
@@ -1994,7 +2143,7 @@ def _v1_5_candidate_report_extensions(
     dev_annotations: Mapping[int, JsonObject],
     dev_prediction_records: Sequence[JsonObject],
 ) -> JsonObject:
-    """Recompute the registered candidate-selector evidence for v1.5/v1.6."""
+    """Recompute the registered candidate-selector evidence for v1.5+ designs."""
 
     from scripts import run_p4_2a_dev_iteration as dev_iteration
     from scripts.run_p4_2a_offline_extract import (
@@ -2007,7 +2156,7 @@ def _v1_5_candidate_report_extensions(
             "candidate-selector heldout evaluation requires the frozen selector"
         )
     try:
-        full_design = dev_iteration.load_event_evaluation_design(
+        full_design = load_event_evaluation_design(
             design.path,
             project_root=PROJECT_DIR,
         )
@@ -2250,7 +2399,18 @@ def evaluate_gold_sample_v1_1(
         )
         database_path = gold_builder._database_path(design.base_contract, None)
         with gold_builder.open_read_only_database(database_path) as connection:
-            candidate_rows = gold_builder._heldout_candidate_rows(connection, design)
+            raw_candidate_rows = gold_builder._heldout_candidate_rows(connection, design)
+            (
+                candidate_rows,
+                materialization_binding,
+                materialization_ineligible_ids,
+            ) = _materialization_binding_for_evaluation(
+                design=design,
+                active_contract=active_contract,
+                receipt_sha256=receipt_sha256,
+                candidate_rows=raw_candidate_rows,
+                candidate_records=candidate_input_records,
+            )
             candidate_inputs = gold_builder.validate_heldout_candidate_inputs(
                 candidate_input_records,
                 rows=candidate_rows,
@@ -2266,6 +2426,10 @@ def evaluate_gold_sample_v1_1(
                 candidate_inputs=candidate_inputs,
                 active_contract=active_contract,
             )
+        if set(annotations).intersection(materialization_ineligible_ids):
+            raise GoldEvaluationError(
+                "owner gold contains a materialization-ineligible news item"
+            )
         gold_builder._validate_prediction_manifest(
             prediction_manifest,
             design=design,
@@ -2276,6 +2440,12 @@ def evaluate_gold_sample_v1_1(
             candidate_records=candidate_input_records,
             success_count=candidate_success_count,
             failure_count=candidate_failure_count,
+            materialization_binding=materialization_binding,
+        )
+        _require_materialization_binding(
+            prediction_manifest,
+            expected=materialization_binding,
+            label="heldout prediction manifest",
         )
         gold_builder.validate_inference_completion_bindings(
             inference,
@@ -2288,7 +2458,22 @@ def evaluate_gold_sample_v1_1(
             attempted_count=len(candidate_predictions),
             success_count=candidate_success_count,
             failure_count=candidate_failure_count,
+            materialization_binding=materialization_binding,
         )
+        raw_inference_events = inference.get("events")
+        if (
+            not isinstance(raw_inference_events, Sequence)
+            or isinstance(raw_inference_events, (str, bytes))
+            or len(raw_inference_events) != 2
+            or any(not isinstance(event, Mapping) for event in raw_inference_events)
+        ):
+            raise GoldEvaluationError("inference state materialization events are invalid")
+        for index, event in enumerate(raw_inference_events):
+            _require_materialization_binding(
+                event,
+                expected=materialization_binding,
+                label=f"inference state event {index + 1}",
+            )
         selection_manifest_path = gold_builder.evaluation_artifact_path(
             design,
             "heldout_selection_manifest_json",
@@ -2308,6 +2493,8 @@ def evaluate_gold_sample_v1_1(
             candidate_predictions_sha256=candidate_predictions_sha256,
             candidate_prediction_manifest_sha256=prediction_manifest_sha256,
             inference_state_sha256=inference_state_sha256,
+            materialization_binding=materialization_binding,
+            ineligible_ids=materialization_ineligible_ids,
         )
 
         dev_ids = list(annotations)[:60]
@@ -2434,13 +2621,20 @@ def evaluate_gold_sample_v1_1(
             },
             "one_shot": {
                 "inference": {
-                    key: inference[key]
-                    for key in (
-                        "started_at_utc",
-                        "terminal_at_utc",
-                        "status",
-                        "started_event_count",
-                    )
+                    **{
+                        key: inference[key]
+                        for key in (
+                            "started_at_utc",
+                            "terminal_at_utc",
+                            "status",
+                            "started_event_count",
+                        )
+                    },
+                    **(
+                        {"materialization": dict(materialization_binding)}
+                        if materialization_binding is not None
+                        else {}
+                    ),
                 },
                 "evaluation": {
                     "started_at_utc": started_at,
@@ -2460,6 +2654,11 @@ def evaluate_gold_sample_v1_1(
                 ),
             },
             "owner_completion": owner_completion,
+            **(
+                {"candidate_materialization": dict(materialization_binding)}
+                if materialization_binding is not None
+                else {}
+            ),
             "metrics": result["metrics"],
             "diagnostics": {
                 "offline_trial": offline_diagnostics,
@@ -2610,6 +2809,7 @@ def _arguments(argv: Sequence[str] | None = None) -> argparse.Namespace:
             "heldout-final-v1.4",
             "heldout-final-v1.5",
             "heldout-final-v1.6",
+            "heldout-final-v1.7",
         ),
         default="heldout-final-v1.1",
         help=(
@@ -2657,6 +2857,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             "heldout-final-v1.4",
             "heldout-final-v1.5",
             "heldout-final-v1.6",
+            "heldout-final-v1.7",
         }:
             design = gold_builder.load_evaluation_design(arguments.evaluation_design)
             expected_schema_version = {
@@ -2666,6 +2867,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 "heldout-final-v1.4": "p4.2a-evaluation-design-v1.4",
                 "heldout-final-v1.5": "p4.2a-evaluation-design-v1.5",
                 "heldout-final-v1.6": "p4.2a-evaluation-design-v1.6",
+                "heldout-final-v1.7": "p4.2a-evaluation-design-v1.7",
             }[arguments.scope]
             if design.document.get("schema_version") != expected_schema_version:
                 raise GoldEvaluationError(

@@ -24,6 +24,7 @@ EVALUATION_DESIGN_V1_3_PATH = PROJECT_ROOT / "config/p4_event_evaluation_v1_3.ya
 EVALUATION_DESIGN_V1_4_PATH = PROJECT_ROOT / "config/p4_event_evaluation_v1_4.yaml"
 EVALUATION_DESIGN_V1_5_PATH = PROJECT_ROOT / "config/p4_event_evaluation_v1_5.yaml"
 EVALUATION_DESIGN_V1_6_PATH = PROJECT_ROOT / "config/p4_event_evaluation_v1_6.yaml"
+EVALUATION_DESIGN_V1_7_PATH = PROJECT_ROOT / "config/p4_event_evaluation_v1_7.yaml"
 DEFAULT_EVALUATION_DESIGN_PATH = LEGACY_EVALUATION_DESIGN_PATH
 EXPECTED_EVALUATION_DESIGN_SHA256 = (
     "8e9c1d107ef235f9c017dbfb679fa01e52e0ff966f01d9efad625110588ebf97"
@@ -43,12 +44,16 @@ EXPECTED_EVALUATION_DESIGN_V1_5_SHA256 = (
 EXPECTED_EVALUATION_DESIGN_V1_6_SHA256 = (
     "57e04f99a8ee91b64fe0aa4dc479e95c3de65fd31f04ac6c5879d4f81e5539c9"
 )
+EXPECTED_EVALUATION_DESIGN_V1_7_SHA256 = (
+    "4c7964ad547820f5672631939af93978f11cb9f91e5921087770ac7d0d79bec1"
+)
 EXPECTED_EVALUATION_SCHEMA_VERSION = "p4.2a-evaluation-design-v1.1"
 EXPECTED_EVALUATION_V1_2_SCHEMA_VERSION = "p4.2a-evaluation-design-v1.2"
 EXPECTED_EVALUATION_V1_3_SCHEMA_VERSION = "p4.2a-evaluation-design-v1.3"
 EXPECTED_EVALUATION_V1_4_SCHEMA_VERSION = "p4.2a-evaluation-design-v1.4"
 EXPECTED_EVALUATION_V1_5_SCHEMA_VERSION = "p4.2a-evaluation-design-v1.5"
 EXPECTED_EVALUATION_V1_6_SCHEMA_VERSION = "p4.2a-evaluation-design-v1.6"
+EXPECTED_EVALUATION_V1_7_SCHEMA_VERSION = "p4.2a-evaluation-design-v1.7"
 EXPECTED_BASE_CONTRACT_SHA256 = "b3eb24c63816043edf0ef728d8d9778cd9083d720649d6fff3ae6289bba74300"
 
 EXPECTED_SUPERSEDED_FIELDS = (
@@ -2763,6 +2768,296 @@ def _load_v1_6_event_evaluation_design(
     )
 
 
+def _load_v1_7_event_evaluation_design(
+    path: Path,
+    *,
+    project_root: Path,
+) -> EventEvaluationDesign:
+    """Load the deterministic held-out materialization-eligibility successor."""
+
+    try:
+        payload = path.resolve().read_bytes()
+    except OSError as exc:
+        raise EventEvaluationDesignError("P4.2a v1.7 design is unavailable") from exc
+    digest = _sha256_bytes(payload)
+    if digest != EXPECTED_EVALUATION_DESIGN_V1_7_SHA256:
+        raise EventEvaluationDesignError("P4.2a v1.7 design differs from its frozen SHA-256")
+    try:
+        loaded: object = yaml.safe_load(payload)
+    except yaml.YAMLError as exc:
+        raise EventEvaluationDesignError("P4.2a v1.7 design is invalid YAML") from exc
+    if not isinstance(loaded, dict):
+        raise EventEvaluationDesignError("P4.2a v1.7 design must be a mapping")
+    overlay = cast(JsonObject, loaded)
+    if set(overlay) != {
+        "schema_version",
+        "owner_spec_commit",
+        "pre_registered_at",
+        "production_writes_allowed",
+        "artifact_root",
+        "extends_design",
+        "candidate_eligibility",
+        "materialization_rounds",
+        "artifact_overrides",
+        "isolation",
+    }:
+        raise EventEvaluationDesignError("P4.2a v1.7 top-level contract drifted")
+    if (
+        overlay.get("schema_version") != EXPECTED_EVALUATION_V1_7_SCHEMA_VERSION
+        or overlay.get("owner_spec_commit")
+        != "3e21bff982156ef973c2e5badfe39b06d9596237"
+        or overlay.get("pre_registered_at") != "2026-08-06T08:00:00Z"
+        or overlay.get("production_writes_allowed") is not False
+        or overlay.get("artifact_root") != _ARTIFACT_ROOT.as_posix()
+    ):
+        raise EventEvaluationDesignError("P4.2a v1.7 identity/isolation binding drifted")
+
+    extends = _mapping(overlay.get("extends_design"), "extends_design")
+    inheritance = _mapping(extends.get("inheritance"), "extends_design.inheritance")
+    expected_inheritance = {
+        "active_prediction_contract": "byte_frozen",
+        "prediction_contract_freeze_receipt": "byte_frozen",
+        "model_selection_outcome": "byte_frozen",
+        "heldout_candidate_window": "byte_frozen",
+        "heldout_selection_seed": "byte_frozen",
+        "heldout_selected_count": "byte_frozen",
+        "evaluation_thresholds": "byte_frozen",
+        "dev_annotation_bytes": "byte_frozen",
+        "heldout_annotation_provenance": "byte_frozen",
+        "prompt": "byte_frozen",
+        "model": "byte_frozen",
+        "model_result_schema": "byte_frozen",
+        "materialized_result_schema": "byte_frozen",
+        "candidate_slicing": "byte_frozen",
+        "llm_parameters": "byte_frozen",
+    }
+    if (
+        extends.get("path") != "config/p4_event_evaluation_v1_6.yaml"
+        or extends.get("sha256") != EXPECTED_EVALUATION_DESIGN_V1_6_SHA256
+        or extends.get("schema_version") != EXPECTED_EVALUATION_V1_6_SCHEMA_VERSION
+        or dict(inheritance) != expected_inheritance
+    ):
+        raise EventEvaluationDesignError("P4.2a v1.7 inheritance contract drifted")
+    base_design = _load_v1_6_event_evaluation_design(
+        project_root / "config/p4_event_evaluation_v1_6.yaml",
+        project_root=project_root,
+    )
+
+    candidate_eligibility = _mapping(
+        overlay.get("candidate_eligibility"),
+        "candidate_eligibility",
+    )
+    expected_eligibility: JsonObject = {
+        "schema_version": "p4.2a-heldout-candidate-eligibility-v1",
+        "deterministic_document_ineligible_reasons": [
+            "pdf_text_below_min_char_gate",
+            "pdf_exceeds_size_bound",
+        ],
+        "minimum_extracted_characters": 80,
+        "max_pdf_bytes": 8 * 1024 * 1024,
+        "transient_download_failures_fail_closed": True,
+        "sample_only_from_eligible_pool": True,
+        "insufficient_stratum_policy": "fail_without_substitution",
+    }
+    if dict(candidate_eligibility) != expected_eligibility:
+        raise EventEvaluationDesignError("P4.2a v1.7 candidate eligibility drifted")
+
+    materialization_rounds = _mapping(
+        overlay.get("materialization_rounds"),
+        "materialization_rounds",
+    )
+    expected_rounds: JsonObject = {
+        "failed_origin": {
+            "round_id": "heldout-v1.6-r1",
+            "status": "materialization_failed_no_inference",
+            "record": {
+                "path": (
+                    "docs/phase4/eval/"
+                    "P4.2a-heldout-materialization-failure-v1.6-r1.json"
+                ),
+                "sha256": (
+                    "e14650690f3a1efbe6b455cc0a2d043c08c296ff88433cf14395f40f001ea6db"
+                ),
+            },
+            "inference_started": False,
+            "model_calls": 0,
+        },
+        "authorized_successor": {
+            "round_id": "heldout-v1.7-r1",
+            "exactly_one_one_shot": True,
+            "predecessor_must_remain_failed": True,
+            "model": "qwen3.7-flash",
+            "prediction_contract": {
+                "path": "config/p4_event_extract_eval_v1_7.yaml",
+                "sha256": (
+                    "68474e4bd4fd5c9c88711dd5e102898ad1ed75a0fb984045efbd14e51a6db701"
+                ),
+            },
+            "prompt": {
+                "path": "config/prompts/p4_news_event_extract_v1_5.txt",
+                "sha256": (
+                    "4b44ed5efe281b68664b415865b758b75b30ace6eda2617952de66a87596c204"
+                ),
+            },
+            "freeze_receipt": {
+                "path": (
+                    "docs/phase4/eval/"
+                    "P4.2a-heldout-prediction-contract-freeze-v1.6.json"
+                ),
+                "sha256": (
+                    "1b2aae88d075dbe1d93660b76f9463f35157f7dbd00a6dc7f73d61370b4231a1"
+                ),
+            },
+            "model_selection_outcome": {
+                "path": "docs/phase4/eval/P4.2a-model-selection-v1.7.json",
+                "sha256": (
+                    "38f20f4eebe4da1da48fa14d3b09bb2a042d27eed5efc4a533a63718659059e0"
+                ),
+            },
+            "automatic_retries": 0,
+            "failed_candidate_retries": 0,
+            "candidate_order": "frozen_database_id_ascending",
+        },
+    }
+    if dict(materialization_rounds) != expected_rounds:
+        raise EventEvaluationDesignError("P4.2a v1.7 materialization rounds drifted")
+    failed_origin = _mapping(materialization_rounds.get("failed_origin"), "failed_origin")
+    _verify_frozen_artifact(
+        project_root,
+        _mapping(failed_origin.get("record"), "failed_origin.record"),
+        label="failed materialization round record",
+    )
+    successor = _mapping(
+        materialization_rounds.get("authorized_successor"),
+        "authorized_successor",
+    )
+    for name in (
+        "prediction_contract",
+        "prompt",
+        "freeze_receipt",
+        "model_selection_outcome",
+    ):
+        _verify_frozen_artifact(
+            project_root,
+            _mapping(successor.get(name), f"authorized_successor.{name}"),
+            label=f"authorized successor {name}",
+        )
+
+    artifact_overrides = _mapping(overlay.get("artifact_overrides"), "artifact_overrides")
+    expected_artifact_overrides: JsonObject = {
+        "heldout_candidate_inputs_jsonl": {
+            "path": (
+                "docs/phase4/eval/P4.2a-heldout-materialization-v1.7/"
+                "candidate-inputs.jsonl"
+            ),
+            "create_only": True,
+        },
+        "heldout_candidate_materialization_manifest_json": {
+            "path": (
+                "docs/phase4/eval/P4.2a-heldout-materialization-v1.7/manifest.json"
+            ),
+            "create_only": True,
+        },
+        "heldout_candidate_predictions_jsonl": {
+            "path": "docs/phase4/eval/P4.2a-heldout-candidate-predictions-v1.7.jsonl",
+            "create_only": True,
+        },
+        "heldout_candidate_predictions_manifest_json": {
+            "path": (
+                "docs/phase4/eval/P4.2a-heldout-candidate-predictions-v1.7.manifest.json"
+            ),
+            "create_only": True,
+        },
+        "heldout_inference_state_jsonl": {
+            "path": (
+                "docs/phase4/eval/P4.2a-heldout-inference-one-shot-v1.7.state.jsonl"
+            ),
+            "create_only": True,
+        },
+        "heldout_selection_manifest_json": {
+            "path": "docs/phase4/eval/P4.2a-heldout40-selection-v1.7.manifest.json",
+            "create_only": True,
+        },
+        "heldout_evaluation_state_jsonl": {
+            "path": (
+                "docs/phase4/eval/P4.2a-heldout-evaluation-one-shot-v1.7.state.jsonl"
+            ),
+            "create_only": True,
+        },
+        "heldout_40_blind_sample_jsonl": {
+            "path": "docs/phase4/eval/P4.2a-gold-heldout40-blind-sample-v1.7.jsonl",
+            "create_only": True,
+        },
+        "heldout_40_owner_annotations_jsonl": {
+            "path": (
+                "docs/phase4/eval/P4.2a-gold-heldout40-human-adjudicated-v1.7.jsonl"
+            ),
+            "create_only": True,
+        },
+        "combined_100_annotations_jsonl": {
+            "path": "docs/phase4/eval/P4.2a-gold-annotation100-v1.7.jsonl",
+            "create_only": True,
+        },
+        "owner_completion_manifest_json": {
+            "path": "docs/phase4/eval/P4.2a-owner-completion-v1.7.manifest.json",
+            "create_only": True,
+        },
+        "evaluation_report_directory": {
+            "path": "docs/phase4/eval/reports/v1.7",
+            "create_only_reports": True,
+            "append_only_failed_rounds": True,
+        },
+    }
+    if set(artifact_overrides) != set(expected_artifact_overrides):
+        raise EventEvaluationDesignError("P4.2a v1.7 create-only artifact set drifted")
+    artifacts = copy.deepcopy(cast(JsonObject, base_design.document["artifacts"]))
+    seen_paths: set[Path] = set()
+    eval_root = (project_root / _ARTIFACT_ROOT).resolve()
+    for name, raw_entry in artifact_overrides.items():
+        entry = _mapping(raw_entry, f"artifact_overrides.{name}")
+        resolved = _artifact_path(
+            project_root,
+            entry.get("path"),
+            label=f"artifact_overrides.{name}.path",
+        )
+        if resolved != eval_root and not resolved.is_relative_to(eval_root):
+            raise EventEvaluationDesignError(f"artifact_overrides.{name} escapes eval root")
+        if "v1.7" not in resolved.as_posix():
+            raise EventEvaluationDesignError(f"artifact_overrides.{name} is not v1.7 namespaced")
+        if resolved in seen_paths:
+            raise EventEvaluationDesignError("P4.2a v1.7 artifact paths must be unique")
+        seen_paths.add(resolved)
+        create_only = (
+            entry.get("create_only_reports")
+            if name == "evaluation_report_directory"
+            else entry.get("create_only")
+        )
+        if create_only is not True:
+            raise EventEvaluationDesignError(f"artifact_overrides.{name} must be create-only")
+        artifacts[name] = dict(entry)
+    if dict(artifact_overrides) != expected_artifact_overrides:
+        raise EventEvaluationDesignError("P4.2a v1.7 create-only artifact bytes drifted")
+
+    isolation = _mapping(overlay.get("isolation"), "isolation")
+    if dict(isolation) != dict(base_design.document["isolation"]):
+        raise EventEvaluationDesignError("P4.2a v1.7 runtime isolation drifted")
+
+    document = copy.deepcopy(base_design.document)
+    document["schema_version"] = overlay["schema_version"]
+    document["owner_spec_commit"] = overlay["owner_spec_commit"]
+    document["pre_registered_at"] = overlay["pre_registered_at"]
+    document["artifacts"] = artifacts
+    document["candidate_eligibility"] = copy.deepcopy(dict(candidate_eligibility))
+    document["materialization_rounds"] = copy.deepcopy(dict(materialization_rounds))
+    return EventEvaluationDesign(
+        path=path.resolve(),
+        sha256=digest,
+        document=document,
+        base_contract=base_design.base_contract,
+        prediction_contract=base_design.prediction_contract,
+    )
+
+
 def validate_heldout_annotation_provenance(
     record: Mapping[str, object],
     design: EventEvaluationDesign,
@@ -2807,6 +3102,11 @@ def load_event_evaluation_design(
     """Load one supported byte-frozen P4.2a evaluation design."""
 
     resolved = path.resolve()
+    if resolved == (project_root / "config/p4_event_evaluation_v1_7.yaml").resolve():
+        return _load_v1_7_event_evaluation_design(
+            resolved,
+            project_root=project_root,
+        )
     if resolved == (project_root / "config/p4_event_evaluation_v1_6.yaml").resolve():
         return _load_v1_6_event_evaluation_design(
             resolved,
@@ -2849,6 +3149,7 @@ __all__ = [
     "EVALUATION_DESIGN_V1_4_PATH",
     "EVALUATION_DESIGN_V1_5_PATH",
     "EVALUATION_DESIGN_V1_6_PATH",
+    "EVALUATION_DESIGN_V1_7_PATH",
     "EXPECTED_BASE_CONTRACT_SHA256",
     "EXPECTED_EVALUATION_DESIGN_SHA256",
     "EXPECTED_EVALUATION_DESIGN_V1_2_SHA256",
@@ -2856,12 +3157,14 @@ __all__ = [
     "EXPECTED_EVALUATION_DESIGN_V1_4_SHA256",
     "EXPECTED_EVALUATION_DESIGN_V1_5_SHA256",
     "EXPECTED_EVALUATION_DESIGN_V1_6_SHA256",
+    "EXPECTED_EVALUATION_DESIGN_V1_7_SHA256",
     "EXPECTED_EVALUATION_SCHEMA_VERSION",
     "EXPECTED_EVALUATION_V1_2_SCHEMA_VERSION",
     "EXPECTED_EVALUATION_V1_3_SCHEMA_VERSION",
     "EXPECTED_EVALUATION_V1_4_SCHEMA_VERSION",
     "EXPECTED_EVALUATION_V1_5_SCHEMA_VERSION",
     "EXPECTED_EVALUATION_V1_6_SCHEMA_VERSION",
+    "EXPECTED_EVALUATION_V1_7_SCHEMA_VERSION",
     "EXPECTED_OWNER_COMPLETION_MANIFEST_FIELDS",
     "EXPECTED_OWNER_FORBIDDEN_FIELDS",
     "EXPECTED_OWNER_REQUIRED_FIELDS",

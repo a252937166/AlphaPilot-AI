@@ -88,6 +88,27 @@ def _v1_6_variant(
     return path
 
 
+def _v1_7_variant(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    mutate: Callable[[dict[str, Any]], None],
+) -> Path:
+    document = yaml.safe_load(p4_news_eval.EVALUATION_DESIGN_V1_7_PATH.read_bytes())
+    assert isinstance(document, dict)
+    mutate(document)
+    path = tmp_path / "p4_event_evaluation_v1_7.yaml"
+    path.write_text(
+        yaml.safe_dump(document, allow_unicode=True, sort_keys=False),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        p4_news_eval,
+        "EXPECTED_EVALUATION_DESIGN_V1_7_SHA256",
+        hashlib.sha256(path.read_bytes()).hexdigest(),
+    )
+    return path
+
+
 def test_load_event_evaluation_design_verifies_v1_1_contract() -> None:
     design = load_event_evaluation_design()
     artifacts = design.document["artifacts"]
@@ -481,6 +502,171 @@ def test_v1_6_rejects_model_selection_or_inheritance_drift(
 
     with pytest.raises(EventEvaluationDesignError, match=message):
         p4_news_eval._load_v1_6_event_evaluation_design(
+            variant,
+            project_root=p4_news_eval.PROJECT_ROOT,
+        )
+
+
+def test_v1_7_revalidates_v1_6_receipt_and_model_selection_outcome(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    verified: list[tuple[str, dict[str, Any]]] = []
+    original = p4_news_eval._verify_frozen_artifact
+
+    def record_verification(
+        project_root: Path,
+        entry: Any,
+        *,
+        label: str,
+    ) -> Path:
+        verified.append((label, dict(entry)))
+        return original(project_root, entry, label=label)
+
+    monkeypatch.setattr(p4_news_eval, "_verify_frozen_artifact", record_verification)
+    p4_news_eval._load_v1_7_event_evaluation_design(
+        p4_news_eval.EVALUATION_DESIGN_V1_7_PATH,
+        project_root=p4_news_eval.PROJECT_ROOT,
+    )
+
+    verified_by_label = dict(verified)
+    assert verified_by_label["authorized successor freeze_receipt"] == {
+        "path": "docs/phase4/eval/P4.2a-heldout-prediction-contract-freeze-v1.6.json",
+        "sha256": "1b2aae88d075dbe1d93660b76f9463f35157f7dbd00a6dc7f73d61370b4231a1",
+    }
+    assert verified_by_label["authorized successor model_selection_outcome"] == {
+        "path": "docs/phase4/eval/P4.2a-model-selection-v1.7.json",
+        "sha256": "38f20f4eebe4da1da48fa14d3b09bb2a042d27eed5efc4a533a63718659059e0",
+    }
+
+
+@pytest.mark.parametrize(
+    ("path", "value", "message"),
+    [
+        (("extends_design", "sha256"), "0" * 64, "inheritance"),
+        (
+            (
+                "extends_design",
+                "inheritance",
+                "prediction_contract_freeze_receipt",
+            ),
+            "mutable",
+            "inheritance",
+        ),
+        (
+            (
+                "candidate_eligibility",
+                "deterministic_document_ineligible_reasons",
+            ),
+            ["pdf_text_below_min_char_gate"],
+            "candidate eligibility",
+        ),
+        (
+            ("candidate_eligibility", "minimum_extracted_characters"),
+            79,
+            "candidate eligibility",
+        ),
+        (
+            ("candidate_eligibility", "max_pdf_bytes"),
+            8 * 1024 * 1024 - 1,
+            "candidate eligibility",
+        ),
+        (
+            ("candidate_eligibility", "transient_download_failures_fail_closed"),
+            False,
+            "candidate eligibility",
+        ),
+        (
+            ("candidate_eligibility", "sample_only_from_eligible_pool"),
+            False,
+            "candidate eligibility",
+        ),
+        (
+            ("candidate_eligibility", "insufficient_stratum_policy"),
+            "shrink_sample",
+            "candidate eligibility",
+        ),
+        (
+            (
+                "materialization_rounds",
+                "authorized_successor",
+                "freeze_receipt",
+                "sha256",
+            ),
+            "0" * 64,
+            "materialization rounds",
+        ),
+        (
+            (
+                "materialization_rounds",
+                "authorized_successor",
+                "model_selection_outcome",
+                "sha256",
+            ),
+            "0" * 64,
+            "materialization rounds",
+        ),
+        (
+            (
+                "artifact_overrides",
+                "heldout_candidate_inputs_jsonl",
+                "path",
+            ),
+            "docs/phase4/eval/P4.2a-heldout-candidate-inputs-v1.6.jsonl",
+            "not v1.7 namespaced",
+        ),
+        (
+            (
+                "artifact_overrides",
+                "heldout_candidate_materialization_manifest_json",
+                "create_only",
+            ),
+            False,
+            "must be create-only",
+        ),
+        (
+            ("isolation", "production_writes_allowed"),
+            True,
+            "runtime isolation",
+        ),
+    ],
+)
+def test_v1_7_rejects_inheritance_eligibility_evidence_or_artifact_drift(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    path: tuple[str, ...],
+    value: object,
+    message: str,
+) -> None:
+    variant = _v1_7_variant(
+        tmp_path,
+        monkeypatch,
+        lambda document: _set_nested(document, path, value),
+    )
+
+    with pytest.raises(EventEvaluationDesignError, match=message):
+        p4_news_eval._load_v1_7_event_evaluation_design(
+            variant,
+            project_root=p4_news_eval.PROJECT_ROOT,
+        )
+
+
+def test_v1_7_rejects_duplicate_artifact_paths(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def duplicate_path(document: dict[str, Any]) -> None:
+        overrides = document["artifact_overrides"]
+        assert isinstance(overrides, dict)
+        first = overrides["heldout_candidate_inputs_jsonl"]
+        second = overrides["heldout_candidate_predictions_jsonl"]
+        assert isinstance(first, dict)
+        assert isinstance(second, dict)
+        second["path"] = first["path"]
+
+    variant = _v1_7_variant(tmp_path, monkeypatch, duplicate_path)
+
+    with pytest.raises(EventEvaluationDesignError, match="paths must be unique"):
+        p4_news_eval._load_v1_7_event_evaluation_design(
             variant,
             project_root=p4_news_eval.PROJECT_ROOT,
         )

@@ -32,9 +32,11 @@ from scripts.build_p4_2a_gold_sample import (
     _heldout_candidate_rows,
     download_cninfo_pdf,
     extract_cninfo_pdf_text,
+    heldout_materialization_manifest_payload,
     materialize_heldout_candidate_inputs,
     validate_dev_final_prediction_freeze,
     validate_heldout_candidate_inputs,
+    validate_heldout_materialization_manifest,
 )
 from scripts.run_p4_2a_offline_extract import (
     DECLARED_INPUT_ACTIVE,
@@ -102,6 +104,7 @@ class HeldoutPredictionResult:
     predictions_path: Path
     manifest_path: Path
     state_path: Path
+    materialization_manifest_path: Path | None
     positive_count: int
     positive_rate: float
 
@@ -111,6 +114,24 @@ class DevFinalPredictionResult:
     summary: ExtractionSummary
     predictions_path: Path
     manifest_path: Path
+
+
+@dataclass(frozen=True, slots=True)
+class PreparedCandidateArtifact:
+    """Validated raw/eligible partition and its immutable runtime evidence."""
+
+    records: list[ExtractRecord]
+    eligible_rows: tuple[JsonObject, ...]
+    raw_database_rows: tuple[NewsRow, ...]
+    ineligible_rows: tuple[JsonObject, ...]
+    ineligible_reason_counts: JsonObject
+    universe: frozenset[str]
+    database: ProductionDatabaseEvidence
+    trading_safety: JsonObject
+    inputs_path: Path
+    materialization_manifest_path: Path | None
+    materialization_manifest: JsonObject | None
+    materialization_manifest_sha256: str | None
 
 
 def _mapping(value: object, name: str) -> Mapping[str, Any]:
@@ -259,6 +280,84 @@ def _create_only_bytes(path: Path, payload: bytes, root: Path) -> None:
     finally:
         if temporary is not None:
             temporary.unlink(missing_ok=True)
+
+
+def _create_only_materialization_bundle(
+    *,
+    inputs_path: Path,
+    inputs_payload: bytes,
+    manifest_path: Path,
+    manifest_payload: bytes,
+    root: Path,
+) -> None:
+    """Atomically publish the two-file materialization directory.
+
+    The v1.7 design deliberately places both artifacts in one fresh directory.
+    Renaming that fully fsynced staging directory makes either the whole pair or
+    neither path visible, including across process or host crashes.
+    """
+
+    if (
+        inputs_path.parent != manifest_path.parent
+        or inputs_path == manifest_path
+        or inputs_path.parent == root
+        or not inputs_path.parent.is_relative_to(root)
+    ):
+        raise HeldoutPredictionError(
+            "materialization artifacts must share one dedicated eval directory"
+        )
+    bundle = inputs_path.parent
+    parent = bundle.parent
+    _ensure_artifact_parent(parent / ".materialization-parent-check", root)
+    if bundle.exists() or bundle.is_symlink():
+        raise FileExistsError(
+            f"refusing to overwrite create-only materialization bundle: {bundle}"
+        )
+    staging = Path(
+        tempfile.mkdtemp(
+            dir=parent,
+            prefix=f".{bundle.name}.",
+            suffix=".staged",
+        )
+    )
+    staged_paths = {
+        staging / inputs_path.name: inputs_payload,
+        staging / manifest_path.name: manifest_payload,
+    }
+    try:
+        for path, payload in staged_paths.items():
+            flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL
+            if hasattr(os, "O_NOFOLLOW"):
+                flags |= os.O_NOFOLLOW
+            descriptor = os.open(path, flags, 0o600)
+            try:
+                view = memoryview(payload)
+                while view:
+                    written = os.write(descriptor, view)
+                    if written <= 0:
+                        raise HeldoutPredictionError(
+                            "materialization bundle write made no progress"
+                        )
+                    view = view[written:]
+                os.fsync(descriptor)
+            finally:
+                os.close(descriptor)
+        staged_directory = os.open(staging, os.O_RDONLY)
+        try:
+            os.fsync(staged_directory)
+        finally:
+            os.close(staged_directory)
+        os.rename(staging, bundle)
+        parent_descriptor = os.open(parent, os.O_RDONLY)
+        try:
+            os.fsync(parent_descriptor)
+        finally:
+            os.close(parent_descriptor)
+    finally:
+        if staging.exists():
+            for path in staged_paths:
+                path.unlink(missing_ok=True)
+            staging.rmdir()
 
 
 def _load_json(path: Path, name: str) -> JsonObject:
@@ -1107,6 +1206,107 @@ def validate_prediction_contract_freeze(
     project_root: Path,
 ) -> tuple[JsonObject, str, EventExtractContract]:
     """Re-hash the receipt and every active contract byte before held-out use."""
+
+    # v1.7 changes only the pre-inference document-eligibility partition.  The
+    # selected qwen3.7-flash contract, prompt, dev evidence, model-selection
+    # outcome, and freeze receipt remain byte-frozen under the canonical v1.6
+    # design.  Recomputing the receipt against the successor design would
+    # manufacture a new freeze identity, so validate the complete v1.6 chain
+    # first and then require the v1.7 registration to point at those same bytes.
+    if design.document.get("schema_version") == "p4.2a-evaluation-design-v1.7":
+        origin = load_event_evaluation_design(
+            project_root.resolve() / "config/p4_event_evaluation_v1_6.yaml",
+            project_root=project_root.resolve(),
+        )
+        receipt, receipt_sha256, active_contract = validate_prediction_contract_freeze(
+            origin,
+            project_root,
+        )
+        rounds = _mapping(
+            design.document.get("materialization_rounds"),
+            "materialization_rounds",
+        )
+        successor = _mapping(
+            rounds.get("authorized_successor"),
+            "materialization_rounds.authorized_successor",
+        )
+        expected_contract = _mapping(
+            successor.get("prediction_contract"),
+            "authorized successor prediction_contract",
+        )
+        expected_receipt = _mapping(
+            successor.get("freeze_receipt"),
+            "authorized successor freeze_receipt",
+        )
+        failed_origin = _mapping(
+            rounds.get("failed_origin"),
+            "materialization_rounds.failed_origin",
+        )
+        frozen_bindings = {
+            "failed materialization round": _mapping(
+                failed_origin.get("record"),
+                "materialization failed-origin record",
+            ),
+            "prediction contract": expected_contract,
+            "prompt": _mapping(
+                successor.get("prompt"),
+                "authorized successor prompt",
+            ),
+            "freeze receipt": expected_receipt,
+            "model selection outcome": _mapping(
+                successor.get("model_selection_outcome"),
+                "authorized successor model-selection outcome",
+            ),
+        }
+        for label, binding in frozen_bindings.items():
+            frozen_path = _project_file(
+                project_root,
+                binding.get("path"),
+                f"materialization successor {label}",
+            )
+            if (
+                not _valid_sha256(binding.get("sha256"))
+                or _sha256_file(frozen_path) != binding.get("sha256")
+            ):
+                raise HeldoutPredictionError(
+                    f"materialization successor {label} bytes drifted"
+                )
+        predecessor_artifacts = (
+            "heldout_candidate_inputs_jsonl",
+            "heldout_candidate_predictions_jsonl",
+            "heldout_candidate_predictions_manifest_json",
+            "heldout_inference_state_jsonl",
+            "heldout_selection_manifest_json",
+            "heldout_40_blind_sample_jsonl",
+        )
+        for artifact_name in predecessor_artifacts:
+            predecessor = _artifact_path(origin, project_root, artifact_name)
+            if predecessor.exists() or predecessor.is_symlink():
+                raise HeldoutPredictionError(
+                    "failed predecessor unexpectedly contains held-out artifacts"
+                )
+        if (
+            active_contract.sha256 != expected_contract.get("sha256")
+            or active_contract.path.resolve()
+            != _project_file(
+                project_root,
+                expected_contract.get("path"),
+                "authorized successor prediction contract",
+            )
+            or receipt_sha256 != expected_receipt.get("sha256")
+            or _sha256_file(
+                _project_file(
+                    project_root,
+                    expected_receipt.get("path"),
+                    "authorized successor freeze receipt",
+                )
+            )
+            != receipt_sha256
+        ):
+            raise HeldoutPredictionError(
+                "materialization successor changed the frozen prediction chain"
+            )
+        return receipt, receipt_sha256, active_contract
 
     path = _artifact_path(
         design,
@@ -1981,7 +2181,10 @@ def _require_model_selection_outcome_for_candidate_heldout(
     design: EventEvaluationDesign,
     project_root: Path,
 ) -> None:
-    if design.document.get("schema_version") != "p4.2a-evaluation-design-v1.6":
+    if design.document.get("schema_version") not in {
+        "p4.2a-evaluation-design-v1.6",
+        "p4.2a-evaluation-design-v1.7",
+    }:
         return
     outcome_path = _model_selection_outcome_path(design, project_root)
     if outcome_path.is_symlink() or not outcome_path.is_file():
@@ -2403,14 +2606,8 @@ def _prepare_or_validate_candidate_artifact(
     *,
     pdf_fetcher: PdfFetcher,
     pdf_text_extractor: PdfTextExtractor,
-) -> tuple[
-    list[ExtractRecord],
-    tuple[JsonObject, ...],
-    frozenset[str],
-    ProductionDatabaseEvidence,
-    JsonObject,
-    Path,
-]:
+    freeze_receipt_sha256: str | None = None,
+) -> PreparedCandidateArtifact:
     database_rows, universe, database, trading_safety = _load_candidate_rows(
         design,
         active_contract,
@@ -2418,45 +2615,219 @@ def _prepare_or_validate_candidate_artifact(
     )
     path = _artifact_path(design, project_root, "heldout_candidate_inputs_jsonl")
     root = _eval_root(design, project_root)
-    if path.exists() or path.is_symlink():
-        rows = tuple(_load_jsonl(path, "heldout candidate inputs"))
-        database_ids = tuple(item.news_item_id for item in database_rows)
-        artifact_ids = tuple(cast(int, row.get("news_item_id")) for row in rows)
-        if artifact_ids != database_ids:
+    materialization_enabled = (
+        design.document.get("schema_version") == "p4.2a-evaluation-design-v1.7"
+    )
+    manifest_path: Path | None = None
+    manifest: JsonObject | None = None
+    manifest_sha256: str | None = None
+    ineligible_rows: tuple[JsonObject, ...] = ()
+    ineligible_reason_counts: JsonObject = {}
+    if materialization_enabled:
+        if freeze_receipt_sha256 is None or not _valid_sha256(
+            freeze_receipt_sha256
+        ):
             raise HeldoutPredictionError(
-                "frozen candidate inputs no longer cover the complete database batch"
+                "materialization successor requires its frozen receipt SHA-256"
             )
-    else:
-        try:
-            rows = tuple(
-                materialize_heldout_candidate_inputs(
+        manifest_path = _artifact_path(
+            design,
+            project_root,
+            "heldout_candidate_materialization_manifest_json",
+        )
+        inputs_exists = path.exists() or path.is_symlink()
+        manifest_exists = manifest_path.exists() or manifest_path.is_symlink()
+        if inputs_exists != manifest_exists:
+            raise HeldoutPredictionError(
+                "materialization bundle is incomplete; inputs and manifest must coexist"
+            )
+        if not inputs_exists:
+            try:
+                materialization = materialize_heldout_candidate_inputs(
                     database_rows,
                     _frozen_design(design),
                     active_contract,
                     pdf_fetcher=pdf_fetcher,
                     pdf_text_extractor=pdf_text_extractor,
                 )
+                rows = tuple(materialization.eligible_records)
+                manifest, manifest_payload = heldout_materialization_manifest_payload(
+                    materialization,
+                    design=_frozen_design(design),
+                    active_contract=active_contract,
+                    freeze_receipt_sha256=freeze_receipt_sha256,
+                    project_root=project_root,
+                )
+            except GoldSampleError as exc:
+                raise HeldoutPredictionError(
+                    "authoritative candidate input materialization failed"
+                ) from exc
+            inputs_payload = _jsonl_bytes(rows)
+            _create_only_materialization_bundle(
+                inputs_path=path,
+                inputs_payload=inputs_payload,
+                manifest_path=manifest_path,
+                manifest_payload=manifest_payload,
+                root=root,
+            )
+        rows = tuple(_load_jsonl(path, "heldout eligible candidate inputs"))
+        manifest = _load_json(
+            manifest_path,
+            "heldout candidate materialization manifest",
+        )
+        try:
+            manifest = validate_heldout_materialization_manifest(
+                manifest,
+                rows=database_rows,
+                eligible_records=rows,
+                design=_frozen_design(design),
+                active_contract=active_contract,
+                freeze_receipt_sha256=freeze_receipt_sha256,
+                project_root=project_root,
             )
         except GoldSampleError as exc:
             raise HeldoutPredictionError(
-                "authoritative candidate input materialization failed"
+                "authoritative materialization manifest validation failed"
             ) from exc
-        _create_only_bytes(path, _jsonl_bytes(rows), root)
-    records = _validate_candidate_inputs(
-        design,
-        active_contract,
-        rows,
-        database_rows,
+        layers = _mapping(manifest.get("layers"), "materialization manifest layers")
+        raw_ineligible = layers.get("ineligible_candidates")
+        if not isinstance(raw_ineligible, Sequence) or isinstance(
+            raw_ineligible,
+            (str, bytes),
+        ):
+            raise HeldoutPredictionError(
+                "materialization ineligible layer must be a sequence"
+            )
+        ineligible_rows = tuple(
+            dict(_mapping(item, "materialization ineligible candidate"))
+            for item in raw_ineligible
+        )
+        counts = _mapping(manifest.get("counts"), "materialization manifest counts")
+        ineligible_reason_counts = dict(
+            _mapping(
+                counts.get("ineligible_by_reason"),
+                "materialization ineligible reason counts",
+            )
+        )
+        manifest_sha256 = _sha256_file(manifest_path)
+        eligible_ids = {int(row["news_item_id"]) for row in rows}
+        eligible_database_rows = tuple(
+            row for row in database_rows if row.news_item_id in eligible_ids
+        )
+    else:
+        if path.exists() or path.is_symlink():
+            rows = tuple(_load_jsonl(path, "heldout candidate inputs"))
+            database_ids = tuple(item.news_item_id for item in database_rows)
+            artifact_ids = tuple(cast(int, row.get("news_item_id")) for row in rows)
+            if artifact_ids != database_ids:
+                raise HeldoutPredictionError(
+                    "frozen candidate inputs no longer cover the complete database batch"
+                )
+        else:
+            try:
+                materialization = materialize_heldout_candidate_inputs(
+                    database_rows,
+                    _frozen_design(design),
+                    active_contract,
+                    pdf_fetcher=pdf_fetcher,
+                    pdf_text_extractor=pdf_text_extractor,
+                )
+                if materialization.ineligible_candidates:
+                    raise GoldSampleError(
+                        "legacy design produced unregistered ineligible candidates"
+                    )
+                rows = tuple(materialization.eligible_records)
+            except GoldSampleError as exc:
+                raise HeldoutPredictionError(
+                    "authoritative candidate input materialization failed"
+                ) from exc
+            _create_only_bytes(path, _jsonl_bytes(rows), root)
+        eligible_database_rows = database_rows
+
+    if tuple(int(row["news_item_id"]) for row in rows) != tuple(
+        row.news_item_id for row in eligible_database_rows
+    ):
+        raise HeldoutPredictionError(
+            "eligible candidate inputs differ from the materialization partition"
+        )
+    try:
+        records = _validate_candidate_inputs(
+            design,
+            active_contract,
+            rows,
+            eligible_database_rows,
+        )
+    except GoldSampleError as exc:
+        raise HeldoutPredictionError("candidate input validation failed") from exc
+    if len(records) != len(eligible_database_rows):
+        raise HeldoutPredictionError(
+            "candidate input count differs from the eligible database batch"
+        )
+    return PreparedCandidateArtifact(
+        records=records,
+        eligible_rows=rows,
+        raw_database_rows=database_rows,
+        ineligible_rows=ineligible_rows,
+        ineligible_reason_counts=ineligible_reason_counts,
+        universe=universe,
+        database=database,
+        trading_safety=trading_safety,
+        inputs_path=path,
+        materialization_manifest_path=manifest_path,
+        materialization_manifest=manifest,
+        materialization_manifest_sha256=manifest_sha256,
     )
-    if len(records) != len(database_rows):
-        raise HeldoutPredictionError("candidate input count differs from database batch")
-    return records, rows, universe, database, trading_safety, path
 
 
 def _state_events(path: Path) -> list[JsonObject]:
     if not path.exists() and not path.is_symlink():
         return []
     return _load_jsonl(path, "heldout inference state")
+
+
+def _inference_state_schema(design: EventEvaluationDesign) -> str:
+    return (
+        "p4.2a-heldout-inference-state-v1.2"
+        if design.document.get("schema_version") == "p4.2a-evaluation-design-v1.7"
+        else "p4.2a-heldout-inference-state-v1.1"
+    )
+
+
+def _materialization_binding(
+    prepared: PreparedCandidateArtifact,
+    *,
+    project_root: Path,
+) -> JsonObject | None:
+    manifest = prepared.materialization_manifest
+    path = prepared.materialization_manifest_path
+    digest = prepared.materialization_manifest_sha256
+    if manifest is None and path is None and digest is None:
+        return None
+    if manifest is None or path is None or digest is None or not _valid_sha256(digest):
+        raise HeldoutPredictionError("materialization manifest evidence is incomplete")
+    if path.is_symlink() or not path.is_file() or _sha256_file(path) != digest:
+        raise HeldoutPredictionError("materialization manifest bytes drifted")
+    counts = _mapping(manifest.get("counts"), "materialization manifest counts")
+    reason_counts = _mapping(
+        counts.get("ineligible_by_reason"),
+        "materialization ineligible reason counts",
+    )
+    expected = {
+        "manifest_path": path.relative_to(project_root.resolve()).as_posix(),
+        "manifest_sha256": digest,
+        "raw_candidate_count": len(prepared.raw_database_rows),
+        "eligible_candidate_count": len(prepared.eligible_rows),
+        "ineligible_candidate_count": len(prepared.ineligible_rows),
+        "ineligible_by_reason": dict(reason_counts),
+    }
+    if counts != {
+        "all_candidates": expected["raw_candidate_count"],
+        "eligible_candidates": expected["eligible_candidate_count"],
+        "ineligible_candidates": expected["ineligible_candidate_count"],
+        "ineligible_by_reason": expected["ineligible_by_reason"],
+    }:
+        raise HeldoutPredictionError("materialization manifest counts drifted")
+    return expected
 
 
 def _start_inference_state(
@@ -2744,15 +3115,16 @@ def _aggregate_batch_summaries(
             "heldout batch execution violated one-call, zero-retry coverage"
         )
     failure_reasons: Counter[str] = Counter()
-    validation_failures: Counter[str] = Counter()
+    validation_failures: dict[str, Counter[str]] = {}
     audit_tables = summaries[0].isolated_audit_tables
     for summary in summaries:
         if summary.isolated_audit_tables != audit_tables:
             raise HeldoutPredictionError("heldout batch audit table scope drifted")
         failure_reasons.update(summary.failures_by_reason)
-        validation_failures.update(
-            summary.failures_by_validation_field_and_constraint
-        )
+        for field, constraints in (
+            summary.failures_by_validation_field_and_constraint.items()
+        ):
+            validation_failures.setdefault(field, Counter()).update(constraints)
     return ExtractionSummary(
         expected_count=expected_count,
         success_count=sum(summary.success_count for summary in summaries),
@@ -2765,9 +3137,10 @@ def _aggregate_batch_summaries(
         skipped_failure_count=0,
         output_line_count=summaries[-1].output_line_count,
         failures_by_reason=dict(sorted(failure_reasons.items())),
-        failures_by_validation_field_and_constraint=dict(
-            sorted(validation_failures.items())
-        ),
+        failures_by_validation_field_and_constraint={
+            field: dict(sorted(constraints.items()))
+            for field, constraints in sorted(validation_failures.items())
+        },
         isolated_audit_tables=audit_tables,
         isolated_audit_row_count=sum(
             summary.isolated_audit_row_count for summary in summaries
@@ -2793,6 +3166,7 @@ def _manifest_payload(
     trading_safety: Mapping[str, Any],
     settings_safety: Mapping[str, Any],
     universe_symbols: Collection[str],
+    materialization_binding: Mapping[str, Any] | None,
     now: datetime | None,
 ) -> JsonObject:
     success, positive, failures = _validate_prediction_rows(
@@ -2837,7 +3211,11 @@ def _manifest_payload(
         max_items_per_batch=active_contract.max_items_per_run,
     )
     return {
-        "schema_version": "p4.2a-heldout-candidate-predictions-manifest-v1.1",
+        "schema_version": (
+            "p4.2a-heldout-candidate-predictions-manifest-v1.2"
+            if materialization_binding is not None
+            else "p4.2a-heldout-candidate-predictions-manifest-v1.1"
+        ),
         "generated_at_utc": _utc_now(now),
         "design_sha256": design.sha256,
         "prediction_contract_sha256": active_contract.sha256,
@@ -2845,6 +3223,11 @@ def _manifest_payload(
         "candidate_inputs_sha256": _sha256_file(candidate_inputs_path),
         "candidate_predictions_sha256": _sha256_file(predictions_path),
         "candidate_count": len(candidate_rows),
+        **(
+            {"materialization": dict(materialization_binding)}
+            if materialization_binding is not None
+            else {}
+        ),
         "prediction_attempted_count": len(prediction_rows),
         "prediction_success_count": success,
         "prediction_failure_count": failure_count,
@@ -2941,6 +3324,7 @@ def _validate_started_state(
     candidate_inputs_sha256: str,
     candidate_count: int,
     receipt_sha256: str,
+    materialization_binding: Mapping[str, Any] | None,
 ) -> Mapping[str, Any]:
     if len(events) != 1 or events[0].get("event") != "inference_started":
         raise HeldoutPredictionError(
@@ -2948,7 +3332,8 @@ def _validate_started_state(
         )
     started = events[0]
     if (
-        started.get("design_sha256") != design.sha256
+        started.get("schema_version") != _inference_state_schema(design)
+        or started.get("design_sha256") != design.sha256
         or started.get("contract_sha256") != active_contract.sha256
         or started.get("candidate_inputs_sha256") != candidate_inputs_sha256
         or started.get("candidate_count") != candidate_count
@@ -2956,6 +3341,15 @@ def _validate_started_state(
         or started.get("model_calls_started") != 0
     ):
         raise HeldoutPredictionError("one-shot started event binding drifted")
+    if (
+        started.get("materialization")
+        != (
+            dict(materialization_binding)
+            if materialization_binding is not None
+            else None
+        )
+    ):
+        raise HeldoutPredictionError("one-shot materialization binding drifted")
     _validate_settings_safety_snapshot(
         _mapping(
             started.get("settings_safety"),
@@ -3037,20 +3431,20 @@ def run_heldout_predictions(
     if manifest_path.exists() or manifest_path.is_symlink():
         raise HeldoutPredictionError("create-only heldout prediction manifest already exists")
 
-    (
-        records,
-        candidate_rows,
-        universe,
-        database,
-        trading_safety,
-        candidate_inputs_path,
-    ) = _prepare_or_validate_candidate_artifact(
+    prepared_candidates = _prepare_or_validate_candidate_artifact(
         active_design,
         active_contract,
         root,
         pdf_fetcher=pdf_fetcher,
         pdf_text_extractor=pdf_text_extractor,
+        freeze_receipt_sha256=receipt_sha256,
     )
+    records = prepared_candidates.records
+    candidate_rows = prepared_candidates.eligible_rows
+    universe = prepared_candidates.universe
+    database = prepared_candidates.database
+    trading_safety = prepared_candidates.trading_safety
+    candidate_inputs_path = prepared_candidates.inputs_path
     record_batches = _deterministic_record_batches(
         records,
         active_contract.max_items_per_run,
@@ -3063,12 +3457,17 @@ def run_heldout_predictions(
     if len(prepared) != len(candidate_rows):
         raise HeldoutPredictionError("candidate preparation count drifted")
     candidate_inputs_sha256 = _sha256_file(candidate_inputs_path)
+    materialization_binding = _materialization_binding(
+        prepared_candidates,
+        project_root=root,
+    )
     state_root = _eval_root(active_design, root)
     started_at = _utc_now(now)
     _start_inference_state(
         state_path,
         state_root,
         {
+            "schema_version": _inference_state_schema(active_design),
             "at_utc": started_at,
             "design_sha256": active_design.sha256,
             "contract_sha256": active_contract.sha256,
@@ -3076,6 +3475,11 @@ def run_heldout_predictions(
             "candidate_inputs_sha256": candidate_inputs_sha256,
             "candidate_identity_sha256": _candidate_identity_sha256(candidate_rows),
             "candidate_count": len(candidate_rows),
+            **(
+                {"materialization": materialization_binding}
+                if materialization_binding is not None
+                else {}
+            ),
             "database": {
                 "sqlite_uri_mode": database.sqlite_uri_mode,
                 "pragma_query_only": database.pragma_query_only,
@@ -3133,6 +3537,7 @@ def run_heldout_predictions(
             trading_safety=trading_safety,
             settings_safety=settings_safety,
             universe_symbols=universe,
+            materialization_binding=materialization_binding,
             now=now,
         )
         actual_manifest_path, _ = _write_or_validate_manifest(
@@ -3143,12 +3548,17 @@ def run_heldout_predictions(
         _append_terminal_state(
             state_path,
             {
-                "schema_version": "p4.2a-heldout-inference-state-v1.1",
+                "schema_version": _inference_state_schema(active_design),
                 "event": "inference_completed",
                 "at_utc": _utc_now(),
                 "design_sha256": active_design.sha256,
                 "contract_sha256": active_contract.sha256,
                 "candidate_count": len(candidate_rows),
+                **(
+                    {"materialization": materialization_binding}
+                    if materialization_binding is not None
+                    else {}
+                ),
                 "attempted_count": len(prediction_rows),
                 "success_count": success,
                 "failure_count": len(prediction_rows) - success,
@@ -3166,6 +3576,9 @@ def run_heldout_predictions(
             predictions_path=predictions_path,
             manifest_path=actual_manifest_path,
             state_path=state_path,
+            materialization_manifest_path=(
+                prepared_candidates.materialization_manifest_path
+            ),
             positive_count=positive,
             positive_rate=positive / success if success else 0.0,
         )
@@ -3176,11 +3589,16 @@ def run_heldout_predictions(
             _append_terminal_state(
                 state_path,
                 {
-                    "schema_version": "p4.2a-heldout-inference-state-v1.1",
+                    "schema_version": _inference_state_schema(active_design),
                     "event": "inference_failed",
                     "at_utc": _utc_now(),
                     "design_sha256": active_design.sha256,
                     "contract_sha256": active_contract.sha256,
+                    **(
+                        {"materialization": materialization_binding}
+                        if materialization_binding is not None
+                        else {}
+                    ),
                     "error": _safe_terminal_error(error),
                     "raw_exception_or_payload_persisted": False,
                 },
@@ -3207,11 +3625,6 @@ def finalize_existing_heldout_run(
         active_design,
         root,
     )
-    inputs_path = _artifact_path(
-        active_design,
-        root,
-        "heldout_candidate_inputs_jsonl",
-    )
     predictions_path = _artifact_path(
         active_design,
         root,
@@ -3222,18 +3635,40 @@ def finalize_existing_heldout_run(
         root,
         "heldout_inference_state_jsonl",
     )
-    candidate_rows = _load_jsonl(inputs_path, "heldout candidate inputs")
-    (
-        database_rows,
-        universe,
-        database_evidence,
-        trading_safety,
-    ) = _load_candidate_rows(active_design, active_contract, root)
-    records = _validate_candidate_inputs(
+
+    def forbidden_pdf_fetch(
+        _url: str,
+        _policy: Any,
+    ) -> bytes:
+        raise HeldoutPredictionError(
+            "finalizer cannot fetch or rematerialize candidate inputs"
+        )
+
+    def forbidden_pdf_extract(
+        _payload: bytes,
+        _policy: Any,
+    ) -> Any:
+        raise HeldoutPredictionError(
+            "finalizer cannot extract or rematerialize candidate inputs"
+        )
+
+    prepared_candidates = _prepare_or_validate_candidate_artifact(
         active_design,
         active_contract,
-        candidate_rows,
-        database_rows,
+        root,
+        pdf_fetcher=forbidden_pdf_fetch,
+        pdf_text_extractor=forbidden_pdf_extract,
+        freeze_receipt_sha256=receipt_sha256,
+    )
+    inputs_path = prepared_candidates.inputs_path
+    candidate_rows = prepared_candidates.eligible_rows
+    universe = prepared_candidates.universe
+    database_evidence = prepared_candidates.database
+    trading_safety = prepared_candidates.trading_safety
+    records = prepared_candidates.records
+    materialization_binding = _materialization_binding(
+        prepared_candidates,
+        project_root=root,
     )
     events = _state_events(state_path)
     if len(events) not in {1, 2}:
@@ -3245,6 +3680,7 @@ def finalize_existing_heldout_run(
         candidate_inputs_sha256=_sha256_file(inputs_path),
         candidate_count=len(candidate_rows),
         receipt_sha256=receipt_sha256,
+        materialization_binding=materialization_binding,
     )
     if started.get("candidate_identity_sha256") != _candidate_identity_sha256(candidate_rows):
         raise HeldoutPredictionError("one-shot candidate identity binding drifted")
@@ -3322,6 +3758,7 @@ def finalize_existing_heldout_run(
         trading_safety=trading_safety,
         settings_safety=settings_safety,
         universe_symbols=universe,
+        materialization_binding=materialization_binding,
         now=manifest_time,
     )
     expected_manifest_sha256 = _sha256_bytes(_canonical_json_bytes(manifest))
@@ -3329,6 +3766,7 @@ def finalize_existing_heldout_run(
         terminal = events[1]
         if (
             terminal.get("event") != "inference_completed"
+            or terminal.get("schema_version") != _inference_state_schema(active_design)
             or terminal.get("design_sha256") != active_design.sha256
             or terminal.get("contract_sha256") != active_contract.sha256
             or terminal.get("candidate_count") != len(candidate_rows)
@@ -3337,6 +3775,12 @@ def finalize_existing_heldout_run(
             or terminal.get("failure_count") != len(prediction_rows) - success
             or terminal.get("prediction_manifest_sha256") != expected_manifest_sha256
             or terminal.get("batch_execution") != batch_execution
+            or terminal.get("materialization")
+            != (
+                dict(materialization_binding)
+                if materialization_binding is not None
+                else None
+            )
         ):
             raise HeldoutPredictionError("existing inference terminal state drifted")
         _parse_timestamp(terminal.get("at_utc"), "inference terminal timestamp")
@@ -3349,12 +3793,17 @@ def finalize_existing_heldout_run(
         _append_terminal_state(
             state_path,
             {
-                "schema_version": "p4.2a-heldout-inference-state-v1.1",
+                "schema_version": _inference_state_schema(active_design),
                 "event": "inference_completed",
                 "at_utc": _utc_now(now),
                 "design_sha256": active_design.sha256,
                 "contract_sha256": active_contract.sha256,
                 "candidate_count": len(candidate_rows),
+                **(
+                    {"materialization": materialization_binding}
+                    if materialization_binding is not None
+                    else {}
+                ),
                 "attempted_count": len(prediction_rows),
                 "success_count": success,
                 "failure_count": len(prediction_rows) - success,
@@ -3387,6 +3836,9 @@ def finalize_existing_heldout_run(
         predictions_path=predictions_path,
         manifest_path=manifest_path,
         state_path=state_path,
+        materialization_manifest_path=(
+            prepared_candidates.materialization_manifest_path
+        ),
         positive_count=positive,
         positive_rate=positive / success if success else 0.0,
     )

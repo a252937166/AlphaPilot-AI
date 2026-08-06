@@ -63,6 +63,97 @@ def test_v1_6_design_preregisters_single_flash_selection_round() -> None:
         assert "v1.6" in path
 
 
+def test_v1_7_design_freezes_v1_6_and_adds_only_materialization_eligibility() -> None:
+    previous = load_event_evaluation_design(p4_news_eval.EVALUATION_DESIGN_V1_6_PATH)
+    design = load_event_evaluation_design(p4_news_eval.EVALUATION_DESIGN_V1_7_PATH)
+
+    assert design.sha256 == p4_news_eval.EXPECTED_EVALUATION_DESIGN_V1_7_SHA256
+    assert design.document["schema_version"] == "p4.2a-evaluation-design-v1.7"
+    assert design.prediction_contract == previous.prediction_contract
+    for inherited_name in (
+        "active_prediction_contract",
+        "prediction_contract_freeze",
+        "model_selection",
+        "splits",
+        "evaluation",
+        "heldout_annotation_provenance",
+    ):
+        assert design.document[inherited_name] == previous.document[inherited_name]
+
+    assert design.document["candidate_eligibility"] == {
+        "schema_version": "p4.2a-heldout-candidate-eligibility-v1",
+        "deterministic_document_ineligible_reasons": [
+            "pdf_text_below_min_char_gate",
+            "pdf_exceeds_size_bound",
+        ],
+        "minimum_extracted_characters": 80,
+        "max_pdf_bytes": 8 * 1024 * 1024,
+        "transient_download_failures_fail_closed": True,
+        "sample_only_from_eligible_pool": True,
+        "insufficient_stratum_policy": "fail_without_substitution",
+    }
+
+    rounds = design.document["materialization_rounds"]
+    assert rounds["failed_origin"] == {
+        "round_id": "heldout-v1.6-r1",
+        "status": "materialization_failed_no_inference",
+        "record": {
+            "path": (
+                "docs/phase4/eval/"
+                "P4.2a-heldout-materialization-failure-v1.6-r1.json"
+            ),
+            "sha256": (
+                "e14650690f3a1efbe6b455cc0a2d043c08c296ff88433cf14395f40f001ea6db"
+            ),
+        },
+        "inference_started": False,
+        "model_calls": 0,
+    }
+    successor = rounds["authorized_successor"]
+    assert successor["round_id"] == "heldout-v1.7-r1"
+    assert successor["model"] == "qwen3.7-flash"
+    assert successor["automatic_retries"] == 0
+    assert successor["failed_candidate_retries"] == 0
+    assert successor["prediction_contract"]["sha256"] == (
+        "68474e4bd4fd5c9c88711dd5e102898ad1ed75a0fb984045efbd14e51a6db701"
+    )
+    assert successor["freeze_receipt"]["sha256"] == (
+        "1b2aae88d075dbe1d93660b76f9463f35157f7dbd00a6dc7f73d61370b4231a1"
+    )
+    assert successor["model_selection_outcome"]["sha256"] == (
+        "38f20f4eebe4da1da48fa14d3b09bb2a042d27eed5efc4a533a63718659059e0"
+    )
+    for artifact_name in ("freeze_receipt", "model_selection_outcome"):
+        entry = successor[artifact_name]
+        artifact_bytes = (p4_news_eval.PROJECT_ROOT / entry["path"]).read_bytes()
+        assert hashlib.sha256(artifact_bytes).hexdigest() == entry["sha256"]
+
+    previous_artifacts = previous.document["artifacts"]
+    artifacts = design.document["artifacts"]
+    changed_names = {
+        name
+        for name, entry in artifacts.items()
+        if previous_artifacts.get(name) != entry
+    }
+    assert changed_names == {
+        "heldout_candidate_inputs_jsonl",
+        "heldout_candidate_materialization_manifest_json",
+        "heldout_candidate_predictions_jsonl",
+        "heldout_candidate_predictions_manifest_json",
+        "heldout_inference_state_jsonl",
+        "heldout_selection_manifest_json",
+        "heldout_evaluation_state_jsonl",
+        "heldout_40_blind_sample_jsonl",
+        "heldout_40_owner_annotations_jsonl",
+        "combined_100_annotations_jsonl",
+        "owner_completion_manifest_json",
+        "evaluation_report_directory",
+    }
+    changed_paths = [artifacts[name]["path"] for name in changed_names]
+    assert len(changed_paths) == len(set(changed_paths))
+    assert all("v1.7" in path for path in changed_paths)
+
+
 def test_v1_5_design_binds_candidate_v1_6_and_failed_v1_5_round() -> None:
     previous = load_event_evaluation_design(p4_news_eval.EVALUATION_DESIGN_V1_4_PATH)
     design = load_event_evaluation_design(p4_news_eval.EVALUATION_DESIGN_V1_5_PATH)
