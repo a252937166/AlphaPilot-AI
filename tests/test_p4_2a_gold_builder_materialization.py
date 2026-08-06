@@ -11,7 +11,7 @@ from typing import Any
 import pytest
 from scripts import build_p4_2a_gold_sample as builder
 
-from alphapilot.llm.p4_news_event import EventExtractContract
+from alphapilot.llm.p4_news_event import EventExtractContract, EventExtractValidationError
 
 
 def _sha(value: str) -> str:
@@ -227,6 +227,64 @@ def test_materialization_binding_and_eligible_rows_are_exactly_manifest_bound(
             manifest_sha256=manifest_sha256,
             project_root=tmp_path,
         )
+
+
+def test_over_budget_eligible_pdf_is_prefix_fitted_without_becoming_ineligible(
+    tmp_path: Path,
+) -> None:
+    contract = _active_contract(tmp_path)
+    original_text = "\\" * 14_000
+    text_sha256 = _sha(original_text)
+    record: dict[str, Any] = {
+        "schema_version": "p4.2a-heldout-candidate-input-v1.1",
+        "design_sha256": _sha("evaluation-design"),
+        "contract_sha256": contract.sha256,
+        "model": contract.model,
+        "news_item_id": 1419,
+        "source": "cninfo",
+        "url": "https://static.cninfo.com.cn/finalpage/2026-08-05/1419.PDF",
+        "title": "长公告",
+        "ingested_symbol": "001419",
+        "published_at": "2026-08-05T01:00:00Z",
+        "available_time": "2026-08-05T02:00:00Z",
+        "original_text": original_text,
+        "body_state": "announcement_body",
+        "content_hash": _sha("content-1419"),
+        "text_sha256": text_sha256,
+        "body_evidence": {
+            "required": True,
+            "source": "cninfo_pdf",
+            "url": "https://static.cninfo.com.cn/finalpage/2026-08-05/1419.PDF",
+            "pdf_sha256": _sha("pdf-1419"),
+            "full_text_sha256": text_sha256,
+            "full_text_character_count": len(original_text),
+            "annotation_text_character_count": len(original_text),
+            "body_characters_in_original_text": len(original_text),
+            "text_truncated": False,
+            "pdf_persisted": False,
+        },
+    }
+    with pytest.raises(
+        EventExtractValidationError,
+        match="serialized model input exceeds",
+    ):
+        builder._input_sha256(record, contract)
+
+    fitted, digest = builder._fit_candidate_record_to_input_budget(record, contract)
+
+    assert 80 <= len(str(fitted["original_text"])) < len(original_text)
+    assert fitted["original_text"] == original_text[: len(str(fitted["original_text"]))]
+    assert fitted["text_sha256"] == _sha(str(fitted["original_text"]))
+    assert fitted["body_evidence"]["annotation_text_character_count"] == len(
+        str(fitted["original_text"])
+    )
+    assert fitted["body_evidence"]["body_characters_in_original_text"] == len(
+        str(fitted["original_text"])
+    )
+    assert fitted["body_evidence"]["text_truncated"] is True
+    assert digest == builder._input_sha256(fitted, contract)
+    assert record["original_text"] == original_text
+    assert record["body_evidence"]["text_truncated"] is False
 
 
 def test_inference_started_and_terminal_must_share_exact_materialization_binding(

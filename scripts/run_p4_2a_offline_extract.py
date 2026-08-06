@@ -12,7 +12,7 @@ import tempfile
 from collections import Counter
 from collections.abc import Collection, Iterator, Mapping, Sequence
 from contextlib import contextmanager
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 from time import monotonic_ns
@@ -30,6 +30,7 @@ from alphapilot.llm.p4_news_event import (
     EventExtractContract,
     EventExtractContractError,
     EventExtractValidationError,
+    build_declared_legacy_input_identity,
     build_event_extract_user_input,
     event_extract_input_sha256,
     load_event_extract_contract,
@@ -674,18 +675,8 @@ def _prepare_records(
         if record.declared_input_representation == DECLARED_INPUT_ACTIVE:
             declared_input_sha256 = input_sha256
         elif record.declared_input_representation == DECLARED_INPUT_LEGACY_V1:
-            materialized_schema = contract.materialized_schema
-            if materialized_schema is None:
-                raise OfflineExtractError(
-                    "legacy input identity requires a materialized result schema"
-                )
-            legacy_contract = replace(
+            legacy_user_json = build_declared_legacy_input_identity(
                 contract,
-                schema=materialized_schema,
-                evidence_candidate_selection=False,
-            )
-            legacy_user_json = build_event_extract_user_input(
-                legacy_contract,
                 news_item_id=record.news_item_id,
                 source=record.source,
                 ingested_symbol=record.ingested_symbol,

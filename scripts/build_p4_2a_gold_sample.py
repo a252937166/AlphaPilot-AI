@@ -12,7 +12,7 @@ import sys
 import tempfile
 from collections.abc import Callable, Iterator, Mapping, Sequence
 from contextlib import contextmanager
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Any
@@ -31,6 +31,8 @@ from alphapilot.llm.p4_news_eval import (
 from alphapilot.llm.p4_news_event import (
     EXACT_EVIDENCE_SPAN_MATCH_MODE,
     EventExtractContract,
+    EventExtractValidationError,
+    build_declared_legacy_input_identity,
     build_event_extract_user_input,
     event_extract_input_sha256,
     load_event_extract_contract,
@@ -1342,17 +1344,23 @@ def _declared_input_sha256(
 
     if not event_contract.evidence_candidate_selection:
         return _input_sha256(record, event_contract)
-    materialized_schema = event_contract.materialized_schema
-    if materialized_schema is None:
-        raise GoldSampleError(
-            "candidate selector contract lacks a materialized result schema"
-        )
-    legacy_contract = replace(
+    user_json = build_declared_legacy_input_identity(
         event_contract,
-        schema=materialized_schema,
-        evidence_candidate_selection=False,
+        news_item_id=_positive_integer(
+            record.get("news_item_id"), label="gold record news_item_id"
+        ),
+        source=_record_string(record, "source"),
+        ingested_symbol=_record_optional_string(record, "ingested_symbol"),
+        title=_record_string(record, "title"),
+        original_text=_record_string(record, "original_text"),
+        published_at=_record_optional_string(record, "published_at"),
+        available_time=_record_string(record, "available_time"),
+        body_state=_record_string(record, "body_state"),
     )
-    return _input_sha256(record, legacy_contract)
+    digest = event_extract_input_sha256(user_json)
+    if not isinstance(digest, str) or SHA256_PATTERN.fullmatch(digest) is None:
+        raise GoldSampleError("declared event-extract input hash is invalid")
+    return digest
 
 
 def compute_input_sha256(record: Mapping[str, object], contract_path: Path = DEFAULT_CONFIG) -> str:
@@ -2811,13 +2819,82 @@ def _candidate_input_from_row(
         "text_sha256": _sha256_bytes(original_text.encode("utf-8")),
         "body_evidence": body_evidence,
     }
-    record["input_sha256"] = _input_sha256(record, active_contract)
+    record, active_input_sha256 = _fit_candidate_record_to_input_budget(
+        record,
+        active_contract,
+    )
+    record["input_sha256"] = active_input_sha256
     if active_contract.evidence_candidate_selection:
         declared_input_sha256 = _declared_input_sha256(record, active_contract)
         if declared_input_sha256 == record["input_sha256"]:
             raise GoldSampleError("candidate selector input identities must be distinct")
         record["declared_input_sha256"] = declared_input_sha256
     return record
+
+
+def _fit_candidate_record_to_input_budget(
+    record: JsonObject,
+    active_contract: EventExtractContract,
+) -> tuple[JsonObject, str]:
+    """Shorten only an over-budget body prefix while preserving frozen semantics.
+
+    The announcement contract already defines both a maximum body prefix and a
+    stricter serialized model-input ceiling. Candidate metadata adds bounded
+    overhead, so a small number of otherwise eligible long PDFs need a shorter
+    prefix to satisfy the latter. This is not an ineligibility reason and never
+    changes the selector algorithm, fields, or input-character budget.
+    """
+
+    try:
+        return record, _input_sha256(record, active_contract)
+    except EventExtractValidationError as exc:
+        if (
+            not active_contract.evidence_candidate_selection
+            or exc.field != "result"
+            or exc.constraint != "serialized_input_character_budget"
+            or record.get("source") != "cninfo"
+        ):
+            raise
+
+    original_text = _record_string(record, "original_text")
+    body_evidence = _mapping(
+        record.get("body_evidence"),
+        label="candidate budget body_evidence",
+    )
+    if body_evidence.get("required") is not True:
+        raise GoldSampleError("over-budget candidate lacks required body evidence")
+    full_count = body_evidence.get("full_text_character_count")
+    if isinstance(full_count, bool) or not isinstance(full_count, int):
+        raise GoldSampleError("over-budget candidate full-text count is invalid")
+
+    candidate_text = original_text
+    while candidate_text:
+        candidate_text = candidate_text[:-1].rstrip()
+        if not candidate_text:
+            break
+        candidate = copy.deepcopy(record)
+        candidate["original_text"] = candidate_text
+        candidate["text_sha256"] = _sha256_bytes(candidate_text.encode("utf-8"))
+        candidate_evidence = _mapping(
+            candidate.get("body_evidence"),
+            label="candidate budget body_evidence",
+        )
+        candidate_evidence["annotation_text_character_count"] = len(candidate_text)
+        candidate_evidence["body_characters_in_original_text"] = len(candidate_text)
+        candidate_evidence["text_truncated"] = full_count > len(candidate_text)
+        candidate["body_evidence"] = candidate_evidence
+        try:
+            digest = _input_sha256(candidate, active_contract)
+        except EventExtractValidationError as exc:
+            if (
+                exc.field == "result"
+                and exc.constraint == "serialized_input_character_budget"
+            ):
+                continue
+            raise
+        validate_body_evidence(candidate, label="budget-fitted candidate input")
+        return candidate, digest
+    raise GoldSampleError("eligible candidate cannot fit the serialized input budget")
 
 
 def validate_heldout_candidate_inputs(
