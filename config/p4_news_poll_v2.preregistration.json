@@ -1,0 +1,32 @@
+{
+  "schema_version": "p4.1-news-poll-v2-preregistration-v1",
+  "created_at": "2026-08-06T09:19:33Z",
+  "implementation_status": "preregistered_not_implemented",
+  "config_path": "config/p4_news_poll_v2.yaml",
+  "config_sha256": "a76a1cd9f1afd021de4d343a6550a1eb05ddad1b14d8d39cbaae2659574a5834",
+  "superseded_v1_config_sha256": "d0dcd665472b50092a1b4fa7f65f7115778e1b89ac11aca0ed49dc70beaa790b",
+  "immutable_v1_red_report": {
+    "path": "docs/phase4/reports/P4.1-news-acceptance-20260805.json",
+    "sha256": "268854fbc4fdd9dfb98d1a5e48999b06070b3ad85c6abe2e190effd0f69fede6",
+    "all_pass": false
+  },
+  "implementation_order": [
+    "cninfo_per_column_verified_watermark",
+    "cninfo_flood_capacity_budget",
+    "jobrun_terminal_status_tiers",
+    "cninfo_shanghai_query_calendar",
+    "ths_logical_and_physical_request_budgets",
+    "monday_host_gap_and_recovery_catchup"
+  ],
+  "observation_dates_shanghai": [
+    "2026-08-10",
+    "2026-08-11",
+    "2026-08-12"
+  ],
+  "final_report_ready_at": "2026-08-13T00:10:00+08:00",
+  "phase_locks": {
+    "p4_2a_offline_evaluation_unlocked": true,
+    "p4_2b_production_wiring_unlocked": false,
+    "p4_3_unlocked": false
+  }
+}

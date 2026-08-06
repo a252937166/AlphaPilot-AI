@@ -1,0 +1,398 @@
+schema_version: p4.1-news-poll-v2
+phase_baseline_commit: e288be683deef67891ebea0b37b508f4eb59b37c
+v2_adjudication_commit: 3e21bff982156ef973c2e5badfe39b06d9596237
+pre_registered_at: "2026-08-06T09:19:33Z"
+implementation_status: preregistered_not_implemented
+
+superseded_v1:
+  config: config/p4_news_poll_v1.yaml
+  config_sha256: d0dcd665472b50092a1b4fa7f65f7115778e1b89ac11aca0ed49dc70beaa790b
+  final_report: docs/phase4/reports/P4.1-news-acceptance-20260805.json
+  final_report_sha256: 268854fbc4fdd9dfb98d1a5e48999b06070b3ad85c6abe2e190effd0f69fede6
+  final_result: all_pass_false_immutable
+  rerun_or_overwrite_to_make_v1_green: forbidden
+
+remediation:
+  implementation_order_is_mandatory: true
+  implementation_order:
+    - cninfo_per_column_verified_watermark
+    - cninfo_flood_capacity_budget
+    - jobrun_terminal_status_tiers
+    - cninfo_shanghai_query_calendar
+    - ths_logical_and_physical_request_budgets
+    - monday_host_gap_and_recovery_catchup
+  changing_order_or_parameters_requires_new_config_version: true
+
+source_spike:
+  report: docs/phase4/reports/P4.1-source-spike-20260802.json
+  report_sha256: 58a28066c3c6489cd687fb217de6df78cec0a7d9f7078bccf17637081a216316
+  review: docs/phase4/reports/P4.1-source-spike-20260802.review.json
+  review_sha256: b2e9fb3b35c4fa69716fb0e4e9dc8237240d960e52183c9cd72ca4cf470cbc4d
+  approval_commit: 345199fe9b1403f933b4186d6f396b3abad57b09
+
+schedule:
+  timezone: Asia/Shanghai
+  scheduler_tick_minutes: 10
+  off_session_poll_minutes: 30
+  trading_sessions:
+    - start: "09:30"
+      end: "11:30"
+    - start: "13:00"
+      end: "15:00"
+  slot_tolerance_seconds: 180
+  normal_cadence_policy: every_30_minutes_all_day_plus_every_10_minutes_during_trading_sessions
+  monday_host_gap_policy:
+    applies_on_day_of_week: monday
+    owner_confirmed_periodic_host_unavailability: true
+    intentionally_suppressed_slots_shanghai: ["09:00", "09:30", "09:40"]
+    recovery_catchup_slot_shanghai: "09:50"
+    recovery_catchup_run_mode: coverage_gap_catchup
+    recovery_catchup_range_start: per_column_verified_watermark_minus_overlap
+    recovery_catchup_range_end: actual_poll_started_at
+    missing_suppressed_slots_are_not_expected_slots: true
+    catchup_available_time_policy: actual_write_locked_ingestion_time_utc
+    published_at_must_not_replace_available_time: true
+    catchup_restores_completeness_not_timeliness: true
+    downstream_coverage_marker: preceded_by_coverage_gap
+  trading_date_basis:
+    source: Shanghai Stock Exchange
+    notice: 上证公告〔2025〕45号
+    url: https://www.sse.com.cn/disclosure/announcement/general/c/c_20251222_10802507.shtml
+    verified_at: "2026-08-06T09:27:21Z"
+    verification_scope: official_2026_exchange_holiday_notice
+    verified_open_dates: ["2026-08-10", "2026-08-11", "2026-08-12"]
+    conclusion: 2026-08-10_to_2026-08-12_are_consecutive_exchange_trading_days
+
+runtime:
+  scheduler_enabled_env: ALPHAPILOT_NEWS_POLL_ENABLED
+  scheduler_enabled_default: false
+  dedicated_scheduler_launchd_value: true
+  v2_activation_before_implementation_and_review: false
+
+network:
+  trust_env: false
+  connect_timeout_seconds: 3.0
+  read_timeout_seconds: 8.0
+  write_timeout_seconds: 8.0
+  pool_timeout_seconds: 3.0
+  max_attempts_per_logical_request: 2
+  retry_backoff_seconds: [1.0]
+  user_agent: "AlphaPilotAI/0.4 P4.1 news-poll-v2"
+  budget_semantics:
+    logical_request_count: increments_once_when_a_new_page_or_endpoint_operation_starts
+    physical_attempt_count: increments_once_immediately_before_each_outbound_http_attempt
+    retry_count: physical_attempt_count_minus_logical_request_count
+    retry_counts_against_logical_budget: false
+    retry_counts_against_physical_budget: true
+    logical_budget_error_code: logical_request_budget_exhausted
+    physical_budget_retry_suppression_code: retry_suppressed_physical_attempt_budget
+    preserve_original_transport_or_http_error_when_retry_is_suppressed: true
+    never_replace_upstream_error_with_budget_error_after_a_sent_attempt: true
+
+sources:
+  cninfo:
+    enabled: true
+    audited: true
+    role: critical_primary
+    critical: true
+    upstream: www.cninfo.com.cn
+    verify_tls: true
+    require_https: true
+    allowed_hosts: [www.cninfo.com.cn]
+    announcements_url: https://www.cninfo.com.cn/new/hisAnnouncement/query
+    static_url_prefix: https://static.cninfo.com.cn/
+    columns: [sse, szse]
+    page_size: 30
+    max_pages_per_column: 40
+    max_logical_requests_per_run: 80
+    max_physical_attempts_per_run: 160
+    max_attempts_per_logical_request: 2
+    min_interval_seconds: 1.0
+    retry_backoff_seconds: [1.0]
+    bootstrap_lookback_minutes: 120
+    watermark_overlap_minutes: 30
+    flood_capacity_contract:
+      measured_single_day_rows: 973
+      measured_single_batch_rows: 815
+      configured_rows_per_column: 1200
+      configured_rows_all_columns: 2400
+      minimum_headroom_over_measured_single_batch: 1.47
+      minimum_headroom_over_measured_single_day_total: 2.46
+      capacity_formula: page_size_times_max_pages_per_column_times_column_count
+      page_or_request_cap_hit_must_not_be_reported_as_empty: true
+    query_window:
+      timezone: Asia/Shanghai
+      query_start_date_expression: verified_watermark_floor_utc.astimezone(Asia/Shanghai).date()
+      query_end_date_expression: poll_started_at_utc.astimezone(Asia/Shanghai).date()
+      utc_now_date_expression_forbidden: true
+      start_and_end_are_inclusive: true
+      observation_trade_dates_must_be_exchange_open_dates: true
+      stats_fields:
+        - query_start_date_shanghai
+        - query_end_date_shanghai
+        - market_date_at_poll
+        - poll_started_at_utc
+    watermark:
+      scope: per_column
+      columns: [sse, szse]
+      legacy_global_watermark_read_only_for_initial_migration: true
+      checkpoint_lookup_job_statuses: [ok, degraded]
+      checkpoint_lookup_requires_column_checkpoint_committed: true
+      prior_checkpoint_field: verified_watermark_before_utc
+      floor_field: verified_watermark_floor_utc
+      observed_high_field: newest_observed_at_utc
+      committed_checkpoint_field: verified_watermark_after_utc
+      complete_field: pagination_complete
+      committed_field: checkpoint_committed
+      page_cap_hit_field: page_cap_hit
+      complete_column_advancement: newest_observed_at_utc
+      incomplete_column_advancement: unchanged
+      completed_columns_advance_independently: true
+      candidates_from_incomplete_columns_are_persisted_with_normal_deduplication: true
+      candidate_persistence_does_not_imply_checkpoint_advancement: true
+      one_incomplete_column_must_not_prevent_other_columns_from_running: true
+      checkpoint_time_must_not_exceed_newest_observed_at: true
+      failed_jobrun_never_supplies_checkpoint: true
+  sina_company_news:
+    enabled: true
+    audited: true
+    role: primary
+    critical: false
+    upstream: vip.stock.finance.sina.com.cn
+    verify_tls: true
+    require_https: true
+    allowed_hosts: [vip.stock.finance.sina.com.cn]
+    page_url_template: https://vip.stock.finance.sina.com.cn/corp/go.php/vCB_AllNewsStock/symbol/{market_symbol}.phtml
+    required_container_class: datelist
+    minimum_title_length: 6
+    max_symbols_per_run: 10
+    max_logical_requests_per_run: 20
+    max_physical_attempts_per_run: 40
+    max_attempts_per_logical_request: 2
+    min_interval_seconds: 0.75
+    retry_backoff_seconds: [1.0]
+    symbol_policy: explicit_unique_code_or_company_name_else_null
+    published_at_nullable: true
+  akshare_ths:
+    enabled: true
+    audited: true
+    role: primary
+    critical: false
+    upstream: news.10jqka.com.cn
+    verify_tls: true
+    require_https: true
+    allowed_hosts: [news.10jqka.com.cn]
+    url: https://news.10jqka.com.cn/tapp/news/push/stock
+    page_parameter: page
+    first_page: 1
+    max_pages_per_run: 3
+    max_logical_requests_per_run: 3
+    max_physical_attempts_per_run: 6
+    max_attempts_per_logical_request: 2
+    min_interval_seconds: 0.75
+    retry_backoff_seconds: [1.0]
+    pagination_stop_condition: empty_page_or_no_new_item_older_than_catchup_floor
+    catchup_floor: last_successful_item_published_at_minus_overlap
+    original_error_must_survive_retry_budget_exhaustion: true
+    retry_budget_exhaustion_is_not_upstream_rate_limit_or_blacklist: true
+  akshare_cls:
+    enabled: false
+    audited: false
+    role: excluded
+    critical: false
+    upstream: www.cls.cn
+    frozen_status: unavailable
+    reason: spike_http_404_frozen_unavailable
+    max_logical_requests_per_run: 0
+    max_physical_attempts_per_run: 0
+    max_attempts_per_logical_request: 0
+    retry_backoff_seconds: []
+    may_enter_news_pool: false
+  akshare_caixin:
+    enabled: false
+    audited: false
+    role: excluded
+    critical: false
+    upstream: cxdata.caixin.com
+    frozen_status: excluded_missing_native_title
+    reason: spike_exposed_summary_and_url_without_native_title
+    max_logical_requests_per_run: 0
+    max_physical_attempts_per_run: 0
+    max_attempts_per_logical_request: 0
+    retry_backoff_seconds: []
+    may_enter_news_pool: false
+  futu_auxiliary:
+    enabled: false
+    audited: false
+    role: auxiliary_signal_pending
+    critical: false
+    upstream: local_futu_opend
+    frozen_status: pending_trading_day_latency_retest
+    reason: trading_day_push_latency_not_yet_accepted
+    max_logical_requests_per_run: 0
+    max_physical_attempts_per_run: 0
+    max_attempts_per_logical_request: 0
+    allowed_quote_methods: []
+    allowed_trade_methods: []
+    may_enter_news_pool: false
+    activation_requires_new_config_version: true
+    activation_requires_architecture_review: true
+
+provenance:
+  audited_news_sources: [akshare_ths, cninfo, sina_company_news]
+  symbol_nullable: true
+  symbol_policy: explicit_unique_code_or_company_name_else_null
+  page_context_alone_proves_symbol: false
+  published_at_nullable: true
+  published_at_must_not_copy_available_time: true
+  available_time_policy: write_locked_immediately_before_flush_utc
+  decision_visibility_operator: "<"
+  catchup_rows_keep_actual_available_time: true
+  late_event_policy: completeness_restored_timeliness_not_restored
+  raw_payload_audit_key: _alphapilot_ingestion
+  raw_payload_audit_fields:
+    - job_run_id
+    - run_mode
+    - fetched_at_utc
+    - write_lock_acquired_at_utc
+    - available_time_assigned_at_utc
+    - available_time_basis
+    - preceded_by_coverage_gap
+  jobrun_write_audit_fields:
+    - db_write_lock_acquired_at
+    - db_flush_completed_at
+    - db_commit_completed_at
+
+deduplication:
+  contract_version: news-dedupe-v1
+  url_unique: true
+  content_hash_unique: true
+  duplicate_counter_policy: mutually_exclusive_url_precedence
+  unicode_normalization: NFKC
+  collapse_whitespace: true
+  content_hash_algorithm: sha256
+  content_hash_fields:
+    - symbol_or_global
+    - normalized_title
+    - normalized_body_or_summary
+    - published_at_shanghai_date_or_unknown
+  preserve_first_available_time_on_replay: true
+
+jobrun_contract:
+  job_name: news_poll
+  terminal_statuses: [ok, degraded, failed]
+  status_semantics:
+    ok:
+      meaning: critical_coverage_complete_and_safety_unchanged
+      noncritical_source_failures_remain_in_source_stats: true
+      noncritical_source_failures_change_top_level_status: false
+      error_must_be_null: true
+    degraded:
+      meaning: useful_rows_and_verified_checkpoints_committed_but_critical_coverage_remains_incomplete
+      permitted_causes:
+        - cninfo_column_pagination_incomplete
+        - recovery_catchup_incomplete
+      error_column: null
+      terminal: true
+      accepted_as_operational_success: false
+    failed:
+      meaning: critical_transport_tls_auth_schema_persistence_or_safety_failure
+      error_column: bounded_exception_summary
+      terminal: true
+      may_supply_watermark_checkpoint: false
+  terminal_diagnostics_contract:
+    location: stats.terminal_diagnostics
+    ok_value: null
+    required_for_statuses: [degraded, failed]
+    required_fields: [code, source, constraint]
+    optional_fields: [recoverable, retry_suppressed, message]
+    raw_payload_forbidden: true
+    secrets_forbidden: true
+  required_top_level_stats:
+    - config_sha256
+    - poll_started_at
+    - poll_completed_at
+    - run_mode
+    - coverage_gap
+    - safety_unchanged
+    - sources
+    - terminal_diagnostics
+  required_source_stats:
+    - logical_request_count
+    - physical_attempt_count
+    - retry_count
+    - fetched
+    - inserted
+    - duplicate_url
+    - duplicate_content_hash
+    - failure_count
+    - status
+  cninfo_required_column_stats:
+    - verified_watermark_before_utc
+    - verified_watermark_floor_utc
+    - newest_observed_at_utc
+    - verified_watermark_after_utc
+    - pagination_complete
+    - checkpoint_committed
+    - page_cap_hit
+  failures_must_be_explicit: true
+  original_network_failure_must_not_be_overwritten_by_retry_budget: true
+  fatal_failures_must_raise_job_execution_error_with_stats: true
+
+acceptance:
+  trading_dates:
+    - "2026-08-10"
+    - "2026-08-11"
+    - "2026-08-12"
+  expected_poll_slots_by_trading_date:
+    "2026-08-10": 61
+    "2026-08-11": 64
+    "2026-08-12": 64
+  expected_poll_slots_total: 189
+  require_every_expected_slot: true
+  require_every_matched_slot_status_ok: true
+  degraded_slot_fails_operational_gate: true
+  allow_unexpected_extra_poll_runs: false
+  daily_report_ready_after_next_day: "00:10"
+  final_report_ready_at: "2026-08-13T00:10:00+08:00"
+  daily_report_template: docs/phase4/reports/P4.1-news-v2-day-{date_compact}.json
+  final_report: docs/phase4/reports/P4.1-news-v2-acceptance-20260812.json
+  reports_are_create_only: true
+  prior_v1_reports_must_not_be_modified: true
+  require_url_duplicate_groups_zero: true
+  require_content_hash_duplicate_groups_zero: true
+  require_available_time_coverage: 1.0
+  require_news_items_each_trading_date: true
+  require_cninfo_inserted_each_trading_date: true
+  require_jobrun_inserted_count_matches_database: true
+  require_pit_ordering: true
+  require_failure_accounting: true
+  require_root_cause_accounting_complete: true
+  require_disabled_source_zero_requests: true
+  require_cninfo_tls_verification: true
+  require_cninfo_query_end_date_matches_shanghai_market_date: true
+  require_cninfo_per_column_checkpoint_contract: true
+  require_logical_and_physical_request_accounting: true
+  require_no_trade_rows_created_during_window: true
+  require_non_simulate_broker_orders_zero: true
+  require_safety_unchanged: true
+  observation_start_utc: "2026-08-09T16:00:00Z"
+  observation_end_utc: "2026-08-12T16:00:00Z"
+
+safety:
+  required_trading_mode: research
+  required_live_trading_enabled: false
+  required_paper_auto_trading_enabled: false
+  required_futu_account_mutation_enabled: false
+  required_unlock_trade_blocked: true
+  allow_trade_proposal_creation: false
+  allow_broker_order_creation: false
+  existing_broker_orders_must_all_be_simulate: true
+
+phase_gate:
+  p4_1_v2_done_before_three_day_acceptance: false
+  p4_2a_offline_evaluation_unlocked: true
+  p4_2b_production_wiring_unlocked: false
+  p4_3_unlocked: false
+  requires_independent_architecture_review: true
+  implementation_and_observation_must_use_this_exact_config_sha256: true
