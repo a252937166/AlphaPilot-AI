@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+import shutil
 import sqlite3
 from collections.abc import Callable, Mapping
 from dataclasses import replace
@@ -275,6 +276,70 @@ def _v17_fixture_root(tmp_path: Path) -> EventEvaluationDesign:
     return design
 
 
+def _materialization_successor_fixture_root(
+    tmp_path: Path,
+    *,
+    raw_candidate_count: int = 42,
+) -> EventEvaluationDesign:
+    shutil.copytree(runner.PROJECT_ROOT / "config", tmp_path / "config")
+    shutil.copytree(
+        runner.PROJECT_ROOT / "docs/phase4/eval",
+        tmp_path / "docs/phase4/eval",
+    )
+    _create_database(tmp_path)
+    if raw_candidate_count < 40:
+        raise AssertionError("fixture raw candidate count must be at least 40")
+    with sqlite3.connect(tmp_path / "data/alphapilot.db") as connection:
+        connection.execute(
+            """
+            UPDATE news_items
+               SET source = 'cninfo',
+                   url = 'https://static.cninfo.com.cn/finalpage/2026-08-04/425.pdf'
+             WHERE id = 425
+            """
+        )
+        for identifier in range(464, 424 + raw_candidate_count):
+            url = f"https://news.example.test/{identifier}"
+            title = f"600519 第{identifier}号公告"
+            connection.execute(
+                """
+                INSERT INTO news_items(
+                    id, source, symbol, title, url, published_at, available_time,
+                    content_hash, raw_payload
+                ) VALUES (?, 'akshare_ths', '600519', ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    identifier,
+                    title,
+                    url,
+                    "2026-08-05 00:59:00",
+                    "2026-08-05 01:00:00",
+                    hashlib.sha256(f"{identifier}:{url}".encode()).hexdigest(),
+                    json.dumps(
+                        {"digest": f"{title} 摘要", "short": f"{title} 摘要"},
+                        ensure_ascii=False,
+                    ),
+                ),
+            )
+    return load_event_evaluation_design(
+        tmp_path / "config/p4_event_evaluation_v1_7.yaml",
+        project_root=tmp_path,
+    )
+
+
+def _materialization_successor_settings() -> Settings:
+    return Settings(
+        trading_mode="research",
+        live_trading_enabled=False,
+        paper_auto_trading_enabled=False,
+        futu_enable_account_mutation=False,
+        futu_enable_trade=False,
+        llm_base_url="https://dashscope.aliyuncs.com/compatible-mode/v1",
+        llm_api_key="test-only-key",
+        llm_model="qwen3.7-flash",
+    )
+
+
 def _write_v17_selection_outcome(
     root: Path,
     design: EventEvaluationDesign,
@@ -474,12 +539,13 @@ def _record_audit(
     *,
     ok: bool,
     error: str | None,
+    model: str = "qwen3.6-flash",
 ) -> None:
     assert session is not None
     session.add(
         LLMCall(
             purpose="p4_news_event_extract",
-            model="qwen3.6-flash",
+            model=model,
             latency_ms=1,
             ok=ok,
             prompt_tokens=12,
@@ -520,9 +586,14 @@ def _fake_chat(
             before_call(identifier)
         calls.append(identifier)
         if identifier == failed_id:
-            _record_audit(session, ok=False, error="request_timeout")
+            _record_audit(
+                session,
+                ok=False,
+                error="request_timeout",
+                model=settings.llm_model,
+            )
             raise LLMUnavailable("provider secret and raw response must not persist")
-        _record_audit(session, ok=True, error=None)
+        _record_audit(session, ok=True, error=None, model=settings.llm_model)
         if predictions_by_id is not None:
             prediction = dict(predictions_by_id[identifier])
             prediction["summary"] = "开发集预测与冻结的 AI 开发信号一致。"
@@ -535,6 +606,43 @@ def _fake_chat(
             "summary": "公告内容已完成结构化抽取。",
             "confidence": 0.8,
             "evidence_span": str(payload["original_text"])[:8],
+        }
+
+    return fake
+
+
+def _fake_candidate_selector_chat(
+    calls: list[int],
+) -> Callable[..., dict[str, Any]]:
+    def fake(
+        _purpose: str,
+        _system: str,
+        user: str,
+        _schema: dict[str, Any],
+        *,
+        timeout: float | None = None,
+        max_tokens: int | None = None,
+        max_retries: int = 1,
+        settings: Settings | None = None,
+        session: Session | None = None,
+    ) -> dict[str, Any]:
+        assert timeout == 20.0
+        assert max_tokens == 2_000
+        assert max_retries == 0
+        assert settings is not None
+        payload = json.loads(user)
+        identifier = int(payload["news_item_id"])
+        candidates = cast(list[list[object]], payload["evidence_candidates"])
+        calls.append(identifier)
+        _record_audit(session, ok=True, error=None, model=settings.llm_model)
+        return {
+            "symbols": ["600519"],
+            "event_type": "other",
+            "direction": 0,
+            "materiality": 2 if identifier % 2 == 0 else 1,
+            "summary": "公告内容已完成结构化抽取。",
+            "confidence": 0.8,
+            "evidence_candidate_id": candidates[0][0],
         }
 
     return fake
@@ -2048,3 +2156,195 @@ def test_terminal_recovery_requires_complete_output_and_calls_no_model(
     assert state[-1]["prediction_manifest_sha256"] == hashlib.sha256(manifest_before).hexdigest()
     assert manifest_path.read_bytes() == manifest_before
     assert not hasattr(runner.finalize_existing_heldout_run, "chat_json_fn")
+
+
+def test_materialization_successor_freezes_partition_then_runs_only_eligible_pool(
+    tmp_path: Path,
+) -> None:
+    design = _materialization_successor_fixture_root(tmp_path)
+    _receipt, receipt_sha256, active_contract = (
+        runner.validate_prediction_contract_freeze(design, tmp_path)
+    )
+    fetches: list[str] = []
+    short_pdf = b"%PDF-short-scan"
+    oversized_pdf = b"%PDF-" + (b"x" * (8 * 1024 * 1024))
+
+    def fetch(url: str, _policy: AnnouncementBodyPolicy) -> bytes:
+        fetches.append(url)
+        if url.endswith("/424.pdf"):
+            return short_pdf
+        if url.endswith("/425.pdf"):
+            return oversized_pdf
+        raise AssertionError(f"unexpected PDF fetch {url}")
+
+    def extract(
+        payload: bytes,
+        _policy: AnnouncementBodyPolicy,
+    ) -> ExtractedPdfText:
+        assert payload == short_pdf
+        return extracted_pdf_text_fixture("扫描件")
+
+    prepared = runner._prepare_or_validate_candidate_artifact(
+        design,
+        active_contract,
+        tmp_path,
+        pdf_fetcher=fetch,
+        pdf_text_extractor=extract,
+        freeze_receipt_sha256=receipt_sha256,
+    )
+    assert len(fetches) == 2
+    assert len(prepared.raw_database_rows) == 42
+    assert len(prepared.eligible_rows) == 40
+    assert [int(row["news_item_id"]) for row in prepared.ineligible_rows] == [424, 425]
+    assert prepared.ineligible_reason_counts == {
+        "pdf_exceeds_size_bound": 1,
+        "pdf_text_below_min_char_gate": 1,
+    }
+    assert prepared.materialization_manifest_path is not None
+    assert prepared.inputs_path.parent == prepared.materialization_manifest_path.parent
+
+    def forbidden_refetch(
+        _url: str,
+        _policy: AnnouncementBodyPolicy,
+    ) -> bytes:
+        raise AssertionError("frozen materialization bundle must prevent a refetch")
+
+    calls: list[int] = []
+    result = runner.run_heldout_predictions(
+        project_root=tmp_path,
+        design=design,
+        settings=_materialization_successor_settings(),
+        now=READY,
+        pdf_fetcher=forbidden_refetch,
+        pdf_text_extractor=extract,
+        chat_json_fn=_fake_candidate_selector_chat(calls),
+    )
+
+    assert calls == list(range(426, 466))
+    assert result.summary.expected_count == 40
+    assert result.summary.success_count == 40
+    assert result.materialization_manifest_path == prepared.materialization_manifest_path
+    materialization_sha256 = hashlib.sha256(
+        prepared.materialization_manifest_path.read_bytes()
+    ).hexdigest()
+    prediction_manifest = json.loads(result.manifest_path.read_text(encoding="utf-8"))
+    assert prediction_manifest["schema_version"] == (
+        "p4.2a-heldout-candidate-predictions-manifest-v1.2"
+    )
+    assert prediction_manifest["materialization"] == {
+        "manifest_path": (
+            "docs/phase4/eval/P4.2a-heldout-materialization-v1.7/manifest.json"
+        ),
+        "manifest_sha256": materialization_sha256,
+        "raw_candidate_count": 42,
+        "eligible_candidate_count": 40,
+        "ineligible_candidate_count": 2,
+        "ineligible_by_reason": {
+            "pdf_exceeds_size_bound": 1,
+            "pdf_text_below_min_char_gate": 1,
+        },
+    }
+    state = [
+        json.loads(line)
+        for line in result.state_path.read_text(encoding="utf-8").splitlines()
+    ]
+    assert [item["schema_version"] for item in state] == [
+        "p4.2a-heldout-inference-state-v1.2",
+        "p4.2a-heldout-inference-state-v1.2",
+    ]
+    assert state[0]["materialization"] == prediction_manifest["materialization"]
+    assert state[1]["materialization"] == prediction_manifest["materialization"]
+    assert {424, 425}.isdisjoint(calls)
+
+
+def test_materialization_successor_transient_failure_leaves_zero_artifacts_or_state(
+    tmp_path: Path,
+) -> None:
+    design = _materialization_successor_fixture_root(tmp_path)
+    _receipt, receipt_sha256, active_contract = (
+        runner.validate_prediction_contract_freeze(design, tmp_path)
+    )
+
+    def transient_fetch(
+        _url: str,
+        _policy: AnnouncementBodyPolicy,
+    ) -> bytes:
+        raise runner.GoldSampleError("CNInfo PDF download failed: ConnectError")
+
+    with pytest.raises(runner.HeldoutPredictionError, match="materialization failed"):
+        runner._prepare_or_validate_candidate_artifact(
+            design,
+            active_contract,
+            tmp_path,
+            pdf_fetcher=transient_fetch,
+            pdf_text_extractor=_pdf_text_extractor,
+            freeze_receipt_sha256=receipt_sha256,
+        )
+
+    inputs = _artifact(tmp_path, design, "heldout_candidate_inputs_jsonl")
+    manifest = _artifact(
+        tmp_path,
+        design,
+        "heldout_candidate_materialization_manifest_json",
+    )
+    state = _artifact(tmp_path, design, "heldout_inference_state_jsonl")
+    assert not inputs.exists()
+    assert not manifest.exists()
+    assert not inputs.parent.exists()
+    assert not state.exists()
+
+
+def test_materialization_successor_rejects_half_bundle_without_refetch(
+    tmp_path: Path,
+) -> None:
+    design = _materialization_successor_fixture_root(tmp_path)
+    _receipt, receipt_sha256, active_contract = (
+        runner.validate_prediction_contract_freeze(design, tmp_path)
+    )
+    inputs = _artifact(tmp_path, design, "heldout_candidate_inputs_jsonl")
+    inputs.parent.mkdir(parents=True)
+    inputs.write_bytes(b'{"fixture":true}\n')
+
+    with pytest.raises(runner.HeldoutPredictionError, match="bundle is incomplete"):
+        runner._prepare_or_validate_candidate_artifact(
+            design,
+            active_contract,
+            tmp_path,
+            pdf_fetcher=lambda *_args: pytest.fail("half bundle must not refetch"),
+            pdf_text_extractor=lambda *_args: pytest.fail(
+                "half bundle must not extract"
+            ),
+            freeze_receipt_sha256=receipt_sha256,
+        )
+
+
+def test_materialization_successor_insufficient_eligible_pool_never_starts_inference(
+    tmp_path: Path,
+) -> None:
+    design = _materialization_successor_fixture_root(
+        tmp_path,
+        raw_candidate_count=40,
+    )
+    calls: list[int] = []
+
+    with pytest.raises(
+        runner.HeldoutPredictionError,
+        match="too small for the registered sample",
+    ):
+        runner.run_heldout_predictions(
+            project_root=tmp_path,
+            design=design,
+            settings=_materialization_successor_settings(),
+            now=READY,
+            pdf_fetcher=lambda *_args: b"%PDF-short-scan",
+            pdf_text_extractor=lambda *_args: extracted_pdf_text_fixture("扫描件"),
+            chat_json_fn=_fake_chat(calls),
+        )
+
+    assert calls == []
+    assert not _artifact(tmp_path, design, "heldout_inference_state_jsonl").exists()
+    assert not _artifact(
+        tmp_path,
+        design,
+        "heldout_candidate_predictions_jsonl",
+    ).exists()

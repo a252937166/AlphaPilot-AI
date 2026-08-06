@@ -1,0 +1,49 @@
+{
+  "schema_version": "p4.2a-heldout-materialization-failure-v1",
+  "round_id": "heldout-v1.6-r1",
+  "status": "materialization_failed_no_inference",
+  "attempted_at_utc": null,
+  "recorded_at_utc": "2026-08-06T07:58:09Z",
+  "recorded_after_independent_ruling": true,
+  "ruling_commit": "3e21bff982156ef973c2e5badfe39b06d9596237",
+  "design": {
+    "path": "config/p4_event_evaluation_v1_6.yaml",
+    "schema_version": "p4.2a-evaluation-design-v1.6",
+    "sha256": "57e04f99a8ee91b64fe0aa4dc479e95c3de65fd31f04ac6c5879d4f81e5539c9"
+  },
+  "prediction_contract": {
+    "path": "config/p4_event_extract_eval_v1_7.yaml",
+    "model": "qwen3.7-flash",
+    "sha256": "68474e4bd4fd5c9c88711dd5e102898ad1ed75a0fb984045efbd14e51a6db701"
+  },
+  "freeze_receipt": {
+    "path": "docs/phase4/eval/P4.2a-heldout-prediction-contract-freeze-v1.6.json",
+    "sha256": "1b2aae88d075dbe1d93660b76f9463f35157f7dbd00a6dc7f73d61370b4231a1"
+  },
+  "candidate_batch": {
+    "full_count": 3070,
+    "cninfo_body_count": 1982
+  },
+  "first_failure": {
+    "news_item_id": 1172,
+    "safe_reason": "pdf_text_below_min_char_gate",
+    "raw_exception_or_payload_persisted": false
+  },
+  "independent_read_only_reproduction": {
+    "rows_replayed": 108,
+    "cninfo_bodies_replayed": 53,
+    "deterministic_failure_ids": {
+      "pdf_text_below_min_char_gate": [1172, 1203, 1205],
+      "pdf_exceeds_size_bound": [1175, 1193]
+    }
+  },
+  "inference_started": false,
+  "model_calls": 0,
+  "automatic_retries": 0,
+  "candidate_artifacts_created": false,
+  "prediction_artifacts_created": false,
+  "blind_sample_created": false,
+  "production_writes": 0,
+  "proposals_or_orders_created": false,
+  "historical_round_must_not_be_rewritten": true
+}

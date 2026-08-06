@@ -405,6 +405,38 @@ owner 确认该时段为**人为断网、周期性复发**，非代码或上游�
   复核方既非预测模型也非金标准标注者，剔除判据只看输入可材料化性，不构成结果性泄漏；
   人工裁定者本就将在盲标阶段阅读入选样本全文。
 
+### P4.2a held-out 材料化资格语义 v1.7 预注册与离线实现（2026-08-06，待唯一正式轮次）
+
+- 已将熔断轮作为不可变历史证据登记为
+  `docs/phase4/eval/P4.2a-heldout-materialization-failure-v1.6-r1.json`，SHA-256
+  `e14650690f3a1efbe6b455cc0a2d043c08c296ff88433cf14395f40f001ea6db`；状态固定为
+  `materialization_failed_no_inference`，记录零 `inference_started`、零模型调用、零预测/盲标
+  产物，禁止改写成成功轮。
+- 新评测设计预注册为 `config/p4_event_evaluation_v1_7.yaml`，SHA-256
+  `4c7964ad547820f5672631939af93978f11cb9f91e5921087770ac7d0d79bec1`。它逐字节继承
+  v1.6 的冻结候选窗口、抽样 seed/数量、阈值与标注 provenance，并继续绑定
+  `qwen3.7-flash`、prompt `v1_5`、抽取合同 SHA `68474e4b…b701`、freeze receipt
+  `1b2aae88…31a1` 和 model-selection outcome `38f20f4e…59e0`；本修复没有改模型、prompt、
+  schema、门限、分批上限或重试规则。
+- 材料化改为有序三层闭合分区 `all = eligible ⊔ ineligible`。仅
+  `pdf_text_below_min_char_gate` 与 `pdf_exceeds_size_bound` 两类确定性文档属性允许逐条剔除；
+  每条记录绑定 `news_item_id/url/reason/measured_value/gate_value/pdf_sha256(可得时)`。
+  80 字与 8 MiB 原门限保持不变且边界值仍合格；连接错误、超时、5xx、无效/负
+  `Content-Length` 以及未知 PDF/解析错误继续整批 fail closed，不能伪装成资格不合格。
+- 合格 inputs JSONL 与材料化 manifest 使用专属目录的 create-only 原子发布；manifest 同时绑定
+  全量/合格/剔除三层有序清单、原因计数、设计/合同/回执血缘与 inputs 字节 SHA。半套文件、
+  分区重叠/缺口、顺序或计数漂移、文件 SHA 漂移均在首个模型调用前拒绝，且不得二次抓取来
+  “修复”既有证据。
+- runner、零模型 finalizer、owner 选样与最终 evaluator 统一从该 manifest 派生合格 DB 子集；
+  `inference_started`、唯一终态、prediction manifest、selection manifest 和最终评测报告必须
+  绑定同一份 manifest 路径/SHA/三层计数。被剔除 ID 不得出现在预测、预测正类池、盲标 40 条
+  或最终评测；合格预测正类不足 40 条时按原规则失败，不降样本量、不换 seed。
+- 离线 fixture 已覆盖短文本/超大 PDF、恰好门限、瞬态下载失败、半套/篡改 manifest、合格池
+  不足、零模型 finalizer、started/terminal/prediction/selection 证据一致与 legacy 回归。
+  **截至本节登记时，新 one-shot 尚未启动、held-out 盲文件尚未生成，P4.2a 仍未完成，
+  P4.2b/P4.3 继续锁定。**完成全量质量门与本预注册独立提交后，才允许执行一次
+  `heldout-v1.7-r1`；材料化及全集推理闭合后只生成盲文件并通知 owner，禁止代替人工裁定。
+
 ## P4.2 LLM 事件抽取
 
 > **拆分解锁（owner 质询后修订，2026-08-03）**：P4.2 拆为两半。**P4.2a 评测准备**即刻
