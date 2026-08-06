@@ -1098,7 +1098,7 @@ def _explicit_unique_symbol(text: str, securities: list[tuple[str, str]]) -> str
     return next(iter(matches)) if len(matches) == 1 else None
 
 
-def _fetch_ths(
+def _fetch_ths_v1(
     config: NewsPollConfig,
     _now: datetime,
     client_factory: HttpClientFactory | None,
@@ -1156,6 +1156,118 @@ def _fetch_ths(
             close()
     _copy_transport_counts(batch, transport)
     return batch
+
+
+def _fetch_ths_v2(
+    config: NewsPollConfig,
+    _now: datetime,
+    client_factory: HttpClientFactory | None,
+) -> SourceBatch:
+    source = cast(
+        dict[str, Any],
+        cast(dict[str, Any], config.document["sources"])["akshare_ths"],
+    )
+    source_id = "akshare_ths"
+    client = client_factory(source_id) if client_factory else _new_http_client(config)
+    transport = _transport(config, source_id, source, client)
+    batch = SourceBatch(source_id=source_id)
+    securities = _load_security_names(watchlist_only=False)
+    first_page = int(str(source["first_page"]))
+    max_pages = int(str(source["max_pages_per_run"]))
+    page_parameter = str(source["page_parameter"])
+    page_records: list[JsonObject] = []
+    stop_reason: str | None = None
+    try:
+        for page in range(first_page, first_page + max_pages):
+            response = transport.request(
+                "GET",
+                str(source["url"]),
+                params={page_parameter: str(page), "tag": "", "track": "website"},
+            )
+            payload = _decode_json(response)
+            if not isinstance(payload, dict):
+                raise NewsSourceError("schema_changed", "THS response is not an object")
+            data = payload.get("data")
+            rows = data.get("list") if isinstance(data, dict) else None
+            if not isinstance(rows, list):
+                raise NewsSourceError("schema_changed", "THS response has no data.list")
+            page_records.append({"page": page, "upstream_records": len(rows)})
+            if not rows:
+                stop_reason = "empty_page"
+                break
+            for raw in rows:
+                if not isinstance(raw, dict):
+                    continue
+                title = _normalize_text(raw.get("title"))
+                url = _normalize_text(raw.get("url"))
+                if not title or not url:
+                    continue
+                body = _normalize_text(raw.get("digest"))
+                batch.candidates.append(
+                    NewsCandidate(
+                        source=source_id,
+                        symbol=_explicit_unique_symbol(
+                            f"{title} {body}", securities
+                        ),
+                        title=title,
+                        url=url,
+                        published_at=_parse_epoch(raw.get("rtime")),
+                        content=body,
+                        raw_payload=cast(JsonObject, _json_safe(raw)),
+                    )
+                )
+        if stop_reason is None:
+            batch.status = "degraded"
+            batch.failures.append(
+                {
+                    "code": "catchup_incomplete",
+                    "blocked": False,
+                    "error_type": "NewsSourceError",
+                    "message": "THS page cap reached before an empty page",
+                    "constraint": "max_pages_per_run",
+                }
+            )
+            stop_reason = "page_cap_open"
+        batch.details = {
+            "upstream_records": sum(
+                int(record["upstream_records"]) for record in page_records
+            ),
+            "pages": page_records,
+            "pages_requested": len(page_records),
+            "pagination_stop_reason": stop_reason,
+            "catchup_complete": stop_reason == "empty_page",
+            "catchup_floor_applied": False,
+            "catchup_floor_reason": "preregistered_overlap_not_numeric",
+            "requests": transport.requests,
+        }
+    except Exception as exc:
+        failure = _source_failure(exc)
+        batch.status = "unavailable"
+        batch.failures.append(failure)
+        batch.details = {
+            "pages": page_records,
+            "pages_requested": len(page_records),
+            "catchup_complete": False,
+            "catchup_floor_applied": False,
+            "catchup_floor_reason": "preregistered_overlap_not_numeric",
+            "requests": transport.requests,
+        }
+    finally:
+        close = getattr(client, "close", None)
+        if callable(close):
+            close()
+    _copy_transport_counts(batch, transport)
+    return batch
+
+
+def _fetch_ths(
+    config: NewsPollConfig,
+    now: datetime,
+    client_factory: HttpClientFactory | None,
+) -> SourceBatch:
+    if config.document.get("schema_version") == "p4.1-news-poll-v2":
+        return _fetch_ths_v2(config, now, client_factory)
+    return _fetch_ths_v1(config, now, client_factory)
 
 
 class _SinaNewsParser(HTMLParser):

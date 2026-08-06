@@ -324,6 +324,14 @@ owner 确认该时段为**人为断网、周期性复发**，非代码或上游�
 - 当前只完成**预注册**，未修改 v1、未接入 scheduler、未运行 v2 抓取。P4.2a 仅离线评测
   可继续；**P4.2b 与 P4.3 仍锁定**，直至 v2 实现和三交易日复验通过独立复核。
 
+> ⚠ DEVIATION（P4.1-v2-⑤，2026-08-06）：预注册只写明 THS `catchup_floor =
+> last_successful_item_published_at_minus_overlap`，但没有冻结可执行的 overlap 数值。实现未擅自
+> 复用巨潮的 30 分钟重叠或新增事后参数：v2 仍严格使用 3 个逻辑页、最多 6 次物理尝试，只有
+> 读到空页才判本轮闭合；第 3 页仍非空（包括发布时间缺失、无法证明已越过 floor 的记录）统一
+> 标记 source-level `degraded / catchup_incomplete`。瞬态网络、HTTP 与 schema 错误不进入该
+> 降级口径，继续保留原始错误并 fail-closed。待 owner 另发版本化数值合同前，不宣称实现了
+> `older_than_catchup_floor` 提前闭合。
+
 ### P4.2a 模型成本复审与 v1.7 选择准则预注册（2026-08-04，held-out 解锁前）
 
 - **动机**：held-out 一次性，验证哪个模型就应是生产模型。owner 提出试 `qwen3.7-flash`

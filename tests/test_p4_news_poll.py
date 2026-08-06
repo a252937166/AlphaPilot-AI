@@ -902,6 +902,217 @@ def test_sina_symbol_binding_requires_explicit_title_evidence(
     assert batch.candidates[0].raw_payload["symbol_binding"] == "none"
 
 
+def _ths_response(*, page: int, rtime: object = 1_786_000_000) -> _FakeResponse:
+    return _FakeResponse(
+        payload={
+            "data": {
+                "list": [
+                    {
+                        "title": f"贵州茅台发布经营公告（{page}）",
+                        "url": f"https://news.10jqka.com.cn/fixture-{page}",
+                        "digest": "贵州茅台经营情况保持稳定",
+                        "rtime": rtime,
+                    }
+                ]
+            }
+        }
+    )
+
+
+def _empty_ths_response() -> _FakeResponse:
+    return _FakeResponse(payload={"data": {"list": []}})
+
+
+def test_v1_ths_remains_a_single_page_fetch(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        news_poll,
+        "_load_security_names",
+        lambda *, watchlist_only=False: [("600519", "贵州茅台")],
+    )
+    client = _FakeClient([_ths_response(page=1)])
+
+    batch = news_poll._fetch_ths(
+        news_poll.load_news_poll_config(news_poll.V1_CONFIG_PATH),
+        datetime.now(UTC),
+        lambda _source_id: client,
+    )
+
+    assert batch.status == "ok"
+    assert len(batch.candidates) == 1
+    assert batch.request_count == 1
+    assert batch.logical_request_count is None
+    assert batch.physical_attempt_count is None
+    assert len(client.calls) == 1
+    assert client.calls[0][2]["params"] == {
+        "page": "1",
+        "tag": "",
+        "track": "website",
+    }
+
+
+def test_v2_ths_paginates_until_empty_page(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(news_poll, "_load_security_names", lambda **_kwargs: [])
+    client = _FakeClient(
+        [_ths_response(page=1), _ths_response(page=2), _empty_ths_response()]
+    )
+
+    batch = news_poll._fetch_ths(
+        news_poll.load_news_poll_config(news_poll.V2_CONFIG_PATH),
+        datetime.now(UTC),
+        lambda _source_id: client,
+    )
+
+    assert batch.status == "ok"
+    assert len(batch.candidates) == 2
+    assert batch.logical_request_count == 3
+    assert batch.physical_attempt_count == batch.request_count == 3
+    assert batch.retry_count == 0
+    assert batch.details["pagination_stop_reason"] == "empty_page"
+    assert batch.details["catchup_complete"] is True
+    assert batch.details["catchup_floor_applied"] is False
+    assert [call[2]["params"]["page"] for call in client.calls] == ["1", "2", "3"]
+
+
+def test_v2_ths_open_third_page_with_null_times_is_degraded(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(news_poll, "_load_security_names", lambda **_kwargs: [])
+    client = _FakeClient(
+        [
+            _ths_response(page=1, rtime=None),
+            _ths_response(page=2, rtime=None),
+            _ths_response(page=3, rtime=None),
+        ]
+    )
+
+    batch = news_poll._fetch_ths(
+        news_poll.load_news_poll_config(news_poll.V2_CONFIG_PATH),
+        datetime.now(UTC),
+        lambda _source_id: client,
+    )
+
+    assert batch.status == "degraded"
+    assert len(batch.candidates) == 3
+    assert all(candidate.published_at is None for candidate in batch.candidates)
+    assert batch.failures == [
+        {
+            "code": "catchup_incomplete",
+            "blocked": False,
+            "error_type": "NewsSourceError",
+            "message": "THS page cap reached before an empty page",
+            "constraint": "max_pages_per_run",
+        }
+    ]
+    assert batch.details["pagination_stop_reason"] == "page_cap_open"
+    assert batch.details["catchup_complete"] is False
+    assert batch.logical_request_count == 3
+    assert batch.physical_attempt_count == batch.request_count == 3
+    assert len(client.calls) == 3
+
+
+def test_v2_ths_retry_is_physical_not_logical_budget(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(news_poll, "_load_security_names", lambda **_kwargs: [])
+    client = _FakeClient(
+        [
+            _FakeResponse(status_code=500),
+            _ths_response(page=1),
+            _empty_ths_response(),
+        ]
+    )
+
+    batch = news_poll._fetch_ths(
+        news_poll.load_news_poll_config(news_poll.V2_CONFIG_PATH),
+        datetime.now(UTC),
+        lambda _source_id: client,
+    )
+
+    assert batch.status == "ok"
+    assert batch.logical_request_count == 2
+    assert batch.physical_attempt_count == batch.request_count == 3
+    assert batch.retry_count == 1
+    assert len(client.calls) == 3
+
+
+def test_v2_ths_rate_limit_stops_without_retry(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(news_poll, "_load_security_names", lambda **_kwargs: [])
+    client = _FakeClient([_FakeResponse(status_code=429)])
+
+    batch = news_poll._fetch_ths(
+        news_poll.load_news_poll_config(news_poll.V2_CONFIG_PATH),
+        datetime.now(UTC),
+        lambda _source_id: client,
+    )
+
+    assert batch.status == "unavailable"
+    assert batch.failures[0]["code"] == "http_rate_limited"
+    assert batch.failures[0]["blocked"] is True
+    assert batch.logical_request_count == 1
+    assert batch.physical_attempt_count == batch.request_count == 1
+    assert batch.retry_count == 0
+    assert len(client.calls) == 1
+
+
+def test_v2_ths_schema_failure_is_not_rewritten_as_budget_exhaustion(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(news_poll, "_load_security_names", lambda **_kwargs: [])
+    client = _FakeClient([_FakeResponse(payload={"data": {"unexpected": []}})])
+
+    batch = news_poll._fetch_ths(
+        news_poll.load_news_poll_config(news_poll.V2_CONFIG_PATH),
+        datetime.now(UTC),
+        lambda _source_id: client,
+    )
+
+    assert batch.status == "unavailable"
+    assert batch.failures[0]["code"] == "schema_changed"
+    assert batch.logical_request_count == 1
+    assert batch.physical_attempt_count == batch.request_count == 1
+    assert batch.retry_count == 0
+    assert len(client.calls) == 1
+
+
+def test_v2_ths_physical_suppression_retains_original_failure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    config = news_poll.load_news_poll_config(news_poll.V2_CONFIG_PATH)
+    document = deepcopy(config.document)
+    source = document["sources"]["akshare_ths"]
+    source["max_physical_attempts_per_run"] = 1
+    fixture_config = news_poll.NewsPollConfig(
+        path=config.path,
+        sha256=config.sha256,
+        document=document,
+    )
+    monkeypatch.setattr(news_poll, "_load_security_names", lambda **_kwargs: [])
+    client = _FakeClient([_FakeResponse(status_code=500)])
+
+    batch = news_poll._fetch_ths(
+        fixture_config,
+        datetime.now(UTC),
+        lambda _source_id: client,
+    )
+
+    assert batch.status == "unavailable"
+    failure = batch.failures[0]
+    assert failure["code"] == "http_server_error"
+    assert failure["suppression"]["code"] == (
+        "retry_suppressed_physical_attempt_budget"
+    )
+    assert batch.logical_request_count == 1
+    assert batch.physical_attempt_count == batch.request_count == 1
+    assert batch.retry_count == 0
+    assert len(client.calls) == 1
+
+
 def test_v2_noncritical_sources_report_frozen_dual_budget_counters(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -911,24 +1122,7 @@ def test_v2_noncritical_sources_report_frozen_dual_budget_counters(
         "_load_security_names",
         lambda *, watchlist_only=False: [("600519", "贵州茅台")],
     )
-    ths_client = _FakeClient(
-        [
-            _FakeResponse(
-                payload={
-                    "data": {
-                        "list": [
-                            {
-                                "title": "贵州茅台发布经营公告",
-                                "url": "https://news.10jqka.com.cn/fixture",
-                                "digest": "贵州茅台经营情况保持稳定",
-                                "rtime": 1_786_000_000,
-                            }
-                        ]
-                    }
-                }
-            )
-        ]
-    )
+    ths_client = _FakeClient([_ths_response(page=1), _empty_ths_response()])
     sina_client = _FakeClient(
         [
             _FakeResponse(
@@ -952,15 +1146,18 @@ def test_v2_noncritical_sources_report_frozen_dual_budget_counters(
         lambda _source_id: sina_client,
     )
 
+    assert ths.status == sina.status == "ok"
+    assert ths.logical_request_count == 2
+    assert ths.physical_attempt_count == ths.request_count == 2
+    assert ths.retry_count == 0
+    assert sina.logical_request_count == 1
+    assert sina.physical_attempt_count == sina.request_count == 1
+    assert sina.retry_count == 0
     for batch in (ths, sina):
-        assert batch.status == "ok"
-        assert batch.logical_request_count == 1
-        assert batch.physical_attempt_count == batch.request_count == 1
-        assert batch.retry_count == 0
         stats = news_poll._batch_stats(batch)
-        assert stats["logical_request_count"] == 1
-        assert stats["physical_attempt_count"] == 1
-        assert stats["retry_count"] == 0
+        assert stats["logical_request_count"] == batch.logical_request_count
+        assert stats["physical_attempt_count"] == batch.physical_attempt_count
+        assert stats["retry_count"] == batch.retry_count
 
 
 def test_v2_sina_no_watchlist_reports_zero_dual_budget_counters(
@@ -1105,6 +1302,52 @@ def test_v2_complete_cninfo_is_ok_even_when_noncritical_sources_fail(
     assert record.stats["sources"]["cninfo"]["status"] == "ok"
     assert record.stats["sources"]["akshare_ths"]["status"] == "unavailable"
     assert record.stats["sources"]["sina_company_news"]["status"] == "unavailable"
+
+
+def test_v2_complete_cninfo_is_ok_when_ths_page_cap_is_degraded(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        news_poll,
+        "_fetch_cninfo",
+        lambda *_args: _v2_cninfo_batch(status="ok"),
+    )
+    monkeypatch.setattr(
+        news_poll,
+        "_fetch_ths",
+        lambda *_args: news_poll.SourceBatch(
+            source_id="akshare_ths",
+            status="degraded",
+            request_count=3,
+            logical_request_count=3,
+            physical_attempt_count=3,
+            failures=[
+                {
+                    "code": "catchup_incomplete",
+                    "blocked": False,
+                    "error_type": "NewsSourceError",
+                    "message": "THS page cap reached before an empty page",
+                    "constraint": "max_pages_per_run",
+                }
+            ],
+        ),
+    )
+    monkeypatch.setattr(
+        news_poll,
+        "_fetch_sina",
+        lambda *_args: _v2_noncritical_batch("sina_company_news", failed=False),
+    )
+
+    record = _run_v2_news_poll(monkeypatch)
+
+    assert record.status == "ok"
+    assert record.error is None
+    assert record.stats["terminal_diagnostics"] is None
+    assert record.stats["sources"]["cninfo"]["status"] == "ok"
+    assert record.stats["sources"]["akshare_ths"]["status"] == "degraded"
+    assert record.stats["sources"]["akshare_ths"]["failures"][0]["code"] == (
+        "catchup_incomplete"
+    )
 
 
 def test_v2_page_cap_only_cninfo_is_degraded_with_null_error(
