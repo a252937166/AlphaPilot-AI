@@ -571,14 +571,20 @@ def test_actual_repo_scopes_match_frozen_baseline() -> None:
         text=True,
     ).stdout.strip()
     assert resolved == presign.FROZEN_BASELINE_COMMIT
-    # The S9 acceptance (2026-08-01) sanctioned exactly one weight-scope delta
-    # against the frozen S6 baseline: the composite-v3 weights file produced by
-    # the pre-registered rebuild. Everything else must remain drift-free.
+    # Later accepted phases may strengthen a frozen safety scope, but the exact
+    # bytes must then be pinned here rather than broadly allowing that path to
+    # drift. S9 added the pre-registered v3 weights; P4.1-v2 strengthened the
+    # scheduler fail-closed gate for paper_trading/futu_enable_trade.
     sanctioned = {
         "factor": [],
         "weight": ["config/factor_weights_v3.yaml"],
-        "trading_safety_gate": [],
+        "trading_safety_gate": ["src/alphapilot/scheduler_main.py"],
         "test_window_guard": [],
+    }
+    pinned_modified_sha256 = {
+        "src/alphapilot/scheduler_main.py": (
+            "efcedebe93fc548c96ed2907f3e036f4b18eb5b8c7b974c5214ae95d6ba6265f"
+        ),
     }
     for name, paths in (
         ("factor", presign.FACTOR_SCOPE),
@@ -595,4 +601,10 @@ def test_actual_repo_scopes_match_frozen_baseline() -> None:
         assert attestation["diff_count"] == len(sanctioned[name])
         statuses = {item["path"]: item["status"] for item in attestation["files"]}
         for path in sanctioned[name]:
-            assert statuses[path] == "added"
+            expected_status = "modified" if path in pinned_modified_sha256 else "added"
+            assert statuses[path] == expected_status
+            if path in pinned_modified_sha256:
+                assert (
+                    presign._sha256_bytes((presign.ROOT / path).read_bytes())
+                    == pinned_modified_sha256[path]
+                )
