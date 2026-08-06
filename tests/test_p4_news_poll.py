@@ -3,12 +3,13 @@ from __future__ import annotations
 import sqlite3
 from collections.abc import Iterator
 from copy import deepcopy
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, time, timedelta
 from pathlib import Path
 from threading import Event, Thread
 from time import sleep
 
 import pytest
+from apscheduler.triggers.base import BaseTrigger
 from sqlalchemy import delete, func, select
 
 from alphapilot.core.config import get_settings
@@ -841,6 +842,8 @@ def test_dual_dedupe_preserves_first_available_time_and_ingestion_evidence(
         ingestion["available_time_basis"]
         == "write_locked_immediately_before_flush_utc"
     )
+    assert "run_mode" not in ingestion
+    assert "preceded_by_coverage_gap" not in ingestion
     assigned = datetime.fromisoformat(str(ingestion["available_time_assigned_at_utc"]))
     assert item.available_time == assigned.replace(tzinfo=None)
     cninfo_stats = records[0].stats["sources"]["cninfo"]
@@ -1221,6 +1224,7 @@ def _v2_cninfo_batch(
     status: str,
     failures: list[dict[str, object]] | None = None,
     capped_columns: set[str] | None = None,
+    candidates: list[news_poll.NewsCandidate] | None = None,
 ) -> news_poll.SourceBatch:
     capped = capped_columns or set()
     return news_poll.SourceBatch(
@@ -1229,6 +1233,7 @@ def _v2_cninfo_batch(
         request_count=2,
         logical_request_count=2,
         physical_attempt_count=2,
+        candidates=candidates or [],
         failures=failures or [],
         details={
             "column_watermarks": {
@@ -1263,12 +1268,19 @@ def _v2_noncritical_batch(source_id: str, *, failed: bool) -> news_poll.SourceBa
     )
 
 
-def _run_v2_news_poll(monkeypatch: pytest.MonkeyPatch) -> JobRun:
+def _run_v2_news_poll(
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    now: datetime | None = None,
+) -> JobRun:
     monkeypatch.setattr(news_poll, "V2_IMPLEMENTATION_READY", True)
     register(
         JobSpec(
             name="news_poll",
-            func=lambda: news_poll.run_news_poll(config_path=news_poll.V2_CONFIG_PATH),
+            func=lambda: news_poll.run_news_poll(
+                config_path=news_poll.V2_CONFIG_PATH,
+                now=now,
+            ),
             trigger=None,
         )
     )
@@ -1302,6 +1314,145 @@ def test_v2_complete_cninfo_is_ok_even_when_noncritical_sources_fail(
     assert record.stats["sources"]["cninfo"]["status"] == "ok"
     assert record.stats["sources"]["akshare_ths"]["status"] == "unavailable"
     assert record.stats["sources"]["sina_company_news"]["status"] == "unavailable"
+
+
+def test_v2_monday_recovery_marks_rows_and_records_structured_catchup(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    candidate = _candidate(url="https://example.test/news/monday-catchup")
+    monkeypatch.setattr(
+        news_poll,
+        "_fetch_cninfo",
+        lambda *_args: _v2_cninfo_batch(status="ok", candidates=[candidate]),
+    )
+    monkeypatch.setattr(
+        news_poll,
+        "_fetch_ths",
+        lambda *_args: _v2_noncritical_batch("akshare_ths", failed=False),
+    )
+    monkeypatch.setattr(
+        news_poll,
+        "_fetch_sina",
+        lambda *_args: _v2_noncritical_batch("sina_company_news", failed=False),
+    )
+    monday_0950 = datetime(2026, 8, 10, 1, 50, tzinfo=UTC)
+
+    record = _run_v2_news_poll(monkeypatch, now=monday_0950)
+
+    assert record.status == "ok"
+    assert record.stats["run_mode"] == "coverage_gap_catchup"
+    assert record.stats["coverage_gap"] is True
+    details = record.stats["coverage_gap_details"]
+    assert details["suppressed_slot_count"] == 3
+    assert [value[11:16] for value in details["suppressed_slots_shanghai"]] == [
+        "09:00",
+        "09:30",
+        "09:40",
+    ]
+    assert details["span_seconds"] == 3000
+    assert details["span_basis"] == (
+        "first_suppressed_slot_to_actual_poll_started_at"
+    )
+    catchup = record.stats["catchup"]
+    assert catchup["range_end_utc"] == monday_0950.isoformat()
+    assert set(catchup["cninfo_column_ranges"]) == {"sse", "szse"}
+    expected_start = datetime(2026, 8, 4, 23, 30, tzinfo=UTC)
+    for column_range in catchup["cninfo_column_ranges"].values():
+        assert column_range == {
+            "start_utc": expected_start.isoformat(),
+            "end_utc": monday_0950.isoformat(),
+            "span_seconds": int((monday_0950 - expected_start).total_seconds()),
+        }
+    assert catchup["counts_all_sources"]["inserted"] == 1
+    assert catchup["counts_all_sources"]["preceded_by_coverage_gap_inserted"] == 1
+    assert catchup["counts_by_source"]["cninfo"]["inserted"] == 1
+
+    with get_session() as session:
+        item = session.scalar(select(NewsItem).where(NewsItem.url == candidate.url))
+    assert item is not None
+    ingestion = item.raw_payload["_alphapilot_ingestion"]
+    assert ingestion["run_mode"] == "coverage_gap_catchup"
+    assert ingestion["preceded_by_coverage_gap"] is True
+    original_available_time = item.available_time
+
+    replay = _run_v2_news_poll(
+        monkeypatch,
+        now=datetime(2026, 8, 11, 1, 50, tzinfo=UTC),
+    )
+    assert replay.status == "ok"
+    assert replay.stats["sources"]["cninfo"]["inserted"] == 0
+    assert replay.stats["sources"]["cninfo"]["duplicate_url"] == 1
+    with get_session() as session:
+        replayed = session.scalar(select(NewsItem).where(NewsItem.url == candidate.url))
+    assert replayed is not None
+    assert replayed.available_time == original_available_time
+    assert replayed.raw_payload["_alphapilot_ingestion"] == ingestion
+
+
+@pytest.mark.parametrize(
+    ("started_at", "expected_mode", "expected_gap"),
+    [
+        (datetime(2026, 8, 10, 1, 50, tzinfo=UTC), "coverage_gap_catchup", True),
+        (
+            datetime(2026, 8, 10, 1, 59, 59, tzinfo=UTC),
+            "coverage_gap_catchup",
+            True,
+        ),
+        (datetime(2026, 8, 10, 2, 0, tzinfo=UTC), "regular_incremental", False),
+        (datetime(2026, 8, 11, 1, 50, tzinfo=UTC), "regular_incremental", False),
+    ],
+)
+def test_v2_run_mode_uses_the_frozen_monday_recovery_window(
+    started_at: datetime,
+    expected_mode: str,
+    expected_gap: bool,
+) -> None:
+    context = news_poll._v2_run_context(
+        news_poll.load_news_poll_config(news_poll.V2_CONFIG_PATH),
+        started_at,
+    )
+
+    assert context["run_mode"] == expected_mode
+    assert context["coverage_gap"] is expected_gap
+    assert (context["coverage_gap_details"] is not None) is expected_gap
+
+
+def test_v2_regular_run_marks_new_rows_as_not_preceded_by_gap(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    candidate = _candidate(url="https://example.test/news/regular-v2")
+    monkeypatch.setattr(
+        news_poll,
+        "_fetch_cninfo",
+        lambda *_args: _v2_cninfo_batch(status="ok", candidates=[candidate]),
+    )
+    monkeypatch.setattr(
+        news_poll,
+        "_fetch_ths",
+        lambda *_args: _v2_noncritical_batch("akshare_ths", failed=False),
+    )
+    monkeypatch.setattr(
+        news_poll,
+        "_fetch_sina",
+        lambda *_args: _v2_noncritical_batch("sina_company_news", failed=False),
+    )
+
+    record = _run_v2_news_poll(
+        monkeypatch,
+        now=datetime(2026, 8, 11, 1, 50, tzinfo=UTC),
+    )
+
+    assert record.status == "ok"
+    assert record.stats["run_mode"] == "regular_incremental"
+    assert record.stats["coverage_gap"] is False
+    assert record.stats["coverage_gap_details"] is None
+    assert record.stats["catchup"] is None
+    with get_session() as session:
+        item = session.scalar(select(NewsItem).where(NewsItem.url == candidate.url))
+    assert item is not None
+    ingestion = item.raw_payload["_alphapilot_ingestion"]
+    assert ingestion["run_mode"] == "regular_incremental"
+    assert ingestion["preceded_by_coverage_gap"] is False
 
 
 def test_v2_complete_cninfo_is_ok_when_ths_page_cap_is_degraded(
@@ -1392,6 +1543,53 @@ def test_v2_page_cap_only_cninfo_is_degraded_with_null_error(
         "retry_suppressed": False,
     }
     assert "message" not in record.stats["terminal_diagnostics"]
+
+
+def test_v2_monday_catchup_page_cap_uses_recovery_diagnostic(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    failure = {
+        "code": "pagination_incomplete",
+        "blocked": False,
+        "error_type": "NewsSourceError",
+        "message": "bounded fixture",
+        "column": "sse",
+    }
+    monkeypatch.setattr(
+        news_poll,
+        "_fetch_cninfo",
+        lambda *_args: _v2_cninfo_batch(
+            status="degraded",
+            failures=[failure],
+            capped_columns={"sse"},
+        ),
+    )
+    monkeypatch.setattr(
+        news_poll,
+        "_fetch_ths",
+        lambda *_args: _v2_noncritical_batch("akshare_ths", failed=False),
+    )
+    monkeypatch.setattr(
+        news_poll,
+        "_fetch_sina",
+        lambda *_args: _v2_noncritical_batch("sina_company_news", failed=False),
+    )
+
+    record = _run_v2_news_poll(
+        monkeypatch,
+        now=datetime(2026, 8, 10, 1, 50, tzinfo=UTC),
+    )
+
+    assert record.status == "degraded"
+    assert record.error is None
+    assert record.stats["run_mode"] == "coverage_gap_catchup"
+    assert record.stats["terminal_diagnostics"] == {
+        "code": "recovery_catchup_incomplete",
+        "source": "cninfo",
+        "constraint": "max_pages_per_column",
+        "recoverable": True,
+        "retry_suppressed": False,
+    }
 
 
 def test_v2_cninfo_transport_failure_is_failed_with_safe_diagnostic(
@@ -1775,6 +1973,52 @@ def test_v2_transport_exhausted_physical_budget_rejects_before_logical_acceptanc
         == transport.physical_attempt_count - transport.logical_request_count
     )
     assert len(transport.requests) == len(client.calls) == 1
+
+
+def _trigger_fire_times(
+    trigger: BaseTrigger,
+    target: date,
+) -> list[datetime]:
+    start = datetime.combine(target, time.min, tzinfo=news_poll.MARKET_TIMEZONE)
+    end = start + timedelta(days=1)
+    previous: datetime | None = None
+    current = start
+    result: list[datetime] = []
+    while True:
+        value = trigger.get_next_fire_time(previous, current)
+        if value is None or value >= end:
+            return result
+        result.append(value)
+        previous = value
+        current = value + timedelta(microseconds=1)
+
+
+def test_v2_trigger_matches_the_frozen_61_64_64_slot_contract() -> None:
+    monday = date(2026, 8, 10)
+    tuesday = date(2026, 8, 11)
+    wednesday = date(2026, 8, 12)
+
+    v1_monday = _trigger_fire_times(news_poll._news_poll_trigger_v1(), monday)
+    v2_monday = _trigger_fire_times(news_poll._news_poll_trigger_v2(), monday)
+    v2_tuesday = _trigger_fire_times(news_poll._news_poll_trigger_v2(), tuesday)
+    v2_wednesday = _trigger_fire_times(news_poll._news_poll_trigger_v2(), wednesday)
+
+    assert len(v1_monday) == 64
+    assert len(v2_monday) == 61
+    assert len(v2_tuesday) == len(v2_wednesday) == 64
+    assert len(v2_monday) + len(v2_tuesday) + len(v2_wednesday) == 189
+    assert [value.strftime("%H:%M") for value in v1_monday if value.hour == 9] == [
+        "09:00",
+        "09:30",
+        "09:40",
+        "09:50",
+    ]
+    assert [value.strftime("%H:%M") for value in v2_monday if value.hour == 9] == [
+        "09:50"
+    ]
+    for values in (v2_monday, v2_tuesday, v2_wednesday):
+        assert len(values) == len(set(values))
+        assert all(value.tzinfo == news_poll.MARKET_TIMEZONE for value in values)
 
 
 def test_news_poll_scheduler_requires_explicit_env_enable(
