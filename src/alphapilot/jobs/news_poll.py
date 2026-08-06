@@ -7,11 +7,12 @@ import re
 import unicodedata
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from html.parser import HTMLParser
+from itertools import pairwise
 from pathlib import Path
 from time import monotonic, sleep
-from typing import Any, cast
+from typing import Any, Literal, cast
 from urllib.parse import parse_qsl, urlencode, urljoin, urlparse, urlunparse
 from zoneinfo import ZoneInfo
 
@@ -35,7 +36,7 @@ from alphapilot.db.models import (
     utcnow,
 )
 from alphapilot.futu.client import PERMANENTLY_BLOCKED_METHODS
-from alphapilot.jobs.registry import JobExecutionError, JobOutcome, JobSpec, register
+from alphapilot.jobs.registry import JobExecutionError, JobOutcome, JobSpec, register, run_job
 
 JsonObject = dict[str, Any]
 HttpClientFactory = Callable[[str], Any]
@@ -43,6 +44,7 @@ HttpClientFactory = Callable[[str], Any]
 PROJECT_DIR = Path(__file__).resolve().parents[3]
 V1_CONFIG_PATH = PROJECT_DIR / "config/p4_news_poll_v1.yaml"
 V2_CONFIG_PATH = PROJECT_DIR / "config/p4_news_poll_v2.yaml"
+V2_1_CONFIG_PATH = PROJECT_DIR / "config/p4_news_poll_v2_1.yaml"
 DEFAULT_CONFIG_PATH = V1_CONFIG_PATH
 # Filled after the versioned config is finalized. A different byte stream must
 # ship as a reviewed config/code change before it can make network requests.
@@ -50,15 +52,20 @@ EXPECTED_CONFIG_SHA256 = "d0dcd665472b50092a1b4fa7f65f7115778e1b89ac11aca0ed49dc
 EXPECTED_V2_CONFIG_SHA256 = (
     "a76a1cd9f1afd021de4d343a6550a1eb05ddad1b14d8d39cbaae2659574a5834"
 )
+EXPECTED_V2_1_CONFIG_SHA256 = (
+    "9d56e137baf10bd0858723a93aff02c57bf7b35f8705f1817b16a89ec615183f"
+)
 EXPECTED_CONFIG_SHA256_BY_VERSION = {
     "p4.1-news-poll-v1": EXPECTED_CONFIG_SHA256,
     "p4.1-news-poll-v2": EXPECTED_V2_CONFIG_SHA256,
+    "p4.1-news-poll-v2.1": EXPECTED_V2_1_CONFIG_SHA256,
 }
-# P4.1 v2 remains pre-registered but non-runnable while the six ordered
-# remediation steps and independent acceptance are incomplete.  The final
-# activation step must explicitly flip this code gate; config bytes alone can
-# never enable v2.
+# The abandoned v2 contract remains permanently non-runnable.  v2.1 code is
+# reviewable and callable only through an explicit, hash-bound manual
+# authorization receipt; the scheduler gate remains independently closed.
 V2_IMPLEMENTATION_READY = False
+V2_1_CODE_READY = True
+V2_1_SCHEDULER_ACTIVATED = False
 MARKET_TIMEZONE = ZoneInfo("Asia/Shanghai")
 NEWS_POLL_ENABLED_ENV = "ALPHAPILOT_NEWS_POLL_ENABLED"
 _TRACKING_QUERY_PREFIXES = ("utm_",)
@@ -94,6 +101,21 @@ class SourceBatch:
     physical_attempt_count: int | None = None
     failures: list[JsonObject] = field(default_factory=list)
     details: JsonObject = field(default_factory=dict)
+
+
+@dataclass(frozen=True, slots=True)
+class DailyCheckpointSeed:
+    checkpoint_date_shanghai: date | None
+    newest_observed_at_utc: datetime | None
+    legacy_watermark_utc: datetime | None
+    lineage: str
+
+
+V2ExecutionMode = Literal[
+    "scheduler",
+    "initial_backlog_migration",
+    "standard_incremental_validation",
+]
 
 
 class NewsSourceError(RuntimeError):
@@ -133,8 +155,8 @@ def load_news_poll_config(path: Path = DEFAULT_CONFIG_PATH) -> NewsPollConfig:
     loaded: object = yaml.safe_load(payload)
     if not isinstance(loaded, dict):
         raise ValueError("P4.1 news-poll config must be a mapping")
-    document = cast(JsonObject, loaded)
-    version = document.get("schema_version")
+    raw_document = cast(JsonObject, loaded)
+    version = raw_document.get("schema_version")
     expected_digest = EXPECTED_CONFIG_SHA256_BY_VERSION.get(str(version))
     if expected_digest is None:
         raise ValueError("unsupported P4.1 news-poll config version")
@@ -142,6 +164,19 @@ def load_news_poll_config(path: Path = DEFAULT_CONFIG_PATH) -> NewsPollConfig:
         raise ValueError(
             "P4.1 news-poll config bytes differ from the pre-registered SHA-256"
         )
+    document = raw_document
+    if version == "p4.1-news-poll-v2.1":
+        superseded = document.get("superseded_v2")
+        if not isinstance(superseded, dict) or superseded != {
+            "config": "config/p4_news_poll_v2.yaml",
+            "config_sha256": EXPECTED_V2_CONFIG_SHA256,
+            "status": "superseded_before_activation",
+            "reason": (
+                "dual-column-capacity-assumption-invalidated-by-controlled-probe"
+            ),
+            "activation_forbidden": True,
+        }:
+            raise ValueError("P4.1 v2.1 superseded-v2 binding drifted")
     runtime = document.get("runtime")
     if (
         not isinstance(runtime, dict)
@@ -161,6 +196,13 @@ def load_news_poll_config(path: Path = DEFAULT_CONFIG_PATH) -> NewsPollConfig:
         or phase_gate.get("p4_3_unlocked") is not False
     ):
         raise ValueError("P4.2b and P4.3 must remain locked during P4.1 v2")
+    if version == "p4.1-news-poll-v2.1" and (
+        phase_gate.get("p4_1_v2_1_code_ready") is not True
+        or phase_gate.get("p4_1_v2_1_scheduler_activated") is not False
+        or phase_gate.get("initial_backlog_migration_complete") is not False
+        or phase_gate.get("standard_incremental_validation_complete") is not False
+    ):
+        raise ValueError("P4.1 v2.1 code/migration/scheduler phase gates drifted")
 
     sources = document.get("sources")
     if not isinstance(sources, dict):
@@ -209,6 +251,238 @@ def load_news_poll_config(path: Path = DEFAULT_CONFIG_PATH) -> NewsPollConfig:
     if dates != expected_dates:
         raise ValueError("P4.1 three-day window changed without a new config version")
     return NewsPollConfig(path=path, sha256=digest, document=document)
+
+
+def _is_v2_config(config: NewsPollConfig) -> bool:
+    return config.document.get("schema_version") in {
+        "p4.1-news-poll-v2",
+        "p4.1-news-poll-v2.1",
+    }
+
+
+def _v2_execution_gate_error(
+    config: NewsPollConfig,
+    *,
+    code: str,
+    message: str,
+    execution_mode: V2ExecutionMode,
+) -> JobExecutionError:
+    gate_started_at = utcnow()
+    return JobExecutionError(
+        message,
+        stats={
+            "config_version": config.document["schema_version"],
+            "config_path": str(config.path.relative_to(PROJECT_DIR)),
+            "config_sha256": config.sha256,
+            "execution_mode": execution_mode,
+            "implementation_gate": code,
+            "v2_code_ready": (
+                V2_1_CODE_READY
+                if config.document.get("schema_version") == "p4.1-news-poll-v2.1"
+                else V2_IMPLEMENTATION_READY
+            ),
+            "v2_scheduler_activated": (
+                V2_1_SCHEDULER_ACTIVATED
+                if config.document.get("schema_version") == "p4.1-news-poll-v2.1"
+                else False
+            ),
+            "fail_closed_before_job_context": True,
+            "network_attempted": False,
+            "fetch_started": False,
+            "poll_started_at": gate_started_at.isoformat(),
+            "poll_completed_at": utcnow().isoformat(),
+            "run_mode": execution_mode,
+            "coverage_gap": False,
+            "safety_unchanged": True,
+            "sources": {},
+            "p4_2b_production_wiring_unlocked": False,
+            "p4_3_unlocked": False,
+            "terminal_diagnostics": _v2_terminal_diagnostic(
+                code=code,
+                source="news_poll",
+                constraint="execution_gate",
+                recoverable=False,
+            ),
+        },
+    )
+
+
+def _strict_json_object(pairs: list[tuple[str, Any]]) -> JsonObject:
+    result: JsonObject = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError(f"duplicate JSON key is forbidden: {key}")
+        result[key] = value
+    return result
+
+
+def _load_v2_1_manual_authorization(
+    path: Path,
+    *,
+    config: NewsPollConfig,
+    execution_mode: V2ExecutionMode,
+) -> JsonObject:
+    try:
+        payload = path.read_bytes()
+        loaded: object = json.loads(payload, object_pairs_hook=_strict_json_object)
+    except (OSError, json.JSONDecodeError) as exc:
+        raise ValueError("v2.1 manual authorization receipt is unreadable") from exc
+    if not isinstance(loaded, dict):
+        raise ValueError("v2.1 manual authorization receipt must be an object")
+    receipt = cast(JsonObject, loaded)
+    if receipt.get("schema_version") != (
+        "p4.1-news-poll-v2.1-manual-authorization-v1"
+    ):
+        raise ValueError("v2.1 manual authorization schema drifted")
+    if (
+        receipt.get("config_sha256") != config.sha256
+        or receipt.get("execution_mode") != execution_mode
+        or receipt.get("authorized") is not True
+        or receipt.get("network_execution_authorized") is not True
+        or receipt.get("scheduler_activated") is not False
+    ):
+        raise ValueError("v2.1 manual authorization contract is not satisfied")
+    authorization_id = str(receipt.get("authorization_id", "")).strip()
+    authorized_by = str(receipt.get("authorized_by", "")).strip()
+    authorized_at_raw = receipt.get("authorized_at_utc")
+    authorized_at: datetime | None = None
+    if (
+        isinstance(authorized_at_raw, str)
+        and authorized_at_raw == authorized_at_raw.strip()
+        and (
+            authorized_at_raw.endswith("Z")
+            or authorized_at_raw.endswith("+00:00")
+        )
+    ):
+        try:
+            parsed_authorized_at = datetime.fromisoformat(authorized_at_raw)
+        except ValueError:
+            pass
+        else:
+            if (
+                parsed_authorized_at.tzinfo is not None
+                and parsed_authorized_at.utcoffset() == timedelta(0)
+            ):
+                authorized_at = parsed_authorized_at.astimezone(UTC)
+    if not authorization_id or not authorized_by or authorized_at is None:
+        raise ValueError(
+            "v2.1 manual authorization identity or explicit UTC timestamp is invalid"
+        )
+    migration_complete = receipt.get("initial_backlog_migration_complete")
+    validation_complete = receipt.get("standard_incremental_validation_complete")
+    if not isinstance(migration_complete, bool) or not isinstance(
+        validation_complete, bool
+    ):
+        raise ValueError("v2.1 manual authorization gate states must be booleans")
+    if (
+        execution_mode == "standard_incremental_validation"
+        and migration_complete is not True
+    ):
+        raise ValueError(
+            "v2.1 incremental validation requires completed backlog migration"
+        )
+    return {
+        "authorization_id": authorization_id,
+        "authorization_receipt_sha256": _sha256_bytes(payload),
+        "authorized_at_utc": authorized_at.isoformat(),
+        "authorized_by": authorized_by,
+        "execution_mode": execution_mode,
+        "initial_backlog_migration_complete": migration_complete,
+        "standard_incremental_validation_complete": validation_complete,
+        "scheduler_activated": False,
+    }
+
+
+def _v2_execution_authorization(
+    config: NewsPollConfig,
+    *,
+    execution_mode: V2ExecutionMode,
+    authorization_receipt_path: Path | None,
+) -> JsonObject:
+    version = config.document.get("schema_version")
+    if version == "p4.1-news-poll-v2":
+        if execution_mode != "scheduler" or authorization_receipt_path is not None:
+            raise _v2_execution_gate_error(
+                config,
+                code="superseded_v2_manual_execution_forbidden",
+                message="superseded P4.1 v2 has no manual execution path",
+                execution_mode=execution_mode,
+            )
+        if not V2_IMPLEMENTATION_READY:
+            gate_started_at = utcnow()
+            raise JobExecutionError(
+                "P4.1 v2 implementation is not ready (contract is superseded)",
+                stats={
+                    "config_version": config.document["schema_version"],
+                    "config_path": str(config.path.relative_to(PROJECT_DIR)),
+                    "config_sha256": config.sha256,
+                    "implementation_gate": "prereg_not_ready",
+                    "v2_implementation_ready": False,
+                    "fail_closed_before_job_context": True,
+                    "network_attempted": False,
+                    "fetch_started": False,
+                    "poll_started_at": gate_started_at.isoformat(),
+                    "poll_completed_at": utcnow().isoformat(),
+                    "run_mode": "regular_incremental",
+                    "coverage_gap": False,
+                    "safety_unchanged": True,
+                    "sources": {},
+                    "p4_2b_production_wiring_unlocked": False,
+                    "p4_3_unlocked": False,
+                    "terminal_diagnostics": _v2_terminal_diagnostic(
+                        code="v2_implementation_not_ready",
+                        source="news_poll",
+                        constraint="implementation_gate",
+                        recoverable=False,
+                    ),
+                },
+            )
+        return {"execution_mode": execution_mode, "scheduler_activated": True}
+    if version != "p4.1-news-poll-v2.1":
+        return {"execution_mode": "scheduler", "scheduler_activated": True}
+    if not V2_1_CODE_READY:
+        raise _v2_execution_gate_error(
+            config,
+            code="v2_1_code_not_ready",
+            message="P4.1 v2.1 code readiness gate is closed",
+            execution_mode=execution_mode,
+        )
+    if execution_mode == "scheduler":
+        if authorization_receipt_path is not None:
+            raise _v2_execution_gate_error(
+                config,
+                code="v2_1_scheduler_receipt_forbidden",
+                message="manual authorization cannot activate the scheduler",
+                execution_mode=execution_mode,
+            )
+        if not V2_1_SCHEDULER_ACTIVATED:
+            raise _v2_execution_gate_error(
+                config,
+                code="v2_1_scheduler_not_activated",
+                message="P4.1 v2.1 scheduler activation gate is closed",
+                execution_mode=execution_mode,
+            )
+        return {"execution_mode": execution_mode, "scheduler_activated": True}
+    if authorization_receipt_path is None:
+        raise _v2_execution_gate_error(
+            config,
+            code="v2_1_manual_authorization_missing",
+            message="P4.1 v2.1 manual execution requires an authorization receipt",
+            execution_mode=execution_mode,
+        )
+    try:
+        return _load_v2_1_manual_authorization(
+            authorization_receipt_path,
+            config=config,
+            execution_mode=execution_mode,
+        )
+    except ValueError as exc:
+        raise _v2_execution_gate_error(
+            config,
+            code="v2_1_manual_authorization_invalid",
+            message=str(exc),
+            execution_mode=execution_mode,
+        ) from exc
 
 
 def _normalize_text(value: object) -> str:
@@ -583,7 +857,7 @@ def _copy_transport_counts(batch: SourceBatch, transport: _BoundedHttp) -> None:
 
 def _zero_request_counter_stats(config: NewsPollConfig) -> JsonObject:
     result: JsonObject = {"request_count": 0, "retry_count": 0}
-    if config.document.get("schema_version") == "p4.1-news-poll-v2":
+    if _is_v2_config(config):
         result.update({"logical_request_count": 0, "physical_attempt_count": 0})
     return result
 
@@ -612,7 +886,7 @@ def _transport(
     client: Any,
 ) -> _BoundedHttp:
     network = cast(dict[str, Any], config.document["network"])
-    if config.document.get("schema_version") == "p4.1-news-poll-v2":
+    if _is_v2_config(config):
         max_logical_requests = source.get("max_logical_requests_per_run")
         max_physical_attempts = source.get("max_physical_attempts_per_run")
         max_attempts_per_logical_request = source.get(
@@ -779,6 +1053,75 @@ def _last_committed_column_watermarks(
             if resolved[column] is None:
                 resolved[column] = legacy_global
     return resolved
+
+
+def _last_committed_daily_checkpoint(
+    config: NewsPollConfig,
+    source_id: str,
+) -> DailyCheckpointSeed:
+    """Load only a hash-bound v2.1 daily checkpoint or the exact v1 seed."""
+
+    if config.document.get("schema_version") != "p4.1-news-poll-v2.1":
+        raise ValueError("daily checkpoints require the P4.1 v2.1 config")
+    with get_session() as session:
+        rows = session.scalars(
+            select(JobRun)
+            .where(JobRun.job_name == "news_poll")
+            .order_by(JobRun.id.desc())
+        ).all()
+
+    legacy_watermark: datetime | None = None
+    for row in rows:
+        stats = row.stats if isinstance(row.stats, dict) else {}
+        sources = stats.get("sources")
+        source = sources.get(source_id) if isinstance(sources, dict) else None
+        if not isinstance(source, dict):
+            continue
+        if (
+            stats.get("config_version") == "p4.1-news-poll-v2.1"
+            and stats.get("config_sha256") == EXPECTED_V2_1_CONFIG_SHA256
+            and row.status in {"ok", "degraded"}
+        ):
+            checkpoint = source.get("daily_checkpoint")
+            if isinstance(checkpoint, dict) and checkpoint.get("checkpoint_committed") is True:
+                raw_date = checkpoint.get("verified_checkpoint_date_shanghai_after")
+                observed = _parsed_utc_watermark(checkpoint.get("newest_observed_at_utc"))
+                try:
+                    parsed_date = (
+                        date.fromisoformat(str(raw_date)) if raw_date is not None else None
+                    )
+                except ValueError:
+                    continue
+                if observed is None:
+                    continue
+                if (
+                    parsed_date is not None
+                    and observed.astimezone(MARKET_TIMEZONE).date() < parsed_date
+                ):
+                    # A current-day incremental run legitimately leaves the last
+                    # closed checkpoint behind its observed high.  The inverse
+                    # relationship is impossible and cannot seed a later run.
+                    continue
+                return DailyCheckpointSeed(
+                    checkpoint_date_shanghai=parsed_date,
+                    newest_observed_at_utc=observed,
+                    legacy_watermark_utc=(observed if parsed_date is None else None),
+                    lineage="v2.1_daily_checkpoint",
+                )
+        if (
+            legacy_watermark is None
+            and row.status == "ok"
+            and stats.get("config_version") == "p4.1-news-poll-v1"
+            and stats.get("config_sha256") == EXPECTED_CONFIG_SHA256
+        ):
+            legacy_watermark = _parsed_utc_watermark(source.get("watermark_after"))
+
+    return DailyCheckpointSeed(
+        checkpoint_date_shanghai=None,
+        newest_observed_at_utc=legacy_watermark,
+        legacy_watermark_utc=legacy_watermark,
+        lineage=("legacy_v1_global_watermark" if legacy_watermark is not None else "missing"),
+    )
 
 
 def _parse_cninfo_timestamp(value: object) -> datetime | None:
@@ -1050,11 +1393,333 @@ def _fetch_cninfo_v2(
     return batch
 
 
+def _v2_1_slice_dates(
+    seed: DailyCheckpointSeed,
+    *,
+    poll_started_at_utc: datetime,
+    max_dates_per_run: int,
+) -> list[date]:
+    if max_dates_per_run <= 0:
+        raise ValueError("v2.1 max_dates_per_run must be positive")
+    market_date = poll_started_at_utc.astimezone(MARKET_TIMEZONE).date()
+    if seed.checkpoint_date_shanghai is not None:
+        first = seed.checkpoint_date_shanghai + timedelta(days=1)
+    elif seed.legacy_watermark_utc is not None:
+        first = seed.legacy_watermark_utc.astimezone(MARKET_TIMEZONE).date()
+    else:
+        raise NewsSourceError(
+            "daily_checkpoint_unavailable",
+            "CNInfo v2.1 has neither a verified daily checkpoint nor the v1 migration seed",
+            blocked=True,
+        )
+    if first > market_date:
+        raise NewsSourceError(
+            "daily_checkpoint_ahead_of_market_date",
+            "CNInfo v2.1 checkpoint is ahead of the Shanghai market date",
+            blocked=True,
+        )
+    result: list[date] = []
+    current = first
+    while current <= market_date and len(result) < max_dates_per_run:
+        result.append(current)
+        current += timedelta(days=1)
+    return result
+
+
+def _fetch_cninfo_v2_1(
+    config: NewsPollConfig,
+    now: datetime,
+    client_factory: HttpClientFactory | None,
+) -> SourceBatch:
+    """Fetch one canonical CNInfo column in bounded Shanghai natural-day slices."""
+
+    source = cast(dict[str, Any], cast(dict[str, Any], config.document["sources"])["cninfo"])
+    source_id = "cninfo"
+    canonical_column = str(source.get("canonical_column"))
+    if canonical_column != "szse" or source.get("columns") != ["szse"]:
+        raise NewsSourceError(
+            "canonical_column_contract_drifted",
+            "CNInfo v2.1 must issue only the canonical szse query",
+            blocked=True,
+        )
+    poll_started_at_utc = _ensure_utc(now)
+    assert poll_started_at_utc is not None
+    seed = _last_committed_daily_checkpoint(config, source_id)
+    max_dates = int(source["max_dates_per_run"])
+    slice_dates = _v2_1_slice_dates(
+        seed,
+        poll_started_at_utc=poll_started_at_utc,
+        max_dates_per_run=max_dates,
+    )
+    market_date = poll_started_at_utc.astimezone(MARKET_TIMEZONE).date()
+    client = client_factory(source_id) if client_factory else _new_http_client(config)
+    transport = _transport(config, source_id, source, client)
+    batch = SourceBatch(source_id=source_id)
+    slices: list[JsonObject] = []
+    checkpoint_before = seed.checkpoint_date_shanghai
+    checkpoint_after = checkpoint_before
+    committed_observed = seed.newest_observed_at_utc
+    latest_attempt_observed = seed.newest_observed_at_utc
+    any_checkpoint_committed = False
+    try:
+        for slice_date in slice_dates:
+            logical_before = transport.logical_request_count
+            physical_before = transport.physical_attempt_count
+            candidates_before = len(batch.candidates)
+            newest_in_slice: datetime | None = None
+            incremental_floor = (
+                committed_observed
+                - timedelta(minutes=int(source["watermark_overlap_minutes"]))
+                if slice_date == market_date and committed_observed is not None
+                else None
+            )
+            pagination_complete = False
+            page_cap_hit = False
+            failure: JsonObject | None = None
+            page_count = 0
+            previous_page_min: datetime | None = None
+            try:
+                for page in range(1, int(source["max_pages_per_day"]) + 1):
+                    response = transport.request(
+                        "POST",
+                        str(source["announcements_url"]),
+                        data={
+                            "pageNum": page,
+                            "pageSize": int(source["page_size"]),
+                            "column": canonical_column,
+                            "tabName": "fulltext",
+                            "stock": "",
+                            "seDate": f"{slice_date.isoformat()}~{slice_date.isoformat()}",
+                            "sortName": str(source["sort_name"]),
+                            "sortType": str(source["sort_type"]),
+                            "isHLtitle": "false",
+                        },
+                        headers={"Content-Type": "application/x-www-form-urlencoded"},
+                    )
+                    page_count += 1
+                    payload = _decode_json(response)
+                    if not isinstance(payload, dict):
+                        raise NewsSourceError(
+                            "schema_changed", "CNInfo response is not an object"
+                        )
+                    rows = payload.get("announcements") or []
+                    if not isinstance(rows, list):
+                        raise NewsSourceError(
+                            "schema_changed", "CNInfo announcements is not a list"
+                        )
+                    page_times: list[datetime] = []
+                    page_candidates: list[NewsCandidate] = []
+                    for raw in rows:
+                        if not isinstance(raw, dict):
+                            raise NewsSourceError(
+                                "schema_changed",
+                                "CNInfo v2.1 announcement row must be an object",
+                            )
+                        title = _normalize_text(raw.get("announcementTitle"))
+                        adjunct = _normalize_text(raw.get("adjunctUrl"))
+                        raw_published_at = raw.get("announcementTime")
+                        published_at = _parse_cninfo_timestamp(raw_published_at)
+                        if (
+                            raw_published_at is not None
+                            and raw_published_at != ""
+                            and published_at is None
+                        ):
+                            raise NewsSourceError(
+                                "schema_changed",
+                                "CNInfo v2.1 non-null announcementTime must be parseable",
+                            )
+                        if (
+                            published_at is not None
+                            and published_at.astimezone(MARKET_TIMEZONE).date()
+                            != slice_date
+                        ):
+                            raise NewsSourceError(
+                                "cninfo_slice_date_contract_violated",
+                                "CNInfo announcementTime falls outside the requested CST date",
+                            )
+                        if published_at is not None:
+                            page_times.append(published_at)
+                        if not title or not adjunct:
+                            continue
+                        page_candidates.append(
+                            NewsCandidate(
+                                source=source_id,
+                                symbol=_normalize_symbol(raw.get("secCode")),
+                                title=title,
+                                url=urljoin(str(source["static_url_prefix"]), adjunct),
+                                published_at=published_at,
+                                content="",
+                                raw_payload=cast(JsonObject, _json_safe(raw)),
+                            )
+                        )
+                    if any(
+                        later > earlier
+                        for earlier, later in pairwise(page_times)
+                    ):
+                        raise NewsSourceError(
+                            "cninfo_order_contract_violated",
+                            "CNInfo v2.1 page is not timestamp-descending",
+                        )
+                    if (
+                        previous_page_min is not None
+                        and page_times
+                        and max(page_times) > previous_page_min
+                    ):
+                        raise NewsSourceError(
+                            "cninfo_order_contract_violated",
+                            "CNInfo v2.1 cross-page timestamps are not descending",
+                        )
+                    if page_times:
+                        previous_page_min = min(page_times)
+                        page_newest = max(page_times)
+                        newest_in_slice = (
+                            page_newest
+                            if newest_in_slice is None
+                            else max(newest_in_slice, page_newest)
+                        )
+                        latest_attempt_observed = (
+                            page_newest
+                            if latest_attempt_observed is None
+                            else max(latest_attempt_observed, page_newest)
+                        )
+                    batch.candidates.extend(page_candidates)
+                    current_floor_reached = (
+                        incremental_floor is not None
+                        and bool(page_times)
+                        and min(page_times) <= incremental_floor
+                    )
+                    if (
+                        not rows
+                        or payload.get("hasMore") is False
+                        or len(rows) < int(source["page_size"])
+                        or current_floor_reached
+                    ):
+                        pagination_complete = True
+                        break
+                else:
+                    page_cap_hit = True
+            except Exception as exc:
+                failure = {**_source_failure(exc), "date_shanghai": slice_date.isoformat()}
+                batch.failures.append(failure)
+                batch.status = "unavailable"
+
+            date_closed = slice_date < market_date
+            checkpoint_committed = pagination_complete and failure is None
+            if checkpoint_committed:
+                if date_closed:
+                    checkpoint_after = slice_date
+                any_checkpoint_committed = True
+                if newest_in_slice is not None:
+                    committed_observed = (
+                        newest_in_slice
+                        if committed_observed is None
+                        else max(committed_observed, newest_in_slice)
+                    )
+            slice_stats: JsonObject = {
+                "date_shanghai": slice_date.isoformat(),
+                "date_closed": date_closed,
+                "mode": (
+                    "closed_date_reconciliation"
+                    if date_closed
+                    else "current_date_incremental"
+                ),
+                "incremental_floor_utc": (
+                    incremental_floor.isoformat()
+                    if incremental_floor is not None
+                    else None
+                ),
+                "attempted": True,
+                "page_count": page_count,
+                "logical_request_count": (
+                    transport.logical_request_count - logical_before
+                ),
+                "physical_attempt_count": (
+                    transport.physical_attempt_count - physical_before
+                ),
+                "fetched": len(batch.candidates) - candidates_before,
+                "newest_observed_at_utc": (
+                    newest_in_slice.isoformat() if newest_in_slice is not None else None
+                ),
+                "pagination_complete": pagination_complete,
+                "coverage_proven": pagination_complete,
+                "checkpoint_committed": checkpoint_committed,
+                "page_cap_hit": page_cap_hit,
+                "failure": (
+                    _safe_v2_failure(failure) if failure is not None else None
+                ),
+            }
+            slices.append(slice_stats)
+            if page_cap_hit:
+                batch.failures.append(
+                    {
+                        "code": "pagination_incomplete",
+                        "blocked": False,
+                        "error_type": "NewsSourceError",
+                        "date_shanghai": slice_date.isoformat(),
+                    }
+                )
+                if batch.status == "ok":
+                    batch.status = "degraded"
+            if failure is not None or page_cap_hit:
+                break
+    finally:
+        close = getattr(client, "close", None)
+        if callable(close):
+            close()
+
+    _copy_transport_counts(batch, transport)
+    batch.details = {
+        "canonical_column": canonical_column,
+        "slice_dates_shanghai": [item.isoformat() for item in slice_dates],
+        "slices": slices,
+        "request_budget": {
+            "page_size": int(source["page_size"]),
+            "max_pages_per_day": int(source["max_pages_per_day"]),
+            "max_dates_per_run": max_dates,
+            "max_logical_requests_per_run": int(source["max_logical_requests_per_run"]),
+            "max_physical_attempts_per_run": int(
+                source["max_physical_attempts_per_run"]
+            ),
+            "logical_request_count": transport.logical_request_count,
+            "physical_attempt_count": transport.physical_attempt_count,
+        },
+        "daily_checkpoint": {
+            "lineage_before": seed.lineage,
+            "verified_checkpoint_date_shanghai_before": (
+                checkpoint_before.isoformat() if checkpoint_before is not None else None
+            ),
+            "verified_checkpoint_date_shanghai_after": (
+                checkpoint_after.isoformat() if checkpoint_after is not None else None
+            ),
+            "newest_observed_at_utc": (
+                committed_observed.isoformat() if committed_observed is not None else None
+            ),
+            "latest_attempt_observed_at_utc": (
+                latest_attempt_observed.isoformat()
+                if latest_attempt_observed is not None
+                else None
+            ),
+            "checkpoint_committed": any_checkpoint_committed,
+            "partial_checkpoint": any(
+                item["checkpoint_committed"] is not True for item in slices
+            ),
+            "initial_backlog_migration": seed.lineage == "legacy_v1_global_watermark",
+        },
+        "poll_started_at_utc": poll_started_at_utc.isoformat(),
+        "market_date_at_poll": market_date.isoformat(),
+        "requests": transport.requests,
+        "tls_verification": True,
+    }
+    return batch
+
+
 def _fetch_cninfo(
     config: NewsPollConfig,
     now: datetime,
     client_factory: HttpClientFactory | None,
 ) -> SourceBatch:
+    if config.document.get("schema_version") == "p4.1-news-poll-v2.1":
+        return _fetch_cninfo_v2_1(config, now, client_factory)
     if config.document.get("schema_version") == "p4.1-news-poll-v2":
         return _fetch_cninfo_v2(config, now, client_factory)
     return _fetch_cninfo_v1(config, now, client_factory)
@@ -1606,8 +2271,10 @@ def _safety_snapshot(settings: Settings) -> JsonObject:
         "settings": {
             "trading_mode": settings.trading_mode,
             "live_trading_enabled": settings.live_trading_enabled,
+            "paper_trading_enabled": settings.paper_trading_enabled,
             "paper_auto_trading_enabled": settings.paper_auto_trading_enabled,
             "futu_enable_account_mutation": settings.futu_enable_account_mutation,
+            "futu_enable_trade": settings.futu_enable_trade,
             "unlock_trade_permanently_blocked": "unlock_trade" in PERMANENTLY_BLOCKED_METHODS,
         },
         "trade_proposal_ids": proposal_ids,
@@ -1621,8 +2288,10 @@ def _safety_issues(snapshot: JsonObject) -> list[str]:
     expected = {
         "trading_mode": "research",
         "live_trading_enabled": False,
+        "paper_trading_enabled": False,
         "paper_auto_trading_enabled": False,
         "futu_enable_account_mutation": False,
+        "futu_enable_trade": False,
         "unlock_trade_permanently_blocked": True,
     }
     issues = [
@@ -1673,6 +2342,9 @@ def _safe_v2_failure(failure: Mapping[str, object]) -> JsonObject:
     column = failure.get("column")
     if isinstance(column, str):
         result["column"] = column[:32]
+    date_shanghai = failure.get("date_shanghai")
+    if isinstance(date_shanghai, str):
+        result["date_shanghai"] = date_shanghai[:10]
     suppression = failure.get("suppression")
     if isinstance(suppression, Mapping):
         result["suppression"] = {
@@ -1897,6 +2569,7 @@ def _v2_catchup_stats(
     cninfo = source_results.get("cninfo", {})
     checkpoints = cninfo.get("column_watermarks")
     ranges: JsonObject = {}
+    range_basis = "per_column_verified_watermark_minus_overlap_to_actual_poll"
     if isinstance(checkpoints, Mapping):
         for column, raw in checkpoints.items():
             if not isinstance(column, str) or not isinstance(raw, Mapping):
@@ -1912,6 +2585,37 @@ def _v2_catchup_stats(
                     else None
                 ),
             }
+    else:
+        slices = cninfo.get("slices")
+        canonical_column = cninfo.get("canonical_column")
+        if isinstance(slices, list) and canonical_column == "szse":
+            current_date = started_at.astimezone(MARKET_TIMEZONE).date().isoformat()
+            current_slice = next(
+                (
+                    item
+                    for item in slices
+                    if isinstance(item, Mapping)
+                    and item.get("date_shanghai") == current_date
+                    and item.get("mode") == "current_date_incremental"
+                ),
+                None,
+            )
+            if isinstance(current_slice, Mapping):
+                start = _parsed_utc_watermark(
+                    current_slice.get("incremental_floor_utc")
+                )
+                ranges["szse"] = {
+                    "start_utc": start.isoformat() if start is not None else None,
+                    "end_utc": started_at.isoformat(),
+                    "span_seconds": (
+                        max(0, int((started_at - start).total_seconds()))
+                        if start is not None
+                        else None
+                    ),
+                }
+                range_basis = (
+                    "canonical_daily_verified_observed_minus_overlap_to_actual_poll"
+                )
 
     by_source: JsonObject = {}
     for source_id, source in source_results.items():
@@ -1926,7 +2630,7 @@ def _v2_catchup_stats(
             )
         }
     return {
-        "range_basis": "per_column_verified_watermark_minus_overlap_to_actual_poll",
+        "range_basis": range_basis,
         "cninfo_column_ranges": ranges,
         "range_end_utc": started_at.isoformat(),
         "counts_by_source": by_source,
@@ -1950,38 +2654,16 @@ def run_news_poll(
     config_path: Path = DEFAULT_CONFIG_PATH,
     now: datetime | None = None,
     http_client_factory: HttpClientFactory | None = None,
+    execution_mode: V2ExecutionMode = "scheduler",
+    authorization_receipt_path: Path | None = None,
 ) -> JsonObject | JobOutcome:
     config = load_news_poll_config(config_path)
-    is_v2 = config.document.get("schema_version") == "p4.1-news-poll-v2"
-    if is_v2 and not V2_IMPLEMENTATION_READY:
-        gate_started_at = utcnow()
-        raise JobExecutionError(
-            "P4.1 v2 is pre-registered but implementation is not ready",
-            stats={
-                "config_version": config.document["schema_version"],
-                "config_path": str(config.path.relative_to(PROJECT_DIR)),
-                "config_sha256": config.sha256,
-                "implementation_gate": "prereg_not_ready",
-                "v2_implementation_ready": False,
-                "fail_closed_before_job_context": True,
-                "network_attempted": False,
-                "fetch_started": False,
-                "poll_started_at": gate_started_at.isoformat(),
-                "poll_completed_at": utcnow().isoformat(),
-                "run_mode": "regular_incremental",
-                "coverage_gap": False,
-                "safety_unchanged": True,
-                "sources": {},
-                "p4_2b_production_wiring_unlocked": False,
-                "p4_3_unlocked": False,
-                "terminal_diagnostics": _v2_terminal_diagnostic(
-                    code="v2_implementation_not_ready",
-                    source="news_poll",
-                    constraint="implementation_gate",
-                    recoverable=False,
-                ),
-            },
-        )
+    is_v2 = _is_v2_config(config)
+    execution_authorization = _v2_execution_authorization(
+        config,
+        execution_mode=execution_mode,
+        authorization_receipt_path=authorization_receipt_path,
+    )
     context = current_job_run()
     if context is None or context.job_name != "news_poll":
         raise JobExecutionError(
@@ -2002,6 +2684,24 @@ def run_news_poll(
             "coverage_gap_details": None,
         }
     )
+    if is_v2 and execution_mode == "initial_backlog_migration":
+        run_context = {
+            "run_mode": "coverage_gap_catchup",
+            "coverage_gap": True,
+            "coverage_gap_details": {
+                "reason": "initial_backlog_migration",
+                "manual_execution": True,
+                "authorization_receipt_sha256": execution_authorization.get(
+                    "authorization_receipt_sha256"
+                ),
+            },
+        }
+    elif is_v2 and execution_mode == "standard_incremental_validation":
+        run_context = {
+            "run_mode": "regular_incremental",
+            "coverage_gap": False,
+            "coverage_gap_details": None,
+        }
     settings = get_settings()
     safety_before = _safety_snapshot(settings)
     stats: JsonObject = {
@@ -2020,6 +2720,8 @@ def run_news_poll(
     if is_v2:
         stats.update(
             {
+                "execution_authorization": execution_authorization,
+                "execution_mode": execution_mode,
                 "run_mode": run_context["run_mode"],
                 "coverage_gap": run_context["coverage_gap"],
                 "coverage_gap_details": run_context["coverage_gap_details"],
@@ -2227,6 +2929,56 @@ def run_news_poll(
     stats["poll_completed_at"] = utcnow().isoformat()
     if is_v2:
         cninfo_result = source_results.get("cninfo", {})
+        if config.document.get("schema_version") == "p4.1-news-poll-v2.1":
+            slices = cninfo_result.get("slices")
+            complete = (
+                cninfo_result.get("status") == "ok"
+                and cninfo_result.get("failure_count") == 0
+                and cninfo_result.get("tls_verification") is True
+                and isinstance(slices, list)
+                and bool(slices)
+                and all(
+                    isinstance(item, dict)
+                    and item.get("attempted") is True
+                    and item.get("pagination_complete") is True
+                    and item.get("page_cap_hit") is False
+                    and item.get("failure") is None
+                    for item in slices
+                )
+            )
+            if complete:
+                stats["terminal_diagnostics"] = None
+                return JobOutcome(status="ok", stats=cast(JsonObject, _json_safe(stats)))
+            page_cap_only = (
+                cninfo_result.get("status") == "degraded"
+                and isinstance(slices, list)
+                and any(
+                    isinstance(item, dict) and item.get("page_cap_hit") is True
+                    for item in slices
+                )
+                and all(
+                    isinstance(item, dict) and item.get("failure") is None
+                    for item in slices
+                )
+            )
+            if page_cap_only:
+                stats["terminal_diagnostics"] = _v2_terminal_diagnostic(
+                    code="cninfo_daily_slice_pagination_incomplete",
+                    source="cninfo",
+                    constraint="max_pages_per_day",
+                    recoverable=True,
+                )
+                return JobOutcome(
+                    status="degraded",
+                    stats=cast(JsonObject, _json_safe(stats)),
+                )
+            diagnostic = _v2_cninfo_failure_diagnostic(cninfo_result)
+            stats["terminal_diagnostics"] = diagnostic
+            stats["critical_failures"] = ["cninfo"]
+            raise JobExecutionError(
+                f"P4.1 critical source failed: cninfo/{diagnostic['code']}",
+                stats=stats,
+            )
         columns = [str(item) for item in cast(list[object], source_contract["cninfo"]["columns"])]
         if _v2_cninfo_complete(cninfo_result, expected_columns=columns):
             stats["terminal_diagnostics"] = None
@@ -2258,6 +3010,42 @@ def run_news_poll(
         stats["critical_failures"] = critical_failures
         raise JobExecutionError("P4.1 critical news source failed", stats=stats)
     return cast(JsonObject, _json_safe(stats))
+
+
+def run_news_poll_v2_1_initial_migration(
+    *,
+    authorization_receipt_path: Path,
+    now: datetime | None = None,
+    http_client_factory: HttpClientFactory | None = None,
+) -> JobRun:
+    """Manual-only v2.1 backlog migration entrypoint; never scheduler-registered."""
+
+    return run_job(
+        "news_poll",
+        config_path=V2_1_CONFIG_PATH,
+        now=now,
+        http_client_factory=http_client_factory,
+        execution_mode="initial_backlog_migration",
+        authorization_receipt_path=authorization_receipt_path,
+    )
+
+
+def run_news_poll_v2_1_incremental_validation(
+    *,
+    authorization_receipt_path: Path,
+    now: datetime | None = None,
+    http_client_factory: HttpClientFactory | None = None,
+) -> JobRun:
+    """Manual-only post-migration validation entrypoint; never scheduler-registered."""
+
+    return run_job(
+        "news_poll",
+        config_path=V2_1_CONFIG_PATH,
+        now=now,
+        http_client_factory=http_client_factory,
+        execution_mode="standard_incremental_validation",
+        authorization_receipt_path=authorization_receipt_path,
+    )
 
 
 def _news_poll_trigger_v1() -> OrTrigger:
