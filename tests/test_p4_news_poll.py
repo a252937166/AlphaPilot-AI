@@ -15,7 +15,7 @@ from alphapilot.core.config import get_settings
 from alphapilot.db.engine import get_session
 from alphapilot.db.models import JobRun, NewsItem
 from alphapilot.jobs import news_poll
-from alphapilot.jobs.registry import JOBS, JobExecutionError, run_job
+from alphapilot.jobs.registry import JOBS, JobExecutionError, JobSpec, register, run_job
 
 
 class _FakeResponse:
@@ -181,8 +181,21 @@ def test_v2_runtime_gate_fails_before_context_fetch_or_http(
         "fail_closed_before_job_context": True,
         "network_attempted": False,
         "fetch_started": False,
+        "poll_started_at": caught.value.stats["poll_started_at"],
+        "poll_completed_at": caught.value.stats["poll_completed_at"],
+        "run_mode": "regular_incremental",
+        "coverage_gap": False,
+        "safety_unchanged": True,
+        "sources": {},
         "p4_2b_production_wiring_unlocked": False,
         "p4_3_unlocked": False,
+        "terminal_diagnostics": {
+            "code": "v2_implementation_not_ready",
+            "source": "news_poll",
+            "constraint": "implementation_gate",
+            "recoverable": False,
+            "retry_suppressed": False,
+        },
     }
 
 
@@ -929,6 +942,359 @@ def test_zero_request_stats_are_v2_only() -> None:
         "logical_request_count": 0,
         "physical_attempt_count": 0,
     }
+
+
+def _v2_checkpoint_stats(*, page_cap_hit: bool) -> dict[str, object]:
+    complete = not page_cap_hit
+    return {
+        "verified_watermark_before_utc": "2026-08-05T00:00:00+00:00",
+        "verified_watermark_floor_utc": "2026-08-04T23:30:00+00:00",
+        "newest_observed_at_utc": "2026-08-05T00:05:00+00:00",
+        "verified_watermark_after_utc": (
+            "2026-08-05T00:05:00+00:00" if complete else "2026-08-05T00:00:00+00:00"
+        ),
+        "pagination_complete": complete,
+        "checkpoint_committed": complete,
+        "page_cap_hit": page_cap_hit,
+        "attempted": True,
+        "skipped_due_to_prior_critical_failure": False,
+    }
+
+
+def _v2_cninfo_batch(
+    *,
+    status: str,
+    failures: list[dict[str, object]] | None = None,
+    capped_columns: set[str] | None = None,
+) -> news_poll.SourceBatch:
+    capped = capped_columns or set()
+    return news_poll.SourceBatch(
+        source_id="cninfo",
+        status=status,
+        request_count=2,
+        logical_request_count=2,
+        physical_attempt_count=2,
+        failures=failures or [],
+        details={
+            "column_watermarks": {
+                column: _v2_checkpoint_stats(page_cap_hit=column in capped)
+                for column in ("sse", "szse")
+            },
+            "requests": [],
+            "tls_verification": True,
+        },
+    )
+
+
+def _v2_noncritical_batch(source_id: str, *, failed: bool) -> news_poll.SourceBatch:
+    return news_poll.SourceBatch(
+        source_id=source_id,
+        status="unavailable" if failed else "ok",
+        request_count=1,
+        logical_request_count=1,
+        physical_attempt_count=1,
+        failures=(
+            [
+                {
+                    "code": "transport_error",
+                    "blocked": False,
+                    "error_type": "NewsSourceError",
+                    "message": "bounded noncritical failure",
+                }
+            ]
+            if failed
+            else []
+        ),
+    )
+
+
+def _run_v2_news_poll(monkeypatch: pytest.MonkeyPatch) -> JobRun:
+    monkeypatch.setattr(news_poll, "V2_IMPLEMENTATION_READY", True)
+    register(
+        JobSpec(
+            name="news_poll",
+            func=lambda: news_poll.run_news_poll(config_path=news_poll.V2_CONFIG_PATH),
+            trigger=None,
+        )
+    )
+    return run_job("news_poll")
+
+
+def test_v2_complete_cninfo_is_ok_even_when_noncritical_sources_fail(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        news_poll,
+        "_fetch_cninfo",
+        lambda *_args: _v2_cninfo_batch(status="ok"),
+    )
+    monkeypatch.setattr(
+        news_poll,
+        "_fetch_ths",
+        lambda *_args: _v2_noncritical_batch("akshare_ths", failed=True),
+    )
+    monkeypatch.setattr(
+        news_poll,
+        "_fetch_sina",
+        lambda *_args: _v2_noncritical_batch("sina_company_news", failed=True),
+    )
+
+    record = _run_v2_news_poll(monkeypatch)
+
+    assert record.status == "ok"
+    assert record.error is None
+    assert record.stats["terminal_diagnostics"] is None
+    assert record.stats["sources"]["cninfo"]["status"] == "ok"
+    assert record.stats["sources"]["akshare_ths"]["status"] == "unavailable"
+    assert record.stats["sources"]["sina_company_news"]["status"] == "unavailable"
+
+
+def test_v2_page_cap_only_cninfo_is_degraded_with_null_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    failure = {
+        "code": "pagination_incomplete",
+        "blocked": False,
+        "error_type": "NewsSourceError",
+        "message": "must not be copied into terminal diagnostics",
+        "column": "sse",
+    }
+    monkeypatch.setattr(
+        news_poll,
+        "_fetch_cninfo",
+        lambda *_args: _v2_cninfo_batch(
+            status="degraded",
+            failures=[failure],
+            capped_columns={"sse"},
+        ),
+    )
+    monkeypatch.setattr(
+        news_poll,
+        "_fetch_ths",
+        lambda *_args: _v2_noncritical_batch("akshare_ths", failed=False),
+    )
+    monkeypatch.setattr(
+        news_poll,
+        "_fetch_sina",
+        lambda *_args: _v2_noncritical_batch("sina_company_news", failed=False),
+    )
+
+    record = _run_v2_news_poll(monkeypatch)
+
+    assert record.status == "degraded"
+    assert record.error is None
+    assert record.stats["terminal_diagnostics"] == {
+        "code": "cninfo_column_pagination_incomplete",
+        "source": "cninfo",
+        "constraint": "max_pages_per_column",
+        "recoverable": True,
+        "retry_suppressed": False,
+    }
+    assert "message" not in record.stats["terminal_diagnostics"]
+
+
+def test_v2_cninfo_transport_failure_is_failed_with_safe_diagnostic(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    secret = "https://user:secret@example.test/?token=do-not-persist"
+    monkeypatch.setattr(
+        news_poll,
+        "_fetch_cninfo",
+        lambda *_args: _v2_cninfo_batch(
+            status="unavailable",
+            failures=[
+                {
+                    "code": "transport_timeout",
+                    "blocked": False,
+                    "error_type": "NewsSourceError",
+                    "message": secret,
+                    "column": "sse",
+                }
+            ],
+        ),
+    )
+    monkeypatch.setattr(
+        news_poll,
+        "_fetch_ths",
+        lambda *_args: _v2_noncritical_batch("akshare_ths", failed=False),
+    )
+    monkeypatch.setattr(
+        news_poll,
+        "_fetch_sina",
+        lambda *_args: _v2_noncritical_batch("sina_company_news", failed=False),
+    )
+
+    record = _run_v2_news_poll(monkeypatch)
+
+    assert record.status == "failed"
+    assert record.error == (
+        "JobExecutionError: P4.1 critical source failed: cninfo/transport_timeout"
+    )
+    assert record.stats["terminal_diagnostics"] == {
+        "code": "transport_timeout",
+        "source": "cninfo",
+        "constraint": "critical_transport",
+        "recoverable": True,
+        "retry_suppressed": False,
+    }
+    assert secret not in str(record.stats)
+    assert secret not in str(record.error)
+
+
+def test_v2_cninfo_schema_failure_is_failed_not_degraded(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        news_poll,
+        "_fetch_cninfo",
+        lambda *_args: _v2_cninfo_batch(
+            status="unavailable",
+            failures=[
+                {
+                    "code": "schema_changed",
+                    "blocked": False,
+                    "error_type": "NewsSourceError",
+                    "message": "unexpected upstream field",
+                    "column": "sse",
+                }
+            ],
+        ),
+    )
+    monkeypatch.setattr(
+        news_poll,
+        "_fetch_ths",
+        lambda *_args: _v2_noncritical_batch("akshare_ths", failed=False),
+    )
+    monkeypatch.setattr(
+        news_poll,
+        "_fetch_sina",
+        lambda *_args: _v2_noncritical_batch("sina_company_news", failed=False),
+    )
+
+    record = _run_v2_news_poll(monkeypatch)
+
+    assert record.status == "failed"
+    assert record.stats["terminal_diagnostics"] == {
+        "code": "schema_changed",
+        "source": "cninfo",
+        "constraint": "critical_schema",
+        "recoverable": False,
+        "retry_suppressed": False,
+    }
+
+
+def test_v2_safety_preflight_is_failed_with_structured_diagnostic(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        news_poll,
+        "_safety_snapshot",
+        lambda _settings: {
+            "settings": {
+                "trading_mode": "research",
+                "live_trading_enabled": True,
+                "paper_auto_trading_enabled": False,
+                "futu_enable_account_mutation": False,
+                "unlock_trade_permanently_blocked": True,
+            },
+            "trade_proposal_ids": [],
+            "broker_order_ids": [],
+            "non_simulate_order_count": 0,
+        },
+    )
+
+    record = _run_v2_news_poll(monkeypatch)
+
+    assert record.status == "failed"
+    assert record.error == "JobExecutionError: P4.1 news poll safety preflight failed"
+    assert record.stats["terminal_diagnostics"] == {
+        "code": "safety_preflight_failed",
+        "source": "news_poll",
+        "constraint": "trading_safety_invariants",
+        "recoverable": False,
+        "retry_suppressed": False,
+    }
+    assert record.stats["run_mode"] == "regular_incremental"
+    assert record.stats["coverage_gap"] is False
+    assert record.stats["poll_started_at"]
+    assert record.stats["poll_completed_at"]
+    assert record.stats["safety_after"] == record.stats["safety_before"]
+    assert record.stats["safety_unchanged"] is True
+
+
+def test_v2_unknown_degraded_cause_fails_closed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        news_poll,
+        "_fetch_cninfo",
+        lambda *_args: _v2_cninfo_batch(
+            status="degraded",
+            failures=[
+                {
+                    "code": "unregistered_degraded_reason",
+                    "blocked": False,
+                    "error_type": "NewsSourceError",
+                    "message": "response shape changed",
+                    "column": "sse",
+                }
+            ],
+        ),
+    )
+    monkeypatch.setattr(
+        news_poll,
+        "_fetch_ths",
+        lambda *_args: _v2_noncritical_batch("akshare_ths", failed=False),
+    )
+    monkeypatch.setattr(
+        news_poll,
+        "_fetch_sina",
+        lambda *_args: _v2_noncritical_batch("sina_company_news", failed=False),
+    )
+
+    record = _run_v2_news_poll(monkeypatch)
+
+    assert record.status == "failed"
+    assert record.error == (
+        "JobExecutionError: P4.1 critical source failed: cninfo/cninfo_invalid_degraded_state"
+    )
+    assert record.stats["terminal_diagnostics"]["constraint"] == ("degraded_cause_allowlist")
+
+
+def test_v2_cninfo_persistence_failure_is_sanitized_and_failed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    secret = "sqlite://private:credential@host/database"
+    monkeypatch.setattr(
+        news_poll,
+        "_fetch_cninfo",
+        lambda *_args: _v2_cninfo_batch(status="ok"),
+    )
+    monkeypatch.setattr(
+        news_poll,
+        "_fetch_ths",
+        lambda *_args: _v2_noncritical_batch("akshare_ths", failed=False),
+    )
+    monkeypatch.setattr(
+        news_poll,
+        "_fetch_sina",
+        lambda *_args: _v2_noncritical_batch("sina_company_news", failed=False),
+    )
+    monkeypatch.setattr(
+        news_poll,
+        "_persist_candidates",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError(secret)),
+    )
+
+    record = _run_v2_news_poll(monkeypatch)
+
+    assert record.status == "failed"
+    assert record.error == (
+        "JobExecutionError: P4.1 critical source failed: cninfo/persistence_failed"
+    )
+    assert record.stats["terminal_diagnostics"]["constraint"] == "critical_persistence"
+    assert secret not in str(record.stats)
+    assert secret not in str(record.error)
 
 
 def test_critical_source_failure_keeps_complete_jobrun_stats(

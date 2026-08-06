@@ -324,12 +324,22 @@ const activities = computed(() => {
   for (const run of jobRuns.value) {
     if (seenJobs.has(run.job_name)) continue
     seenJobs.add(run.job_name)
-    const status = run.status === 'ok' ? '完成' : run.status === 'failed' ? '失败' : '运行中'
+    const status = run.status === 'ok'
+      ? '完成'
+      : run.status === 'degraded'
+        ? '降级完成'
+        : run.status === 'failed'
+          ? '失败'
+          : '运行中'
     events.push({
       id: `job:${run.id}`,
       time: run.started_at,
       text: `${JOB_LABELS[run.job_name] || run.job_name} · ${status} · #${run.id}`,
-      cls: run.status === 'failed' ? 'red' : run.status === 'running' ? 'yellow' : 'green',
+      cls: run.status === 'failed'
+        ? 'red'
+        : run.status === 'running' || run.status === 'degraded'
+          ? 'yellow'
+          : 'green',
     })
     if (seenJobs.size >= 5) break
   }
