@@ -1692,8 +1692,10 @@ def test_v2_safety_preflight_is_failed_with_structured_diagnostic(
             "settings": {
                 "trading_mode": "research",
                 "live_trading_enabled": True,
+                "paper_trading_enabled": False,
                 "paper_auto_trading_enabled": False,
                 "futu_enable_account_mutation": False,
+                "futu_enable_trade": False,
                 "unlock_trade_permanently_blocked": True,
             },
             "trade_proposal_ids": [],

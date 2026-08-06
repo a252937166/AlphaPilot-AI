@@ -1,0 +1,68 @@
+{
+  "schema_version": "p4.1-news-poll-v2.1-probe-v1",
+  "observed_at_shanghai": "2026-08-06T19:12:00+08:00",
+  "purpose": "canonical-column-and-daily-slice-capacity-preregistration",
+  "network_policy": {
+    "strict_tls": true,
+    "automatic_retries": 0,
+    "database_writes": 0,
+    "aggregate_query_count": 2,
+    "daily_query_count": 8,
+    "total_query_count": 10
+  },
+  "aggregate_probe": {
+    "date_range_shanghai": ["2026-08-03", "2026-08-06"],
+    "page_size": 5,
+    "sort_name": "announcementTime",
+    "sort_type_requested": "asc",
+    "sort_type_observed": "descending",
+    "sse_total_announcement": 4236,
+    "szse_total_announcement": 4235,
+    "head_five_identity_equal": true,
+    "head_market": "SZCY",
+    "head_time_order": "11:08_to_11:04_descending",
+    "conclusion": "ascending-sort-parameter-is-ineffective"
+  },
+  "daily_probe": [
+    {
+      "date_shanghai": "2026-08-03",
+      "page_size": 1,
+      "sse_total_announcement": 477,
+      "szse_total_announcement": 477,
+      "sse_head_announcement_id": "1225456370",
+      "szse_head_announcement_id": "1225456370"
+    },
+    {
+      "date_shanghai": "2026-08-04",
+      "page_size": 1,
+      "sse_total_announcement": 1533,
+      "szse_total_announcement": 1533,
+      "sse_head_announcement_id": "1225458599",
+      "szse_head_announcement_id": "1225458599"
+    },
+    {
+      "date_shanghai": "2026-08-05",
+      "page_size": 1,
+      "sse_total_announcement": 1129,
+      "szse_total_announcement": 1129,
+      "sse_head_announcement_id": "1225460865",
+      "szse_head_announcement_id": "1225460865"
+    },
+    {
+      "date_shanghai": "2026-08-06",
+      "page_size": 1,
+      "sse_total_announcement": 1097,
+      "szse_total_announcement": 1097,
+      "sse_head_announcement_id": "1225461533",
+      "szse_head_announcement_id": "1225461533"
+    }
+  ],
+  "decision": {
+    "canonical_column": "szse",
+    "duplicate_sse_query_forbidden": true,
+    "cursor_strategy": "Asia/Shanghai-natural-day-slices",
+    "ascending-timestamp-cursor-forbidden": true,
+    "minimum_daily_capacity_rows": 1533,
+    "configured_daily_capacity_rows": 2400
+  }
+}

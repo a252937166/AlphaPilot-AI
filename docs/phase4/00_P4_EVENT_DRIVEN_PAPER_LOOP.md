@@ -347,6 +347,47 @@ owner 确认该时段为**人为断网、周期性复发**，非代码或上游�
 > `span_basis=first_suppressed_slot_to_actual_poll_started_at` 明示。该跨度用于覆盖审计，不会
 > 回拨事件 `available_time`，也不宣称已恢复缺口期间的决策时效性。
 
+### ⚠ DEVIATION：P4.1 v2.1 受控探测推翻双 column 容量假设（2026-08-06，code-ready 未激活）
+
+- 约 `2026-08-06 19:12 CST` 的只读受控探测使用严格 TLS、零自动重试、零数据库写入，
+  共执行 2 次聚合查询和 8 次逐日查询。逐日 `sse/szse` 的总数与首条公告 ID 完全一致：
+  `08-03=477/1225456370`、`08-04=1533/1225458599`、`08-05=1129/1225460865`、
+  `08-06=1097/1225461533`；`08-03~08-06` 聚合查询仅差 1 行（`4236/4235`），且两列
+  返回相同的前五条深市/创业板公告。该证据否定了旧 v2 将 `sse/szse` 当成互补数据域、
+  各 1,200 行且合计 2,400 行的容量假设。
+- 旧 `config/p4_news_poll_v2.yaml`（SHA-256
+  `a76a1cd9f1afd021de4d343a6550a1eb05ddad1b14d8d39cbaae2659574a5834`）在激活前即被
+  标记 `superseded_before_activation`，禁止启动。替代合同为
+  `config/p4_news_poll_v2_1.yaml`（SHA-256
+  `9d56e137baf10bd0858723a93aff02c57bf7b35f8705f1817b16a89ec615183f`），预注册收据
+  SHA-256 `485f710398698c1692d8afd8de6cd06c71ddf2fbdf42713c6bd4defc4bdfd84b`，受控探测证据
+  SHA-256 `5267be93ebcf9dd68bc8d4644ca34da15f834f5e7c6a49e76faa65034b825bdc`。
+- v2.1 只查询 canonical `szse`，按 `Asia/Shanghai` 自然日切片。闭合历史日从第一页完整
+  对账；当日增量以最近已提交的真实观测时刻减 30 分钟为 floor，强制请求 `DESC` 并逐页验证
+  页内和跨页时间单调性，直到页最早时刻越过 floor。闭合日 checkpoint 与当日 observed high
+  分离：当日轮只推进真实观测高点，不把未闭合日期伪装成闭合 checkpoint；跨日每轮最多处理
+  “前一闭合日 + 当前日”两个切片。非空 `published_at` 必须换算后属于请求的 CST 日期，否则
+  `cninfo_slice_date_contract_violated` 且不提交 checkpoint；空 `published_at` 仍可落库，但不参与
+  排序/floor 证明，只有分页完整闭合才能推进日期 checkpoint。
+- 洪峰合同改为 canonical 单列每自然日最多 80 页（30 行/页，即 2,400 行），每轮最多
+  2 个日期、160 个逻辑请求、320 次物理尝试。页限、瞬态网络、schema 或排序异常均
+  fail-closed；后一个切片发生 transport/TLS/schema 失败时，前序完整切片证据仍写入失败
+  JobRun，但 `failed` 行不作为下轮 checkpoint，安全代价是重抓。若后续切片仅命中页限，顶层
+  `degraded` 可保留前序已完整闭合的 checkpoint；候选始终遵守 URL/content-hash 双去重且重放
+  不覆盖首次 `available_time`。
+- 激活语义拆为两个独立门：`code_ready=true` 只表示离线实现与 fixture 可复核，
+  `scheduler_activated=false` 仍阻止任何定时运行。首次积压迁移只能经
+  `run_news_poll_v2_1_initial_migration` 加载与本配置 SHA 绑定的人工授权收据；迁移完成后，
+  `run_news_poll_v2_1_incremental_validation` 还要求收据明确
+  `initial_backlog_migration_complete=true`。不得通过临时改常量或用手工收据激活 scheduler。
+  手工入口的 `execution_mode` 单独写入 JobRun 审计；持久化 `run_mode` 仍严格限定为
+  `regular_incremental/coverage_gap_catchup`，初始积压迁移使用后者并写真实缺口标记，避免把执行
+  控制面枚举误传给落库协议。
+- 本记录不表示 v2.1 done，也未执行网络迁移、生产数据库写入或调度切换；
+  `initial_backlog_migration_complete=false`、`standard_incremental_validation_complete=false`，
+  `P4.2b/P4.3` 继续锁定。运行前安全门新增硬性要求
+  `paper_trading_enabled=false` 与 `futu_enable_trade=false`；不满足时须在任何抓取前失败。
+
 ### P4.2a 模型成本复审与 v1.7 选择准则预注册（2026-08-04，held-out 解锁前）
 
 - **动机**：held-out 一次性，验证哪个模型就应是生产模型。owner 提出试 `qwen3.7-flash`
