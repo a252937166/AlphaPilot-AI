@@ -700,6 +700,56 @@ def test_v2_cninfo_two_columns_stop_at_frozen_forty_page_boundary(
     assert stats["physical_attempt_count"] == 80
 
 
+def test_v2_cninfo_0730_shanghai_query_window_uses_market_dates_for_both_columns(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    config = news_poll.load_news_poll_config(news_poll.V2_CONFIG_PATH)
+    document = deepcopy(config.document)
+    document["sources"]["cninfo"]["min_interval_seconds"] = 0
+    fixture_config = news_poll.NewsPollConfig(
+        path=config.path,
+        sha256=config.sha256,
+        document=document,
+    )
+    poll_started_at_utc = datetime(2026, 8, 3, 23, 30, tzinfo=UTC)
+    sse_before = datetime(2026, 8, 3, 23, 20, tzinfo=UTC)
+    szse_before = datetime(2026, 8, 3, 15, 45, tzinfo=UTC)
+    monkeypatch.setattr(
+        news_poll,
+        "_last_committed_column_watermarks",
+        lambda *_args: {"sse": sse_before, "szse": szse_before},
+    )
+    client = _FakeClient(
+        [
+            _FakeResponse(payload={"announcements": [], "hasMore": False}),
+            _FakeResponse(payload={"announcements": [], "hasMore": False}),
+        ]
+    )
+
+    batch = news_poll._fetch_cninfo_v2(
+        fixture_config,
+        poll_started_at_utc,
+        lambda _source_id: client,
+    )
+
+    called_windows: dict[object, object] = {}
+    for _method, _url, kwargs in client.calls:
+        data = kwargs["data"]
+        assert isinstance(data, dict)
+        called_windows[data["column"]] = data["seDate"]
+    assert called_windows == {
+        "sse": "2026-08-04~2026-08-04",
+        "szse": "2026-08-03~2026-08-04",
+    }
+    assert batch.details["query_start_date_shanghai"] == {
+        "sse": "2026-08-04",
+        "szse": "2026-08-03",
+    }
+    assert batch.details["query_end_date_shanghai"] == "2026-08-04"
+    assert batch.details["market_date_at_poll"] == "2026-08-04"
+    assert batch.details["poll_started_at_utc"] == poll_started_at_utc.isoformat()
+
+
 def test_v1_cninfo_transport_and_report_fields_remain_legacy_compatible(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -739,6 +789,14 @@ def test_v1_cninfo_transport_and_report_fields_remain_legacy_compatible(
     assert batch.details["watermark_before"] == before.isoformat()
     assert batch.details["watermark_after"] == before.isoformat()
     assert batch.details["columns_complete"] == {"sse": True, "szse": True}
+    for _method, _url, kwargs in client.calls:
+        data = kwargs["data"]
+        assert isinstance(data, dict)
+        assert data["seDate"] == "2026-08-04~2026-08-05"
+    assert "query_start_date_shanghai" not in batch.details
+    assert "query_end_date_shanghai" not in batch.details
+    assert "market_date_at_poll" not in batch.details
+    assert "poll_started_at_utc" not in batch.details
 
 
 def test_dual_dedupe_preserves_first_available_time_and_ingestion_evidence(

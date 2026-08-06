@@ -902,15 +902,24 @@ def _fetch_cninfo_v2(
         source_id,
         columns,
     )
-    bootstrap = now - timedelta(minutes=int(source["bootstrap_lookback_minutes"]))
+    poll_started_at_utc = _ensure_utc(now)
+    assert poll_started_at_utc is not None
+    market_date_at_poll = poll_started_at_utc.astimezone(MARKET_TIMEZONE).date()
+    query_end_date_shanghai = market_date_at_poll.isoformat()
+    bootstrap = poll_started_at_utc - timedelta(
+        minutes=int(source["bootstrap_lookback_minutes"])
+    )
     overlap = timedelta(minutes=int(source["watermark_overlap_minutes"]))
     batch = SourceBatch(source_id=source_id)
     column_watermarks: dict[str, JsonObject] = {}
+    query_start_dates_shanghai: dict[str, str] = {}
     prior_critical_failure = False
     try:
         for column in columns:
             before = prior_by_column[column] or bootstrap
             floor = before - overlap
+            query_start_date_shanghai = floor.astimezone(MARKET_TIMEZONE).date().isoformat()
+            query_start_dates_shanghai[column] = query_start_date_shanghai
             if prior_critical_failure:
                 column_watermarks[column] = {
                     "verified_watermark_before_utc": before.isoformat(),
@@ -939,11 +948,9 @@ def _fetch_cninfo_v2(
                             "column": column,
                             "tabName": "fulltext",
                             "stock": "",
-                            # The v2 Shanghai-date correction is a separate,
-                            # later implementation step.  Preserve the current
-                            # UTC date expression here.
                             "seDate": (
-                                f"{floor.date().isoformat()}~{now.date().isoformat()}"
+                                f"{query_start_date_shanghai}~"
+                                f"{query_end_date_shanghai}"
                             ),
                             "isHLtitle": "false",
                         },
@@ -1033,6 +1040,10 @@ def _fetch_cninfo_v2(
     _copy_transport_counts(batch, transport)
     batch.details = {
         "column_watermarks": column_watermarks,
+        "query_start_date_shanghai": query_start_dates_shanghai,
+        "query_end_date_shanghai": query_end_date_shanghai,
+        "market_date_at_poll": market_date_at_poll.isoformat(),
+        "poll_started_at_utc": poll_started_at_utc.isoformat(),
         "requests": transport.requests,
         "tls_verification": True,
     }
