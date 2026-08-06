@@ -447,6 +447,15 @@ owner 确认该时段为**人为断网、周期性复发**，非代码或上游�
   的合格公告加入确定性末尾前缀收缩，只满足已冻结的输入上限并同步正文长度/哈希证据，不把它
   伪装成第三类 ineligible。模型、prompt、候选切片算法、80 字/8 MiB 门、设计/合同/receipt SHA
   与 seed 均未改变；新增真实 1419 对拍与离线回归通过后，方可重新执行材料化先决条件。
+- 修复提交后，材料化先决条件已在零模型进程中完整执行并原子冻结：全量候选 `3,070`、合格
+  `3,013`、剔除 `57`，其中 `pdf_exceeds_size_bound=12`、
+  `pdf_text_below_min_char_gate=45`。合格 inputs 为
+  `docs/phase4/eval/P4.2a-heldout-materialization-v1.7/candidate-inputs.jsonl`，SHA-256
+  `e550435b77c4525fb05717cf6d1c313448b9b7323b2e496f0450484a3a980f88`；三层 manifest
+  SHA-256 `3808852cceecbbd384109d36a595d1704197bcaf5344f94530b5b65a5aaa7d6b`。
+  只读独立复算确认三层并集闭合、互斥、ID 唯一且按 DB 升序，inputs SHA、原因计数、设计/
+  合同/回执血缘均吻合。冻结时 inference state/predictions/manifest 仍不存在、模型调用 `0`、
+  生产提案/委托仍为 `1/1`；下一动作只能由该字节冻结池启动唯一 inference one-shot。
 
 ## P4.2 LLM 事件抽取
 
