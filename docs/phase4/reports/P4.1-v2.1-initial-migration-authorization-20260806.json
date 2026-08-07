@@ -1,0 +1,43 @@
+{
+  "schema_version": "p4.1-news-poll-v2.1-manual-authorization-v1",
+  "authorization_id": "p4.1-v2.1-initial-backlog-migration-auth-20260806-r1",
+  "authorized_at_utc": "2026-08-06T15:00:34Z",
+  "authorized_by": "independent_ai_architect_claude_code (reviewer_type=ai; Anthropic Claude Fable 5, model id claude-fable-5; not a human reviewer, per owner governance amendment requires_release_gate_amendment=true)",
+  "execution_mode": "initial_backlog_migration",
+  "authorized": true,
+  "network_execution_authorized": true,
+  "scheduler_activated": false,
+  "initial_backlog_migration_complete": false,
+  "standard_incremental_validation_complete": false,
+  "config_path": "config/p4_news_poll_v2_1.yaml",
+  "config_sha256": "9d56e137baf10bd0858723a93aff02c57bf7b35f8705f1817b16a89ec615183f",
+  "review_basis": {
+    "verdict": "APPROVE_CODE_READY",
+    "review_baseline_commit": "8d1e14a929d5b42c3796bfddb9a642cce4c5afd0",
+    "audited_commits": [
+      "4c1c334 P4.1-v2.1: fix CNInfo canonical daily checkpoints",
+      "63e2d89 P4.1-v2: pin scheduler safety hardening in S6 guard",
+      "8d1e14a P4.1-v2.1: harden acceptance evidence gates"
+    ],
+    "preregistration_receipt_sha256": "485f710398698c1692d8afd8de6cd06c71ddf2fbdf42713c6bd4defc4bdfd84b",
+    "controlled_probe_sha256": "5267be93ebcf9dd68bc8d4644ca34da15f834f5e7c6a49e76faa65034b825bdc",
+    "superseded_v2_config_sha256": "a76a1cd9f1afd021de4d343a6550a1eb05ddad1b14d8d39cbaae2659574a5834",
+    "s6_guard_pinned_scheduler_main_sha256": "efcedebe93fc548c96ed2907f3e036f4b18eb5b8c7b974c5214ae95d6ba6265f",
+    "quality_gates": {
+      "ruff": "all checks passed",
+      "mypy_strict_src_alphapilot": "157 source files, no issues",
+      "pytest_full": "1438 passed, 1 skipped, 0 failed (exit=0)"
+    },
+    "review_method": "read-only audit; no migration run, no network fetch, no scheduler restart, no production database writes, no proposals, no trades"
+  },
+  "scope_limits": {
+    "authorizes_only": "one manual initial backlog migration via run_news_poll_v2_1_initial_migration with the exact config_sha256 above",
+    "does_not_authorize": [
+      "scheduler activation (V2_1_SCHEDULER_ACTIVATED must remain False)",
+      "standard_incremental_validation (requires a new receipt with initial_backlog_migration_complete=true issued only after migration evidence review)",
+      "any P4.2b or P4.3 unlock",
+      "any trading, proposal, or non-SIMULATE action"
+    ],
+    "safety_preconditions_enforced_at_runtime": "trading_mode=research; live_trading_enabled=false; paper_trading_enabled=false; paper_auto_trading_enabled=false; futu_enable_account_mutation=false; futu_enable_trade=false; unlock_trade permanently blocked; zero non-SIMULATE broker orders"
+  }
+}
