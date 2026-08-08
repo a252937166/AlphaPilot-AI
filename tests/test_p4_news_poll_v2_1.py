@@ -531,6 +531,148 @@ def test_v2_1_replay_keeps_first_available_time_and_dual_key_dedupe() -> None:
     assert after_available == first_available
 
 
+def test_v2_1_records_dual_key_dispositions_per_request_slice() -> None:
+    day_one = datetime(2026, 8, 5, 8, tzinfo=UTC)
+    candidates = [
+        news_poll.NewsCandidate(
+            source="cninfo",
+            symbol="000001",
+            title="第一日公告",
+            url="https://static.cninfo.com.cn/finalpage/day-one.PDF",
+            published_at=None,
+            content="",
+            raw_payload={"fixture": 1},
+        ),
+        news_poll.NewsCandidate(
+            source="cninfo",
+            symbol="000001",
+            title="第一日公告重放",
+            url="https://static.cninfo.com.cn/finalpage/day-one.PDF",
+            published_at=day_one,
+            content="different",
+            raw_payload={"fixture": 2},
+        ),
+        news_poll.NewsCandidate(
+            source="cninfo",
+            symbol="000002",
+            title="第二日公告",
+            url="https://static.cninfo.com.cn/finalpage/day-two-a.PDF",
+            published_at=datetime(2026, 8, 6, 8, tzinfo=UTC),
+            content="same",
+            raw_payload={"fixture": 3},
+        ),
+        news_poll.NewsCandidate(
+            source="cninfo",
+            symbol="000002",
+            title="第二日公告",
+            url="https://static.cninfo.com.cn/finalpage/day-two-b.PDF",
+            published_at=datetime(2026, 8, 6, 8, tzinfo=UTC),
+            content="same",
+            raw_payload={"fixture": 4},
+        ),
+    ]
+    batch = news_poll.SourceBatch(
+        source_id="cninfo",
+        candidates=candidates,
+        details={
+            "slices": [
+                {"date_shanghai": "2026-08-05", "fetched": 2},
+                {"date_shanghai": "2026-08-06", "fetched": 2},
+            ]
+        },
+    )
+    persistence = news_poll._persist_candidates(
+        candidates,
+        datetime.now(UTC) - timedelta(seconds=1),
+        job_run_id=1,
+    )
+
+    stats = news_poll._batch_stats(batch, persistence)
+
+    assert "_candidate_dispositions" not in stats
+    assert stats["slices"] == [
+        {
+            "date_shanghai": "2026-08-05",
+            "fetched": 2,
+            "inserted": 1,
+            "duplicate_url": 1,
+            "duplicate_content_hash": 0,
+            "filtered": 0,
+            "disposition_total": 2,
+            "disposition_identity_valid": True,
+        },
+        {
+            "date_shanghai": "2026-08-06",
+            "fetched": 2,
+            "inserted": 1,
+            "duplicate_url": 0,
+            "duplicate_content_hash": 1,
+            "filtered": 0,
+            "disposition_total": 2,
+            "disposition_identity_valid": True,
+        },
+    ]
+
+
+def test_v2_1_slice_disposition_ranges_fail_closed() -> None:
+    candidate = news_poll.NewsCandidate(
+        source="cninfo",
+        symbol="000001",
+        title="公告",
+        url="https://static.cninfo.com.cn/finalpage/one.PDF",
+        published_at=None,
+        content="",
+        raw_payload={"fixture": True},
+    )
+    batch = news_poll.SourceBatch(
+        source_id="cninfo",
+        candidates=[candidate],
+        details={"slices": [{"date_shanghai": "2026-08-05", "fetched": 0}]},
+    )
+
+    with pytest.raises(RuntimeError, match="ranges do not close"):
+        news_poll._batch_stats(
+            batch,
+            {
+                "fetched": 1,
+                "inserted": 1,
+                "duplicate_url": 0,
+                "duplicate_content_hash": 0,
+                "_candidate_dispositions": ["inserted"],
+            },
+        )
+
+
+def test_v2_1_slice_dispositions_must_match_source_aggregate() -> None:
+    candidate = news_poll.NewsCandidate(
+        source="cninfo",
+        symbol="000001",
+        title="公告",
+        url="https://static.cninfo.com.cn/finalpage/one.PDF",
+        published_at=None,
+        content="",
+        raw_payload={"fixture": True},
+    )
+    batch = news_poll.SourceBatch(
+        source_id="cninfo",
+        candidates=[candidate],
+        details={"slices": [{"date_shanghai": "2026-08-05", "fetched": 1}]},
+    )
+
+    with pytest.raises(RuntimeError, match="inserted does not match"):
+        news_poll._batch_stats(
+            batch,
+            {
+                "fetched": 1,
+                "filtered": 0,
+                "inserted": 0,
+                "duplicate_url": 0,
+                "duplicate_content_hash": 0,
+                "_candidate_dispositions": ["inserted"],
+            },
+        )
+
+
 def test_news_poll_safety_snapshot_blocks_manual_paper_and_futu_trade() -> None:
     unsafe = get_settings().model_copy(
         update={"paper_trading_enabled": True, "futu_enable_trade": True}
