@@ -1,0 +1,252 @@
+{
+  "schema_version": "p4.1-news-poll-v2.1-independent-review-v1",
+  "review_id": "p4.1-v2.1-initial-migration-round1-review-20260809-r1",
+  "created_at_utc": "2026-08-08T19:16:47Z",
+  "created_at_shanghai": "2026-08-09T03:16:47+08:00",
+  "verdict": "APPROVE_ROUND_1_EVIDENCE",
+  "blockers": [],
+  "reviewer": {
+    "identity": "independent_ai_architect_claude_code",
+    "reviewer_type": "ai",
+    "model": "Anthropic Claude Fable 5 (model id claude-fable-5)",
+    "impersonation_disclaimer": "Not a human reviewer. Issued under the owner governance amendment with requires_release_gate_amendment=true.",
+    "method": "read-only audit only: no network fetch, no migration run, no scheduler start, no production database write, no proposal, no order, no trade. All database access used sqlite URI mode=ro with PRAGMA query_only=ON; connection.total_changes verified 0 on every query session."
+  },
+  "review_scope": {
+    "review_baseline_commit": "8e910de0b48ecd0b67851f1d3014a84d48afa282",
+    "reviewed_evidence_path": "docs/phase4/reports/P4.1-v2.1-initial-migration-evidence-20260809.json",
+    "reviewed_evidence_sha256": "da60601d2a12a1f6d6c93d47cf47a4a01f1228ed4ef3d7d62ba477d7a2838685",
+    "reviewed_job_run_id": 76931,
+    "code_drift_check": "git diff 8d1e14a..8e910de over src/ scripts/ config/ tests/ is empty; the migration executed exactly the code approved at code-ready review 8d1e14a. The evidence commit added documentation and evidence only."
+  },
+  "verification_1_hash_closure": {
+    "result": "pass",
+    "config": {
+      "path": "config/p4_news_poll_v2_1.yaml",
+      "expected_sha256": "9d56e137baf10bd0858723a93aff02c57bf7b35f8705f1817b16a89ec615183f",
+      "recomputed_sha256": "9d56e137baf10bd0858723a93aff02c57bf7b35f8705f1817b16a89ec615183f",
+      "match": true
+    },
+    "preregistration": {
+      "path": "config/p4_news_poll_v2_1.preregistration.json",
+      "expected_sha256": "485f710398698c1692d8afd8de6cd06c71ddf2fbdf42713c6bd4defc4bdfd84b",
+      "recomputed_sha256": "485f710398698c1692d8afd8de6cd06c71ddf2fbdf42713c6bd4defc4bdfd84b",
+      "match": true
+    },
+    "controlled_probe": {
+      "path": "config/p4_news_poll_v2_1.probe.json",
+      "expected_sha256": "5267be93ebcf9dd68bc8d4644ca34da15f834f5e7c6a49e76faa65034b825bdc",
+      "recomputed_sha256": "5267be93ebcf9dd68bc8d4644ca34da15f834f5e7c6a49e76faa65034b825bdc",
+      "match": true
+    },
+    "authorization_receipt_round_1": {
+      "path": "docs/phase4/reports/P4.1-v2.1-initial-migration-authorization-20260806.json",
+      "expected_sha256": "4f8d2172a1cf13e33a2417280d3453aa19e7622df1299bdf40f35abf6f62ca0f",
+      "recomputed_sha256": "4f8d2172a1cf13e33a2417280d3453aa19e7622df1299bdf40f35abf6f62ca0f",
+      "match": true,
+      "immutability": "Touched only by commit 59dd986 (issuance). Not modified by the migration commit."
+    },
+    "receipt_binding_in_run": "JobRun 76931 stats.execution_authorization.authorization_receipt_sha256 and stats.coverage_gap_details.authorization_receipt_sha256 both equal 4f8d2172...ca0f, and stats.config_sha256 equals the frozen config SHA. The executed run is cryptographically bound to the exact authorization this reviewer issued."
+  },
+  "verification_2_jobrun_stats": {
+    "result": "pass",
+    "read_mode": "sqlite file:data/alphapilot.db?mode=ro with PRAGMA query_only=ON",
+    "id": 76931,
+    "job_name": "news_poll",
+    "status": "ok",
+    "error": null,
+    "started_at_utc": "2026-08-08 18:47:02.733273",
+    "finished_at_utc": "2026-08-08 18:48:13.724960",
+    "stats_bytes_observed": 30543,
+    "stats_raw_sha256_recomputed": "687ae47cbc0dcbcdb9c19b146ec3462b0c33edb1a676f4c8624bb98821add690",
+    "stats_canonical_json_sha256_recomputed": "0156ce3117118aa74d52e91ed22f245cdafd127adfc6e59cf83fe153035faee8",
+    "both_match_evidence": true,
+    "canonicalization_note": "Canonical digest reproduced with json.dumps(sort_keys=True, separators=(',',':')); identical under ensure_ascii true and false, so the canonical form is encoding-stable.",
+    "execution_contract_observed": {
+      "config_version": "p4.1-news-poll-v2.1",
+      "execution_mode": "initial_backlog_migration",
+      "run_mode": "coverage_gap_catchup",
+      "coverage_gap": true,
+      "coverage_gap_reason": "initial_backlog_migration",
+      "manual_execution": true,
+      "terminal_diagnostics": null,
+      "source_failures": [],
+      "safety_unchanged": true,
+      "p4_2_unlocked": false
+    },
+    "run_mode_enum_discipline": "Persisted run_mode is coverage_gap_catchup (a legal persistence enum); the manual control-plane value initial_backlog_migration is recorded separately in execution_mode, exactly as the v2.1 contract requires."
+  },
+  "verification_3_slices_persistence": {
+    "result": "pass",
+    "canonical_column": "szse",
+    "slice_dates_shanghai": ["2026-08-03", "2026-08-04"],
+    "tls_verification": true,
+    "slices": [
+      {
+        "date_shanghai": "2026-08-03",
+        "mode": "closed_date_reconciliation",
+        "date_closed": true,
+        "page_count": 16,
+        "fetched": 477,
+        "logical_requests": 16,
+        "physical_attempts": 16,
+        "pagination_complete": true,
+        "coverage_proven": true,
+        "page_cap_hit": false,
+        "incremental_floor_utc": null,
+        "failure": null,
+        "newest_observed_at_utc": "2026-08-03T13:37:29+00:00"
+      },
+      {
+        "date_shanghai": "2026-08-04",
+        "mode": "closed_date_reconciliation",
+        "date_closed": true,
+        "page_count": 52,
+        "fetched": 1533,
+        "logical_requests": 52,
+        "physical_attempts": 52,
+        "pagination_complete": true,
+        "coverage_proven": true,
+        "page_cap_hit": false,
+        "incremental_floor_utc": null,
+        "failure": null,
+        "newest_observed_at_utc": "2026-08-04T13:06:12+00:00"
+      }
+    ],
+    "pagination_closure_proof": "Both slices are closed-date reconciliations with no incremental floor, so completeness rests on full pagination rather than a watermark short-circuit. Page counts are exactly ceil(total/30) for both days (477 -> 16, 1533 -> 52), page_cap_hit is false on both, and fetched totals equal the frozen controlled-probe day totals (probe 2026-08-06: szse 08-03 = 477, 08-04 = 1533) captured two days earlier through an independent code path. Independent cross-artifact corroboration of complete day coverage.",
+    "checkpoint_chain": {
+      "lineage_before": "legacy_v1_global_watermark",
+      "verified_checkpoint_date_shanghai_before": null,
+      "verified_checkpoint_date_shanghai_after": "2026-08-04",
+      "newest_observed_at_utc": "2026-08-04T13:06:12+00:00",
+      "checkpoint_committed": true,
+      "partial_checkpoint": false,
+      "seed_consistency": "The 08-03 slice newest observation 2026-08-03T13:37:29Z reproduces the pre-registered legacy v1 watermark 2026-08-03T13:37:29Z exactly, independently confirming the migration seed lineage and that the v1 deadlock froze at that day's true newest announcement.",
+      "closed_date_only": "Both committed dates were closed days, so the checkpoint advanced only on proven-complete reconciliation; no unclosed date was disguised as a checkpoint."
+    },
+    "request_budget": {
+      "cninfo_logical": "68/160",
+      "cninfo_physical": "68/320",
+      "sina_company_news_logical": "5/20",
+      "sina_company_news_physical": "5/40",
+      "akshare_ths_logical": "1/3",
+      "akshare_ths_physical": "1/6",
+      "retries": 0,
+      "failures": 0,
+      "verdict": "every source within its frozen per-run budget"
+    },
+    "disposition_reconciliation": {
+      "prepared": 2010,
+      "filtered": 0,
+      "inserted": 646,
+      "duplicate_url": 1359,
+      "duplicate_content_hash": 5,
+      "identity": "646 + 1359 + 5 = 2010 = 477 + 1533; every fetched candidate has exactly one deterministic recorded disposition and none was silently dropped"
+    },
+    "persistence_independently_verified": {
+      "news_items_total_now": 8862,
+      "cninfo_total_now": 5821,
+      "rows_at_run_write_lock_timestamp": 646,
+      "all_646_are_cninfo": true,
+      "published_day_split_shanghai": {"2026-08-03": 108, "2026-08-04": 538},
+      "job_run_marker_rows": "646/646 carry _alphapilot_ingestion.job_run_id = 76931",
+      "run_mode_marker_rows": "646/646 carry run_mode = coverage_gap_catchup",
+      "coverage_gap_marker_rows": "646/646 carry preceded_by_coverage_gap = true",
+      "marker_exclusivity": "no row outside this run claims job_run_id 76931",
+      "distinct_announcement_ids": "646/646",
+      "symbol_non_null": "646/646",
+      "sqlite_quick_check": "ok"
+    },
+    "pit_verified": {
+      "available_time_null_rows_whole_table": 0,
+      "run_rows_with_available_time_not_after_published_at": 0,
+      "run_rows_with_null_published_at": 0,
+      "single_write_lock_timestamp": "2026-08-08T18:48:10.358811Z for all 646 rows",
+      "per_row_chain": "fetched_at 18:48:10.290118Z -> write_lock_acquired 18:48:10.324282Z -> available_time_assigned 18:48:10.358811Z -> flush 18:48:10.424392Z -> commit 18:48:10.431039Z",
+      "policy": "write_locked_immediately_before_flush_utc; published_at never substitutes available_time",
+      "verdict": "Backfilled 08-03/08-04 announcements correctly carry an 08-08 availability timestamp. Late events remain late for decision purposes; no historical availability was manufactured."
+    },
+    "dedup_verified": {
+      "duplicate_url_groups_whole_table": 0,
+      "duplicate_content_hash_groups_whole_table": 0
+    }
+  },
+  "verification_5_isolation_and_safety": {
+    "result": "pass",
+    "scheduler_launchagent_loaded": false,
+    "scheduler_launchagent_note": "com.alphapilot.scheduler is absent from launchctl list; the process observed as PID 46961 during the 2026-08-06 code-ready review has exited. The plist is preserved at SHA-256 468083914b4dbe93fb564f82451ce7bac474674567d0edd3cee87ec2a018b9be, matching the evidence claim, so the bootout is reversible and non-destructive.",
+    "v2_1_scheduler_activation_constant": "V2_1_SCHEDULER_ACTIVATED remains False in source; no scheduler path can reach the v2.1 config (DEFAULT_CONFIG_PATH is still v1).",
+    "running_job_runs": 0,
+    "news_poll_runs_at_or_after_76931": "exactly one, JobRun 76931 itself, the authorized run",
+    "preceding_v1_runs": "76700/76791/76882 at 17:30/18:00/18:30 all failed under p4.1-news-poll-v1 (the known pagination deadlock), then no further v1 run occurred, independently confirming the scheduler was stopped before the authorized run at 18:47:02",
+    "orphan_run_check": "no JobRun exists between the last v1 run and the authorized run, corroborating the operator note that the pre-registration KeyError aborted before any JobRun, network request, or database write",
+    "trading_safety": {
+      "settings_before_equals_after": true,
+      "trading_mode": "research",
+      "live_trading_enabled": false,
+      "paper_trading_enabled": false,
+      "paper_auto_trading_enabled": false,
+      "futu_enable_account_mutation": false,
+      "futu_enable_trade": false,
+      "unlock_trade_permanently_blocked": true,
+      "trade_proposals_now": 1,
+      "broker_orders_now": 1,
+      "non_simulate_broker_orders": 0,
+      "verdict": "1 proposal / 1 SIMULATE order unchanged before and after; zero non-SIMULATE orders; no proposal, order, or trade was produced by this run"
+    }
+  },
+  "verification_6_completion_semantics": {
+    "result": "confirmed_not_complete",
+    "statement": "Success of this round is NOT initial backlog migration completion, and this reviewer affirms that explicitly.",
+    "checkpoint_after": "2026-08-04",
+    "current_shanghai_date_at_review": "2026-08-09",
+    "outstanding_closed_dates": ["2026-08-05", "2026-08-06", "2026-08-07", "2026-08-08"],
+    "minimum_further_rounds": 2,
+    "plus_current_day_incremental": true,
+    "next_round_slice_dates_derived_from_code": ["2026-08-05", "2026-08-06"],
+    "derivation_method": "Pure function _v2_1_slice_dates evaluated read-only against a DailyCheckpointSeed reconstructed from the committed checkpoint (2026-08-04, lineage v2.1_daily_checkpoint) with max_dates_per_run=2. The next slice set is derived from the shipped code, not asserted by the reviewer.",
+    "gates_remaining_false": {
+      "initial_backlog_migration_complete": false,
+      "standard_incremental_validation_complete": false,
+      "scheduler_activated": false,
+      "p4_2b_production_wiring_unlocked": false,
+      "p4_3_unlocked": false
+    }
+  },
+  "findings_non_blocking": [
+    {
+      "id": "F-1",
+      "severity": "material_disclosure_required",
+      "title": "Host .env violates two of the seven trading invariants; the round relied on a process-level safety override",
+      "evidence": "Read-only inspection of the gitignored .env (mtime 2026-08-04 04:39, unmodified by this round) shows ALPHAPILOT_PAPER_TRADING_ENABLED=true and ALPHAPILOT_FUTU_ENABLE_TRADE=true. Loading Settings in a plain process reproduces paper_trading_enabled=True and futu_enable_trade=True, so an unoverridden process fails the safety preflight closed before any network request.",
+      "why_not_a_blocker": "The gate was satisfied genuinely rather than weakened: gate code is byte-identical to the code approved at 8d1e14a, the executing process reported all seven invariants false in both safety_before and safety_after, the news_poll job performs no trading operation, and the database independently shows 1 proposal / 1 SIMULATE order unchanged with zero non-SIMULATE orders. Without the override the next round simply fails closed, which is the safe outcome.",
+      "standing_risk": "Long-running processes started without the override (for example the API service) run with paper_trading_enabled and futu_enable_trade true. Order placement remains blocked by futu_enable_account_mutation=false, live_trading_enabled=false, trading_mode=research and the permanently blocked unlock_trade, so the residual exposure is bounded but real.",
+      "structural_protection": "The scheduler hardening pinned by the S6 guard (scheduler_main.py SHA efcedebe...6265f) fails closed on exactly these two keys, so scheduler activation is structurally impossible until .env is corrected. The latent misconfiguration is now visible and enforced rather than silent.",
+      "required_remediation_owner": "Set ALPHAPILOT_PAPER_TRADING_ENABLED=false and ALPHAPILOT_FUTU_ENABLE_TRADE=false in the host .env before any scheduler activation review. This reviewer did not modify .env: it is production host configuration and outside a read-only review.",
+      "condition_on_next_round": "The next evidence package must record BOTH the persisted .env effective values AND the process-effective values, and must state any divergence explicitly."
+    },
+    {
+      "id": "F-2",
+      "severity": "evidence_granularity",
+      "title": "Deduplication dispositions are recorded only at source aggregate level, so per-day attribution is inferred rather than proven",
+      "evidence": "stats.sources.cninfo records inserted=646, duplicate_url=1359, duplicate_content_hash=5 for the run as a whole; the per-slice records carry fetched and pagination fields but no per-slice insert or duplicate counts. The evidence file's per-slice inserted values (108/538) are derivable only from published_at day, which this reviewer independently reproduced from the database (108 and 538), but the five content-hash drops cannot be attributed to a specific day from the recorded evidence.",
+      "quantified_effect": "Database rows for 2026-08-04 CST total 1529 against an upstream day listing of 1533. The content hash is computed over (title, content, symbol, published CST day), so content-identical announcements filed under different URLs on the same day collapse to one row. This is the pre-registered dual URL/content-hash dedup semantic operating as contracted, not a coverage hole: fetch coverage is separately proven complete because fetched equals the frozen probe totals exactly on both days and no page cap was hit.",
+      "why_not_a_blocker": "Every fetched candidate has exactly one recorded disposition and the aggregate identity 646 + 1359 + 5 = 2010 closes exactly. Nothing vanished silently; only the day-level attribution of five drops is unprovable from the record.",
+      "condition_on_next_round": "Record inserted, duplicate_url and duplicate_content_hash per slice so day-level persistence attribution becomes provable rather than inferred.",
+      "forward_looking_note": "Because the hash ignores the announcement id, two genuinely distinct documents filed by the same issuer under an identical title on the same day would collapse into one row. This is a pre-existing frozen semantic and must not be changed mid-migration; it should be evaluated as a contract question before P4.2b consumes announcement bodies."
+    },
+    {
+      "id": "F-3",
+      "severity": "evidence_completeness",
+      "title": "The evidence JSON safety block reads as host state while the seven invariants were process-effective values",
+      "evidence": "safety_evidence in the evidence JSON lists the seven invariants as false with settings_before_and_after_equal=true, without disclosing the process-level override or the divergence from persisted .env. The specification note in commit 8e910de does disclose it, so the disclosure exists but not in the machine-readable artifact a future automated gate would consume.",
+      "why_not_a_blocker": "The disclosure exists in the frozen specification record committed alongside the evidence, and the substantive facts are true for the executing process.",
+      "condition_on_next_round": "Carry the persisted-versus-effective settings disclosure inside the evidence JSON itself."
+    }
+  ],
+  "authorization_issued": {
+    "path": "docs/phase4/reports/P4.1-v2.1-initial-migration-authorization-round2-20260809.json",
+    "scope": "exactly one further initial_backlog_migration round, expected to close 2026-08-05 and 2026-08-06",
+    "receipt_reuse_control_gap": "The loader validates schema, config binding, execution mode, authorization identity, explicit UTC timestamp and gate booleans, but cannot enforce single use. The round-2 receipt therefore binds expected_checkpoint_date_shanghai_before=2026-08-04 and expected_slice_dates=[2026-08-05, 2026-08-06] so that any reuse produces slices that visibly contradict the receipt and is detectable at the next evidence review. Single use is a governance obligation enforced by review, not by code, and this reviewer records that limitation openly."
+  }
+}
