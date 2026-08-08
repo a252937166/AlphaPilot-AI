@@ -1,0 +1,58 @@
+{
+  "schema_version": "p4.1-news-poll-v2.1-manual-authorization-v1",
+  "authorization_id": "p4.1-v2.1-initial-backlog-migration-auth-20260809-r3",
+  "authorized_at_utc": "2026-08-08T20:12:18Z",
+  "authorized_by": "independent_ai_architect_claude_code (reviewer_type=ai; Anthropic Claude Fable 5, model id claude-fable-5; not a human reviewer, per owner governance amendment requires_release_gate_amendment=true)",
+  "execution_mode": "initial_backlog_migration",
+  "authorized": true,
+  "network_execution_authorized": true,
+  "scheduler_activated": false,
+  "initial_backlog_migration_complete": false,
+  "standard_incremental_validation_complete": false,
+  "config_path": "config/p4_news_poll_v2_1.yaml",
+  "config_sha256": "9d56e137baf10bd0858723a93aff02c57bf7b35f8705f1817b16a89ec615183f",
+  "prior_receipts_untouched": "Round-1 receipt 4f8d2172...ca0f and round-2 receipt 9d704e4b...cfa3 remain valid history for JobRuns 76931 and 76932 respectively; neither is modified or reissued. This is a separate, additional receipt.",
+  "review_basis": {
+    "verdict": "APPROVE_ROUND_2_EVIDENCE",
+    "review_report_path": "docs/phase4/reports/P4.1-v2.1-initial-migration-round2-independent-review-20260809.json",
+    "review_baseline_commit": "449ec2a34ed3b8175c43755bbcdfdc56f0b6356b",
+    "validated_job_run_id": 76932,
+    "validated_evidence_path": "docs/phase4/reports/P4.1-v2.1-initial-migration-round2-evidence-20260809.json",
+    "validated_evidence_sha256": "bd5d5c731f61efb1bf8818a5dc7d188ad0e7fd0a136aa6a64153006d76a7616a",
+    "validated_stats_raw_sha256": "65b9e9b935ff65567e0917603f96c40b01d4c549edb6d139551e5f1dc32759a7",
+    "validated_stats_canonical_json_sha256": "369496bc7cca1b177e5d47f1fd435a5972d72b0a6bf761f78fced307c40427c3",
+    "validated_executed_source_sha256": "fef43741418dcddd0e2ed419e5e5617ee6826110f2529ccf5a5c231207400145",
+    "blockers_found": 0,
+    "round_1_findings_status": "F-1, F-2 and F-3 all closed; no new findings"
+  },
+  "authorized_round": {
+    "rounds_authorized": 1,
+    "entrypoint": "run_news_poll_v2_1_initial_migration",
+    "expected_checkpoint_date_shanghai_before": "2026-08-06",
+    "expected_slice_dates_shanghai": ["2026-08-07", "2026-08-08"],
+    "expected_slice_derivation": "_v2_1_slice_dates evaluated read-only against the committed checkpoint with max_dates_per_run=2",
+    "single_use_binding": "This receipt authorizes exactly one further migration run. The loader cannot enforce single use, so the expected checkpoint and slice dates above are the detection binding: a run reporting any other slice set, or a second JobRun referencing this authorization_id, is out of scope and must be reported as a deviation rather than accepted. Round 2 honoured this obligation exactly, which is the basis for extending the same trust here.",
+    "immutable_contract_terms": "No config change, no threshold change, no budget change, no page-cap change, no dedup-semantics change, no checkpoint-semantics change. Purely observational instrumentation of the kind delivered in 859067d remains permitted provided it is committed before use, changes no decision path, fails closed on malformed evidence, and is disclosed with the executed source SHA-256."
+  },
+  "mandatory_conditions": [
+    "Stop on any failed slice: do not retry, do not adjust configuration, do not treat a failed run as a checkpoint seed; submit the failure evidence for adjudication as-is.",
+    "A degraded outcome caused solely by the page cap may keep prior fully-closed checkpoints, but must be reported separately and explicitly rather than folded into a success narrative.",
+    "Continue the round-2 evidence schema: per-slice dispositions with identity checks, slice-to-source reconciliation, persisted-versus-process safety disclosure, executed source SHA-256, and expected-versus-observed scope binding.",
+    "2026-08-08 is a Saturday and 2026-08-07 a Friday. A low or even zero announcement count for the Saturday slice is a legitimate outcome; report it as observed and do not treat a small day as evidence of a fetch defect, nor pad it by widening the window.",
+    "Trading safety must hold throughout: trading_mode=research, live_trading_enabled=false, paper_trading_enabled=false, paper_auto_trading_enabled=false, futu_enable_account_mutation=false, futu_enable_trade=false, unlock_trade permanently blocked, zero non-SIMULATE broker orders, proposals and orders unchanged.",
+    "Do not modify, overwrite or reissue any existing evidence or authorization artifact; the new evidence file must be create-only."
+  ],
+  "scope_limits": {
+    "authorizes_only": "one manual initial backlog migration round through run_news_poll_v2_1_initial_migration bound to the config SHA above",
+    "does_not_authorize": [
+      "scheduler activation or redeployment of any kind; V2_1_SCHEDULER_ACTIVATED must remain False and the LaunchAgent must remain unloaded",
+      "run_news_poll_v2_1_incremental_validation, which requires a later receipt asserting initial_backlog_migration_complete=true issued only after migration completion evidence is reviewed",
+      "any P4.2b production wiring or P4.3 unlock",
+      "any trade proposal, order, delegation, or trade in any environment",
+      "any production database mutation outside news_items inserts performed by the authorized run itself",
+      "any modification of .env, frozen configs, pre-registration, probe, or prior receipts"
+    ],
+    "completion_status_after_this_round": "If 2026-08-07 and 2026-08-08 both close completely, every closed date through the previous Shanghai day is reconciled. Completion is still NOT self-declared by the operator: initial_backlog_migration_complete stays false in this receipt and may only be set true in a subsequent receipt issued after the round-3 evidence review."
+  },
+  "next_gate": "Submit the round-3 evidence for independent review. If it closes both dates, the review will assess migration completion and, if satisfied, issue the standard-incremental-validation receipt asserting initial_backlog_migration_complete=true. Scheduler redeployment remains a separate gate after that."
+}
