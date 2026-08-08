@@ -1,0 +1,225 @@
+{
+  "checkpoint": {
+    "checkpoint_committed": true,
+    "initial_backlog_migration": false,
+    "latest_attempt_observed_at_utc": "2026-08-06T13:12:27+00:00",
+    "lineage_before": "v2.1_daily_checkpoint",
+    "newest_observed_at_utc": "2026-08-06T13:12:27+00:00",
+    "partial_checkpoint": false,
+    "verified_checkpoint_date_shanghai_after": "2026-08-06",
+    "verified_checkpoint_date_shanghai_before": "2026-08-04"
+  },
+  "created_at_shanghai": "2026-08-09T03:56:14.779448+08:00",
+  "created_at_utc": "2026-08-08T19:56:14.779448Z",
+  "daily_slices": [
+    {
+      "checkpoint_committed": true,
+      "coverage_proven": true,
+      "date_shanghai": "2026-08-05",
+      "disposition_identity_valid": true,
+      "disposition_total": 1129,
+      "duplicate_content_hash": 2,
+      "duplicate_url": 992,
+      "failure": null,
+      "fetched": 1129,
+      "filtered": 0,
+      "inserted": 135,
+      "logical_requests": 38,
+      "mode": "closed_date_reconciliation",
+      "newest_observed_at_utc": "2026-08-05T14:07:28Z",
+      "page_cap_hit": false,
+      "page_count": 38,
+      "pagination_complete": true,
+      "physical_attempts": 38
+    },
+    {
+      "checkpoint_committed": true,
+      "coverage_proven": true,
+      "date_shanghai": "2026-08-06",
+      "disposition_identity_valid": true,
+      "disposition_total": 1193,
+      "duplicate_content_hash": 1,
+      "duplicate_url": 1002,
+      "failure": null,
+      "fetched": 1193,
+      "filtered": 0,
+      "inserted": 190,
+      "logical_requests": 40,
+      "mode": "closed_date_reconciliation",
+      "newest_observed_at_utc": "2026-08-06T13:12:27Z",
+      "page_cap_hit": false,
+      "page_count": 40,
+      "pagination_complete": true,
+      "physical_attempts": 40
+    }
+  ],
+  "execution_contract": {
+    "canonical_column": "szse",
+    "coverage_gap": true,
+    "execution_mode": "initial_backlog_migration",
+    "failures": 0,
+    "logical_requests": 78,
+    "physical_attempts": 78,
+    "request_budget": {
+      "logical_request_count": 78,
+      "max_dates_per_run": 2,
+      "max_logical_requests_per_run": 160,
+      "max_pages_per_day": 80,
+      "max_physical_attempts_per_run": 320,
+      "page_size": 30,
+      "physical_attempt_count": 78
+    },
+    "retries": 0,
+    "run_mode": "coverage_gap_catchup",
+    "strict_tls": true,
+    "terminal_diagnostics": null
+  },
+  "execution_source": {
+    "path": "src/alphapilot/jobs/news_poll.py",
+    "sha256": "fef43741418dcddd0e2ed419e5e5617ee6826110f2529ccf5a5c231207400145",
+    "source_or_config_drift_after_execution": false
+  },
+  "frozen_bindings": {
+    "authorization_id": "p4.1-v2.1-initial-backlog-migration-auth-20260809-r2",
+    "authorization_receipt_path": "docs/phase4/reports/P4.1-v2.1-initial-migration-authorization-round2-20260809.json",
+    "authorization_receipt_sha256": "9d704e4b523d1c52cc5c567ff66c4c661b8324d5034130292f629853d359cfa3",
+    "config_path": "config/p4_news_poll_v2_1.yaml",
+    "config_sha256": "9d56e137baf10bd0858723a93aff02c57bf7b35f8705f1817b16a89ec615183f",
+    "controlled_probe_path": "config/p4_news_poll_v2_1.probe.json",
+    "controlled_probe_sha256": "5267be93ebcf9dd68bc8d4644ca34da15f834f5e7c6a49e76faa65034b825bdc",
+    "expected_checkpoint_date_shanghai_before": "2026-08-04",
+    "expected_slice_dates_shanghai": [
+      "2026-08-05",
+      "2026-08-06"
+    ],
+    "preregistration_path": "config/p4_news_poll_v2_1.preregistration.json",
+    "preregistration_sha256": "485f710398698c1692d8afd8de6cd06c71ddf2fbdf42713c6bd4defc4bdfd84b",
+    "receipt_uses_observed": 1
+  },
+  "job_run": {
+    "error": null,
+    "finished_at_utc": "2026-08-08T19:50:11.168202Z",
+    "id": 76932,
+    "job_name": "news_poll",
+    "started_at_utc": "2026-08-08T19:48:50.162735Z",
+    "stats_bytes": 33750,
+    "stats_canonical_json_sha256": "369496bc7cca1b177e5d47f1fd435a5972d72b0a6bf761f78fced307c40427c3",
+    "stats_raw_sha256": "65b9e9b935ff65567e0917603f96c40b01d4c549edb6d139551e5f1dc32759a7",
+    "status": "ok"
+  },
+  "persisted_safety_configuration": {
+    "env_effective": {
+      "futu_enable_account_mutation": false,
+      "futu_enable_trade": false,
+      "live_trading_enabled": false,
+      "paper_auto_trading_enabled": false,
+      "paper_trading_enabled": false,
+      "trading_mode": "research"
+    },
+    "env_file_mtime_utc": "2026-08-08T19:37:01.175468Z",
+    "env_file_sha256": "97bd1ed328baf7a4758ed2269e0f556a2f03e04e919859e18a1c33ab0967a375",
+    "env_mtime_precedes_run_start": true,
+    "env_path": ".env",
+    "structural_code_invariants": {
+      "unlock_trade_permanently_blocked": true,
+      "v2_1_scheduler_activated_constant": false
+    }
+  },
+  "persisted_vs_process_divergences": [],
+  "persistence_evidence": {
+    "available_time_not_after_published_at_rows": 0,
+    "cninfo_after": 6146,
+    "cninfo_before": 5821,
+    "cninfo_inserted": 325,
+    "coverage_gap_catchup_rows": 325,
+    "coverage_gap_marked_rows": 325,
+    "db_commit_completed_at_utc": "2026-08-08T19:50:07.864526Z",
+    "db_flush_completed_at_utc": "2026-08-08T19:50:07.801947Z",
+    "first_available_time_utc": "2026-08-08T19:50:07.790566Z",
+    "global_duplicate_content_hash_groups": 0,
+    "global_duplicate_url_groups": 0,
+    "invalid_pit_chain_rows": 0,
+    "last_available_time_utc": "2026-08-08T19:50:07.790566Z",
+    "news_items_after": 9187,
+    "news_items_before": 8862,
+    "poll_completed_at_utc": "2026-08-08T19:50:11.166628Z",
+    "run_marker_rows": 325,
+    "sources": [
+      "cninfo"
+    ],
+    "sqlite_query_only_total_changes": 0,
+    "sqlite_quick_check": "ok"
+  },
+  "phase_gates": {
+    "initial_backlog_migration_complete": false,
+    "next_action": "Independent reviewer must validate JobRun 76932 and issue a new single-round receipt before the 2026-08-07/08 migration.",
+    "p4_2b_production_wiring_unlocked": false,
+    "p4_3_unlocked": false,
+    "scheduler_activated": false,
+    "standard_incremental_validation_complete": false,
+    "this_authorized_run_succeeded": true
+  },
+  "process_effective_safety": {
+    "after": {
+      "futu_enable_account_mutation": false,
+      "futu_enable_trade": false,
+      "live_trading_enabled": false,
+      "paper_auto_trading_enabled": false,
+      "paper_trading_enabled": false,
+      "trading_mode": "research",
+      "unlock_trade_permanently_blocked": true
+    },
+    "before": {
+      "futu_enable_account_mutation": false,
+      "futu_enable_trade": false,
+      "live_trading_enabled": false,
+      "paper_auto_trading_enabled": false,
+      "paper_trading_enabled": false,
+      "trading_mode": "research",
+      "unlock_trade_permanently_blocked": true
+    },
+    "before_and_after_equal": true,
+    "broker_order_ids_after": [
+      1
+    ],
+    "broker_order_ids_before": [
+      1
+    ],
+    "trade_proposal_ids_after": [
+      "p23-s2-live-20260722T021152Z-600000"
+    ],
+    "trade_proposal_ids_before": [
+      "p23-s2-live-20260722T021152Z-600000"
+    ]
+  },
+  "repository_head_at_evidence_freeze": "859067d8d27866e10f50df2c87323e35b4f03014",
+  "repository_head_at_execution": "859067d8d27866e10f50df2c87323e35b4f03014",
+  "review_status": "pending_independent_review",
+  "runtime_safety": {
+    "broker_orders_after": 1,
+    "non_simulate_broker_orders": 0,
+    "running_job_runs_after": 0,
+    "scheduler_launchagent_loaded_after": false,
+    "scheduler_plist_path": "/Users/ouyangduning/Library/LaunchAgents/com.alphapilot.scheduler.plist",
+    "scheduler_plist_sha256": "468083914b4dbe93fb564f82451ce7bac474674567d0edd3cee87ec2a018b9be",
+    "trade_proposals_after": 1
+  },
+  "schema_version": "p4.1-news-poll-v2.1-initial-migration-round-evidence-v2",
+  "slice_to_source_reconciliation": {
+    "all_equal": true,
+    "slice_sums": {
+      "duplicate_content_hash": 3,
+      "duplicate_url": 1994,
+      "fetched": 2322,
+      "filtered": 0,
+      "inserted": 325
+    },
+    "source_aggregate": {
+      "duplicate_content_hash": 3,
+      "duplicate_url": 1994,
+      "fetched": 2322,
+      "filtered": 0,
+      "inserted": 325
+    }
+  }
+}

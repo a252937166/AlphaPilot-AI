@@ -417,6 +417,35 @@ owner 确认该时段为**人为断网、周期性复发**，非代码或上游�
   scheduler/P4.2b/P4.3 继续锁定。任何下一轮迁移都须先由独立复核者验签 JobRun 76931，
   再签发新的窄范围授权收据；禁止复用本轮收据。
 
+### P4.1 v2.1 初始积压迁移第 2 轮实证（2026-08-09，待独立复核）
+
+- 第 1 轮复核提出的 F-2 无法由旧 JobRun 统计事后补证，因此在联网前先以纯观测改动
+  `859067d` 增加逐切片 disposition 统计。候选顺序、URL 优先/content-hash 次之的既有去重、
+  SQLite 写锁与 PIT 时间、请求预算及 checkpoint 语义均未改变；切片计数与源级汇总不相等时
+  fail-closed。定向测试 26 项、全仓 Ruff、strict mypy 157 files 与全量 pytest 均通过。
+- 收据 `P4.1-v2.1-initial-migration-authorization-round2-20260809.json`（SHA-256
+  `9d704e4b523d1c52cc5c567ff66c4c661b8324d5034130292f629853d359cfa3`）仅使用一次。
+  JobRun `76932` 于 `2026-08-08T19:48:50.162735Z` 启动、
+  `2026-08-08T19:50:11.168202Z` 以 `ok` 终态结束，严格闭合 `2026-08-05/06`：分别抓取
+  `1129/1193`，分页 `38/40`，共 78 个逻辑请求与 78 次物理尝试，0 重试、0 失败、严格 TLS；
+  checkpoint 从 `2026-08-04` 推进到 `2026-08-06`。
+- F-2 已机器闭合：08-05 为 `1129 = 135 inserted + 992 duplicate_url + 2
+  duplicate_content_hash + 0 filtered`；08-06 为 `1193 = 190 + 1002 + 1 + 0`。源级汇总与
+  两切片合计逐字段相等，`disposition_identity_valid=true`。
+- F-1 已完整披露且本轮无差异：owner 于运行前把 `.env` 六项持久化安全配置改为
+  `research/false`（mtime `2026-08-08T19:37:01.175468Z`，早于运行）；进程前后七项有效值
+  均为安全态，`unlock_trade` 继续由代码永久屏蔽。交易表维持 1 个提案/1 个 SIMULATE 订单，
+  非 SIMULATE 订单 0；scheduler 仍未加载。
+- 本轮新增巨潮 `325` 行，生产 `news_items` 从 `8862` 增至 `9187`。325 行均绑定 JobRun
+  76932、`coverage_gap_catchup` 与真实本轮 `available_time`；PIT 异常 0、全库 URL/hash 重复组
+  0、SQLite `quick_check=ok`。create-only 证据为
+  `docs/phase4/reports/P4.1-v2.1-initial-migration-round2-evidence-20260809.json`，SHA-256
+  `bd5d5c731f61efb1bf8818a5dc7d188ad0e7fd0a136aa6a64153006d76a7616a`。
+- 本轮仍**不等于积压迁移完成**：08-07/08 尚未迁移；
+  `initial_backlog_migration_complete=false`、`standard_incremental_validation_complete=false`，
+  scheduler/P4.2b/P4.3 继续锁定。必须先独立复核 JobRun 76932 与上述证据，再签发第 3 轮单次
+  收据；禁止连跑或复用本轮收据。
+
 ### P4.2a 模型成本复审与 v1.7 选择准则预注册（2026-08-04，held-out 解锁前）
 
 - **动机**：held-out 一次性，验证哪个模型就应是生产模型。owner 提出试 `qwen3.7-flash`
