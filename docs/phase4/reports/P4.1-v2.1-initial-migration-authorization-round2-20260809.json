@@ -1,0 +1,57 @@
+{
+  "schema_version": "p4.1-news-poll-v2.1-manual-authorization-v1",
+  "authorization_id": "p4.1-v2.1-initial-backlog-migration-auth-20260809-r2",
+  "authorized_at_utc": "2026-08-08T19:16:47Z",
+  "authorized_by": "independent_ai_architect_claude_code (reviewer_type=ai; Anthropic Claude Fable 5, model id claude-fable-5; not a human reviewer, per owner governance amendment requires_release_gate_amendment=true)",
+  "execution_mode": "initial_backlog_migration",
+  "authorized": true,
+  "network_execution_authorized": true,
+  "scheduler_activated": false,
+  "initial_backlog_migration_complete": false,
+  "standard_incremental_validation_complete": false,
+  "config_path": "config/p4_news_poll_v2_1.yaml",
+  "config_sha256": "9d56e137baf10bd0858723a93aff02c57bf7b35f8705f1817b16a89ec615183f",
+  "supersedes_nothing": "Round-1 receipt 4f8d2172a1cf13e33a2417280d3453aa19e7622df1299bdf40f35abf6f62ca0f remains valid history for JobRun 76931 and is neither modified nor reissued. This is a separate, additional receipt.",
+  "review_basis": {
+    "verdict": "APPROVE_ROUND_1_EVIDENCE",
+    "review_report_path": "docs/phase4/reports/P4.1-v2.1-initial-migration-round1-independent-review-20260809.json",
+    "review_baseline_commit": "8e910de0b48ecd0b67851f1d3014a84d48afa282",
+    "validated_job_run_id": 76931,
+    "validated_evidence_path": "docs/phase4/reports/P4.1-v2.1-initial-migration-evidence-20260809.json",
+    "validated_evidence_sha256": "da60601d2a12a1f6d6c93d47cf47a4a01f1228ed4ef3d7d62ba477d7a2838685",
+    "validated_stats_raw_sha256": "687ae47cbc0dcbcdb9c19b146ec3462b0c33edb1a676f4c8624bb98821add690",
+    "validated_stats_canonical_json_sha256": "0156ce3117118aa74d52e91ed22f245cdafd127adfc6e59cf83fe153035faee8",
+    "blockers_found": 0,
+    "non_blocking_findings": ["F-1 host .env violates two invariants", "F-2 per-slice dedup attribution not recorded", "F-3 evidence JSON omits persisted-versus-effective settings disclosure"]
+  },
+  "authorized_round": {
+    "rounds_authorized": 1,
+    "entrypoint": "run_news_poll_v2_1_initial_migration",
+    "expected_checkpoint_date_shanghai_before": "2026-08-04",
+    "expected_slice_dates_shanghai": ["2026-08-05", "2026-08-06"],
+    "expected_slice_derivation": "_v2_1_slice_dates evaluated read-only against the committed checkpoint with max_dates_per_run=2",
+    "single_use_binding": "This receipt authorizes exactly one further migration run. The loader cannot enforce single use, so the expected checkpoint and slice dates above are the detection binding: a run that reports any other slice set, or a second run under this authorization_id, is out of scope and must be reported as a deviation rather than accepted.",
+    "immutable_contract_terms": "No config change, no threshold change, no budget change, no page-cap change, no dedup-semantics change, no checkpoint-semantics change. The run must execute the config bound by the SHA above, byte-identical."
+  },
+  "mandatory_conditions": [
+    "Stop on any failed slice: do not retry, do not adjust configuration, do not treat a failed run as a checkpoint seed; submit the failure evidence for adjudication as-is.",
+    "A degraded outcome caused solely by the page cap may keep prior fully-closed checkpoints, but must be reported separately and explicitly rather than folded into a success narrative.",
+    "The evidence package must disclose BOTH the persisted .env effective values and the process-effective values for all seven trading invariants, stating any divergence (finding F-1).",
+    "The evidence package must record inserted, duplicate_url and duplicate_content_hash per slice, not only per source (finding F-2).",
+    "Trading safety must hold throughout: trading_mode=research, live_trading_enabled=false, paper_trading_enabled=false, paper_auto_trading_enabled=false, futu_enable_account_mutation=false, futu_enable_trade=false, unlock_trade permanently blocked, zero non-SIMULATE broker orders, proposals and orders unchanged.",
+    "Do not modify, overwrite or reissue any existing evidence or authorization artifact; the new evidence file must be create-only."
+  ],
+  "scope_limits": {
+    "authorizes_only": "one manual initial backlog migration round through run_news_poll_v2_1_initial_migration bound to the config SHA above",
+    "does_not_authorize": [
+      "scheduler activation of any kind; V2_1_SCHEDULER_ACTIVATED must remain False and the v1 LaunchAgent must remain unloaded",
+      "run_news_poll_v2_1_incremental_validation, which requires a later receipt asserting initial_backlog_migration_complete=true issued only after migration completion evidence is reviewed",
+      "any P4.2b production wiring or P4.3 unlock",
+      "any trade proposal, order, delegation, or trade in any environment",
+      "any production database mutation outside news_items inserts performed by the authorized run itself",
+      "any modification of .env, frozen configs, pre-registration, probe, or prior receipts"
+    ],
+    "completion_status_after_this_round": "Even on full success this round closes only 2026-08-05 and 2026-08-06. Closed dates 2026-08-07 and 2026-08-08 plus the current-day incremental remain outstanding, so initial_backlog_migration_complete stays false and at least one further authorized round will be required."
+  },
+  "next_gate": "Submit the round-2 evidence for independent review. No further migration round, no incremental validation, and no scheduler activation review may proceed until that evidence is validated and a new narrowly scoped receipt is issued."
+}
