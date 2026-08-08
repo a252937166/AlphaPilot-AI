@@ -388,6 +388,35 @@ owner 确认该时段为**人为断网、周期性复发**，非代码或上游�
   `P4.2b/P4.3` 继续锁定。运行前安全门新增硬性要求
   `paper_trading_enabled=false` 与 `futu_enable_trade=false`；不满足时须在任何抓取前失败。
 
+### P4.1 v2.1 初始积压迁移第 1 轮实证（2026-08-09，待独立复核）
+
+- Claude Code 独立 AI 架构审阅者提交的 create-only 授权收据仅授权一次
+  `initial_backlog_migration`。执行前发现旧 v1 scheduler 仍在线，且本机 `.env` 的
+  `paper_trading_enabled/futu_enable_trade` 为 `true`；因此先将旧 scheduler 可逆 bootout，
+  再以进程级显式安全覆盖把七项交易不变量全部钉死。旧 plist 保留，v2.1 scheduler 未激活。
+- JobRun `76931` 于 `2026-08-08T18:47:02.733273Z` 启动、
+  `2026-08-08T18:48:13.724960Z` 以 `ok` 终态结束。canonical `szse` 对账完整闭合
+  `2026-08-03/04` 两个 CST 自然日：分别抓取 `477/1533`、分页 `16/52`，共 68 个逻辑请求、
+  68 次物理尝试、0 重试、0 失败、严格 TLS；checkpoint 从 legacy v1 lineage 推进到
+  `2026-08-04`。
+- 本轮巨潮新增 `646` 行（按公告 CST 日期为 `108/538`），生产 `news_items` 从 `8216`
+  增至 `8862`。646 行均绑定 JobRun 76931、均带 `coverage_gap_catchup` 与
+  `preceded_by_coverage_gap=true`，`available_time` 为本轮真实写锁时刻；全库 URL/hash
+  重复组仍为 0，SQLite `quick_check=ok`。交易表前后维持 1 个提案/1 个 SIMULATE 订单，
+  非 SIMULATE 订单为 0。
+- 冻结证据：
+  `docs/phase4/reports/P4.1-v2.1-initial-migration-evidence-20260809.json`，SHA-256
+  `da60601d2a12a1f6d6c93d47cf47a4a01f1228ed4ef3d7d62ba477d7a2838685`；其中绑定原始
+  JobRun stats SHA-256 `687ae47c…add690` 与 canonical JSON SHA-256
+  `0156ce31…faee8`。
+- ⚠ **DEVIATION（操作入口初始化）**：第一次直接调用手工入口时，因尚未执行
+  `register_builtin_jobs()` 而在 JobRun、网络和数据库写入之前以 `KeyError('news_poll')`
+  退出。完成仅注册 JobSpec 的初始化后才执行上述唯一真实轮次；失败前置调用未消耗授权网络轮次。
+- 本轮成功**不等于积压迁移完成**：不可变的每轮 2 日上限只推进到 08-04；
+  `initial_backlog_migration_complete=false`、`standard_incremental_validation_complete=false`，
+  scheduler/P4.2b/P4.3 继续锁定。任何下一轮迁移都须先由独立复核者验签 JobRun 76931，
+  再签发新的窄范围授权收据；禁止复用本轮收据。
+
 ### P4.2a 模型成本复审与 v1.7 选择准则预注册（2026-08-04，held-out 解锁前）
 
 - **动机**：held-out 一次性，验证哪个模型就应是生产模型。owner 提出试 `qwen3.7-flash`

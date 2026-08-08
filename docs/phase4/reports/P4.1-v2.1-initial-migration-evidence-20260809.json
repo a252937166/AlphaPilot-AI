@@ -1,0 +1,141 @@
+{
+  "schema_version": "p4.1-news-poll-v2.1-initial-migration-evidence-v1",
+  "created_at_utc": "2026-08-08T18:52:42Z",
+  "created_at_shanghai": "2026-08-09T02:52:42+08:00",
+  "review_status": "pending_independent_review",
+  "repository_head": "59dd986d37c319be174df5506a4538c2fcebc72a",
+  "job_run": {
+    "id": 76931,
+    "job_name": "news_poll",
+    "status": "ok",
+    "error": null,
+    "started_at_utc": "2026-08-08T18:47:02.733273Z",
+    "finished_at_utc": "2026-08-08T18:48:13.724960Z",
+    "stats_bytes": 30543,
+    "stats_raw_sha256": "687ae47cbc0dcbcdb9c19b146ec3462b0c33edb1a676f4c8624bb98821add690",
+    "stats_canonical_json_sha256": "0156ce3117118aa74d52e91ed22f245cdafd127adfc6e59cf83fe153035faee8"
+  },
+  "frozen_bindings": {
+    "config_path": "config/p4_news_poll_v2_1.yaml",
+    "config_sha256": "9d56e137baf10bd0858723a93aff02c57bf7b35f8705f1817b16a89ec615183f",
+    "preregistration_path": "config/p4_news_poll_v2_1.preregistration.json",
+    "preregistration_sha256": "485f710398698c1692d8afd8de6cd06c71ddf2fbdf42713c6bd4defc4bdfd84b",
+    "controlled_probe_path": "config/p4_news_poll_v2_1.probe.json",
+    "controlled_probe_sha256": "5267be93ebcf9dd68bc8d4644ca34da15f834f5e7c6a49e76faa65034b825bdc",
+    "authorization_receipt_path": "docs/phase4/reports/P4.1-v2.1-initial-migration-authorization-20260806.json",
+    "authorization_receipt_sha256": "4f8d2172a1cf13e33a2417280d3453aa19e7622df1299bdf40f35abf6f62ca0f",
+    "authorization_id": "p4.1-v2.1-initial-backlog-migration-auth-20260806-r1"
+  },
+  "execution_contract": {
+    "execution_mode": "initial_backlog_migration",
+    "run_mode": "coverage_gap_catchup",
+    "coverage_gap": true,
+    "canonical_column": "szse",
+    "strict_tls": true,
+    "logical_requests": 68,
+    "physical_attempts": 68,
+    "retries": 0,
+    "failures": 0,
+    "request_budget": {
+      "max_dates_per_run": 2,
+      "max_pages_per_day": 80,
+      "max_logical_requests_per_run": 160,
+      "max_physical_attempts_per_run": 320,
+      "page_size": 30
+    }
+  },
+  "daily_slices": [
+    {
+      "date_shanghai": "2026-08-03",
+      "mode": "closed_date_reconciliation",
+      "fetched": 477,
+      "inserted": 108,
+      "page_count": 16,
+      "logical_requests": 16,
+      "physical_attempts": 16,
+      "pagination_complete": true,
+      "coverage_proven": true,
+      "date_closed": true,
+      "checkpoint_committed": true,
+      "newest_observed_at_utc": "2026-08-03T13:37:29Z"
+    },
+    {
+      "date_shanghai": "2026-08-04",
+      "mode": "closed_date_reconciliation",
+      "fetched": 1533,
+      "inserted": 538,
+      "page_count": 52,
+      "logical_requests": 52,
+      "physical_attempts": 52,
+      "pagination_complete": true,
+      "coverage_proven": true,
+      "date_closed": true,
+      "checkpoint_committed": true,
+      "newest_observed_at_utc": "2026-08-04T13:06:12Z"
+    }
+  ],
+  "checkpoint": {
+    "lineage_before": "legacy_v1_global_watermark",
+    "verified_checkpoint_date_shanghai_before": null,
+    "verified_checkpoint_date_shanghai_after": "2026-08-04",
+    "newest_observed_at_utc": "2026-08-04T13:06:12Z",
+    "latest_attempt_observed_at_utc": "2026-08-04T13:06:12Z",
+    "checkpoint_committed": true,
+    "partial_checkpoint": false,
+    "initial_backlog_migration": true
+  },
+  "persistence_evidence": {
+    "news_items_before": 8216,
+    "news_items_after": 8862,
+    "cninfo_before": 5175,
+    "cninfo_after": 5821,
+    "cninfo_inserted": 646,
+    "run_marker_rows": 646,
+    "coverage_gap_marked_rows": 646,
+    "coverage_gap_catchup_rows": 646,
+    "available_time_null_rows": 0,
+    "available_time_not_after_published_at_rows": 0,
+    "first_available_time_utc": "2026-08-08T18:48:10.358811Z",
+    "last_available_time_utc": "2026-08-08T18:48:10.358811Z",
+    "global_duplicate_url_groups": 0,
+    "global_duplicate_content_hash_groups": 0,
+    "sqlite_quick_check": "ok"
+  },
+  "safety_evidence": {
+    "settings_before_and_after_equal": true,
+    "trading_mode": "research",
+    "live_trading_enabled": false,
+    "paper_trading_enabled": false,
+    "paper_auto_trading_enabled": false,
+    "futu_enable_account_mutation": false,
+    "futu_enable_trade": false,
+    "unlock_trade_permanently_blocked": true,
+    "trade_proposals_before": 1,
+    "trade_proposals_after": 1,
+    "broker_orders_before": 1,
+    "broker_orders_after": 1,
+    "non_simulate_broker_orders": 0,
+    "scheduler_launchagent_loaded_after_run": false,
+    "scheduler_plist_preserved_sha256": "468083914b4dbe93fb564f82451ce7bac474674567d0edd3cee87ec2a018b9be"
+  },
+  "operator_notes": [
+    {
+      "classification": "pre_execution_invocation_correction",
+      "detail": "A direct call before register_builtin_jobs raised KeyError('news_poll') before any JobRun, network request, or database write. The authorized run was then executed once after registry-only initialization."
+    },
+    {
+      "classification": "scheduler_isolation",
+      "detail": "The old v1 LaunchAgent was booted out before the authorized run and its plist was preserved. It remains unloaded; v2.1 scheduler activation is still forbidden."
+    }
+  ],
+  "phase_gates": {
+    "this_authorized_run_succeeded": true,
+    "initial_backlog_migration_complete": false,
+    "completion_blocker": "The immutable run limit closed only 2026-08-03 and 2026-08-04; closed dates through the previous Shanghai day remain outstanding.",
+    "standard_incremental_validation_complete": false,
+    "scheduler_activated": false,
+    "p4_2b_production_wiring_unlocked": false,
+    "p4_3_unlocked": false,
+    "next_action": "Independent reviewer must validate JobRun 76931 and issue a new, narrowly scoped receipt before any additional migration run."
+  }
+}
