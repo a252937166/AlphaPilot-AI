@@ -2098,9 +2098,10 @@ def _persist_candidates(
         (run_mode == "coverage_gap_catchup") != preceded_by_coverage_gap
     ):
         raise ValueError("news-poll run_mode and coverage-gap marker disagree")
-    prepared: list[tuple[NewsCandidate, str, str]] = []
+    prepared: list[tuple[int, NewsCandidate, str, str]] = []
+    candidate_dispositions = ["filtered" for _ in candidates]
     filtered = 0
-    for candidate in candidates:
+    for candidate_index, candidate in enumerate(candidates):
         if candidate.source not in AUDITED_NEWS_SOURCES:
             raise NewsSourceError(
                 "source_not_audited",
@@ -2122,11 +2123,16 @@ def _persist_candidates(
             raw_payload=cast(JsonObject, _json_safe(candidate.raw_payload)),
         )
         prepared.append(
-            (normalized_candidate, normalized_url, content_hash(normalized_candidate))
+            (
+                candidate_index,
+                normalized_candidate,
+                normalized_url,
+                content_hash(normalized_candidate),
+            )
         )
 
-    urls = [url for _, url, _ in prepared]
-    hashes = [digest for _, _, digest in prepared]
+    urls = [url for _, _, url, _ in prepared]
+    hashes = [digest for _, _, _, digest in prepared]
 
     def existing_values(
         session: Any,
@@ -2159,17 +2165,19 @@ def _persist_candidates(
         symbol_null = 0
         published_at_null = 0
         available_times: list[datetime] = []
-        pending: list[tuple[NewsCandidate, str, str]] = []
-        for candidate, url, digest in prepared:
+        pending: list[tuple[int, NewsCandidate, str, str]] = []
+        for candidate_index, candidate, url, digest in prepared:
             url_duplicate = url in existing_urls
             hash_duplicate = digest in existing_hashes
             if url_duplicate:
                 duplicate_url += 1
+                candidate_dispositions[candidate_index] = "duplicate_url"
                 continue
             if hash_duplicate:
                 duplicate_content_hash += 1
+                candidate_dispositions[candidate_index] = "duplicate_content_hash"
                 continue
-            pending.append((candidate, url, digest))
+            pending.append((candidate_index, candidate, url, digest))
             existing_urls.add(url)
             existing_hashes.add(digest)
 
@@ -2181,7 +2189,7 @@ def _persist_candidates(
         available_time = utcnow()
         if available_time < fetch_completed_at:
             raise RuntimeError("available_time precedes fetch completion")
-        for candidate, url, digest in pending:
+        for candidate_index, candidate, url, digest in pending:
             ingestion = {
                 "job_run_id": job_run_id,
                 "fetched_at_utc": fetch_completed_at.isoformat(),
@@ -2213,6 +2221,7 @@ def _persist_candidates(
                 )
             )
             inserted += 1
+            candidate_dispositions[candidate_index] = "inserted"
             symbol_null += int(candidate.symbol is None)
             published_at_null += int(candidate.published_at is None)
             available_times.append(available_time)
@@ -2237,6 +2246,11 @@ def _persist_candidates(
         "first_available_time": min(available_times).isoformat() if available_times else None,
         "last_available_time": max(available_times).isoformat() if available_times else None,
         "available_time_coverage": 1.0 if inserted else None,
+        # Private in-process evidence used by _batch_stats to attribute the
+        # unchanged dual-key disposition to the exact CNInfo request slice.
+        # It is removed before JobRun serialization; only bounded counters are
+        # persisted in slices[*].
+        "_candidate_dispositions": candidate_dispositions,
     }
     if run_mode is not None:
         result["preceded_by_coverage_gap_inserted"] = (
@@ -2304,7 +2318,76 @@ def _safety_issues(snapshot: JsonObject) -> list[str]:
     return issues
 
 
+def _attach_slice_persistence_stats(
+    batch: SourceBatch,
+    candidate_dispositions: object,
+    source_persistence: Mapping[str, object],
+) -> None:
+    slices = batch.details.get("slices")
+    if not isinstance(slices, list):
+        return
+    if not isinstance(candidate_dispositions, list) or not all(
+        isinstance(item, str) for item in candidate_dispositions
+    ):
+        raise RuntimeError("candidate disposition evidence is malformed")
+    if len(candidate_dispositions) != len(batch.candidates):
+        raise RuntimeError("candidate disposition evidence length drifted")
+
+    offset = 0
+    allowed = {
+        "filtered",
+        "inserted",
+        "duplicate_url",
+        "duplicate_content_hash",
+    }
+    aggregate = {
+        "inserted": 0,
+        "duplicate_url": 0,
+        "duplicate_content_hash": 0,
+        "filtered": 0,
+    }
+    for raw_slice in slices:
+        if not isinstance(raw_slice, dict):
+            raise RuntimeError("CNInfo slice evidence is malformed")
+        fetched = raw_slice.get("fetched")
+        if not isinstance(fetched, int) or isinstance(fetched, bool) or fetched < 0:
+            raise RuntimeError("CNInfo slice fetched count is malformed")
+        slice_dispositions = candidate_dispositions[offset : offset + fetched]
+        if len(slice_dispositions) != fetched or not set(slice_dispositions) <= allowed:
+            raise RuntimeError("CNInfo slice disposition evidence is incomplete")
+        offset += fetched
+        counters = {
+            key: slice_dispositions.count(key)
+            for key in (
+                "inserted",
+                "duplicate_url",
+                "duplicate_content_hash",
+                "filtered",
+            )
+        }
+        for key, value in counters.items():
+            aggregate[key] += value
+        raw_slice.update(
+            {
+                **counters,
+                "disposition_total": sum(counters.values()),
+                "disposition_identity_valid": sum(counters.values()) == fetched,
+            }
+        )
+    if offset != len(candidate_dispositions):
+        raise RuntimeError("CNInfo slice disposition ranges do not close")
+    for key, value in aggregate.items():
+        if source_persistence.get(key) != value:
+            raise RuntimeError(
+                f"CNInfo slice {key} does not match the source aggregate"
+            )
+
+
 def _batch_stats(batch: SourceBatch, persistence: JsonObject | None = None) -> JsonObject:
+    public_persistence = dict(persistence) if persistence is not None else None
+    if public_persistence is not None:
+        dispositions = public_persistence.pop("_candidate_dispositions", None)
+        _attach_slice_persistence_stats(batch, dispositions, public_persistence)
     result: JsonObject = {
         "status": batch.status,
         "request_count": batch.request_count,
@@ -2317,8 +2400,8 @@ def _batch_stats(batch: SourceBatch, persistence: JsonObject | None = None) -> J
         result["logical_request_count"] = batch.logical_request_count
     if batch.physical_attempt_count is not None:
         result["physical_attempt_count"] = batch.physical_attempt_count
-    if persistence is not None:
-        result.update(persistence)
+    if public_persistence is not None:
+        result.update(public_persistence)
     else:
         result.update(
             {
