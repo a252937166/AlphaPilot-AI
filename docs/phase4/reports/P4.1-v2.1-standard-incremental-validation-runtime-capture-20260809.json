@@ -1,0 +1,212 @@
+{
+  "bindings": {
+    "authorization_id": "p4.1-v2.1-standard-incremental-validation-auth-20260809-r1",
+    "authorization_receipt_path": "docs/phase4/reports/P4.1-v2.1-standard-incremental-validation-authorization-20260809.json",
+    "authorization_receipt_sha256": "b605dd90fbd9a47439d9e1415c02d02a97f3f859c8f07ea0e8ab9d7a319372f1",
+    "config_path": "config/p4_news_poll_v2_1.yaml",
+    "config_sha256": "9d56e137baf10bd0858723a93aff02c57bf7b35f8705f1817b16a89ec615183f",
+    "executed_source_path": "src/alphapilot/jobs/news_poll.py",
+    "executed_source_sha256_after": "fef43741418dcddd0e2ed419e5e5617ee6826110f2529ccf5a5c231207400145",
+    "executed_source_sha256_before": "fef43741418dcddd0e2ed419e5e5617ee6826110f2529ccf5a5c231207400145",
+    "expected_checkpoint_after": "2026-08-08",
+    "expected_checkpoint_before": "2026-08-08",
+    "expected_slice_dates_shanghai": [
+      "2026-08-09"
+    ],
+    "observed_slice_dates_shanghai": [
+      "2026-08-09"
+    ],
+    "repository_head": "b1b8ceedf53f4f724e71701bc8d4212606b36c10"
+  },
+  "created_at_utc": "2026-08-09T07:16:07.708212+00:00",
+  "execution": {
+    "cninfo_daily_checkpoint": {
+      "checkpoint_committed": true,
+      "initial_backlog_migration": false,
+      "latest_attempt_observed_at_utc": "2026-08-07T16:00:00+00:00",
+      "lineage_before": "v2.1_daily_checkpoint",
+      "newest_observed_at_utc": "2026-08-07T16:00:00+00:00",
+      "partial_checkpoint": false,
+      "verified_checkpoint_date_shanghai_after": "2026-08-08",
+      "verified_checkpoint_date_shanghai_before": "2026-08-08"
+    },
+    "cninfo_slices": [
+      {
+        "attempted": true,
+        "checkpoint_committed": true,
+        "coverage_proven": true,
+        "date_closed": false,
+        "date_shanghai": "2026-08-09",
+        "disposition_identity_valid": true,
+        "disposition_total": 0,
+        "duplicate_content_hash": 0,
+        "duplicate_url": 0,
+        "failure": null,
+        "fetched": 0,
+        "filtered": 0,
+        "incremental_floor_utc": "2026-08-07T15:30:00+00:00",
+        "inserted": 0,
+        "logical_request_count": 1,
+        "mode": "current_date_incremental",
+        "newest_observed_at_utc": null,
+        "page_cap_hit": false,
+        "page_count": 1,
+        "pagination_complete": true,
+        "physical_attempt_count": 1
+      }
+    ],
+    "error": null,
+    "execution_mode": "standard_incremental_validation",
+    "finished_at_utc": "2026-08-09T07:16:07.663490+00:00",
+    "job_run_id": 76934,
+    "pagination_terminal_events": [
+      {
+        "date_shanghai": "2026-08-09",
+        "event": "pagination_complete_branch",
+        "final_page_max_utc": null,
+        "final_page_min_utc": null,
+        "floor_reached": false,
+        "has_more_value": false,
+        "incremental_floor_utc": "2026-08-07T15:30:00+00:00",
+        "page": 1,
+        "page_count": 1,
+        "page_size": 30,
+        "pagination_exhaustion_condition_reached": true,
+        "raw_row_count": 0,
+        "source_line": 1597,
+        "true_stop_conditions_in_source_order": [
+          "empty_page",
+          "has_more_false",
+          "short_page"
+        ]
+      }
+    ],
+    "safety_after": {
+      "broker_order_ids": [
+        1
+      ],
+      "non_simulate_order_count": 0,
+      "settings": {
+        "futu_enable_account_mutation": false,
+        "futu_enable_trade": false,
+        "live_trading_enabled": false,
+        "paper_auto_trading_enabled": false,
+        "paper_trading_enabled": false,
+        "trading_mode": "research",
+        "unlock_trade_permanently_blocked": true
+      },
+      "trade_proposal_ids": [
+        "p23-s2-live-20260722T021152Z-600000"
+      ]
+    },
+    "safety_before": {
+      "broker_order_ids": [
+        1
+      ],
+      "non_simulate_order_count": 0,
+      "settings": {
+        "futu_enable_account_mutation": false,
+        "futu_enable_trade": false,
+        "live_trading_enabled": false,
+        "paper_auto_trading_enabled": false,
+        "paper_trading_enabled": false,
+        "trading_mode": "research",
+        "unlock_trade_permanently_blocked": true
+      },
+      "trade_proposal_ids": [
+        "p23-s2-live-20260722T021152Z-600000"
+      ]
+    },
+    "safety_unchanged": true,
+    "source_failures": [],
+    "started_at_utc": "2026-08-09T07:16:03.942049+00:00",
+    "status": "ok",
+    "terminal_diagnostics": null,
+    "totals": {
+      "duplicate_content_hash": 2,
+      "duplicate_url": 122,
+      "failure_count": 0,
+      "fetched": 137,
+      "inserted": 13,
+      "request_count": 7,
+      "retry_count": 0
+    }
+  },
+  "observation_method": {
+    "captured_source_lines": {
+      "page_cap_hit": 1600,
+      "pagination_complete": 1597
+    },
+    "decision_source_modified": false,
+    "http_client_replaced": false,
+    "retry_loop_present": false,
+    "type": "python_read_only_line_trace"
+  },
+  "postflight": {
+    "database": {
+      "broker_order_ids": [
+        1
+      ],
+      "cninfo_items": 6844,
+      "max_job_run_id": 76934,
+      "news_items": 9920,
+      "non_simulate_broker_orders": 0,
+      "receipt_uses": 1,
+      "running_job_runs": [],
+      "sqlite_query_only": 1,
+      "sqlite_total_changes": 0,
+      "trade_proposal_ids": [
+        1
+      ]
+    },
+    "job_run_id_delta": 1,
+    "receipt_use_delta": 1
+  },
+  "preflight": {
+    "at_shanghai": "2026-08-09T15:16:03.910189+08:00",
+    "at_utc": "2026-08-09T07:16:03.910189+00:00",
+    "checkpoint_before": "2026-08-08",
+    "computed_incremental_floor_utc": "2026-08-07T15:30:00+00:00",
+    "database": {
+      "broker_order_ids": [
+        1
+      ],
+      "cninfo_items": 6844,
+      "max_job_run_id": 76933,
+      "news_items": 9907,
+      "non_simulate_broker_orders": 0,
+      "receipt_uses": 0,
+      "running_job_runs": [],
+      "sqlite_query_only": 1,
+      "sqlite_total_changes": 0,
+      "trade_proposal_ids": [
+        1
+      ]
+    },
+    "derived_slice_dates_shanghai": [
+      "2026-08-09"
+    ],
+    "env_mtime_ns": 1786217821175468166,
+    "env_sha256": "97bd1ed328baf7a4758ed2269e0f556a2f03e04e919859e18a1c33ab0967a375",
+    "observed_high_before_utc": "2026-08-07T16:00:00+00:00",
+    "persisted_safety": {
+      "futu_enable_account_mutation": false,
+      "futu_enable_trade": false,
+      "live_trading_enabled": false,
+      "paper_auto_trading_enabled": false,
+      "paper_trading_enabled": false,
+      "trading_mode": "research"
+    },
+    "process_safety": {
+      "futu_enable_account_mutation": false,
+      "futu_enable_trade": false,
+      "live_trading_enabled": false,
+      "paper_auto_trading_enabled": false,
+      "paper_trading_enabled": false,
+      "trading_mode": "research",
+      "unlock_trade_permanently_blocked": true
+    },
+    "scheduler_launchagent_loaded": false
+  },
+  "schema_version": "p4.1-news-poll-v2.1-incremental-runtime-capture-v1"
+}

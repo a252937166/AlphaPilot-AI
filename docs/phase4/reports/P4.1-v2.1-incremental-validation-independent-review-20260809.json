@@ -1,0 +1,124 @@
+{
+  "schema_version": "p4.1-news-poll-v2.1-independent-review-v1",
+  "review_id": "p4.1-v2.1-incremental-validation-and-activation-gate-review-20260809-r1",
+  "created_at_utc": "2026-08-09T09:46:17Z",
+  "created_at_shanghai": "2026-08-09T17:46:17+08:00",
+  "verdicts": {
+    "incremental_validation": "APPROVE_STANDARD_INCREMENTAL_VALIDATION",
+    "scheduler_activation_code_gate_preregistration": "APPROVE_IMPLEMENTATION_ONLY"
+  },
+  "blockers": [],
+  "reviewer": {
+    "identity": "independent_ai_architect_claude_code",
+    "reviewer_type": "ai",
+    "model": "Anthropic Claude Fable 5 (model id claude-fable-5)",
+    "impersonation_disclaimer": "Not a human reviewer. Issued under the owner governance amendment with requires_release_gate_amendment=true.",
+    "method": "read-only audit. No run was executed, no scheduler was started or deployed, no production database write, no proposal, order or trade. Database access used sqlite URI mode=ro with PRAGMA query_only=ON and total_changes verified 0."
+  },
+  "part_1_incremental_validation": {
+    "verdict": "APPROVE_STANDARD_INCREMENTAL_VALIDATION",
+    "job_run_id": 76934,
+    "status": "ok",
+    "error": null,
+    "started_at_utc": "2026-08-09 07:16:03.944642",
+    "finished_at_utc": "2026-08-09 07:16:07.661948",
+    "started_at_shanghai": "2026-08-09 15:16:03",
+    "within_receipt_validity_window": "The receipt derived its slice set at Shanghai date 2026-08-09 and the run executed at 15:16 CST that same day, so the binding held.",
+    "authorization_binding": {
+      "receipt_sha256_recorded_in_stats": "b605dd90fbd9a47439d9e1415c02d02a97f3f859c8f07ea0e8ab9d7a319372f1",
+      "matches_issued_receipt": true,
+      "authorization_id": "p4.1-v2.1-standard-incremental-validation-auth-20260809-r1",
+      "execution_mode": "standard_incremental_validation",
+      "run_mode": "regular_incremental",
+      "coverage_gap": false,
+      "gate_states_in_authorization": {"initial_backlog_migration_complete": true, "standard_incremental_validation_complete": false, "scheduler_activated": false},
+      "single_use_verified": "Exactly one JobRun in the whole table references the receipt digest, and no news_poll run exists with an id greater than 76934."
+    },
+    "first_live_exercise_of_the_incremental_path": {
+      "significance": "Observation O-1 from the round-3 review recorded that all six migration slices ran as closed-date reconciliation with a null floor, so the current-day incremental path had never executed. This run is its first live exercise.",
+      "slice_dates": ["2026-08-09"],
+      "mode": "current_date_incremental",
+      "date_closed": false,
+      "computed_incremental_floor_utc": "2026-08-07T15:30:00+00:00",
+      "floor_derivation_recomputed": "committed observed high 2026-08-07T16:00:00Z minus the frozen watermark_overlap_minutes of 30 equals 2026-08-07T15:30:00Z; the observed value matches exactly.",
+      "floor_reached": false,
+      "page_count": 1,
+      "page_cap_hit": false,
+      "pagination_complete": true,
+      "termination_mechanism": "pagination exhaustion, not floor short-circuit: the single page returned zero rows with hasMore false, which also satisfies the short-page condition. This is precisely the interaction the authorizing receipt required to be reported, and it confirms the prediction that CNInfo batch timestamping would leave the 30-minute floor unreached."
+    },
+    "critical_assertion_checkpoint_must_not_advance": {
+      "requirement": "The receipt stated that a correct run advances only the observed high and must leave the date checkpoint at 2026-08-08, and that advancing to 2026-08-09 would mean an unclosed day was disguised as closed and would be a hard failure.",
+      "observed_checkpoint_before": "2026-08-08",
+      "observed_checkpoint_after": "2026-08-08",
+      "observed_high_before": "2026-08-07T16:00:00+00:00",
+      "observed_high_after": "2026-08-07T16:00:00+00:00",
+      "result": "pass",
+      "note": "The slice reports checkpoint_committed true, which correctly means its pagination was proven complete, not that the date checkpoint moved. The separation of observed-high advance from date-checkpoint advance behaved exactly as designed. The observed high did not move because zero CNInfo rows were returned, so there was nothing to advance it to."
+    },
+    "persistence_and_safety": {
+      "cninfo": {"fetched": 0, "inserted": 0, "logical_requests": 1, "physical_attempts": 1},
+      "other_sources": {"akshare_ths": {"fetched": 20, "inserted": 12}, "sina_company_news": {"fetched": 117, "inserted": 1}},
+      "totals": {"request_count": 7, "fetched": 137, "inserted": 13, "duplicate_url": 122, "duplicate_content_hash": 2, "retries": 0, "failures": 0},
+      "independently_counted_rows_at_run_write_locks": {"akshare_ths": 12, "sina_company_news": 1},
+      "slice_to_source_reconciliation": "all_equal true",
+      "pit": {"rows_with_available_time_not_after_published_at": 0},
+      "dedup": {"duplicate_url_groups_whole_table": 0, "duplicate_content_hash_groups_whole_table": 0},
+      "sqlite_quick_check": "ok",
+      "safety": {"trade_proposals": 1, "broker_orders": 1, "non_simulate_broker_orders": 0, "running_job_runs": 0, "safety_unchanged": true, "persisted_vs_process_divergences": []},
+      "execution_source_sha256": "fef43741418dcddd0e2ed419e5e5617ee6826110f2529ccf5a5c231207400145",
+      "config_sha256": "9d56e137baf10bd0858723a93aff02c57bf7b35f8705f1817b16a89ec615183f",
+      "source_or_config_drift_after_execution": false
+    },
+    "runtime_capture_quality": {
+      "path": "docs/phase4/reports/P4.1-v2.1-standard-incremental-validation-runtime-capture-20260809.json",
+      "sha256": "a97359b42d14778d923bac320c0db95bd0d1f01d89e3438f50c695c0e9cad0cc",
+      "method": "python_read_only_line_trace",
+      "decision_source_modified": false,
+      "http_client_replaced": false,
+      "retry_loop_present": false,
+      "assessment": "Capturing the exact source lines that set pagination_complete and page_cap_hit through a read-only trace, without touching the decision path or substituting the HTTP client, is a sound way to evidence the termination mechanism. It answers the receipt's requirement without weakening what it observes."
+    },
+    "honest_limitation_recorded": {
+      "id": "L-2",
+      "statement": "The CNInfo zero-row result for Sunday 2026-08-09 cannot be independently corroborated by this reviewer. The database holds no CNInfo rows before 2026-08-03, so no prior Sunday exists for comparison, and verifying upstream would require network access, which this review forbids.",
+      "what_is_verifiable": "The termination was triple-confirmed inside the run: zero rows, hasMore false, and a short page. The authorizing receipt pre-registered that a low or zero Sunday count is a legitimate outcome to be reported as observed rather than padded.",
+      "why_it_is_harmless_even_if_upstream_had_rows": "Because the date checkpoint deliberately did not advance, 2026-08-09 remains an unclosed day and will later be reconciled in full as a closed date. A zero fetch now cannot cause a permanent gap; at worst it defers rows to the closed-date reconciliation."
+    },
+    "gate_determination": {
+      "standard_incremental_validation_complete": true,
+      "authority": "The operator correctly left this false and deferred the determination. This reviewer makes it: the standard incremental validation is COMPLETE.",
+      "what_it_does_not_imply": "Completion of this validation does not authorize scheduler code changes, redeployment, activation, or the observation window. Those remain separate gates."
+    }
+  },
+  "part_2_scheduler_activation_code_gate": {
+    "verdict": "APPROVE_IMPLEMENTATION_ONLY",
+    "preregistration": {"path": "docs/phase4/reports/P4.1-v2.1-scheduler-activation-code-gate-preregistration-20260809.json", "sha256": "9cbb4b1bea2880efac20bb0e7614860a633016eece32bb4164f3ea7e4d2bbfb3", "implementation_authorized_in_document": false, "deployment_authorized_in_document": false, "observation_window_authorized_in_document": false},
+    "defect_correctly_characterised": {
+      "id": "SCHED-V2.1-ROUTE-001",
+      "independently_confirmed": true,
+      "evidence": "Enumerating both triggers over real dates: the v2 trigger yields 61 slots on Monday 2026-08-10 against 64 for v1, and within the nine o'clock hour v2 fires only at 09:50 while v1 fires at 09:00, 09:30, 09:40 and 09:50. Tuesday and Wednesday both yield 64 under either trigger. The claimed slot counts of 61, 64 and 64 are therefore exact.",
+      "consequence_if_unfixed": "Activating only the constant would leave v2.1 registering v1 defaults and inheriting the v1 timetable, so the scheduler would poll at Monday 09:00 and 09:30 during the deliberate host disconnection, discarding v2 remediation item six."
+    },
+    "atomicity_requirement_endorsed": "The three conditions, the activation constant, the default config path, and an explicit v2.1 trigger mapping with unknown configurations raising rather than falling back to v1, must land together. A partial landing reintroduces the defect silently.",
+    "frozen_config_policy_endorsed": "config/p4_news_poll_v2_1.yaml stays byte-frozen at 9d56e137...183f. Its historical preregistration phase-gate fields remain false because the loader hash-binds that snapshot; activation state belongs in code and evidence, not in a rewritten frozen contract.",
+    "target_environment_verified": {
+      "installed_plist_sha256": "468083914b4dbe93fb564f82451ce7bac474674567d0edd3cee87ec2a018b9be",
+      "installed_environment_variable_count": 7,
+      "missing_pins_confirmed": ["ALPHAPILOT_PAPER_TRADING_ENABLED", "ALPHAPILOT_FUTU_ENABLE_TRADE"],
+      "predicted_render_sha256": "011164cef801f560c7fa5a7fe4aa8d0ed6551ba859e885eabebf79652ce64caf",
+      "predicted_render_independently_reproduced": true,
+      "reproduction_method": "Re-ran the install script's exact substitution logic over config/scheduler.launchagent.template.plist with the same five placeholder values derived from the script's own readonly declarations, and hashed the result. It matches the predicted digest byte for byte.",
+      "rendered_environment_variables": {"count": 9, "values": {"ALPHAPILOT_SCHEDULER_ENABLED": "true", "ALPHAPILOT_TRADING_MODE": "research", "ALPHAPILOT_LIVE_TRADING_ENABLED": "false", "ALPHAPILOT_PAPER_TRADING_ENABLED": "false", "ALPHAPILOT_PAPER_AUTO_TRADING_ENABLED": "false", "ALPHAPILOT_FUTU_ENABLE_ACCOUNT_MUTATION": "false", "ALPHAPILOT_FUTU_ENABLE_TRADE": "false", "ALPHAPILOT_BAOSTOCK_FINANCIAL_SYNC_ENABLED": "false", "ALPHAPILOT_NEWS_POLL_ENABLED": "true"}},
+      "caveat_honoured": "The operator correctly labelled this a predicted render rather than a deployed digest. It remains a prediction until the deployment produces the installed file."
+    },
+    "restart_sequence_endorsed": "Fresh database backup and green tests, then restart com.alphapilot.api so the .env remediation takes effect and its migration path runs under supervision with health verification, then run scripts/start_scheduler_launchd.sh to render from the hardened template and bootstrap. Sequencing the API restart before the scheduler bootstrap is correct because migrations are owned by the API process.",
+    "what_this_verdict_authorizes": ["implementing the three atomic code conditions and their tests in the three declared files"],
+    "what_this_verdict_withholds": ["scheduler redeployment", "scheduler activation", "restarting com.alphapilot.api", "opening the three-trading-day observation window", "any P4.2b or P4.3 unlock"]
+  },
+  "next_gate": {
+    "sequence": "Codex implements the three atomic conditions with tests, and submits the implementation for independent review together with the trigger-slot assertions. On approval, deployment proceeds in the endorsed order and delivers the actual installed plist digest, the nine measured environment variables, launchctl state and the first scheduler-driven news_poll JobRun. An activation review of that evidence then gates the three-trading-day observation window, and only the P4.1 acceptance verdict after that window gates P4.2b and P4.3.",
+    "deliverables_required_at_the_deployment_gate": ["actual installed plist sha256", "nine measured environment variables read back from the installed plist", "launchctl print state", "first scheduler-driven news_poll JobRun with its stats and bindings", "confirmation that the Monday nine o'clock suppression is live in the registered trigger"]
+  },
+  "quality_gates": {"ruff": "All checks passed", "mypy_strict_src_alphapilot": "no issues found in 157 source files", "pytest_full": "exit 0, no failures"}
+}
