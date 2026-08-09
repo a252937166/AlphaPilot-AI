@@ -596,7 +596,14 @@ def test_finalizer_main_retains_raw_export_and_is_create_only(
     assert manifest["validation"]["raw_owner_export_retained"] is True
     assert manifest["validation"]["ui_byte_reconstruction_check"] is True
     assert manifest["validation"]["timestamp_order_check"] is True
-    assert manifest["model_calls"] == 0
+    assert manifest["model_execution"] == {
+        "drafting_ai_inference_occurred": True,
+        "drafting_ai": "Codex GPT-5.6",
+        "drafting_ai_is_evaluated_model": False,
+        "evaluated_model_calls_before_calibration": 0,
+        "heldout_model_calls": 0,
+        "workflow_script_model_calls": 0,
+    }
     assert manifest["heldout_touched"] is False
 
     second = finalizer.main(

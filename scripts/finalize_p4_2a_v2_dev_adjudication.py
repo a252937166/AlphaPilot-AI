@@ -295,7 +295,14 @@ def completion_manifest(
             "ui_byte_reconstruction_check": True,
             "timestamp_order_check": True,
         },
-        "model_calls": 0,
+        "model_execution": {
+            "drafting_ai_inference_occurred": True,
+            "drafting_ai": summary["drafter_id"],
+            "drafting_ai_is_evaluated_model": False,
+            "evaluated_model_calls_before_calibration": 0,
+            "heldout_model_calls": 0,
+            "workflow_script_model_calls": 0,
+        },
         "heldout_touched": False,
     }
 
