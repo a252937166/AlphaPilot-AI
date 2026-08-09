@@ -446,6 +446,42 @@ owner 确认该时段为**人为断网、周期性复发**，非代码或上游�
   scheduler/P4.2b/P4.3 继续锁定。必须先独立复核 JobRun 76932 与上述证据，再签发第 3 轮单次
   收据；禁止连跑或复用本轮收据。
 
+### P4.1 v2.1 初始积压迁移第 3 轮实证（2026-08-09，待独立复核）
+
+- 联网前先以纯观测提交 `476455c` 加固证据冻结器：合法零公告切片允许
+  `newest_observed_at_utc=null`，但非空值仍严格解析；证据 CLI 的 checkpoint/切片/入口/单轮
+  范围必须与授权收据逐字段相等；JobRun 全来源 inserted 与带 run marker 的落库行按 source
+  精确对账，PIT flush/commit 时序也按来源闭合。该提交未改抓取、预算、去重、PIT 或
+  checkpoint 决策路径；13 项定向测试、全仓 Ruff、strict mypy 157 files 与全量 pytest 全绿，
+  并经独立只读复核 `GO / zero blocker`。
+- 第 3 轮收据
+  `P4.1-v2.1-initial-migration-authorization-round3-20260809.json`（SHA-256
+  `a46dc4abf9ca67340cd40314aa9f5d8f771e740be78cbbf9eb2e06750f24219b`）仅使用一次。
+  JobRun `76933` 于 `2026-08-09T05:04:39.523793Z` 启动、
+  `2026-08-09T05:06:07.636323Z` 以 `ok / error=null` 终态结束，严格闭合
+  `2026-08-07/08`：分别抓取 `1194/1329`、分页 `40/45`，巨潮共 85 个逻辑请求与 85 次
+  物理尝试，0 重试、0 失败、严格 TLS；checkpoint 从 `2026-08-06` 推进到
+  `2026-08-08`，`partial_checkpoint=false`。
+- 逐切片 disposition 恒等式闭合：08-07 为
+  `1194 = 119 inserted + 1073 duplicate_url + 2 duplicate_content_hash + 0 filtered`；
+  08-08 为 `1329 = 579 + 746 + 4 + 0`。两切片合计与巨潮源级
+  `2523/698/1819/6/0` 逐字段相等，未因周六日期扩窗或填充数据。
+- 本轮全来源真实新增 `720` 行：巨潮 `698`、同花顺 `20`、新浪 `2`；带 JobRun 76933
+  marker 的行按来源精确同数。生产 `news_items` 从 `9187` 增至 `9907`，720 行全部保留
+  `coverage_gap_catchup`、`preceded_by_coverage_gap=true` 与本轮真实 `available_time`；PIT
+  异常 0、全库 URL/hash 重复组 0、SQLite `quick_check=ok`。交易表仍为 1 个提案/1 个
+  SIMULATE 订单，非 SIMULATE 订单 0；持久化 `.env` 与进程安全值无差异，scheduler 未加载。
+- create-only 证据为
+  `docs/phase4/reports/P4.1-v2.1-initial-migration-round3-evidence-20260809.json`，SHA-256
+  `57f9b99e99358b5e8c596485774702858e5c572cb3116407a279d0195b044318`；绑定 JobRun stats
+  raw SHA-256 `f881de16412a364dbcb008a6b0ed09566cd6e38eb743653966fd32b93e052f26` 与 canonical
+  JSON SHA-256 `beb5f838c7762cdc958d879c0bc17a7391da6916780d2a88b95ad8ace5ddc111`。
+- 机器证据已确认“截至前一上海自然日的闭合日期全部对账”，但 operator 不自宣告完成：
+  `initial_backlog_migration_complete=false`、`standard_incremental_validation_complete=false`，
+  scheduler/P4.2b/P4.3 继续锁定。下一步只能先独立复核 JobRun 76933 与本证据；复核通过后再签发
+  显式 `initial_backlog_migration_complete=true` 的标准增量验证收据，禁止自行运行增量验证或
+  重部署 scheduler。
+
 ### P4.2a 模型成本复审与 v1.7 选择准则预注册（2026-08-04，held-out 解锁前）
 
 - **动机**：held-out 一次性，验证哪个模型就应是生产模型。owner 提出试 `qwen3.7-flash`
