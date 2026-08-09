@@ -89,6 +89,55 @@ ROUND_2_PREREGISTRATION_PATH = Path(
 ROUND_2_PREREGISTRATION_SHA256 = (
     "a7c971ba59c2c7199e5becd95ac09fde9e5cd16a3eef225a8f244a934efc5812"
 )
+ROUND_2_OUTCOME_SHA256 = "49026fad5e14771cbe1a5a83aa3311107b30ff02d708c31cd4a0dad4c2384c66"
+ROUND_2_STATE_PREFIX_SHA256 = (
+    "e3d0e971db316b23915f38ca699e7f284edbc72e1c79ee844847ba1a5953f612"
+)
+ROUND_2_ARTIFACT_SHA256 = {
+    "round-preregistration.json": ROUND_2_PREREGISTRATION_SHA256,
+    "round-outcome.json": ROUND_2_OUTCOME_SHA256,
+    "qwen3.7-flash/predictions.jsonl": (
+        "ab976f24c0cbc9840873af84b5742085d58eb1941585a655096e06c6c2a37078"
+    ),
+    "qwen3.7-flash/manifest.json": (
+        "c5c6b3d53d94fb837937a598d1f0b9b83fe68f7ae50f169ecb582a788cf49125"
+    ),
+    "qwen3.7-flash/report.json": (
+        "1b5b4f3288902c09a7cf1ccc93777c293f104c1e326406784a17fffc51c58840"
+    ),
+    "qwen3.7-flash/terminal-state.jsonl": (
+        "3b0481a77cb9493406ab15077d4de70fa62d1a667f1e3448ef38ba5e6599154b"
+    ),
+    "qwen3.6-plus/predictions.jsonl": (
+        "9cea9213afda23d303cfa23eedea8b6c3d3ad30380606d87db31c20bc3ebbd00"
+    ),
+    "qwen3.6-plus/manifest.json": (
+        "80ead2fe4ae5909d7152a957a78653cb17ede93b6287381747a1737c64765ffd"
+    ),
+    "qwen3.6-plus/report.json": (
+        "a5f259e7ee8a086c314c716a0164e425e288e7b688d10ee9bc0a8d2f44748122"
+    ),
+    "qwen3.6-plus/terminal-state.jsonl": (
+        "86c6a1de15528bcb483978373f2a1b1356ac5578f11f1a9d32d612fcda70af10"
+    ),
+}
+ROUND_3_AUTHORIZATION_PATH = Path(
+    "docs/phase4/reports/P4.2a-round2-adjudication-20260810.json"
+)
+ROUND_3_AUTHORIZATION_SHA256 = (
+    "a4af80bcf6fe355c48db56b189f7f8a6b9949c7f9d99b67773c8dbeaa539eaf0"
+)
+ROUND_3_PREREGISTRATION_PATH = Path(
+    "docs/phase4/eval/v2-calibration/development/rounds/r3/round-preregistration.json"
+)
+ROUND_3_PREREGISTRATION_SHA256: str | None = (
+    "72517cdc546adedf543e9e9abffecdca3b18a2193f2865f7c476edde25512134"
+)
+ROUND_3_POST_ROUND_GOVERNANCE: Mapping[str, Any] = {
+    "o5_trigger": "round_3_point_estimate_passes_but_adverse_flip_margin_fails",
+    "action": "pause_round_consumption_and_return_frame_enlargement_decision_to_owner",
+    "automatic_round_4_allowed": False,
+}
 BASE_CONTRACT_PATH = Path("config/p4_event_extract_eval_v1_7.yaml")
 BASE_CONTRACT_SHA256 = "68474e4bd4fd5c9c88711dd5e102898ad1ed75a0fb984045efbd14e51a6db701"
 MODEL_ORDER = ("qwen3.7-flash", "qwen3.6-plus")
@@ -372,16 +421,43 @@ def _load_design(root: Path) -> JsonObject:
     return document
 
 
-def _validate_round_two_bindings(
+def _validate_followup_round_bindings(
     root: Path,
     prereg: Mapping[str, Any],
+    round_number: int,
     preregistration_sha256: str,
 ) -> None:
     del preregistration_sha256  # The caller already verifies the registered bytes.
+    if round_number not in {2, 3}:
+        raise CalibrationRoundError("follow-up round binding is not registered")
+    prior_round = round_number - 1
+    prior_preregistration_path = (
+        ROUND_PREREGISTRATION_PATH
+        if prior_round == 1
+        else ROUND_2_PREREGISTRATION_PATH
+    )
+    prior_preregistration_sha256 = (
+        ROUND_PREREGISTRATION_SHA256
+        if prior_round == 1
+        else ROUND_2_PREREGISTRATION_SHA256
+    )
+    prior_outcome_sha256 = (
+        ROUND_1_OUTCOME_SHA256 if prior_round == 1 else ROUND_2_OUTCOME_SHA256
+    )
+    authorization_path = (
+        ROUND_2_AUTHORIZATION_PATH
+        if round_number == 2
+        else ROUND_3_AUTHORIZATION_PATH
+    )
+    authorization_sha256 = (
+        ROUND_2_AUTHORIZATION_SHA256
+        if round_number == 2
+        else ROUND_3_AUTHORIZATION_SHA256
+    )
     prior = _mapping(prereg.get("prior_round"), "prior_round")
     _exact_keys(prior, {"round_number", "preregistration", "outcome"}, "prior_round")
-    if prior.get("round_number") != 1:
-        raise CalibrationRoundError("Round 2 prior-round number drifted")
+    if prior.get("round_number") != prior_round:
+        raise CalibrationRoundError(f"Round {round_number} prior-round number drifted")
     prior_prereg_path, prior_prereg_sha = _file_ref(
         root, prior.get("preregistration"), "prior_round.preregistration"
     )
@@ -389,25 +465,27 @@ def _validate_round_two_bindings(
         root, prior.get("outcome"), "prior_round.outcome"
     )
     if (
-        prior_prereg_path != (root / ROUND_PREREGISTRATION_PATH).resolve()
-        or prior_prereg_sha != ROUND_PREREGISTRATION_SHA256
+        prior_prereg_path != (root / prior_preregistration_path).resolve()
+        or prior_prereg_sha != prior_preregistration_sha256
         or prior_outcome_path
         != (
             root
-            / "docs/phase4/eval/v2-calibration/development/rounds/r1/round-outcome.json"
+            / "docs/phase4/eval/v2-calibration/development/rounds"
+            / f"r{prior_round}"
+            / "round-outcome.json"
         ).resolve()
-        or prior_outcome_sha != ROUND_1_OUTCOME_SHA256
+        or prior_outcome_sha != prior_outcome_sha256
     ):
-        raise CalibrationRoundError("Round 2 prior-round binding drifted")
+        raise CalibrationRoundError(f"Round {round_number} prior-round binding drifted")
 
-    authorization_path, authorization_sha = _file_ref(
+    bound_authorization_path, bound_authorization_sha = _file_ref(
         root, prereg.get("round_authorization"), "round_authorization"
     )
     if (
-        authorization_path != (root / ROUND_2_AUTHORIZATION_PATH).resolve()
-        or authorization_sha != ROUND_2_AUTHORIZATION_SHA256
+        bound_authorization_path != (root / authorization_path).resolve()
+        or bound_authorization_sha != authorization_sha256
     ):
-        raise CalibrationRoundError("Round 2 authorization binding drifted")
+        raise CalibrationRoundError(f"Round {round_number} authorization binding drifted")
 
     prompt_path, prompt_sha = _file_ref(root, prereg.get("prompt"), "preregistration.prompt")
     summaries = _mapping(
@@ -425,7 +503,9 @@ def _validate_round_two_bindings(
             or not isinstance(description, str)
             or not description.strip()
         ):
-            raise CalibrationRoundError("Round 2 candidate prompt summary binding drifted")
+            raise CalibrationRoundError(
+                f"Round {round_number} candidate prompt summary binding drifted"
+            )
 
     artifacts = _mapping(prereg.get("artifacts"), "artifacts")
     _exact_keys(artifacts, {"round_directory", "round_outcome", "calibration_state"}, "artifacts")
@@ -434,11 +514,17 @@ def _validate_round_two_bindings(
     calibration_state = _mapping(artifacts.get("calibration_state"), "calibration_state")
     if (
         dict(round_directory)
-        != {"path": "docs/phase4/eval/v2-calibration/development/rounds/r2"}
+        != {
+            "path": (
+                "docs/phase4/eval/v2-calibration/development/rounds/"
+                f"r{round_number}"
+            )
+        }
         or dict(round_outcome)
         != {
             "path": (
-                "docs/phase4/eval/v2-calibration/development/rounds/r2/round-outcome.json"
+                "docs/phase4/eval/v2-calibration/development/rounds/"
+                f"r{round_number}/round-outcome.json"
             ),
             "create_only": True,
         }
@@ -448,20 +534,26 @@ def _validate_round_two_bindings(
             "append_only": True,
         }
     ):
-        raise CalibrationRoundError("Round 2 artifact semantics drifted")
+        raise CalibrationRoundError(f"Round {round_number} artifact semantics drifted")
 
 
 def _registered_round_identity(round_number: int) -> tuple[Path, str]:
     identities = {
         1: (ROUND_PREREGISTRATION_PATH, ROUND_PREREGISTRATION_SHA256),
         2: (ROUND_2_PREREGISTRATION_PATH, ROUND_2_PREREGISTRATION_SHA256),
+        3: (ROUND_3_PREREGISTRATION_PATH, ROUND_3_PREREGISTRATION_SHA256),
     }
     try:
-        return identities[round_number]
+        path, digest = identities[round_number]
     except KeyError as exc:
         raise CalibrationRoundError(
             "round has no executable path-and-hash registration in this runner"
         ) from exc
+    if digest is None or _SHA256.fullmatch(digest) is None:
+        raise CalibrationRoundError(
+            f"Round {round_number} has no executable preregistration SHA-256"
+        )
+    return path, digest
 
 
 def _load_preregistration(
@@ -500,14 +592,17 @@ def _load_preregistration(
         "gates",
         "artifacts",
     }
-    round_two_keys = {
+    followup_round_keys = {
         "prior_round",
         "round_authorization",
         "candidate_prompt_summaries",
     }
+    round_three_keys = {"post_round_governance"}
     _exact_keys(
         prereg,
-        base_keys | (round_two_keys if round_number == 2 else set()),
+        base_keys
+        | (followup_round_keys if round_number in {2, 3} else set())
+        | (round_three_keys if round_number == 3 else set()),
         f"Round {round_number} preregistration",
     )
     if (
@@ -553,7 +648,7 @@ def _load_preregistration(
         "recall_policy",
         "selection_rule",
     }
-    if round_number == 2:
+    if round_number in {2, 3}:
         expected_gate_keys.add("adverse_flip_margin")
     _exact_keys(gates, expected_gate_keys, f"Round {round_number} gates")
     if (
@@ -564,7 +659,7 @@ def _load_preregistration(
         or gates.get("selection_rule") != "flash_if_both_gates_else_plus_if_both_gates_else_none"
     ):
         raise CalibrationRoundError(f"Round {round_number} gate contract drifted")
-    margin_required = round_number == 2
+    margin_required = round_number in {2, 3}
     if margin_required:
         margin = _mapping(gates.get("adverse_flip_margin"), "gates.adverse_flip_margin")
         if dict(margin) != {
@@ -575,8 +670,21 @@ def _load_preregistration(
             "point_estimates_must_also_pass": True,
             "heldout_gate_unchanged": True,
         }:
-            raise CalibrationRoundError("Round 2 adverse-flip margin contract drifted")
-        _validate_round_two_bindings(root, prereg, preregistration_sha256)
+            raise CalibrationRoundError(
+                f"Round {round_number} adverse-flip margin contract drifted"
+            )
+        _validate_followup_round_bindings(
+            root,
+            prereg,
+            round_number,
+            preregistration_sha256,
+        )
+    if round_number == 3:
+        governance = _mapping(
+            prereg.get("post_round_governance"), "post_round_governance"
+        )
+        if dict(governance) != ROUND_3_POST_ROUND_GOVERNANCE:
+            raise CalibrationRoundError("Round 3 O-5 governance contract drifted")
     formal = _mapping(design.get("formal_development_rounds"), "formal_development_rounds")
     if (
         formal.get("models_always_measured") != list(MODEL_ORDER)
@@ -1070,6 +1178,16 @@ def _score(
         negative_size = counts["fn"] + counts["tn"]
         stratum_precision = counts["tp"] / positive_size if positive_size else None
         stratum_for = counts["fn"] / negative_size if negative_size else None
+        stratum_adverse_precision = (
+            (counts["tp"] - 1) / positive_size
+            if counts["tp"] and positive_size
+            else None
+        )
+        stratum_adverse_for = (
+            (counts["fn"] + 1) / negative_size
+            if counts["tn"] and negative_size
+            else None
+        )
         stratum_breakdown[f"baseline_{name}"] = {
             "sampling_frame": "development_frame_v2_baseline_stratified_30_positive_15_negative",
             "sampling_stratum": f"baseline_{name}",
@@ -1102,6 +1220,36 @@ def _score(
                 "value": None,
                 "passed": None,
                 "gate_or_diagnostic": "omitted_not_estimable",
+            },
+            "adverse_single_item_margin": {
+                "applies_to": "development_sampling_stratum_diagnostic",
+                "required_by_overall_gate": adverse_flip_margin_required,
+                "precision": {
+                    "transformation": (
+                        "one_true_positive_reclassified_as_false_positive"
+                    ),
+                    "denominator": positive_size,
+                    "value": stratum_adverse_precision,
+                    "threshold": PRECISION_MINIMUM,
+                    "passed": (
+                        stratum_adverse_precision is not None
+                        and stratum_adverse_precision >= PRECISION_MINIMUM
+                    ),
+                },
+                "false_omission_rate": {
+                    "transformation": (
+                        "one_true_negative_reclassified_as_false_negative"
+                    ),
+                    "denominator": negative_size,
+                    "value": stratum_adverse_for,
+                    "threshold": FALSE_OMISSION_RATE_MAXIMUM,
+                    "passed": (
+                        stratum_adverse_for is not None
+                        and stratum_adverse_for <= FALSE_OMISSION_RATE_MAXIMUM
+                    ),
+                },
+                "gate_or_diagnostic": "sampling_stratum_diagnostic",
+                "may_not_override_overall_development_gate": True,
             },
             "may_not_override_overall_development_gate": True,
         }
@@ -1291,6 +1439,36 @@ def _snapshot_evidence(snapshot: ProductionSnapshot) -> JsonObject:
     }
 
 
+def _round_three_governance_outcome(
+    reports: Mapping[str, Mapping[str, Any]],
+    *,
+    round_valid: bool = True,
+) -> JsonObject:
+    triggered = False
+    if round_valid:
+        for report in reports.values():
+            metrics = report.get("metrics")
+            if not isinstance(metrics, Mapping):
+                continue
+            margin = metrics.get("adverse_single_item_margin")
+            if (
+                metrics.get("point_estimate_materiality_gates_passed") is True
+                and isinstance(margin, Mapping)
+                and margin.get("both_passed") is False
+            ):
+                triggered = True
+                break
+    return {
+        **ROUND_3_POST_ROUND_GOVERNANCE,
+        "triggered": triggered,
+        "next_action": (
+            "return_frame_enlargement_decision_to_owner"
+            if triggered
+            else "await_independent_round_adjudication"
+        ),
+    }
+
+
 def _artifact_paths(root: Path, model_slug: str, round_number: int = 1) -> Mapping[str, Path]:
     directory = (
         root
@@ -1306,55 +1484,89 @@ def _artifact_paths(root: Path, model_slug: str, round_number: int = 1) -> Mappi
     }
 
 
-def _round_one_snapshot(root: Path) -> dict[str, str]:
-    round_dir = root / "docs/phase4/eval/v2-calibration/development/rounds/r1"
+def _round_snapshot(
+    root: Path,
+    *,
+    round_number: int,
+    preregistration_sha256: str,
+    outcome_sha256: str,
+    artifact_sha256: Mapping[str, str],
+) -> dict[str, str]:
+    round_dir = (
+        root
+        / "docs/phase4/eval/v2-calibration/development/rounds"
+        / f"r{round_number}"
+    )
     anchored = {
         relative: _sha256_file(round_dir / relative)
-        for relative in ROUND_1_ARTIFACT_SHA256
+        for relative in artifact_sha256
         if (round_dir / relative).is_file() and not (round_dir / relative).is_symlink()
     }
-    if anchored != ROUND_1_ARTIFACT_SHA256:
-        raise CalibrationRoundError("Round 1 immutable artifact anchor drifted")
+    if anchored != artifact_sha256:
+        raise CalibrationRoundError(
+            f"Round {round_number} immutable artifact anchor drifted"
+        )
     prereg = round_dir / "round-preregistration.json"
     outcome_path = round_dir / "round-outcome.json"
     if (
         prereg.is_symlink()
         or outcome_path.is_symlink()
-        or _sha256_file(prereg) != ROUND_PREREGISTRATION_SHA256
-        or _sha256_file(outcome_path) != ROUND_1_OUTCOME_SHA256
+        or _sha256_file(prereg) != preregistration_sha256
+        or _sha256_file(outcome_path) != outcome_sha256
     ):
-        raise CalibrationRoundError("Round 1 immutable root artifacts drifted")
-    outcome = _load_json(outcome_path, "Round 1 outcome")
-    reports = _mapping(outcome.get("model_reports"), "Round 1 model reports")
+        raise CalibrationRoundError(
+            f"Round {round_number} immutable root artifacts drifted"
+        )
+    outcome = _load_json(outcome_path, f"Round {round_number} outcome")
+    reports = _mapping(
+        outcome.get("model_reports"), f"Round {round_number} model reports"
+    )
     if (
-        outcome.get("round_number") != 1
-        or outcome.get("round_preregistration_sha256") != ROUND_PREREGISTRATION_SHA256
+        outcome.get("round_number") != round_number
+        or outcome.get("round_preregistration_sha256") != preregistration_sha256
+        or outcome.get("status") != "recorded"
+        or outcome.get("technical_failure") is not None
         or outcome.get("selected_model") is not None
+        or outcome.get("development_gate_cleared") is not False
+        or outcome.get("heldout_touched") is not False
+        or outcome.get("production_writes") is not False
         or set(reports) != set(MODEL_ORDER)
     ):
-        raise CalibrationRoundError("Round 1 immutable outcome semantics drifted")
+        raise CalibrationRoundError(
+            f"Round {round_number} immutable outcome semantics drifted"
+        )
     paths = [prereg, outcome_path]
     for model in MODEL_ORDER:
-        model_paths = _artifact_paths(root, model, 1)
-        report_ref = _mapping(reports.get(model), f"Round 1 report ref {model}")
+        model_paths = _artifact_paths(root, model, round_number)
+        report_ref = _mapping(
+            reports.get(model), f"Round {round_number} report ref {model}"
+        )
         report = model_paths["report"]
         manifest = model_paths["manifest"]
         predictions = model_paths["predictions"]
         terminal = model_paths["terminal_state"]
         if any(path.is_symlink() or not path.is_file() for path in model_paths.values()):
-            raise CalibrationRoundError("Round 1 immutable model artifact type drifted")
+            raise CalibrationRoundError(
+                f"Round {round_number} immutable model artifact type drifted"
+            )
         if (
             report_ref.get("path") != report.relative_to(root).as_posix()
             or report_ref.get("sha256") != _sha256_file(report)
         ):
-            raise CalibrationRoundError("Round 1 report hash closure drifted")
-        manifest_doc = _load_json(manifest, f"Round 1 manifest {model}")
+            raise CalibrationRoundError(
+                f"Round {round_number} report hash closure drifted"
+            )
+        manifest_doc = _load_json(manifest, f"Round {round_number} manifest {model}")
         if (
             manifest_doc.get("predictions_path") != predictions.relative_to(root).as_posix()
             or manifest_doc.get("predictions_sha256") != _sha256_file(predictions)
         ):
-            raise CalibrationRoundError("Round 1 prediction hash closure drifted")
-        terminal_rows = _load_jsonl(terminal, f"Round 1 terminal {model}")
+            raise CalibrationRoundError(
+                f"Round {round_number} prediction hash closure drifted"
+            )
+        terminal_rows = _load_jsonl(
+            terminal, f"Round {round_number} terminal {model}"
+        )
         if (
             len(terminal_rows) != 2
             or terminal_rows[0].get("event") != "model_started"
@@ -1362,9 +1574,54 @@ def _round_one_snapshot(root: Path) -> dict[str, str]:
             or terminal_rows[1].get("report_sha256") != _sha256_file(report)
             or terminal_rows[1].get("manifest_sha256") != _sha256_file(manifest)
         ):
-            raise CalibrationRoundError("Round 1 terminal hash closure drifted")
+            raise CalibrationRoundError(
+                f"Round {round_number} terminal hash closure drifted"
+            )
         paths.extend(model_paths.values())
     return {path.relative_to(root).as_posix(): _sha256_file(path) for path in paths}
+
+
+def _round_one_snapshot(root: Path) -> dict[str, str]:
+    return _round_snapshot(
+        root,
+        round_number=1,
+        preregistration_sha256=ROUND_PREREGISTRATION_SHA256,
+        outcome_sha256=ROUND_1_OUTCOME_SHA256,
+        artifact_sha256=ROUND_1_ARTIFACT_SHA256,
+    )
+
+
+def _completed_history_snapshot(root: Path, last_round: int) -> dict[str, str]:
+    registrations = {
+        1: (
+            ROUND_PREREGISTRATION_SHA256,
+            ROUND_1_OUTCOME_SHA256,
+            ROUND_1_ARTIFACT_SHA256,
+        ),
+        2: (
+            ROUND_2_PREREGISTRATION_SHA256,
+            ROUND_2_OUTCOME_SHA256,
+            ROUND_2_ARTIFACT_SHA256,
+        ),
+    }
+    snapshot: dict[str, str] = {}
+    for completed_round in range(1, last_round + 1):
+        try:
+            preregistration_sha256, outcome_sha256, artifacts = registrations[
+                completed_round
+            ]
+        except KeyError as exc:
+            raise CalibrationRoundError("completed round has no immutable anchor") from exc
+        snapshot.update(
+            _round_snapshot(
+                root,
+                round_number=completed_round,
+                preregistration_sha256=preregistration_sha256,
+                outcome_sha256=outcome_sha256,
+                artifact_sha256=artifacts,
+            )
+        )
+    return snapshot
 
 
 def _validate_calibration_history(
@@ -1374,23 +1631,60 @@ def _validate_calibration_history(
         if state_path.exists() or state_path.is_symlink():
             raise CalibrationRoundError("Round 1 create-only state already exists")
         return {}
-    if round_number != 2 or state_path.is_symlink() or not state_path.is_file():
-        raise CalibrationRoundError("only registered Round 2 may append to the calibration state")
-    if _sha256_file(state_path) != ROUND_1_STATE_PREFIX_SHA256:
-        raise CalibrationRoundError("Round 1 append-only state prefix drifted")
+    if round_number not in {2, 3} or state_path.is_symlink() or not state_path.is_file():
+        raise CalibrationRoundError(
+            "only a registered follow-up round may append to the calibration state"
+        )
+    completed_round = round_number - 1
+    expected_state_sha256 = (
+        ROUND_1_STATE_PREFIX_SHA256
+        if completed_round == 1
+        else ROUND_2_STATE_PREFIX_SHA256
+    )
+    if _sha256_file(state_path) != expected_state_sha256:
+        raise CalibrationRoundError(
+            f"Round {completed_round} append-only state prefix drifted"
+        )
     events = _load_jsonl(state_path, "calibration state")
-    if (
-        len(events) != 2
-        or events[0].get("round_number") != 1
-        or events[0].get("event") != "round_started"
-        or events[0].get("round_preregistration_sha256") != ROUND_PREREGISTRATION_SHA256
-        or events[1].get("round_number") != 1
-        or events[1].get("event") != "round_completed"
-        or events[1].get("round_outcome_sha256") != ROUND_1_OUTCOME_SHA256
-        or events[1].get("selected_model") is not None
-    ):
-        raise CalibrationRoundError("calibration state does not authorize Round 2")
-    return _round_one_snapshot(root)
+    expected_preregistrations = {
+        1: ROUND_PREREGISTRATION_SHA256,
+        2: ROUND_2_PREREGISTRATION_SHA256,
+    }
+    expected_outcomes = {1: ROUND_1_OUTCOME_SHA256, 2: ROUND_2_OUTCOME_SHA256}
+    if len(events) != completed_round * 2:
+        raise CalibrationRoundError(
+            f"calibration state does not authorize Round {round_number}"
+        )
+    for index, prior_round in enumerate(range(1, completed_round + 1)):
+        started = events[index * 2]
+        terminal = events[index * 2 + 1]
+        execution_id = started.get("execution_id")
+        if (
+            started.get("round_number") != prior_round
+            or started.get("event") != "round_started"
+            or started.get("round_preregistration_sha256")
+            != expected_preregistrations[prior_round]
+            or started.get("heldout_touched") is not False
+            or started.get("production_writes") is not False
+            or terminal.get("round_number") != prior_round
+            or terminal.get("event") != "round_completed"
+            or terminal.get("round_outcome_sha256") != expected_outcomes[prior_round]
+            or terminal.get("selected_model") is not None
+            or terminal.get("heldout_touched") is not False
+            or terminal.get("production_writes") is not False
+            or (
+                prior_round > 1
+                and (
+                    not isinstance(execution_id, str)
+                    or not execution_id
+                    or terminal.get("execution_id") != execution_id
+                )
+            )
+        ):
+            raise CalibrationRoundError(
+                f"calibration state does not authorize Round {round_number}"
+            )
+    return _completed_history_snapshot(root, completed_round)
 
 
 def _append_calibration_event(
@@ -1399,6 +1693,10 @@ def _append_calibration_event(
     *,
     expected_event_count: int,
     expected_last_event: str,
+    expected_prefix_sha256: str | None = None,
+    expected_last_round_number: int | None = None,
+    expected_last_execution_id: str | None = None,
+    expected_last_preregistration_sha256: str | None = None,
 ) -> None:
     if path.is_symlink() or not path.is_file():
         raise CalibrationRoundError("append-only calibration state is unavailable")
@@ -1411,12 +1709,32 @@ def _append_calibration_event(
             raise CalibrationRoundError("append-only calibration state is not a regular file")
         fcntl.flock(descriptor, fcntl.LOCK_EX)
         rows = _load_jsonl(path, "append-only calibration state")
-        if expected_event_count >= 2:
-            prefix = b"".join(path.read_bytes().splitlines(keepends=True)[:2])
-            if _sha256_bytes(prefix) != ROUND_1_STATE_PREFIX_SHA256:
-                raise CalibrationRoundError("Round 1 state prefix drifted under append lock")
+        if (
+            expected_prefix_sha256 is not None
+            and _sha256_file(path) != expected_prefix_sha256
+        ):
+            raise CalibrationRoundError("calibration state prefix drifted under append lock")
         if len(rows) != expected_event_count or rows[-1].get("event") != expected_last_event:
             raise CalibrationRoundError("append-only calibration state transition is invalid")
+        last = rows[-1]
+        if (
+            expected_last_round_number is not None
+            and last.get("round_number") != expected_last_round_number
+        ):
+            raise CalibrationRoundError("append-only calibration round ownership drifted")
+        if (
+            expected_last_execution_id is not None
+            and last.get("execution_id") != expected_last_execution_id
+        ):
+            raise CalibrationRoundError("append-only calibration execution ownership drifted")
+        if (
+            expected_last_preregistration_sha256 is not None
+            and last.get("round_preregistration_sha256")
+            != expected_last_preregistration_sha256
+        ):
+            raise CalibrationRoundError(
+                "append-only calibration preregistration ownership drifted"
+            )
         payload = _canonical_json_bytes(event)
         view = memoryview(payload)
         while view:
@@ -1467,6 +1785,16 @@ def _run_round_once(
     )
     state_path = root / "docs/phase4/eval/v2-calibration/development/calibration.state.jsonl"
     prior_snapshot = _validate_calibration_history(root, state_path, round_number)
+    prior_event_count = (round_number - 1) * 2
+    prior_state_sha256 = (
+        None
+        if round_number == 1
+        else (
+            ROUND_1_STATE_PREFIX_SHA256
+            if round_number == 2
+            else ROUND_2_STATE_PREFIX_SHA256
+        )
+    )
     all_paths = [outcome_path]
     for binding in contracts:
         all_paths.extend(_artifact_paths(root, binding.model_slug, round_number).values())
@@ -1518,8 +1846,10 @@ def _run_round_once(
         _append_calibration_event(
             state_path,
             start_event,
-            expected_event_count=2,
+            expected_event_count=prior_event_count,
             expected_last_event="round_completed",
+            expected_prefix_sha256=prior_state_sha256,
+            expected_last_round_number=round_number - 1,
         )
 
     reports: dict[str, JsonObject] = {}
@@ -1709,8 +2039,13 @@ def _run_round_once(
     ):
         fatal = fatal or CalibrationRoundError("post-run production isolation evidence drifted")
         selected = None
-    if prior_snapshot and _round_one_snapshot(root) != prior_snapshot:
-        fatal = fatal or CalibrationRoundError("Round 1 immutable artifacts changed during Round 2")
+    if (
+        prior_snapshot
+        and _completed_history_snapshot(root, round_number - 1) != prior_snapshot
+    ):
+        fatal = fatal or CalibrationRoundError(
+            f"immutable artifacts changed during Round {round_number}"
+        )
         selected = None
     outcome: JsonObject = {
         "schema_version": "p4.2a-v2-development-round-outcome-v1",
@@ -1752,6 +2087,11 @@ def _run_round_once(
         "p4_2b_unlocked": False,
         "p4_3_unlocked": False,
     }
+    if round_number == 3:
+        outcome["post_round_governance"] = _round_three_governance_outcome(
+            reports,
+            round_valid=fatal is None,
+        )
     _create_only(outcome_path, _canonical_json_bytes(outcome), artifact_root)
     terminal_event = {
             "schema_version": "p4.2a-v2-development-calibration-state-v1",
@@ -1772,8 +2112,11 @@ def _run_round_once(
         _append_calibration_event(
             state_path,
             terminal_event,
-            expected_event_count=3,
+            expected_event_count=prior_event_count + 1,
             expected_last_event="round_started",
+            expected_last_round_number=round_number,
+            expected_last_execution_id=execution_id,
+            expected_last_preregistration_sha256=round_binding.preregistration_sha256,
         )
     result = RoundResult(outcome_path, state_path, selected, reports)
     if fatal is not None:
@@ -1863,7 +2206,7 @@ def _terminalize_interrupted_round(
         or events[-1].get("round_preregistration_sha256") != preregistration_sha256
     ):
         return
-    expected_count = 1 if round_number == 1 else 3
+    expected_count = (round_number - 1) * 2 + 1
     if len(events) != expected_count:
         raise CalibrationRoundError("cannot safely terminalize unexpected calibration state")
     outcome_path = (
@@ -1878,37 +2221,39 @@ def _terminalize_interrupted_round(
             round_number=round_number,
             preregistration_sha256=preregistration_sha256,
         )
+        terminal_outcome: JsonObject = {
+            "schema_version": "p4.2a-v2-development-round-outcome-v1",
+            "round_number": round_number,
+            "execution_id": execution_id,
+            "status": "technical_failed",
+            "started_at_utc": events[-1].get("at_utc"),
+            "completed_at_utc": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
+            "design_sha256": DESIGN_SHA256,
+            "round_preregistration_sha256": preregistration_sha256,
+            "fixed_model_order": list(MODEL_ORDER),
+            "models_always_measured": list(model_reports),
+            "model_reports": model_reports,
+            "partial_model_artifacts": partial_model_artifacts,
+            "selection_rule": "flash_if_both_gates_else_plus_if_both_gates_else_none",
+            "selected_model": None,
+            "development_gate_cleared": False,
+            "technical_failure": _safe_error(error),
+            "raw_exception_or_payload_persisted": False,
+            "production_writes": False,
+            "heldout_touched": False,
+            "p4_2a_done": False,
+            "p4_2b_unlocked": False,
+            "p4_3_unlocked": False,
+            "terminalization": "outer_fail_closed_guard",
+        }
+        if round_number == 3:
+            terminal_outcome["post_round_governance"] = _round_three_governance_outcome(
+                {},
+                round_valid=False,
+            )
         _create_only(
             outcome_path,
-            _canonical_json_bytes(
-                {
-                    "schema_version": "p4.2a-v2-development-round-outcome-v1",
-                    "round_number": round_number,
-                    "execution_id": execution_id,
-                    "status": "technical_failed",
-                    "started_at_utc": events[-1].get("at_utc"),
-                    "completed_at_utc": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
-                    "design_sha256": DESIGN_SHA256,
-                    "round_preregistration_sha256": preregistration_sha256,
-                    "fixed_model_order": list(MODEL_ORDER),
-                    "models_always_measured": list(model_reports),
-                    "model_reports": model_reports,
-                    "partial_model_artifacts": partial_model_artifacts,
-                    "selection_rule": (
-                        "flash_if_both_gates_else_plus_if_both_gates_else_none"
-                    ),
-                    "selected_model": None,
-                    "development_gate_cleared": False,
-                    "technical_failure": _safe_error(error),
-                    "raw_exception_or_payload_persisted": False,
-                    "production_writes": False,
-                    "heldout_touched": False,
-                    "p4_2a_done": False,
-                    "p4_2b_unlocked": False,
-                    "p4_3_unlocked": False,
-                    "terminalization": "outer_fail_closed_guard",
-                }
-            ),
+            _canonical_json_bytes(terminal_outcome),
             artifact_root,
         )
     if outcome_path.is_symlink() or not outcome_path.is_file():
@@ -1948,6 +2293,9 @@ def _terminalize_interrupted_round(
         terminal_event,
         expected_event_count=expected_count,
         expected_last_event="round_started",
+        expected_last_round_number=round_number,
+        expected_last_execution_id=execution_id,
+        expected_last_preregistration_sha256=preregistration_sha256,
     )
 
 
