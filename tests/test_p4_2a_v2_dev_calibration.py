@@ -120,6 +120,11 @@ def _round2_fixture_root(tmp_path: Path) -> Path:
     )
     for relative in extra_files:
         _copy(root, relative)
+
+    state_path = root / "docs/phase4/eval/v2-calibration/development/calibration.state.jsonl"
+    round_one_prefix = b"".join(state_path.read_bytes().splitlines(keepends=True)[:2])
+    state_path.write_bytes(round_one_prefix)
+    assert runner._sha256_file(state_path) == runner.ROUND_1_STATE_PREFIX_SHA256
     return root
 
 
