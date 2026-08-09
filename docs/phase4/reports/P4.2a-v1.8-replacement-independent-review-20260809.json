@@ -1,0 +1,129 @@
+{
+  "schema_version": "p4.2a-independent-review-v1",
+  "review_id": "p4.2a-v1.8-replacement-preconditions-review-20260809-r1",
+  "created_at_utc": "2026-08-09T08:06:31Z",
+  "created_at_shanghai": "2026-08-09T16:06:31+08:00",
+  "verdict": "APPROVE_REPLACEMENT_EVALUATION",
+  "blockers": [],
+  "reviewer": {
+    "identity": "independent_ai_architect_claude_code",
+    "reviewer_type": "ai",
+    "model": "Anthropic Claude Fable 5 (model id claude-fable-5)",
+    "impersonation_disclaimer": "Not a human reviewer. Issued under the owner governance amendment with requires_release_gate_amendment=true.",
+    "method": "read-only audit. The formal replacement evaluation was NOT executed. No one-shot state or report was created or modified. The only executions performed were the read-only dry-run and the offline test suite, both verified to leave the artifact tree byte-identical.",
+    "self_restraint_note": "This reviewer consumed the v1.7 one-shot by executing the formal evaluation after judging the path clear. Per the owner-approved authorization, execution of the replacement round belongs to Codex, not to this reviewer, so that judging readiness and spending the single authorization are no longer the same actor. This approval unlocks Codex only."
+  },
+  "review_scope": {
+    "baseline_before_review": "81d7165f5481a8cd1e9f6f0b7b3364c9551dd33c",
+    "audited_commits": ["b1b8cee P4.2a: preregister replacement evaluation v1.8", "c168081 P4.2a: prepare v1.8 replacement evaluation"],
+    "authorization": {"path": "docs/phase4/reports/P4.2a-replacement-evaluation-authorization-20260809.json", "sha256": "2e33220faa424419c199466019b1cb94f4c4cd7e0bb60e9d978fdb0689f0089f"},
+    "preregistration_preceded_implementation": "b1b8cee (03:08:51) registered the design and preregistration document; c168081 (03:54:39) implemented against it."
+  },
+  "check_1_v1_8_strict_inheritance": {
+    "result": "pass",
+    "method": "Both designs were loaded through the production loader and their fully merged documents were flattened and compared key by key.",
+    "merged_key_count": 838,
+    "differing_key_count": 5,
+    "differing_keys": [
+      {"key": "schema_version", "from": "p4.2a-evaluation-design-v1.7", "to": "p4.2a-evaluation-design-v1.8", "category": "design identity"},
+      {"key": "owner_spec_commit", "from": "3e21bff982156ef973c2e5badfe39b06d9596237", "to": "81d7165f5481a8cd1e9f6f0b7b3364c9551dd33c", "category": "points at the owner authorization commit"},
+      {"key": "pre_registered_at", "from": "2026-08-06T08:00:00Z", "to": "2026-08-09T07:07:02Z", "category": "design identity"},
+      {"key": "artifacts.heldout_evaluation_state_jsonl.path", "to": "docs/phase4/eval/P4.2a-heldout-evaluation-one-shot-v1.8-replacement.state.jsonl", "category": "new create-only path"},
+      {"key": "artifacts.evaluation_report_directory.path", "to": "docs/phase4/eval/reports/v1.8-replacement", "category": "new create-only path"}
+    ],
+    "verdict": "Nothing else moved. Thresholds, metric formulas, sample, selection seed, window, count, model, prompt, active contract, freeze receipt, gold and provenance are byte-identical across the merge. The design changes exactly what the authorization permitted and nothing more.",
+    "v1_8_design_sha256": "bb36b9713cbf70fa5293683e767655b70720a2baa9e8822bc0396c4e6284452e"
+  },
+  "check_2_contract_pairing_derived": {
+    "result": "pass",
+    "change": "The hardcoded four-entry (design_version, contract_version) allow-list in run_p4_2a_dev_iteration._evidence_validation was removed and replaced by _require_declared_active_contract, which derives the binding from the loaded design's active_prediction_contract declaration.",
+    "fields_bound": ["path", "sha256", "schema_version", "model", "endpoint"],
+    "path_binding_detail": "The registered path must be relative and free of parent traversal, and is matched as a trailing path-component suffix of the resolved contract path, so an absolute or escaping registration is rejected outright.",
+    "empirically_probed": {
+      "baseline_real_contract": "accepted",
+      "sha256_mismatch": "fail-closed",
+      "model_mismatch": "fail-closed",
+      "endpoint_mismatch": "fail-closed",
+      "path_mismatch": "fail-closed",
+      "schema_version_mismatch": "fail-closed"
+    },
+    "verdict": "All five mismatch classes were probed directly against the real loaded design with mutated contract objects and every one raised. The defect that consumed the v1.7 one-shot cannot recur through a stale literal table because no literal table remains.",
+    "related_allowlists_removed": ["candidate materialization", "persisted prediction schema", "report extensions", "symbol diagnostics"]
+  },
+  "check_3_scope_gated_lineage": {
+    "result": "pass",
+    "required_scope_count": 15,
+    "accepted_design_identities": [
+      "p4.2a-evaluation-design-v1.8 / bb36b9713cbf70fa5293683e767655b70720a2baa9e8822bc0396c4e6284452e",
+      "p4.2a-evaluation-design-v1.7 / 4c7964ad547820f5672631939af93978f11cb9f91e5921087770ac7d0d79bec1",
+      "p4.2a-evaluation-design-v1.6 / 57e04f99a8ee91b64fe0aa4dc479e95c3de65fd31f04ac6c5879d4f81e5539c9"
+    ],
+    "accepted_count": 3,
+    "rejections_probed": {"v1_5": "rejected", "v1_4": "rejected", "unrelated_sha": "rejected", "non_string": "rejected"},
+    "missing_scope_behaviour": "Requesting a scope no ancestor freezes collapses the accepted set to the current design alone, which is the correct fail-closed direction.",
+    "why_the_chain_stops_at_v1_6": "The v1.6 to v1.5 edge does not declare the prediction-freeze scopes byte_frozen, so continuity breaks there and traversal halts. Acceptance is therefore earned edge by edge, not granted to the ancestry as a whole."
+  },
+  "check_4_frozen_inputs_validate": {
+    "result": "pass",
+    "inference_state": {"path": "docs/phase4/eval/P4.2a-heldout-inference-one-shot-v1.7.state.jsonl", "recorded_design_sha256": "4c7964ad547820f5672631939af93978f11cb9f91e5921087770ac7d0d79bec1", "accepted_under_v1_8_scope_lineage": true},
+    "selection_manifest": {"path": "docs/phase4/eval/P4.2a-heldout40-selection-v1.7.manifest.json", "recorded_design_sha256": "4c7964ad547820f5672631939af93978f11cb9f91e5921087770ac7d0d79bec1", "accepted_under_v1_8_scope_lineage": true},
+    "verdict": "Both artifacts bound to the executed one-shot inference remain valid under v1.8 through scope-gated lineage acceptance rather than through any widening of acceptance. The binding-preservation proof required by the authorization is satisfied and was re-derived independently by this reviewer."
+  },
+  "check_5_dry_run_is_synthetic_and_read_only": {
+    "result": "pass",
+    "executed_independently_by_reviewer": true,
+    "stage_count": 28,
+    "reported": {
+      "status": "passed",
+      "validated_through": "report_serialization_in_memory",
+      "synthetic_metric_assembly": true,
+      "metrics_computed": false,
+      "evaluation_passed": null,
+      "one_shot_consumed": false,
+      "report_created": false,
+      "filesystem_mutations": 0,
+      "network_or_llm_calls": 0,
+      "database_open_mode": "mode=ro+query_only",
+      "failure_count": 0,
+      "blocked_count": 0
+    },
+    "leakage_scan": "The complete dry-run output was scanned for materiality_precision, symbol_accuracy, symbol_exact, precision, recall and gate verdicts. No metric value appears; evaluation_passed is null.",
+    "independent_filesystem_proof": "A fingerprint of the sorted file listing under docs/phase4/eval was taken before and after the dry-run and is identical. Neither the v1.8 state artifact nor the v1.8 report directory was created; unlike the v1.7 attempt, not even an empty report directory appears.",
+    "stages_now_walked_that_v1_7_never_reached": ["synthetic_metric_inputs", "synthetic_metric_assembly", "report_extensions_dev_only", "offline_diagnostics", "report_payload_assembly", "required_report_fields", "canonical_serialization_in_memory"],
+    "only_protected_stage": "real_heldout_metrics"
+  },
+  "check_6_synthetic_full_path_rehearsal": {
+    "result": "pass",
+    "test": "test_v1_8_formal_path_rehearsal_uses_synthetic_scores_and_tmp_artifacts",
+    "calls_real_entrypoint": "evaluator.evaluate_gold_sample_v1_1 is invoked for real; it is not mocked",
+    "artifact_root": "a temporary directory created under the repository root, with an explicit assertion that it is not relative to docs/phase4/eval",
+    "stages_covered": ["one-shot claim", "synthetic metric evaluation", "report extensions", "offline diagnostics", "report assembly", "required field validation", "create-only report write", "terminal completion append"],
+    "terminal_proof": "The rehearsal state file is asserted to contain exactly evaluation_started followed by evaluation_completed, with every event carrying the v1.8 design SHA, and the written report's digest is asserted to equal the digest reported in the result.",
+    "synthetic_isolation": "Gold and predictions are replaced with synthetic values and each annotation is tagged synthetic_metric_fixture, so no real score is produced.",
+    "production_safety_assertions_inside_the_test": ["the v1.7 failed state digest is unchanged before and after", "the production v1.8 state artifact does not exist before or after"],
+    "complementarity_note": "The rehearsal stubs _run_heldout_preflight, so the preflight stages are not exercised there; they are exercised by the read-only dry-run against the real frozen inputs. The union of the two covers every stage. The only element never executed anywhere is metric computation over real heldout data, which is inherently the thing the single authorization buys."
+  },
+  "check_7_failed_round_untouched": {"result": "pass", "path": "docs/phase4/eval/P4.2a-heldout-evaluation-one-shot-v1.7.state.jsonl", "sha256": "ba1eef1517fa30c37a7fcba5b171405cf537c84dbbbb70cec57f542842fdc0ff", "matches_incident_record": true, "verified_again_after_all_checks": true},
+  "check_8_v1_8_artifacts_absent": {"result": "pass", "state_artifact_exists": false, "report_directory_exists": false, "no_rehearsal_temp_directories_left_behind": true},
+  "check_9_quality_gates": {"result": "pass", "ruff": "All checks passed", "mypy_strict_src_alphapilot": "no issues found in 157 source files", "pytest_full": "exit 0, no failures"},
+  "other_frozen_artifacts_unchanged": {
+    "config/p4_event_evaluation_v1_7.yaml": "4c7964ad547820f5672631939af93978f11cb9f91e5921087770ac7d0d79bec1",
+    "docs/phase4/eval/P4.2a-gold-annotation100-v1.7.jsonl": "ec922eeb3cfcee0ee06b870fda275f14842c324ade2273a3912302f36ab047b4",
+    "docs/phase4/eval/P4.2a-gold-heldout40-v1.7.adjudicated.jsonl": "e0a8de7484f1532918286bcc6e96128ab3e71390aa6dc90fe9f49b84407d571e"
+  },
+  "residual_risk_disclosed": {
+    "statement": "What remains untested after this review is metric computation over the real heldout data, and only that. Every surrounding stage has now been executed either against real frozen inputs read-only or against synthetic inputs through the real code path.",
+    "honest_caveat": "A defect that manifests only for real data values, for example an unexpected value in a real gold record that synthetic fixtures do not reproduce, could still abort the round. If that happens it must be recorded as a second failed round; this authorization would then be exhausted and a fresh owner decision required."
+  },
+  "what_this_approval_unlocks": {
+    "unlocks": "Codex may execute exactly ONE replacement heldout evaluation, zero retries, under design v1.8.",
+    "does_not_unlock": [
+      "execution by this reviewer",
+      "any second attempt if the round fails",
+      "any change to thresholds, sample, seed, predictions, model, prompt, contract or gold in response to the result",
+      "P4.2b or P4.3, which remain gated on the separate P4.1 acceptance",
+      "any scheduler change, proposal, order or trade"
+    ],
+    "reporting_obligation": "Whatever the metrics show, pass or fail, the result is recorded and reported honestly, and any P4.2a completion report must continue to disclose the v1.7 failed round."
+  }
+}
