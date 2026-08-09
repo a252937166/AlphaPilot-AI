@@ -1,0 +1,853 @@
+{
+  "api_restart": {
+    "api_plist_scheduler_enabled": "false",
+    "api_plist_sha256": "cc9aa557f86d7d80f82364380cae097023178ecbcbfd3332e3f001f6b1b2f841",
+    "health": {
+      "cninfo_configured": true,
+      "database": {
+        "ok": true,
+        "target": "sqlite:///data/alphapilot.db"
+      },
+      "default_data_provider": "auto",
+      "environment": "development",
+      "futu": {
+        "enabled": true,
+        "healthy": true,
+        "host": "127.0.0.1",
+        "markets": {
+          "hk": "CLOSED",
+          "hkfuture": "NIGHT_END",
+          "jp": "CLOSED",
+          "jpfuture": "NIGHT_END",
+          "my": "CLOSED",
+          "sg": "CLOSED",
+          "sgfuture": "NIGHT_END",
+          "sh": "STIB_AFTER_HOURS_END",
+          "sz": "STIB_AFTER_HOURS_END",
+          "us": "AFTER_HOURS_END",
+          "usfuture": "FUTURE_CLOSE"
+        },
+        "opend_reachable": true,
+        "port": 11111,
+        "qot_logined": true,
+        "sdk_installed": true,
+        "sdk_version": "10.09.6908",
+        "server_version": "1009",
+        "trd_logined": true
+      },
+      "status": "ok",
+      "trading": {
+        "futu_trade_enabled": false,
+        "futu_trade_query_enabled": true,
+        "live_trading_enabled": false,
+        "message": "Futu trade calls are audited and disabled by default; unlock_trade is never exposed and real orders require both live flags and per-request confirmation.",
+        "order_submission_endpoint_exposed": true,
+        "paper_auto_trading_enabled": false,
+        "paper_trading_enabled": false,
+        "trading_mode": "research",
+        "unlock_trade_endpoint_exposed": false
+      },
+      "version": "0.5.0"
+    },
+    "launchctl": {
+      "label": "com.alphapilot.api",
+      "last_exit_code": "(never exited)",
+      "path": "/Users/ouyangduning/Library/LaunchAgents/com.alphapilot.api.plist",
+      "pid": 24813,
+      "program": "/Users/ouyangduning/Documents/project/interesting/AlphaPilot-AI/.venv/bin/python",
+      "runs": 1,
+      "state": "running",
+      "working_directory": "/Users/ouyangduning/Documents/project/interesting/AlphaPilot-AI"
+    },
+    "new_pid": 24813,
+    "non_blocking_observation": "One 5-second /health request timed out while a 5.3 GiB full PRAGMA quick_check was consuming I/O. The quick_check returned ok; immediately afterward three 15-second /health checks passed without PID/runs change.",
+    "old_pid": 809,
+    "safety_values_verified_three_consecutive_times": true
+  },
+  "authorization": {
+    "incremental_validation_review": {
+      "path": "docs/phase4/reports/P4.1-v2.1-incremental-validation-independent-review-20260809.json",
+      "sha256": "c65c909c19bd0914cc8fcb5d098ca4b21454a0db19e223fd807647a92928979a",
+      "verdict": "APPROVE"
+    },
+    "independent_code_review": {
+      "path": "docs/phase4/reports/P4.2a-v1.8-result-and-P4.1-routing-independent-review-20260809.json",
+      "sha256": "50a9be6d0c23ce00e3bc95321dc7b299dd246cbd2d825a0b91096837793824db",
+      "verdict": "APPROVE"
+    },
+    "owner_instruction": "2026-08-09 owner explicitly authorized the ordered deployment: backup and green tests, restart API, render/bootstrap scheduler, deliver activation evidence; observation window remains gated by independent activation review."
+  },
+  "created_at_shanghai": "2026-08-09T20:06:14.376757+08:00",
+  "created_at_utc": "2026-08-09T12:06:14.376757Z",
+  "deployment_backup": {
+    "database_path": "data/backups/alphapilot-full-20260809T113428170070Z.db",
+    "manifest_path": "data/backups/alphapilot-full-20260809T113428170070Z.manifest.json",
+    "max_job_run_id": 76934,
+    "new_api_plist_sha256": "cc9aa557f86d7d80f82364380cae097023178ecbcbfd3332e3f001f6b1b2f841",
+    "new_scheduler_plist_sha256": "011164cef801f560c7fa5a7fe4aa8d0ed6551ba859e885eabebf79652ce64caf",
+    "old_api_plist_sha256": "cc9aa557f86d7d80f82364380cae097023178ecbcbfd3332e3f001f6b1b2f841",
+    "old_scheduler_plist_sha256": "468083914b4dbe93fb564f82451ce7bac474674567d0edd3cee87ec2a018b9be",
+    "ops_backup_directory": "/Users/ouyangduning/Library/Application Support/AlphaPilot-AI/deployment-backups/p4.1-v2.1-20260809T1934CST",
+    "quick_check": "ok",
+    "sha256": "9837b8a7b20fdfe492ea22086a05679b27b5be2816d377aae0ab02bcb7650417",
+    "size_bytes": 5373038592,
+    "verified_twice": true
+  },
+  "first_scheduler_news_poll": {
+    "activation_baseline_job_run_id": 76934,
+    "canonical_stats_bytes": 8199,
+    "canonical_stats_sha256": "0c7e69a900d5703f461bdbbc82cf7f600f5e16af0d5f97a1f0834df2dff96be6",
+    "database_counts_after": {
+      "broker_orders": 1,
+      "content_hash_duplicate_groups": 0,
+      "news_items": 9947,
+      "non_simulate_orders": 0,
+      "running_job_runs": 0,
+      "trade_proposals": 1,
+      "url_duplicate_groups": 0
+    },
+    "database_counts_before": {
+      "broker_orders": 1,
+      "content_hash_duplicate_groups": 0,
+      "news_items": 9920,
+      "non_simulate_orders": 0,
+      "trade_proposals": 1,
+      "url_duplicate_groups": 0
+    },
+    "error": null,
+    "finished_at_utc": "2026-08-09 12:00:06.054639Z",
+    "id": 76955,
+    "job_name": "news_poll",
+    "news_items_delta": 27,
+    "pit_ordering": {
+      "akshare_ths": {
+        "available_time_coverage": 1.0,
+        "inserted": 20,
+        "ordered": true,
+        "timestamps": {
+          "db_commit_completed_at": "2026-08-09T12:00:02.554928+00:00",
+          "db_flush_completed_at": "2026-08-09T12:00:02.394795+00:00",
+          "db_write_lock_acquired_at": "2026-08-09T12:00:02.371477+00:00",
+          "fetch_completed_at": "2026-08-09T12:00:02.369586+00:00",
+          "first_available_time": "2026-08-09T12:00:02.379252+00:00",
+          "last_available_time": "2026-08-09T12:00:02.379252+00:00"
+        }
+      },
+      "cninfo": {
+        "available_time_coverage": null,
+        "inserted": 0,
+        "ordered": true,
+        "timestamps": {
+          "db_commit_completed_at": "2026-08-09T12:00:01.792130+00:00",
+          "db_flush_completed_at": "2026-08-09T12:00:01.792037+00:00",
+          "db_write_lock_acquired_at": "2026-08-09T12:00:01.792000+00:00",
+          "fetch_completed_at": "2026-08-09T12:00:01.790578+00:00",
+          "first_available_time": null,
+          "last_available_time": null
+        }
+      },
+      "sina_company_news": {
+        "available_time_coverage": 1.0,
+        "inserted": 7,
+        "ordered": true,
+        "timestamps": {
+          "db_commit_completed_at": "2026-08-09T12:00:06.047330+00:00",
+          "db_flush_completed_at": "2026-08-09T12:00:06.046070+00:00",
+          "db_write_lock_acquired_at": "2026-08-09T12:00:06.029545+00:00",
+          "fetch_completed_at": "2026-08-09T12:00:06.013787+00:00",
+          "first_available_time": "2026-08-09T12:00:06.040624+00:00",
+          "last_available_time": "2026-08-09T12:00:06.040624+00:00"
+        }
+      }
+    },
+    "raw_stats_bytes": 8760,
+    "raw_stats_sha256": "7a77d23c833f60a4929b57d85c4205baf7167d61e380bef4ad8f01930ab607d0",
+    "source_reconciliation_verified": true,
+    "started_at_utc": "2026-08-09 12:00:00.179731Z",
+    "stats": {
+      "catchup": null,
+      "config_path": "config/p4_news_poll_v2_1.yaml",
+      "config_sha256": "9d56e137baf10bd0858723a93aff02c57bf7b35f8705f1817b16a89ec615183f",
+      "config_version": "p4.1-news-poll-v2.1",
+      "coverage_gap": false,
+      "coverage_gap_details": null,
+      "execution_authorization": {
+        "execution_mode": "scheduler",
+        "scheduler_activated": true
+      },
+      "execution_mode": "scheduler",
+      "p4_2_unlocked": false,
+      "pit": {
+        "available_time_coverage": 1.0,
+        "available_time_policy": "write_locked_immediately_before_flush_utc",
+        "decision_visibility_operator": "<",
+        "published_at_never_substitutes_available_time": true
+      },
+      "poll_completed_at": "2026-08-09T12:00:06.051474+00:00",
+      "poll_started_at": "2026-08-09T12:00:00.319284+00:00",
+      "run_mode": "regular_incremental",
+      "safety_after": {
+        "broker_order_ids": [
+          1
+        ],
+        "non_simulate_order_count": 0,
+        "settings": {
+          "futu_enable_account_mutation": false,
+          "futu_enable_trade": false,
+          "live_trading_enabled": false,
+          "paper_auto_trading_enabled": false,
+          "paper_trading_enabled": false,
+          "trading_mode": "research",
+          "unlock_trade_permanently_blocked": true
+        },
+        "trade_proposal_ids": [
+          "p23-s2-live-20260722T021152Z-600000"
+        ]
+      },
+      "safety_before": {
+        "broker_order_ids": [
+          1
+        ],
+        "non_simulate_order_count": 0,
+        "settings": {
+          "futu_enable_account_mutation": false,
+          "futu_enable_trade": false,
+          "live_trading_enabled": false,
+          "paper_auto_trading_enabled": false,
+          "paper_trading_enabled": false,
+          "trading_mode": "research",
+          "unlock_trade_permanently_blocked": true
+        },
+        "trade_proposal_ids": [
+          "p23-s2-live-20260722T021152Z-600000"
+        ]
+      },
+      "safety_unchanged": true,
+      "source_failures": [],
+      "source_spike_report_sha256": "58a28066c3c6489cd687fb217de6df78cec0a7d9f7078bccf17637081a216316",
+      "sources": {
+        "akshare_caixin": {
+          "attempted": false,
+          "duplicate_content_hash": 0,
+          "duplicate_url": 0,
+          "failure_count": 0,
+          "failures": [],
+          "fetched": 0,
+          "inserted": 0,
+          "logical_request_count": 0,
+          "physical_attempt_count": 0,
+          "request_count": 0,
+          "retry_count": 0,
+          "status": "excluded_missing_native_title"
+        },
+        "akshare_cls": {
+          "attempted": false,
+          "duplicate_content_hash": 0,
+          "duplicate_url": 0,
+          "failure_count": 0,
+          "failures": [],
+          "fetched": 0,
+          "inserted": 0,
+          "logical_request_count": 0,
+          "physical_attempt_count": 0,
+          "reason": "spike_http_404_frozen_unavailable",
+          "request_count": 0,
+          "retry_count": 0,
+          "status": "unavailable"
+        },
+        "akshare_ths": {
+          "available_time_coverage": 1.0,
+          "db_commit_completed_at": "2026-08-09T12:00:02.554928+00:00",
+          "db_flush_completed_at": "2026-08-09T12:00:02.394795+00:00",
+          "db_write_lock_acquired_at": "2026-08-09T12:00:02.371477+00:00",
+          "duplicate_content_hash": 0,
+          "duplicate_url": 0,
+          "failure_count": 0,
+          "failures": [],
+          "fetch_completed_at": "2026-08-09T12:00:02.369586+00:00",
+          "fetched": 20,
+          "filtered": 0,
+          "first_available_time": "2026-08-09T12:00:02.379252+00:00",
+          "inserted": 20,
+          "last_available_time": "2026-08-09T12:00:02.379252+00:00",
+          "logical_request_count": 1,
+          "physical_attempt_count": 1,
+          "preceded_by_coverage_gap_inserted": 0,
+          "prepared": 20,
+          "published_at_null": 0,
+          "request_count": 1,
+          "requests": [
+            {
+              "attempt": 1,
+              "failure_code": null,
+              "host": "news.10jqka.com.cn",
+              "http_status": 200,
+              "latency_ms": 169.222,
+              "logical_request": 1,
+              "method": "GET",
+              "path": "/tapp/news/push/stock",
+              "received_at": "2026-08-09T12:00:02.291968+00:00",
+              "requested_at": "2026-08-09T12:00:02.122752+00:00"
+            }
+          ],
+          "retry_count": 0,
+          "status": "ok",
+          "symbol_null": 17,
+          "upstream_records": 20
+        },
+        "cninfo": {
+          "available_time_coverage": null,
+          "canonical_column": "szse",
+          "daily_checkpoint": {
+            "checkpoint_committed": true,
+            "initial_backlog_migration": false,
+            "latest_attempt_observed_at_utc": "2026-08-07T16:00:00+00:00",
+            "lineage_before": "v2.1_daily_checkpoint",
+            "newest_observed_at_utc": "2026-08-07T16:00:00+00:00",
+            "partial_checkpoint": false,
+            "verified_checkpoint_date_shanghai_after": "2026-08-08",
+            "verified_checkpoint_date_shanghai_before": "2026-08-08"
+          },
+          "db_commit_completed_at": "2026-08-09T12:00:01.792130+00:00",
+          "db_flush_completed_at": "2026-08-09T12:00:01.792037+00:00",
+          "db_write_lock_acquired_at": "2026-08-09T12:00:01.792000+00:00",
+          "duplicate_content_hash": 0,
+          "duplicate_url": 0,
+          "failure_count": 0,
+          "failures": [],
+          "fetch_completed_at": "2026-08-09T12:00:01.790578+00:00",
+          "fetched": 0,
+          "filtered": 0,
+          "first_available_time": null,
+          "inserted": 0,
+          "last_available_time": null,
+          "logical_request_count": 1,
+          "market_date_at_poll": "2026-08-09",
+          "physical_attempt_count": 1,
+          "poll_started_at_utc": "2026-08-09T12:00:00.319284+00:00",
+          "preceded_by_coverage_gap_inserted": 0,
+          "prepared": 0,
+          "published_at_null": 0,
+          "request_budget": {
+            "logical_request_count": 1,
+            "max_dates_per_run": 2,
+            "max_logical_requests_per_run": 160,
+            "max_pages_per_day": 80,
+            "max_physical_attempts_per_run": 320,
+            "page_size": 30,
+            "physical_attempt_count": 1
+          },
+          "request_count": 1,
+          "requests": [
+            {
+              "attempt": 1,
+              "failure_code": null,
+              "host": "www.cninfo.com.cn",
+              "http_status": 200,
+              "latency_ms": 187.977,
+              "logical_request": 1,
+              "method": "POST",
+              "path": "/new/hisAnnouncement/query",
+              "received_at": "2026-08-09T12:00:01.787433+00:00",
+              "requested_at": "2026-08-09T12:00:01.599466+00:00"
+            }
+          ],
+          "retry_count": 0,
+          "slice_dates_shanghai": [
+            "2026-08-09"
+          ],
+          "slices": [
+            {
+              "attempted": true,
+              "checkpoint_committed": true,
+              "coverage_proven": true,
+              "date_closed": false,
+              "date_shanghai": "2026-08-09",
+              "disposition_identity_valid": true,
+              "disposition_total": 0,
+              "duplicate_content_hash": 0,
+              "duplicate_url": 0,
+              "failure": null,
+              "fetched": 0,
+              "filtered": 0,
+              "incremental_floor_utc": "2026-08-07T15:30:00+00:00",
+              "inserted": 0,
+              "logical_request_count": 1,
+              "mode": "current_date_incremental",
+              "newest_observed_at_utc": null,
+              "page_cap_hit": false,
+              "page_count": 1,
+              "pagination_complete": true,
+              "physical_attempt_count": 1
+            }
+          ],
+          "status": "ok",
+          "symbol_null": 0,
+          "tls_verification": true
+        },
+        "futu_auxiliary": {
+          "attempted": false,
+          "duplicate_content_hash": 0,
+          "duplicate_url": 0,
+          "enabled": false,
+          "failure_count": 0,
+          "failures": [],
+          "fetched": 0,
+          "inserted": 0,
+          "logical_request_count": 0,
+          "physical_attempt_count": 0,
+          "quote_methods_called": [],
+          "request_count": 0,
+          "retry_count": 0,
+          "status": "pending_trading_day_latency_retest",
+          "trade_methods_called": []
+        },
+        "sina_company_news": {
+          "available_time_coverage": 1.0,
+          "db_commit_completed_at": "2026-08-09T12:00:06.047330+00:00",
+          "db_flush_completed_at": "2026-08-09T12:00:06.046070+00:00",
+          "db_write_lock_acquired_at": "2026-08-09T12:00:06.029545+00:00",
+          "duplicate_content_hash": 2,
+          "duplicate_url": 109,
+          "failure_count": 0,
+          "failures": [],
+          "fetch_completed_at": "2026-08-09T12:00:06.013787+00:00",
+          "fetched": 118,
+          "filtered": 0,
+          "first_available_time": "2026-08-09T12:00:06.040624+00:00",
+          "inserted": 7,
+          "last_available_time": "2026-08-09T12:00:06.040624+00:00",
+          "logical_request_count": 5,
+          "physical_attempt_count": 5,
+          "preceded_by_coverage_gap_inserted": 0,
+          "prepared": 118,
+          "published_at_null": 7,
+          "request_count": 5,
+          "requests": [
+            {
+              "attempt": 1,
+              "failure_code": null,
+              "host": "vip.stock.finance.sina.com.cn",
+              "http_status": 200,
+              "latency_ms": 272.965,
+              "logical_request": 1,
+              "method": "GET",
+              "path": "/corp/go.php/vCB_AllNewsStock/symbol/sz000333.phtml",
+              "received_at": "2026-08-09T12:00:02.860070+00:00",
+              "requested_at": "2026-08-09T12:00:02.587115+00:00"
+            },
+            {
+              "attempt": 1,
+              "failure_code": null,
+              "host": "vip.stock.finance.sina.com.cn",
+              "http_status": 200,
+              "latency_ms": 52.772,
+              "logical_request": 2,
+              "method": "GET",
+              "path": "/corp/go.php/vCB_AllNewsStock/symbol/sz002594.phtml",
+              "received_at": "2026-08-09T12:00:03.484051+00:00",
+              "requested_at": "2026-08-09T12:00:03.431255+00:00"
+            },
+            {
+              "attempt": 1,
+              "failure_code": null,
+              "host": "vip.stock.finance.sina.com.cn",
+              "http_status": 200,
+              "latency_ms": 48.839,
+              "logical_request": 3,
+              "method": "GET",
+              "path": "/corp/go.php/vCB_AllNewsStock/symbol/sz300750.phtml",
+              "received_at": "2026-08-09T12:00:04.319650+00:00",
+              "requested_at": "2026-08-09T12:00:04.270821+00:00"
+            },
+            {
+              "attempt": 1,
+              "failure_code": null,
+              "host": "vip.stock.finance.sina.com.cn",
+              "http_status": 200,
+              "latency_ms": 46.283,
+              "logical_request": 4,
+              "method": "GET",
+              "path": "/corp/go.php/vCB_AllNewsStock/symbol/sh600000.phtml",
+              "received_at": "2026-08-09T12:00:05.161403+00:00",
+              "requested_at": "2026-08-09T12:00:05.115131+00:00"
+            },
+            {
+              "attempt": 1,
+              "failure_code": null,
+              "host": "vip.stock.finance.sina.com.cn",
+              "http_status": 200,
+              "latency_ms": 54.876,
+              "logical_request": 5,
+              "method": "GET",
+              "path": "/corp/go.php/vCB_AllNewsStock/symbol/sh600519.phtml",
+              "received_at": "2026-08-09T12:00:05.992519+00:00",
+              "requested_at": "2026-08-09T12:00:05.937671+00:00"
+            }
+          ],
+          "retry_count": 0,
+          "status": "ok",
+          "symbol_null": 3,
+          "symbol_policy": "explicit_title_code_or_full_name_only",
+          "symbols_attempted": 5
+        }
+      },
+      "terminal_diagnostics": null,
+      "totals": {
+        "duplicate_content_hash": 2,
+        "duplicate_url": 109,
+        "failure_count": 0,
+        "fetched": 138,
+        "inserted": 27,
+        "request_count": 7,
+        "retry_count": 0
+      }
+    },
+    "status": "ok"
+  },
+  "frozen_assets": {
+    "env_sha256": "97bd1ed328baf7a4758ed2269e0f556a2f03e04e919859e18a1c33ab0967a375",
+    "news_poll_source": {
+      "path": "src/alphapilot/jobs/news_poll.py",
+      "sha256": "af29cade1574842c4a7739ecf8a1c2183fdcbd4ff5e63f39478c0e952e5f4f4c"
+    },
+    "scheduler_start_script": {
+      "path": "scripts/start_scheduler_launchd.sh",
+      "sha256": "7b0ed209166a8cfa86566fa35e7cef111c548a39fa145480f79371f1be5fa32c"
+    },
+    "scheduler_template": {
+      "path": "config/scheduler.launchagent.template.plist",
+      "sha256": "8a016ea1dd79104188f1d1bc04784d05cc83d2b90207d9b209f7fedc3bfcfa96"
+    },
+    "v2_1_config": {
+      "path": "config/p4_news_poll_v2_1.yaml",
+      "sha256": "9d56e137baf10bd0858723a93aff02c57bf7b35f8705f1817b16a89ec615183f"
+    }
+  },
+  "next_gate": "Independent activation review must approve this actual plist, launchctl, trigger and first scheduler-driven news_poll evidence. Only then may 2026-08-10/11/12 CST be declared the three-trading-day observation window. Do not mark P4.1 done and do not unlock P4.2b/P4.3.",
+  "post_deployment_integrity": {
+    "api_health_recovered_after_quick_check": true,
+    "broker_order_ids": [
+      1
+    ],
+    "non_simulate_order_count": 0,
+    "p4_2b_unlocked": false,
+    "p4_3_unlocked": false,
+    "proposal_ids": [
+      1
+    ],
+    "proposal_or_order_created": false,
+    "quick_check_completed_after_job_run_id": 76955,
+    "scheduler_pid_unchanged_after_quick_check": true,
+    "sqlite_quick_check": "ok"
+  },
+  "quality_gates": {
+    "focused_pytest": {
+      "collected": 83,
+      "command": "PYTHONPATH=. .venv/bin/pytest -q tests/test_p4_news_poll.py tests/test_p4_news_poll_v2_1.py tests/test_scheduler_daemon.py",
+      "failed": 0,
+      "passed": 83
+    },
+    "full_pytest": {
+      "collected": 1488,
+      "command": "PYTHONPATH=. .venv/bin/pytest -q",
+      "exit_code": 0,
+      "failed": 0,
+      "skipped": 1
+    },
+    "git_diff_check": "passed",
+    "mypy_strict": {
+      "command": ".venv/bin/mypy --strict src/alphapilot",
+      "files": 157,
+      "status": "passed"
+    },
+    "ruff": {
+      "command": ".venv/bin/ruff check src tests scripts",
+      "status": "passed"
+    }
+  },
+  "registered_trigger_evidence": {
+    "dates": {
+      "2026-08-10": {
+        "hour_09": [
+          "09:50"
+        ],
+        "slot_count": 61
+      },
+      "2026-08-11": {
+        "hour_09": [
+          "09:00",
+          "09:30",
+          "09:40",
+          "09:50"
+        ],
+        "slot_count": 64
+      },
+      "2026-08-12": {
+        "hour_09": [
+          "09:00",
+          "09:30",
+          "09:40",
+          "09:50"
+        ],
+        "slot_count": 64
+      }
+    },
+    "monday_recovery_slot": "09:50",
+    "monday_suppressed": [
+      "09:00",
+      "09:30",
+      "09:40"
+    ],
+    "registered_default_config": "config/p4_news_poll_v2_1.yaml",
+    "registered_function": "alphapilot.jobs.news_poll.run_news_poll"
+  },
+  "repository": {
+    "activation_approval_commit": "3c66daf",
+    "activation_commit": "6005744",
+    "head": "a389ad850386738aca2c0c3ef662103bb0237172",
+    "origin_main": "a389ad850386738aca2c0c3ef662103bb0237172",
+    "unrelated_changes_preserved_and_excluded": [
+      "src/alphapilot/llm/p4_news_eval.py",
+      "tests/test_p4_news_eval_contract.py",
+      "config/p4_event_evaluation_v2.yaml",
+      "docs/phase4/reports/P4.2a-v2-calibration-design-clarifications-20260809.json",
+      "docs/AlphaPilot-AI-UI-16x9/",
+      "docs/phase4/eval/P4.2a-gold-heldout40-blind-sample-v1.7.adjudication.html"
+    ],
+    "unrelated_worktree_changes_present": true
+  },
+  "scheduler_deployment": {
+    "bootstrap_at_shanghai": "2026-08-09T19:39:19+08:00",
+    "duplicate_job_runs_observed": 0,
+    "environment_exact_match": true,
+    "environment_variables": {
+      "ALPHAPILOT_BAOSTOCK_FINANCIAL_SYNC_ENABLED": "false",
+      "ALPHAPILOT_FUTU_ENABLE_ACCOUNT_MUTATION": "false",
+      "ALPHAPILOT_FUTU_ENABLE_TRADE": "false",
+      "ALPHAPILOT_LIVE_TRADING_ENABLED": "false",
+      "ALPHAPILOT_NEWS_POLL_ENABLED": "true",
+      "ALPHAPILOT_PAPER_AUTO_TRADING_ENABLED": "false",
+      "ALPHAPILOT_PAPER_TRADING_ENABLED": "false",
+      "ALPHAPILOT_SCHEDULER_ENABLED": "true",
+      "ALPHAPILOT_TRADING_MODE": "research"
+    },
+    "first_global_job_run_after_activation": {
+      "error": null,
+      "finished_at_utc": "2026-08-09 11:40:22.297560Z",
+      "id": 76935,
+      "job_name": "poll_market_snapshot",
+      "started_at_utc": "2026-08-09 11:40:22.289019Z",
+      "status": "ok"
+    },
+    "installed_plist_mode": "0600",
+    "installed_plist_path": "/Users/ouyangduning/Library/LaunchAgents/com.alphapilot.scheduler.plist",
+    "installed_plist_sha256": "011164cef801f560c7fa5a7fe4aa8d0ed6551ba859e885eabebf79652ce64caf",
+    "job_runs_through_first_news_poll": [
+      {
+        "error": null,
+        "finished_at_utc": "2026-08-09 11:40:22.297560Z",
+        "id": 76935,
+        "job_name": "poll_market_snapshot",
+        "started_at_utc": "2026-08-09 11:40:22.289019Z",
+        "status": "ok"
+      },
+      {
+        "error": null,
+        "finished_at_utc": "2026-08-09 11:41:22.254763Z",
+        "id": 76936,
+        "job_name": "poll_market_snapshot",
+        "started_at_utc": "2026-08-09 11:41:22.247895Z",
+        "status": "ok"
+      },
+      {
+        "error": null,
+        "finished_at_utc": "2026-08-09 11:42:22.279667Z",
+        "id": 76937,
+        "job_name": "poll_market_snapshot",
+        "started_at_utc": "2026-08-09 11:42:22.272971Z",
+        "status": "ok"
+      },
+      {
+        "error": null,
+        "finished_at_utc": "2026-08-09 11:43:22.255618Z",
+        "id": 76938,
+        "job_name": "poll_market_snapshot",
+        "started_at_utc": "2026-08-09 11:43:22.247611Z",
+        "status": "ok"
+      },
+      {
+        "error": null,
+        "finished_at_utc": "2026-08-09 11:44:22.240825Z",
+        "id": 76939,
+        "job_name": "poll_market_snapshot",
+        "started_at_utc": "2026-08-09 11:44:22.237326Z",
+        "status": "ok"
+      },
+      {
+        "error": null,
+        "finished_at_utc": "2026-08-09 11:45:22.275951Z",
+        "id": 76940,
+        "job_name": "poll_market_snapshot",
+        "started_at_utc": "2026-08-09 11:45:22.267725Z",
+        "status": "ok"
+      },
+      {
+        "error": null,
+        "finished_at_utc": "2026-08-09 11:46:22.294714Z",
+        "id": 76941,
+        "job_name": "poll_market_snapshot",
+        "started_at_utc": "2026-08-09 11:46:22.279000Z",
+        "status": "ok"
+      },
+      {
+        "error": null,
+        "finished_at_utc": "2026-08-09 11:47:22.256728Z",
+        "id": 76942,
+        "job_name": "poll_market_snapshot",
+        "started_at_utc": "2026-08-09 11:47:22.239006Z",
+        "status": "ok"
+      },
+      {
+        "error": null,
+        "finished_at_utc": "2026-08-09 11:48:22.293924Z",
+        "id": 76943,
+        "job_name": "poll_market_snapshot",
+        "started_at_utc": "2026-08-09 11:48:22.242243Z",
+        "status": "ok"
+      },
+      {
+        "error": null,
+        "finished_at_utc": "2026-08-09 11:49:22.458915Z",
+        "id": 76944,
+        "job_name": "poll_market_snapshot",
+        "started_at_utc": "2026-08-09 11:49:22.298010Z",
+        "status": "ok"
+      },
+      {
+        "error": null,
+        "finished_at_utc": "2026-08-09 11:50:22.257081Z",
+        "id": 76945,
+        "job_name": "poll_market_snapshot",
+        "started_at_utc": "2026-08-09 11:50:22.250022Z",
+        "status": "ok"
+      },
+      {
+        "error": null,
+        "finished_at_utc": "2026-08-09 11:51:22.254655Z",
+        "id": 76946,
+        "job_name": "poll_market_snapshot",
+        "started_at_utc": "2026-08-09 11:51:22.250760Z",
+        "status": "ok"
+      },
+      {
+        "error": null,
+        "finished_at_utc": "2026-08-09 11:52:22.272278Z",
+        "id": 76947,
+        "job_name": "poll_market_snapshot",
+        "started_at_utc": "2026-08-09 11:52:22.261662Z",
+        "status": "ok"
+      },
+      {
+        "error": null,
+        "finished_at_utc": "2026-08-09 11:53:22.288793Z",
+        "id": 76948,
+        "job_name": "poll_market_snapshot",
+        "started_at_utc": "2026-08-09 11:53:22.283986Z",
+        "status": "ok"
+      },
+      {
+        "error": null,
+        "finished_at_utc": "2026-08-09 11:54:22.270460Z",
+        "id": 76949,
+        "job_name": "poll_market_snapshot",
+        "started_at_utc": "2026-08-09 11:54:22.262136Z",
+        "status": "ok"
+      },
+      {
+        "error": null,
+        "finished_at_utc": "2026-08-09 11:55:22.258194Z",
+        "id": 76950,
+        "job_name": "poll_market_snapshot",
+        "started_at_utc": "2026-08-09 11:55:22.252624Z",
+        "status": "ok"
+      },
+      {
+        "error": null,
+        "finished_at_utc": "2026-08-09 11:56:22.241422Z",
+        "id": 76951,
+        "job_name": "poll_market_snapshot",
+        "started_at_utc": "2026-08-09 11:56:22.236486Z",
+        "status": "ok"
+      },
+      {
+        "error": null,
+        "finished_at_utc": "2026-08-09 11:57:22.240493Z",
+        "id": 76952,
+        "job_name": "poll_market_snapshot",
+        "started_at_utc": "2026-08-09 11:57:22.236745Z",
+        "status": "ok"
+      },
+      {
+        "error": null,
+        "finished_at_utc": "2026-08-09 11:58:22.272613Z",
+        "id": 76953,
+        "job_name": "poll_market_snapshot",
+        "started_at_utc": "2026-08-09 11:58:22.255389Z",
+        "status": "ok"
+      },
+      {
+        "error": null,
+        "finished_at_utc": "2026-08-09 11:59:22.245429Z",
+        "id": 76954,
+        "job_name": "poll_market_snapshot",
+        "started_at_utc": "2026-08-09 11:59:22.239630Z",
+        "status": "ok"
+      },
+      {
+        "error": null,
+        "finished_at_utc": "2026-08-09 12:00:06.054639Z",
+        "id": 76955,
+        "job_name": "news_poll",
+        "started_at_utc": "2026-08-09 12:00:00.179731Z",
+        "status": "ok"
+      }
+    ],
+    "launchctl": {
+      "label": "com.alphapilot.scheduler",
+      "last_exit_code": "(never exited)",
+      "path": "/Users/ouyangduning/Library/LaunchAgents/com.alphapilot.scheduler.plist",
+      "pid": 26118,
+      "program": "/Users/ouyangduning/Documents/project/interesting/AlphaPilot-AI/.venv/bin/python",
+      "runs": 1,
+      "state": "running",
+      "working_directory": "/Users/ouyangduning/Documents/project/interesting/AlphaPilot-AI"
+    },
+    "plutil_lint": "OK",
+    "rendered_bytes_match_preregistered_sha": true,
+    "restart_loop": false,
+    "sqlite_lock_errors": 0,
+    "stability_samples_shanghai": [
+      "2026-08-09T19:39:48+08:00",
+      "2026-08-09T19:40:04+08:00",
+      "2026-08-09T19:40:19+08:00",
+      "2026-08-09T19:40:35+08:00",
+      "2026-08-09T19:40:50+08:00",
+      "2026-08-09T19:41:05+08:00",
+      "2026-08-09T19:41:21+08:00"
+    ],
+    "stable_90_seconds": true,
+    "stable_pid": 26118,
+    "stable_runs": 1
+  },
+  "schema_version": "p4.1-v2.1-scheduler-deployment-activation-evidence-v1",
+  "status": "READY_FOR_INDEPENDENT_ACTIVATION_REVIEW",
+  "verdict_scope": {
+    "deployment_completed": true,
+    "observation_window_started": false,
+    "p4_1_done": false,
+    "p4_2b_unlocked": false,
+    "p4_3_unlocked": false,
+    "scheduler_activated": true
+  }
+}
