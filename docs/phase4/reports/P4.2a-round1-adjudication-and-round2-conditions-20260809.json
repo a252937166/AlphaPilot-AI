@@ -1,0 +1,93 @@
+{
+  "schema_version": "p4.2a-independent-adjudication-v1",
+  "adjudication_id": "p4.2a-round1-adjudication-and-round2-conditions-20260809-r1",
+  "created_at_utc": "2026-08-09T15:34:27Z",
+  "created_at_shanghai": "2026-08-09T23:34:27+08:00",
+  "verdict": "APPROVE_ROUND_1_RECORD",
+  "blockers": [],
+  "repository_head_at_adjudication": "d4d266fc2bc99aa55620617349d0d608175b12e1",
+  "reviewer": {
+    "identity": "independent_ai_architect_claude_code",
+    "reviewer_type": "ai",
+    "model": "Anthropic Claude Fable 5 (model id claude-fable-5)",
+    "impersonation_disclaimer": "Not a human reviewer. Issued under the owner governance amendment with requires_release_gate_amendment=true.",
+    "method": "read-only audit. No model call, no round execution, no artifact modification. Metrics were recomputed from the sealed gold and the frozen per-model predictions rather than read from the result document.",
+    "note_on_the_internal_review": "The Codex-side internal review is recorded as reviewer_role independent_read_only_codex_team_reviewer with external_architect_review_substitute false. That self-declaration is correct: it does not substitute for this adjudication, and this adjudication was reached by independent recomputation."
+  },
+  "part_1_round_1_result": {
+    "verdict": "valid recorded round; no model selected; correct outcome",
+    "independent_recomputation": {
+      "sealed_gold_equals_reviewed_owner_export": true,
+      "gold_positive_count": 18,
+      "qwen3.7-flash": {"completed": "45/45", "predicted_positive": 14, "tp": 11, "fp": 3, "fn": 7, "tn": 24, "precision": 0.7857142857142857, "false_omission_rate": 0.22580645161290322, "symbol_exact_set": "44/45", "precision_gate": "fail", "false_omission_gate": "fail"},
+      "qwen3.6-plus": {"completed": "45/45", "predicted_positive": 13, "tp": 9, "fp": 4, "fn": 9, "tn": 23, "precision": 0.6923076923076923, "false_omission_rate": 0.28125, "symbol_exact_set": "44/45", "precision_gate": "fail", "false_omission_gate": "fail"},
+      "matches_reported_values": true
+    },
+    "selection_discipline_upheld": "selected_model is null. Neither model cleared both absolute gates, and no relative comparison was used to promote the better score. This is exactly what the pre-registered rule requires.",
+    "round_budget": {"rounds_consumed": 1, "ceiling": 6, "remaining": 5},
+    "safety_verified": {"production_llm_calls_before_after": [111, 111], "production_sqlite": "ro + query_only, total_changes 0", "trade_state": "1 proposal / 1 SIMULATE order / 0 non-SIMULATE, unchanged", "heldout_v2_untouched": true, "p4_1_config_sha256_unchanged": "9d56e137baf10bd0858723a93aff02c57bf7b35f8705f1817b16a89ec615183f", "p4_1_observation_window_undisturbed": true}
+  },
+  "part_2_substantive_finding": {
+    "id": "F-5",
+    "title": "Round 1 moved the threshold instead of sharpening the boundary, which is the failure mode O-3 predicted",
+    "evidence": {
+      "baseline_v1_5_prompt_flash": {"predicted_positive": 30, "tp": 16, "precision": 0.5333333333333333, "false_omission_rate": 0.13333333333333333},
+      "round_1_flash": {"predicted_positive": 14, "tp": 11, "precision": 0.7857142857142857, "false_omission_rate": 0.22580645161290322},
+      "reading": "Tightening removed 13 of the 14 false positives but also discarded 5 of the 16 true positives. Precision rose 0.253 while the false-omission rate rose 0.092 and broke its gate. The extractor did not learn to discriminate; it simply became less willing to call anything material."
+    },
+    "false_negative_provenance": {"qwen3.7-flash": {"from_original_predicted_positive_stratum": 5, "from_original_predicted_negative_stratum": 2}, "qwen3.6-plus": {"from_original_predicted_positive_stratum": 8, "from_original_predicted_negative_stratum": 1}, "significance": "Most of the new misses are items the previous prompt correctly identified. The regression is self-inflicted by the tightening, not inherited from the old blind spot."},
+    "feasible_region_computed": {
+      "constraint": "with 45 items and 18 gold positives, both gates hold when tp >= 0.8P and tp >= 9 + 0.2P, where P is the predicted-positive count",
+      "examples": [{"P": 15, "tp_required": 12, "precision": 0.8, "false_omission_rate": 0.2}, {"P": 18, "tp_required": 15, "precision": 0.833, "false_omission_rate": 0.111}, {"P": 19, "tp_required": 16, "precision": 0.842, "false_omission_rate": 0.077}, {"P": 20, "tp_required": 16, "precision": 0.8, "false_omission_rate": 0.08}],
+      "guidance": "The comfortable region is roughly 18 to 21 predicted positives holding 15 to 17 true ones. The target for Round 2 is therefore to retain the baseline's 16 true positives while cutting predicted positives from 30 to about 19 or 20. Round 1 instead cut to 14 and gave up 5 true positives, moving away from the region rather than into it.",
+      "how_close_flash_is": "At P=14 flash needs tp >= 12 and has 11. Recovering a single true positive lands it at P=15, tp=12, which is precision 0.800 and false-omission 0.200, both exactly on the boundary with no margin. Recovering two lands it at 0.8125 and 0.172."
+    }
+  },
+  "part_3_adjudications_requested": {
+    "incident_status": {
+      "ruling": "The launcher failure is NOT a formal round and does not consume the six-round budget.",
+      "facts_verified": {"failed_at_utc": "2026-08-09T14:49:34Z", "round_started_at_utc": "2026-08-09T14:50:04.501653Z", "failure": "ModuleNotFoundError before round entry", "state_or_artifacts_created": false, "model_calls": 0, "production_llm_calls_unchanged": true},
+      "reasoning": "The process exited during import, before any round state was written, any artifact was created or any model was called. Nothing was consumed, so nothing should be charged. This matches the ruling already applied to the identical failure during the v1.7 model selection.",
+      "recorded_but_not_charged": "It stays in the record as a deviation. Recording it and charging it are different things, and only the former is warranted.",
+      "recurrence_flag": {
+        "id": "O-4",
+        "statement": "This is the second occurrence of the same launcher defect; the v1.7 selection round failed the same way for the same reason. Twice is a pattern, not an accident.",
+        "required_before_round_2": "Make the entry points self-sufficient, for example by resolving the repository root inside the script rather than relying on the caller to export PYTHONPATH. A third occurrence should be treated as a process defect rather than an operator slip."
+      }
+    },
+    "scale_and_gate_resolution": {
+      "ruling": "Gate VALUES stay exactly as pre-registered. A MARGIN requirement is added to the development gate only, and it must be pre-registered before Round 2 runs.",
+      "problem_identified": "Both gates are currently decided by a single item. Flash sits at precision 11/14, where one reclassification moves it to 0.714 or 0.857, and at false-omission 7/31, where one item moves it to 0.194, which passes, or 0.258, which fails. A 45-item frame with 18 gold positives cannot resolve 0.79 from 0.81; it can only resolve large moves such as 0.53 to 0.79.",
+      "why_not_relax_the_gates": "The 0.80 and 0.20 values were fixed a priori. Relaxing either now, having seen that flash lands just under, is precisely the goalpost movement the owner's option A decision ruled out.",
+      "why_not_simply_accept_the_noise": "The error costs are asymmetric. A false pass on development spends a heldout round, which costs roughly 35 minutes of owner adjudication and an irreplaceable one-shot. A false failure on development costs one cheap iteration. The development gate should therefore be conservative.",
+      "margin_requirement": {
+        "applies_to": "development gate only; the heldout gates are untouched",
+        "rule": "A model clears the development gate only if both metrics pass on the point estimate AND continue to pass after one adverse single-item flip, that is with one true positive reclassified as a false positive for precision, and with one true negative reclassified as a false negative for the false-omission rate.",
+        "effect_in_numbers": "At P=15 a model needs tp >= 13 rather than 12, and the false-omission stratum must sit at least one item below its bound.",
+        "direction": "strictly stricter than the pre-registered development gate; it can only reduce the chance of wasting a heldout round and can never let a weaker model through",
+        "must_be_preregistered": "in the Round 2 pre-registration, before Round 2 executes"
+      },
+      "frame_enlargement_not_ordered_now": "Enlarging the development frame would cost further owner adjudication time and is not warranted while the margin requirement can be adopted at zero labelling cost. If two further rounds land inside the margin band without clearing it, enlargement becomes the honest next question and returns to the owner as a time-cost decision."
+    },
+    "procedural_file_boundaries": {
+      "ruling": "Four classes, and writes are permitted only as stated.",
+      "frozen_never_modified": ["config/p4_event_evaluation_v2.yaml", "the development frame selection, blind, AI draft, human-adjudicated and owner-completion artifacts", "the retired heldout identities", "the v1.7 and v1.8 designs and their recorded rounds"],
+      "round_immutable_create_only_per_round": ["rounds/rN/round-preregistration.json", "rounds/rN/round-outcome.json", "rounds/rN/<model>/predictions.jsonl", "rounds/rN/<model>/report.json", "rounds/rN/<model>/manifest.json", "rounds/rN/<model>/terminal-state.jsonl"],
+      "append_only": ["calibration.state.jsonl"],
+      "procedural_may_be_created_or_superseded_outside_rounds": ["result summary documents", "internal and independent review reports", "handoff documents", "the phase 4 specification record"],
+      "constraint_on_procedural_files": "A procedural document may summarise or supersede an earlier procedural document, but it may never restate a recorded round result differently from the round artifact, and it may never remove the record of a failed round or a deviation.",
+      "prompt_artifacts": "Each round's prompt must be byte-frozen and its digest recorded in that round's pre-registration before the round executes, so a prompt can never be adjusted after seeing a score within the same round."
+    }
+  },
+  "conditions_on_round_2": [
+    "Pre-register Round 2 separately, before any model call, including the byte-frozen prompt digest for each candidate model.",
+    "Adopt the development margin requirement defined above and state it explicitly in the pre-registration.",
+    "Fix the launcher defect O-4 so the entry point does not depend on the caller exporting PYTHONPATH.",
+    "Aim at the computed feasible region: retain true positives rather than shedding predictions. A configuration that lowers the predicted-positive count without holding the true positives will fail the false-omission gate again however good its precision looks.",
+    "Report both gates per stratum with the sampling frame and the stratum size stated, and report no naive recall, per the F-4 policy.",
+    "Selection stays rule-based on absolute gates. If neither model clears the margin-adjusted development gate, no model is selected and the round is recorded as a failure.",
+    "Do not touch, materialize or sample the heldout frame."
+  ],
+  "phase_locks_unchanged": {"p4_2a_done": false, "heldout_unlocked": false, "p4_2b_unlocked": false, "p4_3_unlocked": false},
+  "p4_1_unaffected": "The observation window opened 2026-08-10 00:00 CST for 08-10, 08-11 and 08-12 and is undisturbed by this work."
+}
