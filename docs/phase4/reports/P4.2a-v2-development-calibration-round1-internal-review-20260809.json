@@ -1,0 +1,118 @@
+{
+  "schema_version": "p4.2a-v2-development-calibration-round-internal-review-v1",
+  "reviewed_at_utc": "2026-08-09T15:13:56Z",
+  "reviewer_type": "ai",
+  "reviewer_role": "independent_read_only_codex_team_reviewer",
+  "reviewer_model": "codex_team_agent_current_session",
+  "independence": {
+    "repository_edits": false,
+    "network_access": false,
+    "model_calls": false,
+    "round_reexecution": false,
+    "relied_on_runner_metric_claims_without_recomputation": false
+  },
+  "external_architect_review_substitute": false,
+  "conclusion": "APPROVE_ROUND_1_RECORDED_NO_MODEL_SELECTED",
+  "blocker_count": 0,
+  "checks_passed": 65,
+  "checks_failed": 0,
+  "reviewed_result": {
+    "path": "docs/phase4/reports/P4.2a-v2-development-calibration-round1-result-20260809.json",
+    "sha256": "4852869c731dee5dd70150fe184c63818db3d5cff566406629eb94fdb5ae766b"
+  },
+  "recomputed_metrics": {
+    "qwen3.7-flash": {
+      "tp": 11,
+      "fp": 3,
+      "fn": 7,
+      "tn": 24,
+      "precision": 0.7857142857142857,
+      "false_omission_rate": 0.22580645161290322,
+      "symbol_exact_set_accuracy": 0.9777777777777777,
+      "symbol_bearing_exact_set_accuracy": 0.9743589743589743,
+      "both_materiality_gates_passed": false
+    },
+    "qwen3.6-plus": {
+      "tp": 9,
+      "fp": 4,
+      "fn": 9,
+      "tn": 23,
+      "precision": 0.6923076923076923,
+      "false_omission_rate": 0.28125,
+      "symbol_exact_set_accuracy": 0.9777777777777777,
+      "symbol_bearing_exact_set_accuracy": 0.9743589743589743,
+      "both_materiality_gates_passed": false
+    },
+    "selection_rule": "flash_if_both_gates_else_plus_if_both_gates_else_none",
+    "selected_model": null,
+    "materiality_recall": {
+      "value": null,
+      "formula": "not_estimable"
+    }
+  },
+  "artifact_and_execution_checks": {
+    "flash_rows_unique_ordered_and_bound": "45/45",
+    "plus_rows_unique_ordered_and_bound": "45/45",
+    "materialized_schema_and_evidence_span": "90/90",
+    "candidate_retries": 0,
+    "isolated_audit_rows": 90,
+    "round_state_events": [
+      "round_started",
+      "round_completed"
+    ],
+    "model_order": [
+      "qwen3.7-flash",
+      "qwen3.6-plus"
+    ],
+    "round_outcome_sha256": "d6970c45b2d797229de87ec30985c2696795cf173f8f4dbb9cb43156fcfc6649",
+    "calibration_state_sha256": "ca8355e357a214a0b06af945be240480e732bb7a1251c1670763acedb35d0bc4",
+    "hash_closure_passed": true
+  },
+  "safety_checks": {
+    "production_llm_calls_before_after": [
+      111,
+      111
+    ],
+    "production_sqlite_mode": "ro_query_only",
+    "production_total_changes": 0,
+    "trade_proposals_before_after": [
+      1,
+      1
+    ],
+    "broker_orders_before_after": [
+      1,
+      1
+    ],
+    "non_simulate_orders_before_after": [
+      0,
+      0
+    ],
+    "environment_sha256_unchanged": true,
+    "p4_1_config_sha256": "9d56e137baf10bd0858723a93aff02c57bf7b35f8705f1817b16a89ec615183f",
+    "heldout_v2_root_exists": false,
+    "news_events_table_exists": false,
+    "raw_prompt_or_transport_or_credentials_persisted": false
+  },
+  "launcher_incident_reconstruction": {
+    "preflight_at_utc": "2026-08-09T14:49:17Z",
+    "failed_invocation_at_utc": "2026-08-09T14:49:34Z",
+    "post_failure_check_at_utc": "2026-08-09T14:49:57Z",
+    "formal_round_started_at_utc": "2026-08-09T14:50:04.501653Z",
+    "failure": "ModuleNotFoundError_before_round_entry",
+    "state_or_artifacts_created": false,
+    "model_calls": 0,
+    "production_llm_calls_changed": false,
+    "classification": "launcher_bootstrap_failure_not_a_formal_round_and_not_a_candidate_retry",
+    "result_report_classification_confirmed": true
+  },
+  "phase_gate": {
+    "round_1_recorded": true,
+    "round_1_retry_allowed": false,
+    "model_selected": false,
+    "p4_2a_done": false,
+    "heldout_unlocked": false,
+    "p4_2b_unlocked": false,
+    "p4_3_unlocked": false,
+    "next_action": "submit the immutable Round 1 result for owner or Claude Code review before any separately preregistered Round 2"
+  }
+}
