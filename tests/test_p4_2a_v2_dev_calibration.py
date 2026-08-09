@@ -156,6 +156,11 @@ def _round3_fixture_root(tmp_path: Path) -> tuple[Path, str]:
     state_relative = "docs/phase4/eval/v2-calibration/development/calibration.state.jsonl"
     _copy(root, state_relative)
     state_path = root / state_relative
+    state_rows = runner._load_jsonl(state_path, "current calibration state fixture")
+    assert len(state_rows) >= 4
+    state_path.write_bytes(
+        b"".join(runner._canonical_json_bytes(event) for event in state_rows[:4])
+    )
     assert runner._sha256_file(state_path) == runner.ROUND_2_STATE_PREFIX_SHA256
 
     preregistered_at = "2026-08-09T00:00:00Z"
