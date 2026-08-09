@@ -5,6 +5,7 @@ import hashlib
 import json
 import os
 import sqlite3
+import tempfile
 from collections import Counter
 from collections.abc import Mapping
 from dataclasses import replace
@@ -21,6 +22,7 @@ from scripts import evaluate_p4_2a_gold as evaluator
 from alphapilot.llm.p4_news_eval import (
     EVALUATION_DESIGN_V1_2_PATH,
     EVALUATION_DESIGN_V1_7_PATH,
+    EVALUATION_DESIGN_V1_8_PATH,
     EvaluationDesignAncestor,
     load_event_evaluation_design,
 )
@@ -1014,12 +1016,45 @@ def test_dry_run_report_path_validation_is_read_only_and_fail_closed(
         )
 
 
-def test_heldout_dry_run_never_calls_scoring_or_mutation_functions(
+def test_heldout_dry_run_scores_only_synthetic_inputs_and_never_mutates(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
-    design = builder.load_evaluation_design(EVALUATION_DESIGN_V1_7_PATH)
-    fake_preflight = SimpleNamespace(design=design)
+    design = builder.load_evaluation_design(EVALUATION_DESIGN_V1_8_PATH)
+    real_annotations: dict[int, dict[str, Any]] = {}
+    real_predictions: dict[int, dict[str, Any]] = {}
+    for news_item_id in range(1, 101):
+        record = {
+            "news_item_id": news_item_id,
+            "sample_index": news_item_id,
+            "sample_group": (
+                "inventory_60" if news_item_id <= 60 else "heldout40"
+            ),
+        }
+        real_annotations[news_item_id] = {
+            "record": record,
+            "gold": {
+                "symbols": [f"{news_item_id:06d}"],
+                "materiality": 0,
+            },
+        }
+        real_predictions[news_item_id] = {
+            "symbols": [f"{news_item_id:06d}"],
+            "materiality": 0,
+        }
+    fake_preflight = SimpleNamespace(
+        design=design,
+        annotations=real_annotations,
+        predictions=real_predictions,
+        active_contract=object(),
+        dev_annotations={
+            news_item_id: real_annotations[news_item_id]
+            for news_item_id in range(1, 61)
+        },
+        dev_prediction_records=[
+            {"news_item_id": news_item_id} for news_item_id in range(1, 61)
+        ],
+    )
     stages = [{"name": "prediction_join", "status": "passed"}]
     monkeypatch.setattr(
         evaluator,
@@ -1027,16 +1062,80 @@ def test_heldout_dry_run_never_calls_scoring_or_mutation_functions(
         lambda *_args, **_kwargs: (fake_preflight, copy.deepcopy(stages)),
     )
 
+    observed: dict[str, object] = {}
+    actual_evaluate_split_records = evaluator.evaluate_split_records
+
+    def score_synthetic_only(
+        annotations: Mapping[int, dict[str, Any]],
+        predictions: Mapping[int, dict[str, Any] | None],
+        loaded_design: builder.FrozenEvaluationDesign,
+    ) -> dict[str, Any]:
+        assert annotations is not real_annotations
+        assert predictions is not real_predictions
+        assert loaded_design is design
+        assert all(
+            annotation.get("synthetic_metric_fixture") is True
+            for annotation in annotations.values()
+        )
+        assert all(
+            annotation["gold"] == predictions[news_item_id]
+            for news_item_id, annotation in annotations.items()
+        )
+        observed["scoring_annotations"] = annotations
+        observed["scoring_predictions"] = predictions
+        return actual_evaluate_split_records(annotations, predictions, loaded_design)
+
+    def report_extensions(**kwargs: object) -> dict[str, object]:
+        assert kwargs["annotations"] is observed["scoring_annotations"]
+        assert kwargs["predictions"] is observed["scoring_predictions"]
+        observed["extensions"] = True
+        return {}
+
+    def offline_diagnostics(
+        loaded_design: builder.FrozenEvaluationDesign,
+        gold_ids: set[int],
+    ) -> dict[str, object]:
+        assert loaded_design is design
+        assert gold_ids == set(range(1, 101))
+        observed["diagnostics"] = True
+        return {"synthetic": True}
+
+    def assemble_report(
+        preflight: object,
+        result: Mapping[str, object],
+        **kwargs: object,
+    ) -> dict[str, object]:
+        assert preflight is fake_preflight
+        assert isinstance(result["passed"], bool)
+        assert kwargs["annotations"] is observed["scoring_annotations"]
+        assert kwargs["predictions"] is observed["scoring_predictions"]
+        assert kwargs["versioned_extensions"] == {}
+        assert kwargs["offline_diagnostics"] == {"synthetic": True}
+        observed["assembly"] = True
+        return {"synthetic_report": True}
+
+    def required_fields(
+        report: Mapping[str, object],
+        loaded_design: builder.FrozenEvaluationDesign,
+    ) -> None:
+        assert report == {"synthetic_report": True}
+        assert loaded_design is design
+        observed["required_fields"] = True
+
+    monkeypatch.setattr(evaluator, "evaluate_split_records", score_synthetic_only)
+    monkeypatch.setattr(evaluator, "_v1_3_report_extensions", report_extensions)
+    monkeypatch.setattr(evaluator, "_offline_trial_diagnostics", offline_diagnostics)
+    monkeypatch.setattr(evaluator, "_assemble_heldout_report", assemble_report)
+    monkeypatch.setattr(evaluator, "validate_required_report_fields", required_fields)
+
     def unexpected(*_args: object, **_kwargs: object) -> None:
-        raise AssertionError("dry-run crossed the one-shot boundary")
+        raise AssertionError("dry-run performed a filesystem mutation")
 
     for name in (
         "_new_report_path",
         "_claim_evaluation_one_shot",
         "_append_evaluation_terminal",
         "_write_new_json",
-        "evaluate_split_records",
-        "_v1_3_report_extensions",
     ):
         monkeypatch.setattr(evaluator, name, unexpected)
 
@@ -1051,9 +1150,356 @@ def test_heldout_dry_run_never_calls_scoring_or_mutation_functions(
     assert result["one_shot_consumed"] is False
     assert result["metrics_computed"] is False
     assert result["evaluation_passed"] is None
+    assert result["synthetic_metric_assembly"] is True
     assert result["report_created"] is False
     assert result["filesystem_mutations"] == 0
+    assert result["validated_through"] == "report_serialization_in_memory"
+    assert {"metrics", "gates", "passed"}.isdisjoint(result)
+    assert observed == {
+        "scoring_annotations": observed["scoring_annotations"],
+        "scoring_predictions": observed["scoring_predictions"],
+        "extensions": True,
+        "diagnostics": True,
+        "assembly": True,
+        "required_fields": True,
+    }
+    stage_statuses = {stage["name"]: stage["status"] for stage in result["stages"]}
+    assert stage_statuses == {
+        "prediction_join": "passed",
+        "synthetic_metric_inputs": "passed",
+        "synthetic_metric_assembly": "passed",
+        "report_extensions_dev_only": "passed",
+        "offline_diagnostics": "passed",
+        "report_payload_assembly": "passed",
+        "required_report_fields": "passed",
+        "canonical_serialization_in_memory": "passed",
+        "real_heldout_metrics": "not_run_one_shot_protected",
+    }
     assert not output.parent.exists()
+
+
+def _v1_8_frozen_selection_fixture() -> SimpleNamespace:
+    design = builder.load_evaluation_design(EVALUATION_DESIGN_V1_8_PATH)
+    active_contract, receipt, receipt_sha256 = (
+        builder.load_active_prediction_contract(design)
+    )
+    inference, inference_state_sha256 = builder.load_completed_one_shot_state(
+        design,
+        scope="inference",
+    )
+    annotation_path = builder.evaluation_artifact_path(
+        design,
+        "combined_100_annotations_jsonl",
+    )
+    annotation_records, annotation_sha256 = evaluator._read_jsonl(
+        annotation_path,
+        label="v1.8 frozen combined annotations",
+    )
+    annotations = evaluator.validate_owner_annotations(
+        annotation_records,
+        design.base_contract,
+        design=design,
+    )
+    selection_path = builder.evaluation_artifact_path(
+        design,
+        "heldout_selection_manifest_json",
+    )
+    selection_manifest, selection_manifest_sha256 = evaluator._read_json(
+        selection_path,
+        label="v1.8 inherited heldout selection manifest",
+    )
+    materialization = dict(
+        evaluator._mapping(
+            selection_manifest.get("materialization"),
+            label="v1.8 inherited materialization binding",
+        )
+    )
+    candidate_inputs_path = builder.evaluation_artifact_path(
+        design,
+        "heldout_candidate_inputs_jsonl",
+    )
+    candidate_predictions_path = builder.evaluation_artifact_path(
+        design,
+        "heldout_candidate_predictions_jsonl",
+    )
+    candidate_prediction_manifest_path = builder.evaluation_artifact_path(
+        design,
+        "heldout_candidate_predictions_manifest_json",
+    )
+    selection_evidence = evaluator._validate_selection_manifest(
+        selection_manifest,
+        manifest_sha256=selection_manifest_sha256,
+        design=design,
+        annotations=annotations,
+        active_contract=active_contract,
+        receipt_sha256=receipt_sha256,
+        candidate_inputs_sha256=evaluator._sha256_file(candidate_inputs_path),
+        candidate_predictions_sha256=evaluator._sha256_file(
+            candidate_predictions_path
+        ),
+        candidate_prediction_manifest_sha256=evaluator._sha256_file(
+            candidate_prediction_manifest_path
+        ),
+        inference_state_sha256=inference_state_sha256,
+        materialization_binding=materialization,
+    )
+    return SimpleNamespace(
+        design=design,
+        active_contract=active_contract,
+        receipt=receipt,
+        receipt_sha256=receipt_sha256,
+        inference=inference,
+        inference_state_sha256=inference_state_sha256,
+        annotation_path=annotation_path,
+        annotation_records=annotation_records,
+        annotation_sha256=annotation_sha256,
+        annotations=annotations,
+        selection_manifest=selection_manifest,
+        selection_manifest_sha256=selection_manifest_sha256,
+        selection_evidence=selection_evidence,
+        materialization=materialization,
+        candidate_inputs_sha256=evaluator._sha256_file(candidate_inputs_path),
+        candidate_predictions_sha256=evaluator._sha256_file(
+            candidate_predictions_path
+        ),
+        candidate_prediction_manifest_sha256=evaluator._sha256_file(
+            candidate_prediction_manifest_path
+        ),
+    )
+
+
+def test_v1_8_frozen_inference_and_selection_require_all_15_lineage_scopes() -> None:
+    frozen = _v1_8_frozen_selection_fixture()
+    design = frozen.design
+    required_scopes = builder.HELDOUT_EVALUATION_INPUT_DESIGN_SCOPES
+
+    assert len(required_scopes) == 15
+    assert frozen.inference_state_sha256 == (
+        "44253bfb643458ebf2b1e86ef5bddcdf4d01469ebf60ffcb02c2096ad54cfbe3"
+    )
+    assert frozen.selection_manifest_sha256 == (
+        "9da50ea8720b01b58c6d19eb9d7b11705a0c561c61da432543e2ab5644b3abe1"
+    )
+    assert frozen.selection_evidence["selected_count"] == 40
+    assert {
+        event["design_sha256"] for event in frozen.inference["events"]
+    } == {"4c7964ad547820f5672631939af93978f11cb9f91e5921087770ac7d0d79bec1"}
+
+    direct_parent = design.ancestor_designs[0]
+    assert direct_parent.sha256 == (
+        "4c7964ad547820f5672631939af93978f11cb9f91e5921087770ac7d0d79bec1"
+    )
+    incomplete_design = replace(
+        design,
+        ancestor_designs=(
+            replace(
+                direct_parent,
+                byte_frozen_scopes=direct_parent.byte_frozen_scopes
+                - {next(iter(required_scopes))},
+            ),
+            *design.ancestor_designs[1:],
+        ),
+    )
+    with pytest.raises(builder.GoldSampleError, match="design hash drifted"):
+        builder.load_completed_one_shot_state(
+            incomplete_design,
+            scope="inference",
+        )
+    with pytest.raises(
+        evaluator.GoldEvaluationError,
+        match="artifact bindings drifted",
+    ):
+        evaluator._validate_selection_manifest(
+            frozen.selection_manifest,
+            manifest_sha256=frozen.selection_manifest_sha256,
+            design=incomplete_design,
+            annotations=frozen.annotations,
+            active_contract=frozen.active_contract,
+            receipt_sha256=frozen.receipt_sha256,
+            candidate_inputs_sha256=frozen.candidate_inputs_sha256,
+            candidate_predictions_sha256=frozen.candidate_predictions_sha256,
+            candidate_prediction_manifest_sha256=(
+                frozen.candidate_prediction_manifest_sha256
+            ),
+            inference_state_sha256=frozen.inference_state_sha256,
+            materialization_binding=frozen.materialization,
+        )
+
+    unrelated_manifest = copy.deepcopy(frozen.selection_manifest)
+    unrelated_manifest["design"]["sha256"] = "f" * 64
+    with pytest.raises(
+        evaluator.GoldEvaluationError,
+        match="artifact bindings drifted",
+    ):
+        evaluator._validate_selection_manifest(
+            unrelated_manifest,
+            manifest_sha256=frozen.selection_manifest_sha256,
+            design=design,
+            annotations=frozen.annotations,
+            active_contract=frozen.active_contract,
+            receipt_sha256=frozen.receipt_sha256,
+            candidate_inputs_sha256=frozen.candidate_inputs_sha256,
+            candidate_predictions_sha256=frozen.candidate_predictions_sha256,
+            candidate_prediction_manifest_sha256=(
+                frozen.candidate_prediction_manifest_sha256
+            ),
+            inference_state_sha256=frozen.inference_state_sha256,
+            materialization_binding=frozen.materialization,
+        )
+
+
+def test_v1_8_formal_path_rehearsal_uses_synthetic_scores_and_tmp_artifacts(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    frozen = _v1_8_frozen_selection_fixture()
+    design = frozen.design
+    owner_completion = evaluator.validate_owner_completion_manifest(
+        design,
+        annotation_path=frozen.annotation_path,
+        annotation_records=frozen.annotation_records,
+        annotation_sha256=frozen.annotation_sha256,
+    )
+    dev_final = builder.validate_dev_final_prediction_freeze(
+        design,
+        active_contract=frozen.active_contract,
+        receipt=frozen.receipt,
+    )
+
+    synthetic_annotations = copy.deepcopy(frozen.annotations)
+    synthetic_predictions: dict[int, dict[str, Any] | None] = {}
+    synthetic_by_id: dict[int, dict[str, Any]] = {}
+    for news_item_id, annotation in synthetic_annotations.items():
+        original_text = str(annotation["record"]["original_text"])
+        evidence_span = original_text[: min(24, len(original_text))]
+        assert evidence_span
+        synthetic_gold = {
+            "symbols": [],
+            "event_type": "other",
+            "direction": 0,
+            "materiality": 2,
+            "evidence_span": evidence_span,
+            "notes": None,
+        }
+        synthetic_prediction = {
+            "symbols": [],
+            "event_type": "other",
+            "direction": 0,
+            "materiality": 2,
+            "summary": "synthetic rehearsal only",
+            "confidence": 0.5,
+            "evidence_span": evidence_span,
+        }
+        annotation["gold"] = synthetic_gold
+        annotation["synthetic_metric_fixture"] = True
+        synthetic_predictions[news_item_id] = synthetic_prediction
+        synthetic_by_id[news_item_id] = synthetic_prediction
+
+    dev_prediction_path = builder.evaluation_artifact_path(
+        design,
+        "dev_final_predictions_jsonl",
+    )
+    dev_prediction_records, _dev_prediction_sha256 = evaluator._read_jsonl(
+        dev_prediction_path,
+        label="v1.8 inherited dev predictions for synthetic rehearsal",
+    )
+    synthetic_dev_prediction_records = copy.deepcopy(dev_prediction_records)
+    for row in synthetic_dev_prediction_records:
+        news_item_id = int(row["news_item_id"])
+        row["status"] = "ok"
+        row["prediction"] = copy.deepcopy(synthetic_by_id[news_item_id])
+
+    dev_ids = list(synthetic_annotations)[:60]
+    synthetic_dev_annotations = {
+        news_item_id: synthetic_annotations[news_item_id]
+        for news_item_id in dev_ids
+    }
+    failed_v1_7_state = (
+        PROJECT_DIR
+        / "docs/phase4/eval/P4.2a-heldout-evaluation-one-shot-v1.7.state.jsonl"
+    )
+    failed_v1_7_sha256 = evaluator._sha256_file(failed_v1_7_state)
+    production_v1_8_state = builder.evaluation_artifact_path(
+        design,
+        "heldout_evaluation_state_jsonl",
+    )
+    assert not production_v1_8_state.exists()
+
+    with tempfile.TemporaryDirectory(
+        prefix=".p4-2a-v18-rehearsal-",
+        dir=PROJECT_DIR,
+    ) as temporary_directory:
+        rehearsal_root = Path(temporary_directory)
+        assert not rehearsal_root.is_relative_to(
+            (PROJECT_DIR / "docs/phase4/eval").resolve()
+        )
+        rehearsal_state = rehearsal_root / "replacement.state.jsonl"
+        rehearsal_output = rehearsal_root / "reports/replacement.json"
+        synthetic_preflight = evaluator.HeldoutEvaluationPreflight(
+            design=design,
+            artifact_root=rehearsal_root,
+            annotation_resolved=frozen.annotation_path,
+            annotation_sha256=frozen.annotation_sha256,
+            annotations=synthetic_annotations,
+            owner_completion=owner_completion,
+            adjudication_evidence=None,
+            active_contract=frozen.active_contract,
+            receipt=frozen.receipt,
+            receipt_sha256=frozen.receipt_sha256,
+            dev_final=dev_final,
+            inference=frozen.inference,
+            selection_evidence=frozen.selection_evidence,
+            materialization_binding=frozen.materialization,
+            dev_annotations=synthetic_dev_annotations,
+            dev_prediction_records=synthetic_dev_prediction_records,
+            predictions=synthetic_predictions,
+            state_path=rehearsal_state,
+        )
+        monkeypatch.setattr(
+            evaluator,
+            "_run_heldout_preflight",
+            lambda *_args, **_kwargs: (synthetic_preflight, []),
+        )
+
+        result = evaluator.evaluate_gold_sample_v1_1(
+            frozen.annotation_path,
+            rehearsal_output,
+            EVALUATION_DESIGN_V1_8_PATH,
+            now=datetime.fromisoformat("2026-08-09T16:00:00+08:00"),
+        )
+
+        assert rehearsal_output.is_file()
+        assert rehearsal_state.is_file()
+        events = [
+            json.loads(line)
+            for line in rehearsal_state.read_text(encoding="utf-8").splitlines()
+        ]
+        assert [event["event"] for event in events] == [
+            "evaluation_started",
+            "evaluation_completed",
+        ]
+        assert all(event["design_sha256"] == design.sha256 for event in events)
+        assert result["report_artifact"]["sha256"] == evaluator._sha256_file(
+            rehearsal_output
+        )
+        assert result["phase_gate"] == {
+            "p4_2a_evaluation_passed": result["passed"],
+            "p4_2b_unlocked": False,
+            "production_writes_performed": False,
+            "proposals_or_orders_created": False,
+        }
+        assert result["input_identity"]["dual_hash_identity"][
+            "distinct_hash_pair_count"
+        ] == 60
+        assert result["diagnostics"]["offline_trial"][
+            "gold_intersection_failure_ids"
+        ] == [190]
+        assert all(
+            annotation.get("synthetic_metric_fixture") is True
+            for annotation in synthetic_preflight.annotations.values()
+        )
+
+    assert evaluator._sha256_file(failed_v1_7_state) == failed_v1_7_sha256
+    assert not production_v1_8_state.exists()
 
 
 def test_cli_dry_run_routes_around_formal_evaluation(

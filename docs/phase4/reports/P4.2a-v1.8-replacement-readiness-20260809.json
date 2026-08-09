@@ -1,0 +1,149 @@
+{
+  "schema_version": "p4.2a-v1.8-replacement-readiness-v1",
+  "created_at_utc": "2026-08-09T07:41:22Z",
+  "status": "READY_FOR_INDEPENDENT_REVIEW",
+  "authorization": {
+    "path": "docs/phase4/reports/P4.2a-replacement-evaluation-authorization-20260809.json",
+    "sha256": "2e33220faa424419c199466019b1cb94f4c4cd7e0bb60e9d978fdb0689f0089f",
+    "replacement_rounds_authorized": 1,
+    "replacement_rounds_consumed": 0
+  },
+  "preregistration": {
+    "commit": "b1b8cee",
+    "path": "docs/phase4/reports/P4.2a-v1.8-replacement-preregistration-20260809.json",
+    "sha256": "adfe87651920bc13bdb5f89c3d93c3392423b9c534bd0eb94eb25c3dac1b18b0",
+    "preceded_implementation": true
+  },
+  "immutable_failed_round": {
+    "incident_path": "docs/phase4/reports/P4.2a-heldout-one-shot-consumed-incident-20260809.json",
+    "incident_sha256": "5182cfcfcbe419bc8c724365ba81fdbcdd92356de5064d864937f29f2573f963",
+    "state_path": "docs/phase4/eval/P4.2a-heldout-evaluation-one-shot-v1.7.state.jsonl",
+    "state_sha256_before_and_after": "ba1eef1517fa30c37a7fcba5b171405cf537c84dbbbb70cec57f542842fdc0ff",
+    "modified": false
+  },
+  "replacement_design": {
+    "path": "config/p4_event_evaluation_v1_8.yaml",
+    "sha256": "bb36b9713cbf70fa5293683e767655b70720a2baa9e8822bc0396c4e6284452e",
+    "schema_version": "p4.2a-evaluation-design-v1.8",
+    "extends_path": "config/p4_event_evaluation_v1_7.yaml",
+    "extends_sha256": "4c7964ad547820f5672631939af93978f11cb9f91e5921087770ac7d0d79bec1",
+    "byte_frozen_scope_count": 15,
+    "only_artifact_changes": [
+      "heldout_evaluation_state_jsonl",
+      "evaluation_report_directory"
+    ]
+  },
+  "remediations": {
+    "active_contract_pairing": {
+      "status": "passed",
+      "method": "derive path, sha256, schema_version, model and endpoint from the loaded design active_prediction_contract declaration",
+      "negative_cases": [
+        "path",
+        "sha256",
+        "schema_version",
+        "model",
+        "endpoint"
+      ]
+    },
+    "capability_routing": {
+      "status": "passed",
+      "version_allowlists_removed_for": [
+        "candidate materialization",
+        "persisted prediction schema",
+        "report extensions",
+        "symbol diagnostics"
+      ]
+    },
+    "scope_gated_lineage": {
+      "status": "passed",
+      "required_scope_count": 15,
+      "accepted_design_identities": [
+        {
+          "schema_version": "p4.2a-evaluation-design-v1.8",
+          "sha256": "bb36b9713cbf70fa5293683e767655b70720a2baa9e8822bc0396c4e6284452e"
+        },
+        {
+          "schema_version": "p4.2a-evaluation-design-v1.7",
+          "sha256": "4c7964ad547820f5672631939af93978f11cb9f91e5921087770ac7d0d79bec1"
+        },
+        {
+          "schema_version": "p4.2a-evaluation-design-v1.6",
+          "sha256": "57e04f99a8ee91b64fe0aa4dc479e95c3de65fd31f04ac6c5879d4f81e5539c9"
+        }
+      ],
+      "v1_5_and_earlier_rejected": true,
+      "missing_scope_rejected": true,
+      "unrelated_sha_rejected": true
+    }
+  },
+  "frozen_binding_proof": {
+    "inference_state": {
+      "path": "docs/phase4/eval/P4.2a-heldout-inference-one-shot-v1.7.state.jsonl",
+      "sha256": "44253bfb643458ebf2b1e86ef5bddcdf4d01469ebf60ffcb02c2096ad54cfbe3",
+      "valid_under_v1_8_scope_lineage": true
+    },
+    "selection_manifest": {
+      "path": "docs/phase4/eval/P4.2a-heldout40-selection-v1.7.manifest.json",
+      "sha256": "9da50ea8720b01b58c6d19eb9d7b11705a0c561c61da432543e2ab5644b3abe1",
+      "valid_under_v1_8_scope_lineage": true
+    },
+    "validation_method": "typed ancestor identity plus continuous required-scope traversal; no global ancestor allowlist"
+  },
+  "read_only_dry_run": {
+    "scope": "heldout-final-v1.8-replacement",
+    "status": "passed",
+    "stage_count": 28,
+    "passed_stage_count": 27,
+    "protected_not_run_stage_count": 1,
+    "failure_count": 0,
+    "blocked_count": 0,
+    "validated_through": "report_serialization_in_memory",
+    "synthetic_metric_assembly": true,
+    "real_heldout_metrics_computed": false,
+    "evaluation_passed_disclosed": null,
+    "one_shot_consumed": false,
+    "report_created": false,
+    "filesystem_mutations": 0,
+    "database_open_mode": "mode=ro+query_only",
+    "network_or_llm_calls": 0
+  },
+  "synthetic_full_path_rehearsal": {
+    "status": "passed",
+    "artifact_root": "temporary directory under repository root and outside docs/phase4/eval",
+    "real_code_path": [
+      "one-shot claim",
+      "synthetic metric evaluation",
+      "report extensions",
+      "offline diagnostics",
+      "report assembly",
+      "required field validation",
+      "create-only report write",
+      "terminal completion append"
+    ],
+    "temporary_artifacts_removed": true,
+    "production_v1_8_state_created": false,
+    "production_v1_8_report_created": false
+  },
+  "quality_gates": {
+    "ruff_check_all": "passed",
+    "mypy_strict_src": {
+      "status": "passed",
+      "files": 157
+    },
+    "mypy_strict_changed_scripts_and_tests": "passed",
+    "pytest_full": {
+      "status": "passed",
+      "collected": 1487,
+      "skipped": 1,
+      "warnings": 2
+    },
+    "git_diff_check": "passed"
+  },
+  "phase_locks": {
+    "replacement_evaluation_executed": false,
+    "independent_review_required_before_execution": true,
+    "p4_2b_unlocked": false,
+    "p4_3_unlocked": false,
+    "proposals_or_orders_created": false
+  }
+}

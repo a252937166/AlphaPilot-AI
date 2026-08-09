@@ -666,9 +666,22 @@ owner 确认该时段为**人为断网、周期性复发**，非代码或上游�
   分数的前提下走到报告扩展和组装；④ 在生产 artifact root 外用结构同形合成输入完整走通
   claim → metrics → extensions → report serialization。机器可读预注册记录为
   `docs/phase4/reports/P4.2a-v1.8-replacement-preregistration-20260809.json`。
+- 四项前置现已 code-complete：15-scope 连续血统只接受 v1.8/v1.7/v1.6，至 v1.5 首个
+  缺 scope 边即停止；v1.7 inference state（SHA `44253bfb…be3`）与 selection manifest
+  （SHA `9da50ea8…abe1`）在 v1.8 下均通过真实冻结字节复验，删任一 scope 或注入无关 SHA
+  均 fail closed。真实冻结输入 dry-run 共 28 阶段，其中 27 阶段通过、1 个真实 held-out
+  评分阶段明确保持 `not_run_one_shot_protected`；合成指标、报告扩展、离线诊断、报告组装、
+  必填字段与内存序列化全部走通，零 DB/文件/网络/LLM 副作用。
+- 生产 artifact root 外的结构同形合成预演真实走通 claim → synthetic metrics → extensions →
+  diagnostics → create-only report → terminal completion，临时产物随后清除。Ruff 全仓、strict
+  mypy（`src/alphapilot` 157 文件 + 变更脚本/测试）与全量 pytest（1,487 collected，1 skip）
+  均通过。机器证据为
+  `docs/phase4/reports/P4.2a-v1.8-replacement-readiness-20260809.json`，SHA-256
+  `b35bf2a4f229ce21127b84b582de03dbe5bfdd4feead06c63487db1b28baa992`；状态仅为
+  `READY_FOR_INDEPENDENT_REVIEW`。
 - 本节不构成替换轮许可消耗。必须先完成代码、fixture、绑定证明、合成全路径预演与 Ruff、
-  strict mypy、全量 pytest，再交独立复核；复核通过前不得创建 v1.8 state 或正式报告，
-  P4.2b/P4.3 继续锁定。
+  strict mypy、全量 pytest，再交独立复核；上述机器门已齐，但独立复核仍未签字。复核通过前
+  不得创建 v1.8 state 或正式报告，P4.2b/P4.3 继续锁定。
 
 ## P4.2 LLM 事件抽取
 
