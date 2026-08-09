@@ -1,0 +1,101 @@
+{
+  "schema_version": "p4.2a-independent-review-incident-v1",
+  "report_id": "p4.2a-heldout-evaluation-one-shot-consumed-20260809-r1",
+  "created_at_utc": "2026-08-09T06:51:44Z",
+  "created_at_shanghai": "2026-08-09T14:51:44+08:00",
+  "verdict": "ONE_SHOT_CONSUMED_WITHOUT_RESULT",
+  "severity": "material",
+  "reviewer": {
+    "identity": "independent_ai_architect_claude_code",
+    "reviewer_type": "ai",
+    "model": "Anthropic Claude Fable 5 (model id claude-fable-5)",
+    "impersonation_disclaimer": "Not a human reviewer. Issued under the owner governance amendment with requires_release_gate_amendment=true."
+  },
+  "what_happened": {
+    "summary": "This reviewer executed the formal one-shot heldout evaluation after approving fix 3253b03 and after an independent dry-run reported every walked stage green. The run claimed the one-shot, computed metrics in memory, then aborted inside the report-extension stage on a fourth latent defect. No report was produced. The one-shot is now consumed and, by the design's own terms, re-evaluation under v1.7 is forbidden.",
+    "executed_by": "independent_ai_architect_claude_code",
+    "decision_owner": "this reviewer alone; the operator had stopped and handed the gate over",
+    "invocation": "PYTHONPATH=. python scripts/evaluate_p4_2a_gold.py --scope heldout-final-v1.7 --evaluation-design config/p4_event_evaluation_v1_7.yaml --heldout-adjudicated-export docs/phase4/eval/P4.2a-gold-heldout40-v1.7.adjudicated.jsonl --heldout-ai-draft docs/phase4/eval/P4.2a-gold-heldout40-v1.7.labels-ai-drafted.jsonl --output docs/phase4/eval/reports/v1.7/P4.2a-heldout-final-v1.7-report.json"
+  },
+  "reviewer_error_acknowledged": {
+    "statement": "The decision to run was mine and it was wrong on the evidence available.",
+    "what_i_relied_on": "The dry-run I ran myself reported every stage passed and returned status passed with validated_through prediction_join.",
+    "why_that_was_insufficient": "The same dry-run output explicitly labelled the final stage heldout_metrics_and_report as not_run_one_shot_protected. The defect that killed the run lives inside precisely that unwalked stage, in _v1_3_report_extensions. A dry-run that stops at the one-shot boundary can never provide evidence about what lies beyond it, and I treated its green result as broader assurance than it structurally could be.",
+    "aggravating_context_i_should_have_weighed": "Three latent defects had already been found on this same never-executed path within the preceding hours, each one gate deeper than the last. With that base rate, the probability of a fourth defect inside the only stage the dry-run could not walk was not low, and I had recommended the dry-run myself precisely because defects were surfacing one per attempt.",
+    "what_i_should_have_done": "Required the dry-run to cover the report-extension and metric-assembly stages against the real frozen inputs before the one-shot boundary, or required a rehearsal of the full evaluation against a synthetic copy of the inputs, before spending the single authorized attempt."
+  },
+  "objective_state": {
+    "one_shot_state_artifact": {
+      "path": "docs/phase4/eval/P4.2a-heldout-evaluation-one-shot-v1.7.state.jsonl",
+      "sha256": "ba1eef1517fa30c37a7fcba5b171405cf537c84dbbbb70cec57f542842fdc0ff",
+      "bytes": 339,
+      "events": [
+        {"event": "evaluation_started", "at_utc": "2026-08-09T06:50:46.256014Z", "design_sha256": "4c7964ad547820f5672631939af93978f11cb9f91e5921087770ac7d0d79bec1"},
+        {"event": "evaluation_failed", "at_utc": "2026-08-09T06:50:46.595633Z", "design_sha256": "4c7964ad547820f5672631939af93978f11cb9f91e5921087770ac7d0d79bec1", "safe_reason": "DevIterationError"}
+      ]
+    },
+    "contract_terms_that_now_bind": {
+      "maximum_started_events": 1,
+      "existing_started_event_blocks_reevaluation": true,
+      "terminal_events": ["evaluation_completed", "evaluation_failed"],
+      "started_fsynced_before_first_score_read": true,
+      "guard_behaviour": "evaluation_state_unclaimed raises 'heldout evaluation already has a started event; reevaluation is forbidden' whenever the state artifact exists",
+      "reading": "The round reached a terminal failed event. Under the design as frozen, the v1.7 heldout evaluation round is closed and cannot be repeated."
+    },
+    "no_result_was_produced_or_observed": {
+      "report_files_in_reports_v1_7": 0,
+      "metrics_persisted": false,
+      "metrics_printed": false,
+      "explanation": "evaluate_split_records ran and produced a result object in memory, but the exception propagated out of evaluate_gold_sample_v1_1 before main could serialize or print it. The state artifact records no metric. No score was written to disk, displayed, or transmitted, so no human and no model obtained any feedback signal from the heldout set.",
+      "why_this_matters": "The purpose of one-shot discipline is to prevent iterating against test-set feedback. No feedback was obtained. The statistical value of the sample is untouched even though its authorization is spent."
+    },
+    "nothing_else_was_damaged": {
+      "heldout_predictions": "unchanged and frozen; zero model calls were made by the evaluation",
+      "human_adjudication": "intact, sha256 e0a8de7484f1532918286bcc6e96128ab3e71390aa6dc90fe9f49b84407d571e",
+      "ai_draft": "intact, sha256 c734f3c09928b462d5c25cf9888f265b6825e1f9ab51a6cf452f35b839ad53a5",
+      "combined_gold": "intact, sha256 ec922eeb3cfcee0ee06b870fda275f14842c324ade2273a3912302f36ab047b4",
+      "frozen_design": "unchanged, sha256 4c7964ad547820f5672631939af93978f11cb9f91e5921087770ac7d0d79bec1",
+      "production_database": "untouched by the evaluation"
+    }
+  },
+  "fourth_defect": {
+    "title": "Hardcoded design/contract version-pair allow-list was never extended to v1.7",
+    "observed_error": "scripts.run_p4_2a_dev_iteration.DevIterationError: versioned evidence report design/contract pair drifted",
+    "raising_site": "scripts/run_p4_2a_dev_iteration.py line 899, reached from evaluate_p4_2a_gold._v1_5_candidate_report_extensions line 3026, itself reached from _v1_3_report_extensions line 2027",
+    "mechanism": "_evidence_validation accepts only four hardcoded (design_version, contract_version) pairs, the highest being (p4.2a-evaluation-design-v1.6, p4.2a-event-extract-eval-v1.7). The active pair is (p4.2a-evaluation-design-v1.7, p4.2a-event-extract-eval-v1.7), which was never added, so the v1.7 report extension can never succeed.",
+    "family": "Fourth instance today of a validator not updated for an artifact's actual declared version, role, lineage or representation. Like the previous three it is latent rather than a regression, and like them it sits on a path that had never been executed end to end.",
+    "fix_is_trivial_but_must_be_pre_registered": "Adding the v1.7 pair, or deriving the allowed pairing from the design's declared active contract instead of a literal table, is a small code change. It must still be pre-registered with tests, and it does not by itself restore the spent authorization."
+  },
+  "adjudication_required": {
+    "statement": "What the consumed one-shot means for P4.2a is a governance decision, not a technical one, and this reviewer should not make it alone.",
+    "conflict_of_interest_disclosure": "This reviewer caused the consumption. Choosing the option that minimises the consequences of its own error is exactly the decision a compromised reviewer would make, so the choice is escalated to the owner with the costs of each path stated plainly.",
+    "option_a_strict": {
+      "name": "Treat the heldout40 sample as spent; register a new design version and a new heldout sample",
+      "consistent_with": "The precedent this reviewer set for the P4.2a materialization abort, which required a new design and a new test set rather than allowing a recovery mechanism to become an implicit retry.",
+      "cost": "The owner must adjudicate a fresh 40-item sample, roughly 20 to 30 minutes, and a new blind sample plus draft cycle is needed. Existing frozen predictions can be reused for whichever items fall in the new sample, so no new model spend is required.",
+      "gain": "Maximum conservatism; no argument can later be made that a spent one-shot was reused."
+    },
+    "option_b_narrow": {
+      "name": "Rule that the round failed before any score was emitted, register the failed round immutably, and authorize exactly one replacement evaluation round under a new design version against the same heldout sample",
+      "rests_on": "The verifiable fact that no metric was persisted, printed or observed, so no test-set feedback entered any human or model decision. The design itself contemplates failed rounds: the report directory is declared append_only_failed_rounds and the one-shot evaluation lists evaluation_failed as a terminal event.",
+      "cost": "Requires a new design version, whose SHA change must be shown not to break the bindings to the executed inference; requires the failed round to be preserved unaltered; and depends on accepting a narrow reading of existing_started_event_blocks_reevaluation as binding within a design version rather than for all time.",
+      "gain": "Preserves the owner's completed adjudication work and the statistical value of a sample that genuinely leaked nothing."
+    },
+    "reviewer_recommendation": {
+      "preferred": "option_b_narrow",
+      "reasoning": "One-shot discipline exists to stop a test set from being consumed as feedback. The mechanical record shows conclusively that no feedback existed to consume: the process died before serialization and the state artifact holds no metric. Under option A the owner pays real time to defend against a leak that provably did not occur. Option B keeps the honest failure permanently on the record, which is the property that actually matters.",
+      "caveat": "This recommendation is made by the party that caused the incident. If the owner prefers option A, that preference should govern; the strict path costs time but is unimpeachable, and this reviewer will not argue against it.",
+      "not_negotiable_either_way": [
+        "The failed round record must never be deleted, edited or rewritten.",
+        "The state artifact must not be removed to unblock the guard.",
+        "The fourth defect must be fixed and independently reviewed before any further evaluation attempt.",
+        "Any replacement round must have its full path rehearsed against real inputs, including the report-extension and metric-assembly stages, before the one-shot boundary is crossed."
+      ]
+    }
+  },
+  "process_lesson": {
+    "id": "L-1",
+    "statement": "A dry-run that halts at the protected boundary is evidence about everything before the boundary and nothing after it. When the code beyond the boundary has never executed, a green dry-run must not be read as clearance to spend a single-use authorization.",
+    "recommended_control": "Before any future one-shot is spent, the entire path including report extensions and metric assembly must be exercised against a synthetic but structurally identical copy of the frozen inputs, so that the only untested thing at the boundary is the data, never the code."
+  }
+}
