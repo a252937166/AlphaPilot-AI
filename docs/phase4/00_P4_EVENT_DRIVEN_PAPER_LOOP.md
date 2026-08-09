@@ -1396,6 +1396,44 @@ v1 抽取/标注基线合同 `b3eb24c6…`；dev60、heldout40、预测正类池
 - 下一步只允许先做本轮冻结结果的独立复核/owner 裁定。未经新裁定与新预注册不得启动 Round 3，
   也不得修改 prompt、合同、门槛、样本、模型或 gold。
 
+### P4.2a v2 dev45 Round 3 结果（2026-08-10，开发门通过，待独立裁定）
+
+> **有效轮次已闭合，累计消耗 3/6；预注册绝对门选择 `qwen3.7-flash`，但尚未取得外部独立
+> 裁定。** 本轮仍只使用相同 owner 人工裁定 dev45（冻结分层 30/15），没有创建、读取、物化、
+> 抽样或评分 heldout-v2。P4.2a 不标 done，P4.2b/P4.3 继续锁定。
+
+- 预注册提交 `ed69441`，runner 加固提交 `65a87b3`；设计 SHA `18a2428…8e21`，prompt SHA
+  `0291dc88…f44`，round prereg SHA `72517cdc…2134`。顺序固定
+  `qwen3.7-flash → qwen3.6-plus`，两模型均 45/45 成功、0 失败、0 重试；Round 1/2 共 20 个
+  冻结产物与四行 state 前缀在模型调用前后均逐字节不变。
+- flash：`TP/FP/FN/TN=13/2/5/25`；点估计 precision `13/15=0.866667`、FOR
+  `5/30=0.166667` 均通过；一条不利翻转后 precision `12/15=0.800000`、FOR
+  `6/30=0.200000`，均在预注册包含边界上通过。两层分别为 `13/2/3/12` 与 `0/0/2/13`。
+- plus：`TP/FP/FN/TN=17/1/1/26`；点估计 precision `17/18=0.944444`、FOR
+  `1/27=0.037037`；一条不利翻转后为 `16/18=0.888889`、`2/27=0.074074`，全部通过。
+  两层分别为 `15/1/1/13` 与 `2/0/0/13`。
+- 两模型都过绝对门；固定选择规则是“flash 全门通过即选 flash，否则再看 plus”，因此
+  `selected_model=qwen3.7-flash`。plus 虽有更高点估计也未用于相对择优；门槛、样本、prompt、
+  模型和 gold 在看到结果后均未改。F-4 继续保持 `materiality_recall=null / not_estimable`。
+- O-5 未触发：本轮不是“点估计过、余量不过”；同时 `automatic_round_4_allowed=false` 仍被
+  outcome 固化。Round 3 结果只能交独立裁定，不能据此自动进入 Round 4 或访问 heldout。
+- Round state 在不可变四行前缀后追加 `round_started → round_completed`，完整 SHA
+  `16b0da6f…ac4e`；outcome SHA `aa564779…0b9e`。完整机器结果：
+  `docs/phase4/reports/P4.2a-v2-development-calibration-round3-result-20260810.json`，SHA
+  `709a68e9…1978`。内部双路只读审计均从 gold 与 predictions 独立重算，结论 0 blocker；记录
+  `docs/phase4/reports/P4.2a-v2-development-calibration-round3-internal-review-20260810.json`，SHA
+  `3c3745fe…0eaa`。该内部记录不替代 owner / Claude Code 外部裁定。
+- 安全证据：生产 SQLite `mode=ro/query_only`、`total_changes=0`，`llm_calls=111` 前后增量 0；
+  交易仍为 `1 proposal / 1 SIMULATE / 0 non-SIMULATE`，`news_events` 不存在；heldout-v2
+  不存在；research 与六项交易不变量全部安全。P4.1 配置 SHA 仍为 `9d56e137…183f`，
+  08-10/11/12 观察窗未被本轮改配、补跑或重启。
+- ⚠ 首次 post-run 全量 pytest 有 8 项失败：Round 3 合成 fixture 错把当前六行 state 当作
+  Round 2 的四行起点。仅在测试副本中截取并校验不可变四行前缀，提交 `c554477`；未改 runner、
+  生产 state、模型产物、门槛或 gold。修后定向、全量 pytest、Ruff、strict mypy 与 diff-check
+  全绿。
+- 下一步只允许外部独立复核/owner 裁定本轮冻结结果和候选选择；裁定前不得读取 heldout、生成
+  selected-contract freeze、标 P4.2a done 或解锁 P4.2b/P4.3。
+
 ## P4.3 事件 + 因子融合的每日候选推荐
 
 - 触发：盘前汇总夜间事件 + 盘中每次 news_poll 后增量。
