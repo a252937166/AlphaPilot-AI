@@ -1422,7 +1422,12 @@ def test_v1_8_formal_path_rehearsal_uses_synthetic_scores_and_tmp_artifacts(
         design,
         "heldout_evaluation_state_jsonl",
     )
-    assert not production_v1_8_state.exists()
+    production_v1_8_state_existed = production_v1_8_state.exists()
+    production_v1_8_state_sha256 = (
+        evaluator._sha256_file(production_v1_8_state)
+        if production_v1_8_state_existed
+        else None
+    )
 
     with tempfile.TemporaryDirectory(
         prefix=".p4-2a-v18-rehearsal-",
@@ -1499,7 +1504,12 @@ def test_v1_8_formal_path_rehearsal_uses_synthetic_scores_and_tmp_artifacts(
         )
 
     assert evaluator._sha256_file(failed_v1_7_state) == failed_v1_7_sha256
-    assert not production_v1_8_state.exists()
+    assert production_v1_8_state.exists() is production_v1_8_state_existed
+    if production_v1_8_state_sha256 is not None:
+        assert (
+            evaluator._sha256_file(production_v1_8_state)
+            == production_v1_8_state_sha256
+        )
 
 
 def test_cli_dry_run_routes_around_formal_evaluation(

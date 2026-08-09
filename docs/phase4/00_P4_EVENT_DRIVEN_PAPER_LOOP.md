@@ -683,6 +683,32 @@ owner 确认该时段为**人为断网、周期性复发**，非代码或上游�
   strict mypy、全量 pytest，再交独立复核；上述机器门已齐，但独立复核仍未签字。复核通过前
   不得创建 v1.8 state 或正式报告，P4.2b/P4.3 继续锁定。
 
+### P4.2a v1.8 替换评测结果（2026-08-09，完成但指标门未通过）
+
+- 外部独立复核以 `APPROVE_REPLACEMENT_EVALUATION` 解锁唯一替换轮，复核报告
+  `docs/phase4/reports/P4.2a-v1.8-replacement-independent-review-20260809.json`，SHA-256
+  `18633ea1aa63c1d9cf5358a728937403e35de5e52169637ce549152935c9fcdc`。Codex 随后仅执行
+  一次，未重试；进程退出码 `2` 的合同语义为“评测已完成、指标门未通过”，不是技术失败。
+- v1.8 state 恰为 `evaluation_started → evaluation_completed` 两行，SHA-256
+  `c4ac90fc0d8779a78920cf9e93d9fc80aa1a8c7271bf5f5e245edb198a4da6b9`；冻结报告
+  `docs/phase4/eval/reports/v1.8-replacement/P4.2a-heldout-evaluation-v1.8-replacement.json`，
+  SHA-256 `c2957297e733a919bdd31c4aa4faafb50c4c4d5c0edac29f663dac03e34a3a8f`，与 state
+  terminal 绑定逐字一致。
+- 正式 held-out40：materiality precision `21 / (21 + 19) = 0.525 < 0.80`，为唯一失败门；
+  recall `21 / 21 = 1.00`。symbol exact-set 为 held-out40 `40/40=1.00`、all100
+  `97/100=0.97`；all100 symbol-bearing exact-set `74/77=0.9610`，相关 symbol 门均通过。
+  独立只读复算得到相同 `TP=21 / FP=19 / TN=0 / FN=0`，结论为
+  `APPROVE_RESULT_EVIDENCE`。
+- **既有失败轮继续显式披露**：v1.7 state 仍为 `evaluation_started → evaluation_failed`，
+  SHA-256 `ba1eef1517fa30c37a7fcba5b171405cf537c84dbbbb70cec57f542842fdc0ff`，没有删除、
+  改写、移动或重生成。v1.8 替换授权现已 `1/1` 消耗，剩余 `0`，禁止再次执行。
+- 生产库执行前后 size/mtime 完全一致，JobRun running `0`、交易表仍 `1 proposal / 1
+  SIMULATE order / 0 non-SIMULATE`；样本、seed、预测、模型、prompt、合同、门槛与 gold 均
+  未改变。机器可读结果证据为
+  `docs/phase4/reports/P4.2a-v1.8-replacement-result-20260809.json`。
+- 因 precision 门未通过，**P4.2a 不标 done，P4.2b/P4.3 继续锁定**。本结果只允许如实提交
+  owner/独立复核；不得借此调门槛、换样本、改 prompt/model/gold，亦不得重跑。
+
 ## P4.2 LLM 事件抽取
 
 > **拆分解锁（owner 质询后修订，2026-08-03）**：P4.2 拆为两半。**P4.2a 评测准备**即刻
