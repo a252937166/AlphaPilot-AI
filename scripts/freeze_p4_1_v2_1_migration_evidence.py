@@ -11,7 +11,7 @@ import sqlite3
 import subprocess
 import tempfile
 from collections.abc import Mapping, Sequence
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any, cast
 from zoneinfo import ZoneInfo
@@ -83,6 +83,98 @@ def _parse_utc(value: object) -> datetime:
 
 def _utc_iso(value: object) -> str:
     return _parse_utc(value).isoformat().replace("+00:00", "Z")
+
+
+def _optional_utc_iso(value: object) -> str | None:
+    if value is None:
+        return None
+    return _utc_iso(value)
+
+
+def _migration_phase_gates(
+    *,
+    job_run_id: int,
+    checkpoint_after: str,
+    created_at: datetime,
+) -> JsonObject:
+    previous_shanghai_date = (
+        created_at.astimezone(SHANGHAI).date() - timedelta(days=1)
+    ).isoformat()
+    backlog_dates_closed = checkpoint_after == previous_shanghai_date
+    if backlog_dates_closed:
+        next_action = (
+            f"Independent reviewer must validate JobRun {job_run_id} and, if "
+            "accepted, issue the standard-incremental-validation receipt with "
+            "initial_backlog_migration_complete=true; scheduler remains frozen."
+        )
+    else:
+        next_action = (
+            f"Independent reviewer must validate JobRun {job_run_id} and, if "
+            "accepted, issue the next single-round initial-migration receipt; "
+            "scheduler remains frozen."
+        )
+    return {
+        "this_authorized_run_succeeded": True,
+        "all_closed_dates_through_previous_shanghai_day_reconciled": (
+            backlog_dates_closed
+        ),
+        "initial_backlog_migration_complete": False,
+        "standard_incremental_validation_complete": False,
+        "scheduler_activated": False,
+        "p4_2b_production_wiring_unlocked": False,
+        "p4_3_unlocked": False,
+        "next_action": next_action,
+    }
+
+
+def _validate_authorized_round_scope(
+    *,
+    receipt: Mapping[str, object],
+    expected_slices: Sequence[str],
+    expected_checkpoint_before: str,
+    expected_checkpoint_after: str,
+) -> None:
+    if receipt.get("execution_mode") != "initial_backlog_migration":
+        raise RuntimeError("receipt execution mode is outside migration scope")
+    authorized_round = receipt.get("authorized_round")
+    if not isinstance(authorized_round, dict):
+        raise RuntimeError("receipt authorized_round binding is missing")
+    rounds_authorized = authorized_round.get("rounds_authorized")
+    if (
+        not isinstance(rounds_authorized, int)
+        or isinstance(rounds_authorized, bool)
+        or rounds_authorized != 1
+    ):
+        raise RuntimeError("receipt must authorize exactly one migration round")
+    if (
+        authorized_round.get("entrypoint")
+        != "run_news_poll_v2_1_initial_migration"
+    ):
+        raise RuntimeError("receipt entrypoint binding is invalid")
+    if (
+        authorized_round.get("expected_checkpoint_date_shanghai_before")
+        != expected_checkpoint_before
+    ):
+        raise RuntimeError("receipt checkpoint-before binding is invalid")
+    authorized_slices = authorized_round.get("expected_slice_dates_shanghai")
+    if not isinstance(authorized_slices, list) or not all(
+        isinstance(item, str) for item in authorized_slices
+    ):
+        raise RuntimeError("receipt slice-date binding is invalid")
+    if authorized_slices != list(expected_slices):
+        raise RuntimeError("receipt slice dates do not match CLI expectations")
+    if not authorized_slices or expected_checkpoint_after != authorized_slices[-1]:
+        raise RuntimeError("checkpoint-after must equal the final authorized slice")
+
+
+def _source_counter_map(source_stats: Mapping[str, object]) -> dict[str, int]:
+    counters: dict[str, int] = {}
+    for key in SLICE_COUNTER_KEYS:
+        value = source_stats.get(key)
+        if not isinstance(value, int) or isinstance(value, bool) or value < 0:
+            raise RuntimeError(f"CNInfo source aggregate {key} is invalid")
+        counters[key] = value
+    return counters
 
 
 def _parse_env_declarations(path: Path) -> tuple[JsonObject, str, int]:
@@ -190,8 +282,8 @@ def _run_rows_evidence(
     conn: sqlite3.Connection,
     *,
     job_run_id: int,
-    expected_inserted: int,
-    source_stats: Mapping[str, object],
+    expected_rows_by_source: Mapping[str, int],
+    source_stats_by_name: Mapping[str, object],
     poll_completed_at: datetime,
 ) -> JsonObject:
     rows = conn.execute(
@@ -203,7 +295,7 @@ def _run_rows_evidence(
         """,
         (job_run_id,),
     ).fetchall()
-    if len(rows) != expected_inserted:
+    if len(rows) != sum(expected_rows_by_source.values()):
         raise RuntimeError("JobRun marker row count does not match inserted")
     available_times: list[datetime] = []
     published_not_before_available = 0
@@ -211,8 +303,12 @@ def _run_rows_evidence(
     coverage_gap_rows = 0
     catchup_rows = 0
     sources: set[str] = set()
+    rows_by_source: dict[str, int] = {}
+    available_times_by_source: dict[str, list[datetime]] = {}
     for source, published_at, available_time, raw_payload in rows:
-        sources.add(str(source))
+        source_name = str(source)
+        sources.add(source_name)
+        rows_by_source[source_name] = rows_by_source.get(source_name, 0) + 1
         payload = _load_json_text(str(raw_payload))
         ingestion = payload.get("_alphapilot_ingestion")
         if not isinstance(ingestion, dict):
@@ -224,6 +320,7 @@ def _run_rows_evidence(
         if not (fetched <= write_lock <= assigned == stored_available):
             invalid_pit_chains += 1
         available_times.append(stored_available)
+        available_times_by_source.setdefault(source_name, []).append(stored_available)
         if published_at is not None and stored_available <= _parse_utc(published_at):
             published_not_before_available += 1
         if ingestion.get("preceded_by_coverage_gap") is True:
@@ -231,16 +328,47 @@ def _run_rows_evidence(
         if ingestion.get("run_mode") == "coverage_gap_catchup":
             catchup_rows += 1
 
-    flush = _parse_utc(source_stats.get("db_flush_completed_at"))
-    commit = _parse_utc(source_stats.get("db_commit_completed_at"))
-    last_available = max(available_times) if available_times else None
-    if last_available is not None and not (
-        last_available <= flush <= commit <= poll_completed_at
+    if rows_by_source != dict(expected_rows_by_source):
+        raise RuntimeError("per-source run-marker row counts do not match inserted")
+    per_source_timing: JsonObject = {}
+    source_flushes: list[datetime] = []
+    source_commits: list[datetime] = []
+    for source_name, source_available_times in available_times_by_source.items():
+        raw_source_stats = source_stats_by_name.get(source_name)
+        if not isinstance(raw_source_stats, dict):
+            raise RuntimeError(f"source stats are missing for {source_name}")
+        flush = _parse_utc(raw_source_stats.get("db_flush_completed_at"))
+        commit = _parse_utc(raw_source_stats.get("db_commit_completed_at"))
+        if not (
+            max(source_available_times) <= flush <= commit <= poll_completed_at
+        ):
+            raise RuntimeError(
+                f"PIT flush/commit/poll chain is invalid for {source_name}"
+            )
+        source_flushes.append(flush)
+        source_commits.append(commit)
+        per_source_timing[source_name] = {
+            "last_available_time_utc": max(source_available_times)
+            .isoformat()
+            .replace("+00:00", "Z"),
+            "db_flush_completed_at_utc": flush.isoformat().replace("+00:00", "Z"),
+            "db_commit_completed_at_utc": commit.isoformat().replace("+00:00", "Z"),
+        }
+    cninfo_stats = source_stats_by_name.get("cninfo")
+    if not isinstance(cninfo_stats, dict):
+        raise RuntimeError("CNInfo source stats are missing")
+    cninfo_flush = _parse_utc(cninfo_stats.get("db_flush_completed_at"))
+    cninfo_commit = _parse_utc(cninfo_stats.get("db_commit_completed_at"))
+    global_flush = max(source_flushes, default=cninfo_flush)
+    global_commit = max(source_commits, default=cninfo_commit)
+    if available_times and not (
+        max(available_times) <= global_flush <= global_commit <= poll_completed_at
     ):
-        raise RuntimeError("PIT flush/commit/poll chain is invalid")
+        raise RuntimeError("global PIT flush/commit/poll chain is invalid")
     return {
         "run_marker_rows": len(rows),
         "sources": sorted(sources),
+        "rows_by_source": dict(sorted(rows_by_source.items())),
         "coverage_gap_marked_rows": coverage_gap_rows,
         "coverage_gap_catchup_rows": catchup_rows,
         "invalid_pit_chain_rows": invalid_pit_chains,
@@ -255,8 +383,11 @@ def _run_rows_evidence(
             if available_times
             else None
         ),
-        "db_flush_completed_at_utc": flush.isoformat().replace("+00:00", "Z"),
-        "db_commit_completed_at_utc": commit.isoformat().replace("+00:00", "Z"),
+        "db_flush_completed_at_utc": global_flush.isoformat().replace("+00:00", "Z"),
+        "db_commit_completed_at_utc": global_commit.isoformat().replace(
+            "+00:00", "Z"
+        ),
+        "per_source_persistence_timing": per_source_timing,
         "poll_completed_at_utc": poll_completed_at.isoformat().replace("+00:00", "Z"),
     }
 
@@ -296,6 +427,12 @@ def build_evidence(
         raise RuntimeError("execution source/config drifted after the authorized run")
     if receipt.get("config_sha256") != config_sha:
         raise RuntimeError("receipt/config hash binding is invalid")
+    _validate_authorized_round_scope(
+        receipt=receipt,
+        expected_slices=expected_slices,
+        expected_checkpoint_before=expected_checkpoint_before,
+        expected_checkpoint_after=expected_checkpoint_after,
+    )
 
     conn = sqlite3.connect(f"file:{database}?mode=ro", uri=True)
     conn.execute("PRAGMA query_only=ON")
@@ -382,14 +519,35 @@ def build_evidence(
                 "checkpoint_committed": True,
                 "page_cap_hit": False,
                 "failure": None,
-                "newest_observed_at_utc": _utc_iso(
+                "newest_observed_at_utc": _optional_utc_iso(
                     item.get("newest_observed_at_utc")
                 ),
             }
         )
-    source_aggregate = {key: int(cninfo.get(key, -1)) for key in SLICE_COUNTER_KEYS}
+    source_aggregate = _source_counter_map(cninfo)
     if source_aggregate != slice_sums:
         raise RuntimeError("CNInfo slice counters do not match source aggregate")
+    totals = stats.get("totals")
+    if not isinstance(totals, dict):
+        raise RuntimeError("JobRun aggregate totals are missing")
+    total_inserted = totals.get("inserted")
+    if (
+        not isinstance(total_inserted, int)
+        or isinstance(total_inserted, bool)
+        or total_inserted < 0
+    ):
+        raise RuntimeError("JobRun aggregate inserted count is invalid")
+    expected_rows_by_source: dict[str, int] = {}
+    for source_name, raw_source in sources.items():
+        if not isinstance(raw_source, dict):
+            raise RuntimeError("JobRun source stats entry is invalid")
+        inserted = raw_source.get("inserted", 0)
+        if not isinstance(inserted, int) or isinstance(inserted, bool) or inserted < 0:
+            raise RuntimeError("JobRun source inserted count is invalid")
+        if inserted:
+            expected_rows_by_source[str(source_name)] = inserted
+    if sum(expected_rows_by_source.values()) != total_inserted:
+        raise RuntimeError("source inserted counts do not match JobRun total")
 
     checkpoint = cninfo.get("daily_checkpoint")
     if not isinstance(checkpoint, dict) or (
@@ -436,15 +594,15 @@ def build_evidence(
     run_rows = _run_rows_evidence(
         conn,
         job_run_id=job_run_id,
-        expected_inserted=source_aggregate["inserted"],
-        source_stats=cninfo,
+        expected_rows_by_source=expected_rows_by_source,
+        source_stats_by_name=sources,
         poll_completed_at=poll_completed,
     )
     if (
         run_rows["invalid_pit_chain_rows"] != 0
         or run_rows["available_time_not_after_published_at_rows"] != 0
-        or run_rows["coverage_gap_marked_rows"] != source_aggregate["inserted"]
-        or run_rows["coverage_gap_catchup_rows"] != source_aggregate["inserted"]
+        or run_rows["coverage_gap_marked_rows"] != total_inserted
+        or run_rows["coverage_gap_catchup_rows"] != total_inserted
     ):
         raise RuntimeError("run-row PIT or coverage-gap evidence is invalid")
 
@@ -561,7 +719,7 @@ def build_evidence(
         },
         "checkpoint": checkpoint,
         "persistence_evidence": {
-            "news_items_before": news_items_after - source_aggregate["inserted"],
+            "news_items_before": news_items_after - total_inserted,
             "news_items_after": news_items_after,
             "cninfo_before": cninfo_after - source_aggregate["inserted"],
             "cninfo_after": cninfo_after,
@@ -602,18 +760,11 @@ def build_evidence(
             "scheduler_plist_path": str(plist_path),
             "scheduler_plist_sha256": _sha256(plist_path) if plist_path.exists() else None,
         },
-        "phase_gates": {
-            "this_authorized_run_succeeded": True,
-            "initial_backlog_migration_complete": False,
-            "standard_incremental_validation_complete": False,
-            "scheduler_activated": False,
-            "p4_2b_production_wiring_unlocked": False,
-            "p4_3_unlocked": False,
-            "next_action": (
-                "Independent reviewer must validate JobRun 76932 and issue a new "
-                "single-round receipt before the 2026-08-07/08 migration."
-            ),
-        },
+        "phase_gates": _migration_phase_gates(
+            job_run_id=job_run_id,
+            checkpoint_after=expected_checkpoint_after,
+            created_at=created,
+        ),
     }
     return evidence
 
