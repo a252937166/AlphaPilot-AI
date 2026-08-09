@@ -100,6 +100,18 @@ def _synthetic_frame(tmp_path: Path) -> SyntheticFrame:
             "text_sha256": text_hash,
             "tokens": {},
         }
+        if status == "extract_failed":
+            prediction_row.update(
+                {
+                    "error": "post_validation_failed",
+                    "extract_failed": {
+                        "constraint": "synthetic_grounding",
+                        "field": "symbols",
+                        "reason": "post_validation_failed",
+                        "retryable": False,
+                    },
+                }
+            )
         inputs.append(candidate)
         predictions.append(prediction_row)
 

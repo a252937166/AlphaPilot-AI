@@ -56,6 +56,8 @@ PREDICTION_KEYS = frozenset(
         "tokens",
     }
 )
+FAILED_PREDICTION_KEYS = PREDICTION_KEYS | frozenset({"error", "extract_failed"})
+EXTRACT_FAILED_KEYS = frozenset({"constraint", "field", "reason", "retryable"})
 JOIN_FIELDS = (
     "news_item_id",
     "source",
@@ -507,8 +509,15 @@ def _validate_source_rows(
         raise DevelopmentFrameError("candidate input/prediction row count drifted")
     prior_id = 0
     for candidate, prediction in zip(inputs, predictions, strict=True):
-        if set(candidate) != CANDIDATE_KEYS or set(prediction) != PREDICTION_KEYS:
-            raise DevelopmentFrameError("frozen candidate row schema drifted")
+        if set(candidate) != CANDIDATE_KEYS:
+            raise DevelopmentFrameError("frozen candidate input row schema drifted")
+        expected_prediction_keys = (
+            FAILED_PREDICTION_KEYS
+            if prediction.get("status") == "extract_failed"
+            else PREDICTION_KEYS
+        )
+        if set(prediction) != expected_prediction_keys:
+            raise DevelopmentFrameError("frozen prediction row schema drifted")
         identifier = candidate.get("news_item_id")
         if (
             isinstance(identifier, bool)
@@ -537,8 +546,15 @@ def _validate_source_rows(
             if isinstance(materiality, bool) or materiality not in (0, 1, 2, 3):
                 raise DevelopmentFrameError("prediction materiality is invalid")
         elif prediction.get("status") == "extract_failed":
-            if prediction.get("prediction") is not None:
-                raise DevelopmentFrameError("failed prediction must be null")
+            failure = _mapping(prediction.get("extract_failed"), "failed prediction detail")
+            if (
+                prediction.get("prediction") is not None
+                or set(failure) != EXTRACT_FAILED_KEYS
+                or failure.get("retryable") is not False
+                or not isinstance(prediction.get("error"), str)
+                or not prediction["error"]
+            ):
+                raise DevelopmentFrameError("failed prediction evidence drifted")
         else:
             raise DevelopmentFrameError("prediction status is invalid")
 
