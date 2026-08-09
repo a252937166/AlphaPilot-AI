@@ -20,9 +20,9 @@ from jsonschema import Draft202012Validator
 PROJECT_DIR = Path(__file__).resolve().parent.parent
 if __package__ in {None, ""}:
     # Direct ``python scripts/evaluate_p4_2a_gold.py`` execution places only the
-    # scripts directory on sys.path. Add the project root so the same canonical
-    # package import is used by the CLI and by pytest/module execution.
-    sys.path.insert(0, str(PROJECT_DIR))
+    # scripts directory on sys.path. Anchor both namespace and src-layout
+    # imports to this checkout rather than the caller's cwd or PYTHONPATH.
+    sys.path[:0] = [str(PROJECT_DIR), str(PROJECT_DIR / "src")]
 
 from scripts import build_p4_2a_gold_sample as gold_builder  # noqa: E402
 

@@ -13,8 +13,13 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, cast
 
-from scripts import run_p4_2a_heldout_predictions as heldout
-from scripts.run_p4_2a_offline_extract import (
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+if __package__ in {None, ""}:
+    # Direct execution otherwise exposes only ``scripts/`` on sys.path.
+    sys.path[:0] = [str(PROJECT_ROOT), str(PROJECT_ROOT / "src")]
+
+from scripts import run_p4_2a_heldout_predictions as heldout  # noqa: E402
+from scripts.run_p4_2a_offline_extract import (  # noqa: E402
     ChatJsonCallable,
     ExtractionSummary,
     _settings_from_project_env,
@@ -22,13 +27,13 @@ from scripts.run_p4_2a_offline_extract import (
     extract_records,
 )
 
-from alphapilot.core.config import Settings
-from alphapilot.llm.p4_news_eval import (
+from alphapilot.core.config import Settings  # noqa: E402
+from alphapilot.llm.p4_news_eval import (  # noqa: E402
     DEFAULT_EVALUATION_DESIGN_PATH,
     EventEvaluationDesign,
     load_event_evaluation_design,
 )
-from alphapilot.llm.p4_news_event import (
+from alphapilot.llm.p4_news_event import (  # noqa: E402
     EXACT_EVIDENCE_SPAN_MATCH_MODE,
     WHITESPACE_NORMALIZED_EVIDENCE_SPAN_MATCH_MODE,
     EventExtractContract,
@@ -36,7 +41,6 @@ from alphapilot.llm.p4_news_event import (
 )
 
 JsonObject = dict[str, Any]
-PROJECT_ROOT = Path(__file__).resolve().parent.parent
 DEV_LABELS_PATH = Path(
     "docs/phase4/eval/P4.2a-gold-inventory60-v1.labels-ai-drafted.jsonl"
 )

@@ -21,8 +21,13 @@ from pathlib import Path
 from typing import Any, cast
 from zoneinfo import ZoneInfo
 
-import yaml
-from scripts.build_p4_2a_gold_sample import (
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+if __package__ in {None, ""}:
+    # Direct execution otherwise exposes only ``scripts/`` on sys.path.
+    sys.path[:0] = [str(PROJECT_ROOT), str(PROJECT_ROOT / "src")]
+
+import yaml  # noqa: E402
+from scripts.build_p4_2a_gold_sample import (  # noqa: E402
     FrozenContract,
     FrozenEvaluationDesign,
     GoldSampleError,
@@ -38,7 +43,7 @@ from scripts.build_p4_2a_gold_sample import (
     validate_heldout_candidate_inputs,
     validate_heldout_materialization_manifest,
 )
-from scripts.run_p4_2a_offline_extract import (
+from scripts.run_p4_2a_offline_extract import (  # noqa: E402
     DECLARED_INPUT_ACTIVE,
     DECLARED_INPUT_LEGACY_V1,
     ChatJsonCallable,
@@ -57,9 +62,9 @@ from scripts.run_p4_2a_offline_extract import (
     extract_records,
 )
 
-from alphapilot.core.config import Settings
-from alphapilot.futu.client import PERMANENTLY_BLOCKED_METHODS
-from alphapilot.llm.p4_news_eval import (
+from alphapilot.core.config import Settings  # noqa: E402
+from alphapilot.futu.client import PERMANENTLY_BLOCKED_METHODS  # noqa: E402
+from alphapilot.llm.p4_news_eval import (  # noqa: E402
     DEFAULT_EVALUATION_DESIGN_PATH,
     EVALUATION_DESIGN_V1_2_PATH,
     EVALUATION_DESIGN_V1_3_PATH,
@@ -71,14 +76,13 @@ from alphapilot.llm.p4_news_eval import (
     EventEvaluationDesignError,
     load_event_evaluation_design,
 )
-from alphapilot.llm.p4_news_event import (
+from alphapilot.llm.p4_news_event import (  # noqa: E402
     EventExtractContract,
     validate_event_extract_contract_controls,
     validate_materialized_event_result,
 )
 
 JsonObject = dict[str, Any]
-PROJECT_ROOT = Path(__file__).resolve().parent.parent
 SHANGHAI = ZoneInfo("Asia/Shanghai")
 MAX_JSONL_LINE_BYTES = 1_000_000
 SHA256_LENGTH = 64
