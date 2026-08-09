@@ -1,0 +1,130 @@
+{
+  "schema_version": "p4.2a-v2-development-frame-owner-handoff-v1",
+  "status": "AWAITING_OWNER_HUMAN_ADJUDICATION",
+  "created_at_utc": "2026-08-09T13:11:41Z",
+  "ordering_evidence": {
+    "parent_preregistration": {
+      "path": "docs/phase4/reports/P4.2a-v2-calibration-round-preregistration-20260809.json",
+      "sha256": "493114c980993bef987883975ccebeb1e970478123f5d3757fa9692721731fcb",
+      "commit": "a389ad850386738aca2c0c3ef662103bb0237172"
+    },
+    "registered_design": {
+      "path": "config/p4_event_evaluation_v2.yaml",
+      "sha256": "18a2428a4ec04bfea6e4f4d70692f38ea82fbaee5a223f30f2465b895b238e21",
+      "registration_receipt_path": "docs/phase4/reports/P4.2a-v2-evaluation-design-registration-20260809.json",
+      "registration_receipt_sha256": "674803e99c83104abcaef527a2270732fda1b252b9b074a4ab14f7f11cadf7bf",
+      "registration_commit": "c3417a9c0258587457734a38596de04d974657a2"
+    },
+    "design_registered_before_formal_selection_or_drafting": true
+  },
+  "development_frame": {
+    "frame_id": "p4.2a-development-frame-v2",
+    "source_window_shanghai": "2026-08-04/2026-08-05",
+    "source_partition_before_retirement": {
+      "predicted_positive": 894,
+      "predicted_negative": 2097,
+      "extract_failed_excluded": 22
+    },
+    "retired_identity_count": 40,
+    "retired_selected_intersection_count": 0,
+    "available_after_retirement": {
+      "predicted_positive": 854,
+      "predicted_negative": 2097
+    },
+    "selected_counts": {
+      "predicted_positive": 30,
+      "predicted_negative": 15,
+      "total": 45
+    },
+    "private_manifest_retains_sampling_stratum": true,
+    "owner_blind_omits_sampling_prediction_and_rank": true
+  },
+  "materialization_attempts": [
+    {
+      "sequence": 1,
+      "status": "failed_before_publication",
+      "failure_gate": "frozen_prediction_row_schema_validation",
+      "cause": "the first builder version did not admit the two frozen extract_failed-only evidence fields",
+      "artifacts_created": false,
+      "model_calls": 0,
+      "residue_files": 0
+    },
+    {
+      "sequence": 2,
+      "status": "success",
+      "execution_source_commit": "754a480dd37a0caa1efea58aa0cbbb14c84e365b",
+      "builder_path": "scripts/build_p4_2a_v2_dev_frame.py",
+      "builder_sha256": "0e7a5e6b99fdbd0641abb80994d90bdead4891ad31ab9ea9175431a841a5b03f",
+      "common_path": "scripts/p4_2a_v2_dev_common.py",
+      "common_sha256": "05a1f06a6f16b35684e0d598c171f5f2ff37f026fb987debdb684160cfffa941",
+      "artifact_commit": "085fa11f06f20bf58e5d7f6b448f25c8b307bcbd"
+    }
+  ],
+  "artifacts": {
+    "private_selection_manifest": {
+      "path": "docs/phase4/eval/v2-calibration/development/P4.2a-development-frame-v2.selection.json",
+      "sha256": "067dbfbf3a1f6031ce5861bb5f2e7efda8a4254bf3e12a2299b2981871e477eb"
+    },
+    "owner_blind_jsonl": {
+      "path": "docs/phase4/eval/v2-calibration/development/P4.2a-development-frame-v2.blind.jsonl",
+      "sha256": "3d53b8cf6be6b3228b07c1ab73fbf5a91d740ca43b54b4b8a70b88c9cb5ab4dc",
+      "row_count": 45,
+      "gold_state": "empty_object_pending_human_adjudication"
+    },
+    "ai_draft_jsonl": {
+      "path": "docs/phase4/eval/v2-calibration/development/P4.2a-development-frame-v2.labels-ai-drafted.jsonl",
+      "sha256": "66e83a61af22f936dcc0883c91988f2c730515e8f134f784779d55c6525ba5c9",
+      "row_count": 45
+    },
+    "owner_adjudication_ui": {
+      "path": "docs/phase4/eval/v2-calibration/development/P4.2a-development-frame-v2.adjudication.html",
+      "sha256": "f734e2acd64ce8645672fb6dbb27226a57f8e848bcf4ad0e9dd4a391529a6ab1",
+      "offline": true
+    },
+    "draft_and_ui_commit": "a6c0dabd592fd32c48d92f9eb115034907d2004f"
+  },
+  "drafting_provenance": {
+    "candidate_draft_ephemeral_sha256": "6a0b7d57ab6ee6d90ba7ebbc1ee259641e28b39344b44ae00d23d97d47b03983",
+    "candidate_disposition": "moved_to_trash_after_successful_create_only_sealing",
+    "drafter_id": "OpenAI Codex GPT-5",
+    "drafting_ai_inference_occurred": true,
+    "drafting_ai_is_evaluated_model": false,
+    "evaluated_model_calls": 0,
+    "heldout_model_calls": 0,
+    "repo_script_external_model_api_calls": 0,
+    "sealing_execution_source_commit": "ed3a7fbeec979aa9e4b7d1320c42c6b7b3e65425",
+    "sealer_path": "scripts/seal_p4_2a_v2_ai_draft.py",
+    "sealer_execution_sha256": "d216d97b4ec9e1277f311c8a2f1cdf0ad642362cac93aca087375e7150bf4606",
+    "ui_builder_path": "scripts/build_p4_2a_v2_adjudication_ui.py",
+    "ui_builder_execution_sha256": "05faace87d11c4626a348502bdc77b89325edf374d16217c37c7a179e0b7df1b"
+  },
+  "validation": {
+    "sealed_rows": 45,
+    "single_drafter": true,
+    "single_drafted_at": true,
+    "draft_notes_all_null": true,
+    "evidence_spans_grounded": "45/45",
+    "maximum_evidence_span_characters": 374,
+    "private_manifest_blind_binding": true,
+    "deterministic_ui_byte_reconstruction": true,
+    "browser_smoke": {
+      "loaded_rows": 45,
+      "offline_next_item_navigation": true,
+      "owner_confirmations_created": 0,
+      "local_storage_items_after_smoke": 0,
+      "network_requests": [
+        "local_document_only"
+      ],
+      "non_application_console_note": "temporary localhost smoke server returned 404 for favicon.ico"
+    }
+  },
+  "governance": {
+    "owner_human_gold_complete": false,
+    "prompt_calibration_started": false,
+    "heldout_v2_materialized": false,
+    "heldout_v2_model_calls": 0,
+    "p4_2b_locked": true,
+    "p4_3_locked": true,
+    "next_gate": "owner must manually adjudicate all 45 blind items and return the raw UI export; only then may the development calibration rounds call flash and plus"
+  }
+}
