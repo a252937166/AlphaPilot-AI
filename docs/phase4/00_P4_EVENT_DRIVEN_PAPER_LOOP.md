@@ -520,6 +520,40 @@ owner 确认该时段为**人为断网、周期性复发**，非代码或上游�
   **未重启 API、未渲染/安装 plist、未 bootstrap scheduler、未开启三交易日观察窗**；须先独立
   复核实现提交，再由 owner 另行授权部署。
 
+### P4.1 v2.1 调度部署激活证据（2026-08-09，待独立激活复核）
+
+- owner 已明确授权按“备份与质量门 → 重启 API → 健康验证 → 模板渲染并 bootstrap scheduler →
+  首个自然 `news_poll` 取证”的顺序部署。部署前新建并二次验证完整 SQLite online backup：
+  `data/backups/alphapilot-full-20260809T113428170070Z.db`，SHA-256
+  `9837b8a7b20fdfe492ea22086a05679b27b5be2816d377aae0ab02bcb7650417`，`quick_check=ok`，
+  覆盖至 JobRun `76934`；定向 `83/83`、全量 pytest `1488 collected / 1 skip / 0 fail`、Ruff 与
+  strict mypy 157 files 均全绿。
+- API 从旧 PID `809` 受控重启为 `24813`；连续健康复核确认 database/OpenD healthy，
+  `research / live=false / paper=false / paper_auto=false / futu_trade=false`，`unlock_trade` 未暴露；
+  API plist 继续明确 `ALPHAPILOT_SCHEDULER_ENABLED=false`。一次 5 秒健康请求在 5.3 GiB 全库
+  `quick_check` 占用 I/O 时超时；校验返回 `ok` 后连续三次 15 秒健康检查通过，PID/runs 未变化，
+  如实保留为非阻断观察。
+- `scripts/start_scheduler_launchd.sh` 从冻结模板生成并安装实际 plist，SHA-256
+  `011164cef801f560c7fa5a7fe4aa8d0ed6551ba859e885eabebf79652ce64caf`，权限 `0600`，九项
+  EnvironmentVariables 精确吻合；scheduler PID `26118`、launchd `runs=1 / never exited`，90 秒及
+  首轮前 20 分钟均无 PID 抖动、双跑、SQLite lock 或残留 running JobRun。首个全局调度记录为
+  `poll_market_snapshot #76935 ok`。
+- 首个自然 `news_poll #76955` 于 `2026-08-09 20:00:00 CST` 启动、20:00:06 结束，
+  `status=ok / error=null`；绑定 `p4.1-news-poll-v2.1` 与冻结 config SHA，
+  `execution_mode=scheduler / scheduler_activated=true / run_mode=regular_incremental`。本轮 7 请求、
+  0 retry、0 failure，fetched `138`、inserted `27`、URL duplicate `109`、content-hash duplicate
+  `2`；落库后全表 URL/hash 重复组仍为 0，PIT 时序与 available-time 覆盖通过，CNInfo 严格 TLS，
+  Futu 辅助源 0 请求。checkpoint 诚实保持 `2026-08-08`；交易安全前后态相等，提案/订单仍
+  `1/1`、非 SIMULATE `0`。
+- 实际注册 trigger 再枚举为 2026-08-10/11/12 `61/64/64`；周一 09 点仅 `09:50`，
+  `09:00/09:30/09:40` 均被抑制。create-only 机器证据：
+  `docs/phase4/reports/P4.1-v2.1-scheduler-deployment-activation-evidence-20260809.json`，SHA-256
+  `f09b0d64b4151a54c11a1e882a7ff8aad709f55c96928adb8de579ac7e7f284f`，并附整文件哈希 sidecar。
+- **边界保持**：本节只说明 deployment 与 scheduler activation 已完成；当前状态仍为
+  `READY_FOR_INDEPENDENT_ACTIVATION_REVIEW`，三交易日观察窗尚未开始，P4.1 不标 done，P4.2b/P4.3
+  继续锁定。只有 owner/独立审阅者批准实际 plist、launchctl、trigger 与 JobRun `76955` 证据后，
+  才能把 2026-08-10/11/12 计入正式观察窗。
+
 ### P4.2a 模型成本复审与 v1.7 选择准则预注册（2026-08-04，held-out 解锁前）
 
 - **动机**：held-out 一次性，验证哪个模型就应是生产模型。owner 提出试 `qwen3.7-flash`
