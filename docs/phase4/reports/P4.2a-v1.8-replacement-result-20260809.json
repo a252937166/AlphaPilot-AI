@@ -1,0 +1,135 @@
+{
+  "schema_version": "p4.2a-v1.8-replacement-result-v1",
+  "created_at_utc": "2026-08-09T10:09:14Z",
+  "status": "COMPLETED_GATE_FAILED",
+  "result_classification": "valid_completed_evaluation_not_technical_failure",
+  "governance": {
+    "authorization_path": "docs/phase4/reports/P4.2a-replacement-evaluation-authorization-20260809.json",
+    "authorization_sha256": "2e33220faa424419c199466019b1cb94f4c4cd7e0bb60e9d978fdb0689f0089f",
+    "rounds_authorized": 1,
+    "rounds_consumed": 1,
+    "rounds_remaining": 0,
+    "retry_performed": false,
+    "independent_pre_execution_review_path": "docs/phase4/reports/P4.2a-v1.8-replacement-independent-review-20260809.json",
+    "independent_pre_execution_review_sha256": "18633ea1aa63c1d9cf5358a728937403e35de5e52169637ce549152935c9fcdc",
+    "independent_pre_execution_verdict": "APPROVE_REPLACEMENT_EVALUATION"
+  },
+  "prior_failed_round_disclosure": {
+    "round_id": "heldout-final-v1.7-r1",
+    "status": "evaluation_failed",
+    "state_path": "docs/phase4/eval/P4.2a-heldout-evaluation-one-shot-v1.7.state.jsonl",
+    "state_sha256_before_and_after": "ba1eef1517fa30c37a7fcba5b171405cf537c84dbbbb70cec57f542842fdc0ff",
+    "event_sequence": [
+      "evaluation_started",
+      "evaluation_failed"
+    ],
+    "safe_reason": "DevIterationError",
+    "incident_path": "docs/phase4/reports/P4.2a-heldout-one-shot-consumed-incident-20260809.json",
+    "incident_sha256": "5182cfcfcbe419bc8c724365ba81fdbcdd92356de5064d864937f29f2573f963",
+    "immutable": true
+  },
+  "replacement_round": {
+    "scope": "heldout-final-v1.8-replacement",
+    "design_path": "config/p4_event_evaluation_v1_8.yaml",
+    "design_sha256": "bb36b9713cbf70fa5293683e767655b70720a2baa9e8822bc0396c4e6284452e",
+    "started_at_utc": "2026-08-09T10:06:40.570000Z",
+    "completed_at_utc": "2026-08-09T10:06:40.941686Z",
+    "process_exit_code": 2,
+    "exit_code_semantics": "evaluation_completed_but_one_or_more_metric_gates_failed",
+    "state_path": "docs/phase4/eval/P4.2a-heldout-evaluation-one-shot-v1.8-replacement.state.jsonl",
+    "state_sha256": "c4ac90fc0d8779a78920cf9e93d9fc80aa1a8c7271bf5f5e245edb198a4da6b9",
+    "state_event_sequence": [
+      "evaluation_started",
+      "evaluation_completed"
+    ],
+    "report_path": "docs/phase4/eval/reports/v1.8-replacement/P4.2a-heldout-evaluation-v1.8-replacement.json",
+    "report_sha256": "c2957297e733a919bdd31c4aa4faafb50c4c4d5c0edac29f663dac03e34a3a8f",
+    "state_terminal_report_binding_matches": true,
+    "technical_failure": false
+  },
+  "metrics": {
+    "materiality_precision_heldout40": {
+      "tp": 21,
+      "fp": 19,
+      "denominator": 40,
+      "value": 0.525,
+      "threshold": 0.8,
+      "passed": false
+    },
+    "materiality_recall_heldout40": {
+      "tp": 21,
+      "fn": 0,
+      "denominator": 21,
+      "value": 1.0
+    },
+    "symbol_exact_set": {
+      "dev60": {
+        "matches": 57,
+        "denominator": 60,
+        "value": 0.95
+      },
+      "heldout40": {
+        "matches": 40,
+        "denominator": 40,
+        "value": 1.0
+      },
+      "all100": {
+        "matches": 97,
+        "denominator": 100,
+        "value": 0.97
+      }
+    },
+    "symbol_bearing_exact_set_all100": {
+      "matches": 74,
+      "denominator": 77,
+      "value": 0.961038961038961
+    }
+  },
+  "gates": {
+    "heldout_one_shot": true,
+    "materiality_precision_heldout40": false,
+    "owner_delivery_blind": true,
+    "symbol_bearing_exact_set_all100": true,
+    "symbol_mapping_all100": true,
+    "overall_passed": false
+  },
+  "post_execution_verification": {
+    "state_line_count": 2,
+    "required_report_field_count": 124,
+    "frozen_inputs_failure_count": 0,
+    "independent_metric_recalculation": {
+      "verdict": "APPROVE_RESULT_EVIDENCE",
+      "tp": 21,
+      "fp": 19,
+      "tn": 0,
+      "fn": 0,
+      "heldout_symbol_exact_matches": 40
+    },
+    "database_size_before_and_after": 5373038592,
+    "database_mtime_before_and_after": 1786218607,
+    "database_write_detected": false,
+    "running_job_count": 0,
+    "trade_proposal_count": 1,
+    "broker_order_count": 1,
+    "non_simulate_order_count": 0
+  },
+  "immutability": {
+    "sample_changed": false,
+    "selection_seed_changed": false,
+    "predictions_changed": false,
+    "model_changed": false,
+    "prompt_changed": false,
+    "contract_changed": false,
+    "threshold_changed": false,
+    "gold_changed": false
+  },
+  "phase_gate": {
+    "p4_2a_evaluation_passed": false,
+    "p4_2a_done": false,
+    "p4_2b_unlocked": false,
+    "p4_3_unlocked": false,
+    "production_writes_performed": false,
+    "proposals_or_orders_created": false,
+    "next_action": "stop_without_retry_and_submit_the_frozen_result_for_owner_and_independent_review"
+  }
+}
