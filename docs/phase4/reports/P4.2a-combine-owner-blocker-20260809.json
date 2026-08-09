@@ -1,0 +1,83 @@
+{
+  "schema_version": "p4.2a-independent-review-blocker-v1",
+  "report_id": "p4.2a-combine-owner-artifact-role-conflict-20260809-r1",
+  "created_at_utc": "2026-08-09T05:11:37Z",
+  "created_at_shanghai": "2026-08-09T13:11:37+08:00",
+  "verdict": "BLOCKED",
+  "blocked_step": "P4.2a final one-shot evaluation (scoring of qwen3.7-flash against the human-adjudicated heldout40 gold)",
+  "reviewer": {
+    "identity": "independent_ai_architect_claude_code",
+    "reviewer_type": "ai",
+    "model": "Anthropic Claude Fable 5 (model id claude-fable-5)",
+    "impersonation_disclaimer": "Not a human reviewer. Issued under the owner governance amendment with requires_release_gate_amendment=true.",
+    "action_taken": "Recorded evidence and refused to proceed. No self-repair, no contract relaxation, no workaround, no deletion or renaming of any existing artifact, no edit to any frozen design or config."
+  },
+  "severity_assessment": {
+    "data_loss": "none",
+    "heldout_burned": false,
+    "re_adjudication_required": false,
+    "rationale": "Every upstream artifact is complete and frozen: the one-shot inference already produced predictions under design SHA 4c7964ad, the blind sample is intact, the AI draft is frozen, and the owner's human adjudication is complete and preserved. Only the final scoring step cannot execute. Once the defect is fixed, evaluation proceeds from the existing artifacts with no repeat of any human or model work."
+  },
+  "defect": {
+    "title": "Artifact role conflict: dev_60_owner_annotations_jsonl is declared as a SHA-bound input but consumed as a create-only output",
+    "reproduction": "PYTHONPATH=. uv run python scripts/build_p4_2a_gold_sample.py --mode combine-owner --evaluation-design config/p4_event_evaluation_v1_7.yaml --dev-owner-export docs/phase4/eval/P4.2a-gold-inventory60-v1.labels-ai-drafted.jsonl --heldout-owner-export docs/phase4/eval/P4.2a-gold-heldout40-v1.7.adjudicated.jsonl --heldout-ai-draft docs/phase4/eval/P4.2a-gold-heldout40-v1.7.labels-ai-drafted.jsonl",
+    "observed_error": "P4.2a gold sample failed: refusing to overwrite completed owner artifact: docs/phase4/eval/P4.2a-gold-inventory60-v1.labels-ai-drafted.jsonl",
+    "raising_site": "scripts/build_p4_2a_gold_sample.py lines 4995-5004, where dev_output is included in the create-only existence check alongside heldout_output, combined_output and completion_manifest_path",
+    "design_declaration": {
+      "artifact_key": "dev_60_owner_annotations_jsonl",
+      "resolved_path": "docs/phase4/eval/P4.2a-gold-inventory60-v1.labels-ai-drafted.jsonl",
+      "declared_fields": {
+        "sha256": "d1b9720dc06a4ff4989b65d2c1c302f614b0fbc427bedabde4ef87ad606a011d",
+        "annotation_type": "ai_drafted",
+        "metric_semantics": "model_interagreement",
+        "human_gold_claim_allowed": false,
+        "create_only": null
+      },
+      "file_on_disk_sha256": "d1b9720dc06a4ff4989b65d2c1c302f614b0fbc427bedabde4ef87ad606a011d",
+      "sha_matches_declaration": true,
+      "committed_in": "1e30c5a P4.2a: record AI-drafted dev labels and systematic materiality bias",
+      "interpretation": "sha256 plus annotation_type plus metric_semantics plus human_gold_claim_allowed are input-binding fields. The three genuine outputs of combine-owner (heldout_40_owner_annotations_jsonl, combined_100_annotations_jsonl, owner_completion_manifest_json) each declare create_only true and carry no sha256. The design therefore states the role of every artifact unambiguously, and the dev60 entry is an input."
+    },
+    "inheritance_chain": "The dev60 entry originates in config/p4_event_evaluation_v1_2.yaml lines 80-83 and reaches v1.7 through extends_design. Neither v1.6 nor v1.7 overrides it, so both designs are affected identically.",
+    "never_previously_exercised": "No annotation100, heldout human-adjudicated, or owner-completion artifact exists anywhere in docs/phase4/eval, so combine-owner has never successfully run. The defect is latent rather than a regression.",
+    "downstream_consequence": "scripts/evaluate_p4_2a_gold.py resolves heldout_40_owner_annotations_jsonl and combined_100_annotations_jsonl (lines 1420-1421), both of which are combine-owner outputs. With combine-owner unable to run, the heldout-final-v1.7 scope cannot execute."
+  },
+  "preserved_artifacts": {
+    "heldout40_ai_draft": {
+      "path": "docs/phase4/eval/P4.2a-gold-heldout40-v1.7.labels-ai-drafted.jsonl",
+      "sha256": "c734f3c09928b462d5c25cf9888f265b6825e1f9ab51a6cf452f35b839ad53a5",
+      "drafter": "chatgpt_web (OpenAI ChatGPT web, isolated from the repository)",
+      "validation": "40/40 field-compliant; 40/40 evidence_span exact substrings of original_text; contamination check against the frozen predictions found 0/40 verbatim-identical spans and no anomalous agreement, consistent with independent drafting"
+    },
+    "heldout40_human_adjudication": {
+      "path": "docs/phase4/eval/P4.2a-gold-heldout40-v1.7.adjudicated.jsonl",
+      "sha256": "e0a8de7484f1532918286bcc6e96128ab3e71390aa6dc90fe9f49b84407d571e",
+      "identical_to_owner_export": true,
+      "adjudicator": "ouyang",
+      "draft_annotator": "chatgpt_web (OpenAI ChatGPT, web)",
+      "method": "ai_drafted_human_adjudicated",
+      "independent_verification": "40/40 rows; draft_gold matches the frozen AI draft on all 40; changed_fields independently recomputed and matching on all 40; 25 items changed by the adjudicator and 15 confirmed unchanged; field-level changes were direction 13, materiality 11, evidence_span 9, event_type 3; all 40 final gold spans are exact substrings. The change rate is material evidence of genuine adjudication rather than rubber-stamping.",
+      "identity_separation": "adjudicator differs from draft annotator, and both differ from the evaluated model qwen3.7-flash"
+    },
+    "regenerable": "The adjudication UI HTML is deterministically regenerable from the blind sample plus the AI draft and is therefore not committed."
+  },
+  "explicitly_refused_actions": [
+    "Deleting, renaming or moving docs/phase4/eval/P4.2a-gold-inventory60-v1.labels-ai-drafted.jsonl to free the output path: it is committed, SHA-bound evidence.",
+    "Editing config/p4_event_evaluation_v1_7.yaml: its SHA 4c7964ad547820f5672631939af93978f11cb9f91e5921087770ac7d0d79bec1 is bound to the already-executed one-shot inference state, the candidate predictions and the heldout selection manifest. Changing the design bytes would break those bindings and put the completed one-shot at risk.",
+    "Patching the create-only guard or otherwise bypassing it in the evaluation tooling.",
+    "Running the evaluator against hand-assembled annotation files."
+  ],
+  "recommended_remediation": {
+    "principle": "Let artifact role follow the frozen design as written: only artifacts declaring create_only true are combine-owner outputs. An artifact carrying sha256 plus annotation_type is an input and must be verified against its declared digest, never rewritten.",
+    "proposed_change": "In combine_owner_annotations, verify the dev60 input against its declared sha256 and exclude it from the create-only output set. The design's renumbering_rule dev_preserve_1_60_then_heldout_add_60_to_61_100 already routes dev60 content into combined_100_annotations_jsonl, so a separate canonical dev output appears redundant; Codex should confirm what dev_payload adds beyond the combined file and either drop the write or direct it at a newly declared create-only key.",
+    "why_this_is_code_not_design": "The fix lives in scripts/build_p4_2a_gold_sample.py, so the frozen design bytes and SHA are untouched and every existing binding to the executed one-shot inference is preserved.",
+    "mandatory_conditions": [
+      "Pre-register the fix before running it: commit the code change and offline fixture tests first, then run combine-owner once.",
+      "Do not change any threshold, metric definition, selection rule, prompt, model, prediction contract or evaluation design.",
+      "Verify the dev60 input against its declared sha256 rather than trusting the path alone.",
+      "combine-owner must still consume the adjudicated export together with the exact AI draft and independently recompute adjudicated_changed and changed_fields, and the evaluator must still receive and re-verify both source files rather than trusting the canonical file.",
+      "The heldout evaluation remains one-shot: it may be executed exactly once after combine-owner succeeds, with zero retries."
+    ]
+  },
+  "next_gate": "Codex fixes the artifact-role conflict with pre-registered code plus tests and submits it for independent review. Once approved, combine-owner runs once, then the one-shot heldout evaluation runs once and P4.2a is adjudicated on its result, pass or fail."
+}
