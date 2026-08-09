@@ -8,9 +8,9 @@ import os
 import re
 import sys
 import tempfile
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from contextlib import suppress
-from dataclasses import replace
+from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -50,6 +50,93 @@ JsonObject = dict[str, Any]
 
 class GoldEvaluationError(RuntimeError):
     """The fixed sample, owner labels, predictions, or report path is invalid."""
+
+
+@dataclass(frozen=True, slots=True)
+class HeldoutEvaluationPreflight:
+    """Validated, read-only inputs immediately before heldout scoring begins."""
+
+    design: gold_builder.FrozenEvaluationDesign
+    artifact_root: Path
+    annotation_resolved: Path
+    annotation_sha256: str
+    annotations: dict[int, JsonObject]
+    owner_completion: JsonObject
+    adjudication_evidence: JsonObject | None
+    active_contract: EventExtractContract
+    receipt: JsonObject
+    receipt_sha256: str
+    dev_final: JsonObject
+    inference: JsonObject
+    selection_evidence: JsonObject
+    materialization_binding: JsonObject | None
+    dev_annotations: dict[int, JsonObject]
+    dev_prediction_records: list[JsonObject]
+    predictions: dict[int, JsonObject | None]
+    state_path: Path
+
+
+class _PreflightRunner:
+    """Run a dependency-aware validation DAG in fail-fast or audit mode."""
+
+    def __init__(self, *, collect_all: bool) -> None:
+        self.collect_all = collect_all
+        self.values: dict[str, Any] = {}
+        self.stages: list[JsonObject] = []
+        self._statuses: dict[str, str] = {}
+
+    def run(
+        self,
+        name: str,
+        dependencies: Sequence[str],
+        action: Callable[[], Any],
+    ) -> None:
+        blocked_by = [
+            dependency
+            for dependency in dependencies
+            if self._statuses.get(dependency) != "passed"
+        ]
+        if blocked_by:
+            self._statuses[name] = "blocked"
+            self.stages.append(
+                {"name": name, "status": "blocked", "blocked_by": blocked_by}
+            )
+            return
+        try:
+            self.values[name] = action()
+        except Exception as exc:
+            if not self.collect_all:
+                raise
+            status = (
+                "failed"
+                if isinstance(
+                    exc,
+                    (
+                        FileExistsError,
+                        GoldEvaluationError,
+                        gold_builder.GoldSampleError,
+                        EventEvaluationDesignError,
+                        OSError,
+                        ValueError,
+                    ),
+                )
+                else "internal_error"
+            )
+            self._statuses[name] = status
+            stage: JsonObject = {
+                "name": name,
+                "status": status,
+                "error_type": type(exc).__name__,
+            }
+            if status == "failed":
+                stage["safe_message"] = str(exc)
+            self.stages.append(stage)
+            return
+        self._statuses[name] = "passed"
+        self.stages.append({"name": name, "status": "passed"})
+
+    def passed(self, name: str) -> bool:
+        return self._statuses.get(name) == "passed"
 
 
 def _reject_non_finite_json(value: str) -> None:
@@ -534,11 +621,10 @@ def join_predictions(
         event_contract = load_event_extract_contract(contract.path)
     else:
         event_contract = active_contract
-    schema = getattr(event_contract, "schema", None)
+    schema = persisted_prediction_schema(event_contract)
     expected_contract_sha256 = getattr(event_contract, "sha256", None)
     if (
-        not isinstance(schema, Mapping)
-        or not isinstance(expected_contract_sha256, str)
+        not isinstance(expected_contract_sha256, str)
         or SHA256_PATTERN.fullmatch(expected_contract_sha256) is None
     ):
         raise GoldEvaluationError("active prediction contract is invalid")
@@ -555,6 +641,26 @@ def join_predictions(
         for news_item_id, item in annotations.items()
     }
     return joined, len(predictions_by_id) - len(annotations)
+
+
+def persisted_prediction_schema(
+    contract: EventExtractContract,
+) -> Mapping[str, object]:
+    """Select the schema for canonical predictions already stored on disk."""
+
+    schema = (
+        contract.materialized_schema
+        if contract.evidence_candidate_selection
+        else contract.schema
+    )
+    if not isinstance(schema, Mapping):
+        representation = (
+            "materialized" if contract.evidence_candidate_selection else "raw"
+        )
+        raise GoldEvaluationError(
+            f"active prediction contract lacks {representation} persisted schema"
+        )
+    return schema
 
 
 def _ratio(numerator: int, denominator: int) -> float | None:
@@ -994,9 +1100,9 @@ def _offline_trial_diagnostics(
 
 
 def _new_report_path(path: Path, artifact_root: Path) -> Path:
-    root = artifact_root.resolve()
-    if root.exists() and root.is_symlink():
+    if artifact_root.is_symlink():
         raise GoldEvaluationError("eval artifact root must not be a symlink")
+    root = artifact_root.resolve()
     root.mkdir(parents=True, exist_ok=True)
     resolved = path.resolve()
     if not resolved.is_relative_to(root):
@@ -1006,6 +1112,36 @@ def _new_report_path(path: Path, artifact_root: Path) -> Path:
     resolved.parent.mkdir(parents=True, exist_ok=True)
     if resolved.parent.is_symlink():
         raise GoldEvaluationError("evaluation report directory must not be a symlink")
+    return resolved
+
+
+def _validate_report_path_readonly(path: Path, artifact_root: Path) -> Path:
+    """Validate a prospective report path without creating any filesystem entry."""
+
+    if artifact_root.is_symlink():
+        raise GoldEvaluationError(
+            "eval artifact root must be an existing non-symlink directory"
+        )
+    root = artifact_root.resolve()
+    if not root.is_dir():
+        raise GoldEvaluationError(
+            "eval artifact root must be an existing non-symlink directory"
+        )
+    unresolved = path if path.is_absolute() else PROJECT_DIR / path
+    current = unresolved
+    while current != root and current != current.parent:
+        if current.is_symlink():
+            raise GoldEvaluationError(
+                "evaluation report path must not traverse a symlink"
+            )
+        current = current.parent
+    resolved = unresolved.resolve()
+    if not resolved.is_relative_to(root):
+        raise GoldEvaluationError("evaluation report must stay under docs/phase4/eval")
+    if resolved.exists() or resolved.is_symlink():
+        raise FileExistsError(
+            f"refusing to overwrite P4.2a evaluation report: {resolved}"
+        )
     return resolved
 
 
@@ -2136,6 +2272,681 @@ def _v1_3_report_extensions(
     }
 
 
+def _run_heldout_preflight(
+    annotation_path: Path,
+    design_path: Path,
+    *,
+    heldout_adjudicated_path: Path | None,
+    heldout_ai_draft_path: Path | None,
+    now: datetime | None,
+    collect_all: bool,
+    prospective_output_path: Path | None = None,
+) -> tuple[HeldoutEvaluationPreflight | None, list[JsonObject]]:
+    """Validate every scoring prerequisite without computing a heldout metric."""
+
+    runner = _PreflightRunner(collect_all=collect_all)
+
+    def design_and_unlock() -> tuple[
+        gold_builder.FrozenEvaluationDesign, Path, Path, Path
+    ]:
+        design = gold_builder.load_evaluation_design(design_path)
+        current_time = now or datetime.now(UTC)
+        gold_builder.require_heldout_ready(design, current_time)
+        artifact_root = _project_path(
+            design.document.get("artifact_root"), label="artifact_root"
+        )
+        annotation_resolved = annotation_path.resolve()
+        if not annotation_resolved.is_relative_to(artifact_root):
+            raise GoldEvaluationError(
+                "annotation artifact must stay under docs/phase4/eval"
+            )
+        state_path = gold_builder.evaluation_artifact_path(
+            design,
+            "heldout_evaluation_state_jsonl",
+        )
+        return design, artifact_root, annotation_resolved, state_path
+
+    runner.run("design_and_unlock", (), design_and_unlock)
+    if prospective_output_path is not None:
+        runner.run(
+            "report_path_readonly",
+            ("design_and_unlock",),
+            lambda: _validate_report_path_readonly(
+                prospective_output_path,
+                runner.values["design_and_unlock"][1],
+            ),
+        )
+
+    def evaluation_state_unclaimed() -> Path:
+        state_path: Path = runner.values["design_and_unlock"][3]
+        if state_path.exists() or state_path.is_symlink():
+            raise GoldEvaluationError(
+                "heldout evaluation already has a started event; reevaluation is forbidden"
+            )
+        return state_path
+
+    runner.run(
+        "evaluation_state_unclaimed",
+        ("design_and_unlock",),
+        evaluation_state_unclaimed,
+    )
+
+    def owner_annotations() -> tuple[
+        list[JsonObject], str, dict[int, JsonObject]
+    ]:
+        design, _artifact_root, annotation_resolved, _state_path = runner.values[
+            "design_and_unlock"
+        ]
+        annotation_records, annotation_sha256 = _read_jsonl(
+            annotation_resolved,
+            label="owner annotations",
+        )
+        annotations = validate_owner_annotations(
+            annotation_records,
+            design.base_contract,
+            design=design,
+        )
+        owner = _mapping(
+            design.document.get("owner_delivery"), label="owner_delivery"
+        )
+        forbidden = owner.get("forbidden_fields")
+        if not isinstance(forbidden, list) or any(
+            not isinstance(item, str) for item in forbidden
+        ):
+            raise GoldEvaluationError("owner forbidden-field contract is invalid")
+        forbidden_paths = gold_builder.owner_forbidden_field_paths(
+            annotation_records,
+            frozenset(forbidden),
+        )
+        if forbidden_paths:
+            raise GoldEvaluationError(
+                "owner annotations leak prediction/selection fields: "
+                f"{forbidden_paths[:3]}"
+            )
+        return annotation_records, annotation_sha256, annotations
+
+    runner.run("owner_annotations", ("design_and_unlock",), owner_annotations)
+
+    def owner_completion() -> JsonObject:
+        design, _artifact_root, annotation_resolved, _state_path = runner.values[
+            "design_and_unlock"
+        ]
+        annotation_records, annotation_sha256, _annotations = runner.values[
+            "owner_annotations"
+        ]
+        return validate_owner_completion_manifest(
+            design,
+            annotation_path=annotation_resolved,
+            annotation_records=annotation_records,
+            annotation_sha256=annotation_sha256,
+        )
+
+    runner.run(
+        "owner_completion",
+        ("design_and_unlock", "owner_annotations"),
+        owner_completion,
+    )
+
+    def adjudication_provenance() -> JsonObject | None:
+        design = runner.values["design_and_unlock"][0]
+        if "heldout_annotation_provenance" in design.document:
+            if heldout_adjudicated_path is None or heldout_ai_draft_path is None:
+                raise GoldEvaluationError(
+                    "human-provenance heldout evaluation requires both "
+                    "--heldout-adjudicated-export and --heldout-ai-draft"
+                )
+            return validate_heldout_adjudication_evidence(
+                design,
+                adjudicated_path=heldout_adjudicated_path,
+                ai_draft_path=heldout_ai_draft_path,
+            )
+        if heldout_adjudicated_path is not None or heldout_ai_draft_path is not None:
+            raise GoldEvaluationError(
+                "heldout adjudication inputs require a human-provenance design"
+            )
+        return None
+
+    runner.run(
+        "adjudication_provenance",
+        ("design_and_unlock",),
+        adjudication_provenance,
+    )
+
+    def active_contract_and_receipt() -> tuple[EventExtractContract, JsonObject, str]:
+        design = runner.values["design_and_unlock"][0]
+        return gold_builder.load_active_prediction_contract(design)
+
+    runner.run(
+        "active_contract_and_receipt",
+        ("design_and_unlock",),
+        active_contract_and_receipt,
+    )
+
+    def dev_final_freeze() -> JsonObject:
+        design = runner.values["design_and_unlock"][0]
+        active_contract, receipt, _receipt_sha256 = runner.values[
+            "active_contract_and_receipt"
+        ]
+        return gold_builder.validate_dev_final_prediction_freeze(
+            design,
+            active_contract=active_contract,
+            receipt=receipt,
+        )
+
+    runner.run(
+        "dev_final_freeze",
+        ("design_and_unlock", "active_contract_and_receipt"),
+        dev_final_freeze,
+    )
+
+    def inference_state() -> tuple[JsonObject, str]:
+        design = runner.values["design_and_unlock"][0]
+        return gold_builder.load_completed_one_shot_state(design, scope="inference")
+
+    runner.run("inference_state", ("design_and_unlock",), inference_state)
+
+    def candidate_artifacts() -> tuple[
+        list[JsonObject], str, list[JsonObject], str, JsonObject, str
+    ]:
+        design = runner.values["design_and_unlock"][0]
+        candidate_inputs_path = gold_builder.evaluation_artifact_path(
+            design,
+            "heldout_candidate_inputs_jsonl",
+        )
+        candidate_predictions_path = gold_builder.evaluation_artifact_path(
+            design,
+            "heldout_candidate_predictions_jsonl",
+        )
+        prediction_manifest_path = gold_builder.evaluation_artifact_path(
+            design,
+            "heldout_candidate_predictions_manifest_json",
+        )
+        candidate_input_records, candidate_inputs_sha256 = _read_jsonl(
+            candidate_inputs_path,
+            label="heldout candidate inputs",
+        )
+        candidate_predictions, candidate_predictions_sha256 = _read_jsonl(
+            candidate_predictions_path,
+            label="heldout candidate predictions",
+        )
+        prediction_manifest, prediction_manifest_sha256 = _read_json(
+            prediction_manifest_path,
+            label="heldout candidate prediction manifest",
+        )
+        return (
+            candidate_input_records,
+            candidate_inputs_sha256,
+            candidate_predictions,
+            candidate_predictions_sha256,
+            prediction_manifest,
+            prediction_manifest_sha256,
+        )
+
+    runner.run("candidate_artifacts", ("design_and_unlock",), candidate_artifacts)
+
+    def readonly_db_candidate_rows() -> list[gold_builder.NewsRow]:
+        design = runner.values["design_and_unlock"][0]
+        database_path = gold_builder._database_path(design.base_contract, None)
+        with gold_builder.open_read_only_database(database_path) as connection:
+            return gold_builder._heldout_candidate_rows(connection, design)
+
+    runner.run(
+        "readonly_db_candidate_rows",
+        ("design_and_unlock",),
+        readonly_db_candidate_rows,
+    )
+
+    def materialization_partition() -> tuple[
+        list[gold_builder.NewsRow], JsonObject | None, frozenset[int]
+    ]:
+        design = runner.values["design_and_unlock"][0]
+        active_contract, _receipt, receipt_sha256 = runner.values[
+            "active_contract_and_receipt"
+        ]
+        candidate_input_records = runner.values["candidate_artifacts"][0]
+        raw_candidate_rows = runner.values["readonly_db_candidate_rows"]
+        return _materialization_binding_for_evaluation(
+            design=design,
+            active_contract=active_contract,
+            receipt_sha256=receipt_sha256,
+            candidate_rows=raw_candidate_rows,
+            candidate_records=candidate_input_records,
+        )
+
+    runner.run(
+        "materialization_partition",
+        (
+            "design_and_unlock",
+            "active_contract_and_receipt",
+            "candidate_artifacts",
+            "readonly_db_candidate_rows",
+        ),
+        materialization_partition,
+    )
+
+    def owner_materialization_eligibility() -> bool:
+        _annotation_records, _annotation_sha256, annotations = runner.values[
+            "owner_annotations"
+        ]
+        ineligible_ids = runner.values["materialization_partition"][2]
+        if set(annotations).intersection(ineligible_ids):
+            raise GoldEvaluationError(
+                "owner gold contains a materialization-ineligible news item"
+            )
+        return True
+
+    runner.run(
+        "owner_materialization_eligibility",
+        ("owner_annotations", "materialization_partition"),
+        owner_materialization_eligibility,
+    )
+
+    def candidate_inputs() -> Any:
+        design = runner.values["design_and_unlock"][0]
+        active_contract = runner.values["active_contract_and_receipt"][0]
+        candidate_input_records = runner.values["candidate_artifacts"][0]
+        candidate_rows = runner.values["materialization_partition"][0]
+        return gold_builder.validate_heldout_candidate_inputs(
+            candidate_input_records,
+            rows=candidate_rows,
+            design=design,
+            active_contract=active_contract,
+        )
+
+    runner.run(
+        "candidate_inputs",
+        (
+            "design_and_unlock",
+            "active_contract_and_receipt",
+            "candidate_artifacts",
+            "materialization_partition",
+        ),
+        candidate_inputs,
+    )
+
+    def candidate_predictions() -> tuple[Any, int, int]:
+        active_contract = runner.values["active_contract_and_receipt"][0]
+        candidate_prediction_records = runner.values["candidate_artifacts"][2]
+        return gold_builder.validate_heldout_candidate_predictions(
+            candidate_prediction_records,
+            candidate_inputs=runner.values["candidate_inputs"],
+            active_contract=active_contract,
+        )
+
+    runner.run(
+        "candidate_predictions",
+        ("active_contract_and_receipt", "candidate_artifacts", "candidate_inputs"),
+        candidate_predictions,
+    )
+
+    def prediction_manifest_bindings() -> bool:
+        design = runner.values["design_and_unlock"][0]
+        active_contract, _receipt, receipt_sha256 = runner.values[
+            "active_contract_and_receipt"
+        ]
+        (
+            candidate_input_records,
+            candidate_inputs_sha256,
+            _candidate_predictions,
+            candidate_predictions_sha256,
+            prediction_manifest,
+            _prediction_manifest_sha256,
+        ) = runner.values["candidate_artifacts"]
+        _predictions_by_id, success_count, failure_count = runner.values[
+            "candidate_predictions"
+        ]
+        materialization_binding = runner.values["materialization_partition"][1]
+        gold_builder._validate_prediction_manifest(
+            prediction_manifest,
+            design=design,
+            active_contract=active_contract,
+            receipt_sha256=receipt_sha256,
+            inputs_sha256=candidate_inputs_sha256,
+            predictions_sha256=candidate_predictions_sha256,
+            candidate_records=candidate_input_records,
+            success_count=success_count,
+            failure_count=failure_count,
+            materialization_binding=materialization_binding,
+        )
+        _require_materialization_binding(
+            prediction_manifest,
+            expected=materialization_binding,
+            label="heldout prediction manifest",
+        )
+        return True
+
+    runner.run(
+        "prediction_manifest_bindings",
+        (
+            "design_and_unlock",
+            "active_contract_and_receipt",
+            "candidate_artifacts",
+            "candidate_predictions",
+            "materialization_partition",
+        ),
+        prediction_manifest_bindings,
+    )
+
+    def inference_completion_bindings() -> bool:
+        design = runner.values["design_and_unlock"][0]
+        active_contract, _receipt, receipt_sha256 = runner.values[
+            "active_contract_and_receipt"
+        ]
+        inference, _inference_state_sha256 = runner.values["inference_state"]
+        (
+            candidate_input_records,
+            candidate_inputs_sha256,
+            candidate_prediction_records,
+            _candidate_predictions_sha256,
+            _prediction_manifest,
+            prediction_manifest_sha256,
+        ) = runner.values["candidate_artifacts"]
+        _predictions_by_id, success_count, failure_count = runner.values[
+            "candidate_predictions"
+        ]
+        materialization_binding = runner.values["materialization_partition"][1]
+        gold_builder.validate_inference_completion_bindings(
+            inference,
+            design=design,
+            active_contract=active_contract,
+            receipt_sha256=receipt_sha256,
+            candidate_records=candidate_input_records,
+            candidate_inputs_sha256=candidate_inputs_sha256,
+            prediction_manifest_sha256=prediction_manifest_sha256,
+            attempted_count=len(candidate_prediction_records),
+            success_count=success_count,
+            failure_count=failure_count,
+            materialization_binding=materialization_binding,
+        )
+        raw_inference_events = inference.get("events")
+        if (
+            not isinstance(raw_inference_events, Sequence)
+            or isinstance(raw_inference_events, (str, bytes))
+            or len(raw_inference_events) != 2
+            or any(not isinstance(event, Mapping) for event in raw_inference_events)
+        ):
+            raise GoldEvaluationError(
+                "inference state materialization events are invalid"
+            )
+        for index, event in enumerate(raw_inference_events):
+            _require_materialization_binding(
+                event,
+                expected=materialization_binding,
+                label=f"inference state event {index + 1}",
+            )
+        return True
+
+    runner.run(
+        "inference_completion_bindings",
+        (
+            "design_and_unlock",
+            "active_contract_and_receipt",
+            "inference_state",
+            "candidate_artifacts",
+            "candidate_predictions",
+            "materialization_partition",
+        ),
+        inference_completion_bindings,
+    )
+
+    def selection_manifest() -> JsonObject:
+        design = runner.values["design_and_unlock"][0]
+        _annotation_records, _annotation_sha256, annotations = runner.values[
+            "owner_annotations"
+        ]
+        active_contract, _receipt, receipt_sha256 = runner.values[
+            "active_contract_and_receipt"
+        ]
+        inference, inference_state_sha256 = runner.values["inference_state"]
+        del inference
+        (
+            _candidate_input_records,
+            candidate_inputs_sha256,
+            _candidate_predictions,
+            candidate_predictions_sha256,
+            _prediction_manifest,
+            prediction_manifest_sha256,
+        ) = runner.values["candidate_artifacts"]
+        _candidate_rows, materialization_binding, ineligible_ids = runner.values[
+            "materialization_partition"
+        ]
+        selection_manifest_path = gold_builder.evaluation_artifact_path(
+            design,
+            "heldout_selection_manifest_json",
+        )
+        selection, selection_sha256 = _read_json(
+            selection_manifest_path,
+            label="heldout selection manifest",
+        )
+        return _validate_selection_manifest(
+            selection,
+            manifest_sha256=selection_sha256,
+            design=design,
+            annotations=annotations,
+            active_contract=active_contract,
+            receipt_sha256=receipt_sha256,
+            candidate_inputs_sha256=candidate_inputs_sha256,
+            candidate_predictions_sha256=candidate_predictions_sha256,
+            candidate_prediction_manifest_sha256=prediction_manifest_sha256,
+            inference_state_sha256=inference_state_sha256,
+            materialization_binding=materialization_binding,
+            ineligible_ids=ineligible_ids,
+        )
+
+    runner.run(
+        "selection_manifest",
+        (
+            "design_and_unlock",
+            "owner_annotations",
+            "active_contract_and_receipt",
+            "inference_state",
+            "candidate_artifacts",
+            "materialization_partition",
+            "owner_materialization_eligibility",
+            "prediction_manifest_bindings",
+            "inference_completion_bindings",
+        ),
+        selection_manifest,
+    )
+
+    def dev_prediction_join() -> tuple[
+        dict[int, JsonObject], list[JsonObject], dict[int, JsonObject | None]
+    ]:
+        _annotation_records, _annotation_sha256, annotations = runner.values[
+            "owner_annotations"
+        ]
+        active_contract = runner.values["active_contract_and_receipt"][0]
+        dev_final = runner.values["dev_final_freeze"]
+        dev_ids = list(annotations)[:60]
+        dev_annotations = {
+            news_item_id: annotations[news_item_id] for news_item_id in dev_ids
+        }
+        dev_prediction_records = dev_final.get("rows")
+        if not isinstance(dev_prediction_records, list) or any(
+            not isinstance(item, dict) for item in dev_prediction_records
+        ):
+            raise GoldEvaluationError(
+                "dev-final prediction evidence has invalid rows"
+            )
+        dev_predictions, _dev_extras = join_predictions(
+            dev_prediction_records,
+            dev_annotations,
+            runner.values["design_and_unlock"][0].base_contract,
+            active_contract=active_contract,
+        )
+        return dev_annotations, dev_prediction_records, dev_predictions
+
+    runner.run(
+        "dev_prediction_join",
+        (
+            "design_and_unlock",
+            "owner_annotations",
+            "active_contract_and_receipt",
+            "dev_final_freeze",
+        ),
+        dev_prediction_join,
+    )
+
+    def heldout_prediction_join() -> tuple[
+        dict[int, JsonObject], dict[int, JsonObject | None]
+    ]:
+        _annotation_records, _annotation_sha256, annotations = runner.values[
+            "owner_annotations"
+        ]
+        active_contract = runner.values["active_contract_and_receipt"][0]
+        candidate_prediction_records = runner.values["candidate_artifacts"][2]
+        heldout_ids = list(annotations)[60:]
+        heldout_annotations = {
+            news_item_id: annotations[news_item_id] for news_item_id in heldout_ids
+        }
+        heldout_predictions, _heldout_extras = join_predictions(
+            candidate_prediction_records,
+            heldout_annotations,
+            runner.values["design_and_unlock"][0].base_contract,
+            active_contract=active_contract,
+        )
+        return heldout_annotations, heldout_predictions
+
+    runner.run(
+        "heldout_prediction_join",
+        (
+            "design_and_unlock",
+            "owner_annotations",
+            "active_contract_and_receipt",
+            "candidate_artifacts",
+            "candidate_predictions",
+            "selection_manifest",
+        ),
+        heldout_prediction_join,
+    )
+
+    required_stages: tuple[str, ...] = (
+        "design_and_unlock",
+        "evaluation_state_unclaimed",
+        "owner_annotations",
+        "owner_completion",
+        "adjudication_provenance",
+        "active_contract_and_receipt",
+        "dev_final_freeze",
+        "inference_state",
+        "candidate_artifacts",
+        "readonly_db_candidate_rows",
+        "materialization_partition",
+        "owner_materialization_eligibility",
+        "candidate_inputs",
+        "candidate_predictions",
+        "prediction_manifest_bindings",
+        "inference_completion_bindings",
+        "selection_manifest",
+        "dev_prediction_join",
+        "heldout_prediction_join",
+    )
+    if prospective_output_path is not None:
+        required_stages = (*required_stages, "report_path_readonly")
+    if any(not runner.passed(stage) for stage in required_stages):
+        if not collect_all:
+            raise GoldEvaluationError("heldout evaluation preflight did not complete")
+        return None, runner.stages
+
+    design, artifact_root, annotation_resolved, state_path = runner.values[
+        "design_and_unlock"
+    ]
+    annotation_records, annotation_sha256, annotations = runner.values[
+        "owner_annotations"
+    ]
+    del annotation_records
+    active_contract, receipt, receipt_sha256 = runner.values[
+        "active_contract_and_receipt"
+    ]
+    inference, _inference_state_sha256 = runner.values["inference_state"]
+    _candidate_rows, materialization_binding, _ineligible_ids = runner.values[
+        "materialization_partition"
+    ]
+    dev_annotations, dev_prediction_records, dev_predictions = runner.values[
+        "dev_prediction_join"
+    ]
+    _heldout_annotations, heldout_predictions = runner.values[
+        "heldout_prediction_join"
+    ]
+    preflight = HeldoutEvaluationPreflight(
+        design=design,
+        artifact_root=artifact_root,
+        annotation_resolved=annotation_resolved,
+        annotation_sha256=annotation_sha256,
+        annotations=annotations,
+        owner_completion=runner.values["owner_completion"],
+        adjudication_evidence=runner.values["adjudication_provenance"],
+        active_contract=active_contract,
+        receipt=receipt,
+        receipt_sha256=receipt_sha256,
+        dev_final=runner.values["dev_final_freeze"],
+        inference=inference,
+        selection_evidence=runner.values["selection_manifest"],
+        materialization_binding=(
+            dict(materialization_binding)
+            if materialization_binding is not None
+            else None
+        ),
+        dev_annotations=dev_annotations,
+        dev_prediction_records=dev_prediction_records,
+        predictions={**dev_predictions, **heldout_predictions},
+        state_path=state_path,
+    )
+    return preflight, runner.stages
+
+
+def dry_run_heldout_evaluation(
+    annotation_path: Path,
+    output_path: Path,
+    design_path: Path = gold_builder.DEFAULT_EVALUATION_DESIGN,
+    *,
+    heldout_adjudicated_path: Path | None = None,
+    heldout_ai_draft_path: Path | None = None,
+    now: datetime | None = None,
+) -> JsonObject:
+    """Run the complete read-only pre-score walk without revealing metrics."""
+
+    preflight, stages = _run_heldout_preflight(
+        annotation_path,
+        design_path,
+        heldout_adjudicated_path=heldout_adjudicated_path,
+        heldout_ai_draft_path=heldout_ai_draft_path,
+        now=now,
+        collect_all=True,
+        prospective_output_path=output_path,
+    )
+    stages.append(
+        {
+            "name": "heldout_metrics_and_report",
+            "status": "not_run_one_shot_protected",
+        }
+    )
+    failure_count = sum(
+        stage.get("status") in {"failed", "internal_error"} for stage in stages
+    )
+    blocked_count = sum(stage.get("status") == "blocked" for stage in stages)
+    return {
+        "schema_version": "p4.2a-heldout-evaluation-dry-run-v1",
+        "status": "passed" if preflight is not None else "failed",
+        "design_sha256": (
+            preflight.design.sha256 if preflight is not None else None
+        ),
+        "stages": stages,
+        "failure_count": failure_count,
+        "blocked_count": blocked_count,
+        "validated_through": (
+            "prediction_join" if preflight is not None else "partial_preflight"
+        ),
+        "one_shot_consumed": False,
+        "metrics_computed": False,
+        "evaluation_passed": None,
+        "report_created": False,
+        "filesystem_mutations": 0,
+        "database_open_mode": "mode=ro+query_only",
+        "network_or_llm_calls": 0,
+    }
+
+
 def _v1_5_candidate_report_extensions(
     *,
     design: gold_builder.FrozenEvaluationDesign,
@@ -2299,231 +3110,38 @@ def evaluate_gold_sample_v1_1(
 ) -> JsonObject:
     """Run the single pre-registered heldout evaluation and consume its one-shot."""
 
-    design = gold_builder.load_evaluation_design(design_path)
-    current_time = now or datetime.now(UTC)
-    gold_builder.require_heldout_ready(design, current_time)
-    artifact_root = _project_path(design.document.get("artifact_root"), label="artifact_root")
-    annotation_resolved = annotation_path.resolve()
-    if not annotation_resolved.is_relative_to(artifact_root):
-        raise GoldEvaluationError("annotation artifact must stay under docs/phase4/eval")
-    report_path = _new_report_path(output_path, artifact_root)
-    state_path = gold_builder.evaluation_artifact_path(
-        design,
-        "heldout_evaluation_state_jsonl",
+    preflight, _stages = _run_heldout_preflight(
+        annotation_path,
+        design_path,
+        heldout_adjudicated_path=heldout_adjudicated_path,
+        heldout_ai_draft_path=heldout_ai_draft_path,
+        now=now,
+        collect_all=False,
     )
-    if state_path.exists() or state_path.is_symlink():
-        raise GoldEvaluationError(
-            "heldout evaluation already has a started event; reevaluation is forbidden"
-        )
+    if preflight is None:  # pragma: no cover - fail-fast mode raises first
+        raise GoldEvaluationError("heldout evaluation preflight did not complete")
+    design = preflight.design
+    annotation_resolved = preflight.annotation_resolved
+    annotation_sha256 = preflight.annotation_sha256
+    annotations = preflight.annotations
+    owner_completion = preflight.owner_completion
+    adjudication_evidence = preflight.adjudication_evidence
+    active_contract = preflight.active_contract
+    receipt = preflight.receipt
+    receipt_sha256 = preflight.receipt_sha256
+    dev_final = preflight.dev_final
+    inference = preflight.inference
+    selection_evidence = preflight.selection_evidence
+    materialization_binding = preflight.materialization_binding
+    dev_annotations = preflight.dev_annotations
+    dev_prediction_records = preflight.dev_prediction_records
+    predictions = preflight.predictions
+    state_path = preflight.state_path
+    report_path = _new_report_path(output_path, preflight.artifact_root)
     claimed = False
     try:
-        annotation_records, annotation_sha256 = _read_jsonl(
-            annotation_resolved,
-            label="owner annotations",
-        )
-        annotations = validate_owner_annotations(
-            annotation_records,
-            design.base_contract,
-            design=design,
-        )
-        owner = _mapping(design.document.get("owner_delivery"), label="owner_delivery")
-        forbidden = owner.get("forbidden_fields")
-        if not isinstance(forbidden, list) or any(not isinstance(item, str) for item in forbidden):
-            raise GoldEvaluationError("owner forbidden-field contract is invalid")
-        forbidden_paths = gold_builder.owner_forbidden_field_paths(
-            annotation_records,
-            frozenset(forbidden),
-        )
-        if forbidden_paths:
-            raise GoldEvaluationError(
-                f"owner annotations leak prediction/selection fields: {forbidden_paths[:3]}"
-            )
-        owner_completion = validate_owner_completion_manifest(
-            design,
-            annotation_path=annotation_resolved,
-            annotation_records=annotation_records,
-            annotation_sha256=annotation_sha256,
-        )
-        adjudication_evidence: JsonObject | None = None
-        if "heldout_annotation_provenance" in design.document:
-            if heldout_adjudicated_path is None or heldout_ai_draft_path is None:
-                raise GoldEvaluationError(
-                    "human-provenance heldout evaluation requires both "
-                    "--heldout-adjudicated-export and --heldout-ai-draft"
-                )
-            adjudication_evidence = validate_heldout_adjudication_evidence(
-                design,
-                adjudicated_path=heldout_adjudicated_path,
-                ai_draft_path=heldout_ai_draft_path,
-            )
-        elif heldout_adjudicated_path is not None or heldout_ai_draft_path is not None:
-            raise GoldEvaluationError(
-                "heldout adjudication inputs require a human-provenance design"
-            )
-
-        active_contract, receipt, receipt_sha256 = (
-            gold_builder.load_active_prediction_contract(design)
-        )
-        dev_final = gold_builder.validate_dev_final_prediction_freeze(
-            design,
-            active_contract=active_contract,
-            receipt=receipt,
-        )
-        inference, inference_state_sha256 = gold_builder.load_completed_one_shot_state(
-            design,
-            scope="inference",
-        )
-        candidate_inputs_path = gold_builder.evaluation_artifact_path(
-            design,
-            "heldout_candidate_inputs_jsonl",
-        )
-        candidate_predictions_path = gold_builder.evaluation_artifact_path(
-            design,
-            "heldout_candidate_predictions_jsonl",
-        )
-        candidate_input_records, candidate_inputs_sha256 = _read_jsonl(
-            candidate_inputs_path,
-            label="heldout candidate inputs",
-        )
-        candidate_predictions, candidate_predictions_sha256 = _read_jsonl(
-            candidate_predictions_path,
-            label="heldout candidate predictions",
-        )
-        prediction_manifest_path = gold_builder.evaluation_artifact_path(
-            design,
-            "heldout_candidate_predictions_manifest_json",
-        )
-        prediction_manifest, prediction_manifest_sha256 = _read_json(
-            prediction_manifest_path,
-            label="heldout candidate prediction manifest",
-        )
-        database_path = gold_builder._database_path(design.base_contract, None)
-        with gold_builder.open_read_only_database(database_path) as connection:
-            raw_candidate_rows = gold_builder._heldout_candidate_rows(connection, design)
-            (
-                candidate_rows,
-                materialization_binding,
-                materialization_ineligible_ids,
-            ) = _materialization_binding_for_evaluation(
-                design=design,
-                active_contract=active_contract,
-                receipt_sha256=receipt_sha256,
-                candidate_rows=raw_candidate_rows,
-                candidate_records=candidate_input_records,
-            )
-            candidate_inputs = gold_builder.validate_heldout_candidate_inputs(
-                candidate_input_records,
-                rows=candidate_rows,
-                design=design,
-                active_contract=active_contract,
-            )
-            (
-                _predictions_by_id,
-                candidate_success_count,
-                candidate_failure_count,
-            ) = gold_builder.validate_heldout_candidate_predictions(
-                candidate_predictions,
-                candidate_inputs=candidate_inputs,
-                active_contract=active_contract,
-            )
-        if set(annotations).intersection(materialization_ineligible_ids):
-            raise GoldEvaluationError(
-                "owner gold contains a materialization-ineligible news item"
-            )
-        gold_builder._validate_prediction_manifest(
-            prediction_manifest,
-            design=design,
-            active_contract=active_contract,
-            receipt_sha256=receipt_sha256,
-            inputs_sha256=candidate_inputs_sha256,
-            predictions_sha256=candidate_predictions_sha256,
-            candidate_records=candidate_input_records,
-            success_count=candidate_success_count,
-            failure_count=candidate_failure_count,
-            materialization_binding=materialization_binding,
-        )
-        _require_materialization_binding(
-            prediction_manifest,
-            expected=materialization_binding,
-            label="heldout prediction manifest",
-        )
-        gold_builder.validate_inference_completion_bindings(
-            inference,
-            design=design,
-            active_contract=active_contract,
-            receipt_sha256=receipt_sha256,
-            candidate_records=candidate_input_records,
-            candidate_inputs_sha256=candidate_inputs_sha256,
-            prediction_manifest_sha256=prediction_manifest_sha256,
-            attempted_count=len(candidate_predictions),
-            success_count=candidate_success_count,
-            failure_count=candidate_failure_count,
-            materialization_binding=materialization_binding,
-        )
-        raw_inference_events = inference.get("events")
-        if (
-            not isinstance(raw_inference_events, Sequence)
-            or isinstance(raw_inference_events, (str, bytes))
-            or len(raw_inference_events) != 2
-            or any(not isinstance(event, Mapping) for event in raw_inference_events)
-        ):
-            raise GoldEvaluationError("inference state materialization events are invalid")
-        for index, event in enumerate(raw_inference_events):
-            _require_materialization_binding(
-                event,
-                expected=materialization_binding,
-                label=f"inference state event {index + 1}",
-            )
-        selection_manifest_path = gold_builder.evaluation_artifact_path(
-            design,
-            "heldout_selection_manifest_json",
-        )
-        selection_manifest, selection_manifest_sha256 = _read_json(
-            selection_manifest_path,
-            label="heldout selection manifest",
-        )
-        selection_evidence = _validate_selection_manifest(
-            selection_manifest,
-            manifest_sha256=selection_manifest_sha256,
-            design=design,
-            annotations=annotations,
-            active_contract=active_contract,
-            receipt_sha256=receipt_sha256,
-            candidate_inputs_sha256=candidate_inputs_sha256,
-            candidate_predictions_sha256=candidate_predictions_sha256,
-            candidate_prediction_manifest_sha256=prediction_manifest_sha256,
-            inference_state_sha256=inference_state_sha256,
-            materialization_binding=materialization_binding,
-            ineligible_ids=materialization_ineligible_ids,
-        )
-
-        dev_ids = list(annotations)[:60]
-        heldout_ids = list(annotations)[60:]
-        dev_annotations = {news_item_id: annotations[news_item_id] for news_item_id in dev_ids}
-        heldout_annotations = {
-            news_item_id: annotations[news_item_id] for news_item_id in heldout_ids
-        }
-        dev_prediction_records = dev_final["rows"]
-        if not isinstance(dev_prediction_records, list):
-            raise GoldEvaluationError("dev-final prediction evidence has invalid rows")
-        dev_predictions, _dev_extras = join_predictions(
-            dev_prediction_records,
-            dev_annotations,
-            design.base_contract,
-            active_contract=active_contract,
-        )
-        heldout_predictions, _heldout_extras = join_predictions(
-            candidate_predictions,
-            heldout_annotations,
-            design.base_contract,
-            active_contract=active_contract,
-        )
-        predictions: dict[int, JsonObject | None] = {
-            **dev_predictions,
-            **heldout_predictions,
-        }
-        # Everything above is structural/hash/blindness/join preflight. Claim
-        # the one-shot only immediately before the first metric computation.
+        # Shared preflight above is structural/hash/blindness/join-only. Claim
+        # the one-shot immediately before the first metric computation.
         started_at = (now or datetime.now(UTC)).astimezone(UTC).isoformat().replace(
             "+00:00",
             "Z",
@@ -2843,6 +3461,14 @@ def _arguments(argv: Sequence[str] | None = None) -> argparse.Namespace:
             "with --heldout-adjudicated-export."
         ),
     )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help=(
+            "Validate every heldout input through prediction joins without "
+            "computing metrics or creating one-shot/report artifacts."
+        ),
+    )
     parser.add_argument("--output", type=Path, required=True)
     return parser.parse_args(argv)
 
@@ -2881,6 +3507,17 @@ def main(argv: Sequence[str] | None = None) -> int:
                     "combined_100_annotations_jsonl",
                 )
             )
+            if arguments.dry_run:
+                report = dry_run_heldout_evaluation(
+                    annotation_path,
+                    arguments.output,
+                    arguments.evaluation_design,
+                    heldout_adjudicated_path=arguments.heldout_adjudicated_export,
+                    heldout_ai_draft_path=arguments.heldout_ai_draft,
+                )
+                report["scope"] = arguments.scope
+                print(json.dumps(report, ensure_ascii=False, indent=2, sort_keys=True))
+                return 0 if report["status"] == "passed" else 1
             report = evaluate_gold_sample_v1_1(
                 annotation_path,
                 arguments.output,
@@ -2890,6 +3527,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             )
             print(json.dumps(report, ensure_ascii=False, indent=2, sort_keys=True))
             return 0 if report["passed"] is True else 2
+        if arguments.dry_run:
+            raise GoldEvaluationError("--dry-run is supported only for heldout scopes")
         if (
             arguments.heldout_adjudicated_export is not None
             or arguments.heldout_ai_draft is not None

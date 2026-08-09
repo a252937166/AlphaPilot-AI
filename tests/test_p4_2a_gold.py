@@ -10,6 +10,7 @@ from collections.abc import Mapping
 from dataclasses import replace
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any, ClassVar
 
 import httpx
@@ -942,6 +943,155 @@ def test_cli_returns_exit_2_for_threshold_failure(
     )
 
 
+def test_preflight_runner_aggregates_independent_failures_and_blocks_dependents() -> None:
+    runner = evaluator._PreflightRunner(collect_all=True)
+
+    def fail_first() -> None:
+        raise evaluator.GoldEvaluationError("first-safe-failure")
+
+    def fail_second() -> None:
+        raise ValueError("second-safe-failure")
+
+    runner.run("first", (), fail_first)
+    runner.run("second", (), fail_second)
+    runner.run("dependent", ("first",), lambda: True)
+
+    assert runner.stages == [
+        {
+            "name": "first",
+            "status": "failed",
+            "error_type": "GoldEvaluationError",
+            "safe_message": "first-safe-failure",
+        },
+        {
+            "name": "second",
+            "status": "failed",
+            "error_type": "ValueError",
+            "safe_message": "second-safe-failure",
+        },
+        {"name": "dependent", "status": "blocked", "blocked_by": ["first"]},
+    ]
+
+
+def test_dry_run_report_path_validation_is_read_only_and_fail_closed(
+    tmp_path: Path,
+) -> None:
+    artifact_root = tmp_path / "eval"
+    artifact_root.mkdir()
+    prospective = artifact_root / "not-created" / "report.json"
+
+    assert (
+        evaluator._validate_report_path_readonly(prospective, artifact_root)
+        == prospective
+    )
+    assert not prospective.parent.exists()
+    assert not prospective.exists()
+
+    existing = artifact_root / "existing.json"
+    existing.write_text("{}\n", encoding="utf-8")
+    with pytest.raises(FileExistsError):
+        evaluator._validate_report_path_readonly(existing, artifact_root)
+    with pytest.raises(evaluator.GoldEvaluationError, match="must stay"):
+        evaluator._validate_report_path_readonly(
+            tmp_path / "outside.json",
+            artifact_root,
+        )
+
+    symlink = artifact_root / "linked"
+    symlink.symlink_to(tmp_path / "elsewhere", target_is_directory=True)
+    with pytest.raises(evaluator.GoldEvaluationError, match="symlink"):
+        evaluator._validate_report_path_readonly(
+            symlink / "report.json",
+            artifact_root,
+        )
+
+    root_symlink = tmp_path / "eval-link"
+    root_symlink.symlink_to(artifact_root, target_is_directory=True)
+    with pytest.raises(evaluator.GoldEvaluationError, match="non-symlink"):
+        evaluator._validate_report_path_readonly(
+            root_symlink / "report.json",
+            root_symlink,
+        )
+
+
+def test_heldout_dry_run_never_calls_scoring_or_mutation_functions(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    design = builder.load_evaluation_design(EVALUATION_DESIGN_V1_7_PATH)
+    fake_preflight = SimpleNamespace(design=design)
+    stages = [{"name": "prediction_join", "status": "passed"}]
+    monkeypatch.setattr(
+        evaluator,
+        "_run_heldout_preflight",
+        lambda *_args, **_kwargs: (fake_preflight, copy.deepcopy(stages)),
+    )
+
+    def unexpected(*_args: object, **_kwargs: object) -> None:
+        raise AssertionError("dry-run crossed the one-shot boundary")
+
+    for name in (
+        "_new_report_path",
+        "_claim_evaluation_one_shot",
+        "_append_evaluation_terminal",
+        "_write_new_json",
+        "evaluate_split_records",
+        "_v1_3_report_extensions",
+    ):
+        monkeypatch.setattr(evaluator, name, unexpected)
+
+    output = tmp_path / "never-created" / "report.json"
+    result = evaluator.dry_run_heldout_evaluation(
+        tmp_path / "annotations.jsonl",
+        output,
+        EVALUATION_DESIGN_V1_7_PATH,
+    )
+
+    assert result["status"] == "passed"
+    assert result["one_shot_consumed"] is False
+    assert result["metrics_computed"] is False
+    assert result["evaluation_passed"] is None
+    assert result["report_created"] is False
+    assert result["filesystem_mutations"] == 0
+    assert not output.parent.exists()
+
+
+def test_cli_dry_run_routes_around_formal_evaluation(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    design = builder.load_evaluation_design(EVALUATION_DESIGN_V1_7_PATH)
+    monkeypatch.setattr(builder, "load_evaluation_design", lambda _path: design)
+    monkeypatch.setattr(
+        evaluator,
+        "dry_run_heldout_evaluation",
+        lambda *_args, **_kwargs: {"status": "passed"},
+    )
+    monkeypatch.setattr(
+        evaluator,
+        "evaluate_gold_sample_v1_1",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            AssertionError("formal evaluation must not run")
+        ),
+    )
+
+    result = evaluator.main(
+        [
+            "--scope",
+            "heldout-final-v1.7",
+            "--evaluation-design",
+            str(EVALUATION_DESIGN_V1_7_PATH),
+            "--dry-run",
+            "--output",
+            str(tmp_path / "report.json"),
+        ]
+    )
+
+    assert result == 0
+    assert json.loads(capsys.readouterr().out)["scope"] == "heldout-final-v1.7"
+
+
 def test_v1_1_positive_pool_selection_is_exact_and_fails_short_pool() -> None:
     records: list[dict[str, Any]] = []
     for news_item_id in range(424, 474):
@@ -1418,6 +1568,105 @@ def test_v1_1_prediction_contract_may_differ_from_annotation_contract() -> None:
 
     assert joined[1] is not None
     assert extras == 0
+
+
+def test_prediction_join_uses_materialized_schema_for_candidate_contract() -> None:
+    contract = builder.load_contract(CONFIG_PATH)
+    active = load_event_evaluation_design(
+        EVALUATION_DESIGN_V1_7_PATH
+    ).prediction_contract
+    annotation = {
+        "news_item_id": 1,
+        "input_sha256": _hash("declared-input"),
+        "text_sha256": _hash("text"),
+        "original_text": "连续证据正文",
+    }
+    annotations = {1: {"record": annotation}}
+    prediction = {
+        "news_item_id": 1,
+        "contract_sha256": active.sha256,
+        "model": active.model,
+        "input_sha256": _hash("candidate-input"),
+        "declared_input_sha256": annotation["input_sha256"],
+        "text_sha256": annotation["text_sha256"],
+        "status": "ok",
+        "prediction": {
+            "symbols": [],
+            "event_type": "other",
+            "direction": 0,
+            "materiality": 0,
+            "summary": "摘要",
+            "confidence": 0.8,
+            "evidence_span": "连续证据",
+        },
+    }
+
+    joined, extras = evaluator.join_predictions(
+        [prediction],
+        annotations,
+        contract,
+        active_contract=active,
+    )
+
+    assert joined[1] is not None
+    assert "evidence_candidate_id" not in prediction["prediction"]
+    assert extras == 0
+
+    missing_span = copy.deepcopy(prediction)
+    del missing_span["prediction"]["evidence_span"]
+    with pytest.raises(evaluator.GoldEvaluationError, match=r"evidence_span.*required"):
+        evaluator.join_predictions(
+            [missing_span],
+            annotations,
+            contract,
+            active_contract=active,
+        )
+
+    with pytest.raises(
+        evaluator.GoldEvaluationError,
+        match="lacks materialized persisted schema",
+    ):
+        evaluator.join_predictions(
+            [prediction],
+            annotations,
+            contract,
+            active_contract=replace(active, materialized_schema=None),
+        )
+
+
+def test_legacy_prediction_join_still_requires_raw_evidence_span() -> None:
+    contract = builder.load_contract(CONFIG_PATH)
+    active = load_event_extract_contract(CONFIG_PATH)
+    annotation = {
+        "news_item_id": 1,
+        "input_sha256": _hash("input"),
+        "text_sha256": _hash("text"),
+        "original_text": "连续证据正文",
+    }
+    prediction = {
+        "news_item_id": 1,
+        "contract_sha256": active.sha256,
+        "model": active.model,
+        "input_sha256": annotation["input_sha256"],
+        "text_sha256": annotation["text_sha256"],
+        "status": "ok",
+        "prediction": {
+            "symbols": [],
+            "event_type": "other",
+            "direction": 0,
+            "materiality": 0,
+            "summary": "摘要",
+            "confidence": 0.8,
+        },
+    }
+
+    with pytest.raises(evaluator.GoldEvaluationError, match=r"evidence_span.*required"):
+        evaluator.join_predictions(
+            [prediction],
+            {1: {"record": annotation}},
+            contract,
+            active_contract=active,
+        )
 
 
 def test_prediction_join_uses_active_contract_evidence_span_match_mode() -> None:
@@ -2237,6 +2486,7 @@ def test_v1_1_malformed_preflight_does_not_consume_evaluation_one_shot(
         )
 
     assert not state_path.exists()
+    assert not (eval_root / "reports").exists()
 
 
 def test_v1_1_cli_rejects_superseded_future_mode() -> None:
