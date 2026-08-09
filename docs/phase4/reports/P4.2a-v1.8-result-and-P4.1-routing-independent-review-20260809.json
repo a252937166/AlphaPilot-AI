@@ -1,0 +1,132 @@
+{
+  "schema_version": "p4-independent-review-v1",
+  "review_id": "p4.2a-v1.8-result-and-p4.1-routing-review-20260809-r1",
+  "created_at_utc": "2026-08-09T10:34:50Z",
+  "created_at_shanghai": "2026-08-09T18:34:50+08:00",
+  "verdicts": {
+    "p4_2a_v1_8_replacement_result": "APPROVE",
+    "p4_1_v2_1_scheduler_routing_code": "APPROVE"
+  },
+  "blockers": [],
+  "reviewer": {
+    "identity": "independent_ai_architect_claude_code",
+    "reviewer_type": "ai",
+    "model": "Anthropic Claude Fable 5 (model id claude-fable-5)",
+    "impersonation_disclaimer": "Not a human reviewer. Issued under the owner governance amendment with requires_release_gate_amendment=true.",
+    "method": "read-only audit of both lines. The P4.2a evaluation was NOT re-run. No deployment, no API restart, no plist installation, no scheduler start. Database access used mode=ro with PRAGMA query_only=ON."
+  },
+  "baseline": "6296e76",
+  "line_1_p4_2a": {
+    "verdict": "APPROVE",
+    "commit": "8498641 P4.2a: record v1.8 replacement gate failure",
+    "result_classification_confirmed": "valid_completed_evaluation_not_technical_failure",
+    "one_shot_state": {
+      "path": "docs/phase4/eval/P4.2a-heldout-evaluation-one-shot-v1.8-replacement.state.jsonl",
+      "sha256": "c4ac90fc0d8779a78920cf9e93d9fc80aa1a8c7271bf5f5e245edb198a4da6b9",
+      "line_count": 2,
+      "events": ["evaluation_started 2026-08-09T10:06:40.570000Z", "evaluation_completed 2026-08-09T10:06:40.941686Z"],
+      "design_sha256_on_both_events": "bb36b9713cbf70fa5293683e767655b70720a2baa9e8822bc0396c4e6284452e",
+      "terminal_binding": "The completed event records passed false and report_sha256 c2957297e733a919bdd31c4aa4faafb50c4c4d5c0edac29f663dac03e34a3a8f, which equals the digest of the report file on disk. Terminal binding verified."
+    },
+    "report": {"path": "docs/phase4/eval/reports/v1.8-replacement/P4.2a-heldout-evaluation-v1.8-replacement.json", "sha256": "c2957297e733a919bdd31c4aa4faafb50c4c4d5c0edac29f663dac03e34a3a8f", "report_count_in_directory": 1},
+    "independent_metric_recomputation": {
+      "method": "Recomputed directly from the frozen human-adjudicated gold and the frozen heldout candidate predictions, without reading the report's own numbers.",
+      "gold_source": "docs/phase4/eval/P4.2a-gold-heldout40-human-adjudicated-v1.7.jsonl",
+      "prediction_source": "docs/phase4/eval/P4.2a-heldout-candidate-predictions-v1.7.jsonl",
+      "matched_rows": 40,
+      "all_predictions_status_ok": true,
+      "tp": 21, "fp": 19, "tn": 0, "fn": 0,
+      "gold_positive_count": 21,
+      "predicted_positive_count": 40,
+      "materiality_precision": 0.525,
+      "materiality_precision_threshold": 0.8,
+      "materiality_recall": 1.0,
+      "heldout_symbol_exact_set": "40/40 = 1.0",
+      "matches_reported_values": true
+    },
+    "valid_gate_failure_determination": {
+      "conclusion": "This is a valid gate failure, not a technical failure.",
+      "reasoning": [
+        "The evaluation reached a terminal evaluation_completed event, produced a complete report and bound its digest into the state.",
+        "Metrics were genuinely computed over real data and independently reproduce to the same values from the frozen inputs.",
+        "Exactly one gate is false, materiality_precision_heldout40 at 0.525 against a threshold of 0.80. The other four gates, heldout_one_shot, owner_delivery_blind, symbol_mapping_all100 and symbol_bearing_exact_set_all100, all passed.",
+        "A process exit code of 2 carries the contract meaning of evaluation completed with a failing gate, distinct from the exit code 1 aborts seen in the technical failures earlier today."
+      ],
+      "substantive_reading": "The extractor over-predicts materiality at or above 2. Of 40 sampled predicted-positives, only 21 were confirmed material by the owner's adjudication. The dev60 model-interagreement figure of 0.94 did not transfer to human-adjudicated gold, which is exactly the kind of divergence a held-out set exists to expose."
+    },
+    "governance_checks": {
+      "prior_failed_round_still_disclosed": {"round_id": "heldout-final-v1.7-r1", "state_sha256": "ba1eef1517fa30c37a7fcba5b171405cf537c84dbbbb70cec57f542842fdc0ff", "unchanged": true, "disclosed_in_result_summary": true, "disclosed_in_specification_record": true},
+      "replacement_authorization_exhausted": {"rounds_authorized": 1, "rounds_consumed": 1, "rounds_remaining": 0, "retry_performed": false},
+      "no_rerun_evidence": "The v1.8 state file holds exactly two lines and the report directory holds exactly one file.",
+      "immutability_after_result": {"sample_changed": false, "selection_seed_changed": false, "predictions_changed": false, "model_changed": false, "prompt_changed": false, "contract_changed": false, "threshold_changed": false, "gold_changed": false, "independently_verified_digests": ["gold 3ff3aeae...", "annotation100 ec922eeb...", "predictions b77429b1...", "design v1.8 bb36b971..."]},
+      "phase_locks": {"p4_2a_evaluation_passed": false, "p4_2a_done": false, "p4_2b_unlocked": false, "p4_3_unlocked": false, "verified_in_report_result_summary_and_specification": true},
+      "trading_safety": {"production_writes_performed": false, "proposals_or_orders_created": false}
+    },
+    "finding_non_blocking": {
+      "id": "F-4",
+      "severity": "reporting_clarity",
+      "title": "Recall of 1.0 is a structural consequence of predicted-positive sampling and is not labelled as such",
+      "evidence": "The heldout40 frame is defined in the selection manifest as status=ok and prediction.materiality>=2, so every sampled item is a predicted positive by construction. That forces predicted_positive to 40 and both fn and tn to 0, which makes recall identically 1.0 regardless of model quality. The report presents materiality_recall.heldout40 as 1.0 alongside the precision metric, and while predicted_positive_pool_count and its rate are disclosed, the report contains no wording such as sampling frame, not estimable or structural to warn a reader.",
+      "why_not_a_blocker": "Recall is not a gate; the only failing and the only binding metric is precision, which predicted-positive sampling estimates validly. Nothing in the verdict depends on recall.",
+      "required_before_the_next_round": "Label recall on this frame as not estimable, or rename it so it cannot be read as evidence that the extractor misses nothing. A future reader comparing 0.525 precision against 1.0 recall could otherwise draw exactly the wrong conclusion about where the defect lies."
+    }
+  },
+  "line_2_p4_1": {
+    "verdict": "APPROVE",
+    "commit": "6005744 P4.1-v2.1: activate scheduler routing code",
+    "scope_reviewed": ["src/alphapilot/jobs/news_poll.py", "tests/test_p4_news_poll.py", "tests/test_p4_news_poll_v2_1.py"],
+    "atomic_conditions": {
+      "default_config_path": {"expected": "V2_1_CONFIG_PATH", "observed": "config/p4_news_poll_v2_1.yaml", "result": "pass"},
+      "scheduler_activation_constant": {"expected": true, "observed": true, "result": "pass"},
+      "explicit_routing": {"v1": "_news_poll_trigger_v1", "v2": "_news_poll_trigger_v2", "v2_1": "_news_poll_trigger_v2", "unknown": "raises ValueError", "result": "pass", "note": "The previous silent else-fallback to the v1 trigger is gone; an unrecognised path now fails closed instead of inheriting the wrong timetable."}
+    },
+    "trigger_slots_independently_enumerated": {
+      "method": "Enumerated fire times of the trigger actually returned for the new default registration over three real dates in the market timezone.",
+      "default_trigger_equals_v2_trigger": true,
+      "default_trigger_equals_v1_trigger": false,
+      "monday_2026_08_10": {"slots": 61, "nine_oclock_hour": ["09:50"]},
+      "tuesday_2026_08_11": {"slots": 64, "nine_oclock_hour": ["09:00", "09:30", "09:40", "09:50"]},
+      "wednesday_2026_08_12": {"slots": 64, "nine_oclock_hour": ["09:00", "09:30", "09:40", "09:50"]},
+      "monday_suppression_confirmed": "09:00, 09:30 and 09:40 are absent on Monday and only the 09:50 recovery slot fires, which is the v2 host-gap policy now genuinely in force for v2.1.",
+      "matches_preregistered_claim": true
+    },
+    "frozen_config_untouched": {"path": "config/p4_news_poll_v2_1.yaml", "sha256": "9d56e137baf10bd0858723a93aff02c57bf7b35f8705f1817b16a89ec615183f", "unchanged": true},
+    "receipt_boundaries_intact": {
+      "scheduler_mode_with_receipt": "rejected (JobExecutionError)",
+      "manual_mode_without_receipt": "rejected (JobExecutionError)",
+      "scheduler_mode_without_receipt": "allowed, returning scheduler_activated true, which is the intended effect of activation",
+      "superseded_v2_contract": "still non-runnable; V2_IMPLEMENTATION_READY remains False and a scheduler attempt on the v2 path raises",
+      "assessment": "Activation opened exactly one door, the scheduler path for v2.1, and opened no other. The manual receipt-bound entry points and the permanent block on the abandoned v2 contract are unchanged."
+    },
+    "deployment_boundary_respected": {
+      "scheduler_launchagent_loaded": false,
+      "installed_plist_sha256": "468083914b4dbe93fb564f82451ce7bac474674567d0edd3cee87ec2a018b9be",
+      "installed_plist_is_still_the_old_august_2_file": true,
+      "api_process": "PID 809, not restarted",
+      "conclusion": "The code gate landed without any deployment action, exactly as authorized."
+    },
+    "important_consequence_flagged": {
+      "id": "O-2",
+      "statement": "DEFAULT_CONFIG_PATH now resolves to v2.1, so every caller that relied on the default, including any manual invocation of run_news_poll without an explicit config_path, now targets v2.1 rather than v1. Combined with the activation constant, a scheduler start from this code would begin polling under the v2.1 contract immediately.",
+      "why_it_is_acceptable_now": "The LaunchAgent is not loaded and the installed plist is still the pre-hardening file, so nothing is scheduled to run. The gate that keeps this inert is deployment, not code.",
+      "what_it_means_for_the_deployment_gate": "From this commit onward the system is one bootstrap away from live v2.1 polling. The deployment review must therefore confirm the observation window is genuinely intended to start at that moment, since the first scheduled tick follows immediately."
+    }
+  },
+  "quality_gates": {
+    "focused_tests": "tests/test_p4_news_poll.py and tests/test_p4_news_poll_v2_1.py green",
+    "ruff": "All checks passed",
+    "mypy_strict_src_alphapilot": "no issues found in 157 source files",
+    "pytest_full": "exit 0, no failures"
+  },
+  "what_these_verdicts_do_not_authorize": [
+    "re-running or retrying the P4.2a evaluation in any form",
+    "marking P4.2a done, or unlocking P4.2b or P4.3",
+    "changing thresholds, sample, seed, predictions, model, prompt, contract or gold in response to the failing precision gate",
+    "deploying the scheduler, installing the plist, restarting com.alphapilot.api, or starting the scheduler",
+    "opening the three-trading-day observation window"
+  ],
+  "next_gates": {
+    "p4_2a": "The failing precision gate is an honest result about the extractor, not about the harness. Any path forward requires a fresh owner decision and a newly pre-registered design and test set; the current heldout40 is spent and its result stands.",
+    "p4_1": "Deployment remains a separate gate. Its evidence must deliver the actual installed plist digest, the nine environment variables read back from the installed file, launchctl state, the first scheduler-driven news_poll JobRun, and confirmation that Monday nine o'clock suppression is live in the registered trigger."
+  }
+}
