@@ -1,0 +1,74 @@
+{
+  "schema_version": "p4.2a-replacement-evaluation-authorization-v1",
+  "authorization_id": "p4.2a-heldout-replacement-evaluation-auth-20260809-r1",
+  "created_at_utc": "2026-08-09T06:56:25Z",
+  "created_at_shanghai": "2026-08-09T14:56:25+08:00",
+  "decision": "OPTION_B_REGISTER_FAILED_ROUND_AND_AUTHORIZE_ONE_REPLACEMENT",
+  "decided_by": {
+    "role": "owner",
+    "identity": "ouyang",
+    "how": "explicit selection between two stated options, with the reviewer's conflict of interest disclosed before the choice",
+    "reviewer_recommendation_was": "option_b_narrow",
+    "note": "The reviewer caused the consumption and therefore did not decide this. The owner's selection governs."
+  },
+  "authorized_by_reviewer": "independent_ai_architect_claude_code (reviewer_type=ai; Anthropic Claude Fable 5, model id claude-fable-5; not a human reviewer, per owner governance amendment requires_release_gate_amendment=true)",
+  "basis": {
+    "incident_report": "docs/phase4/reports/P4.2a-heldout-one-shot-consumed-incident-20260809.json",
+    "incident_report_sha256": "5182cfcfcbe419bc8c724365ba81fdbcdd92356de5064d864937f29f2573f963",
+    "failed_round_state_artifact": "docs/phase4/eval/P4.2a-heldout-evaluation-one-shot-v1.7.state.jsonl",
+    "failed_round_state_sha256": "ba1eef1517fa30c37a7fcba5b171405cf537c84dbbbb70cec57f542842fdc0ff",
+    "no_leakage_finding": "Zero report files exist under docs/phase4/eval/reports/v1.7, the state artifact contains no metric, and the exception propagated before serialization or printing. No score reached any human or model, so no test-set feedback could enter any decision. This is the factual predicate for option B and it is mechanically re-verifiable."
+  },
+  "immutable_record": {
+    "failed_round_id": "heldout-final-v1.7-r1",
+    "status": "evaluation_failed",
+    "started_at_utc": "2026-08-09T06:50:46.256014Z",
+    "failed_at_utc": "2026-08-09T06:50:46.595633Z",
+    "cause": "fourth latent defect: hardcoded design/contract version-pair allow-list in run_p4_2a_dev_iteration._evidence_validation never extended to (p4.2a-evaluation-design-v1.7, p4.2a-event-extract-eval-v1.7)",
+    "rules": [
+      "The v1.7 evaluation state artifact must never be deleted, edited, moved or regenerated.",
+      "The v1.7 round remains permanently recorded as failed. No later artifact may describe P4.2a as having had only one evaluation round.",
+      "Any P4.2a completion report must disclose this failed round and the reason it failed."
+    ]
+  },
+  "authorized_replacement": {
+    "rounds_authorized": 1,
+    "scope": "exactly one replacement heldout evaluation, under a new evaluation design version, against the SAME heldout40 sample and the SAME frozen predictions",
+    "new_design_requirements": {
+      "version": "a new design version, expected p4.2a-evaluation-design-v1.8, pre-registered before any run",
+      "must_declare_lineage": "extends_design must name config/p4_event_evaluation_v1_7.yaml with sha256 4c7964ad547820f5672631939af93978f11cb9f91e5921087770ac7d0d79bec1 and schema_version p4.2a-evaluation-design-v1.7, and must declare byte_frozen inheritance for at least the fifteen scopes v1.7 itself inherits, so that every artifact already bound to 4c7964ad continues to validate through the lineage mechanism introduced in 5adaa3f.",
+      "must_not_change": [
+        "the heldout40 sample or its selection seed, window or count",
+        "the frozen predictions, the model qwen3.7-flash, the prompt, the active extraction contract, or the freeze receipt",
+        "any evaluation threshold, metric definition or gate formula",
+        "the owner-adjudicated gold, the AI draft, or the combined annotation file"
+      ],
+      "may_change_only": [
+        "the design version identifier and its declared lineage",
+        "create-only artifact paths for the replacement round: a NEW evaluation state artifact path and a NEW report directory, so the v1.7 failed state and its guard remain untouched"
+      ],
+      "binding_preservation_proof_required": "Before the replacement round, Codex must demonstrate that every artifact recording design_sha256 4c7964ad, specifically the heldout inference state and the heldout40 selection manifest, still validates under the new design through scope-gated lineage acceptance and NOT through any widening of acceptance. The reviewer will re-derive this independently."
+    },
+    "preconditions_all_mandatory": [
+      "Fix the fourth defect: either add the (v1.7, v1.7) pair and the new design's pair, or derive the allowed pairing from the design's declared active contract instead of a literal table. Pre-register with tests including a negative case that a genuinely mismatched pair still fails closed.",
+      "Extend the dry-run to walk the report-extension and metric-assembly stages, so no stage remains unwalked at the one-shot boundary. The dry-run must stay read-only and must never emit a scored report.",
+      "Rehearse the COMPLETE evaluation path, including report extensions, metric assembly and report serialization, against a synthetic but structurally identical copy of the frozen inputs placed outside the artifact root, and show it produces a report end to end. The only untested thing when the boundary is finally crossed must be the data, never the code.",
+      "Full Ruff, strict mypy and full pytest green.",
+      "Independent review of all of the above before the replacement round is executed."
+    ],
+    "execution_rules": [
+      "The replacement round is one-shot with zero retries. If it fails again, it is recorded as a second failed round and this authorization is exhausted; a further attempt would require a fresh owner decision.",
+      "Whatever the metrics show, pass or fail, the result is recorded and reported honestly. A failing precision gate is an acceptable and expected possible outcome and must not trigger any change to thresholds, sample, prompt, model or gold.",
+      "No P4.2b or P4.3 unlock follows automatically from a passing result; those remain gated on the separate P4.1 acceptance."
+    ]
+  },
+  "who_executes": {
+    "recommendation": "Codex should execute the replacement round after the reviewer approves the preconditions, rather than the reviewer executing it as happened this time.",
+    "reason": "Separating the party that reviews readiness from the party that spends the single authorization removes the failure mode that produced this incident, where the same actor both judged the path clear and consumed the authorization."
+  },
+  "unchanged_by_this_authorization": {
+    "p4_1_line": "The P4.1 standard incremental validation receipt b605dd90fbd9a47439d9e1415c02d02a97f3f859c8f07ea0e8ab9d7a319372f1 remains valid and independent of P4.2a, but its slice derivation is anchored to Shanghai date 2026-08-09 and it must not be run after that date rolls over.",
+    "phase_locks": {"p4_2b_production_wiring_unlocked": false, "p4_3_unlocked": false, "scheduler_activated": false},
+    "trading_safety": "unchanged; no proposal, order or trade is authorized by anything in this document"
+  }
+}
