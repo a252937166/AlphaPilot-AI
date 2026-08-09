@@ -649,6 +649,27 @@ owner 确认该时段为**人为断网、周期性复发**，非代码或上游�
   合同/回执血缘均吻合。冻结时 inference state/predictions/manifest 仍不存在、模型调用 `0`、
   生产提案/委托仍为 `1/1`；下一动作只能由该字节冻结池启动唯一 inference one-shot。
 
+### P4.2a v1.8 替换评测预注册（2026-08-09，尚未执行）
+
+- v1.7 正式评测轮已不可变登记为失败：状态文件
+  `docs/phase4/eval/P4.2a-heldout-evaluation-one-shot-v1.7.state.jsonl`，SHA-256
+  `ba1eef1517fa30c37a7fcba5b171405cf537c84dbbbb70cec57f542842fdc0ff`，禁止删除、改写、
+  移动或重生成。事故报告 SHA-256 为 `5182cfcf…f963`；owner 选择方案 B 的替换授权 SHA-256
+  为 `2e33220f…089f`，只允许同一 held-out40、同一冻结预测的一次替换评测。
+- 新设计 `config/p4_event_evaluation_v1_8.yaml` 已在实现与任何替换轮之前预注册，SHA-256
+  `bb36b9713cbf70fa5293683e767655b70720a2baa9e8822bc0396c4e6284452e`。它只改变设计版本/
+  血统身份以及替换轮的 create-only state/report 路径；通过 15 个 `byte_frozen` scope 逐字节
+  继承 v1.7。样本、seed、窗口、数量、预测、模型、prompt、抽取合同、freeze receipt、门槛、
+  指标定义与 owner gold 均保持不变。
+- 代码前置预注册为四项：① 版本对从设计声明的 active contract 身份推导，并对真实错配继续
+  fail closed；② v1.8 loader 与 scope-gated lineage 绑定；③ dry-run 在不计算/披露真实 held-out
+  分数的前提下走到报告扩展和组装；④ 在生产 artifact root 外用结构同形合成输入完整走通
+  claim → metrics → extensions → report serialization。机器可读预注册记录为
+  `docs/phase4/reports/P4.2a-v1.8-replacement-preregistration-20260809.json`。
+- 本节不构成替换轮许可消耗。必须先完成代码、fixture、绑定证明、合成全路径预演与 Ruff、
+  strict mypy、全量 pytest，再交独立复核；复核通过前不得创建 v1.8 state 或正式报告，
+  P4.2b/P4.3 继续锁定。
+
 ## P4.2 LLM 事件抽取
 
 > **拆分解锁（owner 质询后修订，2026-08-03）**：P4.2 拆为两半。**P4.2a 评测准备**即刻
