@@ -1,0 +1,58 @@
+{
+  "schema_version": "p4.1-v2.1-owner-observation-window-acceptance-v1",
+  "record_id": "p4.1-v2.1-owner-window-acceptance-20260809-r1",
+  "created_at_utc": "2026-08-09T13:24:58Z",
+  "created_at_shanghai": "2026-08-09T21:24:58+08:00",
+  "repository_head_at_record": "9dd79a7d2ac204738ccdcf287a349919c0dfc134",
+  "decision": {
+    "decided_by": "owner (ouyang)",
+    "decision": "ACCEPT_DEPLOYMENT_AND_OPEN_OBSERVATION_WINDOW",
+    "how_obtained": "The owner was presented with three options, accept and open, decline and bootout, or accept deployment but shift the window start, together with the running-state facts and the reviewer's prior activation verdict. The owner selected accept and open.",
+    "not_inferred": "This acceptance was given explicitly by the owner. Neither the reviewer nor the operator treated the running scheduler as implied consent, and the operator correctly refused to do so."
+  },
+  "observation_window": {
+    "starts_at_shanghai": "2026-08-10T00:00:00+08:00",
+    "trading_days": ["2026-08-10", "2026-08-11", "2026-08-12"],
+    "count": 3,
+    "config_sha256": "9d56e137baf10bd0858723a93aff02c57bf7b35f8705f1817b16a89ec615183f",
+    "config_must_remain_frozen_for_the_whole_window": true
+  },
+  "reviewer_basis": {
+    "identity": "independent_ai_architect_claude_code",
+    "reviewer_type": "ai",
+    "model": "Anthropic Claude Fable 5 (model id claude-fable-5)",
+    "activation_verdict": "APPROVE_ACTIVATION",
+    "activation_evidence_path": "docs/phase4/reports/P4.1-v2.1-scheduler-deployment-activation-evidence-20260809.json",
+    "activation_evidence_sha256": "f09b0d64b4151a54c11a1e882a7ff8aad709f55c96928adb8de579ac7e7f284f",
+    "verified_at_activation_review": [
+      "installed plist 011164cef801f560c7fa5a7fe4aa8d0ed6551ba859e885eabebf79652ce64caf at mode 0600 with exactly nine environment variables",
+      "scheduler PID 26118 running with runs=1 and never exited; API PID 24813 healthy; old API PID 809 gone",
+      "JobRun 76955 news_poll ok under execution_mode scheduler and config v2.1, checkpoint 2026-08-08 unchanged",
+      "registered trigger yields 61/64/64 slots on 2026-08-10/11/12 with Monday 09:00, 09:30 and 09:40 suppressed and only 09:50 firing",
+      "whole-table URL and content_hash duplicate groups both zero, integrity_check ok, trading state 1 proposal / 1 SIMULATE order / 0 non-SIMULATE",
+      "the single five-second health timeout was classified as transient I/O contention from a one-off maintenance scan, not a sustained service fault"
+    ]
+  },
+  "technical_exposure": {
+    "began_at_shanghai": "2026-08-09T19:39:19+08:00",
+    "runs_before_window_start": ["76955 at 2026-08-09 20:00 CST", "76986 at 2026-08-09 20:30 CST", "77017 at 2026-08-09 21:00 CST"],
+    "treatment": "Runs between deployment and 2026-08-10 00:00 CST are real and remain in the record, but they are NOT part of the three-trading-day window. The window is counted from 2026-08-10 00:00 CST."
+  },
+  "first_day_focus": {
+    "date": "2026-08-10",
+    "why_it_matters": "Monday is the owner-confirmed deliberate host-disconnection day. This is the first live test of the v2 Monday policy carried into v2.1: 09:00, 09:30 and 09:40 must not fire and 09:50 must run as the recovery slot.",
+    "acceptance_evidence_must_report_separately": ["whether the suppressed slots produced no JobRun", "whether the 09:50 recovery slot ran and its outcome", "how the outage interval is classified in the coverage accounting"]
+  },
+  "watch_item": {
+    "id": "W-1",
+    "statement": "com.alphapilot.database-backup carries StartInterval 900. If it performs whole-database I/O it can transiently contend with news_poll runs, which is the same mechanism that produced the observed health timeout.",
+    "action": "not a blocker; if the window shows unexplained latency, timeouts or a failed poll, check for collision with the backup job before attributing it to the poller."
+  },
+  "explicit_limits": {
+    "p4_1_done": false,
+    "p4_2b_unlocked": false,
+    "p4_3_unlocked": false,
+    "statement": "This acceptance opens the observation window only. Final P4.1 acceptance is a separate verdict to be issued after the window closes, on the basis of the three-day coverage evidence, and it alone gates P4.2b and P4.3."
+  },
+  "next_gate": "After 2026-08-12 closes, the operator submits the three-trading-day acceptance evidence and the independent reviewer issues the P4.1 acceptance verdict, pass or fail, under the same gates that produced the earlier honest red result."
+}
