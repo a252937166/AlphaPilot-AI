@@ -1,0 +1,216 @@
+{
+  "schema_version": "p4.1-news-poll-v2.1-scheduler-activation-code-gate-preregistration-v1",
+  "preregistration_id": "p4.1-v2.1-scheduler-activation-code-gate-20260809-r1",
+  "created_at_utc": "2026-08-09T07:26:31Z",
+  "created_at_shanghai": "2026-08-09T15:26:31+08:00",
+  "status": "pending_owner_review_and_independent_validation_review",
+  "implementation_authorized": false,
+  "deployment_authorized": false,
+  "three_trading_day_observation_authorized": false,
+  "review_basis": {
+    "incremental_validation_job_run_id": 76934,
+    "incremental_validation_status": "ok",
+    "incremental_validation_evidence_path": "docs/phase4/reports/P4.1-v2.1-standard-incremental-validation-evidence-20260809.json",
+    "incremental_validation_evidence_sha256": "b60946d37ebc687e8f7c7861ede743f5fba98844ba331d0bbfb7c19f4a0de7d7",
+    "incremental_validation_review_status": "pending_independent_review",
+    "authorization_receipt_path": "docs/phase4/reports/P4.1-v2.1-standard-incremental-validation-authorization-20260809.json",
+    "authorization_receipt_sha256": "b605dd90fbd9a47439d9e1415c02d02a97f3f859c8f07ea0e8ab9d7a319372f1",
+    "receipt_scope_allows_scheduler_redeployment": false,
+    "receipt_scope_allows_scheduler_activation": false
+  },
+  "baseline": {
+    "repository_head_observed": "b1b8ceedf53f4f724e71701bc8d4212606b36c10",
+    "parallel_unrelated_p4_2a_worktree_changes_present": true,
+    "preserve_unrelated_changes": true,
+    "news_poll_source_path": "src/alphapilot/jobs/news_poll.py",
+    "news_poll_source_sha256": "fef43741418dcddd0e2ed419e5e5617ee6826110f2529ccf5a5c231207400145",
+    "v2_1_config_path": "config/p4_news_poll_v2_1.yaml",
+    "v2_1_config_sha256": "9d56e137baf10bd0858723a93aff02c57bf7b35f8705f1817b16a89ec615183f",
+    "v2_1_scheduler_activated_constant": false,
+    "default_config_path": "config/p4_news_poll_v1.yaml",
+    "trigger_router_current_behavior": "only V2_CONFIG_PATH maps to v2; every other path including v2.1 silently falls back to v1",
+    "scheduler_launchagent_loaded": false,
+    "installed_scheduler_plist_sha256": "468083914b4dbe93fb564f82451ce7bac474674567d0edd3cee87ec2a018b9be",
+    "installed_scheduler_plist_environment_variable_count": 7,
+    "api_launchagent_state": "running",
+    "api_pid": 809,
+    "api_started_local": "2026-07-31T11:29:23-04:00",
+    "api_process_predates_current_env": true
+  },
+  "defect": {
+    "id": "SCHED-V2.1-ROUTE-001",
+    "statement": "Activating only V2_1_SCHEDULER_ACTIVATED would still register and execute v1 defaults, and v2.1 trigger selection would silently inherit the v1 timetable.",
+    "business_effect": "The v2 Monday host-gap policy would be lost: the scheduler could run at Monday 09:00 and 09:30 CST instead of suppressing the host-disconnected interval and recovering at 09:50 CST.",
+    "activation_gate": "all three code conditions and their tests must land atomically"
+  },
+  "selected_code_change": {
+    "files_allowed": [
+      "src/alphapilot/jobs/news_poll.py",
+      "tests/test_p4_news_poll.py",
+      "tests/test_p4_news_poll_v2_1.py"
+    ],
+    "conditions": [
+      {
+        "id": "C1",
+        "change": "Set V2_1_SCHEDULER_ACTIVATED = True."
+      },
+      {
+        "id": "C2",
+        "change": "Set DEFAULT_CONFIG_PATH = V2_1_CONFIG_PATH so the registered JobSpec executes v2.1, and assert the registered function resolves the v2.1 config without a manual receipt in scheduler mode."
+      },
+      {
+        "id": "C3",
+        "change": "Make _news_poll_trigger an explicit exhaustive router: v1 -> v1 trigger; v2 -> v2 trigger; v2.1 -> v2 trigger; unknown paths -> ValueError. No else-to-v1 fallback is permitted."
+      }
+    ],
+    "v2_1_monday_semantics": {
+      "inherit_from": "_news_poll_trigger_v2",
+      "monday_09_00": "suppressed",
+      "monday_09_30": "suppressed",
+      "monday_09_40": "suppressed",
+      "monday_09_50": "recovery_run",
+      "monday_slot_count": 61,
+      "tuesday_slot_count": 64,
+      "wednesday_slot_count": 64
+    },
+    "frozen_config_policy": {
+      "modify_config_p4_news_poll_v2_1_yaml": false,
+      "reason": "The validated config remains byte-frozen. Its historical preregistration phase-gate fields remain false because the loader currently hash-binds that snapshot; runtime activation is represented by reviewed code and deployment evidence.",
+      "expected_config_sha256_after_change": "9d56e137baf10bd0858723a93aff02c57bf7b35f8705f1817b16a89ec615183f"
+    },
+    "out_of_scope": [
+      "changes to request budgets, pagination, deduplication, PIT, checkpoint, source selection or trading behavior",
+      "changes to any authorization receipt, prior evidence, v2.1 preregistration or controlled probe",
+      "P4.2b production wiring or P4.3 unlock",
+      "trade proposal, order, delegation or trade",
+      "starting the three-trading-day observation window"
+    ]
+  },
+  "test_gate": {
+    "required_assertions": [
+      "DEFAULT_CONFIG_PATH equals V2_1_CONFIG_PATH and the hash-locked default loader returns schema p4.1-news-poll-v2.1.",
+      "_news_poll_trigger(V2_1_CONFIG_PATH) has exactly the same fire times as _news_poll_trigger_v2.",
+      "The registered JobSpec trigger uses the v2.1 route when ALPHAPILOT_NEWS_POLL_ENABLED=true.",
+      "On Monday, v2.1 excludes 09:00, 09:30 and 09:40, includes only 09:50 in the 09 hour, and has 61 unique CST slots.",
+      "On Tuesday and Wednesday, v2.1 has 64 unique CST slots per day.",
+      "An unknown config path raises ValueError rather than falling back to v1.",
+      "V2_1_SCHEDULER_ACTIVATED is true and v2.1 scheduler-mode authorization succeeds without a manual receipt.",
+      "Passing a manual receipt in scheduler mode remains forbidden.",
+      "Manual migration and validation receipt paths retain their existing hash-bound behavior.",
+      "Tests that intentionally exercise v1 use V1_CONFIG_PATH explicitly instead of relying on the production default."
+    ],
+    "required_commands": [
+      "PYTHONPATH=. .venv/bin/pytest -q tests/test_p4_news_poll.py tests/test_p4_news_poll_v2_1.py tests/test_scheduler_daemon.py",
+      ".venv/bin/ruff check src tests scripts",
+      "PYTHONPATH=. .venv/bin/mypy --strict src scripts",
+      "PYTHONPATH=. .venv/bin/pytest -q"
+    ],
+    "implementation_evidence_required": [
+      "reviewed repository HEAD",
+      "changed file list",
+      "post-change news_poll.py SHA-256",
+      "unchanged v2.1 config SHA-256",
+      "test counts and exact scan scopes"
+    ]
+  },
+  "deployment_gate_after_code_review": {
+    "requires_new_activation_authorization": true,
+    "preconditions": [
+      "Incremental validation evidence is independently approved.",
+      "The owner approves this code-gate preregistration and the implementation diff.",
+      "The scheduler remains unloaded and job_runs.status='running' is zero.",
+      "A new verified SQLite online backup is created after JobRun 76934; the current newest full backup predates it.",
+      "The reviewed HEAD, source SHA, config SHA, .env safety hash and activation baseline MAX(job_runs.id) are recorded."
+    ],
+    "api_restart_point": {
+      "sequence": 1,
+      "state_change": "Run scripts/restart_api_launchd.sh after the fresh backup and reviewed code/test gate, but before scheduler plist regeneration/bootstrap.",
+      "why_here": "com.alphapilot.api owns create_all and run_migrations, and its current process predates the .env remediation. The scheduler only performs read-only database readiness checks.",
+      "expected_service_effect": "A brief localhost:8000 interruption while launchd replaces PID 809 and the API executes its startup migration path.",
+      "must_verify_before_scheduler_start": [
+        "new API PID and launchctl state=running",
+        "localhost API health",
+        "migration/schema readiness",
+        "API plist keeps ALPHAPILOT_SCHEDULER_ENABLED=false",
+        "no running JobRun",
+        "research/trading safety and SQLite integrity unchanged"
+      ],
+      "failure_action": "Stop. Do not start the scheduler; retain API/migration logs and state evidence."
+    },
+    "scheduler_plist_point": {
+      "sequence": 2,
+      "state_change": "Run scripts/start_scheduler_launchd.sh once. Do not manually edit the installed plist and do not call a restart script while the service is unloaded.",
+      "script_behavior": "The script renders the hardened template into a temporary plist, validates it, backs up the 2026-08-02 installed plist, atomically replaces it, bootstraps launchd and requires a stable PID.",
+      "template_path": "config/scheduler.launchagent.template.plist",
+      "template_sha256": "8a016ea1dd79104188f1d1bc04784d05cc83d2b90207d9b209f7fedc3bfcfa96",
+      "predicted_rendered_plist_sha256_before_deployment": "011164cef801f560c7fa5a7fe4aa8d0ed6551ba859e885eabebf79652ce64caf",
+      "predicted_sha_is_not_deployment_evidence": true,
+      "actual_new_plist_sha256": null,
+      "required_environment_variables": {
+        "ALPHAPILOT_SCHEDULER_ENABLED": "true",
+        "ALPHAPILOT_TRADING_MODE": "research",
+        "ALPHAPILOT_LIVE_TRADING_ENABLED": "false",
+        "ALPHAPILOT_PAPER_TRADING_ENABLED": "false",
+        "ALPHAPILOT_PAPER_AUTO_TRADING_ENABLED": "false",
+        "ALPHAPILOT_FUTU_ENABLE_ACCOUNT_MUTATION": "false",
+        "ALPHAPILOT_FUTU_ENABLE_TRADE": "false",
+        "ALPHAPILOT_BAOSTOCK_FINANCIAL_SYNC_ENABLED": "false",
+        "ALPHAPILOT_NEWS_POLL_ENABLED": "true"
+      },
+      "required_post_install_evidence": [
+        "actual installed plist SHA-256",
+        "plutil -lint success",
+        "exact nine-key EnvironmentVariables set and values",
+        "installed mode 0600",
+        "installed bytes equal the reviewed template rendering",
+        "launchctl print path/state/program/working-directory/runs/pid/last-exit-code",
+        "at least 90 seconds without PID churn, restart loop, duplicate JobRun or SQLite lock"
+      ],
+      "failure_action": "Fail closed, boot out the new scheduler if needed, preserve the failed install/log evidence, and do not run a replacement news_poll."
+    }
+  },
+  "first_job_run_gate": {
+    "activation_baseline_job_run_id": null,
+    "first_global_job_run_after_activation": null,
+    "first_news_poll_job_run_after_activation": null,
+    "why_two_records": "The dedicated scheduler registers multiple jobs and poll_market_snapshot may run before news_poll; a global first JobRun is not proof of the news-poll route.",
+    "required_news_poll_evidence": [
+      "id is greater than the activation baseline and timestamps are after scheduler bootstrap",
+      "status=ok and error=null; degraded or failed is a hard stop",
+      "stats.execution_mode=scheduler",
+      "stats.config_version=p4.1-news-poll-v2.1 and the reviewed config path/SHA",
+      "stats.execution_authorization.scheduler_activated=true",
+      "expected CST slice derivation and checkpoint behavior",
+      "CNInfo page_count/page_cap_hit/pagination_complete/floor/termination mechanism",
+      "all-source failure/retry/reconciliation and run-marker/PIT evidence",
+      "persisted/process trading safety unchanged and zero non-SIMULATE orders",
+      "source SHA, launchd PID and actual plist SHA binding"
+    ],
+    "retry_policy": "No manual replacement run. On any failure, preserve the first JobRun and stop the scheduler for review."
+  },
+  "observation_window_gate": {
+    "status": "closed",
+    "timezone": "Asia/Shanghai",
+    "open_condition": "The owner approves the actual plist, launchctl and first news_poll JobRun activation evidence.",
+    "start_time": null,
+    "trading_days": 3
+  },
+  "current_deployment_evidence": {
+    "scheduler_launchctl_status": "unloaded",
+    "installed_plist_sha256": "468083914b4dbe93fb564f82451ce7bac474674567d0edd3cee87ec2a018b9be",
+    "installed_plist_missing_environment_variables": [
+      "ALPHAPILOT_PAPER_TRADING_ENABLED",
+      "ALPHAPILOT_FUTU_ENABLE_TRADE"
+    ],
+    "actual_new_plist_sha256": null,
+    "actual_new_launchctl_status": null,
+    "actual_first_news_poll_job_run": null,
+    "reason_not_delivered_yet": "Those are post-review state-changing deployment artifacts; the current validation receipt explicitly forbids scheduler redeployment and activation."
+  },
+  "owner_decision_requested": {
+    "review_incremental_evidence_separately": true,
+    "approve_code_gate_implementation": null,
+    "approve_api_restart_and_scheduler_deployment": false,
+    "approve_three_trading_day_observation": false
+  }
+}
