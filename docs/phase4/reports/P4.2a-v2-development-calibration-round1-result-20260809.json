@@ -1,0 +1,430 @@
+{
+  "schema_version": "p4.2a-v2-development-calibration-round-result-v1",
+  "generated_at_utc": "2026-08-09T15:13:19Z",
+  "generated_at_cst": "2026-08-09T23:13:19+08:00",
+  "status": "RECORDED_NO_MODEL_SELECTED",
+  "round_number": 1,
+  "execution": {
+    "frozen_code_commit": "aa86d816d40b9c043ec86dbae211dce9ce875a6a",
+    "command": "PYTHONPATH=. .venv/bin/python scripts/run_p4_2a_v2_dev_calibration.py",
+    "started_at_utc": "2026-08-09T14:50:04.501653Z",
+    "completed_at_utc": "2026-08-09T14:53:31.819169Z",
+    "process_exit_code": 0,
+    "fixed_model_order": [
+      "qwen3.7-flash",
+      "qwen3.6-plus"
+    ],
+    "expected_predictions_per_model": 45,
+    "recorded_predictions_per_model": 45,
+    "evaluated_model_calls": 90,
+    "automatic_retries": 0,
+    "failed_candidate_retries": 0,
+    "both_models_always_measured": true
+  },
+  "pre_formal_bootstrap_incident": {
+    "status": "IMPORT_FAILED_BEFORE_ROUND_ENTRY",
+    "command": ".venv/bin/python scripts/run_p4_2a_v2_dev_calibration.py",
+    "error_type": "ModuleNotFoundError",
+    "safe_error": "repository root was absent from PYTHONPATH, so the scripts package could not be imported",
+    "round_state_created": false,
+    "round_artifacts_created": false,
+    "model_calls": 0,
+    "production_llm_calls_before": 111,
+    "production_llm_calls_after": 111,
+    "authorization_consumed": false,
+    "classification": "launcher_bootstrap_failure_not_a_formal_round_and_not_a_candidate_retry",
+    "remediation": "reran the same frozen commit with the already-tested PYTHONPATH=. launcher; no code, prompt, contract, sample, threshold, or gold changed"
+  },
+  "frozen_bindings": {
+    "evaluation_design": {
+      "path": "config/p4_event_evaluation_v2.yaml",
+      "sha256": "18a2428a4ec04bfea6e4f4d70692f38ea82fbaee5a223f30f2465b895b238e21"
+    },
+    "round_preregistration": {
+      "path": "docs/phase4/eval/v2-calibration/development/rounds/r1/round-preregistration.json",
+      "sha256": "f485a95271fc609fa84e623dee349e676d6e97e7bf27dd52d2ce7835c26e9c8d"
+    },
+    "prompt": {
+      "path": "config/prompts/p4_news_event_extract_v2-r1.txt",
+      "sha256": "9441690be1a21c7bbafc1f16ec5e6174220d5bcd7f4e89f0bf32e8ace068817a"
+    },
+    "flash_contract": {
+      "path": "config/p4_event_extract_eval_v2-r1-qwen3.7-flash.yaml",
+      "sha256": "224a40885e3ccc58b28dbee8706add0a73f9cd9e22f68555cd3d3dae82e0d9a9"
+    },
+    "plus_contract": {
+      "path": "config/p4_event_extract_eval_v2-r1-qwen3.6-plus.yaml",
+      "sha256": "8ad4f69e700e3cb9ec3cc0be07d84d1f54cf78725ad1c27fb8977f1aca6603a7"
+    },
+    "owner_export": {
+      "path": "docs/phase4/eval/v2-calibration/development/P4.2a-development-frame-v2.owner-export.jsonl",
+      "sha256": "812ee8c86ab9f9ed269b1c6952046bddb11317b8624618d8444de5b03f612d31"
+    },
+    "human_gold": {
+      "path": "docs/phase4/eval/v2-calibration/development/P4.2a-development-frame-v2.human-adjudicated.jsonl",
+      "sha256": "fc08abc2f78bcb693c4e048fcd43ddd4f37c9d6a7a70ac878467194efbacaaa8"
+    },
+    "owner_completion": {
+      "path": "docs/phase4/eval/v2-calibration/development/P4.2a-development-frame-v2.owner-completion.json",
+      "sha256": "51282ca598c1f99c2755d2954a8fe820b1b1f583205a0ff20676b30e613ca02b"
+    },
+    "development_selection": {
+      "path": "docs/phase4/eval/v2-calibration/development/P4.2a-development-frame-v2.selection.json",
+      "sha256": "067dbfbf3a1f6031ce5861bb5f2e7efda8a4254bf3e12a2299b2981871e477eb"
+    },
+    "owner_adjudication_independent_review": {
+      "path": "docs/phase4/reports/P4.2a-dev45-owner-adjudication-independent-review-20260809.json",
+      "sha256": "8ec8bc915dd028c9053e0986b8559148e33e574d018ee7ff5492903fce30d02f"
+    }
+  },
+  "sampling_frame": {
+    "frame_id": "development_frame_v2_baseline_stratified_30_positive_15_negative",
+    "total": 45,
+    "baseline_predicted_positive": 30,
+    "baseline_predicted_negative": 15,
+    "extract_failed": 0,
+    "heldout_items": 0,
+    "population_estimate": false
+  },
+  "models": {
+    "qwen3.7-flash": {
+      "status": "completed",
+      "technical_completion": {
+        "expected": 45,
+        "recorded": 45,
+        "successful": 45,
+        "failure_count": 0,
+        "retried_failure_count": 0,
+        "isolated_audit_row_count": 45,
+        "passed": true
+      },
+      "materiality_precision": {
+        "tp": 11,
+        "fp": 3,
+        "denominator": 14,
+        "value": 0.7857142857142857,
+        "minimum": 0.8,
+        "passed": false,
+        "metric_partition": "candidate_round_predicted_positive",
+        "sampling_frame": "development_frame_v2_baseline_stratified_30_positive_15_negative",
+        "sampling_strata": [
+          "baseline_predicted_positive",
+          "baseline_predicted_negative"
+        ],
+        "formula": "tp / (tp + fp)",
+        "gate_or_diagnostic": "development_gate"
+      },
+      "materiality_false_omission_rate": {
+        "fn": 7,
+        "tn": 24,
+        "denominator": 31,
+        "value": 0.22580645161290322,
+        "maximum": 0.2,
+        "passed": false,
+        "metric_partition": "candidate_round_predicted_negative",
+        "sampling_frame": "development_frame_v2_baseline_stratified_30_positive_15_negative",
+        "sampling_strata": [
+          "baseline_predicted_positive",
+          "baseline_predicted_negative"
+        ],
+        "formula": "fn / (fn + tn)",
+        "gate_or_diagnostic": "development_gate",
+        "l3_coarse_guardrail": {
+          "registered_baseline_negative_stratum_size": 15,
+          "one_item_step": 0.06666666666666667,
+          "maximum_allowed_false_omissions_at_size_15": 3
+        }
+      },
+      "materiality_recall": {
+        "value": null,
+        "formula": "not_estimable",
+        "metric_partition": "omitted_in_favor_of_false_omission_rate",
+        "sampling_frame": "development_frame_v2_baseline_stratified_30_positive_15_negative",
+        "sampling_strata": [
+          "baseline_predicted_positive",
+          "baseline_predicted_negative"
+        ],
+        "denominator": "not_estimated",
+        "gate_or_diagnostic": "omitted_not_estimable"
+      },
+      "symbol_exact_set_accuracy": {
+        "matches": 44,
+        "denominator": 45,
+        "value": 0.9777777777777777,
+        "gate_or_diagnostic": "development_diagnostic"
+      },
+      "symbol_bearing_exact_set_accuracy": {
+        "matches": 38,
+        "denominator": 39,
+        "value": 0.9743589743589743,
+        "gate_or_diagnostic": "development_diagnostic"
+      },
+      "source_pool_weighted_diagnostics": {
+        "estimator": "inverse_probability_weighted_by_baseline_sampling_stratum",
+        "materiality_precision": 0.7857142857142857,
+        "materiality_false_omission_rate": 0.16530415023376077,
+        "may_not_override_development_gate": true
+      },
+      "confusion_ids": {
+        "false_positive": [
+          3895,
+          3486,
+          2732
+        ],
+        "false_negative": [
+          1363,
+          3776,
+          3285,
+          1754,
+          3947,
+          1352,
+          2203
+        ]
+      },
+      "latency_ms": {
+        "minimum": 1099,
+        "mean": 1609.6,
+        "median": 1572,
+        "p95_nearest_rank": 2096,
+        "maximum": 2777,
+        "total": 72432
+      },
+      "tokens": {
+        "prompt": 223528,
+        "completion": 5408,
+        "total": 228936
+      },
+      "both_materiality_gates_passed": false
+    },
+    "qwen3.6-plus": {
+      "status": "completed",
+      "technical_completion": {
+        "expected": 45,
+        "recorded": 45,
+        "successful": 45,
+        "failure_count": 0,
+        "retried_failure_count": 0,
+        "isolated_audit_row_count": 45,
+        "passed": true
+      },
+      "materiality_precision": {
+        "tp": 9,
+        "fp": 4,
+        "denominator": 13,
+        "value": 0.6923076923076923,
+        "minimum": 0.8,
+        "passed": false,
+        "metric_partition": "candidate_round_predicted_positive",
+        "sampling_frame": "development_frame_v2_baseline_stratified_30_positive_15_negative",
+        "sampling_strata": [
+          "baseline_predicted_positive",
+          "baseline_predicted_negative"
+        ],
+        "formula": "tp / (tp + fp)",
+        "gate_or_diagnostic": "development_gate"
+      },
+      "materiality_false_omission_rate": {
+        "fn": 9,
+        "tn": 23,
+        "denominator": 32,
+        "value": 0.28125,
+        "maximum": 0.2,
+        "passed": false,
+        "metric_partition": "candidate_round_predicted_negative",
+        "sampling_frame": "development_frame_v2_baseline_stratified_30_positive_15_negative",
+        "sampling_strata": [
+          "baseline_predicted_positive",
+          "baseline_predicted_negative"
+        ],
+        "formula": "fn / (fn + tn)",
+        "gate_or_diagnostic": "development_gate",
+        "l3_coarse_guardrail": {
+          "registered_baseline_negative_stratum_size": 15,
+          "one_item_step": 0.06666666666666667,
+          "maximum_allowed_false_omissions_at_size_15": 3
+        }
+      },
+      "materiality_recall": {
+        "value": null,
+        "formula": "not_estimable",
+        "metric_partition": "omitted_in_favor_of_false_omission_rate",
+        "sampling_frame": "development_frame_v2_baseline_stratified_30_positive_15_negative",
+        "sampling_strata": [
+          "baseline_predicted_positive",
+          "baseline_predicted_negative"
+        ],
+        "denominator": "not_estimated",
+        "gate_or_diagnostic": "omitted_not_estimable"
+      },
+      "symbol_exact_set_accuracy": {
+        "matches": 44,
+        "denominator": 45,
+        "value": 0.9777777777777777,
+        "gate_or_diagnostic": "development_diagnostic"
+      },
+      "symbol_bearing_exact_set_accuracy": {
+        "matches": 38,
+        "denominator": 39,
+        "value": 0.9743589743589743,
+        "gate_or_diagnostic": "development_diagnostic"
+      },
+      "source_pool_weighted_diagnostics": {
+        "estimator": "inverse_probability_weighted_by_baseline_sampling_stratum",
+        "materiality_precision": 0.7634676637584822,
+        "materiality_false_omission_rate": 0.14882302127200084,
+        "may_not_override_development_gate": true
+      },
+      "confusion_ids": {
+        "false_positive": [
+          3315,
+          3895,
+          3486,
+          2732
+        ],
+        "false_negative": [
+          1363,
+          3776,
+          3246,
+          1311,
+          1754,
+          3947,
+          1352,
+          1176,
+          2203
+        ]
+      },
+      "latency_ms": {
+        "minimum": 2304,
+        "mean": 2990.911111111111,
+        "median": 2986,
+        "p95_nearest_rank": 3565,
+        "maximum": 4120,
+        "total": 134591
+      },
+      "tokens": {
+        "prompt": 223528,
+        "completion": 5533,
+        "total": 229061
+      },
+      "both_materiality_gates_passed": false
+    }
+  },
+  "selection": {
+    "rule": "flash_if_both_gates_else_plus_if_both_gates_else_none",
+    "selected_model": null,
+    "development_gate_cleared": false,
+    "relative_model_ranking_used": false,
+    "thresholds_changed_after_results": false
+  },
+  "cross_model_diagnostics": {
+    "shared_binary_error_count": 9,
+    "shared_false_negative_ids": [
+      1352,
+      1363,
+      1754,
+      2203,
+      3776,
+      3947
+    ],
+    "shared_false_positive_ids": [
+      2732,
+      3486,
+      3895
+    ],
+    "binary_prediction_disagreement_count": 5,
+    "flash_correct_plus_false_negative_ids": [
+      1176,
+      1311,
+      3246
+    ],
+    "plus_correct_flash_false_negative_ids": [
+      3285
+    ],
+    "flash_correct_plus_false_positive_ids": [
+      3315
+    ],
+    "shared_symbol_error_ids": [
+      2024
+    ],
+    "interpretation": "errors concentrate in shared materiality boundaries around event state, relative scale, and whether a procedural document carries a new decision-relevant fact; this is a dev-only diagnostic and not a causal model comparison",
+    "round_2_requires_new_preregistration": true,
+    "round_2_may_not_use_heldout": true
+  },
+  "artifacts": {
+    "calibration_state": {
+      "path": "docs/phase4/eval/v2-calibration/development/calibration.state.jsonl",
+      "sha256": "ca8355e357a214a0b06af945be240480e732bb7a1251c1670763acedb35d0bc4",
+      "events": [
+        "round_started",
+        "round_completed"
+      ]
+    },
+    "round_outcome": {
+      "path": "docs/phase4/eval/v2-calibration/development/rounds/r1/round-outcome.json",
+      "sha256": "d6970c45b2d797229de87ec30985c2696795cf173f8f4dbb9cb43156fcfc6649"
+    },
+    "qwen3_7_flash": {
+      "predictions_sha256": "4e612d4918147354ccc45816953af458c1c5ac106c449b8f9f855e3501a5b052",
+      "manifest_sha256": "96c24c842e968896f921a3f55fda38e60747ca7c810d4b1b5c4d7b25a858da8e",
+      "report_sha256": "27bbeaa186bdf632a49b8ace6a69e9de45f745be2fb7b45a64d81ecd87a1a2a5",
+      "terminal_state_sha256": "f65b6565d3fc4ddad419ad26c20cc7026e52584d847ae2a1c3504d8855bf718e"
+    },
+    "qwen3_6_plus": {
+      "predictions_sha256": "c08036514e92b85ec71354ccd127e71cd4ed011d22a229701e914173210c6e59",
+      "manifest_sha256": "4cc82c653c343cb208a0e0409c0c71bd7d13894c493dbcc8290063b071422a6f",
+      "report_sha256": "3253a5620bf493bc4d6394d164d6b85c46a53dacff4ad04ca1b97e54add62b28",
+      "terminal_state_sha256": "c033090ca79a5b4ac3816b421af2055ac427033dcb6c4fe600d14a1d31dd7039"
+    }
+  },
+  "safety": {
+    "production_database_access": "sqlite_uri_mode_ro_query_only",
+    "production_connection_total_changes": 0,
+    "production_llm_calls_before": 111,
+    "production_llm_calls_after": 111,
+    "production_llm_calls_delta": 0,
+    "trade_proposals_before_after": [
+      1,
+      1
+    ],
+    "broker_orders_before_after": [
+      1,
+      1
+    ],
+    "non_simulate_orders_before_after": [
+      0,
+      0
+    ],
+    "environment_sha256_before": "97bd1ed328baf7a4758ed2269e0f556a2f03e04e919859e18a1c33ab0967a375",
+    "environment_sha256_after": "97bd1ed328baf7a4758ed2269e0f556a2f03e04e919859e18a1c33ab0967a375",
+    "settings": {
+      "trading_mode": "research",
+      "live_trading_enabled": false,
+      "paper_trading_enabled": false,
+      "paper_auto_trading_enabled": false,
+      "futu_enable_account_mutation": false,
+      "futu_enable_trade": false,
+      "unlock_trade_permanently_blocked": true
+    },
+    "news_events_table_exists": false,
+    "heldout_v2_root_exists": false,
+    "production_writes": false,
+    "proposals_or_orders_created": false
+  },
+  "phase_gates": {
+    "round_1_recorded": true,
+    "round_1_may_be_retried": false,
+    "prompt_or_contract_may_be_changed_in_round_1": false,
+    "round_2_started": false,
+    "p4_2a_done": false,
+    "p4_2b_unlocked": false,
+    "p4_3_unlocked": false,
+    "next_action": "independent review of this frozen Round 1 result; any Round 2 prompt iteration requires a new preregistration and must use only this dev45 frame"
+  },
+  "claims_not_made": [
+    "no heldout-v2 sample was materialized, sampled, read, or scored",
+    "development-frame metrics are not population estimates",
+    "weighted diagnostics do not override the two unweighted development gates",
+    "neither model is selected or production-approved",
+    "P4.2a is not complete and P4.2b/P4.3 remain locked"
+  ]
+}

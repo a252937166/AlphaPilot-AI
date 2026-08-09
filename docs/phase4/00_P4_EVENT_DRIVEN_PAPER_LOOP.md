@@ -1318,6 +1318,40 @@ v1 抽取/标注基线合同 `b3eb24c6…`；dev60、heldout40、预测正类池
   即"重磅"——判定权在已评测的抽取器，不靠人工盯盘；重磅事件到达即触发 P4.3 盘中增量
   推荐与 P4.4 的插队复看/状态机评估。
 
+### P4.2a v2 dev45 Round 1 结果（2026-08-09，未通过开发门）
+
+> **有效轮次已闭合，两个模型均未入选，禁止重跑。** 本轮只使用 owner 已复核的 dev45
+> （冻结分层 30/15），没有接触或创建 held-out-v2 样本。P4.2a 不标 done，P4.2b/P4.3
+> 继续锁定。
+
+- 预运行提交：`aa86d81`；设计 SHA `18a2428…8e21`，prompt SHA `9441690b…817a`，
+  round prereg SHA `f485a952…9c8d`。顺序固定 `qwen3.7-flash → qwen3.6-plus`，两者均
+  45/45 成功、0 失败、0 重试，生产 `llm_calls` 增量为 0。
+- flash：precision `11/14 = 0.785714`（门 `>=0.80`，未过）；FOR
+  `7/31 = 0.225806`（门 `<=0.20`，未过）。plus：precision `9/13 = 0.692308`（未过）；
+  FOR `9/32 = 0.28125`（未过）。F-4 按预注册保持 `materiality_recall=null /
+  not_estimable`；加权源池指标仅作诊断，不覆盖两个未加权绝对门。
+- 两模型 symbol exact-set 均为 `44/45 = 0.977778`，symbol-bearing 均为
+  `38/39 = 0.974359`，仅作开发诊断。选择规则没有相对择优：`selected_model=null`。
+- Round state 为 `round_started → round_completed`；outcome SHA `d6970c45…6649`，state SHA
+  `ca8355e3…0bc4`。完整机器证据：
+  `docs/phase4/reports/P4.2a-v2-development-calibration-round1-result-20260809.json`，SHA
+  `4852869c…66b`。
+- 内部只读复核独立重算 65/65 项通过，结论
+  `APPROVE_ROUND_1_RECORDED_NO_MODEL_SELECTED`、0 blocker；证据
+  `docs/phase4/reports/P4.2a-v2-development-calibration-round1-internal-review-20260809.json`，
+  SHA `853059b8…7ef2`。该记录明确不是 owner/Claude Code 外部裁定的替代品。
+- ⚠ **启动器事件（未消耗正式轮次）**：第一次 shell 命令缺仓库根 `PYTHONPATH`，在 import
+  阶段即 `ModuleNotFoundError`；随后只读确认 state/产物仍全不存在、生产 `llm_calls=111`
+  未变、模型调用为 0。正式轮使用相同冻结提交与已测试入口 `PYTHONPATH=.`，没有改代码、
+  prompt、合同、样本、门槛或 gold。该事件已写入机器证据，不静默隐藏。
+- 安全证据：生产 SQLite `mode=ro/query_only`、`total_changes=0`；交易仍为
+  `1 proposal / 1 SIMULATE order / 0 non-SIMULATE`；`.env` 前后 SHA 相同，research、
+  live/paper/paper-auto/Futu trade/account mutation 全为安全值，unlock 永久屏蔽；
+  `news_events` 与 heldout-v2 目录均未创建。
+- 下一步只允许先做独立结果复核。若进入 Round 2，必须基于本轮 dev45 错误另发 prompt/合同/
+  round prereg 并保留 Round 1 全部产物；不得改门槛、替换样本、读取 held-out 或回头重跑。
+
 ## P4.3 事件 + 因子融合的每日候选推荐
 
 - 触发：盘前汇总夜间事件 + 盘中每次 news_poll 后增量。
