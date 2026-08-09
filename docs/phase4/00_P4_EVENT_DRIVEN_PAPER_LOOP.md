@@ -1352,6 +1352,50 @@ v1 抽取/标注基线合同 `b3eb24c6…`；dev60、heldout40、预测正类池
 - 下一步只允许先做独立结果复核。若进入 Round 2，必须基于本轮 dev45 错误另发 prompt/合同/
   round prereg 并保留 Round 1 全部产物；不得改门槛、替换样本、读取 held-out 或回头重跑。
 
+### P4.2a v2 dev45 Round 2 结果（2026-08-10，稳健开发门未通过）
+
+> **有效轮次已闭合，累计消耗 2/6；两个模型仍均未入选，禁止重跑。** 本轮只使用相同的
+> owner 人工裁定 dev45（冻结分层 30/15），没有创建、读取、物化、抽样或评分 heldout-v2。
+> P4.2a 不标 done，P4.2b/P4.3 继续锁定。
+
+- 预注册提交 `289d076`，执行代码提交 `9f410ff`；设计 SHA `18a2428…8e21`，prompt SHA
+  `14abcdf5…7eb7d`，round prereg SHA `a7c971ba…c5812`。顺序固定
+  `qwen3.7-flash → qwen3.6-plus`，两模型均 45/45 成功、0 失败、0 重试；O-4 已根治，入口不再
+  依赖调用方导出 `PYTHONPATH`。
+- flash：`TP/FP/FN/TN=15/4/3/23`；点估计 precision `15/19=0.789474` 未过、FOR
+  `3/26=0.115385` 通过；一条不利翻转后 precision `14/19=0.736842` 未过、FOR
+  `4/26=0.153846` 通过。
+- plus：`TP/FP/FN/TN=16/3/2/24`；点估计 precision `16/19=0.842105` 与 FOR
+  `2/26=0.076923` 均通过，但预注册的一条 `TP→FP` 后 precision 为 `15/19=0.789474`，低于
+  `0.80`；一条 `TN→FN` 后 FOR `3/26=0.115385` 通过。故绝对门结论仍为
+  `selected_model=null`，不得因 plus 相对更优而择优。
+- 抽样框继续明确为 baseline-positive 30 / baseline-negative 15。flash 两层分别为
+  `15/4/1/10` 与 `0/0/2/13`；plus 分别为 `14/2/2/12` 与 `2/1/0/12`。F-4 保持
+  `materiality_recall=null / not_estimable`；L-3 的 15 条阴性层粗粒度限制继续披露。
+- Round 2 已达到 O-3 的判阳舒适区：两模型均判阳 19；plus 保住 16 个真阳并通过点估计两门，
+  但新加的稳健余量门阻止了边界结果被误选。该结论只用于 dev 诊断，不授权改门槛或访问
+  heldout。
+- Round state 现为 Round 1 两行不可变前缀后追加
+  `round_started → round_completed`；完整 state SHA `e3d0e971…f612`，Round 1 前缀 SHA 仍为
+  `ca8355e3…0bc4`。Round 2 outcome SHA `49026fad…c66`；完整机器证据：
+  `docs/phase4/reports/P4.2a-v2-development-calibration-round2-result-20260810.json`，SHA
+  `cc163104…90c0`。内部只读审阅独立重算 131 项，结论
+  `APPROVE_RESULT_RECORDED_NO_MODEL_SELECTED`、0 blocker；证据
+  `docs/phase4/reports/P4.2a-v2-development-calibration-round2-internal-review-20260810.json`，SHA
+  `17ce514c…79d9`。其中 post-run 测试夹具附录由主代理另行对拍并显式披露，不冒充独立性；
+  整份内部记录不替代 owner / Claude Code 外部裁定。
+- 安全证据：生产 SQLite `mode=ro/query_only`、`total_changes=0`，`llm_calls=111` 前后增量 0；
+  交易仍为 `1 proposal / 1 SIMULATE / 0 non-SIMULATE`，`news_events` 不存在；`.env` 前后 SHA
+  `97bd1ed3…a375`；heldout-v2 不存在。P4.1 配置 SHA 仍为 `9d56e137…183f`，scheduler 未被本轮
+  重启或改配，08-10/11/12 观察窗独立继续。
+- ⚠ 首次 post-run 全量 pytest 有 8 项失败：合成 Round 2 fixture 错把当前四行 state 当作
+  Round 1 起点。仅在测试中截取并校验不可变两行前缀，提交 `0b6ba11`；未改 runner、DB、配置
+  或任何冻结产物。修后定向 15/15、全量 pytest、Ruff、strict mypy 与 diff-check 全绿。
+- ⚠ 非阻断算术观察：Round 1 裁定 F-5 叙述写 baseline `FP=14` 到 Round 1 `FP=3` 为“移除
+  13 个”，实际差为 11；不修改既有裁定，且不影响任何正式指标或结论。
+- 下一步只允许先做本轮冻结结果的独立复核/owner 裁定。未经新裁定与新预注册不得启动 Round 3，
+  也不得修改 prompt、合同、门槛、样本、模型或 gold。
+
 ## P4.3 事件 + 因子融合的每日候选推荐
 
 - 触发：盘前汇总夜间事件 + 盘中每次 news_poll 后增量。

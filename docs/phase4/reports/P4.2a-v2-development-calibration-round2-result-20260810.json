@@ -1,0 +1,399 @@
+{
+  "schema_version": "p4.2a-v2-development-calibration-round-result-v2",
+  "generated_at_utc": "2026-08-09T17:08:34Z",
+  "generated_at_cst": "2026-08-10T01:08:34+08:00",
+  "status": "RECORDED_NO_MODEL_SELECTED",
+  "round_number": 2,
+  "round_budget": {
+    "maximum_rounds": 6,
+    "valid_rounds_consumed": 2,
+    "valid_rounds_remaining": 4,
+    "round_1_preserved": true,
+    "round_2_may_be_retried": false
+  },
+  "execution": {
+    "frozen_code_commit": "9f410ffd86dd9ce0e6b7fc9da8e617cbfdc8b312",
+    "command": ".venv/bin/python scripts/run_p4_2a_v2_dev_calibration.py --round-number 2 --round-preregistration docs/phase4/eval/v2-calibration/development/rounds/r2/round-preregistration.json --round-preregistration-sha256 a7c971ba59c2c7199e5becd95ac09fde9e5cd16a3eef225a8f244a934efc5812",
+    "execution_id": "b8477231cd00897b70303e0a2c7b15b344a1d4773fc3b6178bd40f636cb1174e",
+    "started_at_utc": "2026-08-09T16:34:06.035778Z",
+    "completed_at_utc": "2026-08-09T16:37:35.304735Z",
+    "process_exit_code": 0,
+    "fixed_model_order": [
+      "qwen3.7-flash",
+      "qwen3.6-plus"
+    ],
+    "expected_predictions_per_model": 45,
+    "recorded_predictions_per_model": 45,
+    "evaluated_model_calls": 90,
+    "automatic_retries": 0,
+    "failed_candidate_retries": 0,
+    "both_models_always_measured": true,
+    "entrypoint_requires_caller_pythonpath": false
+  },
+  "frozen_bindings": {
+    "evaluation_design": {
+      "path": "config/p4_event_evaluation_v2.yaml",
+      "sha256": "18a2428a4ec04bfea6e4f4d70692f38ea82fbaee5a223f30f2465b895b238e21"
+    },
+    "round_preregistration": {
+      "path": "docs/phase4/eval/v2-calibration/development/rounds/r2/round-preregistration.json",
+      "sha256": "a7c971ba59c2c7199e5becd95ac09fde9e5cd16a3eef225a8f244a934efc5812"
+    },
+    "prompt": {
+      "path": "config/prompts/p4_news_event_extract_v2-r2.txt",
+      "sha256": "14abcdf52b1f5d72c35d4e54bdb8cc2a10d13e81a4e94e567741d82e5e57eb7d"
+    },
+    "flash_contract": {
+      "path": "config/p4_event_extract_eval_v2-r2-qwen3.7-flash.yaml",
+      "sha256": "57cb5cbaba5d3c6d40787879dbf7fa99b1ee6f3bbdd998d63522e6acbb3aadd7"
+    },
+    "plus_contract": {
+      "path": "config/p4_event_extract_eval_v2-r2-qwen3.6-plus.yaml",
+      "sha256": "bb67fd5ebf899ae5822a0fa0be6179cc48c3a59710643954f832d28f3f9c1958"
+    },
+    "owner_export": {
+      "path": "docs/phase4/eval/v2-calibration/development/P4.2a-development-frame-v2.owner-export.jsonl",
+      "sha256": "812ee8c86ab9f9ed269b1c6952046bddb11317b8624618d8444de5b03f612d31"
+    },
+    "human_gold": {
+      "path": "docs/phase4/eval/v2-calibration/development/P4.2a-development-frame-v2.human-adjudicated.jsonl",
+      "sha256": "fc08abc2f78bcb693c4e048fcd43ddd4f37c9d6a7a70ac878467194efbacaaa8"
+    },
+    "owner_completion": {
+      "path": "docs/phase4/eval/v2-calibration/development/P4.2a-development-frame-v2.owner-completion.json",
+      "sha256": "51282ca598c1f99c2755d2954a8fe820b1b1f583205a0ff20676b30e613ca02b"
+    },
+    "development_selection": {
+      "path": "docs/phase4/eval/v2-calibration/development/P4.2a-development-frame-v2.selection.json",
+      "sha256": "067dbfbf3a1f6031ce5861bb5f2e7efda8a4254bf3e12a2299b2981871e477eb"
+    },
+    "owner_adjudication_independent_review": {
+      "path": "docs/phase4/reports/P4.2a-dev45-owner-adjudication-independent-review-20260809.json",
+      "sha256": "8ec8bc915dd028c9053e0986b8559148e33e574d018ee7ff5492903fce30d02f"
+    },
+    "round_1_adjudication_and_round_2_conditions": {
+      "path": "docs/phase4/reports/P4.2a-round1-adjudication-and-round2-conditions-20260809.json",
+      "sha256": "2def5029003cbcb830a1cdabe0bbfa8e240dbe5e84083dbe96b82c15d46a4aa0"
+    }
+  },
+  "sampling_frame": {
+    "frame_id": "development_frame_v2_baseline_stratified_30_positive_15_negative",
+    "total": 45,
+    "baseline_predicted_positive": 30,
+    "baseline_predicted_negative": 15,
+    "extract_failed": 0,
+    "heldout_items": 0,
+    "population_estimate": false
+  },
+  "models": {
+    "qwen3.7-flash": {
+      "status": "completed",
+      "technical_completion": {
+        "expected": 45,
+        "recorded": 45,
+        "successful": 45,
+        "failure_count": 0,
+        "retried_failure_count": 0,
+        "isolated_audit_row_count": 45,
+        "passed": true
+      },
+      "confusion_matrix": {
+        "tp": 15,
+        "fp": 4,
+        "fn": 3,
+        "tn": 23
+      },
+      "materiality_precision": {
+        "tp": 15,
+        "fp": 4,
+        "denominator": 19,
+        "value": 0.7894736842105263,
+        "minimum": 0.8,
+        "passed": false,
+        "formula": "tp / (tp + fp)",
+        "gate_or_diagnostic": "development_gate"
+      },
+      "materiality_false_omission_rate": {
+        "fn": 3,
+        "tn": 23,
+        "denominator": 26,
+        "value": 0.11538461538461539,
+        "maximum": 0.2,
+        "passed": true,
+        "formula": "fn / (fn + tn)",
+        "gate_or_diagnostic": "development_gate"
+      },
+      "adverse_single_item_margin": {
+        "applies_to": "development_gate_only",
+        "precision_after_one_tp_to_fp": {
+          "tp": 14,
+          "fp": 5,
+          "denominator": 19,
+          "value": 0.7368421052631579,
+          "minimum": 0.8,
+          "passed": false
+        },
+        "false_omission_rate_after_one_tn_to_fn": {
+          "fn": 4,
+          "tn": 22,
+          "denominator": 26,
+          "value": 0.15384615384615385,
+          "maximum": 0.2,
+          "passed": true
+        },
+        "both_passed": false,
+        "heldout_gate_unchanged": true
+      },
+      "baseline_stratum_breakdown": {
+        "baseline_predicted_positive": {
+          "registered_size": 30,
+          "confusion_matrix": {"tp": 15, "fp": 4, "fn": 1, "tn": 10},
+          "precision": 0.7894736842105263,
+          "false_omission_rate": 0.09090909090909091
+        },
+        "baseline_predicted_negative": {
+          "registered_size": 15,
+          "confusion_matrix": {"tp": 0, "fp": 0, "fn": 2, "tn": 13},
+          "precision": null,
+          "false_omission_rate": 0.13333333333333333
+        }
+      },
+      "materiality_recall": {
+        "value": null,
+        "formula": "not_estimable",
+        "metric_partition": "omitted_in_favor_of_false_omission_rate"
+      },
+      "symbol_exact_set_accuracy": {"matches": 45, "denominator": 45, "value": 1.0},
+      "symbol_bearing_exact_set_accuracy": {"matches": 39, "denominator": 39, "value": 1.0},
+      "latency_ms": {
+        "minimum": 1014,
+        "mean": 1539.4666666666667,
+        "median": 1527,
+        "p95_nearest_rank": 1810,
+        "maximum": 2695,
+        "total": 69276
+      },
+      "tokens": {"prompt": 262903, "completion": 5460, "total": 268363},
+      "point_estimate_gates_passed": false,
+      "adverse_margin_gates_passed": false,
+      "development_gate_passed": false
+    },
+    "qwen3.6-plus": {
+      "status": "completed",
+      "technical_completion": {
+        "expected": 45,
+        "recorded": 45,
+        "successful": 45,
+        "failure_count": 0,
+        "retried_failure_count": 0,
+        "isolated_audit_row_count": 45,
+        "passed": true
+      },
+      "confusion_matrix": {
+        "tp": 16,
+        "fp": 3,
+        "fn": 2,
+        "tn": 24
+      },
+      "materiality_precision": {
+        "tp": 16,
+        "fp": 3,
+        "denominator": 19,
+        "value": 0.8421052631578947,
+        "minimum": 0.8,
+        "passed": true,
+        "formula": "tp / (tp + fp)",
+        "gate_or_diagnostic": "development_gate"
+      },
+      "materiality_false_omission_rate": {
+        "fn": 2,
+        "tn": 24,
+        "denominator": 26,
+        "value": 0.07692307692307693,
+        "maximum": 0.2,
+        "passed": true,
+        "formula": "fn / (fn + tn)",
+        "gate_or_diagnostic": "development_gate"
+      },
+      "adverse_single_item_margin": {
+        "applies_to": "development_gate_only",
+        "precision_after_one_tp_to_fp": {
+          "tp": 15,
+          "fp": 4,
+          "denominator": 19,
+          "value": 0.7894736842105263,
+          "minimum": 0.8,
+          "passed": false
+        },
+        "false_omission_rate_after_one_tn_to_fn": {
+          "fn": 3,
+          "tn": 23,
+          "denominator": 26,
+          "value": 0.11538461538461539,
+          "maximum": 0.2,
+          "passed": true
+        },
+        "both_passed": false,
+        "heldout_gate_unchanged": true
+      },
+      "baseline_stratum_breakdown": {
+        "baseline_predicted_positive": {
+          "registered_size": 30,
+          "confusion_matrix": {"tp": 14, "fp": 2, "fn": 2, "tn": 12},
+          "precision": 0.875,
+          "false_omission_rate": 0.14285714285714285
+        },
+        "baseline_predicted_negative": {
+          "registered_size": 15,
+          "confusion_matrix": {"tp": 2, "fp": 1, "fn": 0, "tn": 12},
+          "precision": 0.6666666666666666,
+          "false_omission_rate": 0.0
+        }
+      },
+      "materiality_recall": {
+        "value": null,
+        "formula": "not_estimable",
+        "metric_partition": "omitted_in_favor_of_false_omission_rate"
+      },
+      "symbol_exact_set_accuracy": {"matches": 44, "denominator": 45, "value": 0.9777777777777777},
+      "symbol_bearing_exact_set_accuracy": {"matches": 38, "denominator": 39, "value": 0.9743589743589743},
+      "latency_ms": {
+        "minimum": 2200,
+        "mean": 3101.5333333333333,
+        "median": 3124,
+        "p95_nearest_rank": 3901,
+        "maximum": 4154,
+        "total": 139569
+      },
+      "tokens": {"prompt": 262903, "completion": 5659, "total": 268562},
+      "point_estimate_gates_passed": true,
+      "adverse_margin_gates_passed": false,
+      "development_gate_passed": false
+    }
+  },
+  "selection": {
+    "rule": "flash_if_all_point_and_adverse_development_gates_else_plus_if_all_point_and_adverse_development_gates_else_none",
+    "selected_model": null,
+    "development_gate_cleared": false,
+    "relative_model_ranking_used": false,
+    "thresholds_changed_after_results": false,
+    "reason": "flash failed point precision and adverse precision; plus passed both point estimates but failed the preregistered one-TP-to-FP precision margin at 15/19"
+  },
+  "round_1_comparison": {
+    "qwen3.7_flash": {
+      "round_1": {"predicted_positive": 14, "tp": 11, "fp": 3, "fn": 7, "tn": 24},
+      "round_2": {"predicted_positive": 19, "tp": 15, "fp": 4, "fn": 3, "tn": 23},
+      "interpretation": "moved into the preregistered 18-21 predicted-positive region and preserved more true positives, but point precision and adverse precision remained below the gate"
+    },
+    "qwen3.6_plus": {
+      "round_1": {"predicted_positive": 13, "tp": 9, "fp": 4, "fn": 9, "tn": 23},
+      "round_2": {"predicted_positive": 19, "tp": 16, "fp": 3, "fn": 2, "tn": 24},
+      "interpretation": "reached the preregistered 19/16 feasible-region example and passed both point estimates, but the separately preregistered adverse precision margin prevented selection"
+    },
+    "authority_observation_f5": {
+      "status": "NON_BLOCKING_ARITHMETIC_NARRATIVE_OBSERVATION",
+      "recorded_authority_text_not_modified": true,
+      "observation": "the authority narrative says baseline FP14 to Round 1 FP3 removed 13 false positives; the arithmetic difference is 11. Formal Round 1 metrics and adjudication are unaffected."
+    }
+  },
+  "cross_model_diagnostics": {
+    "shared_false_positive_ids": [2732, 3315],
+    "shared_false_negative_ids": [],
+    "binary_prediction_disagreement_ids": [1195, 1363, 1608, 3272, 3285, 3486, 3776, 3807],
+    "binary_prediction_disagreement_count": 8,
+    "interpretation": "dev-only diagnostic; it does not authorize relative model ranking or threshold changes"
+  },
+  "artifacts": {
+    "calibration_state": {
+      "path": "docs/phase4/eval/v2-calibration/development/calibration.state.jsonl",
+      "sha256": "e3d0e971db316b23915f38ca699e7f284edbc72e1c79ee844847ba1a5953f612",
+      "event_count": 4,
+      "round_1_prefix_sha256": "ca8355e357a214a0b06af945be240480e732bb7a1251c1670763acedb35d0bc4",
+      "round_2_events": ["round_started", "round_completed"]
+    },
+    "round_outcome": {
+      "path": "docs/phase4/eval/v2-calibration/development/rounds/r2/round-outcome.json",
+      "sha256": "49026fad5e14771cbe1a5a83aa3311107b30ff02d708c31cd4a0dad4c2384c66"
+    },
+    "qwen3_7_flash": {
+      "predictions_sha256": "ab976f24c0cbc9840873af84b5742085d58eb1941585a655096e06c6c2a37078",
+      "manifest_sha256": "c5c6b3d53d94fb837937a598d1f0b9b83fe68f7ae50f169ecb582a788cf49125",
+      "report_sha256": "1b5b4f3288902c09a7cf1ccc93777c293f104c1e326406784a17fffc51c58840",
+      "terminal_state_sha256": "3b0481a77cb9493406ab15077d4de70fa62d1a667f1e3448ef38ba5e6599154b"
+    },
+    "qwen3_6_plus": {
+      "predictions_sha256": "9cea9213afda23d303cfa23eedea8b6c3d3ad30380606d87db31c20bc3ebbd00",
+      "manifest_sha256": "80ead2fe4ae5909d7152a957a78653cb17ede93b6287381747a1737c64765ffd",
+      "report_sha256": "a5f259e7ee8a086c314c716a0164e425e288e7b688d10ee9bc0a8d2f44748122",
+      "terminal_state_sha256": "86c6a1de15528bcb483978373f2a1b1356ac5578f11f1a9d32d612fcda70af10"
+    }
+  },
+  "safety": {
+    "production_database_access": "sqlite_uri_mode_ro_query_only",
+    "production_connection_total_changes": 0,
+    "production_llm_calls_before": 111,
+    "production_llm_calls_after": 111,
+    "production_llm_calls_delta": 0,
+    "trade_proposals_before_after": [1, 1],
+    "broker_orders_before_after": [1, 1],
+    "non_simulate_orders_before_after": [0, 0],
+    "environment_sha256_before": "97bd1ed328baf7a4758ed2269e0f556a2f03e04e919859e18a1c33ab0967a375",
+    "environment_sha256_after": "97bd1ed328baf7a4758ed2269e0f556a2f03e04e919859e18a1c33ab0967a375",
+    "settings": {
+      "trading_mode": "research",
+      "live_trading_enabled": false,
+      "paper_trading_enabled": false,
+      "paper_auto_trading_enabled": false,
+      "futu_enable_account_mutation": false,
+      "futu_enable_trade": false,
+      "unlock_trade_permanently_blocked": true
+    },
+    "news_events_table_exists": false,
+    "heldout_v2_root_exists": false,
+    "raw_prompt_or_transport_payload_persisted": false,
+    "production_writes": false,
+    "proposals_or_orders_created": false
+  },
+  "p4_1_observation_window": {
+    "window_dates_cst": ["2026-08-10", "2026-08-11", "2026-08-12"],
+    "frozen_config_sha256": "9d56e137baf10bd0858723a93aff02c57bf7b35f8705f1817b16a89ec615183f",
+    "scheduler_running_after_round": true,
+    "scheduler_restarted_or_reconfigured_by_round": false,
+    "manual_news_poll_triggered_by_round": false,
+    "round_2_impacted_p4_1": false
+  },
+  "post_run_quality_gate_incident": {
+    "status": "FIXED_TEST_FIXTURE_ONLY",
+    "first_full_suite_exit_code": 1,
+    "failed_test_count": 8,
+    "safe_root_cause": "the synthetic Round 2 fixture copied the current four-line calibration state after the real append, while a synthetic Round 2 must start from the immutable two-line Round 1 prefix",
+    "frozen_round_1_or_round_2_artifacts_modified": false,
+    "runner_modified": false,
+    "database_or_configuration_modified": false,
+    "fix": "the test fixture now extracts the first two lines and verifies their SHA-256 against the registered Round 1 state-prefix anchor",
+    "fix_commit": "0b6ba11",
+    "focused_test_result": "15_passed",
+    "final_full_suite_exit_code": 0,
+    "ruff": "passed",
+    "strict_mypy": "passed",
+    "git_diff_check": "passed"
+  },
+  "phase_gates": {
+    "round_1_recorded_and_immutable": true,
+    "round_2_recorded": true,
+    "round_2_may_be_retried": false,
+    "round_3_started": false,
+    "round_3_requires_owner_or_independent_adjudication": true,
+    "p4_2a_done": false,
+    "p4_2b_unlocked": false,
+    "p4_3_unlocked": false,
+    "next_action": "independent review of this immutable Round 2 result; do not start Round 3 or alter prompt, thresholds, sample, model, or gold without a new adjudication and preregistration"
+  },
+  "claims_not_made": [
+    "no heldout-v2 sample was materialized, sampled, read, or scored",
+    "development-frame metrics are not population estimates",
+    "weighted diagnostics do not override the unweighted point and adverse development gates",
+    "neither model is selected or production-approved",
+    "P4.2a is not complete and P4.2b/P4.3 remain locked"
+  ]
+}
