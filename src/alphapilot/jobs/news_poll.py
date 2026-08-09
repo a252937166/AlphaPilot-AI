@@ -45,7 +45,7 @@ PROJECT_DIR = Path(__file__).resolve().parents[3]
 V1_CONFIG_PATH = PROJECT_DIR / "config/p4_news_poll_v1.yaml"
 V2_CONFIG_PATH = PROJECT_DIR / "config/p4_news_poll_v2.yaml"
 V2_1_CONFIG_PATH = PROJECT_DIR / "config/p4_news_poll_v2_1.yaml"
-DEFAULT_CONFIG_PATH = V1_CONFIG_PATH
+DEFAULT_CONFIG_PATH = V2_1_CONFIG_PATH
 # Filled after the versioned config is finalized. A different byte stream must
 # ship as a reviewed config/code change before it can make network requests.
 EXPECTED_CONFIG_SHA256 = "d0dcd665472b50092a1b4fa7f65f7115778e1b89ac11aca0ed49dc70beaa790b"
@@ -60,12 +60,12 @@ EXPECTED_CONFIG_SHA256_BY_VERSION = {
     "p4.1-news-poll-v2": EXPECTED_V2_CONFIG_SHA256,
     "p4.1-news-poll-v2.1": EXPECTED_V2_1_CONFIG_SHA256,
 }
-# The abandoned v2 contract remains permanently non-runnable.  v2.1 code is
-# reviewable and callable only through an explicit, hash-bound manual
-# authorization receipt; the scheduler gate remains independently closed.
+# The abandoned v2 contract remains permanently non-runnable. v2.1 manual
+# entry points remain receipt-bound; its separately reviewed scheduler gate is
+# activated here without changing the frozen v2.1 config bytes.
 V2_IMPLEMENTATION_READY = False
 V2_1_CODE_READY = True
-V2_1_SCHEDULER_ACTIVATED = False
+V2_1_SCHEDULER_ACTIVATED = True
 MARKET_TIMEZONE = ZoneInfo("Asia/Shanghai")
 NEWS_POLL_ENABLED_ENV = "ALPHAPILOT_NEWS_POLL_ENABLED"
 _TRACKING_QUERY_PREFIXES = ("utm_",)
@@ -3211,11 +3211,11 @@ def _news_poll_trigger_v2() -> OrTrigger:
 
 
 def _news_poll_trigger(config_path: Path = DEFAULT_CONFIG_PATH) -> OrTrigger:
-    return (
-        _news_poll_trigger_v2()
-        if config_path == V2_CONFIG_PATH
-        else _news_poll_trigger_v1()
-    )
+    if config_path == V1_CONFIG_PATH:
+        return _news_poll_trigger_v1()
+    if config_path in {V2_CONFIG_PATH, V2_1_CONFIG_PATH}:
+        return _news_poll_trigger_v2()
+    raise ValueError(f"unsupported P4.1 news-poll config path: {config_path}")
 
 
 def _news_poll_scheduler_enabled() -> bool:

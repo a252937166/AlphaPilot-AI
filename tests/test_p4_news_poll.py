@@ -114,14 +114,34 @@ def _install_fake_sources(
     )
 
 
+def _register_v1_news_poll_job() -> None:
+    register(
+        JobSpec(
+            name="news_poll",
+            func=lambda: news_poll.run_news_poll(
+                config_path=news_poll.V1_CONFIG_PATH
+            ),
+            trigger=None,
+        )
+    )
+
+
 def test_config_is_hash_locked_and_keeps_excluded_sources_disabled(tmp_path: Path) -> None:
     config = news_poll.load_news_poll_config()
 
-    assert config.sha256 == news_poll.EXPECTED_CONFIG_SHA256
+    assert config.path == news_poll.V2_1_CONFIG_PATH
+    assert config.sha256 == news_poll.EXPECTED_V2_1_CONFIG_SHA256
+    assert config.document["schema_version"] == "p4.1-news-poll-v2.1"
     assert config.document["sources"]["cninfo"]["verify_tls"] is True
-    assert config.document["sources"]["akshare_cls"]["max_attempts_per_request"] == 0
+    assert (
+        config.document["sources"]["akshare_cls"][
+            "max_attempts_per_logical_request"
+        ]
+        == 0
+    )
     assert config.document["sources"]["futu_auxiliary"]["enabled"] is False
-    assert config.document["phase_gate"]["p4_2_unlocked"] is False
+    assert config.document["phase_gate"]["p4_2b_production_wiring_unlocked"] is False
+    assert config.document["phase_gate"]["p4_3_unlocked"] is False
 
     changed = tmp_path / "changed.yaml"
     changed.write_bytes(config.path.read_bytes() + b"\n")
@@ -129,15 +149,18 @@ def test_config_is_hash_locked_and_keeps_excluded_sources_disabled(tmp_path: Pat
         news_poll.load_news_poll_config(changed)
 
 
-def test_config_loader_explicitly_accepts_hash_locked_v1_and_v2(tmp_path: Path) -> None:
+def test_config_loader_explicitly_accepts_all_hash_locked_versions(tmp_path: Path) -> None:
     v1 = news_poll.load_news_poll_config(news_poll.V1_CONFIG_PATH)
     v2 = news_poll.load_news_poll_config(news_poll.V2_CONFIG_PATH)
+    v2_1 = news_poll.load_news_poll_config(news_poll.V2_1_CONFIG_PATH)
 
     assert v1.sha256 == news_poll.EXPECTED_CONFIG_SHA256
     assert v1.document["schema_version"] == "p4.1-news-poll-v1"
     assert v2.sha256 == news_poll.EXPECTED_V2_CONFIG_SHA256
     assert v2.document["schema_version"] == "p4.1-news-poll-v2"
-    assert news_poll.DEFAULT_CONFIG_PATH == news_poll.V1_CONFIG_PATH
+    assert v2_1.sha256 == news_poll.EXPECTED_V2_1_CONFIG_SHA256
+    assert v2_1.document["schema_version"] == "p4.1-news-poll-v2.1"
+    assert news_poll.DEFAULT_CONFIG_PATH == news_poll.V2_1_CONFIG_PATH
 
     changed_v2 = tmp_path / "changed-v2.yaml"
     changed_v2.write_bytes(v2.path.read_bytes() + b"\n")
@@ -817,7 +840,7 @@ def test_dual_dedupe_preserves_first_available_time_and_ingestion_evidence(
             _ok_batch("cninfo", [same_content]),
         ],
     )
-    news_poll.register_news_poll_job()
+    _register_v1_news_poll_job()
 
     records = [run_job("news_poll") for _ in range(3)]
 
@@ -1816,7 +1839,7 @@ def test_critical_source_failure_keeps_complete_jobrun_stats(
         ],
     )
     _install_fake_sources(monkeypatch, [failed])
-    news_poll.register_news_poll_job()
+    _register_v1_news_poll_job()
 
     record = run_job("news_poll")
 
@@ -1995,32 +2018,47 @@ def _trigger_fire_times(
         current = value + timedelta(microseconds=1)
 
 
-def test_v2_trigger_matches_the_frozen_61_64_64_slot_contract() -> None:
+def test_v2_1_route_matches_the_frozen_61_64_64_slot_contract() -> None:
     monday = date(2026, 8, 10)
     tuesday = date(2026, 8, 11)
     wednesday = date(2026, 8, 12)
 
     v1_monday = _trigger_fire_times(news_poll._news_poll_trigger_v1(), monday)
-    v2_monday = _trigger_fire_times(news_poll._news_poll_trigger_v2(), monday)
-    v2_tuesday = _trigger_fire_times(news_poll._news_poll_trigger_v2(), tuesday)
-    v2_wednesday = _trigger_fire_times(news_poll._news_poll_trigger_v2(), wednesday)
+    v2_direct_monday = _trigger_fire_times(news_poll._news_poll_trigger_v2(), monday)
+    v2_1_monday = _trigger_fire_times(
+        news_poll._news_poll_trigger(news_poll.V2_1_CONFIG_PATH), monday
+    )
+    v2_1_tuesday = _trigger_fire_times(
+        news_poll._news_poll_trigger(news_poll.V2_1_CONFIG_PATH), tuesday
+    )
+    v2_1_wednesday = _trigger_fire_times(
+        news_poll._news_poll_trigger(news_poll.V2_1_CONFIG_PATH), wednesday
+    )
 
     assert len(v1_monday) == 64
-    assert len(v2_monday) == 61
-    assert len(v2_tuesday) == len(v2_wednesday) == 64
-    assert len(v2_monday) + len(v2_tuesday) + len(v2_wednesday) == 189
+    assert v2_1_monday == v2_direct_monday
+    assert len(v2_1_monday) == 61
+    assert len(v2_1_tuesday) == len(v2_1_wednesday) == 64
+    assert len(v2_1_monday) + len(v2_1_tuesday) + len(v2_1_wednesday) == 189
     assert [value.strftime("%H:%M") for value in v1_monday if value.hour == 9] == [
         "09:00",
         "09:30",
         "09:40",
         "09:50",
     ]
-    assert [value.strftime("%H:%M") for value in v2_monday if value.hour == 9] == [
-        "09:50"
+    monday_nine_oclock = [
+        value.strftime("%H:%M") for value in v2_1_monday if value.hour == 9
     ]
-    for values in (v2_monday, v2_tuesday, v2_wednesday):
+    assert monday_nine_oclock == ["09:50"]
+    assert {"09:00", "09:30", "09:40"}.isdisjoint(monday_nine_oclock)
+    for values in (v2_1_monday, v2_1_tuesday, v2_1_wednesday):
         assert len(values) == len(set(values))
         assert all(value.tzinfo == news_poll.MARKET_TIMEZONE for value in values)
+
+
+def test_news_poll_trigger_rejects_unknown_config_path(tmp_path: Path) -> None:
+    with pytest.raises(ValueError, match=r"unsupported P4\.1 news-poll config path"):
+        news_poll._news_poll_trigger(tmp_path / "unknown.yaml")
 
 
 def test_news_poll_scheduler_requires_explicit_env_enable(
@@ -2032,7 +2070,18 @@ def test_news_poll_scheduler_requires_explicit_env_enable(
 
     monkeypatch.setenv(news_poll.NEWS_POLL_ENABLED_ENV, "true")
     news_poll.register_news_poll_job()
-    assert JOBS["news_poll"].trigger is not None
+    registered = JOBS["news_poll"]
+    assert registered.trigger is not None
+    assert registered.func is news_poll.run_news_poll
+    assert news_poll.run_news_poll.__kwdefaults__ is not None
+    assert (
+        news_poll.run_news_poll.__kwdefaults__["config_path"]
+        == news_poll.V2_1_CONFIG_PATH
+    )
+    monday = date(2026, 8, 10)
+    assert _trigger_fire_times(registered.trigger, monday) == _trigger_fire_times(
+        news_poll._news_poll_trigger(news_poll.V2_1_CONFIG_PATH), monday
+    )
 
     monkeypatch.setenv(news_poll.NEWS_POLL_ENABLED_ENV, "yes")
     with pytest.raises(ValueError, match="must be exactly true or false"):

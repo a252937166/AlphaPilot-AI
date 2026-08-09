@@ -827,18 +827,31 @@ def test_v2_1_manual_migration_run_job_persists_candidates_with_safe_run_mode(
     assert order_ids_after == order_ids_before
 
 
-def test_v2_1_scheduler_stays_closed_while_manual_migration_is_authorizable(
+def test_v2_1_scheduler_activation_keeps_manual_receipt_boundaries(
     tmp_path: Path,
 ) -> None:
     config = news_poll.load_news_poll_config(CONFIG_PATH)
+    scheduler_authorization = news_poll._v2_execution_authorization(
+        config,
+        execution_mode="scheduler",
+        authorization_receipt_path=None,
+    )
+    assert news_poll.V2_1_SCHEDULER_ACTIVATED is True
+    assert scheduler_authorization == {
+        "execution_mode": "scheduler",
+        "scheduler_activated": True,
+    }
+
+    scheduler_receipt = tmp_path / "scheduler-receipt-forbidden.json"
+    scheduler_receipt.write_text("{}", encoding="utf-8")
     with pytest.raises(JobExecutionError) as scheduler_error:
         news_poll._v2_execution_authorization(
             config,
             execution_mode="scheduler",
-            authorization_receipt_path=None,
+            authorization_receipt_path=scheduler_receipt,
         )
     assert scheduler_error.value.stats["implementation_gate"] == (
-        "v2_1_scheduler_not_activated"
+        "v2_1_scheduler_receipt_forbidden"
     )
     assert scheduler_error.value.stats["network_attempted"] is False
 

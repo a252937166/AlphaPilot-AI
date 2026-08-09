@@ -482,6 +482,44 @@ owner 确认该时段为**人为断网、周期性复发**，非代码或上游�
   显式 `initial_backlog_migration_complete=true` 的标准增量验证收据，禁止自行运行增量验证或
   重部署 scheduler。
 
+### P4.1 v2.1 标准增量验证终态（2026-08-09，独立复核通过）
+
+- JobRun `76934` 已由独立审阅者判定 `APPROVE`：`status=ok / error=null`，当前日增量 fetched
+  `137`、inserted `13`，7 个物理请求、0 retry、0 failure。date checkpoint 诚实保持
+  `2026-08-08`，observed high-watermark 未移动；floor 独立重算为已提交观测高点减 30 分钟。
+- 终止机制为末页 0 行、`hasMore=false` 与短页共同证明的分页穷尽，不是 floor 截停。授权收据
+  精确绑定且恰用一次，故 `standard_incremental_validation_complete=true`；禁止重跑。
+- 独立复核报告
+  `docs/phase4/reports/P4.1-v2.1-incremental-validation-independent-review-20260809.json`，SHA-256
+  `c65c909c19bd0914cc8fcb5d098ca4b21454a0db19e223fd807647a92928979a`。
+- **限制 L-2**：本轮无法在禁止联网的独立复核中证明周日巨潮确为零公告；该限制不损害
+  checkpoint 语义，因为 08-09 未被标记为闭合，将来仍会在完整日对账中重新覆盖。
+
+### P4.1 v2.1 调度激活代码门实现（2026-08-09，未部署）
+
+- 仅修改 `src/alphapilot/jobs/news_poll.py`、`tests/test_p4_news_poll.py`、
+  `tests/test_p4_news_poll_v2_1.py`：`DEFAULT_CONFIG_PATH=V2_1_CONFIG_PATH`、
+  `V2_1_SCHEDULER_ACTIVATED=True`；trigger 路由显式限定 v1→v1、v2/v2.1→v2，未知路径直接
+  `ValueError`，不再静默回退 v1。
+- 离线注册触发器独立复算：2026-08-10/11/12 为 `61/64/64` 槽；周一 09 点仅 `09:50`，
+  `09:00/09:30/09:40` 均被抑制。scheduler 模式禁止携带手工 receipt，manual migration/
+  validation 的 receipt 边界保持不变。
+- 冻结 config `config/p4_news_poll_v2_1.yaml` 未修改，SHA-256 仍为
+  `9d56e137baf10bd0858723a93aff02c57bf7b35f8705f1817b16a89ec615183f`；新 source SHA-256
+  `af29cade1574842c4a7739ecf8a1c2183fdcbd4ff5e63f39478c0e952e5f4f4c`。
+- 质量门：定向 `83/83`、全量 pytest `1488 collected / 1 skip / 0 fail`；Ruff
+  `src tests scripts` 全绿；strict mypy `src/alphapilot` 157 files 与变更 source 均全绿；独立
+  只读代码审查 `APPROVE_ZERO_BLOCKER`。
+- ⚠ **DEVIATION（预注册 mypy 命令本身不可运行）**：原样
+  `PYTHONPATH=. .venv/bin/mypy --strict src scripts` 在分析代码前即因仓库既有
+  `build_p4_2a_gold_sample` / `scripts.build_p4_2a_gold_sample` 双模块身份退出，未把它静默报绿；
+  采用全量 source + 本次变更文件的 strict 扫描作为真实质量证据，未修无关历史文件。
+- 机器证据
+  `docs/phase4/reports/P4.1-v2.1-scheduler-activation-code-implementation-20260809.json`，SHA-256
+  `55633d2148fcbd1c0585fd01aae67047d593e95bf52036770c35a51e3bcd071c`。本节仅为代码门：
+  **未重启 API、未渲染/安装 plist、未 bootstrap scheduler、未开启三交易日观察窗**；须先独立
+  复核实现提交，再由 owner 另行授权部署。
+
 ### P4.2a 模型成本复审与 v1.7 选择准则预注册（2026-08-04，held-out 解锁前）
 
 - **动机**：held-out 一次性，验证哪个模型就应是生产模型。owner 提出试 `qwen3.7-flash`
