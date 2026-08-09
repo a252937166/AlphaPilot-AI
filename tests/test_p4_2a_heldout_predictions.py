@@ -18,6 +18,7 @@ from scripts import run_p4_2a_heldout_predictions as runner
 from scripts.build_p4_2a_gold_sample import (
     AnnouncementBodyPolicy,
     ExtractedPdfText,
+    GoldSampleError,
     extracted_pdf_text_fixture,
     validate_heldout_candidate_inputs,
 )
@@ -27,6 +28,9 @@ from alphapilot.core.config import Settings
 from alphapilot.db.models import LLMCall
 from alphapilot.llm.client import LLMUnavailable
 from alphapilot.llm.p4_news_eval import (
+    EVALUATION_DESIGN_V1_4_PATH,
+    EVALUATION_DESIGN_V1_5_PATH,
+    EVALUATION_DESIGN_V1_7_PATH,
     EventEvaluationDesign,
     load_event_evaluation_design,
 )
@@ -39,6 +43,15 @@ from alphapilot.llm.p4_news_event import (
 READY = datetime.fromisoformat("2026-08-06T00:11:00+08:00")
 DEV_COMPLETED = "2026-08-03T00:00:00Z"
 PDF_TEXT = "600519 公司公告披露重大事项，供独立盲标与模型使用。" * 8
+
+
+def test_frozen_design_preserves_typed_ancestor_lineage() -> None:
+    design = load_event_evaluation_design(EVALUATION_DESIGN_V1_7_PATH)
+
+    assert design.ancestor_designs
+    assert runner._frozen_design(design).ancestor_designs == (
+        design.ancestor_designs
+    )
 
 
 def _settings() -> Settings:
@@ -1372,7 +1385,7 @@ def test_dev_final_global_seal_detects_v1_4_namespace(
     tmp_path: Path,
 ) -> None:
     design = load_event_evaluation_design(
-        runner.EVALUATION_DESIGN_V1_4_PATH,
+        EVALUATION_DESIGN_V1_4_PATH,
         project_root=runner.PROJECT_ROOT,
     )
     current = (
@@ -1540,7 +1553,7 @@ def test_v17_candidate_outcome_makes_only_candidate_receipt_effective(
     assert outcome["decision"] == "select_candidate"
 
     incumbent_design = load_event_evaluation_design(
-        runner.EVALUATION_DESIGN_V1_5_PATH,
+        EVALUATION_DESIGN_V1_5_PATH,
         project_root=runner.PROJECT_ROOT,
     )
     with pytest.raises(
@@ -1567,7 +1580,7 @@ def test_v17_retain_outcome_makes_only_incumbent_receipt_effective(
     candidate_sha256 = hashlib.sha256(candidate_receipt.read_bytes()).hexdigest()
     incumbent_sha256 = hashlib.sha256(incumbent_receipt.read_bytes()).hexdigest()
     incumbent_design = load_event_evaluation_design(
-        runner.EVALUATION_DESIGN_V1_5_PATH,
+        EVALUATION_DESIGN_V1_5_PATH,
         project_root=runner.PROJECT_ROOT,
     )
 
@@ -1730,7 +1743,7 @@ def test_v17_retain_after_unvalidated_candidate_receipt_locks_heldout(
     ):
         runner._validate_model_selection_outcome_binding(
             load_event_evaluation_design(
-                runner.EVALUATION_DESIGN_V1_5_PATH,
+                EVALUATION_DESIGN_V1_5_PATH,
                 project_root=runner.PROJECT_ROOT,
             ),
             tmp_path,
@@ -2295,7 +2308,7 @@ def test_materialization_successor_transient_failure_leaves_zero_artifacts_or_st
         _url: str,
         _policy: AnnouncementBodyPolicy,
     ) -> bytes:
-        raise runner.GoldSampleError("CNInfo PDF download failed: ConnectError")
+        raise GoldSampleError("CNInfo PDF download failed: ConnectError")
 
     with pytest.raises(runner.HeldoutPredictionError, match="materialization failed"):
         runner._prepare_or_validate_candidate_artifact(

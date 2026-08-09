@@ -520,7 +520,10 @@ def test_v1_7_revalidates_v1_6_receipt_and_model_selection_outcome(
         label: str,
     ) -> Path:
         verified.append((label, dict(entry)))
-        return original(project_root, entry, label=label)
+        result = original(project_root, entry, label=label)
+        if not isinstance(result, Path):
+            raise AssertionError("frozen artifact verification did not return a path")
+        return result
 
     monkeypatch.setattr(p4_news_eval, "_verify_frozen_artifact", record_verification)
     p4_news_eval._load_v1_7_event_evaluation_design(
@@ -537,6 +540,30 @@ def test_v1_7_revalidates_v1_6_receipt_and_model_selection_outcome(
         "path": "docs/phase4/eval/P4.2a-model-selection-v1.7.json",
         "sha256": "38f20f4eebe4da1da48fa14d3b09bb2a042d27eed5efc4a533a63718659059e0",
     }
+
+
+def test_v1_7_retains_typed_byte_frozen_design_lineage() -> None:
+    design = load_event_evaluation_design(
+        p4_news_eval.EVALUATION_DESIGN_V1_7_PATH
+    )
+
+    assert "extends_design" not in design.document
+    assert design.ancestor_designs[0].path == (
+        p4_news_eval.EVALUATION_DESIGN_V1_6_PATH.resolve()
+    )
+    assert design.ancestor_designs[0].sha256 == (
+        p4_news_eval.EXPECTED_EVALUATION_DESIGN_V1_6_SHA256
+    )
+    assert design.ancestor_designs[0].schema_version == (
+        p4_news_eval.EXPECTED_EVALUATION_V1_6_SCHEMA_VERSION
+    )
+    assert {
+        "active_prediction_contract",
+        "prediction_contract_freeze_receipt",
+    }.issubset(design.ancestor_designs[0].byte_frozen_scopes)
+    assert "active_prediction_contract" not in (
+        design.ancestor_designs[1].byte_frozen_scopes
+    )
 
 
 @pytest.mark.parametrize(

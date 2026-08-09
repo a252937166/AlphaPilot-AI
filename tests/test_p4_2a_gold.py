@@ -19,6 +19,8 @@ from scripts import evaluate_p4_2a_gold as evaluator
 
 from alphapilot.llm.p4_news_eval import (
     EVALUATION_DESIGN_V1_2_PATH,
+    EVALUATION_DESIGN_V1_7_PATH,
+    EvaluationDesignAncestor,
     load_event_evaluation_design,
 )
 from alphapilot.llm.p4_news_event import (
@@ -1931,6 +1933,86 @@ def test_v1_1_dev_final_predictions_are_receipt_bound(
 
     assert evidence["row_count"] == 60
     assert evidence["failure_ids"] == []
+
+    ancestor_sha256 = "a" * 64
+    lineage_design = replace(
+        design,
+        ancestor_designs=(
+            EvaluationDesignAncestor(
+                path=tmp_path / "config/p4_event_evaluation_parent.yaml",
+                sha256=ancestor_sha256,
+                schema_version="p4.2a-evaluation-design-parent",
+                byte_frozen_scopes=builder.PREDICTION_FREEZE_DESIGN_SCOPES,
+            ),
+        ),
+    )
+    manifest["design_sha256"] = ancestor_sha256
+    manifest_payload = (
+        json.dumps(manifest, sort_keys=True, separators=(",", ":")).encode()
+        + b"\n"
+    )
+    manifest_path.write_bytes(manifest_payload)
+    receipt["dev_final_predictions_manifest_sha256"] = hashlib.sha256(
+        manifest_payload
+    ).hexdigest()
+    inherited = builder.validate_dev_final_prediction_freeze(
+        lineage_design,
+        active_contract=active,
+        receipt=receipt,
+        project_root=tmp_path,
+    )
+    assert inherited["manifest_sha256"] == hashlib.sha256(
+        manifest_payload
+    ).hexdigest()
+
+    manifest["design_sha256"] = "b" * 64
+    unrelated_payload = (
+        json.dumps(manifest, sort_keys=True, separators=(",", ":")).encode()
+        + b"\n"
+    )
+    manifest_path.write_bytes(unrelated_payload)
+    receipt["dev_final_predictions_manifest_sha256"] = hashlib.sha256(
+        unrelated_payload
+    ).hexdigest()
+    with pytest.raises(builder.GoldSampleError, match="design_sha256 drifted"):
+        builder.validate_dev_final_prediction_freeze(
+            lineage_design,
+            active_contract=active,
+            receipt=receipt,
+            project_root=tmp_path,
+        )
+
+    manifest["design_sha256"] = ancestor_sha256
+    manifest_path.write_bytes(manifest_payload)
+    receipt["dev_final_predictions_manifest_sha256"] = hashlib.sha256(
+        manifest_payload
+    ).hexdigest()
+    incomplete_scope_design = replace(
+        lineage_design,
+        ancestor_designs=(
+            replace(
+                lineage_design.ancestor_designs[0],
+                byte_frozen_scopes=frozenset({"active_prediction_contract"}),
+            ),
+        ),
+    )
+    with pytest.raises(builder.GoldSampleError, match="design_sha256 drifted"):
+        builder.validate_dev_final_prediction_freeze(
+            incomplete_scope_design,
+            active_contract=active,
+            receipt=receipt,
+            project_root=tmp_path,
+        )
+
+    manifest["design_sha256"] = design.sha256
+    manifest_payload = (
+        json.dumps(manifest, sort_keys=True, separators=(",", ":")).encode()
+        + b"\n"
+    )
+    manifest_path.write_bytes(manifest_payload)
+    receipt["dev_final_predictions_manifest_sha256"] = hashlib.sha256(
+        manifest_payload
+    ).hexdigest()
     receipt["dev_final_predictions_contract_sha256"] = "f" * 64
     with pytest.raises(builder.GoldSampleError, match="receipt"):
         builder.validate_dev_final_prediction_freeze(
@@ -1939,6 +2021,39 @@ def test_v1_1_dev_final_predictions_are_receipt_bound(
             receipt=receipt,
             project_root=tmp_path,
         )
+
+
+def test_v1_7_dev_final_freeze_accepts_only_declared_v1_6_lineage() -> None:
+    design = builder.load_evaluation_design(EVALUATION_DESIGN_V1_7_PATH)
+    accepted = builder.byte_frozen_design_identities(
+        design,
+        required_scopes=builder.PREDICTION_FREEZE_DESIGN_SCOPES,
+    )
+
+    assert accepted == {
+        (design.sha256, str(design.document["schema_version"])),
+        (
+            design.ancestor_designs[0].sha256,
+            design.ancestor_designs[0].schema_version,
+        ),
+    }
+    assert all(
+        ancestor.sha256 not in {identity[0] for identity in accepted}
+        for ancestor in design.ancestor_designs[1:]
+    )
+
+    active_contract, receipt, _receipt_sha256 = (
+        builder.load_active_prediction_contract(design)
+    )
+    evidence = builder.validate_dev_final_prediction_freeze(
+        design,
+        active_contract=active_contract,
+        receipt=receipt,
+    )
+
+    assert evidence["row_count"] == 60
+    assert evidence["success_count"] == 60
+    assert evidence["failure_count"] == 0
 
 
 def _v14_freeze_receipt(
@@ -2032,6 +2147,61 @@ def test_v14_freeze_receipt_and_active_loader_bind_evidence_mode(
     )
     with pytest.raises(builder.GoldSampleError, match="evidence-span match mode"):
         builder.load_prediction_contract_freeze_receipt(design)
+
+
+def test_prediction_freeze_receipt_binds_sha_and_schema_to_same_lineage_entry(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    parent = builder.load_evaluation_design(EVALUATION_DESIGN_V1_3_PATH)
+    receipt = _v14_freeze_receipt(parent)
+    receipt_path = tmp_path / "freeze.json"
+    receipt_path.write_text(
+        json.dumps(receipt, sort_keys=True, separators=(",", ":")) + "\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        builder,
+        "evaluation_artifact_path",
+        lambda _design, _name: receipt_path,
+    )
+    successor_document = copy.deepcopy(parent.document)
+    successor_document["schema_version"] = "p4.2a-evaluation-design-successor"
+    successor = replace(
+        parent,
+        sha256="c" * 64,
+        document=successor_document,
+        ancestor_designs=(
+            EvaluationDesignAncestor(
+                path=parent.path,
+                sha256=parent.sha256,
+                schema_version=str(parent.document["schema_version"]),
+                byte_frozen_scopes=builder.PREDICTION_FREEZE_DESIGN_SCOPES,
+            ),
+        ),
+    )
+
+    loaded, _receipt_sha256 = builder.load_prediction_contract_freeze_receipt(
+        successor
+    )
+    assert loaded["design_sha256"] == parent.sha256
+
+    receipt["design_schema_version"] = successor_document["schema_version"]
+    receipt_path.write_text(
+        json.dumps(receipt, sort_keys=True, separators=(",", ":")) + "\n",
+        encoding="utf-8",
+    )
+    with pytest.raises(builder.GoldSampleError, match="contract values drifted"):
+        builder.load_prediction_contract_freeze_receipt(successor)
+
+    receipt["design_schema_version"] = parent.document["schema_version"]
+    receipt["design_sha256"] = "d" * 64
+    receipt_path.write_text(
+        json.dumps(receipt, sort_keys=True, separators=(",", ":")) + "\n",
+        encoding="utf-8",
+    )
+    with pytest.raises(builder.GoldSampleError, match="contract values drifted"):
+        builder.load_prediction_contract_freeze_receipt(successor)
 
 
 def test_v1_1_malformed_preflight_does_not_consume_evaluation_one_shot(
