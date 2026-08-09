@@ -9,18 +9,23 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, cast
 
-from scripts import run_p4_2a_dev_iteration as dev_runner
-from scripts import run_p4_2a_heldout_predictions as heldout
-from scripts.run_p4_2a_offline_extract import ChatJsonCallable
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+if __package__ in {None, ""}:
+    # Keep direct CLI imports anchored to this checkout, independent of cwd and
+    # without requiring a caller-provided PYTHONPATH.
+    sys.path[:0] = [str(PROJECT_ROOT), str(PROJECT_ROOT / "src")]
 
-from alphapilot.core.config import Settings
-from alphapilot.llm.p4_news_eval import (
+from scripts import run_p4_2a_dev_iteration as dev_runner  # noqa: E402
+from scripts import run_p4_2a_heldout_predictions as heldout  # noqa: E402
+from scripts.run_p4_2a_offline_extract import ChatJsonCallable  # noqa: E402
+
+from alphapilot.core.config import Settings  # noqa: E402
+from alphapilot.llm.p4_news_eval import (  # noqa: E402
     EventEvaluationDesign,
     load_event_evaluation_design,
 )
 
 JsonObject = dict[str, Any]
-PROJECT_ROOT = Path(__file__).resolve().parent.parent
 EVALUATION_DESIGN_PATH = Path("config/p4_event_evaluation_v1_6.yaml")
 ACTIVE_CONTRACT_PATH = Path("config/p4_event_extract_eval_v1_7.yaml")
 OFFICIAL_ROUND_ID = "v1.7-r1"
