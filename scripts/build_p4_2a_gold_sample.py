@@ -4361,6 +4361,37 @@ def _normalized_completed_records(records: Sequence[JsonObject]) -> list[JsonObj
     return normalized
 
 
+COMBINE_OWNER_OUTPUT_ARTIFACTS = (
+    "heldout_40_owner_annotations_jsonl",
+    "combined_100_annotations_jsonl",
+    "owner_completion_manifest_json",
+)
+
+
+def _combine_owner_output_paths(
+    design: FrozenEvaluationDesign,
+    *,
+    project_root: Path,
+) -> dict[str, Path]:
+    artifacts = _mapping(design.document.get("artifacts"), label="artifacts")
+    result: dict[str, Path] = {}
+    for artifact_name in COMBINE_OWNER_OUTPUT_ARTIFACTS:
+        artifact = _mapping(
+            artifacts.get(artifact_name),
+            label=f"artifacts.{artifact_name}",
+        )
+        if artifact.get("create_only") is not True:
+            raise GoldSampleError(
+                f"combine-owner output {artifact_name} must be create-only"
+            )
+        result[artifact_name] = evaluation_artifact_path(
+            design,
+            artifact_name,
+            project_root=project_root,
+        )
+    return result
+
+
 def _owner_completion_time(
     records: Sequence[Mapping[str, object]],
 ) -> datetime:
@@ -4685,6 +4716,10 @@ def combine_owner_annotations(
 
     root = project_root.resolve()
     design = load_evaluation_design(design_path)
+    combine_output_paths = _combine_owner_output_paths(
+        design,
+        project_root=root,
+    )
     current_time = now or datetime.now(UTC)
     require_heldout_ready(design, current_time)
     dev_owner_records, dev_export_sha256 = _load_jsonl_with_sha256(
@@ -4695,17 +4730,37 @@ def combine_owner_annotations(
         heldout_owner_export.resolve(),
         label="heldout40 owner export",
     )
+    artifacts = _mapping(design.document.get("artifacts"), label="artifacts")
     dev_annotation_artifact = _mapping(
-        _mapping(design.document.get("artifacts"), label="artifacts").get(
-            "dev_60_owner_annotations_jsonl"
-        ),
+        artifacts.get("dev_60_owner_annotations_jsonl"),
         label="artifacts.dev_60_owner_annotations_jsonl",
     )
     frozen_dev_sha256 = dev_annotation_artifact.get("sha256")
-    if frozen_dev_sha256 is not None and dev_export_sha256 != frozen_dev_sha256:
-        raise GoldSampleError(
-            "dev60 AI-drafted annotation bytes differ from the frozen design"
-        )
+    dev_is_create_only_output = dev_annotation_artifact.get("create_only") is True
+    registered_dev_path = evaluation_artifact_path(
+        design,
+        "dev_60_owner_annotations_jsonl",
+        project_root=root,
+    )
+    if dev_is_create_only_output:
+        if frozen_dev_sha256 is not None:
+            raise GoldSampleError(
+                "dev60 artifact cannot be both a frozen input and create-only output"
+            )
+    else:
+        if (
+            not isinstance(frozen_dev_sha256, str)
+            or SHA256_PATTERN.fullmatch(frozen_dev_sha256) is None
+        ):
+            raise GoldSampleError("dev60 frozen input SHA-256 is missing or invalid")
+        if dev_owner_export.resolve() != registered_dev_path:
+            raise GoldSampleError(
+                "dev60 frozen input must use the design-registered path"
+            )
+        if dev_export_sha256 != frozen_dev_sha256:
+            raise GoldSampleError(
+                "dev60 AI-drafted annotation bytes differ from the frozen design"
+            )
     dev_blind_path = evaluation_artifact_path(
         design,
         "dev_60_frozen_jsonl",
@@ -4874,7 +4929,9 @@ def combine_owner_annotations(
     if violations:
         raise GoldSampleError(f"owner completion leaks blind-forbidden fields: {violations[:3]}")
 
-    dev_payload = _json_line_bytes(normalized_dev)
+    dev_payload = (
+        _json_line_bytes(normalized_dev) if dev_is_create_only_output else None
+    )
     heldout_payload = _json_line_bytes(normalized_heldout)
     combined_payload = _json_line_bytes(combined)
     completion = _mapping(
@@ -4888,26 +4945,12 @@ def combine_owner_annotations(
     renumbering_rule = combined_contract.get("renumbering_rule")
     if renumbering_rule != "dev_preserve_1_60_then_heldout_add_60_to_61_100":
         raise GoldSampleError("combined owner renumbering rule drifted")
-    dev_output = evaluation_artifact_path(
-        design,
-        "dev_60_owner_annotations_jsonl",
-        project_root=root,
-    )
-    heldout_output = evaluation_artifact_path(
-        design,
-        "heldout_40_owner_annotations_jsonl",
-        project_root=root,
-    )
-    combined_output = evaluation_artifact_path(
-        design,
-        "combined_100_annotations_jsonl",
-        project_root=root,
-    )
-    completion_manifest_path = evaluation_artifact_path(
-        design,
-        "owner_completion_manifest_json",
-        project_root=root,
-    )
+    dev_artifact_path = registered_dev_path
+    heldout_output = combine_output_paths["heldout_40_owner_annotations_jsonl"]
+    combined_output = combine_output_paths["combined_100_annotations_jsonl"]
+    completion_manifest_path = combine_output_paths[
+        "owner_completion_manifest_json"
+    ]
     if now is not None and (now.tzinfo is None or now.utcoffset() is None):
         raise GoldSampleError("owner completion time must include a timezone")
     completed_at = (
@@ -4921,8 +4964,12 @@ def combine_owner_annotations(
         "annotation_contract_sha256": design.base_contract.sha256,
         "dev_blind_sample_path": str(dev_blind_path.relative_to(root)),
         "dev_blind_sample_sha256": dev_blind_sha256,
-        "dev_owner_annotations_path": str(dev_output.relative_to(root)),
-        "dev_owner_annotations_sha256": _sha256_bytes(dev_payload),
+        "dev_owner_annotations_path": str(dev_artifact_path.relative_to(root)),
+        "dev_owner_annotations_sha256": (
+            _sha256_bytes(dev_payload)
+            if dev_payload is not None
+            else dev_export_sha256
+        ),
         "dev_owner_annotations_row_count": 60,
         "dev_completed_count": 60,
         "heldout_blind_sample_path": str(heldout_blind_path.relative_to(root)),
@@ -4985,37 +5032,41 @@ def combine_owner_annotations(
     artifact_root = (root / artifact_root_relative).resolve()
     if not artifact_root.is_relative_to(root):
         raise GoldSampleError("artifact_root escapes project root")
-    dev_output = _artifact_path(dev_output, artifact_root)
+    dev_artifact_path = _artifact_path(dev_artifact_path, artifact_root)
     heldout_output = _artifact_path(heldout_output, artifact_root)
     combined_output = _artifact_path(combined_output, artifact_root)
     completion_manifest_path = _artifact_path(
         completion_manifest_path,
         artifact_root,
     )
-    for target in (
-        dev_output,
-        heldout_output,
-        combined_output,
-        completion_manifest_path,
-    ):
+    output_targets = [heldout_output, combined_output, completion_manifest_path]
+    if dev_is_create_only_output:
+        output_targets.insert(0, dev_artifact_path)
+    for target in output_targets:
         if target.exists() or target.is_symlink():
             raise FileExistsError(
                 f"refusing to overwrite completed owner artifact: {target}"
             )
-    outputs = {
-        dev_output: dev_payload,
+    outputs: dict[Path, bytes] = {
         heldout_output: heldout_payload,
         combined_output: combined_payload,
         completion_manifest_path: manifest_payload,
     }
+    if dev_payload is not None:
+        outputs[dev_artifact_path] = dev_payload
     hashes = _write_create_only_bundle(outputs)
+    dev_artifact_sha256 = (
+        hashes[dev_artifact_path]
+        if dev_is_create_only_output
+        else dev_export_sha256
+    )
     return {
         "mode": "combine-owner",
         "dev_completed_count": 60,
         "heldout_completed_count": 40,
         "combined_row_count": 100,
-        "dev_owner_annotations": str(dev_output.relative_to(root)),
-        "dev_owner_annotations_sha256": hashes[dev_output],
+        "dev_owner_annotations": str(dev_artifact_path.relative_to(root)),
+        "dev_owner_annotations_sha256": dev_artifact_sha256,
         "heldout_owner_annotations": str(heldout_output.relative_to(root)),
         "heldout_owner_annotations_sha256": hashes[heldout_output],
         "combined_annotations": str(combined_output.relative_to(root)),

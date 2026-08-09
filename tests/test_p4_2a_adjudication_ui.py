@@ -3,6 +3,7 @@ from __future__ import annotations
 import copy
 import hashlib
 import json
+from dataclasses import replace
 from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Any
@@ -14,6 +15,7 @@ from scripts import evaluate_p4_2a_gold as evaluator
 
 from alphapilot.llm.p4_news_eval import (
     EVALUATION_DESIGN_V1_2_PATH,
+    EVALUATION_DESIGN_V1_7_PATH,
     load_event_evaluation_design,
 )
 
@@ -215,18 +217,21 @@ def test_normalize_adjudication_recomputes_provenance_and_changed_fields() -> No
 def test_combine_owner_consumes_adjudicated_export_with_explicit_draft(
     tmp_path: Path,
 ) -> None:
-    design = load_event_evaluation_design(EVALUATION_DESIGN_V1_2_PATH)
+    design = load_event_evaluation_design(EVALUATION_DESIGN_V1_7_PATH)
     eval_root = tmp_path / "docs/phase4/eval"
     eval_root.mkdir(parents=True)
     artifacts = design.document["artifacts"]
     dev_blind = eval_root / Path(artifacts["dev_60_frozen_jsonl"]["path"]).name
-    dev_labels = tmp_path / "dev-ai-export.jsonl"
+    dev_labels = eval_root / Path(
+        artifacts["dev_60_owner_annotations_jsonl"]["path"]
+    ).name
     dev_blind.write_bytes(
         (ui.PROJECT_ROOT / artifacts["dev_60_frozen_jsonl"]["path"]).read_bytes()
     )
-    dev_labels.write_bytes(
-        (ui.PROJECT_ROOT / artifacts["dev_60_owner_annotations_jsonl"]["path"]).read_bytes()
-    )
+    frozen_dev_bytes = (
+        ui.PROJECT_ROOT / artifacts["dev_60_owner_annotations_jsonl"]["path"]
+    ).read_bytes()
+    dev_labels.write_bytes(frozen_dev_bytes)
 
     heldout: list[dict[str, Any]] = []
     for index in range(40):
@@ -329,11 +334,50 @@ def test_combine_owner_consumes_adjudicated_export_with_explicit_draft(
     draft_path.write_bytes(builder._json_line_bytes(drafts))
     export_path.write_bytes(builder._json_line_bytes(exports))
 
+    registered_outputs = {
+        eval_root / Path(artifacts[name]["path"]).name
+        for name in builder.COMBINE_OWNER_OUTPUT_ARTIFACTS
+    }
+    unregistered_dev_copy = tmp_path / "dev-ai-export-copy.jsonl"
+    unregistered_dev_copy.write_bytes(frozen_dev_bytes)
+    with pytest.raises(
+        builder.GoldSampleError,
+        match="dev60 frozen input must use the design-registered path",
+    ):
+        builder.combine_owner_annotations(
+            dev_owner_export=unregistered_dev_copy,
+            heldout_owner_export=export_path,
+            heldout_ai_draft=draft_path,
+            design_path=EVALUATION_DESIGN_V1_7_PATH,
+            now=datetime.fromisoformat("2026-08-06T00:30:00+08:00"),
+            project_root=tmp_path,
+        )
+    assert not any(path.exists() for path in registered_outputs)
+
+    assert frozen_dev_bytes.endswith(b"\n")
+    dev_labels.write_bytes(frozen_dev_bytes[:-1] + b" \n")
+    with pytest.raises(
+        builder.GoldSampleError,
+        match="dev60 AI-drafted annotation bytes differ from the frozen design",
+    ):
+        builder.combine_owner_annotations(
+            dev_owner_export=dev_labels,
+            heldout_owner_export=export_path,
+            heldout_ai_draft=draft_path,
+            design_path=EVALUATION_DESIGN_V1_7_PATH,
+            now=datetime.fromisoformat("2026-08-06T00:30:00+08:00"),
+            project_root=tmp_path,
+        )
+    assert not any(path.exists() for path in registered_outputs)
+    dev_labels.write_bytes(frozen_dev_bytes)
+    dev_stat_before = dev_labels.stat()
+    files_before = {path for path in eval_root.rglob("*") if path.is_file()}
+
     evidence = builder.combine_owner_annotations(
         dev_owner_export=dev_labels,
         heldout_owner_export=export_path,
         heldout_ai_draft=draft_path,
-        design_path=EVALUATION_DESIGN_V1_2_PATH,
+        design_path=EVALUATION_DESIGN_V1_7_PATH,
         now=datetime.fromisoformat("2026-08-06T00:30:00+08:00"),
         project_root=tmp_path,
     )
@@ -342,7 +386,34 @@ def test_combine_owner_consumes_adjudicated_export_with_explicit_draft(
         artifacts["heldout_40_owner_annotations_jsonl"]["path"]
     ).name
     canonical = builder._load_jsonl(canonical_path)
+    combined_path = eval_root / Path(
+        artifacts["combined_100_annotations_jsonl"]["path"]
+    ).name
+    completion_path = eval_root / Path(
+        artifacts["owner_completion_manifest_json"]["path"]
+    ).name
+    combined = builder._load_jsonl(combined_path)
+    completion = json.loads(completion_path.read_text(encoding="utf-8"))
+    dev_stat_after = dev_labels.stat()
+    files_after = {path for path in eval_root.rglob("*") if path.is_file()}
     assert evidence["heldout_completed_count"] == 40
+    assert files_after - files_before == registered_outputs
+    assert dev_labels.read_bytes() == frozen_dev_bytes
+    assert dev_stat_after.st_ino == dev_stat_before.st_ino
+    assert dev_stat_after.st_mtime_ns == dev_stat_before.st_mtime_ns
+    assert evidence["dev_owner_annotations"] == str(dev_labels.relative_to(tmp_path))
+    assert evidence["dev_owner_annotations_sha256"] == artifacts[
+        "dev_60_owner_annotations_jsonl"
+    ]["sha256"]
+    assert completion["dev_owner_annotations_path"] == str(
+        dev_labels.relative_to(tmp_path)
+    )
+    assert completion["dev_owner_annotations_sha256"] == artifacts[
+        "dev_60_owner_annotations_jsonl"
+    ]["sha256"]
+    assert combined[:60] == builder._normalized_completed_records(
+        builder._load_jsonl(dev_labels)
+    )
     assert evidence["heldout_adjudication_export"] == str(
         export_path.relative_to(tmp_path)
     )
@@ -367,3 +438,19 @@ def test_combine_owner_consumes_adjudicated_export_with_explicit_draft(
     assert adjudication_evidence["adjudication_export_sha256"] == hashlib.sha256(
         export_path.read_bytes()
     ).hexdigest()
+
+
+def test_combine_owner_requires_declared_create_only_outputs() -> None:
+    design = builder.load_evaluation_design(EVALUATION_DESIGN_V1_7_PATH)
+    document = copy.deepcopy(design.document)
+    document["artifacts"]["combined_100_annotations_jsonl"].pop("create_only")
+    malformed = replace(design, document=document)
+
+    with pytest.raises(
+        builder.GoldSampleError,
+        match="combined_100_annotations_jsonl must be create-only",
+    ):
+        builder._combine_owner_output_paths(
+            malformed,
+            project_root=ui.PROJECT_ROOT,
+        )
