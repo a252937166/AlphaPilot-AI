@@ -1,0 +1,111 @@
+{
+  "schema_version": "p4.1-v2.1-scheduler-activation-code-implementation-v1",
+  "created_at_utc": "2026-08-09T10:09:14Z",
+  "status": "READY_FOR_INDEPENDENT_CODE_REVIEW",
+  "baseline": {
+    "repository_head": "6296e76",
+    "incremental_validation_job_run_id": 76934,
+    "incremental_validation_complete": true,
+    "incremental_validation_review_path": "docs/phase4/reports/P4.1-v2.1-incremental-validation-independent-review-20260809.json",
+    "incremental_validation_review_sha256": "c65c909c19bd0914cc8fcb5d098ca4b21454a0db19e223fd807647a92928979a",
+    "activation_preregistration_path": "docs/phase4/reports/P4.1-v2.1-scheduler-activation-code-gate-preregistration-20260809.json",
+    "activation_preregistration_sha256": "9cbb4b1bea2880efac20bb0e7614860a633016eece32bb4164f3ea7e4d2bbfb3"
+  },
+  "changed_files": [
+    "src/alphapilot/jobs/news_poll.py",
+    "tests/test_p4_news_poll.py",
+    "tests/test_p4_news_poll_v2_1.py"
+  ],
+  "implementation": {
+    "default_config_path": "config/p4_news_poll_v2_1.yaml",
+    "v2_1_scheduler_activated": true,
+    "trigger_routes": {
+      "config/p4_news_poll_v1.yaml": "v1_trigger",
+      "config/p4_news_poll_v2.yaml": "v2_trigger",
+      "config/p4_news_poll_v2_1.yaml": "v2_trigger",
+      "unknown_path": "ValueError"
+    },
+    "scheduler_mode_without_receipt": "authorized_by_reviewed_activation_constant",
+    "scheduler_mode_with_receipt": "fail_closed",
+    "manual_receipt_contract_changed": false,
+    "news_poll_source_sha256": "af29cade1574842c4a7739ecf8a1c2183fdcbd4ff5e63f39478c0e952e5f4f4c",
+    "frozen_v2_1_config_sha256": "9d56e137baf10bd0858723a93aff02c57bf7b35f8705f1817b16a89ec615183f",
+    "frozen_v2_1_config_modified": false
+  },
+  "trigger_evidence": {
+    "timezone": "Asia/Shanghai",
+    "dates": {
+      "2026-08-10_monday": {
+        "slot_count": 61,
+        "hour_09_slots": [
+          "09:50"
+        ],
+        "suppressed": [
+          "09:00",
+          "09:30",
+          "09:40"
+        ]
+      },
+      "2026-08-11_tuesday": {
+        "slot_count": 64
+      },
+      "2026-08-12_wednesday": {
+        "slot_count": 64
+      }
+    },
+    "unique_slot_counts": true,
+    "registered_default_function_and_trigger_use_v2_1": true
+  },
+  "quality_gates": {
+    "focused_pytest": {
+      "command": "PYTHONPATH=. .venv/bin/pytest -q tests/test_p4_news_poll.py tests/test_p4_news_poll_v2_1.py tests/test_scheduler_daemon.py",
+      "collected": 83,
+      "passed": 83,
+      "failed": 0
+    },
+    "full_pytest": {
+      "command": "PYTHONPATH=. .venv/bin/pytest -q",
+      "collected": 1488,
+      "skipped": 1,
+      "failed": 0,
+      "exit_code": 0
+    },
+    "ruff": {
+      "command": ".venv/bin/ruff check src tests scripts",
+      "status": "passed"
+    },
+    "strict_mypy": {
+      "src_alphapilot": {
+        "command": ".venv/bin/mypy --strict src/alphapilot",
+        "files": 157,
+        "status": "passed"
+      },
+      "changed_source": {
+        "command": ".venv/bin/mypy --strict src/alphapilot/jobs/news_poll.py",
+        "files": 1,
+        "status": "passed"
+      },
+      "preregistered_combined_command_deviation": {
+        "command": "PYTHONPATH=. .venv/bin/mypy --strict src scripts",
+        "status": "blocked_before_analysis",
+        "reason": "existing duplicate module identity for build_p4_2a_gold_sample versus scripts.build_p4_2a_gold_sample",
+        "related_to_activation_diff": false,
+        "silently_reported_as_green": false
+      }
+    },
+    "git_diff_check": "passed",
+    "internal_independent_read_only_review": "APPROVE_ZERO_BLOCKER"
+  },
+  "scope_guards": {
+    "deployment_authorized": false,
+    "api_restart_performed": false,
+    "scheduler_launchagent_changed": false,
+    "scheduler_started": false,
+    "three_trading_day_observation_started": false,
+    "database_write_performed": false,
+    "p4_2b_unlocked": false,
+    "p4_3_unlocked": false,
+    "proposal_or_order_created": false
+  },
+  "next_action": "submit_the_three_file_diff_and_this_evidence_for_independent_review_before_any_deployment"
+}
