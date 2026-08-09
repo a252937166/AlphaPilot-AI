@@ -1,0 +1,117 @@
+{
+  "schema_version": "p4.2a-v2-development-calibration-internal-review-v1",
+  "generated_at_utc": "2026-08-09T17:08:34Z",
+  "generated_at_cst": "2026-08-10T01:08:34+08:00",
+  "reviewer": {
+    "reviewer_type": "composite_internal_ai_review",
+    "components": [
+      {
+        "reviewer_role": "independent_internal_codex_read_only_auditor",
+        "reviewer_model": null,
+        "scope": "131 core result, metric, lineage, and safety claims before the post-run quality-gate addendum",
+        "pre_addendum_result_sha256": "2bf84e0e38deea8d61745fdc44f03778c26b2c631c3d5b595e8052917a837b61"
+      },
+      {
+        "reviewer_role": "primary_codex_post_run_addendum_verifier",
+        "reviewer_model": null,
+        "scope": "test failure output, test-only fix diff and commit, focused and final full-suite quality results"
+      }
+    ],
+    "independence_disclosure": "The core evidence was recomputed by a separate read-only Codex subagent. The later post-run test-fixture addendum was verified by the primary Codex after that audit. This composite internal record is not the owner or external Claude Code adjudication required for any subsequent round or phase unlock."
+  },
+  "scope": "P4.2a v2 development calibration Round 2 immutable artifacts and machine result evidence",
+  "review_inputs": {
+    "result_report": {
+      "path": "docs/phase4/reports/P4.2a-v2-development-calibration-round2-result-20260810.json",
+      "sha256": "cc163104db34438c7035e245dab294eb32004b6f9fb3335927443d8be1c490c0"
+    },
+    "round_preregistration_sha256": "a7c971ba59c2c7199e5becd95ac09fde9e5cd16a3eef225a8f244a934efc5812",
+    "round_outcome_sha256": "49026fad5e14771cbe1a5a83aa3311107b30ff02d708c31cd4a0dad4c2384c66",
+    "calibration_state_sha256": "e3d0e971db316b23915f38ca699e7f284edbc72e1c79ee844847ba1a5953f612",
+    "round_1_state_prefix_sha256": "ca8355e357a214a0b06af945be240480e732bb7a1251c1670763acedb35d0bc4"
+  },
+  "method": {
+    "repository_runner_metrics_trusted_without_recomputation": false,
+    "independent_standard_library_recomputation": true,
+    "prediction_rows_joined_to_sealed_human_gold_by_news_item_id": true,
+    "manifest_terminal_outcome_and_state_hash_chain_recomputed": true,
+    "live_database_access": "sqlite_uri_mode_ro_query_only",
+    "network_or_model_calls": 0,
+    "files_modified_by_reviewer": 0,
+    "independent_core_reported_field_checks": 131,
+    "post_run_addendum_separately_verified": true
+  },
+  "verdict": "APPROVE_RESULT_RECORDED_NO_MODEL_SELECTED",
+  "blocker_count": 0,
+  "recomputed_metrics": {
+    "qwen3.7-flash": {
+      "confusion_matrix": {"tp": 15, "fp": 4, "fn": 3, "tn": 23},
+      "precision": 0.7894736842105263,
+      "false_omission_rate": 0.11538461538461539,
+      "adverse_precision": 0.7368421052631579,
+      "adverse_false_omission_rate": 0.15384615384615385,
+      "development_gate_passed": false
+    },
+    "qwen3.6-plus": {
+      "confusion_matrix": {"tp": 16, "fp": 3, "fn": 2, "tn": 24},
+      "precision": 0.8421052631578947,
+      "false_omission_rate": 0.07692307692307693,
+      "adverse_precision": 0.7894736842105263,
+      "adverse_false_omission_rate": 0.11538461538461539,
+      "development_gate_passed": false
+    },
+    "selected_model": null,
+    "selection_reason": "flash failed point and adverse precision; plus passed point estimates but failed the preregistered adverse precision margin"
+  },
+  "completion_and_lineage": {
+    "model_order_verified": ["qwen3.7-flash", "qwen3.6-plus"],
+    "predictions_per_model": 45,
+    "unique_ids_per_model": 45,
+    "failures_per_model": 0,
+    "retries_per_model": 0,
+    "input_identity_matches_per_model": 45,
+    "evidence_span_exact_substrings_per_model": 45,
+    "round_1_ten_artifacts_match_head": true,
+    "round_1_state_prefix_preserved": true,
+    "round_2_state_transition": ["round_started", "round_completed"],
+    "artifact_hash_chain_closed": true
+  },
+  "safety_recheck": {
+    "production_llm_calls": 111,
+    "production_llm_call_max_id": 111,
+    "news_events_table_exists": false,
+    "trade_proposals": 1,
+    "broker_orders": 1,
+    "non_simulate_orders": 0,
+    "production_connection_total_changes": 0,
+    "heldout_v2_root_exists": false,
+    "p4_1_config_sha256": "9d56e137baf10bd0858723a93aff02c57bf7b35f8705f1817b16a89ec615183f",
+    "p4_1_scheduler_running_and_not_restarted_by_round": true,
+    "secret_or_raw_payload_leakage_found": false
+  },
+  "post_run_quality_gate": {
+    "first_full_suite_failed_tests": 8,
+    "classification": "synthetic_fixture_assumed_pre_run_two-line_state",
+    "fix_commit": "0b6ba11",
+    "runner_or_frozen_artifacts_changed": false,
+    "focused_tests": "15_passed",
+    "final_full_suite_exit_code": 0,
+    "ruff": "passed",
+    "strict_mypy": "passed",
+    "git_diff_check": "passed"
+  },
+  "non_blocking_observations": [
+    "The owner authority F-5 prose says FP 14 to FP 3 removed 13; the arithmetic difference is 11. Formal metrics and decisions are unaffected.",
+    "process_exit_code=0 is supported by the observed process result and completed state path, but is not a standalone field inside the immutable Round 2 outcome."
+  ],
+  "phase_gate": {
+    "round_2_valid_and_consumed": true,
+    "valid_rounds_consumed": 2,
+    "round_2_may_be_retried": false,
+    "round_3_authorized": false,
+    "p4_2a_done": false,
+    "p4_2b_unlocked": false,
+    "p4_3_unlocked": false,
+    "external_owner_or_claude_review_still_required": true
+  }
+}
