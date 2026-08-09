@@ -69,6 +69,25 @@ PREDICTION_FREEZE_DESIGN_SCOPES = frozenset(
         "prediction_contract_freeze_receipt",
     }
 )
+HELDOUT_EVALUATION_INPUT_DESIGN_SCOPES = frozenset(
+    {
+        "active_prediction_contract",
+        "prediction_contract_freeze_receipt",
+        "model_selection_outcome",
+        "heldout_candidate_window",
+        "heldout_selection_seed",
+        "heldout_selected_count",
+        "evaluation_thresholds",
+        "dev_annotation_bytes",
+        "heldout_annotation_provenance",
+        "prompt",
+        "model",
+        "model_result_schema",
+        "materialized_result_schema",
+        "candidate_slicing",
+        "llm_parameters",
+    }
+)
 ANNOTATION_MUTABLE_FIELDS = frozenset(
     {
         "annotation_status",
@@ -2111,7 +2130,7 @@ def load_active_prediction_contract(
     """
 
     design_schema_version = design.document.get("schema_version")
-    if design_schema_version == "p4.2a-evaluation-design-v1.7":
+    if _candidate_eligibility_enabled(design):
         origin = load_evaluation_design(MATERIALIZATION_SUCCESSOR_ORIGIN_DESIGN)
         active_contract, receipt, receipt_sha256 = load_active_prediction_contract(
             origin
@@ -2684,7 +2703,11 @@ def load_completed_one_shot_state(
         raise GoldSampleError(f"{scope} completed event is outside terminal contract")
     timestamps: list[datetime] = []
     for event in events:
-        if event.get("design_sha256") != design.sha256:
+        if not design_sha256_is_byte_frozen(
+            design,
+            event.get("design_sha256"),
+            required_scopes=HELDOUT_EVALUATION_INPUT_DESIGN_SCOPES,
+        ):
             raise GoldSampleError(f"{scope} one-shot state design hash drifted")
         raw_timestamp = event.get("at_utc")
         if not isinstance(raw_timestamp, str) or not raw_timestamp.strip():
@@ -2790,7 +2813,11 @@ def validate_inference_completion_bindings(
     )
     if (
         started.get("event") != "inference_started"
-        or started.get("design_sha256") != design.sha256
+        or not design_sha256_is_byte_frozen(
+            design,
+            started.get("design_sha256"),
+            required_scopes=HELDOUT_EVALUATION_INPUT_DESIGN_SCOPES,
+        )
         or started.get("contract_sha256") != active_contract.sha256
         or started.get("freeze_receipt_sha256") != receipt_sha256
         or started.get("candidate_inputs_sha256") != candidate_inputs_sha256
@@ -2801,7 +2828,11 @@ def validate_inference_completion_bindings(
         raise GoldSampleError("inference started receipt/contract/candidate binding drifted")
     if (
         terminal.get("event") != "inference_completed"
-        or terminal.get("design_sha256") != design.sha256
+        or not design_sha256_is_byte_frozen(
+            design,
+            terminal.get("design_sha256"),
+            required_scopes=HELDOUT_EVALUATION_INPUT_DESIGN_SCOPES,
+        )
         or terminal.get("contract_sha256") != active_contract.sha256
         or terminal.get("candidate_count") != candidate_count
         or terminal.get("attempted_count") != attempted_count
@@ -3064,10 +3095,18 @@ def validate_heldout_candidate_inputs(
             record,
             active_contract,
         )
+        record_design_sha256 = record.get("design_sha256")
         if (
             record.get("contract_sha256") not in {None, active_contract.sha256}
             or record.get("model") not in {None, active_contract.model}
-            or record.get("design_sha256") not in {None, design.sha256}
+            or (
+                record_design_sha256 is not None
+                and not design_sha256_is_byte_frozen(
+                    design,
+                    record_design_sha256,
+                    required_scopes=HELDOUT_EVALUATION_INPUT_DESIGN_SCOPES,
+                )
+            )
             or record.get("input_sha256") != expected_active_input_sha256
             or (
                 active_contract.evidence_candidate_selection
@@ -3424,7 +3463,47 @@ def _validate_materialization_manifest_document(
         freeze_receipt_sha256=freeze_receipt_sha256,
         project_root=project_root,
     )
-    if document.get("lineage") != expected_lineage:
+    actual_lineage = _manifest_mapping(
+        document.get("lineage"),
+        label="materialization manifest lineage",
+    )
+    actual_design = _manifest_mapping(
+        actual_lineage.get("evaluation_design"),
+        label="materialization manifest evaluation design",
+    )
+    if not design_identity_is_byte_frozen(
+        design,
+        actual_sha256=actual_design.get("sha256"),
+        actual_schema_version=actual_design.get("schema_version"),
+        required_scopes=HELDOUT_EVALUATION_INPUT_DESIGN_SCOPES,
+    ):
+        raise GoldSampleError("materialization manifest lineage drifted")
+    actual_design_path: Path | None = None
+    if (
+        actual_design.get("sha256") == design.sha256
+        and actual_design.get("schema_version")
+        == design.document.get("schema_version")
+    ):
+        actual_design_path = design.path
+    else:
+        for ancestor in design.ancestor_designs:
+            if (
+                ancestor.sha256 == actual_design.get("sha256")
+                and ancestor.schema_version
+                == actual_design.get("schema_version")
+            ):
+                actual_design_path = ancestor.path
+                break
+    if actual_design_path is None or actual_design.get("path") != (
+        _manifest_project_relative(
+            actual_design_path,
+            project_root=project_root,
+            label="materialization manifest evaluation design",
+        )
+    ):
+        raise GoldSampleError("materialization manifest design path drifted")
+    expected_lineage["evaluation_design"] = dict(actual_design)
+    if actual_lineage != expected_lineage:
         raise GoldSampleError("materialization manifest lineage drifted")
 
     inputs_path = evaluation_artifact_path(
@@ -3792,9 +3871,7 @@ def build_heldout_candidate_inputs(
     current_time = now or datetime.now(UTC)
     require_heldout_ready(design, current_time)
     active_contract, receipt, receipt_sha256 = load_active_prediction_contract(design)
-    materialization_enabled = (
-        design.document.get("schema_version") == "p4.2a-evaluation-design-v1.7"
-    )
+    materialization_enabled = _candidate_eligibility_enabled(design)
     output = evaluation_artifact_path(design, "heldout_candidate_inputs_jsonl")
     artifact_root = _project_path(design.document["artifact_root"], label="artifact_root")
     output = (
@@ -3969,7 +4046,6 @@ def _validate_prediction_manifest(
         raise GoldSampleError("heldout prediction manifest candidate IDs are invalid")
     candidate_identity_sha256 = _ordered_candidate_identity_sha256(candidate_records)
     expected: dict[str, object] = {
-        "design_sha256": design.sha256,
         "prediction_contract_sha256": active_contract.sha256,
         "freeze_receipt_sha256": receipt_sha256,
         "candidate_inputs_sha256": inputs_sha256,
@@ -3985,6 +4061,12 @@ def _validate_prediction_manifest(
     )
     if manifest.get("materialization") != expected_materialization:
         raise GoldSampleError("heldout prediction manifest materialization binding drifted")
+    if not design_sha256_is_byte_frozen(
+        design,
+        manifest.get("design_sha256"),
+        required_scopes=HELDOUT_EVALUATION_INPUT_DESIGN_SCOPES,
+    ):
+        raise GoldSampleError("heldout prediction manifest design_sha256 drifted")
     for field, value in expected.items():
         if manifest.get(field) != value:
             raise GoldSampleError(f"heldout prediction manifest {field} drifted")
@@ -4146,9 +4228,7 @@ def build_heldout_owner_sample(
     materialization_manifest_path: Path | None = None
     materialization_manifest_sha256: str | None = None
     materialization_binding: JsonObject | None = None
-    materialization_enabled = (
-        design.document.get("schema_version") == "p4.2a-evaluation-design-v1.7"
-    )
+    materialization_enabled = _candidate_eligibility_enabled(design)
     if materialization_enabled:
         materialization_manifest_path = evaluation_artifact_path(
             design,
@@ -4985,11 +5065,27 @@ def combine_owner_annotations(
         selection_manifest.get("owner_delivery"),
         label="selection manifest owner_delivery",
     )
-    if (
-        _mapping(selection_manifest.get("design"), label="selection manifest design").get(
-            "sha256"
+    selection_design = _mapping(
+        selection_manifest.get("design"),
+        label="selection manifest design",
+    )
+    selection_schema_version = selection_design.get("schema_version")
+    selection_design_matches = (
+        design_sha256_is_byte_frozen(
+            design,
+            selection_design.get("sha256"),
+            required_scopes=HELDOUT_EVALUATION_INPUT_DESIGN_SCOPES,
         )
-        != design.sha256
+        if selection_schema_version is None
+        else design_identity_is_byte_frozen(
+            design,
+            actual_sha256=selection_design.get("sha256"),
+            actual_schema_version=selection_schema_version,
+            required_scopes=HELDOUT_EVALUATION_INPUT_DESIGN_SCOPES,
+        )
+    )
+    if (
+        not selection_design_matches
         or selection_owner.get("heldout_blind_sample_path")
         != str(heldout_blind_path.relative_to(root))
         or selection_owner.get("heldout_blind_sample_sha256") != heldout_blind_sha256

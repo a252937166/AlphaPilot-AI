@@ -867,6 +867,42 @@ def _v1_6_incumbent_report(design: EventEvaluationDesign) -> Mapping[str, Any]:
     return report
 
 
+def _require_declared_active_contract(
+    design: EventEvaluationDesign,
+    active_contract: EventExtractContract,
+) -> None:
+    """Bind report logic to the contract declared by the loaded design."""
+
+    registration = _mapping(
+        design.document.get("active_prediction_contract"),
+        "active_prediction_contract",
+    )
+    registered_path = registration.get("path")
+    if (
+        not isinstance(registered_path, str)
+        or Path(registered_path).is_absolute()
+        or ".." in Path(registered_path).parts
+    ):
+        raise DevIterationError("active prediction contract path drifted")
+    registered_parts = Path(registered_path).parts
+    active_parts = active_contract.path.resolve().parts
+    path_matches = (
+        len(active_parts) >= len(registered_parts)
+        and active_parts[-len(registered_parts) :] == registered_parts
+    )
+    if (
+        not path_matches
+        or registration.get("sha256") != active_contract.sha256
+        or registration.get("schema_version")
+        != active_contract.document.get("schema_version")
+        or registration.get("model") != active_contract.model
+        or registration.get("endpoint") != active_contract.endpoint
+    ):
+        raise DevIterationError(
+            "versioned evidence report design/contract binding drifted"
+        )
+
+
 def _evidence_validation(
     *,
     design: EventEvaluationDesign,
@@ -875,30 +911,8 @@ def _evidence_validation(
     prediction_rows: Sequence[Mapping[str, Any]],
     labels: Mapping[int, Mapping[str, Any]],
 ) -> JsonObject:
-    design_version = design.document.get("schema_version")
+    _require_declared_active_contract(design, active_contract)
     contract_version = active_contract.document.get("schema_version")
-    version_pair = (design_version, contract_version)
-    if version_pair not in {
-        (
-            "p4.2a-evaluation-design-v1.3",
-            "p4.2a-event-extract-eval-v1.4",
-        ),
-        (
-            "p4.2a-evaluation-design-v1.4",
-            "p4.2a-event-extract-eval-v1.5",
-        ),
-        (
-            "p4.2a-evaluation-design-v1.5",
-            "p4.2a-event-extract-eval-v1.6",
-        ),
-        (
-            "p4.2a-evaluation-design-v1.6",
-            "p4.2a-event-extract-eval-v1.7",
-        ),
-    }:
-        raise DevIterationError(
-            "versioned evidence report design/contract pair drifted"
-        )
     is_v1_5 = contract_version == "p4.2a-event-extract-eval-v1.5"
     is_v1_6 = contract_version == "p4.2a-event-extract-eval-v1.6"
     is_v1_7 = contract_version == "p4.2a-event-extract-eval-v1.7"
@@ -1100,13 +1114,7 @@ def _symbol_diagnostics(
     labels: Mapping[int, Mapping[str, Any]],
 ) -> JsonObject:
     design_version = design.document.get("schema_version")
-    if design_version not in {
-        "p4.2a-evaluation-design-v1.3",
-        "p4.2a-evaluation-design-v1.4",
-        "p4.2a-evaluation-design-v1.5",
-        "p4.2a-evaluation-design-v1.6",
-    }:
-        raise DevIterationError("symbol diagnostic design version drifted")
+    _require_declared_active_contract(design, design.prediction_contract)
     _, _, adjudication = _historical_comparison(design)
     defect_ids = {
         cast(int, identifier) for identifier in adjudication["ai_label_defect_ids"]

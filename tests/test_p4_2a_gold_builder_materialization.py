@@ -107,6 +107,18 @@ def _design(
         document={
             "schema_version": "p4.2a-evaluation-design-v1.7",
             "artifact_root": "docs/phase4/eval",
+            "candidate_eligibility": {
+                "schema_version": "p4.2a-heldout-candidate-eligibility-v1",
+                "deterministic_document_ineligible_reasons": [
+                    "pdf_text_below_min_char_gate",
+                    "pdf_exceeds_size_bound",
+                ],
+                "minimum_extracted_characters": 80,
+                "max_pdf_bytes": 8 * 1024 * 1024,
+                "transient_download_failures_fail_closed": True,
+                "sample_only_from_eligible_pool": True,
+                "insufficient_stratum_policy": "fail_without_substitution",
+            },
             "artifacts": artifacts,
             "splits": {
                 "heldout_40": {

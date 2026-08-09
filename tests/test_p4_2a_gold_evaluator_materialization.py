@@ -256,7 +256,10 @@ def test_selection_manifest_rejects_ineligible_id_before_scoring() -> None:
             )
     manifest: dict[str, Any] = {
         "schema_version": "p4.2a-heldout-selection-manifest-v1.2",
-        "design": {"sha256": design.sha256},
+        "design": {
+            "sha256": design.sha256,
+            "schema_version": design.document["schema_version"],
+        },
         "annotation_contract": {"sha256": design.base_contract.sha256},
         "prediction_contract": {
             "contract_sha256": active.sha256,

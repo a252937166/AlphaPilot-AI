@@ -575,6 +575,94 @@ def test_v1_7_accepts_only_the_single_preregistered_round() -> None:
             )
 
 
+@pytest.mark.parametrize(
+    "design_path",
+    [
+        PROJECT_ROOT / "config/p4_event_evaluation_v1_7.yaml",
+        PROJECT_ROOT / "config/p4_event_evaluation_v1_8.yaml",
+    ],
+)
+def test_report_contract_binding_is_declared_by_v1_7_or_v1_8_design(
+    design_path: Path,
+) -> None:
+    design = load_event_evaluation_design(design_path)
+
+    dev_runner._require_declared_active_contract(
+        design,
+        design.prediction_contract,
+    )
+    summary = ExtractionSummary(
+        expected_count=1,
+        success_count=1,
+        failure_count=0,
+        newly_attempted_count=1,
+        retried_failure_count=0,
+        skipped_exact_success_count=0,
+        skipped_failure_count=0,
+        output_line_count=1,
+        failures_by_reason={},
+        failures_by_validation_field_and_constraint={},
+        isolated_audit_tables=("llm_calls",),
+        isolated_audit_row_count=1,
+        checkpoint_audited_success_count=1,
+    )
+
+    evidence = dev_runner._evidence_validation(
+        design=design,
+        active_contract=design.prediction_contract,
+        summary=summary,
+        prediction_rows=[
+            {
+                "news_item_id": 999,
+                "status": "ok",
+                "prediction": {"evidence_span": "连续逐字证据"},
+            }
+        ],
+        labels={999: {"original_text": "连续逐字证据"}},
+    )
+
+    assert evidence["v1_7_actual"]["success_count"] == 1
+    assert evidence["v1_7_actual"]["failure_count"] == 0
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("path", PROJECT_ROOT / "config/p4_event_extract_eval_v1_6.yaml"),
+        ("sha256", "0" * 64),
+        ("schema_version", "p4.2a-event-extract-eval-v9.9"),
+        ("model", "qwen3.6-plus"),
+        ("endpoint", "https://dashscope-intl.aliyuncs.com/compatible-mode/v1"),
+    ],
+)
+@pytest.mark.parametrize(
+    "design_path",
+    [
+        PROJECT_ROOT / "config/p4_event_evaluation_v1_7.yaml",
+        PROJECT_ROOT / "config/p4_event_evaluation_v1_8.yaml",
+    ],
+)
+def test_report_contract_binding_rejects_identity_drift(
+    design_path: Path,
+    field: str,
+    value: object,
+) -> None:
+    design = load_event_evaluation_design(design_path)
+    contract = design.prediction_contract
+    if field == "schema_version":
+        document = copy.deepcopy(contract.document)
+        document["schema_version"] = value
+        drifted = replace(contract, document=document)
+    else:
+        drifted = replace(contract, **{field: value})
+
+    with pytest.raises(
+        dev_runner.DevIterationError,
+        match="design/contract binding drifted",
+    ):
+        dev_runner._require_declared_active_contract(design, drifted)
+
+
 def test_dev_iteration_rejects_ai_label_byte_drift(tmp_path: Path) -> None:
     _fixture_root(tmp_path)
     labels = (
@@ -616,7 +704,7 @@ def test_dev_iteration_is_locked_after_any_heldout_artifact(tmp_path: Path) -> N
 
 
 def test_failed_reference_positive_is_not_hidden_by_comparable_metrics() -> None:
-    labels = {
+    labels: dict[int, dict[str, Any]] = {
         1: {"gold": {"materiality": 3, "symbols": ["600519"]}},
         2: {"gold": {"materiality": 1, "symbols": []}},
     }
@@ -725,7 +813,7 @@ def test_v1_4_symbol_diagnostic_keeps_raw_gate_and_excludes_only_id44() -> None:
     design = load_event_evaluation_design(
         PROJECT_ROOT / "config/p4_event_evaluation_v1_3.yaml"
     )
-    labels = {
+    labels: dict[int, dict[str, Any]] = {
         44: {"gold": {"symbols": ["000044"]}},
         75: {"gold": {"symbols": []}},
         100: {"gold": {"symbols": ["000100"]}},

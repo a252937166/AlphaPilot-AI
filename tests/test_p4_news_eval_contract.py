@@ -7,6 +7,7 @@ from typing import Any
 
 import pytest
 import yaml
+from scripts import build_p4_2a_gold_sample as gold_builder
 
 from alphapilot.llm import p4_news_eval
 from alphapilot.llm.p4_news_eval import (
@@ -104,6 +105,27 @@ def _v1_7_variant(
     monkeypatch.setattr(
         p4_news_eval,
         "EXPECTED_EVALUATION_DESIGN_V1_7_SHA256",
+        hashlib.sha256(path.read_bytes()).hexdigest(),
+    )
+    return path
+
+
+def _v1_8_variant(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    mutate: Callable[[dict[str, Any]], None],
+) -> Path:
+    document = yaml.safe_load(p4_news_eval.EVALUATION_DESIGN_V1_8_PATH.read_bytes())
+    assert isinstance(document, dict)
+    mutate(document)
+    path = tmp_path / "p4_event_evaluation_v1_8.yaml"
+    path.write_text(
+        yaml.safe_dump(document, allow_unicode=True, sort_keys=False),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        p4_news_eval,
+        "EXPECTED_EVALUATION_DESIGN_V1_8_SHA256",
         hashlib.sha256(path.read_bytes()).hexdigest(),
     )
     return path
@@ -564,6 +586,142 @@ def test_v1_7_retains_typed_byte_frozen_design_lineage() -> None:
     assert "active_prediction_contract" not in (
         design.ancestor_designs[1].byte_frozen_scopes
     )
+
+
+def test_v1_8_replacement_changes_only_state_and_report_destinations() -> None:
+    predecessor = load_event_evaluation_design(
+        p4_news_eval.EVALUATION_DESIGN_V1_7_PATH
+    )
+    design = load_event_evaluation_design(p4_news_eval.EVALUATION_DESIGN_V1_8_PATH)
+
+    assert design.sha256 == p4_news_eval.EXPECTED_EVALUATION_DESIGN_V1_8_SHA256
+    assert design.document["schema_version"] == (
+        p4_news_eval.EXPECTED_EVALUATION_V1_8_SCHEMA_VERSION
+    )
+    assert design.prediction_contract == predecessor.prediction_contract
+    assert design.base_contract == predecessor.base_contract
+
+    predecessor_document = dict(predecessor.document)
+    replacement_document = dict(design.document)
+    predecessor_artifacts = predecessor_document.pop("artifacts")
+    replacement_artifacts = replacement_document.pop("artifacts")
+    for identity_field in ("schema_version", "owner_spec_commit", "pre_registered_at"):
+        predecessor_document.pop(identity_field)
+        replacement_document.pop(identity_field)
+    assert replacement_document == predecessor_document
+
+    assert isinstance(predecessor_artifacts, dict)
+    assert isinstance(replacement_artifacts, dict)
+    changed_artifacts = {
+        name
+        for name in predecessor_artifacts
+        if predecessor_artifacts[name] != replacement_artifacts[name]
+    }
+    assert changed_artifacts == {
+        "heldout_evaluation_state_jsonl",
+        "evaluation_report_directory",
+    }
+    assert replacement_artifacts["heldout_evaluation_state_jsonl"] == {
+        "path": (
+            "docs/phase4/eval/"
+            "P4.2a-heldout-evaluation-one-shot-v1.8-replacement.state.jsonl"
+        ),
+        "create_only": True,
+    }
+    assert replacement_artifacts["evaluation_report_directory"] == {
+        "path": "docs/phase4/eval/reports/v1.8-replacement",
+        "create_only_reports": True,
+        "append_only_failed_rounds": True,
+    }
+
+
+def test_v1_8_fifteen_scope_lineage_stops_before_v1_5() -> None:
+    design = gold_builder.load_evaluation_design(
+        p4_news_eval.EVALUATION_DESIGN_V1_8_PATH
+    )
+    required_scopes = gold_builder.HELDOUT_EVALUATION_INPUT_DESIGN_SCOPES
+
+    assert len(required_scopes) == 15
+    assert design.ancestor_designs[0].schema_version == (
+        p4_news_eval.EXPECTED_EVALUATION_V1_7_SCHEMA_VERSION
+    )
+    assert design.ancestor_designs[0].byte_frozen_scopes == required_scopes
+    accepted = gold_builder.byte_frozen_design_identities(
+        design,
+        required_scopes=required_scopes,
+    )
+
+    assert accepted == {
+        (design.sha256, str(design.document["schema_version"])),
+        (
+            p4_news_eval.EXPECTED_EVALUATION_DESIGN_V1_7_SHA256,
+            p4_news_eval.EXPECTED_EVALUATION_V1_7_SCHEMA_VERSION,
+        ),
+        (
+            p4_news_eval.EXPECTED_EVALUATION_DESIGN_V1_6_SHA256,
+            p4_news_eval.EXPECTED_EVALUATION_V1_6_SCHEMA_VERSION,
+        ),
+    }
+    assert (
+        p4_news_eval.EXPECTED_EVALUATION_DESIGN_V1_5_SHA256,
+        p4_news_eval.EXPECTED_EVALUATION_V1_5_SCHEMA_VERSION,
+    ) not in accepted
+
+
+def test_consumed_v1_7_evaluation_state_bytes_remain_immutable() -> None:
+    state = (
+        p4_news_eval.PROJECT_ROOT
+        / "docs/phase4/eval/P4.2a-heldout-evaluation-one-shot-v1.7.state.jsonl"
+    )
+
+    assert hashlib.sha256(state.read_bytes()).hexdigest() == (
+        "ba1eef1517fa30c37a7fcba5b171405cf537c84dbbbb70cec57f542842fdc0ff"
+    )
+
+
+@pytest.mark.parametrize(
+    ("path", "value", "message"),
+    [
+        (("extends_design", "sha256"), "0" * 64, "inheritance"),
+        (
+            ("extends_design", "inheritance", "model"),
+            "mutable",
+            "inheritance",
+        ),
+        (
+            ("artifact_overrides", "heldout_evaluation_state_jsonl", "path"),
+            (
+                "docs/phase4/eval/"
+                "P4.2a-heldout-evaluation-one-shot-v1.7.state.jsonl"
+            ),
+            "artifact overrides",
+        ),
+        (
+            ("artifact_overrides", "evaluation_report_directory", "create_only_reports"),
+            False,
+            "artifact overrides",
+        ),
+        (("isolation", "production_writes_allowed"), True, "runtime isolation"),
+    ],
+)
+def test_v1_8_rejects_lineage_output_or_isolation_drift(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    path: tuple[str, ...],
+    value: object,
+    message: str,
+) -> None:
+    variant = _v1_8_variant(
+        tmp_path,
+        monkeypatch,
+        lambda document: _set_nested(document, path, value),
+    )
+
+    with pytest.raises(EventEvaluationDesignError, match=message):
+        p4_news_eval._load_v1_8_event_evaluation_design(
+            variant,
+            project_root=p4_news_eval.PROJECT_ROOT,
+        )
 
 
 @pytest.mark.parametrize(

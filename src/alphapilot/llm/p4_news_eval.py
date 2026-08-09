@@ -25,6 +25,7 @@ EVALUATION_DESIGN_V1_4_PATH = PROJECT_ROOT / "config/p4_event_evaluation_v1_4.ya
 EVALUATION_DESIGN_V1_5_PATH = PROJECT_ROOT / "config/p4_event_evaluation_v1_5.yaml"
 EVALUATION_DESIGN_V1_6_PATH = PROJECT_ROOT / "config/p4_event_evaluation_v1_6.yaml"
 EVALUATION_DESIGN_V1_7_PATH = PROJECT_ROOT / "config/p4_event_evaluation_v1_7.yaml"
+EVALUATION_DESIGN_V1_8_PATH = PROJECT_ROOT / "config/p4_event_evaluation_v1_8.yaml"
 DEFAULT_EVALUATION_DESIGN_PATH = LEGACY_EVALUATION_DESIGN_PATH
 EXPECTED_EVALUATION_DESIGN_SHA256 = (
     "8e9c1d107ef235f9c017dbfb679fa01e52e0ff966f01d9efad625110588ebf97"
@@ -47,6 +48,9 @@ EXPECTED_EVALUATION_DESIGN_V1_6_SHA256 = (
 EXPECTED_EVALUATION_DESIGN_V1_7_SHA256 = (
     "4c7964ad547820f5672631939af93978f11cb9f91e5921087770ac7d0d79bec1"
 )
+EXPECTED_EVALUATION_DESIGN_V1_8_SHA256 = (
+    "bb36b9713cbf70fa5293683e767655b70720a2baa9e8822bc0396c4e6284452e"
+)
 EXPECTED_EVALUATION_SCHEMA_VERSION = "p4.2a-evaluation-design-v1.1"
 EXPECTED_EVALUATION_V1_2_SCHEMA_VERSION = "p4.2a-evaluation-design-v1.2"
 EXPECTED_EVALUATION_V1_3_SCHEMA_VERSION = "p4.2a-evaluation-design-v1.3"
@@ -54,6 +58,7 @@ EXPECTED_EVALUATION_V1_4_SCHEMA_VERSION = "p4.2a-evaluation-design-v1.4"
 EXPECTED_EVALUATION_V1_5_SCHEMA_VERSION = "p4.2a-evaluation-design-v1.5"
 EXPECTED_EVALUATION_V1_6_SCHEMA_VERSION = "p4.2a-evaluation-design-v1.6"
 EXPECTED_EVALUATION_V1_7_SCHEMA_VERSION = "p4.2a-evaluation-design-v1.7"
+EXPECTED_EVALUATION_V1_8_SCHEMA_VERSION = "p4.2a-evaluation-design-v1.8"
 EXPECTED_BASE_CONTRACT_SHA256 = "b3eb24c63816043edf0ef728d8d9778cd9083d720649d6fff3ae6289bba74300"
 
 EXPECTED_SUPERSEDED_FIELDS = (
@@ -3152,6 +3157,158 @@ def _load_v1_7_event_evaluation_design(
     )
 
 
+def _load_v1_8_event_evaluation_design(
+    path: Path,
+    *,
+    project_root: Path,
+) -> EventEvaluationDesign:
+    """Load the byte-frozen, owner-authorized replacement-evaluation design."""
+
+    try:
+        payload = path.resolve().read_bytes()
+    except OSError as exc:
+        raise EventEvaluationDesignError("P4.2a v1.8 design is unavailable") from exc
+    digest = _sha256_bytes(payload)
+    if digest != EXPECTED_EVALUATION_DESIGN_V1_8_SHA256:
+        raise EventEvaluationDesignError(
+            "P4.2a v1.8 design differs from its frozen SHA-256"
+        )
+    try:
+        loaded: object = yaml.safe_load(payload)
+    except yaml.YAMLError as exc:
+        raise EventEvaluationDesignError("P4.2a v1.8 design is invalid YAML") from exc
+    if not isinstance(loaded, dict):
+        raise EventEvaluationDesignError("P4.2a v1.8 design must be a mapping")
+    overlay = cast(JsonObject, loaded)
+    if set(overlay) != {
+        "schema_version",
+        "owner_spec_commit",
+        "pre_registered_at",
+        "production_writes_allowed",
+        "artifact_root",
+        "extends_design",
+        "artifact_overrides",
+        "isolation",
+    }:
+        raise EventEvaluationDesignError("P4.2a v1.8 top-level contract drifted")
+    if (
+        overlay.get("schema_version") != EXPECTED_EVALUATION_V1_8_SCHEMA_VERSION
+        or overlay.get("owner_spec_commit")
+        != "81d7165f5481a8cd1e9f6f0b7b3364c9551dd33c"
+        or overlay.get("pre_registered_at") != "2026-08-09T07:07:02Z"
+        or overlay.get("production_writes_allowed") is not False
+        or overlay.get("artifact_root") != _ARTIFACT_ROOT.as_posix()
+    ):
+        raise EventEvaluationDesignError("P4.2a v1.8 identity/isolation binding drifted")
+
+    extends = _mapping(overlay.get("extends_design"), "extends_design")
+    inheritance = _mapping(extends.get("inheritance"), "extends_design.inheritance")
+    expected_inheritance = {
+        "active_prediction_contract": "byte_frozen",
+        "prediction_contract_freeze_receipt": "byte_frozen",
+        "model_selection_outcome": "byte_frozen",
+        "heldout_candidate_window": "byte_frozen",
+        "heldout_selection_seed": "byte_frozen",
+        "heldout_selected_count": "byte_frozen",
+        "evaluation_thresholds": "byte_frozen",
+        "dev_annotation_bytes": "byte_frozen",
+        "heldout_annotation_provenance": "byte_frozen",
+        "prompt": "byte_frozen",
+        "model": "byte_frozen",
+        "model_result_schema": "byte_frozen",
+        "materialized_result_schema": "byte_frozen",
+        "candidate_slicing": "byte_frozen",
+        "llm_parameters": "byte_frozen",
+    }
+    if (
+        extends.get("path") != "config/p4_event_evaluation_v1_7.yaml"
+        or extends.get("sha256") != EXPECTED_EVALUATION_DESIGN_V1_7_SHA256
+        or extends.get("schema_version") != EXPECTED_EVALUATION_V1_7_SCHEMA_VERSION
+        or dict(inheritance) != expected_inheritance
+    ):
+        raise EventEvaluationDesignError("P4.2a v1.8 inheritance contract drifted")
+    base_design = _load_v1_7_event_evaluation_design(
+        project_root / "config/p4_event_evaluation_v1_7.yaml",
+        project_root=project_root,
+    )
+
+    artifact_overrides = _mapping(
+        overlay.get("artifact_overrides"),
+        "artifact_overrides",
+    )
+    expected_artifact_overrides: JsonObject = {
+        "heldout_evaluation_state_jsonl": {
+            "path": (
+                "docs/phase4/eval/"
+                "P4.2a-heldout-evaluation-one-shot-v1.8-replacement.state.jsonl"
+            ),
+            "create_only": True,
+        },
+        "evaluation_report_directory": {
+            "path": "docs/phase4/eval/reports/v1.8-replacement",
+            "create_only_reports": True,
+            "append_only_failed_rounds": True,
+        },
+    }
+    if dict(artifact_overrides) != expected_artifact_overrides:
+        raise EventEvaluationDesignError("P4.2a v1.8 artifact overrides drifted")
+    artifacts = copy.deepcopy(cast(JsonObject, base_design.document["artifacts"]))
+    eval_root = (project_root / _ARTIFACT_ROOT).resolve()
+    seen_paths: set[Path] = set()
+    for name, raw_entry in artifact_overrides.items():
+        entry = _mapping(raw_entry, f"artifact_overrides.{name}")
+        resolved = _artifact_path(
+            project_root,
+            entry.get("path"),
+            label=f"artifact_overrides.{name}.path",
+        )
+        if resolved != eval_root and not resolved.is_relative_to(eval_root):
+            raise EventEvaluationDesignError(
+                f"artifact_overrides.{name} escapes eval root"
+            )
+        if "v1.8" not in resolved.as_posix():
+            raise EventEvaluationDesignError(
+                f"artifact_overrides.{name} is not v1.8 namespaced"
+            )
+        if resolved in seen_paths:
+            raise EventEvaluationDesignError(
+                "P4.2a v1.8 artifact paths must be unique"
+            )
+        seen_paths.add(resolved)
+        create_only = (
+            entry.get("create_only_reports")
+            if name == "evaluation_report_directory"
+            else entry.get("create_only")
+        )
+        if create_only is not True:
+            raise EventEvaluationDesignError(
+                f"artifact_overrides.{name} must be create-only"
+            )
+        artifacts[name] = dict(entry)
+
+    isolation = _mapping(overlay.get("isolation"), "isolation")
+    if dict(isolation) != dict(base_design.document["isolation"]):
+        raise EventEvaluationDesignError("P4.2a v1.8 runtime isolation drifted")
+
+    document = copy.deepcopy(base_design.document)
+    document["schema_version"] = overlay["schema_version"]
+    document["owner_spec_commit"] = overlay["owner_spec_commit"]
+    document["pre_registered_at"] = overlay["pre_registered_at"]
+    document["artifacts"] = artifacts
+    return EventEvaluationDesign(
+        path=path.resolve(),
+        sha256=digest,
+        document=document,
+        base_contract=base_design.base_contract,
+        prediction_contract=base_design.prediction_contract,
+        ancestor_designs=_extended_design_lineage(
+            base_design,
+            extends,
+            project_root=project_root,
+        ),
+    )
+
+
 def validate_heldout_annotation_provenance(
     record: Mapping[str, object],
     design: EventEvaluationDesign,
@@ -3196,6 +3353,11 @@ def load_event_evaluation_design(
     """Load one supported byte-frozen P4.2a evaluation design."""
 
     resolved = path.resolve()
+    if resolved == (project_root / "config/p4_event_evaluation_v1_8.yaml").resolve():
+        return _load_v1_8_event_evaluation_design(
+            resolved,
+            project_root=project_root,
+        )
     if resolved == (project_root / "config/p4_event_evaluation_v1_7.yaml").resolve():
         return _load_v1_7_event_evaluation_design(
             resolved,
@@ -3244,6 +3406,7 @@ __all__ = [
     "EVALUATION_DESIGN_V1_5_PATH",
     "EVALUATION_DESIGN_V1_6_PATH",
     "EVALUATION_DESIGN_V1_7_PATH",
+    "EVALUATION_DESIGN_V1_8_PATH",
     "EXPECTED_BASE_CONTRACT_SHA256",
     "EXPECTED_EVALUATION_DESIGN_SHA256",
     "EXPECTED_EVALUATION_DESIGN_V1_2_SHA256",
@@ -3252,6 +3415,7 @@ __all__ = [
     "EXPECTED_EVALUATION_DESIGN_V1_5_SHA256",
     "EXPECTED_EVALUATION_DESIGN_V1_6_SHA256",
     "EXPECTED_EVALUATION_DESIGN_V1_7_SHA256",
+    "EXPECTED_EVALUATION_DESIGN_V1_8_SHA256",
     "EXPECTED_EVALUATION_SCHEMA_VERSION",
     "EXPECTED_EVALUATION_V1_2_SCHEMA_VERSION",
     "EXPECTED_EVALUATION_V1_3_SCHEMA_VERSION",
@@ -3259,6 +3423,7 @@ __all__ = [
     "EXPECTED_EVALUATION_V1_5_SCHEMA_VERSION",
     "EXPECTED_EVALUATION_V1_6_SCHEMA_VERSION",
     "EXPECTED_EVALUATION_V1_7_SCHEMA_VERSION",
+    "EXPECTED_EVALUATION_V1_8_SCHEMA_VERSION",
     "EXPECTED_OWNER_COMPLETION_MANIFEST_FIELDS",
     "EXPECTED_OWNER_FORBIDDEN_FIELDS",
     "EXPECTED_OWNER_REQUIRED_FIELDS",

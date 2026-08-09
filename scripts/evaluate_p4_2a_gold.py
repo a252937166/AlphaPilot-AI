@@ -1424,7 +1424,14 @@ def _validate_selection_manifest(
         label="heldout selection manifest",
     )
     if (
-        design_binding.get("sha256") != design.sha256
+        not gold_builder.design_identity_is_byte_frozen(
+            design,
+            actual_sha256=design_binding.get("sha256"),
+            actual_schema_version=design_binding.get("schema_version"),
+            required_scopes=(
+                gold_builder.HELDOUT_EVALUATION_INPUT_DESIGN_SCOPES
+            ),
+        )
         or annotation_binding.get("sha256") != design.base_contract.sha256
         or prediction_binding.get("contract_sha256") != active_contract.sha256
         or prediction_binding.get("freeze_receipt_sha256") != receipt_sha256
@@ -1569,7 +1576,13 @@ def validate_owner_completion_manifest(
         raise GoldEvaluationError("owner completion manifest fields drifted")
     if (
         manifest.get("schema_version") != completion.get("schema_version")
-        or manifest.get("design_sha256") != design.sha256
+        or not gold_builder.design_sha256_is_byte_frozen(
+            design,
+            manifest.get("design_sha256"),
+            required_scopes=(
+                gold_builder.HELDOUT_EVALUATION_INPUT_DESIGN_SCOPES
+            ),
+        )
         or manifest.get("annotation_contract_sha256") != design.base_contract.sha256
     ):
         raise GoldEvaluationError("owner completion contract binding drifted")
@@ -1757,12 +1770,31 @@ def validate_owner_completion_manifest(
         heldout_selection.get("owner_delivery"),
         label="heldout selection owner_delivery",
     )
+    heldout_selection_design = _mapping(
+        heldout_selection.get("design"),
+        label="heldout selection design",
+    )
+    heldout_selection_schema = heldout_selection_design.get("schema_version")
+    heldout_selection_design_matches = (
+        gold_builder.design_sha256_is_byte_frozen(
+            design,
+            heldout_selection_design.get("sha256"),
+            required_scopes=(
+                gold_builder.HELDOUT_EVALUATION_INPUT_DESIGN_SCOPES
+            ),
+        )
+        if heldout_selection_schema is None
+        else gold_builder.design_identity_is_byte_frozen(
+            design,
+            actual_sha256=heldout_selection_design.get("sha256"),
+            actual_schema_version=heldout_selection_schema,
+            required_scopes=(
+                gold_builder.HELDOUT_EVALUATION_INPUT_DESIGN_SCOPES
+            ),
+        )
+    )
     if (
-        _mapping(
-            heldout_selection.get("design"),
-            label="heldout selection design",
-        ).get("sha256")
-        != design.sha256
+        not heldout_selection_design_matches
         or selection_owner.get("heldout_blind_sample_path")
         != str(heldout_blind_path.relative_to(root))
         or selection_owner.get("heldout_blind_sample_sha256") != heldout_blind_sha256
@@ -2011,25 +2043,15 @@ def _v1_3_report_extensions(
     result: Mapping[str, Any],
 ) -> JsonObject:
     design_version = design.document.get("schema_version")
-    if design_version not in {
-        "p4.2a-evaluation-design-v1.3",
-        "p4.2a-evaluation-design-v1.4",
-        "p4.2a-evaluation-design-v1.5",
-        "p4.2a-evaluation-design-v1.6",
-        "p4.2a-evaluation-design-v1.7",
-    }:
-        return {}
-    if design_version in {
-        "p4.2a-evaluation-design-v1.5",
-        "p4.2a-evaluation-design-v1.6",
-        "p4.2a-evaluation-design-v1.7",
-    }:
+    if active_contract.evidence_candidate_selection:
         return _v1_5_candidate_report_extensions(
             design=design,
             active_contract=active_contract,
             dev_annotations=dev_annotations,
             dev_prediction_records=dev_prediction_records,
         )
+    if "historical_comparison" not in design.document:
+        return {}
     is_v1_4_design = design_version == "p4.2a-evaluation-design-v1.4"
     if (
         active_contract.evidence_span_match_mode
@@ -2904,7 +2926,7 @@ def dry_run_heldout_evaluation(
     heldout_ai_draft_path: Path | None = None,
     now: datetime | None = None,
 ) -> JsonObject:
-    """Run the complete read-only pre-score walk without revealing metrics."""
+    """Exercise the full report path with synthetic scores and no mutations."""
 
     preflight, stages = _run_heldout_preflight(
         annotation_path,
@@ -2915,9 +2937,146 @@ def dry_run_heldout_evaluation(
         collect_all=True,
         prospective_output_path=output_path,
     )
+    post_values: dict[str, Any] = {}
+    post_statuses: dict[str, str] = {}
+
+    def validated_preflight() -> HeldoutEvaluationPreflight:
+        if preflight is None:
+            raise GoldEvaluationError("heldout evaluation preflight did not complete")
+        return preflight
+
+    def run_post_stage(
+        name: str,
+        dependencies: Sequence[str],
+        action: Callable[[], Any],
+    ) -> None:
+        blocked_by = [
+            dependency
+            for dependency in dependencies
+            if post_statuses.get(dependency) != "passed"
+        ]
+        if preflight is None:
+            blocked_by = ["heldout_preflight"]
+        if blocked_by:
+            post_statuses[name] = "blocked"
+            stages.append(
+                {"name": name, "status": "blocked", "blocked_by": blocked_by}
+            )
+            return
+        try:
+            post_values[name] = action()
+        except Exception as exc:
+            status = (
+                "failed"
+                if isinstance(
+                    exc,
+                    (
+                        FileExistsError,
+                        GoldEvaluationError,
+                        gold_builder.GoldSampleError,
+                        EventEvaluationDesignError,
+                        OSError,
+                        ValueError,
+                    ),
+                )
+                else "internal_error"
+            )
+            post_statuses[name] = status
+            stage: JsonObject = {
+                "name": name,
+                "status": status,
+                "error_type": type(exc).__name__,
+            }
+            if status == "failed":
+                stage["safe_message"] = str(exc)
+            stages.append(stage)
+            return
+        post_statuses[name] = "passed"
+        stages.append({"name": name, "status": "passed"})
+
+    run_post_stage(
+        "synthetic_metric_inputs",
+        (),
+        lambda: _synthetic_metric_inputs(validated_preflight()),
+    )
+    run_post_stage(
+        "synthetic_metric_assembly",
+        ("synthetic_metric_inputs",),
+        lambda: evaluate_split_records(
+            post_values["synthetic_metric_inputs"][0],
+            post_values["synthetic_metric_inputs"][1],
+            validated_preflight().design,
+        ),
+    )
+    run_post_stage(
+        "report_extensions_dev_only",
+        ("synthetic_metric_inputs", "synthetic_metric_assembly"),
+        lambda: _v1_3_report_extensions(
+            design=validated_preflight().design,
+            active_contract=validated_preflight().active_contract,
+            dev_annotations=validated_preflight().dev_annotations,
+            dev_prediction_records=validated_preflight().dev_prediction_records,
+            annotations=post_values["synthetic_metric_inputs"][0],
+            predictions=post_values["synthetic_metric_inputs"][1],
+            result=post_values["synthetic_metric_assembly"],
+        ),
+    )
+    run_post_stage(
+        "offline_diagnostics",
+        ("synthetic_metric_inputs",),
+        lambda: _offline_trial_diagnostics(
+            validated_preflight().design,
+            set(post_values["synthetic_metric_inputs"][0]),
+        ),
+    )
+    dry_timestamp = (now or datetime.now(UTC)).astimezone(UTC).isoformat().replace(
+        "+00:00", "Z"
+    )
+    prospective_report_path = (
+        output_path if output_path.is_absolute() else PROJECT_DIR / output_path
+    ).resolve()
+    run_post_stage(
+        "report_payload_assembly",
+        (
+            "synthetic_metric_inputs",
+            "synthetic_metric_assembly",
+            "report_extensions_dev_only",
+            "offline_diagnostics",
+        ),
+        lambda: _assemble_heldout_report(
+            validated_preflight(),
+            post_values["synthetic_metric_assembly"],
+            report_path=prospective_report_path,
+            started_at=dry_timestamp,
+            terminal_at=dry_timestamp,
+            versioned_extensions=post_values["report_extensions_dev_only"],
+            offline_diagnostics=post_values["offline_diagnostics"],
+            annotations=post_values["synthetic_metric_inputs"][0],
+            predictions=post_values["synthetic_metric_inputs"][1],
+        ),
+    )
+    run_post_stage(
+        "required_report_fields",
+        ("report_payload_assembly",),
+        lambda: validate_required_report_fields(
+            post_values["report_payload_assembly"],
+            validated_preflight().design,
+        ),
+    )
+    run_post_stage(
+        "canonical_serialization_in_memory",
+        ("required_report_fields",),
+        lambda: json.dumps(
+            post_values["report_payload_assembly"],
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+            allow_nan=False,
+        ).encode("utf-8"),
+    )
     stages.append(
         {
-            "name": "heldout_metrics_and_report",
+            "name": "real_heldout_metrics",
             "status": "not_run_one_shot_protected",
         }
     )
@@ -2927,7 +3086,12 @@ def dry_run_heldout_evaluation(
     blocked_count = sum(stage.get("status") == "blocked" for stage in stages)
     return {
         "schema_version": "p4.2a-heldout-evaluation-dry-run-v1",
-        "status": "passed" if preflight is not None else "failed",
+        "status": (
+            "passed"
+            if preflight is not None
+            and all(status == "passed" for status in post_statuses.values())
+            else "failed"
+        ),
         "design_sha256": (
             preflight.design.sha256 if preflight is not None else None
         ),
@@ -2935,10 +3099,15 @@ def dry_run_heldout_evaluation(
         "failure_count": failure_count,
         "blocked_count": blocked_count,
         "validated_through": (
-            "prediction_join" if preflight is not None else "partial_preflight"
+            "report_serialization_in_memory"
+            if post_statuses.get("canonical_serialization_in_memory") == "passed"
+            else "partial_preflight"
         ),
         "one_shot_consumed": False,
         "metrics_computed": False,
+        "synthetic_metric_assembly": (
+            post_statuses.get("synthetic_metric_assembly") == "passed"
+        ),
         "evaluation_passed": None,
         "report_created": False,
         "filesystem_mutations": 0,
@@ -3099,6 +3268,205 @@ def _v1_5_candidate_report_extensions(
     }
 
 
+def _synthetic_metric_inputs(
+    preflight: HeldoutEvaluationPreflight,
+) -> tuple[dict[int, JsonObject], dict[int, JsonObject | None]]:
+    """Build score-safe stand-ins without exposing frozen heldout outcomes.
+
+    The item IDs and split metadata are retained so the report/diagnostic code
+    sees the production shape.  Every gold label and prediction used by the
+    scoring function is replaced with the same deterministic synthetic value.
+    """
+
+    annotations: dict[int, JsonObject] = {}
+    predictions: dict[int, JsonObject | None] = {}
+    for news_item_id, annotation in preflight.annotations.items():
+        record = copy.deepcopy(
+            _mapping(
+                annotation.get("record"),
+                label=f"synthetic annotation record {news_item_id}",
+            )
+        )
+        synthetic_labels: JsonObject = {
+            "symbols": [],
+            "event_type": "other",
+            "direction": "neutral",
+            "materiality": 2,
+            "evidence_span": "synthetic-dry-run-only",
+        }
+        annotations[news_item_id] = {
+            "record": record,
+            "gold": copy.deepcopy(synthetic_labels),
+            "synthetic_metric_fixture": True,
+        }
+        predictions[news_item_id] = copy.deepcopy(synthetic_labels)
+    return annotations, predictions
+
+
+def _assemble_heldout_report(
+    preflight: HeldoutEvaluationPreflight,
+    result: Mapping[str, Any],
+    *,
+    report_path: Path,
+    started_at: str,
+    terminal_at: str,
+    versioned_extensions: Mapping[str, object],
+    offline_diagnostics: Mapping[str, object],
+    annotations: Mapping[int, JsonObject],
+    predictions: Mapping[int, JsonObject | None],
+) -> JsonObject:
+    """Assemble and validate one heldout report without writing any artifact."""
+
+    design = preflight.design
+    receipt = preflight.receipt
+    dev_final = preflight.dev_final
+    inference = preflight.inference
+    materialization_binding = preflight.materialization_binding
+    extensions = copy.deepcopy(dict(versioned_extensions))
+    prediction_contract_append = _mapping(
+        extensions.pop("_prediction_contract_append", {}),
+        label="versioned prediction contract report fields",
+    )
+    active_failure_ids = sorted(
+        news_item_id
+        for news_item_id in annotations
+        if predictions[news_item_id] is None
+    )
+    report: JsonObject = {
+        "schema_version": "p4.2a-gold-evaluation-report-v1.1",
+        "generated_at_utc": terminal_at,
+        "design": {
+            "schema_version": design.document["schema_version"],
+            "path": str(design.path.relative_to(PROJECT_DIR)),
+            "sha256": design.sha256,
+        },
+        "prediction_contract": {
+            "contract_path": receipt["contract_path"],
+            "contract_sha256": receipt["contract_sha256"],
+            "model": receipt["model"],
+            "prompt_path": receipt["prompt_path"],
+            "prompt_sha256": receipt["prompt_sha256"],
+            "result_schema_path": receipt["result_schema_path"],
+            "result_schema_sha256": receipt["result_schema_sha256"],
+            "taxonomy_version": receipt["taxonomy_version"],
+            "freeze_receipt_sha256": preflight.receipt_sha256,
+            "dev_final_predictions_path": dev_final["path"],
+            "dev_final_predictions_sha256": dev_final["sha256"],
+            "dev_final_predictions_manifest_path": dev_final["manifest_path"],
+            "dev_final_predictions_manifest_sha256": dev_final["manifest_sha256"],
+            "dev_final_predictions_row_count": dev_final["row_count"],
+            "dev_final_predictions_success_count": dev_final["success_count"],
+            "dev_final_predictions_failure_count": dev_final["failure_count"],
+            "dev_final_predictions_identity_sha256": dev_final[
+                "ordered_identity_sha256"
+            ],
+            "dev_final_predictions_contract_sha256": dev_final["contract_sha256"],
+            **(
+                {
+                    "endpoint": receipt["endpoint"],
+                    "explicit_cache_enabled": receipt["explicit_cache_enabled"],
+                    **(
+                        {
+                            "evidence_span_match_mode": receipt[
+                                "evidence_span_match_mode"
+                            ]
+                        }
+                        if "evidence_span_match_mode" in receipt
+                        else {}
+                    ),
+                }
+                if "endpoint" in receipt
+                else {}
+            ),
+        },
+        "splits": {
+            "dev60": {
+                "sample_count": 60,
+                "final_predictions_sha256": dev_final["sha256"],
+                "final_predictions_manifest_sha256": dev_final["manifest_sha256"],
+                "final_prediction_success_count": dev_final["success_count"],
+                "final_prediction_failure_count": dev_final["failure_count"],
+                "final_prediction_failure_ids": dev_final["failure_ids"],
+                "final_prediction_identity_sha256": dev_final[
+                    "ordered_identity_sha256"
+                ],
+                "final_prediction_contract_sha256": dev_final["contract_sha256"],
+            },
+            "heldout40": preflight.selection_evidence,
+        },
+        "one_shot": {
+            "inference": {
+                **{
+                    key: inference[key]
+                    for key in (
+                        "started_at_utc",
+                        "terminal_at_utc",
+                        "status",
+                        "started_event_count",
+                    )
+                },
+                **(
+                    {"materialization": dict(materialization_binding)}
+                    if materialization_binding is not None
+                    else {}
+                ),
+            },
+            "evaluation": {
+                "started_at_utc": started_at,
+                "terminal_at_utc": terminal_at,
+                "status": "completed",
+                "started_event_count": 1,
+            },
+        },
+        "owner_delivery": {
+            "annotation_path": str(
+                preflight.annotation_resolved.relative_to(PROJECT_DIR)
+            ),
+            "annotation_sha256": preflight.annotation_sha256,
+            "forbidden_field_violation_count": 0,
+            **(
+                {"heldout_adjudication": preflight.adjudication_evidence}
+                if preflight.adjudication_evidence is not None
+                else {}
+            ),
+        },
+        "owner_completion": preflight.owner_completion,
+        **(
+            {"candidate_materialization": dict(materialization_binding)}
+            if materialization_binding is not None
+            else {}
+        ),
+        "metrics": result["metrics"],
+        "diagnostics": {
+            "offline_trial": dict(offline_diagnostics),
+            "active_prediction": {
+                "gold_failure_count": len(active_failure_ids),
+                "gold_failure_ids": active_failure_ids,
+            },
+        },
+        "gates": result["gates"],
+        "passed": result["passed"],
+        **extensions,
+        "phase_gate": {
+            "p4_2a_evaluation_passed": result["passed"],
+            "p4_2b_unlocked": False,
+            "production_writes_performed": False,
+            "proposals_or_orders_created": False,
+        },
+        "report_artifact": {
+            "path": str(report_path.relative_to(PROJECT_DIR)),
+            "create_only": True,
+        },
+    }
+    prediction_contract_report = _mapping(
+        report.get("prediction_contract"),
+        label="prediction contract report",
+    )
+    prediction_contract_report.update(prediction_contract_append)
+    report["prediction_contract"] = prediction_contract_report
+    return report
+
+
 def evaluate_gold_sample_v1_1(
     annotation_path: Path,
     output_path: Path,
@@ -3121,18 +3489,8 @@ def evaluate_gold_sample_v1_1(
     if preflight is None:  # pragma: no cover - fail-fast mode raises first
         raise GoldEvaluationError("heldout evaluation preflight did not complete")
     design = preflight.design
-    annotation_resolved = preflight.annotation_resolved
-    annotation_sha256 = preflight.annotation_sha256
     annotations = preflight.annotations
-    owner_completion = preflight.owner_completion
-    adjudication_evidence = preflight.adjudication_evidence
     active_contract = preflight.active_contract
-    receipt = preflight.receipt
-    receipt_sha256 = preflight.receipt_sha256
-    dev_final = preflight.dev_final
-    inference = preflight.inference
-    selection_evidence = preflight.selection_evidence
-    materialization_binding = preflight.materialization_binding
     dev_annotations = preflight.dev_annotations
     dev_prediction_records = preflight.dev_prediction_records
     predictions = preflight.predictions
@@ -3162,149 +3520,19 @@ def evaluate_gold_sample_v1_1(
             predictions=predictions,
             result=result,
         )
-        prediction_contract_append = _mapping(
-            v1_3_extensions.pop("_prediction_contract_append", {}),
-            label="versioned prediction contract report fields",
-        )
         offline_diagnostics = _offline_trial_diagnostics(design, set(annotations))
-        active_failure_ids = sorted(
-            news_item_id
-            for news_item_id in list(annotations)
-            if predictions[news_item_id] is None
-        )
         terminal_at = datetime.now(UTC).isoformat().replace("+00:00", "Z")
-        report: JsonObject = {
-            "schema_version": "p4.2a-gold-evaluation-report-v1.1",
-            "generated_at_utc": terminal_at,
-            "design": {
-                "schema_version": design.document["schema_version"],
-                "path": str(design.path.relative_to(PROJECT_DIR)),
-                "sha256": design.sha256,
-            },
-            "prediction_contract": {
-                "contract_path": receipt["contract_path"],
-                "contract_sha256": receipt["contract_sha256"],
-                "model": receipt["model"],
-                "prompt_path": receipt["prompt_path"],
-                "prompt_sha256": receipt["prompt_sha256"],
-                "result_schema_path": receipt["result_schema_path"],
-                "result_schema_sha256": receipt["result_schema_sha256"],
-                "taxonomy_version": receipt["taxonomy_version"],
-                "freeze_receipt_sha256": receipt_sha256,
-                "dev_final_predictions_path": dev_final["path"],
-                "dev_final_predictions_sha256": dev_final["sha256"],
-                "dev_final_predictions_manifest_path": dev_final["manifest_path"],
-                "dev_final_predictions_manifest_sha256": dev_final["manifest_sha256"],
-                "dev_final_predictions_row_count": dev_final["row_count"],
-                "dev_final_predictions_success_count": dev_final["success_count"],
-                "dev_final_predictions_failure_count": dev_final["failure_count"],
-                "dev_final_predictions_identity_sha256": dev_final[
-                    "ordered_identity_sha256"
-                ],
-                "dev_final_predictions_contract_sha256": dev_final["contract_sha256"],
-                **(
-                    {
-                        "endpoint": receipt["endpoint"],
-                        "explicit_cache_enabled": receipt[
-                            "explicit_cache_enabled"
-                        ],
-                        **(
-                            {
-                                "evidence_span_match_mode": receipt[
-                                    "evidence_span_match_mode"
-                                ]
-                            }
-                            if "evidence_span_match_mode" in receipt
-                            else {}
-                        ),
-                    }
-                    if "endpoint" in receipt
-                    else {}
-                ),
-            },
-            "splits": {
-                "dev60": {
-                    "sample_count": 60,
-                    "final_predictions_sha256": dev_final["sha256"],
-                    "final_predictions_manifest_sha256": dev_final["manifest_sha256"],
-                    "final_prediction_success_count": dev_final["success_count"],
-                    "final_prediction_failure_count": dev_final["failure_count"],
-                    "final_prediction_failure_ids": dev_final["failure_ids"],
-                    "final_prediction_identity_sha256": dev_final[
-                        "ordered_identity_sha256"
-                    ],
-                    "final_prediction_contract_sha256": dev_final["contract_sha256"],
-                },
-                "heldout40": selection_evidence,
-            },
-            "one_shot": {
-                "inference": {
-                    **{
-                        key: inference[key]
-                        for key in (
-                            "started_at_utc",
-                            "terminal_at_utc",
-                            "status",
-                            "started_event_count",
-                        )
-                    },
-                    **(
-                        {"materialization": dict(materialization_binding)}
-                        if materialization_binding is not None
-                        else {}
-                    ),
-                },
-                "evaluation": {
-                    "started_at_utc": started_at,
-                    "terminal_at_utc": terminal_at,
-                    "status": "completed",
-                    "started_event_count": 1,
-                },
-            },
-            "owner_delivery": {
-                "annotation_path": str(annotation_resolved.relative_to(PROJECT_DIR)),
-                "annotation_sha256": annotation_sha256,
-                "forbidden_field_violation_count": 0,
-                **(
-                    {"heldout_adjudication": adjudication_evidence}
-                    if adjudication_evidence is not None
-                    else {}
-                ),
-            },
-            "owner_completion": owner_completion,
-            **(
-                {"candidate_materialization": dict(materialization_binding)}
-                if materialization_binding is not None
-                else {}
-            ),
-            "metrics": result["metrics"],
-            "diagnostics": {
-                "offline_trial": offline_diagnostics,
-                "active_prediction": {
-                    "gold_failure_count": len(active_failure_ids),
-                    "gold_failure_ids": active_failure_ids,
-                },
-            },
-            "gates": result["gates"],
-            "passed": result["passed"],
-            **v1_3_extensions,
-            "phase_gate": {
-                "p4_2a_evaluation_passed": result["passed"],
-                "p4_2b_unlocked": False,
-                "production_writes_performed": False,
-                "proposals_or_orders_created": False,
-            },
-            "report_artifact": {
-                "path": str(report_path.relative_to(PROJECT_DIR)),
-                "create_only": True,
-            },
-        }
-        prediction_contract_report = _mapping(
-            report.get("prediction_contract"),
-            label="prediction contract report",
+        report = _assemble_heldout_report(
+            preflight,
+            result,
+            report_path=report_path,
+            started_at=started_at,
+            terminal_at=terminal_at,
+            versioned_extensions=v1_3_extensions,
+            offline_diagnostics=offline_diagnostics,
+            annotations=annotations,
+            predictions=predictions,
         )
-        prediction_contract_report.update(prediction_contract_append)
-        report["prediction_contract"] = prediction_contract_report
         validate_required_report_fields(report, design)
         report_sha256 = _write_new_json(report_path, report)
         _append_evaluation_terminal(
@@ -3428,6 +3656,7 @@ def _arguments(argv: Sequence[str] | None = None) -> argparse.Namespace:
             "heldout-final-v1.5",
             "heldout-final-v1.6",
             "heldout-final-v1.7",
+            "heldout-final-v1.8-replacement",
         ),
         default="heldout-final-v1.1",
         help=(
@@ -3465,8 +3694,8 @@ def _arguments(argv: Sequence[str] | None = None) -> argparse.Namespace:
         "--dry-run",
         action="store_true",
         help=(
-            "Validate every heldout input through prediction joins without "
-            "computing metrics or creating one-shot/report artifacts."
+            "Validate every heldout input and the in-memory report pipeline with "
+            "synthetic metrics, without scoring heldout gold or creating artifacts."
         ),
     )
     parser.add_argument("--output", type=Path, required=True)
@@ -3484,6 +3713,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             "heldout-final-v1.5",
             "heldout-final-v1.6",
             "heldout-final-v1.7",
+            "heldout-final-v1.8-replacement",
         }:
             design = gold_builder.load_evaluation_design(arguments.evaluation_design)
             expected_schema_version = {
@@ -3494,6 +3724,9 @@ def main(argv: Sequence[str] | None = None) -> int:
                 "heldout-final-v1.5": "p4.2a-evaluation-design-v1.5",
                 "heldout-final-v1.6": "p4.2a-evaluation-design-v1.6",
                 "heldout-final-v1.7": "p4.2a-evaluation-design-v1.7",
+                "heldout-final-v1.8-replacement": (
+                    "p4.2a-evaluation-design-v1.8"
+                ),
             }[arguments.scope]
             if design.document.get("schema_version") != expected_schema_version:
                 raise GoldEvaluationError(
