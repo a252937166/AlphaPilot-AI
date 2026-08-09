@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+import yaml
 from scripts import run_p4_2a_v2_dev_calibration as runner
 from sqlalchemy.orm import Session
 
@@ -126,6 +127,140 @@ def _round2_fixture_root(tmp_path: Path) -> Path:
     state_path.write_bytes(round_one_prefix)
     assert runner._sha256_file(state_path) == runner.ROUND_1_STATE_PREFIX_SHA256
     return root
+
+
+def _round3_fixture_root(tmp_path: Path) -> tuple[Path, str]:
+    root = _round2_fixture_root(tmp_path)
+    extra_files = (
+        "docs/phase4/reports/P4.2a-round2-adjudication-20260810.json",
+        "docs/phase4/eval/v2-calibration/development/rounds/r2/round-outcome.json",
+        "docs/phase4/eval/v2-calibration/development/rounds/r2/"
+        "qwen3.7-flash/predictions.jsonl",
+        "docs/phase4/eval/v2-calibration/development/rounds/r2/"
+        "qwen3.7-flash/manifest.json",
+        "docs/phase4/eval/v2-calibration/development/rounds/r2/"
+        "qwen3.7-flash/report.json",
+        "docs/phase4/eval/v2-calibration/development/rounds/r2/"
+        "qwen3.7-flash/terminal-state.jsonl",
+        "docs/phase4/eval/v2-calibration/development/rounds/r2/"
+        "qwen3.6-plus/predictions.jsonl",
+        "docs/phase4/eval/v2-calibration/development/rounds/r2/"
+        "qwen3.6-plus/manifest.json",
+        "docs/phase4/eval/v2-calibration/development/rounds/r2/"
+        "qwen3.6-plus/report.json",
+        "docs/phase4/eval/v2-calibration/development/rounds/r2/"
+        "qwen3.6-plus/terminal-state.jsonl",
+    )
+    for relative in extra_files:
+        _copy(root, relative)
+    state_relative = "docs/phase4/eval/v2-calibration/development/calibration.state.jsonl"
+    _copy(root, state_relative)
+    state_path = root / state_relative
+    assert runner._sha256_file(state_path) == runner.ROUND_2_STATE_PREFIX_SHA256
+
+    preregistered_at = "2026-08-09T00:00:00Z"
+    prompt_relative = "config/prompts/p4_news_event_extract_v2-r3.txt"
+    prompt_path = root / prompt_relative
+    prompt_path.parent.mkdir(parents=True, exist_ok=True)
+    round_two_prompt = (
+        root / "config/prompts/p4_news_event_extract_v2-r2.txt"
+    ).read_text(encoding="utf-8")
+    prompt_path.write_text(
+        round_two_prompt.replace(
+            "[P4_NEWS_EVENT_EXTRACT v2-r2]",
+            "[P4_NEWS_EVENT_EXTRACT v2-r3]",
+            1,
+        ),
+        encoding="utf-8",
+    )
+    prompt_sha256 = runner._sha256_file(prompt_path)
+
+    contract_refs: dict[str, dict[str, str]] = {}
+    for model in runner.MODEL_ORDER:
+        source = root / f"config/p4_event_extract_eval_v2-r2-{model}.yaml"
+        wrapper = yaml.safe_load(source.read_text(encoding="utf-8"))
+        assert isinstance(wrapper, dict)
+        wrapper["schema_version"] = "p4.2a-development-event-extract-contract-v2-r3"
+        wrapper["round_number"] = 3
+        wrapper["pre_registered_at"] = preregistered_at
+        wrapper["contract_files"]["prompt"] = {
+            "path": prompt_relative,
+            "sha256": prompt_sha256,
+        }
+        contract_relative = f"config/p4_event_extract_eval_v2-r3-{model}.yaml"
+        contract_path = root / contract_relative
+        contract_path.write_text(
+            yaml.safe_dump(wrapper, allow_unicode=True, sort_keys=False),
+            encoding="utf-8",
+        )
+        contract_refs[model] = {
+            "path": contract_relative,
+            "sha256": runner._sha256_file(contract_path),
+        }
+
+    round_two_prereg = _read_json(
+        root / runner.ROUND_2_PREREGISTRATION_PATH
+    )
+    prereg = dict(round_two_prereg)
+    prereg["round_number"] = 3
+    prereg["pre_registered_at"] = preregistered_at
+    prereg["prior_round"] = {
+        "round_number": 2,
+        "preregistration": {
+            "path": runner.ROUND_2_PREREGISTRATION_PATH.as_posix(),
+            "sha256": runner.ROUND_2_PREREGISTRATION_SHA256,
+        },
+        "outcome": {
+            "path": (
+                "docs/phase4/eval/v2-calibration/development/rounds/"
+                "r2/round-outcome.json"
+            ),
+            "sha256": runner.ROUND_2_OUTCOME_SHA256,
+        },
+    }
+    prereg["round_authorization"] = {
+        "path": runner.ROUND_3_AUTHORIZATION_PATH.as_posix(),
+        "sha256": runner.ROUND_3_AUTHORIZATION_SHA256,
+    }
+    prereg["prompt"] = {"path": prompt_relative, "sha256": prompt_sha256}
+    prereg["candidate_prompt_summaries"] = {
+        model: {
+            "prompt": {"path": prompt_relative, "sha256": prompt_sha256},
+            "summary": "fixture-only byte-frozen Round 3 prompt summary",
+        }
+        for model in runner.MODEL_ORDER
+    }
+    prereg["models"] = [
+        {"model_slug": model, "model": model, "contract": contract_refs[model]}
+        for model in runner.MODEL_ORDER
+    ]
+    prereg["artifacts"] = {
+        "round_directory": {
+            "path": "docs/phase4/eval/v2-calibration/development/rounds/r3"
+        },
+        "round_outcome": {
+            "path": (
+                "docs/phase4/eval/v2-calibration/development/rounds/"
+                "r3/round-outcome.json"
+            ),
+            "create_only": True,
+        },
+        "calibration_state": {
+            "path": state_relative,
+            "append_only": True,
+        },
+    }
+    prereg["post_round_governance"] = {
+        "o5_trigger": "round_3_point_estimate_passes_but_adverse_flip_margin_fails",
+        "action": (
+            "pause_round_consumption_and_return_frame_enlargement_decision_to_owner"
+        ),
+        "automatic_round_4_allowed": False,
+    }
+    prereg_path = root / runner.ROUND_3_PREREGISTRATION_PATH
+    prereg_path.parent.mkdir(parents=True, exist_ok=True)
+    prereg_path.write_bytes(runner._canonical_json_bytes(prereg))
+    return root, runner._sha256_file(prereg_path)
 
 
 def _settings() -> Settings:
@@ -427,6 +562,18 @@ def test_round2_appends_state_preserves_round1_and_applies_margin(tmp_path: Path
             )
             assert detail["materiality_recall"]["value"] is None
             assert detail["materiality_recall"]["formula"] == "not_estimable"
+            stratum_margin = detail["adverse_single_item_margin"]
+            assert stratum_margin["required_by_overall_gate"] is True
+            assert stratum_margin["precision"]["transformation"] == (
+                "one_true_positive_reclassified_as_false_positive"
+            )
+            assert stratum_margin["false_omission_rate"]["transformation"] == (
+                "one_true_negative_reclassified_as_false_negative"
+            )
+            assert stratum_margin["gate_or_diagnostic"] == (
+                "sampling_stratum_diagnostic"
+            )
+            assert stratum_margin["may_not_override_overall_development_gate"] is True
             assert detail["may_not_override_overall_development_gate"] is True
         assert metrics["materiality_recall"]["value"] is None
         assert metrics["adverse_single_item_margin"]["required"] is True
@@ -736,6 +883,7 @@ def test_round2_recovers_completed_terminal_when_recorded_outcome_already_exists
         *,
         expected_event_count: int,
         expected_last_event: str,
+        **transition_guards: Any,
     ) -> None:
         nonlocal failed_once
         if event.get("event") == "round_completed" and not failed_once:
@@ -746,6 +894,7 @@ def test_round2_recovers_completed_terminal_when_recorded_outcome_already_exists
             event,
             expected_event_count=expected_event_count,
             expected_last_event=expected_last_event,
+            **transition_guards,
         )
 
     monkeypatch.setattr(runner, "_append_calibration_event", fail_first_terminal_append)
@@ -777,3 +926,375 @@ def test_round2_recovers_completed_terminal_when_recorded_outcome_already_exists
     assert state[-1]["terminalization"] == (
         "recovered_terminal_append_for_recorded_outcome"
     )
+
+
+def test_round3_is_not_executable_until_exact_preregistration_sha_is_registered(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    root, preregistration_sha256 = _round3_fixture_root(tmp_path)
+    monkeypatch.setattr(runner, "ROUND_3_PREREGISTRATION_SHA256", None)
+    state_path = (
+        root / "docs/phase4/eval/v2-calibration/development/calibration.state.jsonl"
+    )
+    before = state_path.read_bytes()
+
+    with pytest.raises(
+        runner.CalibrationRoundError,
+        match="no executable preregistration SHA-256",
+    ):
+        runner.run_round(
+            round_number=3,
+            round_preregistration=runner.ROUND_3_PREREGISTRATION_PATH,
+            round_preregistration_sha256=preregistration_sha256,
+            project_root=root,
+            settings=_settings(),
+            chat_json_fn=lambda *_args, **_kwargs: pytest.fail("must not call model"),
+        )
+
+    assert state_path.read_bytes() == before
+    assert not (
+        root / "docs/phase4/eval/v2-calibration/development/rounds/r3/round-outcome.json"
+    ).exists()
+
+
+def test_round3_appends_four_line_history_to_six_and_preserves_all_prior_artifacts(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    root, preregistration_sha256 = _round3_fixture_root(tmp_path)
+    monkeypatch.setattr(
+        runner,
+        "ROUND_3_PREREGISTRATION_SHA256",
+        preregistration_sha256,
+    )
+    prior_root = root / "docs/phase4/eval/v2-calibration/development/rounds"
+    prior_hashes = {
+        path.relative_to(root).as_posix(): runner._sha256_file(path)
+        for round_name in ("r1", "r2")
+        for path in (prior_root / round_name).rglob("*")
+        if path.is_file()
+    }
+    calls: list[tuple[str, int]] = []
+
+    result = runner.run_round(
+        round_number=3,
+        round_preregistration=runner.ROUND_3_PREREGISTRATION_PATH,
+        round_preregistration_sha256=preregistration_sha256,
+        project_root=root,
+        settings=_settings(),
+        chat_json_fn=_fake_chat(root, calls),
+    )
+
+    assert len(calls) == 90
+    assert [model for model, _ in calls[:45]] == ["qwen3.7-flash"] * 45
+    assert [model for model, _ in calls[45:]] == ["qwen3.6-plus"] * 45
+    assert result.selected_model == "qwen3.7-flash"
+    state = runner._load_jsonl(result.calibration_state_path, "Round 3 state")
+    assert [(row["round_number"], row["event"]) for row in state] == [
+        (1, "round_started"),
+        (1, "round_completed"),
+        (2, "round_started"),
+        (2, "round_completed"),
+        (3, "round_started"),
+        (3, "round_completed"),
+    ]
+    assert state[4]["execution_id"] == state[5]["execution_id"]
+    outcome = _read_json(result.outcome_path)
+    assert outcome["post_round_governance"] == {
+        **runner.ROUND_3_POST_ROUND_GOVERNANCE,
+        "triggered": False,
+        "next_action": "await_independent_round_adjudication",
+    }
+    assert {
+        path.relative_to(root).as_posix(): runner._sha256_file(path)
+        for round_name in ("r1", "r2")
+        for path in (prior_root / round_name).rglob("*")
+        if path.is_file()
+    } == prior_hashes
+    assert not (root / "docs/phase4/eval/v2-calibration/heldout").exists()
+
+
+@pytest.mark.parametrize("line_index", [0, 2])
+def test_round3_rejects_round1_or_round2_state_prefix_drift_before_model_call(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    line_index: int,
+) -> None:
+    root, preregistration_sha256 = _round3_fixture_root(tmp_path)
+    monkeypatch.setattr(
+        runner,
+        "ROUND_3_PREREGISTRATION_SHA256",
+        preregistration_sha256,
+    )
+    state_path = (
+        root / "docs/phase4/eval/v2-calibration/development/calibration.state.jsonl"
+    )
+    events = runner._load_jsonl(state_path, "tampered history")
+    events[line_index]["production_writes"] = True
+    state_path.write_bytes(
+        b"".join(runner._canonical_json_bytes(event) for event in events)
+    )
+    calls: list[tuple[str, int]] = []
+
+    with pytest.raises(runner.CalibrationRoundError, match="state prefix drifted"):
+        runner.run_round(
+            round_number=3,
+            round_preregistration=runner.ROUND_3_PREREGISTRATION_PATH,
+            round_preregistration_sha256=preregistration_sha256,
+            project_root=root,
+            settings=_settings(),
+            chat_json_fn=_fake_chat(root, calls),
+        )
+
+    assert calls == []
+    assert len(runner._load_jsonl(state_path, "unchanged tamper")) == 4
+
+
+def test_round3_rejects_coherently_relinked_round2_prediction_tamper(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    root, preregistration_sha256 = _round3_fixture_root(tmp_path)
+    monkeypatch.setattr(
+        runner,
+        "ROUND_3_PREREGISTRATION_SHA256",
+        preregistration_sha256,
+    )
+    model_root = (
+        root
+        / "docs/phase4/eval/v2-calibration/development/rounds/r2/qwen3.7-flash"
+    )
+    predictions = model_root / "predictions.jsonl"
+    rows = [json.loads(line) for line in predictions.read_text().splitlines()]
+    rows[0]["prediction"]["summary"] += "coherent-tamper"
+    predictions.write_text(
+        "".join(
+            json.dumps(row, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+            + "\n"
+            for row in rows
+        )
+    )
+    manifest_path = model_root / "manifest.json"
+    manifest = _read_json(manifest_path)
+    manifest["predictions_sha256"] = runner._sha256_file(predictions)
+    manifest_path.write_bytes(runner._canonical_json_bytes(manifest))
+    terminal_path = model_root / "terminal-state.jsonl"
+    terminal = runner._load_jsonl(terminal_path, "tampered Round 2 terminal")
+    terminal[1]["manifest_sha256"] = runner._sha256_file(manifest_path)
+    terminal_path.write_bytes(
+        b"".join(runner._canonical_json_bytes(event) for event in terminal)
+    )
+    calls: list[tuple[str, int]] = []
+
+    with pytest.raises(runner.CalibrationRoundError, match="artifact anchor drifted"):
+        runner.run_round(
+            round_number=3,
+            round_preregistration=runner.ROUND_3_PREREGISTRATION_PATH,
+            round_preregistration_sha256=preregistration_sha256,
+            project_root=root,
+            settings=_settings(),
+            chat_json_fn=_fake_chat(root, calls),
+        )
+
+    assert calls == []
+
+
+def test_round3_preflight_cannot_claim_or_terminalize_concurrent_execution(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    root, preregistration_sha256 = _round3_fixture_root(tmp_path)
+    monkeypatch.setattr(
+        runner,
+        "ROUND_3_PREREGISTRATION_SHA256",
+        preregistration_sha256,
+    )
+    state_path = (
+        root / "docs/phase4/eval/v2-calibration/development/calibration.state.jsonl"
+    )
+    runner._append_calibration_event(
+        state_path,
+        {
+            "schema_version": "p4.2a-v2-development-calibration-state-v1",
+            "event": "round_started",
+            "execution_id": "a" * 64,
+            "round_number": 3,
+            "at_utc": "2026-08-09T18:30:00Z",
+            "design_sha256": runner.DESIGN_SHA256,
+            "round_preregistration_sha256": preregistration_sha256,
+            "heldout_touched": False,
+            "production_writes": False,
+        },
+        expected_event_count=4,
+        expected_last_event="round_completed",
+        expected_prefix_sha256=runner.ROUND_2_STATE_PREFIX_SHA256,
+        expected_last_round_number=2,
+    )
+    before = state_path.read_bytes()
+
+    with pytest.raises(runner.CalibrationRoundError):
+        runner.run_round(
+            round_number=3,
+            round_preregistration=runner.ROUND_3_PREREGISTRATION_PATH,
+            round_preregistration_sha256=preregistration_sha256,
+            project_root=root,
+            settings=_settings(),
+            chat_json_fn=lambda *_args, **_kwargs: pytest.fail("must not call model"),
+        )
+
+    assert state_path.read_bytes() == before
+    assert not (
+        root / "docs/phase4/eval/v2-calibration/development/rounds/r3/round-outcome.json"
+    ).exists()
+
+
+def test_round3_terminalizes_failure_as_sixth_state_event_without_retry(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    root, preregistration_sha256 = _round3_fixture_root(tmp_path)
+    monkeypatch.setattr(
+        runner,
+        "ROUND_3_PREREGISTRATION_SHA256",
+        preregistration_sha256,
+    )
+    original_create = runner._create_only
+
+    def fail_first_model_state(path: Path, payload: bytes, artifact_root: Path) -> None:
+        if path.name == "terminal-state.jsonl" and "rounds/r3" in path.as_posix():
+            raise RuntimeError("injected_round3_pre_model_failure")
+        original_create(path, payload, artifact_root)
+
+    monkeypatch.setattr(runner, "_create_only", fail_first_model_state)
+
+    with pytest.raises(RuntimeError, match="injected_round3_pre_model_failure"):
+        runner.run_round(
+            round_number=3,
+            round_preregistration=runner.ROUND_3_PREREGISTRATION_PATH,
+            round_preregistration_sha256=preregistration_sha256,
+            project_root=root,
+            settings=_settings(),
+            chat_json_fn=lambda *_args, **_kwargs: pytest.fail("must not call model"),
+        )
+
+    state_path = (
+        root / "docs/phase4/eval/v2-calibration/development/calibration.state.jsonl"
+    )
+    state = runner._load_jsonl(state_path, "terminalized Round 3 state")
+    assert len(state) == 6
+    assert [(row["round_number"], row["event"]) for row in state[-2:]] == [
+        (3, "round_started"),
+        (3, "round_failed"),
+    ]
+    assert state[-2]["execution_id"] == state[-1]["execution_id"]
+    outcome = _read_json(
+        root / "docs/phase4/eval/v2-calibration/development/rounds/r3/round-outcome.json"
+    )
+    assert outcome["selected_model"] is None
+    assert outcome["post_round_governance"]["triggered"] is False
+    assert outcome["post_round_governance"]["next_action"] == (
+        "await_independent_round_adjudication"
+    )
+    assert not (root / "docs/phase4/eval/v2-calibration/heldout").exists()
+
+
+def test_round3_recovers_completed_terminal_with_same_execution_owner(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    root, preregistration_sha256 = _round3_fixture_root(tmp_path)
+    monkeypatch.setattr(
+        runner,
+        "ROUND_3_PREREGISTRATION_SHA256",
+        preregistration_sha256,
+    )
+    original_append = runner._append_calibration_event
+    failed_once = False
+
+    def fail_first_terminal_append(
+        path: Path,
+        event: dict[str, Any],
+        *,
+        expected_event_count: int,
+        expected_last_event: str,
+        **transition_guards: Any,
+    ) -> None:
+        nonlocal failed_once
+        if event.get("event") == "round_completed" and not failed_once:
+            failed_once = True
+            raise RuntimeError("injected_round3_terminal_append_failure")
+        original_append(
+            path,
+            event,
+            expected_event_count=expected_event_count,
+            expected_last_event=expected_last_event,
+            **transition_guards,
+        )
+
+    monkeypatch.setattr(runner, "_append_calibration_event", fail_first_terminal_append)
+    calls: list[tuple[str, int]] = []
+
+    with pytest.raises(RuntimeError, match="injected_round3_terminal_append_failure"):
+        runner.run_round(
+            round_number=3,
+            round_preregistration=runner.ROUND_3_PREREGISTRATION_PATH,
+            round_preregistration_sha256=preregistration_sha256,
+            project_root=root,
+            settings=_settings(),
+            chat_json_fn=_fake_chat(root, calls),
+        )
+
+    assert len(calls) == 90
+    state = runner._load_jsonl(
+        root / "docs/phase4/eval/v2-calibration/development/calibration.state.jsonl",
+        "recovered Round 3 state",
+    )
+    assert len(state) == 6
+    assert state[-1]["event"] == "round_completed"
+    assert state[-1]["execution_id"] == state[-2]["execution_id"]
+    assert state[-1]["terminalization"] == (
+        "recovered_terminal_append_for_recorded_outcome"
+    )
+    assert not (root / "docs/phase4/eval/v2-calibration/heldout").exists()
+
+
+def test_round3_o5_governance_triggers_only_for_point_pass_margin_fail() -> None:
+    triggered = runner._round_three_governance_outcome(
+        {
+            "qwen3.6-plus": {
+                "metrics": {
+                    "point_estimate_materiality_gates_passed": True,
+                    "adverse_single_item_margin": {"both_passed": False},
+                }
+            }
+        }
+    )
+    not_triggered = runner._round_three_governance_outcome(
+        {
+            "qwen3.6-plus": {
+                "metrics": {
+                    "point_estimate_materiality_gates_passed": False,
+                    "adverse_single_item_margin": {"both_passed": False},
+                }
+            }
+        }
+    )
+    invalid_round = runner._round_three_governance_outcome(
+        {
+            "qwen3.6-plus": {
+                "metrics": {
+                    "point_estimate_materiality_gates_passed": True,
+                    "adverse_single_item_margin": {"both_passed": False},
+                }
+            }
+        },
+        round_valid=False,
+    )
+
+    assert triggered["triggered"] is True
+    assert triggered["next_action"] == "return_frame_enlargement_decision_to_owner"
+    assert triggered["automatic_round_4_allowed"] is False
+    assert not_triggered["triggered"] is False
+    assert not_triggered["next_action"] == "await_independent_round_adjudication"
+    assert invalid_round["triggered"] is False
