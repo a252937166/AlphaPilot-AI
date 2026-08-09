@@ -1,0 +1,104 @@
+{
+  "schema_version": "p4.2a-v2-evaluation-design-registration-v1",
+  "registration_id": "p4.2a-v2-evaluation-design-registration-20260809-r1",
+  "created_at_utc": "2026-08-09T12:28:38Z",
+  "created_at_shanghai": "2026-08-09T20:28:38+08:00",
+  "status": "REGISTERED_BEFORE_DEVELOPMENT_FRAME_MATERIALIZATION",
+  "parent_preregistration": {
+    "path": "docs/phase4/reports/P4.2a-v2-calibration-round-preregistration-20260809.json",
+    "sha256": "493114c980993bef987883975ccebeb1e970478123f5d3757fa9692721731fcb",
+    "commit": "a389ad850386738aca2c0c3ef662103bb0237172"
+  },
+  "clarification": {
+    "path": "docs/phase4/reports/P4.2a-v2-calibration-design-clarifications-20260809.json",
+    "sha256": "933d749f5debb97da1793c0ea134d537ac94e485969370d6522e803faeb1a9b7"
+  },
+  "registered_design": {
+    "path": "config/p4_event_evaluation_v2.yaml",
+    "schema_version": "p4.2a-evaluation-design-v2",
+    "sha256": "18a2428a4ec04bfea6e4f4d70692f38ea82fbaee5a223f30f2465b895b238e21",
+    "pre_registered_at_utc": "2026-08-09T12:25:58Z",
+    "commit": "5b83ed1b7de2e6f823043bffcf2e9d325e00e8d3"
+  },
+  "registered_frames": {
+    "development": {
+      "frame_id": "p4.2a-development-frame-v2",
+      "source_window_shanghai": "2026-08-04 through 2026-08-05",
+      "seed": "alphapilot-p4.2a-development-frame-v2-20260809-r1",
+      "strata": {
+        "predicted_positive": 30,
+        "predicted_negative": 15,
+        "extract_failed": 0
+      },
+      "purpose": "prompt_calibration_only_not_phase_acceptance"
+    },
+    "heldout": {
+      "frame_id": "p4.2a-heldout-frame-v2",
+      "source_window": {
+        "timezone": "Asia/Shanghai",
+        "start_inclusive": "2026-08-06T00:00:00+08:00",
+        "end_exclusive": "2026-08-09T00:00:00+08:00"
+      },
+      "seed": "alphapilot-p4.2a-heldout-frame-v2-20260809-r1",
+      "strata": {
+        "selected_model_predicted_positive": 40,
+        "selected_model_predicted_negative": 20,
+        "extract_failed": 0
+      },
+      "status": "LOCKED_UNTIL_DEVELOPMENT_GATE_OWNER_REVIEW_AND_SYNTHETIC_REHEARSAL"
+    }
+  },
+  "metric_contract": {
+    "development_materiality_precision_minimum": 0.8,
+    "development_materiality_false_omission_rate_maximum": 0.2,
+    "both_required": true,
+    "recall": "omit_or_null_not_estimable",
+    "weighted_source_pool_values": "diagnostic_only",
+    "every_metric_binds_partition_frame_strata_denominator_formula_and_role": true
+  },
+  "ordering_evidence": {
+    "production_llm_calls_since_parent_preregistration": 0,
+    "v2_development_artifact_root_existed_at_registration": false,
+    "v2_prompt_artifacts_existed_at_registration": false,
+    "formal_development_sample_materialized": false,
+    "formal_prompt_modified": false,
+    "flash_or_plus_called": false
+  },
+  "quality_gates": {
+    "strict_yaml_duplicate_key_scan": "passed",
+    "targeted_pytest": {
+      "collected": 243,
+      "passed": 243,
+      "failed": 0
+    },
+    "ruff_changed_files": "passed",
+    "strict_mypy_explicit_package_bases_7_files": "passed",
+    "legacy_v2_fail_closed_paths": [
+      "inventory_and_heldout_gold_builder",
+      "dev60_runner",
+      "heldout40_runner",
+      "legacy_labeling_ui",
+      "legacy_adjudication_ui",
+      "legacy_evaluator"
+    ]
+  },
+  "next_gate": {
+    "allowed": [
+      "implement_dedicated_v2_development_frame_builder_and_owner_adjudication_pipeline",
+      "materialize_exactly_30_predicted_positive_and_15_predicted_negative_development_items",
+      "draft_with_ai_other_than_qwen3.7-flash_and_qwen3.6-plus",
+      "request_owner_human_adjudication"
+    ],
+    "forbidden": [
+      "formal_flash_or_plus_calibration_before_owner_human_gold_completion",
+      "heldout_v2_materialization",
+      "heldout_v2_inference",
+      "heldout_v2_sampling",
+      "heldout_v2_drafting",
+      "heldout_v2_adjudication",
+      "heldout_v2_evaluation",
+      "p4_2b_unlock",
+      "p4_3_unlock"
+    ]
+  }
+}
