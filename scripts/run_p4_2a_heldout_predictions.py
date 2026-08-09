@@ -3908,6 +3908,11 @@ def main(argv: Sequence[str] | None = None) -> int:
             cast(Path, arguments.evaluation_design),
             project_root=PROJECT_ROOT,
         )
+        if active_design.document.get("schema_version") == "p4.2a-evaluation-design-v2":
+            raise HeldoutPredictionError(
+                "P4.2a v2 requires its dedicated dual-model/dual-stratum runner; "
+                "the legacy heldout runner is forbidden"
+            )
         dev_artifact_arguments = (
             arguments.dev_final_predictions,
             arguments.dev_final_predictions_manifest,

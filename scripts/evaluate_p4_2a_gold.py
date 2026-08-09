@@ -3705,6 +3705,21 @@ def _arguments(argv: Sequence[str] | None = None) -> argparse.Namespace:
 def main(argv: Sequence[str] | None = None) -> int:
     arguments = _arguments(argv)
     try:
+        if arguments.evaluation_design.expanduser().resolve() == (
+            PROJECT_DIR / "config/p4_event_evaluation_v2.yaml"
+        ).resolve():
+            active_design = load_event_evaluation_design(
+                arguments.evaluation_design.expanduser().resolve(),
+                project_root=PROJECT_DIR,
+            )
+            if (
+                active_design.document.get("schema_version")
+                == "p4.2a-evaluation-design-v2"
+            ):
+                raise GoldEvaluationError(
+                    "P4.2a v2 requires its dedicated dev45/heldout60 scorer; "
+                    "the legacy evaluator is forbidden"
+                )
         if arguments.scope in {
             "heldout-final-v1.1",
             "heldout-final-v1.2",

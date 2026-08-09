@@ -131,6 +131,27 @@ def _v1_8_variant(
     return path
 
 
+def _v2_variant(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    mutate: Callable[[dict[str, Any]], None],
+) -> Path:
+    document = yaml.safe_load(p4_news_eval.EVALUATION_DESIGN_V2_PATH.read_bytes())
+    assert isinstance(document, dict)
+    mutate(document)
+    path = tmp_path / "p4_event_evaluation_v2.yaml"
+    path.write_text(
+        yaml.safe_dump(document, allow_unicode=True, sort_keys=False),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        p4_news_eval,
+        "EXPECTED_EVALUATION_DESIGN_V2_SHA256",
+        hashlib.sha256(path.read_bytes()).hexdigest(),
+    )
+    return path
+
+
 def test_load_event_evaluation_design_verifies_v1_1_contract() -> None:
     design = load_event_evaluation_design()
     artifacts = design.document["artifacts"]
@@ -666,6 +687,290 @@ def test_v1_8_fifteen_scope_lineage_stops_before_v1_5() -> None:
         p4_news_eval.EXPECTED_EVALUATION_DESIGN_V1_5_SHA256,
         p4_news_eval.EXPECTED_EVALUATION_V1_5_SCHEMA_VERSION,
     ) not in accepted
+
+
+def test_v2_preregisters_two_frames_and_retains_frozen_history() -> None:
+    predecessor = load_event_evaluation_design(p4_news_eval.EVALUATION_DESIGN_V1_8_PATH)
+    design = load_event_evaluation_design(p4_news_eval.EVALUATION_DESIGN_V2_PATH)
+
+    assert design.sha256 == p4_news_eval.EXPECTED_EVALUATION_DESIGN_V2_SHA256
+    assert design.document["schema_version"] == (p4_news_eval.EXPECTED_EVALUATION_V2_SCHEMA_VERSION)
+    assert design.ancestor_designs[0].path == predecessor.path
+    assert design.ancestor_designs[0].sha256 == predecessor.sha256
+    assert design.ancestor_designs[0].byte_frozen_scopes == {
+        "historical_v1_7_and_v1_8_design_bytes",
+        "historical_v1_7_and_v1_8_result_bytes",
+        "retired_heldout40_identity",
+        "materiality_precision_threshold",
+        "human_adjudicated_gold_discipline",
+        "drafting_ai_separation_discipline",
+    }
+    assert hashlib.sha256(p4_news_eval.EVALUATION_DESIGN_V1_7_PATH.read_bytes()).hexdigest() == (
+        p4_news_eval.EXPECTED_EVALUATION_DESIGN_V1_7_SHA256
+    )
+    assert hashlib.sha256(p4_news_eval.EVALUATION_DESIGN_V1_8_PATH.read_bytes()).hexdigest() == (
+        p4_news_eval.EXPECTED_EVALUATION_DESIGN_V1_8_SHA256
+    )
+
+    source = design.document["source_candidate_pool"]
+    partition = source["audited_partition_before_retirement"]
+    assert partition["predicted_positive"]["count"] == 894
+    assert partition["predicted_negative"]["count"] == 2097
+    assert partition["extract_failed"] == {
+        "definition": "status != ok and prediction is absent",
+        "count": 22,
+        "sampling_disposition": "excluded_not_negative",
+    }
+
+    development = design.document["frames"]["development_frame_v2"]
+    assert development["sampling_seed"] == ("alphapilot-p4.2a-development-frame-v2-20260809-r1")
+    assert development["strata"]["predicted_positive"] == {
+        "available_after_retirement": 854,
+        "selected_count": 30,
+    }
+    assert development["strata"]["predicted_negative"] == {
+        "available_after_retirement": 2097,
+        "selected_count": 15,
+    }
+    assert development["strata"]["extract_failed"]["selected_count"] == 0
+    assert development["owner_delivery_blindness"] == {
+        "private_manifest_keeps_sampling_stratum": True,
+        "owner_jsonl_omits_sampling_stratum": True,
+        "owner_ui_omits_predictions_and_selection_metadata": True,
+        "owner_order_algorithm": "sha256_rank_without_sampling_stratum_v1",
+        "owner_order_preimage": (
+            "utf8('owner-order-v1') || NUL || ascii(design_sha256) || NUL || "
+            "ascii(news_item_id) || NUL || ascii(input_sha256)"
+        ),
+        "owner_delivery_order_must_not_group_by_sampling_stratum": True,
+    }
+
+    heldout = design.document["frames"]["heldout_frame_v2"]
+    assert heldout["source_window"] == {
+        "timezone": "Asia/Shanghai",
+        "start_inclusive": "2026-08-06T00:00:00+08:00",
+        "end_exclusive": "2026-08-09T00:00:00+08:00",
+    }
+    assert heldout["sampling_seed"] == "alphapilot-p4.2a-heldout-frame-v2-20260809-r1"
+    assert heldout["source_lineage"] == {
+        "required_closed_dates_shanghai": [
+            "2026-08-06",
+            "2026-08-07",
+            "2026-08-08",
+        ],
+        "verified_checkpoint_date_shanghai": "2026-08-08",
+        "migration_job_run_ids": [76932, 76933],
+        "round3_evidence": {
+            "path": (
+                "docs/phase4/reports/P4.1-v2.1-initial-migration-round3-evidence-20260809.json"
+            ),
+            "sha256": ("57f9b99e99358b5e8c596485774702858e5c572cb3116407a279d0195b044318"),
+        },
+        "round3_independent_review": {
+            "path": (
+                "docs/phase4/reports/"
+                "P4.1-v2.1-initial-migration-round3-independent-review-20260809.json"
+            ),
+            "sha256": ("db68d926bd02a273daf88740c93b49bec413ff95160852f1ad1cacbaa82360c5"),
+        },
+        "incremental_evidence": {
+            "path": (
+                "docs/phase4/reports/"
+                "P4.1-v2.1-standard-incremental-validation-evidence-20260809.json"
+            ),
+            "sha256": ("b60946d37ebc687e8f7c7861ede743f5fba98844ba331d0bbfb7c19f4a0de7d7"),
+        },
+        "incremental_independent_review": {
+            "path": (
+                "docs/phase4/reports/"
+                "P4.1-v2.1-incremental-validation-independent-review-20260809.json"
+            ),
+            "sha256": ("c65c909c19bd0914cc8fcb5d098ca4b21454a0db19e223fd807647a92928979a"),
+        },
+        "materialization_manifest_must_bind_each_row_to_this_lineage": True,
+    }
+    assert heldout["strata"]["predicted_positive"]["selected_count"] == 40
+    assert heldout["strata"]["predicted_negative"]["selected_count"] == 20
+    assert heldout["owner_delivery_blindness"] == development["owner_delivery_blindness"]
+    assert heldout["annotation"] == development["annotation"]
+    assert heldout["time_lock"]["requires_independent_owner_review"] is True
+    assert heldout["time_lock"]["requires_synthetic_full_path_rehearsal_passed"] is True
+
+    rounds = design.document["formal_development_rounds"]
+    assert rounds["maximum_rounds"] == 6
+    assert rounds["models_always_measured"] == ["qwen3.7-flash", "qwen3.6-plus"]
+    assert rounds["fixed_model_call_order"] == ["qwen3.7-flash", "qwen3.6-plus"]
+    assert rounds["automatic_retries"] == 0
+    assert rounds["candidate_contract_pair_invariant"]["allowed_differences"] == ["model"]
+
+    metrics = design.document["metrics"]
+    assert metrics["materiality_precision"]["minimum"] == 0.8
+    assert metrics["materiality_precision"]["population_estimate"] == {
+        "development": False,
+        "heldout": True,
+    }
+    assert metrics["materiality_false_omission_rate"]["maximum"] == 0.2
+    assert metrics["materiality_false_omission_rate"]["population_estimate"] == {
+        "development": False,
+        "heldout": True,
+    }
+    assert metrics["materiality_recall"]["value"] is None
+    assert metrics["materiality_recall"]["metric_partition"] == {
+        "legacy": "baseline_predicted_positive_only_structurally_all_predicted_positive",
+        "development": "omitted_in_favor_of_false_omission_rate",
+        "heldout": "omitted_in_favor_of_false_omission_rate",
+    }
+    assert metrics["materiality_recall"]["sampling_frame"] == {
+        "legacy": "legacy_predicted_positive_only_frame",
+        "development": "development_frame_v2_baseline_stratified_30_positive_15_negative",
+        "heldout": "heldout_frame_v2_selected_model_stratified_40_positive_20_negative",
+    }
+    assert metrics["materiality_recall"]["v2_report_policy"] == (
+        "omit_or_emit_null_not_estimable_never_emit_naive_numeric_recall"
+    )
+    assert metrics["symbol_exact_set_accuracy"]["minimum"] == 0.95
+    assert metrics["symbol_exact_set_accuracy"]["population_estimate"] is False
+    assert metrics["symbol_bearing_exact_set_accuracy"]["minimum"] == 0.95
+    assert metrics["symbol_bearing_exact_set_accuracy"]["population_estimate"] is False
+    assert metrics["symbol_gate_scope_resolution"] == {
+        "threshold_and_formula_changed": False,
+        "prior_scope": "all100_mixed_dev_and_heldout_reference",
+        "v2_scope": "heldout60_human_adjudicated_only",
+        "all105_pooling_forbidden": True,
+        "rationale": (
+            "development45_is_a_prompt_tuning_frame_and_may_not_be_pooled_into_a_final_gate"
+        ),
+    }
+    assert metrics["source_pool_weighted_diagnostics"]["gate"] is False
+
+    artifacts = design.document["artifacts"]
+    assert artifacts["development_owner_raw_export_jsonl"]["create_only"] is True
+    assert artifacts["synthetic_rehearsal_pass_receipt"]["create_only"] is True
+    assert artifacts["heldout_inference_state_jsonl"]["zero_retries"] is True
+    assert artifacts["heldout_evaluation_state_jsonl"]["zero_retries"] is True
+    assert all(
+        entry["locked_until_development_review"] is True
+        for name, entry in artifacts.items()
+        if name.startswith("heldout_")
+    )
+
+
+@pytest.mark.parametrize(
+    ("path", "value", "message"),
+    [
+        (("extends_design", "sha256"), "0" * 64, "inheritance"),
+        (
+            (
+                "source_candidate_pool",
+                "audited_partition_before_retirement",
+                "predicted_negative",
+                "count",
+            ),
+            2119,
+            "candidate partition",
+        ),
+        (
+            (
+                "frames",
+                "development_frame_v2",
+                "owner_delivery_blindness",
+                "owner_jsonl_omits_sampling_stratum",
+            ),
+            False,
+            "development frame",
+        ),
+        (
+            (
+                "frames",
+                "development_frame_v2",
+                "owner_delivery_blindness",
+                "owner_order_algorithm",
+            ),
+            "group_by_sampling_stratum",
+            "development frame",
+        ),
+        (
+            ("frames", "heldout_frame_v2", "source_window", "end_exclusive"),
+            "2026-08-10T00:00:00+08:00",
+            "heldout frame",
+        ),
+        (
+            (
+                "frames",
+                "heldout_frame_v2",
+                "source_lineage",
+                "verified_checkpoint_date_shanghai",
+            ),
+            "2026-08-09",
+            "heldout source lineage",
+        ),
+        (
+            ("formal_development_rounds", "fixed_model_call_order"),
+            ["qwen3.6-plus", "qwen3.7-flash"],
+            "formal-round",
+        ),
+        (
+            (
+                "formal_development_rounds",
+                "candidate_contract_pair_invariant",
+                "allowed_differences",
+            ),
+            ["model", "prompt"],
+            "formal-round",
+        ),
+        (("metrics", "materiality_precision", "formula"), "tp / 45", "metric"),
+        (("metrics", "materiality_recall", "value"), 1.0, "metric"),
+        (("metrics", "symbol_exact_set_accuracy", "minimum"), 0.9, "metric"),
+        (
+            ("metrics", "symbol_gate_scope_resolution", "v2_scope"),
+            "all105",
+            "metric",
+        ),
+        (
+            ("artifacts", "development_owner_blind_jsonl", "path"),
+            "docs/phase4/eval/v2-calibration/development/drifted.jsonl",
+            "artifact path",
+        ),
+        (
+            ("artifacts", "development_model_result_files", "allowed_round_numbers"),
+            [1, 2, 3, 4, 5],
+            "round artifact budget",
+        ),
+        (
+            (
+                "artifacts",
+                "heldout_owner_blind_jsonl",
+                "locked_until_development_review",
+            ),
+            False,
+            "heldout artifact",
+        ),
+        (("isolation", "p4_2b_unlocked"), True, "runtime isolation"),
+    ],
+)
+def test_v2_rejects_preregistered_design_drift(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    path: tuple[str, ...],
+    value: object,
+    message: str,
+) -> None:
+    variant = _v2_variant(
+        tmp_path,
+        monkeypatch,
+        lambda document: _set_nested(document, path, value),
+    )
+
+    with pytest.raises(EventEvaluationDesignError, match=message):
+        p4_news_eval._load_v2_event_evaluation_design(
+            variant,
+            project_root=p4_news_eval.PROJECT_ROOT,
+        )
+
+
+def test_legacy_gold_builder_rejects_v2_before_artifact_selection() -> None:
+    with pytest.raises(gold_builder.GoldSampleError, match="dedicated two-stratum builder"):
+        gold_builder.load_evaluation_design(p4_news_eval.EVALUATION_DESIGN_V2_PATH)
 
 
 def test_consumed_v1_7_evaluation_state_bytes_remain_immutable() -> None:

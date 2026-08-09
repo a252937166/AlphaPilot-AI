@@ -16,7 +16,10 @@ from sqlalchemy.orm import Session
 
 from alphapilot.core.config import Settings
 from alphapilot.db.models import LLMCall
-from alphapilot.llm.p4_news_eval import load_event_evaluation_design
+from alphapilot.llm.p4_news_eval import (
+    EVALUATION_DESIGN_V2_PATH,
+    load_event_evaluation_design,
+)
 from alphapilot.llm.p4_news_event import load_event_extract_contract
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -205,6 +208,33 @@ def _fake_candidate_chat(
         "confidence": 0.8,
         "evidence_candidate_id": first[0],
     }
+
+
+def test_legacy_dev_runner_rejects_v2_before_contract_or_artifact_use(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    design = load_event_evaluation_design(EVALUATION_DESIGN_V2_PATH)
+    monkeypatch.setattr(
+        dev_runner.heldout,
+        "_load_active_contract",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            AssertionError("legacy active contract must not load")
+        ),
+    )
+
+    with pytest.raises(
+        dev_runner.DevIterationError,
+        match="dedicated dev45 dual-model runner",
+    ):
+        dev_runner.run_dev_iteration(
+            Path("config/must-not-load.yaml"),
+            "v2-must-not-run",
+            project_root=tmp_path,
+            design=design,
+        )
+
+    assert not any(tmp_path.iterdir())
 
 
 def test_dev_iteration_is_create_only_and_does_not_need_news_items(

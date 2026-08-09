@@ -632,6 +632,10 @@ def main(argv: list[str] | None = None) -> int:
             arguments.evaluation_design.expanduser().resolve(),
             project_root=PROJECT_ROOT,
         )
+        if design.document.get("schema_version") == "p4.2a-evaluation-design-v2":
+            raise AdjudicationUIError(
+                "P4.2a v2 requires its dedicated dev45/heldout60 adjudication UI"
+            )
         expected_sample = gold_builder.evaluation_artifact_path(
             design,
             "heldout_40_blind_sample_jsonl",
