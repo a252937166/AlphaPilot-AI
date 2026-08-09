@@ -1,0 +1,85 @@
+{
+  "schema_version": "p4.2a-independent-review-blocker-v1",
+  "report_id": "p4.2a-dev-final-design-lineage-blocker-20260809-r1",
+  "created_at_utc": "2026-08-09T05:36:41Z",
+  "created_at_shanghai": "2026-08-09T13:36:41+08:00",
+  "verdict": "BLOCKED",
+  "blocked_step": "P4.2a one-shot heldout evaluation (scoring of qwen3.7-flash against the human-adjudicated gold)",
+  "reviewer": {
+    "identity": "independent_ai_architect_claude_code",
+    "reviewer_type": "ai",
+    "model": "Anthropic Claude Fable 5 (model id claude-fable-5)",
+    "impersonation_disclaimer": "Not a human reviewer. Issued under the owner governance amendment with requires_release_gate_amendment=true.",
+    "action_taken": "Recorded evidence and stopped. No self-repair, no contract relaxation, no workaround, no retry of the evaluation, no edit to any frozen design or artifact."
+  },
+  "one_shot_status": {
+    "consumed": false,
+    "evidence": "docs/phase4/eval/P4.2a-heldout-evaluation-one-shot-v1.7.state.jsonl does not exist and docs/phase4/eval/reports/v1.7 contains no report. The evaluator aborted inside validate_dev_final_prediction_freeze, which runs before the one-shot state is written, so the single evaluation attempt remains available.",
+    "side_effect": "An empty directory docs/phase4/eval/reports/v1.7 was created. Git does not track empty directories, so nothing is committed and no create-only report path is occupied."
+  },
+  "preceding_step_succeeded": {
+    "step": "combine-owner, after fix 43ea979",
+    "result": "succeeded on first attempt",
+    "outputs": {
+      "combined_100_annotations_jsonl": {"path": "docs/phase4/eval/P4.2a-gold-annotation100-v1.7.jsonl", "sha256": "ec922eeb3cfcee0ee06b870fda275f14842c324ade2273a3912302f36ab047b4", "row_count": 100},
+      "heldout_40_owner_annotations_jsonl": {"path": "docs/phase4/eval/P4.2a-gold-heldout40-human-adjudicated-v1.7.jsonl", "sha256": "3ff3aeae165a6da1f9b60d873c08489200cadb03f10d1188729aa013854658e5"},
+      "owner_completion_manifest_json": {"path": "docs/phase4/eval/P4.2a-owner-completion-v1.7.manifest.json", "sha256": "770ee8052a7f30a51e0e7cbbb924d498a5c9c2b00682059562abd7a7150f8c75"}
+    },
+    "dev60_not_rewritten": "dev_owner_annotations_sha256 returned d1b9720d...a011d, identical to the frozen input, confirming the artifact-role fix behaves as intended.",
+    "validations_reported": {"blindness_validation_passed": true, "identity_validation_passed": true}
+  },
+  "fix_43ea979_review": {
+    "verdict": "APPROVE",
+    "blockers": 0,
+    "scope": "scripts/build_p4_2a_gold_sample.py and tests only; git diff over config/ between 0caad82 and 43ea979 is empty and config/p4_event_evaluation_v1_7.yaml still hashes to 4c7964ad...bec1",
+    "why_correct": "COMBINE_OWNER_OUTPUT_ARTIFACTS names the three genuine outputs and _combine_owner_output_paths refuses any of them that does not declare create_only true. The dev60 role now follows the design declaration with mutual exclusion enforced in both directions: a create-only dev artifact must not carry a sha256, and an input dev artifact must carry a regex-valid sha256, must be passed at the design-registered path, and must match byte-for-byte. dev60 is excluded from the write set while the manifest still records its real path and digest.",
+    "net_effect": "strictly more validating than before; no adjudication, provenance or metric logic was touched",
+    "quality_gates": {"ruff": "All checks passed", "mypy_strict_src_alphapilot": "no issues found in 157 source files", "pytest_full": "exit 0"},
+    "verdict_authority_note": "The operator again reported an independent APPROVE. An operator self-audit cannot be the independent verdict; this approval was reached by re-reading the diff and re-running the gates."
+  },
+  "defect": {
+    "title": "Design-lineage conflict: a byte-frozen artifact inherited from v1.6 is validated against the v1.7 design SHA",
+    "observed_error": "scripts.build_p4_2a_gold_sample.GoldSampleError: dev-final prediction manifest design_sha256 drifted",
+    "raising_site": "scripts/build_p4_2a_gold_sample.py line 2511, inside validate_dev_final_prediction_freeze, reached from scripts/evaluate_p4_2a_gold.py line 2367",
+    "mechanism": "validate_dev_final_prediction_freeze builds expected_manifest with design_sha256 set to design.sha256, the SHA of the currently loaded design. The dev-final predictions manifest records design_sha256 57e04f99a8ee91b64fe0aa4dc479e95c3de65fd31f04ac6c5879d4f81e5539c9, because those predictions were produced on 2026-08-04 under the v1.6 design. Loaded under v1.7 (SHA 4c7964ad547820f5672631939af93978f11cb9f91e5921087770ac7d0d79bec1) the comparison can never succeed.",
+    "artifacts_involved": {
+      "dev_final_predictions_jsonl": "docs/phase4/eval/P4.2a-dev60-final-predictions-v1.6.jsonl",
+      "dev_final_predictions_manifest_json": "docs/phase4/eval/P4.2a-dev60-final-predictions-v1.6.manifest.json",
+      "manifest_recorded_design_sha256": "57e04f99a8ee91b64fe0aa4dc479e95c3de65fd31f04ac6c5879d4f81e5539c9",
+      "manifest_recorded_contract_sha256": "68474e4bd4fd5c9c88711dd5e102898ad1ed75a0fb984045efbd14e51a6db701",
+      "manifest_row_success_failure": "60 / 60 / 0"
+    },
+    "the_design_already_declares_the_answer": "config/p4_event_evaluation_v1_7.yaml declares extends_design with path config/p4_event_evaluation_v1_6.yaml, sha256 57e04f99...39c9 and schema_version p4.2a-evaluation-design-v1.6, plus an inheritance block marking active_prediction_contract, prompt, model, evaluation_thresholds and related items byte_frozen. The declared ancestor SHA is byte-identical to the value the manifest carries. The design states the lineage correctly; the validator ignores it.",
+    "why_the_value_is_not_available_at_validation_time": "load_evaluation_design resolves and merges the ancestor design and does not retain extends_design in the loaded document; the merged document's top-level keys contain no extends_design entry. The ancestor SHA is therefore known at load time but discarded before validation.",
+    "same_family_as_previous_blocker": "This is the second instance of the same class recorded today. The first was the combine-owner artifact-role conflict; both arise from validators that ignore an artifact's declared role or lineage. Both are latent rather than regressions: under v1.6 the manifest's design SHA equalled the loaded design SHA, so the check passed and the defect only surfaces once the design version advances while the artifact stays byte-frozen.",
+    "not_previously_exercised": "No report exists under docs/phase4/eval/reports for any version, so the heldout evaluation has never run end to end under any design."
+  },
+  "explicitly_refused_actions": [
+    "Editing config/p4_event_evaluation_v1_7.yaml to restate the dev-final design SHA: its SHA 4c7964ad...bec1 is bound to the executed one-shot inference state, the candidate predictions and the heldout selection manifest.",
+    "Editing the dev-final predictions manifest to carry the v1.7 SHA: it is create-only frozen evidence of a completed v1.6 round, and rewriting it would falsify the record of when those predictions were produced.",
+    "Re-running the dev60 final predictions under v1.7 to regenerate a matching manifest: that would spend model calls to manufacture agreement with a validator bug and would break the byte-frozen inheritance the design depends on.",
+    "Passing a different design or scope to make the evaluator proceed.",
+    "Retrying the one-shot evaluation in any form before the defect is fixed and reviewed."
+  ],
+  "recommended_remediation": {
+    "principle": "A byte-frozen artifact inherited from an ancestor design must be validated against the design SHA under which it was frozen, which the design already declares in extends_design, not against the SHA of the design currently loaded.",
+    "proposed_change": "Retain the resolved lineage on FrozenEvaluationDesign (for example an ancestor_design_sha256 chain populated from extends_design during load) and, in validate_dev_final_prediction_freeze, accept manifest design_sha256 when it equals the current design SHA or an ancestor SHA in that declared chain. The acceptance must be conditional on the artifact being declared byte_frozen inherited; an arbitrary mismatch must still fail closed. Codex should check whether any sibling validator computes an expected design_sha256 the same way and fix the class rather than this one call site.",
+    "why_this_is_code_not_design": "The fix lives in scripts/build_p4_2a_gold_sample.py, so the frozen design bytes and SHA are untouched and every binding to the executed one-shot inference is preserved.",
+    "mandatory_conditions": [
+      "Pre-register the fix before use: commit the code change and offline fixture tests first, then run the evaluation once.",
+      "Add a regression test that a manifest carrying an unrelated design SHA still fails closed, so the fix does not degrade into accepting any SHA.",
+      "Do not change any threshold, metric definition, selection rule, prompt, model, prediction contract or evaluation design.",
+      "The combine-owner outputs already produced must not be regenerated or overwritten; they are create-only and their digests are recorded above.",
+      "The heldout evaluation remains one-shot with zero retries and has not yet been consumed."
+    ]
+  },
+  "state_ready_for_evaluation_once_unblocked": {
+    "design": {"path": "config/p4_event_evaluation_v1_7.yaml", "sha256": "4c7964ad547820f5672631939af93978f11cb9f91e5921087770ac7d0d79bec1"},
+    "combined_annotations_sha256": "ec922eeb3cfcee0ee06b870fda275f14842c324ade2273a3912302f36ab047b4",
+    "heldout_adjudicated_export_sha256": "e0a8de7484f1532918286bcc6e96128ab3e71390aa6dc90fe9f49b84407d571e",
+    "heldout_ai_draft_sha256": "c734f3c09928b462d5c25cf9888f265b6825e1f9ab51a6cf452f35b839ad53a5",
+    "invocation_that_aborted": "PYTHONPATH=. python scripts/evaluate_p4_2a_gold.py --scope heldout-final-v1.7 --evaluation-design config/p4_event_evaluation_v1_7.yaml --heldout-adjudicated-export docs/phase4/eval/P4.2a-gold-heldout40-v1.7.adjudicated.jsonl --heldout-ai-draft docs/phase4/eval/P4.2a-gold-heldout40-v1.7.labels-ai-drafted.jsonl --output docs/phase4/eval/reports/v1.7/P4.2a-heldout-final-v1.7-report.json",
+    "note": "The same invocation should succeed once the lineage validation is fixed; no input needs to change."
+  },
+  "next_gate": "Codex fixes the design-lineage validation with pre-registered code plus tests, including a negative test, and submits it for independent review. Once approved, the one-shot heldout evaluation runs exactly once and P4.2a is adjudicated on its result, pass or fail."
+}
