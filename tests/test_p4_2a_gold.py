@@ -23,6 +23,7 @@ from alphapilot.llm.p4_news_eval import (
     EVALUATION_DESIGN_V1_2_PATH,
     EVALUATION_DESIGN_V1_7_PATH,
     EVALUATION_DESIGN_V1_8_PATH,
+    EVALUATION_DESIGN_V2_PATH,
     EvaluationDesignAncestor,
     load_event_evaluation_design,
 )
@@ -943,6 +944,53 @@ def test_cli_returns_exit_2_for_threshold_failure(
         )
         == 2
     )
+
+
+def test_legacy_evaluator_rejects_v2_before_output(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    output = tmp_path / "must-not-exist.json"
+
+    result = evaluator.main(
+        [
+            "--scope",
+            "legacy-v1",
+            "--evaluation-design",
+            str(EVALUATION_DESIGN_V2_PATH),
+            "--output",
+            str(output),
+        ]
+    )
+
+    assert result == 1
+    assert not output.exists()
+    assert "dedicated dev45/heldout60 scorer" in capsys.readouterr().err
+
+
+def test_legacy_inventory_builder_rejects_v2_before_dispatch(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.setattr(
+        builder,
+        "build_inventory_sample",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            AssertionError("legacy inventory builder must not run")
+        ),
+    )
+
+    result = builder.main(
+        [
+            "--mode",
+            "inventory",
+            "--evaluation-design",
+            str(EVALUATION_DESIGN_V2_PATH),
+        ]
+    )
+
+    assert result == 1
+    assert "dedicated two-stratum builder" in capsys.readouterr().err
 
 
 def test_preflight_runner_aggregates_independent_failures_and_blocks_dependents() -> None:

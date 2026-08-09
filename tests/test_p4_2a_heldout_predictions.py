@@ -31,6 +31,7 @@ from alphapilot.llm.p4_news_eval import (
     EVALUATION_DESIGN_V1_4_PATH,
     EVALUATION_DESIGN_V1_5_PATH,
     EVALUATION_DESIGN_V1_7_PATH,
+    EVALUATION_DESIGN_V2_PATH,
     EventEvaluationDesign,
     load_event_evaluation_design,
 )
@@ -43,6 +44,27 @@ from alphapilot.llm.p4_news_event import (
 READY = datetime.fromisoformat("2026-08-06T00:11:00+08:00")
 DEV_COMPLETED = "2026-08-03T00:00:00Z"
 PDF_TEXT = "600519 公司公告披露重大事项，供独立盲标与模型使用。" * 8
+
+
+def test_legacy_heldout_cli_rejects_v2_before_dispatch(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    def forbidden(*_args: object, **_kwargs: object) -> None:
+        raise AssertionError("legacy heldout dispatch must not run")
+
+    for name in (
+        "freeze_prediction_contract",
+        "run_dev_final_predictions",
+        "run_heldout_predictions",
+        "finalize_existing_heldout_run",
+    ):
+        monkeypatch.setattr(runner, name, forbidden)
+
+    result = runner.main(["--evaluation-design", str(EVALUATION_DESIGN_V2_PATH)])
+
+    assert result == 2
+    assert "heldout_safety_gate_failed" in capsys.readouterr().err
 
 
 def test_frozen_design_preserves_typed_ancestor_lineage() -> None:

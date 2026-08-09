@@ -8,6 +8,8 @@ from typing import Any
 import pytest
 from scripts import build_p4_2a_labeling_ui as labeling
 
+from alphapilot.llm.p4_news_eval import EVALUATION_DESIGN_V2_PATH
+
 
 def _sha(value: str) -> str:
     return hashlib.sha256(value.encode("utf-8")).hexdigest()
@@ -273,6 +275,37 @@ def test_cli_is_create_only_and_does_not_overwrite(tmp_path: Path) -> None:
 
     assert labeling.main(["--sample", str(sample), "--output", str(output)]) == 2
     assert output.read_bytes() == first_payload
+
+
+def test_legacy_labeling_ui_rejects_v2_before_render_or_write(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    sample = tmp_path / "missing-sample.jsonl"
+    output = tmp_path / "must-not-exist.html"
+
+    def forbidden(*_args: object, **_kwargs: object) -> None:
+        raise AssertionError("legacy labeling output path must not run")
+
+    monkeypatch.setattr(labeling, "_load_items", forbidden)
+    monkeypatch.setattr(labeling, "_render", forbidden)
+    monkeypatch.setattr(labeling, "_write_create_only", forbidden)
+
+    result = labeling.main(
+        [
+            "--sample",
+            str(sample),
+            "--output",
+            str(output),
+            "--evaluation-design",
+            str(EVALUATION_DESIGN_V2_PATH),
+        ]
+    )
+
+    assert result == 2
+    assert not output.exists()
+    assert "labeling_ui_safety_gate_failed" in capsys.readouterr().err
 
 
 def test_strict_json_rejects_duplicate_keys(tmp_path: Path) -> None:

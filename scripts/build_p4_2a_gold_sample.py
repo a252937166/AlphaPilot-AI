@@ -24,6 +24,7 @@ import yaml
 from jsonschema import Draft202012Validator
 
 from alphapilot.llm.p4_news_eval import (
+    EVALUATION_DESIGN_V2_PATH,
     EvaluationDesignAncestor,
     EventEvaluationDesign,
     EventEvaluationDesignError,
@@ -646,6 +647,11 @@ def load_evaluation_design(
         )
     except (EventEvaluationDesignError, OSError) as exc:
         raise GoldSampleError("P4.2a v1.1 evaluation design is invalid") from exc
+    if design.document.get("schema_version") == "p4.2a-evaluation-design-v2":
+        raise GoldSampleError(
+            "P4.2a v2 requires its dedicated two-stratum builder; "
+            "the legacy inventory/heldout builder is forbidden"
+        )
     return FrozenEvaluationDesign(
         path=design.path,
         sha256=design.sha256,
@@ -5707,6 +5713,11 @@ def _arguments(argv: Sequence[str] | None = None) -> argparse.Namespace:
 def main(argv: Sequence[str] | None = None) -> int:
     arguments = _arguments(argv)
     try:
+        if (
+            arguments.evaluation_design.expanduser().resolve()
+            == EVALUATION_DESIGN_V2_PATH.resolve()
+        ):
+            load_evaluation_design(arguments.evaluation_design)
         if (
             arguments.mode in {"heldout", "combine-owner"}
             and arguments.database is not None

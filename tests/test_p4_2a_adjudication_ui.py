@@ -16,6 +16,7 @@ from scripts import evaluate_p4_2a_gold as evaluator
 from alphapilot.llm.p4_news_eval import (
     EVALUATION_DESIGN_V1_2_PATH,
     EVALUATION_DESIGN_V1_7_PATH,
+    EVALUATION_DESIGN_V2_PATH,
     load_event_evaluation_design,
 )
 
@@ -79,6 +80,37 @@ def _write_jsonl(path: Path, rows: list[dict[str, Any]]) -> None:
         "".join(json.dumps(row, ensure_ascii=False) + "\n" for row in rows),
         encoding="utf-8",
     )
+
+
+def test_legacy_adjudication_ui_rejects_v2_before_input_read_or_write(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    output = tmp_path / "must-not-exist.html"
+
+    def forbidden(*_args: object, **_kwargs: object) -> None:
+        raise AssertionError("legacy adjudication output path must not run")
+
+    monkeypatch.setattr(ui, "_build", forbidden)
+    monkeypatch.setattr(ui, "_render", forbidden)
+
+    result = ui.main(
+        [
+            "--sample",
+            str(tmp_path / "missing-sample.jsonl"),
+            "--draft",
+            str(tmp_path / "missing-draft.jsonl"),
+            "--output",
+            str(output),
+            "--evaluation-design",
+            str(EVALUATION_DESIGN_V2_PATH),
+        ]
+    )
+
+    assert result == 2
+    assert not output.exists()
+    assert "dedicated dev45/heldout60 adjudication UI" in capsys.readouterr().err
 
 
 def test_build_binds_full_blind_and_prefills_validated_draft(tmp_path: Path) -> None:

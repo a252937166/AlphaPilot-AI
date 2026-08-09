@@ -1337,6 +1337,11 @@ def run_dev_iteration(
         DEFAULT_EVALUATION_DESIGN_PATH,
         project_root=root,
     )
+    if active_design.document.get("schema_version") == "p4.2a-evaluation-design-v2":
+        raise DevIterationError(
+            "P4.2a v2 requires its dedicated dev45 dual-model runner; "
+            "the legacy dev60 runner is forbidden"
+        )
     active_contract = heldout._load_active_contract(
         active_design,
         root,

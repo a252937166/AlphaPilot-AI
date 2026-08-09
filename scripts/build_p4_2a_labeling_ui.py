@@ -706,11 +706,6 @@ def main(argv: list[str] | None = None) -> int:
     arguments = parser.parse_args(argv)
 
     try:
-        sample_candidate = arguments.sample.expanduser()
-        if sample_candidate.is_symlink():
-            raise LabelingUIError("sample must not be a symlink")
-        sample_path = sample_candidate.resolve()
-        items = _load_items(sample_path)
         annotation_type: str | None = None
         drafter_id: str | None = None
         if arguments.evaluation_design is not None:
@@ -718,6 +713,10 @@ def main(argv: list[str] | None = None) -> int:
                 arguments.evaluation_design.expanduser().resolve(),
                 project_root=PROJECT_ROOT,
             )
+            if design.document.get("schema_version") == "p4.2a-evaluation-design-v2":
+                raise LabelingUIError(
+                    "P4.2a v2 requires its dedicated dev45/heldout60 labeling UI"
+                )
             provenance = design.document.get("heldout_annotation_provenance")
             if provenance is not None:
                 if not isinstance(provenance, dict):
@@ -742,6 +741,11 @@ def main(argv: list[str] | None = None) -> int:
             raise LabelingUIError(
                 "drafter ID is forbidden without an explicit provenance design"
             )
+        sample_candidate = arguments.sample.expanduser()
+        if sample_candidate.is_symlink():
+            raise LabelingUIError("sample must not be a symlink")
+        sample_path = sample_candidate.resolve()
+        items = _load_items(sample_path)
         output_candidate = (
             arguments.output.expanduser()
             if arguments.output is not None

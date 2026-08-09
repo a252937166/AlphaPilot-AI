@@ -767,7 +767,9 @@ owner 确认该时段为**人为断网、周期性复发**，非代码或上游�
   SHA-256 `c2957297e733a919bdd31c4aa4faafb50c4c4d5c0edac29f663dac03e34a3a8f`，与 state
   terminal 绑定逐字一致。
 - 正式 held-out40：materiality precision `21 / (21 + 19) = 0.525 < 0.80`，为唯一失败门；
-  recall `21 / 21 = 1.00`。symbol exact-set 为 held-out40 `40/40=1.00`、all100
+  历史报告中的 recall `21 / 21 = 1.00` 来自预测阳性抽样框，结构性恒为 `1.00`，因此
+  **不可估计、不是验收证据**；v2 报告必须省略或写 `null/not_estimable`，并以所在预测阴性层的
+  false-omission-rate 取代。symbol exact-set 为 held-out40 `40/40=1.00`、all100
   `97/100=0.97`；all100 symbol-bearing exact-set `74/77=0.9610`，相关 symbol 门均通过。
   独立只读复算得到相同 `TP=21 / FP=19 / TN=0 / FN=0`，结论为
   `APPROVE_RESULT_EVIDENCE`。
