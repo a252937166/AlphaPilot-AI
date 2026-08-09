@@ -1,0 +1,35 @@
+{
+  "annotation_contract_sha256": "b3eb24c63816043edf0ef728d8d9778cd9083d720649d6fff3ae6289bba74300",
+  "blindness_validation_passed": true,
+  "combined_annotations_path": "docs/phase4/eval/P4.2a-gold-annotation100-v1.7.jsonl",
+  "combined_annotations_row_count": 100,
+  "combined_annotations_sha256": "ec922eeb3cfcee0ee06b870fda275f14842c324ade2273a3912302f36ab047b4",
+  "combined_ordered_identity_sha256": "2524c1ad118c891f368ac4610eb9239c762ed97067e0fa1eb25a5b20c4bf2e63",
+  "combined_renumbering_rule": "dev_preserve_1_60_then_heldout_add_60_to_61_100",
+  "completed_at_utc": "2026-08-09T05:06:29.294000Z",
+  "design_sha256": "4c7964ad547820f5672631939af93978f11cb9f91e5921087770ac7d0d79bec1",
+  "dev_blind_sample_path": "docs/phase4/eval/P4.2a-gold-inventory60-v1.jsonl",
+  "dev_blind_sample_sha256": "81b3c0b27cd344fe4c2a735261e501dd2f60a0927c14b2c37e5b2a4879b4a2ba",
+  "dev_completed_count": 60,
+  "dev_owner_annotations_path": "docs/phase4/eval/P4.2a-gold-inventory60-v1.labels-ai-drafted.jsonl",
+  "dev_owner_annotations_row_count": 60,
+  "dev_owner_annotations_sha256": "d1b9720dc06a4ff4989b65d2c1c302f614b0fbc427bedabde4ef87ad606a011d",
+  "heldout_adjudicator_ids": [
+    "ouyang"
+  ],
+  "heldout_annotation_type": "ai_drafted_human_adjudicated",
+  "heldout_blind_sample_path": "docs/phase4/eval/P4.2a-gold-heldout40-blind-sample-v1.7.jsonl",
+  "heldout_blind_sample_sha256": "74fdb229600092a13a0dfa8ba694e71d64548cff2c416ec6a1344a8e6b9fab58",
+  "heldout_completed_count": 40,
+  "heldout_drafter_ids": [
+    "chatgpt_web (OpenAI ChatGPT, 网页版; AI 起草者，非人工)"
+  ],
+  "heldout_human_adjudication_validated": true,
+  "heldout_owner_annotations_path": "docs/phase4/eval/P4.2a-gold-heldout40-human-adjudicated-v1.7.jsonl",
+  "heldout_owner_annotations_row_count": 40,
+  "heldout_owner_annotations_sha256": "3ff3aeae165a6da1f9b60d873c08489200cadb03f10d1188729aa013854658e5",
+  "heldout_selection_manifest_path": "docs/phase4/eval/P4.2a-heldout40-selection-v1.7.manifest.json",
+  "heldout_selection_manifest_sha256": "9da50ea8720b01b58c6d19eb9d7b11705a0c561c61da432543e2ab5644b3abe1",
+  "identity_validation_passed": true,
+  "schema_version": "p4.2a-owner-completion-v1.2"
+}
