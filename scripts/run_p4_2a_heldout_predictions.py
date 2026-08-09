@@ -2430,6 +2430,7 @@ def _frozen_design(design: EventEvaluationDesign) -> FrozenEvaluationDesign:
             sha256=design.base_contract.sha256,
             document=design.base_contract.document,
         ),
+        ancestor_designs=design.ancestor_designs,
     )
 
 

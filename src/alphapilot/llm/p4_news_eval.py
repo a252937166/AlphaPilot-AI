@@ -273,12 +273,23 @@ class EventEvaluationDesignError(ValueError):
 
 
 @dataclass(frozen=True, slots=True)
+class EvaluationDesignAncestor:
+    """One verified parent edge in a byte-frozen evaluation-design lineage."""
+
+    path: Path
+    sha256: str
+    schema_version: str
+    byte_frozen_scopes: frozenset[str]
+
+
+@dataclass(frozen=True, slots=True)
 class EventEvaluationDesign:
     path: Path
     sha256: str
     document: JsonObject
     base_contract: EventExtractContract
     prediction_contract: EventExtractContract
+    ancestor_designs: tuple[EvaluationDesignAncestor, ...] = ()
 
 
 def _sha256_bytes(payload: bytes) -> str:
@@ -317,6 +328,59 @@ def _artifact_path(
     if not resolved.is_relative_to(root):
         raise EventEvaluationDesignError(f"{label} escapes the project root")
     return resolved
+
+
+def _extended_design_lineage(
+    base_design: EventEvaluationDesign,
+    extends: Mapping[str, Any],
+    *,
+    project_root: Path,
+) -> tuple[EvaluationDesignAncestor, ...]:
+    """Retain each already-validated parent edge instead of losing it on merge."""
+
+    declared_path = _artifact_path(
+        project_root,
+        extends.get("path"),
+        label="extends_design.path",
+    )
+    declared_sha256 = extends.get("sha256")
+    declared_schema_version = extends.get("schema_version")
+    inheritance = _mapping(
+        extends.get("inheritance"),
+        "extends_design.inheritance",
+    )
+    if (
+        declared_path != base_design.path
+        or declared_sha256 != base_design.sha256
+        or declared_schema_version
+        != base_design.document.get("schema_version")
+        or not inheritance
+        or any(
+            not isinstance(scope, str)
+            or not scope.strip()
+            or mode != "byte_frozen"
+            for scope, mode in inheritance.items()
+        )
+        or any(
+            ancestor.path == declared_path
+            or ancestor.sha256 == declared_sha256
+            for ancestor in base_design.ancestor_designs
+        )
+    ):
+        raise EventEvaluationDesignError(
+            "P4.2a evaluation-design lineage binding drifted"
+        )
+    assert isinstance(declared_sha256, str)
+    assert isinstance(declared_schema_version, str)
+    return (
+        EvaluationDesignAncestor(
+            path=declared_path,
+            sha256=declared_sha256,
+            schema_version=declared_schema_version,
+            byte_frozen_scopes=frozenset(str(scope) for scope in inheritance),
+        ),
+        *base_design.ancestor_designs,
+    )
 
 
 def _verify_frozen_artifact(
@@ -1321,6 +1385,11 @@ def _load_v1_2_event_evaluation_design(
         document=document,
         base_contract=base_design.base_contract,
         prediction_contract=prediction_contract,
+        ancestor_designs=_extended_design_lineage(
+            base_design,
+            extends,
+            project_root=project_root,
+        ),
     )
 
 
@@ -1633,6 +1702,11 @@ def _load_v1_3_event_evaluation_design(
         document=document,
         base_contract=base_design.base_contract,
         prediction_contract=prediction_contract,
+        ancestor_designs=_extended_design_lineage(
+            base_design,
+            extends,
+            project_root=project_root,
+        ),
     )
 
 
@@ -1998,6 +2072,11 @@ def _load_v1_4_event_evaluation_design(
         document=document,
         base_contract=base_design.base_contract,
         prediction_contract=prediction_contract,
+        ancestor_designs=_extended_design_lineage(
+            base_design,
+            extends,
+            project_root=project_root,
+        ),
     )
 
 
@@ -2428,6 +2507,11 @@ def _load_v1_5_event_evaluation_design(
         document=document,
         base_contract=base_design.base_contract,
         prediction_contract=prediction_contract,
+        ancestor_designs=_extended_design_lineage(
+            base_design,
+            extends,
+            project_root=project_root,
+        ),
     )
 
 
@@ -2765,6 +2849,11 @@ def _load_v1_6_event_evaluation_design(
         document=document,
         base_contract=base_design.base_contract,
         prediction_contract=prediction_contract,
+        ancestor_designs=_extended_design_lineage(
+            base_design,
+            extends,
+            project_root=project_root,
+        ),
     )
 
 
@@ -3055,6 +3144,11 @@ def _load_v1_7_event_evaluation_design(
         document=document,
         base_contract=base_design.base_contract,
         prediction_contract=base_design.prediction_contract,
+        ancestor_designs=_extended_design_lineage(
+            base_design,
+            extends,
+            project_root=project_root,
+        ),
     )
 
 
@@ -3170,6 +3264,7 @@ __all__ = [
     "EXPECTED_OWNER_REQUIRED_FIELDS",
     "EXPECTED_RECEIPT_FIELDS",
     "EXPECTED_REPORT_FIELDS",
+    "EvaluationDesignAncestor",
     "EventEvaluationDesign",
     "EventEvaluationDesignError",
     "load_event_evaluation_design",

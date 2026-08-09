@@ -24,6 +24,7 @@ import yaml
 from jsonschema import Draft202012Validator
 
 from alphapilot.llm.p4_news_eval import (
+    EvaluationDesignAncestor,
     EventEvaluationDesign,
     EventEvaluationDesignError,
     load_event_evaluation_design,
@@ -60,6 +61,12 @@ MODEL_PREDICTION_KEYS = frozenset(
         "model_predictions",
         "model_output",
         "extract_result",
+    }
+)
+PREDICTION_FREEZE_DESIGN_SCOPES = frozenset(
+    {
+        "active_prediction_contract",
+        "prediction_contract_freeze_receipt",
     }
 )
 ANNOTATION_MUTABLE_FIELDS = frozenset(
@@ -230,6 +237,7 @@ class FrozenEvaluationDesign:
     sha256: str
     document: JsonObject
     base_contract: FrozenContract
+    ancestor_designs: tuple[EvaluationDesignAncestor, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -624,6 +632,84 @@ def load_evaluation_design(
         sha256=design.sha256,
         document=design.document,
         base_contract=load_contract(design.base_contract.path),
+        ancestor_designs=design.ancestor_designs,
+    )
+
+
+def byte_frozen_design_identities(
+    design: FrozenEvaluationDesign,
+    *,
+    required_scopes: frozenset[str],
+) -> frozenset[tuple[str, str]]:
+    """Return only current/continuously byte-frozen design identities.
+
+    Ancestors are ordered one parent edge at a time.  Traversal stops at the
+    first edge that does not freeze every requested scope, so a later ancestor
+    can never regain a scope lost on an intermediate design.
+    """
+
+    schema_version = design.document.get("schema_version")
+    if (
+        not required_scopes
+        or any(not isinstance(scope, str) or not scope for scope in required_scopes)
+        or not isinstance(schema_version, str)
+        or not schema_version
+        or SHA256_PATTERN.fullmatch(design.sha256) is None
+    ):
+        raise GoldSampleError("evaluation-design lineage request is invalid")
+    identities: set[tuple[str, str]] = {(design.sha256, schema_version)}
+    for ancestor in design.ancestor_designs:
+        if not required_scopes.issubset(ancestor.byte_frozen_scopes):
+            break
+        identity = (ancestor.sha256, ancestor.schema_version)
+        if (
+            SHA256_PATTERN.fullmatch(ancestor.sha256) is None
+            or not ancestor.schema_version
+            or identity in identities
+        ):
+            raise GoldSampleError("evaluation-design lineage is invalid")
+        identities.add(identity)
+    return frozenset(identities)
+
+
+def design_sha256_is_byte_frozen(
+    design: FrozenEvaluationDesign,
+    actual_sha256: object,
+    *,
+    required_scopes: frozenset[str],
+) -> bool:
+    """Match one design SHA without turning ancestry into a global allow-list."""
+
+    if not isinstance(actual_sha256, str):
+        return False
+    return any(
+        actual_sha256 == sha256
+        for sha256, _schema_version in byte_frozen_design_identities(
+            design,
+            required_scopes=required_scopes,
+        )
+    )
+
+
+def design_identity_is_byte_frozen(
+    design: FrozenEvaluationDesign,
+    *,
+    actual_sha256: object,
+    actual_schema_version: object,
+    required_scopes: frozenset[str],
+) -> bool:
+    """Match a SHA/schema pair from the same verified lineage entry."""
+
+    if not isinstance(actual_sha256, str) or not isinstance(
+        actual_schema_version, str
+    ):
+        return False
+    return (
+        actual_sha256,
+        actual_schema_version,
+    ) in byte_frozen_design_identities(
+        design,
+        required_scopes=required_scopes,
     )
 
 
@@ -1944,8 +2030,12 @@ def load_prediction_contract_freeze_receipt(
     if set(receipt) != set(required):
         raise GoldSampleError("prediction freeze receipt fields drifted")
     if (
-        receipt.get("design_schema_version") != design.document.get("schema_version")
-        or receipt.get("design_sha256") != design.sha256
+        not design_identity_is_byte_frozen(
+            design,
+            actual_sha256=receipt.get("design_sha256"),
+            actual_schema_version=receipt.get("design_schema_version"),
+            required_scopes=PREDICTION_FREEZE_DESIGN_SCOPES,
+        )
         or not isinstance(receipt.get("contract_schema_version"), str)
         or ACTIVE_CONTRACT_SCHEMA.fullmatch(str(receipt.get("contract_schema_version"))) is None
         or receipt.get("model") != freeze.get("required_model")
@@ -2497,7 +2587,6 @@ def validate_dev_final_prediction_freeze(
     ):
         raise GoldSampleError("dev-final prediction manifest fields drifted")
     expected_manifest: dict[str, object] = {
-        "design_sha256": design.sha256,
         "contract_sha256": active_contract.sha256,
         "predictions_path": str(predictions_path.relative_to(root)),
         "predictions_sha256": predictions_sha256,
@@ -2506,6 +2595,12 @@ def validate_dev_final_prediction_freeze(
         "failure_count": failure_count,
         "ordered_identity_sha256": ordered_identity,
     }
+    if not design_sha256_is_byte_frozen(
+        design,
+        manifest.get("design_sha256"),
+        required_scopes=PREDICTION_FREEZE_DESIGN_SCOPES,
+    ):
+        raise GoldSampleError("dev-final prediction manifest design_sha256 drifted")
     for field, expected in expected_manifest.items():
         if manifest.get(field) != expected:
             raise GoldSampleError(f"dev-final prediction manifest {field} drifted")
