@@ -60,6 +60,12 @@ ROUND3_PROMPT_PATH = Path("config/prompts/p4_news_event_extract_v2-r3.txt")
 ROUND3_PROMPT_SHA256 = "0291dc882aac42878ba00c4ed3970da72f19508308cd39211467b4fd92294f44"
 SELECTION_OUTCOME_SHA256 = "36b5a004b294f012b4ab1dab659d1b3d5d98320d794ad2fe90960a617f554da1"
 SELECTED_FREEZE_SHA256 = "0ebc5362055af7ef6409155befc5e09d345cd4f2d8d128ea0791a0c293f66f75"
+REHEARSAL_V1_INCIDENT_PATH = Path(
+    "docs/phase4/reports/P4.2a-v2-heldout-rehearsal-v1-incident-20260810.json"
+)
+REHEARSAL_V1_INCIDENT_SHA256 = (
+    "c3224b288f5181131351ae711a673ce94ec603375925d0cc968cef85d103e785"
+)
 
 FRAME_ID = "p4.2a-heldout-frame-v2"
 MODEL = "qwen3.6-plus"
@@ -1556,7 +1562,34 @@ def _window_rows(binding: HeldoutBinding, database: Path) -> list[gold_builder.N
     return [row for row in rows if row.news_item_id not in binding.retired_ids]
 
 
+def _reject_retired_rehearsal_v1(binding: HeldoutBinding) -> None:
+    incident_path = binding.root / REHEARSAL_V1_INCIDENT_PATH
+    incident_reference = (
+        f"incident={REHEARSAL_V1_INCIDENT_PATH.as_posix()} "
+        f"incident_sha256={REHEARSAL_V1_INCIDENT_SHA256}"
+    )
+    if (
+        incident_path.is_symlink()
+        or not incident_path.is_file()
+        or common.sha256_file(incident_path) != REHEARSAL_V1_INCIDENT_SHA256
+    ):
+        raise HeldoutPreparationError(
+            "rehearsal v1 is permanently retired and its incident binding is unavailable "
+            f"or drifted; {incident_reference}"
+        )
+    raise HeldoutPreparationError(
+        "rehearsal v1 is permanently retired and cannot unlock materialization; "
+        f"{incident_reference}"
+    )
+
+
 def _validate_full_path_rehearsal_gate(binding: HeldoutBinding) -> JsonObject:
+    # The v1 receipt is immutable historical evidence, but B1/B2 make it
+    # permanently ineligible to unlock a real database or network boundary.
+    # Keep its former validator below for forensic readability only; this
+    # unconditional incident-bound guard must remain first until a separately
+    # preregistered replacement schema is implemented.
+    _reject_retired_rehearsal_v1(binding)
     directory = binding.artifacts["synthetic_rehearsal"]
     receipt_path = directory / "pass-receipt.json"
     expected_names = FULL_REHEARSAL_PUBLISHED_ARTIFACTS | {receipt_path.name}

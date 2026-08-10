@@ -8,7 +8,7 @@ import stat
 from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
-from typing import Any
+from typing import Any, NoReturn
 
 import pytest
 from scripts import p4_2a_v2_dev_common as common
@@ -24,6 +24,13 @@ def _temporary_binding(tmp_path: Path) -> runner.HeldoutBinding:
         name: tmp_path / path.relative_to(source.root) for name, path in source.artifacts.items()
     }
     return replace(source, root=tmp_path, artifacts=artifacts)
+
+
+def _install_v1_incident(binding: runner.HeldoutBinding) -> None:
+    source = runner.PROJECT_ROOT / runner.REHEARSAL_V1_INCIDENT_PATH
+    destination = binding.root / runner.REHEARSAL_V1_INCIDENT_PATH
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    destination.write_bytes(source.read_bytes())
 
 
 def test_strict_loader_binds_actual_preregistration_and_round3_contract() -> None:
@@ -97,6 +104,10 @@ def test_synthetic_rehearsal_is_create_only_and_never_reads_production(
     with pytest.raises(FileExistsError, match="refusing to overwrite"):
         runner.run_synthetic_rehearsal(binding)
 
+    _install_v1_incident(binding)
+    with pytest.raises(runner.HeldoutPreparationError, match="permanently retired"):
+        runner.run_materialize(binding, database=tmp_path / "must-not-open.db")
+
 
 def test_select_blind_uses_40_20_and_hides_sampling_metadata(tmp_path: Path) -> None:
     binding = _temporary_binding(tmp_path)
@@ -152,6 +163,7 @@ def test_materialization_rejects_minimal_fake_pass_receipt_before_database_read(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     binding = _temporary_binding(tmp_path)
+    _install_v1_incident(binding)
     directory = binding.artifacts["synthetic_rehearsal"]
     directory.mkdir(parents=True)
     (directory / "contract.json").write_text("{}\n", encoding="utf-8")
@@ -160,8 +172,10 @@ def test_materialization_rejects_minimal_fake_pass_receipt_before_database_read(
     (directory / "pass-receipt.json").write_text(
         json.dumps(
             {
+                "schema_version": runner.FULL_REHEARSAL_RECEIPT_SCHEMA,
                 "status": "passed",
                 "full_path_covered": True,
+                "materialization_gate_unlock": True,
                 "preregistration_sha256": runner.PREREGISTRATION_SHA256,
             }
         ),
@@ -175,9 +189,61 @@ def test_materialization_rejects_minimal_fake_pass_receipt_before_database_read(
         raise AssertionError("database must not be read for a fake receipt")
 
     monkeypatch.setattr(runner, "_window_rows", forbidden_window)
-    with pytest.raises(runner.HeldoutPreparationError, match="schema drifted"):
+    with pytest.raises(runner.HeldoutPreparationError, match="permanently retired") as error:
         runner.run_materialize(binding, database=tmp_path / "must-not-open.db")
     assert database_read is False
+    assert runner.REHEARSAL_V1_INCIDENT_PATH.as_posix() in str(error.value)
+    assert runner.REHEARSAL_V1_INCIDENT_SHA256 in str(error.value)
+
+
+def test_current_v1_rehearsal_is_rejected_before_database_read_and_unchanged(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    binding = runner.load_binding()
+    directory = binding.artifacts["synthetic_rehearsal"]
+    expected_hashes = {
+        "contract.json": "61ff631b0dc025bf7441fd3bd04636d0d6d34e5085b0ca570e6f8e2fcfd298ac",
+        "inputs.jsonl": "a6c5e6e0da6341cecf01df038b36964af6d8bb433b72babf953b385addc87707",
+        "expected.json": "557433d6ebdd6e3585aad18c6204e28c1cae6417ab3b1b3591474c5f0189b9ac",
+        "pass-receipt.json": "2610a8b3885426e44a7f32c1d964defcaa46a118bb531a2ecc9b0f3aefa1e0f5",
+    }
+    assert {
+        name: common.sha256_file(directory / name) for name in expected_hashes
+    } == expected_hashes
+    database_reads = 0
+    network_calls = 0
+
+    def forbidden_window(*_args: object, **_kwargs: object) -> list[object]:
+        nonlocal database_reads
+        database_reads += 1
+        raise AssertionError("database must not be read for the retired v1 receipt")
+
+    def forbidden_pdf_fetch(*_args: object, **_kwargs: object) -> bytes:
+        nonlocal network_calls
+        network_calls += 1
+        raise AssertionError("network must not be used for the retired v1 receipt")
+
+    def forbidden_pdf_extract(*_args: object, **_kwargs: object) -> NoReturn:
+        nonlocal network_calls
+        network_calls += 1
+        raise AssertionError("PDF extraction must not run for the retired v1 receipt")
+
+    monkeypatch.setattr(runner, "_window_rows", forbidden_window)
+    with pytest.raises(runner.HeldoutPreparationError, match="permanently retired") as error:
+        runner.run_materialize(
+            binding,
+            database=Path("does-not-exist.db"),
+            pdf_fetcher=forbidden_pdf_fetch,
+            pdf_text_extractor=forbidden_pdf_extract,
+        )
+
+    assert database_reads == 0
+    assert network_calls == 0
+    assert runner.REHEARSAL_V1_INCIDENT_PATH.as_posix() in str(error.value)
+    assert runner.REHEARSAL_V1_INCIDENT_SHA256 in str(error.value)
+    assert {
+        name: common.sha256_file(directory / name) for name in expected_hashes
+    } == expected_hashes
 
 
 def _create_news_database(path: Path) -> None:
