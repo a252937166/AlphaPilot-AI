@@ -1,0 +1,114 @@
+schema_version: p4.2a-evaluation-design-v1.7
+owner_spec_commit: 3e21bff982156ef973c2e5badfe39b06d9596237
+pre_registered_at: "2026-08-06T08:00:00Z"
+production_writes_allowed: false
+artifact_root: docs/phase4/eval
+
+extends_design:
+  path: config/p4_event_evaluation_v1_6.yaml
+  sha256: 57e04f99a8ee91b64fe0aa4dc479e95c3de65fd31f04ac6c5879d4f81e5539c9
+  schema_version: p4.2a-evaluation-design-v1.6
+  inheritance:
+    active_prediction_contract: byte_frozen
+    prediction_contract_freeze_receipt: byte_frozen
+    model_selection_outcome: byte_frozen
+    heldout_candidate_window: byte_frozen
+    heldout_selection_seed: byte_frozen
+    heldout_selected_count: byte_frozen
+    evaluation_thresholds: byte_frozen
+    dev_annotation_bytes: byte_frozen
+    heldout_annotation_provenance: byte_frozen
+    prompt: byte_frozen
+    model: byte_frozen
+    model_result_schema: byte_frozen
+    materialized_result_schema: byte_frozen
+    candidate_slicing: byte_frozen
+    llm_parameters: byte_frozen
+
+candidate_eligibility:
+  schema_version: p4.2a-heldout-candidate-eligibility-v1
+  deterministic_document_ineligible_reasons:
+    - pdf_text_below_min_char_gate
+    - pdf_exceeds_size_bound
+  minimum_extracted_characters: 80
+  max_pdf_bytes: 8388608
+  transient_download_failures_fail_closed: true
+  sample_only_from_eligible_pool: true
+  insufficient_stratum_policy: fail_without_substitution
+
+materialization_rounds:
+  failed_origin:
+    round_id: heldout-v1.6-r1
+    status: materialization_failed_no_inference
+    record:
+      path: docs/phase4/eval/P4.2a-heldout-materialization-failure-v1.6-r1.json
+      sha256: e14650690f3a1efbe6b455cc0a2d043c08c296ff88433cf14395f40f001ea6db
+    inference_started: false
+    model_calls: 0
+  authorized_successor:
+    round_id: heldout-v1.7-r1
+    exactly_one_one_shot: true
+    predecessor_must_remain_failed: true
+    model: qwen3.7-flash
+    prediction_contract:
+      path: config/p4_event_extract_eval_v1_7.yaml
+      sha256: 68474e4bd4fd5c9c88711dd5e102898ad1ed75a0fb984045efbd14e51a6db701
+    prompt:
+      path: config/prompts/p4_news_event_extract_v1_5.txt
+      sha256: 4b44ed5efe281b68664b415865b758b75b30ace6eda2617952de66a87596c204
+    freeze_receipt:
+      path: docs/phase4/eval/P4.2a-heldout-prediction-contract-freeze-v1.6.json
+      sha256: 1b2aae88d075dbe1d93660b76f9463f35157f7dbd00a6dc7f73d61370b4231a1
+    model_selection_outcome:
+      path: docs/phase4/eval/P4.2a-model-selection-v1.7.json
+      sha256: 38f20f4eebe4da1da48fa14d3b09bb2a042d27eed5efc4a533a63718659059e0
+    automatic_retries: 0
+    failed_candidate_retries: 0
+    candidate_order: frozen_database_id_ascending
+
+artifact_overrides:
+  heldout_candidate_inputs_jsonl:
+    path: docs/phase4/eval/P4.2a-heldout-materialization-v1.7/candidate-inputs.jsonl
+    create_only: true
+  heldout_candidate_materialization_manifest_json:
+    path: docs/phase4/eval/P4.2a-heldout-materialization-v1.7/manifest.json
+    create_only: true
+  heldout_candidate_predictions_jsonl:
+    path: docs/phase4/eval/P4.2a-heldout-candidate-predictions-v1.7.jsonl
+    create_only: true
+  heldout_candidate_predictions_manifest_json:
+    path: docs/phase4/eval/P4.2a-heldout-candidate-predictions-v1.7.manifest.json
+    create_only: true
+  heldout_inference_state_jsonl:
+    path: docs/phase4/eval/P4.2a-heldout-inference-one-shot-v1.7.state.jsonl
+    create_only: true
+  heldout_selection_manifest_json:
+    path: docs/phase4/eval/P4.2a-heldout40-selection-v1.7.manifest.json
+    create_only: true
+  heldout_evaluation_state_jsonl:
+    path: docs/phase4/eval/P4.2a-heldout-evaluation-one-shot-v1.7.state.jsonl
+    create_only: true
+  heldout_40_blind_sample_jsonl:
+    path: docs/phase4/eval/P4.2a-gold-heldout40-blind-sample-v1.7.jsonl
+    create_only: true
+  heldout_40_owner_annotations_jsonl:
+    path: docs/phase4/eval/P4.2a-gold-heldout40-human-adjudicated-v1.7.jsonl
+    create_only: true
+  combined_100_annotations_jsonl:
+    path: docs/phase4/eval/P4.2a-gold-annotation100-v1.7.jsonl
+    create_only: true
+  owner_completion_manifest_json:
+    path: docs/phase4/eval/P4.2a-owner-completion-v1.7.manifest.json
+    create_only: true
+  evaluation_report_directory:
+    path: docs/phase4/eval/reports/v1.7
+    create_only_reports: true
+    append_only_failed_rounds: true
+
+isolation:
+  p4_1_files_must_remain_unchanged: true
+  p4_2b_unlocked: false
+  production_database_mode: read_only_query_only
+  production_writes_allowed: false
+  scheduler_changes_allowed: false
+  proposals_or_orders_allowed: false

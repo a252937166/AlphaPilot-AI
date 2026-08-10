@@ -1,0 +1,174 @@
+schema_version: p4.2a-evaluation-design-v1.4
+owner_spec_commit: c7510e75bd5a5fb2ad8f1d4f2409f4e0e67db359
+pre_registered_at: "2026-08-04T10:46:40Z"
+production_writes_allowed: false
+artifact_root: docs/phase4/eval
+
+extends_design:
+  path: config/p4_event_evaluation_v1_3.yaml
+  sha256: 79b58de72d797ee9a9e93ec0f37d5f1c1b0b0d86ca49db1736ecdb5cdc314aac
+  schema_version: p4.2a-evaluation-design-v1.3
+  inheritance:
+    sample_identity: byte_frozen
+    heldout_candidate_window: byte_frozen
+    heldout_selection_seed: byte_frozen
+    evaluation_thresholds: byte_frozen
+    dev_annotation_bytes: byte_frozen
+    heldout_annotation_provenance: byte_frozen
+    historical_v1_3_evidence: byte_frozen
+
+active_prediction_contract:
+  path: config/p4_event_extract_eval_v1_5.yaml
+  sha256: a07f9f37e0877bd06ce3dc9e8a0e03c51bbb92fdc3ba6738b6932d7679aca560
+  schema_version: p4.2a-event-extract-eval-v1.5
+  model: qwen3.6-plus
+  endpoint: https://dashscope.aliyuncs.com/compatible-mode/v1
+  prompt:
+    path: config/prompts/p4_news_event_extract_v1_4.txt
+    sha256: ff42e6905e009e8a7a3a0ae7b7fedce043cbf73f55f3551cf76bbfdcfef33f2b
+  result_schema:
+    path: config/schemas/p4_news_event_v1.schema.json
+    sha256: 0ac68654ce23ecd4e537d849d695e092c76dcb9de0fb03793e65ae62b181947f
+  taxonomy_version: p4-news-event-taxonomy-v1
+  evidence_span_match_mode: unicode_whitespace_elided_contiguous_substring_v1
+  explicit_cache:
+    enabled: false
+    cache_control: null
+
+artifact_overrides:
+  dev_final_predictions_jsonl:
+    path: docs/phase4/eval/P4.2a-dev60-final-predictions-v1.4.jsonl
+    create_only: true
+  dev_final_predictions_manifest_json:
+    path: docs/phase4/eval/P4.2a-dev60-final-predictions-v1.4.manifest.json
+    create_only: true
+  prediction_contract_freeze_receipt_json:
+    path: docs/phase4/eval/P4.2a-heldout-prediction-contract-freeze-v1.4.json
+    create_only: true
+  heldout_candidate_inputs_jsonl:
+    path: docs/phase4/eval/P4.2a-heldout-candidate-inputs-v1.4.jsonl
+    create_only: true
+  heldout_candidate_predictions_jsonl:
+    path: docs/phase4/eval/P4.2a-heldout-candidate-predictions-v1.4.jsonl
+    create_only: true
+  heldout_candidate_predictions_manifest_json:
+    path: docs/phase4/eval/P4.2a-heldout-candidate-predictions-v1.4.manifest.json
+    create_only: true
+  heldout_inference_state_jsonl:
+    path: docs/phase4/eval/P4.2a-heldout-inference-one-shot-v1.4.state.jsonl
+    create_only: true
+  heldout_selection_manifest_json:
+    path: docs/phase4/eval/P4.2a-heldout40-selection-v1.4.manifest.json
+    create_only: true
+  heldout_evaluation_state_jsonl:
+    path: docs/phase4/eval/P4.2a-heldout-evaluation-one-shot-v1.4.state.jsonl
+    create_only: true
+  heldout_40_blind_sample_jsonl:
+    path: docs/phase4/eval/P4.2a-gold-heldout40-blind-sample-v1.4.jsonl
+    create_only: true
+  heldout_40_owner_annotations_jsonl:
+    path: docs/phase4/eval/P4.2a-gold-heldout40-human-adjudicated-v1.4.jsonl
+    create_only: true
+  combined_100_annotations_jsonl:
+    path: docs/phase4/eval/P4.2a-gold-annotation100-v1.4.jsonl
+    create_only: true
+  owner_completion_manifest_json:
+    path: docs/phase4/eval/P4.2a-owner-completion-v1.4.manifest.json
+    create_only: true
+  evaluation_report_directory:
+    path: docs/phase4/eval/reports/v1.4
+    create_only_reports: true
+    append_only_failed_rounds: true
+
+prediction_contract_freeze:
+  required_contract_artifact: active_prediction_contract
+  required_model: qwen3.6-plus
+  required_endpoint: https://dashscope.aliyuncs.com/compatible-mode/v1
+  required_prompt_sha256: ff42e6905e009e8a7a3a0ae7b7fedce043cbf73f55f3551cf76bbfdcfef33f2b
+  required_result_schema_sha256: 0ac68654ce23ecd4e537d849d695e092c76dcb9de0fb03793e65ae62b181947f
+  required_taxonomy_version: p4-news-event-taxonomy-v1
+  required_explicit_cache_enabled: false
+  required_evidence_span_match_mode: unicode_whitespace_elided_contiguous_substring_v1
+
+derived_after_failed_round:
+  round_id: v1.4-r1
+  historical_round_immutable: true
+  formal_dev_round_valid: false
+  heldout_accessed: false
+  active_contract:
+    path: config/p4_event_extract_eval_v1_4.yaml
+    sha256: e6d3e7db08e2d226c850092f0f794d7194eaf1935a56cbfe267a86e1297f37fc
+  evaluation_design:
+    path: config/p4_event_evaluation_v1_3.yaml
+    sha256: 79b58de72d797ee9a9e93ec0f37d5f1c1b0b0d86ca49db1736ecdb5cdc314aac
+  prompt:
+    path: config/prompts/p4_news_event_extract_v1_3.txt
+    sha256: 6110b39381789d9c2d2f6442e517c2b89a8a474a8f97c6a037a32f26f629aeee
+  artifacts:
+    predictions:
+      path: docs/phase4/eval/dev-iterations/P4.2a-dev60-v1.4-r1.predictions.jsonl
+      sha256: 5aaa4deded34dc858bc7e90b4db5dc2b2cf656f4d4dd673e5a9980d3152257b2
+    manifest:
+      path: docs/phase4/eval/dev-iterations/P4.2a-dev60-v1.4-r1.manifest.json
+      sha256: fa56b4f167530c7da1d0887f0163b13aa69b0a73de8e48a75cc6335cbbb1904a
+    report:
+      path: docs/phase4/eval/dev-iterations/P4.2a-dev60-v1.4-r1.report.json
+      sha256: 5cf0722fb8851122720ea59c53cb355be9095f1b2a4d1658b827cf48a2dbf969
+    blocker:
+      path: docs/phase4/eval/dev-iterations/P4.2a-dev60-v1.4-r1.blocker.json
+      sha256: 3d0038515e208bca37e096b280ec411da2086addd8696d2ee6e8afa36fad00f9
+  extraction:
+    expected_count: 60
+    success_count: 54
+    failure_count: 6
+    failure_ids: [253, 258, 280, 304, 336, 340]
+    failures_by_reason:
+      post_validation_failed: 5
+      schema_validation_failed: 1
+    post_validation:
+      field: evidence_span
+      constraint: whitespace_normalized_contiguous_substring
+      failure_ids: [253, 258, 304, 336, 340]
+      root_cause: unadjudicated_from_safe_artifacts
+    schema_validation:
+      failure_ids: [280]
+      root_cause: unproven
+    legacy_exact_shadow:
+      comparable_count: 54
+      match_count: 45
+      mismatch_count: 9
+      mismatch_ids: [250, 255, 260, 274, 287, 306, 352, 358, 360]
+  metrics:
+    materiality_positive_agreement: 0.8461538461538461
+    symbol_exact_set:
+      matches: 49
+      denominator: 54
+      agreement: 0.9074074074074074
+      mismatch_ids: [28, 44, 67, 71, 96]
+    symbol_adjudication:
+      ai_label_defect_ids: [44]
+      current_model_under_attribution_ids: [28, 67, 71, 96]
+      historical_v1_3_over_attribution_ids_now_correct: [75, 210, 232, 393]
+  report_integrity_disclosure:
+    immutable_report_preserved: true
+    flash_baseline_changed_dimensions_omitted:
+      - evidence_span_match_mode
+      - validation_contract
+    baseline_comparable_count: 59
+    candidate_comparable_count: 54
+    causal_reading_forbidden: true
+
+evaluation:
+  required_report_fields_append:
+    - evidence_validation.v1_4_r1_actual
+    - evidence_validation.v1_5_actual
+    - evidence_validation.v1_5_legacy_exact_shadow
+    - symbol_diagnostics.v1_4_r1_actual
+
+isolation:
+  p4_1_files_must_remain_unchanged: true
+  p4_2b_unlocked: false
+  production_database_mode: read_only_query_only
+  production_writes_allowed: false
+  scheduler_changes_allowed: false
+  proposals_or_orders_allowed: false

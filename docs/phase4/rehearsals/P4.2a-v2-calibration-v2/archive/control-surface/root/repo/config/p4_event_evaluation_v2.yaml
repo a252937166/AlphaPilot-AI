@@ -1,0 +1,497 @@
+schema_version: p4.2a-evaluation-design-v2
+owner_spec_commit: a389ad850386738aca2c0c3ef662103bb0237172
+pre_registered_at: "2026-08-09T12:25:58Z"
+production_writes_allowed: false
+artifact_root: docs/phase4/eval/v2-calibration
+
+preregistration:
+  path: docs/phase4/reports/P4.2a-v2-calibration-round-preregistration-20260809.json
+  sha256: 493114c980993bef987883975ccebeb1e970478123f5d3757fa9692721731fcb
+  clarification_path: docs/phase4/reports/P4.2a-v2-calibration-design-clarifications-20260809.json
+  clarification_sha256: 933d749f5debb97da1793c0ea134d537ac94e485969370d6522e803faeb1a9b7
+  no_sample_prompt_or_model_call_before_commit: true
+
+extends_design:
+  path: config/p4_event_evaluation_v1_8.yaml
+  sha256: bb36b9713cbf70fa5293683e767655b70720a2baa9e8822bc0396c4e6284452e
+  schema_version: p4.2a-evaluation-design-v1.8
+  inheritance:
+    historical_v1_7_and_v1_8_design_bytes: byte_frozen
+    historical_v1_7_and_v1_8_result_bytes: byte_frozen
+    retired_heldout40_identity: byte_frozen
+    materiality_precision_threshold: byte_frozen
+    human_adjudicated_gold_discipline: byte_frozen
+    drafting_ai_separation_discipline: byte_frozen
+
+frozen_history:
+  v1_7_evaluation_state:
+    path: docs/phase4/eval/P4.2a-heldout-evaluation-one-shot-v1.7.state.jsonl
+    sha256: ba1eef1517fa30c37a7fcba5b171405cf537c84dbbbb70cec57f542842fdc0ff
+  v1_8_evaluation_state:
+    path: docs/phase4/eval/P4.2a-heldout-evaluation-one-shot-v1.8-replacement.state.jsonl
+    sha256: c4ac90fc0d8779a78920cf9e93d9fc80aa1a8c7271bf5f5e245edb198a4da6b9
+  v1_8_evaluation_report:
+    path: docs/phase4/eval/reports/v1.8-replacement/P4.2a-heldout-evaluation-v1.8-replacement.json
+    sha256: c2957297e733a919bdd31c4aa4faafb50c4c4d5c0edac29f663dac03e34a3a8f
+  v1_8_result_record:
+    path: docs/phase4/reports/P4.2a-v1.8-replacement-result-20260809.json
+    sha256: 8ff80fb12306808e66c6f074562a1c3774949b673dbf54184b6c8975e02211d5
+  retired_heldout40_selection:
+    path: docs/phase4/eval/P4.2a-heldout40-selection-v1.7.manifest.json
+    sha256: 9da50ea8720b01b58c6d19eb9d7b11705a0c561c61da432543e2ab5644b3abe1
+    selected_count: 40
+    sorted_ids_compact_json_sha256: 014dccb72bec70b565e6ff5b65696ae1f005fcc339fd9a8b1b6d2068181a0f22
+    permanently_retired: true
+
+source_candidate_pool:
+  window_shanghai: "2026-08-04 through 2026-08-05"
+  candidate_inputs:
+    path: docs/phase4/eval/P4.2a-heldout-materialization-v1.7/candidate-inputs.jsonl
+    sha256: e550435b77c4525fb05717cf6d1c313448b9b7323b2e496f0450484a3a980f88
+    row_count: 3013
+  candidate_input_manifest:
+    path: docs/phase4/eval/P4.2a-heldout-materialization-v1.7/manifest.json
+    sha256: 3808852cceecbbd384109d36a595d1704197bcaf5344f94530b5b65a5aaa7d6b
+  baseline_predictions:
+    path: docs/phase4/eval/P4.2a-heldout-candidate-predictions-v1.7.jsonl
+    sha256: b77429b16e92ddd74895915c5c628026f8a426a54f2bf006c59606c4c18bcc84
+    manifest_path: docs/phase4/eval/P4.2a-heldout-candidate-predictions-v1.7.manifest.json
+    manifest_sha256: c1c37af1e6ab310f9f263fb04370f5515c491b826a54babdbe4eab721a288d7a
+    model: qwen3.7-flash
+    total_rows: 3013
+    status_ok_rows: 2991
+  audited_partition_before_retirement:
+    predicted_positive:
+      definition: status == ok and prediction.materiality >= 2
+      count: 894
+    predicted_negative:
+      definition: status == ok and prediction.materiality < 2
+      count: 2097
+    extract_failed:
+      definition: status != ok and prediction is absent
+      count: 22
+      sampling_disposition: excluded_not_negative
+
+frames:
+  development_frame_v2:
+    frame_id: p4.2a-development-frame-v2
+    purpose: prompt_calibration_only_not_phase_acceptance
+    source: source_candidate_pool
+    sampling_algorithm: sha256_rank_without_replacement_per_stratum_v1
+    sampling_seed: alphapilot-p4.2a-development-frame-v2-20260809-r1
+    rank_preimage: "utf8(seed) || NUL || utf8(stratum) || NUL || ascii(news_item_id) || NUL || ascii(input_sha256)"
+    retired_id_policy: exclude_before_ranking_and_assert_zero_intersection
+    strata:
+      predicted_positive:
+        available_after_retirement: 854
+        selected_count: 30
+      predicted_negative:
+        available_after_retirement: 2097
+        selected_count: 15
+      extract_failed:
+        available: 22
+        selected_count: 0
+    total_selected_count: 45
+    owner_delivery_blindness:
+      private_manifest_keeps_sampling_stratum: true
+      owner_jsonl_omits_sampling_stratum: true
+      owner_ui_omits_predictions_and_selection_metadata: true
+      owner_order_algorithm: sha256_rank_without_sampling_stratum_v1
+      owner_order_preimage: "utf8('owner-order-v1') || NUL || ascii(design_sha256) || NUL || ascii(news_item_id) || NUL || ascii(input_sha256)"
+      owner_delivery_order_must_not_group_by_sampling_stratum: true
+    annotation:
+      type: ai_drafted_human_adjudicated
+      drafting_ai_must_not_be_evaluated_model: true
+      adjudicator_role: owner_human
+      gold_is_final_only_after_human_adjudication: true
+    prompt_iteration_allowed: true
+  heldout_frame_v2:
+    frame_id: p4.2a-heldout-frame-v2
+    purpose: one_shot_verdict
+    source_window:
+      timezone: Asia/Shanghai
+      start_inclusive: "2026-08-06T00:00:00+08:00"
+      end_exclusive: "2026-08-09T00:00:00+08:00"
+    source_lineage:
+      required_closed_dates_shanghai: ["2026-08-06", "2026-08-07", "2026-08-08"]
+      verified_checkpoint_date_shanghai: "2026-08-08"
+      migration_job_run_ids: [76932, 76933]
+      round3_evidence:
+        path: docs/phase4/reports/P4.1-v2.1-initial-migration-round3-evidence-20260809.json
+        sha256: 57f9b99e99358b5e8c596485774702858e5c572cb3116407a279d0195b044318
+      round3_independent_review:
+        path: docs/phase4/reports/P4.1-v2.1-initial-migration-round3-independent-review-20260809.json
+        sha256: db68d926bd02a273daf88740c93b49bec413ff95160852f1ad1cacbaa82360c5
+      incremental_evidence:
+        path: docs/phase4/reports/P4.1-v2.1-standard-incremental-validation-evidence-20260809.json
+        sha256: b60946d37ebc687e8f7c7861ede743f5fba98844ba331d0bbfb7c19f4a0de7d7
+      incremental_independent_review:
+        path: docs/phase4/reports/P4.1-v2.1-incremental-validation-independent-review-20260809.json
+        sha256: c65c909c19bd0914cc8fcb5d098ca4b21454a0db19e223fd807647a92928979a
+      materialization_manifest_must_bind_each_row_to_this_lineage: true
+    sampling_algorithm: sha256_rank_without_replacement_per_stratum_v1
+    sampling_seed: alphapilot-p4.2a-heldout-frame-v2-20260809-r1
+    rank_preimage: "utf8(seed) || NUL || utf8(stratum) || NUL || ascii(news_item_id) || NUL || ascii(input_sha256)"
+    retired_id_policy: exclude_before_ranking_and_assert_zero_intersection
+    strata:
+      predicted_positive:
+        selected_count: 40
+      predicted_negative:
+        selected_count: 20
+      extract_failed:
+        selected_count: 0
+        disposition: excluded_reported_not_negative
+        insufficient_successful_stratum_policy: fail_without_substitution
+    total_selected_count: 60
+    selected_model_source: development_selection_outcome_and_selected_contract_freeze
+    owner_delivery_blindness:
+      private_manifest_keeps_sampling_stratum: true
+      owner_jsonl_omits_sampling_stratum: true
+      owner_ui_omits_predictions_and_selection_metadata: true
+      owner_order_algorithm: sha256_rank_without_sampling_stratum_v1
+      owner_order_preimage: "utf8('owner-order-v1') || NUL || ascii(design_sha256) || NUL || ascii(news_item_id) || NUL || ascii(input_sha256)"
+      owner_delivery_order_must_not_group_by_sampling_stratum: true
+    annotation:
+      type: ai_drafted_human_adjudicated
+      drafting_ai_must_not_be_evaluated_model: true
+      adjudicator_role: owner_human
+      gold_is_final_only_after_human_adjudication: true
+    prompt_iteration_allowed: false
+    time_lock:
+      requires_development_gate_clear: true
+      requires_independent_owner_review: true
+      requires_synthetic_full_path_rehearsal_passed: true
+      forbidden_before_unlock:
+        - materialization
+        - inference
+        - sampling
+        - drafting
+        - adjudication
+        - evaluation
+
+formal_development_rounds:
+  maximum_rounds: 6
+  each_round_uses_one_byte_frozen_prompt: true
+  models_always_measured:
+    - qwen3.7-flash
+    - qwen3.6-plus
+  fixed_model_call_order:
+    - qwen3.7-flash
+    - qwen3.6-plus
+  automatic_retries: 0
+  failed_candidate_retries: 0
+  expected_predictions_per_model: 45
+  technical_failure_policy: model_result_gate_fails_without_denominator_exclusion_or_replacement
+  terminal_result_policy: append_once_even_when_failed
+  candidate_contract_pair_invariant:
+    allowed_differences: [model]
+    prompt_bytes_identical: true
+    endpoint_identical: true
+    result_schema_identical: true
+    taxonomy_identical: true
+    llm_parameters_identical: true
+    evidence_validation_identical: true
+  selection_rule: flash_if_both_gates_else_plus_if_both_gates_else_none
+  stop_rule: stop_after_first_recorded_round_with_a_selected_model_or_after_round_6
+
+metrics:
+  materiality_positive_definition: gold_or_prediction_materiality_gte_2
+  symbol_gate_scope_resolution:
+    threshold_and_formula_changed: false
+    prior_scope: all100_mixed_dev_and_heldout_reference
+    v2_scope: heldout60_human_adjudicated_only
+    all105_pooling_forbidden: true
+    rationale: development45_is_a_prompt_tuning_frame_and_may_not_be_pooled_into_a_final_gate
+  materiality_precision:
+    formula: tp / (tp + fp)
+    metric_partition:
+      development: candidate_round_predicted_positive
+      heldout: selected_model_predicted_positive_stratum
+    sampling_frame:
+      development: development_frame_v2_baseline_stratified_30_positive_15_negative
+      heldout: heldout_frame_v2_selected_model_stratified_40_positive_20_negative
+    sampling_strata:
+      development: [baseline_predicted_positive, baseline_predicted_negative]
+      heldout: [selected_model_predicted_positive, selected_model_predicted_negative]
+    denominator:
+      development: candidate_round_predicted_positive_count
+      heldout: 40
+    estimator:
+      development: unweighted_quota_frame_gate
+      heldout: simple_random_sample_within_selected_model_positive_stratum
+    population_estimate:
+      development: false
+      heldout: true
+    minimum: 0.80
+    zero_denominator_policy: fail
+    gate: true
+    gate_or_diagnostic:
+      development: development_gate
+      heldout: final_one_shot_gate
+  materiality_false_omission_rate:
+    formula: fn / (fn + tn)
+    metric_partition:
+      development: candidate_round_predicted_negative
+      heldout: selected_model_predicted_negative_stratum
+    sampling_frame:
+      development: development_frame_v2_baseline_stratified_30_positive_15_negative
+      heldout: heldout_frame_v2_selected_model_stratified_40_positive_20_negative
+    sampling_strata:
+      development: [baseline_predicted_positive, baseline_predicted_negative]
+      heldout: [selected_model_predicted_positive, selected_model_predicted_negative]
+    denominator:
+      development: candidate_round_predicted_negative_count
+      heldout: 20
+    estimator:
+      development: unweighted_quota_frame_gate
+      heldout: simple_random_sample_within_selected_model_negative_stratum
+    population_estimate:
+      development: false
+      heldout: true
+    maximum: 0.20
+    zero_denominator_policy: fail
+    gate: true
+    gate_or_diagnostic:
+      development: development_gate
+      heldout: final_one_shot_gate
+  materiality_recall:
+    formula: not_estimable
+    metric_partition:
+      legacy: baseline_predicted_positive_only_structurally_all_predicted_positive
+      development: omitted_in_favor_of_false_omission_rate
+      heldout: omitted_in_favor_of_false_omission_rate
+    sampling_frame:
+      legacy: legacy_predicted_positive_only_frame
+      development: development_frame_v2_baseline_stratified_30_positive_15_negative
+      heldout: heldout_frame_v2_selected_model_stratified_40_positive_20_negative
+    sampling_strata:
+      legacy: [baseline_predicted_positive]
+      development: [baseline_predicted_positive, baseline_predicted_negative]
+      heldout: [selected_model_predicted_positive, selected_model_predicted_negative]
+    denominator:
+      legacy: structurally_uninformative
+      development: not_estimated
+      heldout: not_estimated
+    reporting_status: omitted_as_not_estimable_under_the_preregistered_f4_policy
+    value: null
+    replacement_metric: materiality_false_omission_rate
+    gate: false
+    gate_or_diagnostic: omitted_not_estimable
+    v2_report_policy: omit_or_emit_null_not_estimable_never_emit_naive_numeric_recall
+  symbol_exact_set_accuracy:
+    formula: exact_symbol_set_matches / comparable_predictions
+    metric_partition: all_successful_candidate_predictions
+    sampling_frame:
+      development: development_frame_v2_baseline_stratified_30_positive_15_negative
+      heldout: heldout_frame_v2_selected_model_stratified_40_positive_20_negative
+    sampling_strata:
+      development: [baseline_predicted_positive, baseline_predicted_negative]
+      heldout: [selected_model_predicted_positive, selected_model_predicted_negative]
+    denominator:
+      development: 45_if_technical_completion_passes
+      heldout: 60_if_technical_completion_passes
+    minimum: 0.95
+    population_estimate: false
+    development_stage: diagnostic_not_part_of_the_two_materiality_development_gates
+    heldout_stage: unchanged_phase_gate
+    zero_denominator_policy: fail
+    gate_or_diagnostic: development_diagnostic_and_heldout_gate
+  symbol_bearing_exact_set_accuracy:
+    formula: exact_symbol_set_matches_on_gold_or_prediction_symbol_bearing_items / symbol_bearing_items
+    metric_partition: gold_or_prediction_symbol_bearing_items
+    sampling_frame:
+      development: development_frame_v2_baseline_stratified_30_positive_15_negative
+      heldout: heldout_frame_v2_selected_model_stratified_40_positive_20_negative
+    sampling_strata:
+      development: [baseline_predicted_positive, baseline_predicted_negative]
+      heldout: [selected_model_predicted_positive, selected_model_predicted_negative]
+    denominator:
+      development: gold_or_prediction_symbol_bearing_item_count_in_dev45
+      heldout: gold_or_prediction_symbol_bearing_item_count_in_heldout60
+    minimum: 0.95
+    population_estimate: false
+    development_stage: diagnostic_not_part_of_the_two_materiality_development_gates
+    heldout_stage: unchanged_phase_gate
+    zero_denominator_policy: fail
+    gate_or_diagnostic: development_diagnostic_and_heldout_gate
+  source_pool_weighted_diagnostics:
+    gate: false
+    purpose: expose_the_effect_of_unequal_baseline_stratum_sampling_rates
+    estimator: inverse_probability_weighted_by_baseline_sampling_stratum
+    metric_partition: candidate_round_predicted_output_partition
+    sampling_frame: development_source_candidate_pool_after_retirement
+    sampling_strata: [baseline_predicted_positive, baseline_predicted_negative]
+    denominator: inverse_probability_weighted_partition_total
+    gate_or_diagnostic: diagnostic
+    baseline_positive_item_weight: 28.466666666666665
+    baseline_negative_item_weight: 139.8
+    formula:
+      materiality_precision: weighted_tp / (weighted_tp + weighted_fp)
+      materiality_false_omission_rate: weighted_fn / (weighted_fn + weighted_tn)
+    note: The fixed 0.80 and 0.20 development gates apply only to the unweighted quota frame; weighted source-pool figures are diagnostics and may not override a gate.
+  disclosure_required_for_every_metric:
+    - metric_partition
+    - sampling_frame
+    - sampling_strata
+    - denominator
+    - formula
+    - gate_or_diagnostic
+
+artifacts:
+  development_private_selection_manifest:
+    path: docs/phase4/eval/v2-calibration/development/P4.2a-development-frame-v2.selection.json
+    create_only: true
+  development_owner_blind_jsonl:
+    path: docs/phase4/eval/v2-calibration/development/P4.2a-development-frame-v2.blind.jsonl
+    create_only: true
+  development_ai_draft_jsonl:
+    path: docs/phase4/eval/v2-calibration/development/P4.2a-development-frame-v2.labels-ai-drafted.jsonl
+    create_only: true
+  development_adjudication_html:
+    path: docs/phase4/eval/v2-calibration/development/P4.2a-development-frame-v2.adjudication.html
+    create_only: true
+  development_owner_raw_export_jsonl:
+    path: docs/phase4/eval/v2-calibration/development/P4.2a-development-frame-v2.owner-export.jsonl
+    create_only: true
+  development_human_adjudicated_jsonl:
+    path: docs/phase4/eval/v2-calibration/development/P4.2a-development-frame-v2.human-adjudicated.jsonl
+    create_only: true
+  development_owner_completion_manifest:
+    path: docs/phase4/eval/v2-calibration/development/P4.2a-development-frame-v2.owner-completion.json
+    create_only: true
+  development_round_directory_pattern:
+    path: docs/phase4/eval/v2-calibration/development/rounds/r{round_number}
+    allowed_round_numbers: [1, 2, 3, 4, 5, 6]
+    create_only_results: true
+  development_round_preregistration_pattern:
+    path: docs/phase4/eval/v2-calibration/development/rounds/r{round_number}/round-preregistration.json
+    allowed_round_numbers: [1, 2, 3, 4, 5, 6]
+    create_only: true
+  development_round_outcome_pattern:
+    path: docs/phase4/eval/v2-calibration/development/rounds/r{round_number}/round-outcome.json
+    allowed_round_numbers: [1, 2, 3, 4, 5, 6]
+    create_only: true
+  development_prompt_pattern:
+    path: config/prompts/p4_news_event_extract_v2-r{round_number}.txt
+    allowed_round_numbers: [1, 2, 3, 4, 5, 6]
+    create_only: true
+  development_model_contract_pattern:
+    path: config/p4_event_extract_eval_v2-r{round_number}-{model_slug}.yaml
+    allowed_round_numbers: [1, 2, 3, 4, 5, 6]
+    allowed_model_slugs: [qwen3.7-flash, qwen3.6-plus]
+    create_only: true
+  development_model_result_files:
+    path: docs/phase4/eval/v2-calibration/development/rounds/r{round_number}/{model_slug}
+    allowed_round_numbers: [1, 2, 3, 4, 5, 6]
+    allowed_model_slugs: [qwen3.7-flash, qwen3.6-plus]
+    filenames:
+      predictions: predictions.jsonl
+      manifest: manifest.json
+      report: report.json
+      terminal_state: terminal-state.jsonl
+    create_only: true
+  development_calibration_state_jsonl:
+    path: docs/phase4/eval/v2-calibration/development/calibration.state.jsonl
+    create_only: true
+    state_machine: next_round_forbidden_after_selection_or_round_6
+  development_gate_review_request:
+    path: docs/phase4/reports/P4.2a-v2-development-gate-review-request.json
+    create_only: true
+  development_gate_independent_review:
+    path: docs/phase4/reports/P4.2a-v2-development-gate-independent-review.json
+    create_only: true
+  development_selection_outcome:
+    path: docs/phase4/eval/v2-calibration/development/P4.2a-development-v2-selection-outcome.json
+    create_only: true
+  development_selected_contract_freeze:
+    path: docs/phase4/eval/v2-calibration/development/P4.2a-development-v2-selected-contract-freeze.json
+    create_only: true
+  synthetic_rehearsal_directory:
+    path: docs/phase4/rehearsals/P4.2a-v2-calibration
+    create_only_results: true
+  synthetic_rehearsal_contract:
+    path: docs/phase4/rehearsals/P4.2a-v2-calibration/contract.json
+    create_only: true
+  synthetic_rehearsal_inputs:
+    path: docs/phase4/rehearsals/P4.2a-v2-calibration/inputs.jsonl
+    create_only: true
+  synthetic_rehearsal_expected:
+    path: docs/phase4/rehearsals/P4.2a-v2-calibration/expected.json
+    create_only: true
+  synthetic_rehearsal_pass_receipt:
+    path: docs/phase4/rehearsals/P4.2a-v2-calibration/pass-receipt.json
+    create_only: true
+  heldout_materialization_directory:
+    path: docs/phase4/eval/v2-calibration/heldout/materialization
+    create_only_results: true
+    locked_until_development_review: true
+  heldout_materialized_inputs_jsonl:
+    path: docs/phase4/eval/v2-calibration/heldout/materialization/candidate-inputs.jsonl
+    create_only: true
+    locked_until_development_review: true
+  heldout_materialization_manifest:
+    path: docs/phase4/eval/v2-calibration/heldout/materialization/manifest.json
+    create_only: true
+    locked_until_development_review: true
+  heldout_inference_state_jsonl:
+    path: docs/phase4/eval/v2-calibration/heldout/P4.2a-heldout-v2-inference.state.jsonl
+    create_only: true
+    zero_retries: true
+    technical_failure_policy: terminal_failed_no_scoring_no_retry
+    locked_until_development_review: true
+  heldout_predictions_jsonl:
+    path: docs/phase4/eval/v2-calibration/heldout/P4.2a-heldout-v2.predictions.jsonl
+    create_only: true
+    locked_until_development_review: true
+  heldout_predictions_manifest:
+    path: docs/phase4/eval/v2-calibration/heldout/P4.2a-heldout-v2.predictions.manifest.json
+    create_only: true
+    locked_until_development_review: true
+  heldout_private_selection_manifest:
+    path: docs/phase4/eval/v2-calibration/heldout/P4.2a-heldout-frame-v2.selection.json
+    create_only: true
+    locked_until_development_review: true
+  heldout_owner_blind_jsonl:
+    path: docs/phase4/eval/v2-calibration/heldout/P4.2a-heldout-frame-v2.blind.jsonl
+    create_only: true
+    locked_until_development_review: true
+  heldout_ai_draft_jsonl:
+    path: docs/phase4/eval/v2-calibration/heldout/P4.2a-heldout-frame-v2.labels-ai-drafted.jsonl
+    create_only: true
+    locked_until_development_review: true
+  heldout_adjudication_html:
+    path: docs/phase4/eval/v2-calibration/heldout/P4.2a-heldout-frame-v2.adjudication.html
+    create_only: true
+    locked_until_development_review: true
+  heldout_owner_raw_export_jsonl:
+    path: docs/phase4/eval/v2-calibration/heldout/P4.2a-heldout-frame-v2.owner-export.jsonl
+    create_only: true
+    locked_until_development_review: true
+  heldout_human_adjudicated_jsonl:
+    path: docs/phase4/eval/v2-calibration/heldout/P4.2a-heldout-frame-v2.human-adjudicated.jsonl
+    create_only: true
+    locked_until_development_review: true
+  heldout_owner_completion_manifest:
+    path: docs/phase4/eval/v2-calibration/heldout/P4.2a-heldout-frame-v2.owner-completion.json
+    create_only: true
+    locked_until_development_review: true
+  heldout_evaluation_state_jsonl:
+    path: docs/phase4/eval/v2-calibration/heldout/P4.2a-heldout-v2-evaluation.state.jsonl
+    create_only: true
+    zero_retries: true
+    technical_failure_policy: terminal_failed_no_retry
+    locked_until_development_review: true
+  heldout_report_directory:
+    path: docs/phase4/eval/v2-calibration/heldout/report
+    create_only_reports: true
+    locked_until_development_review: true
+
+isolation:
+  old_v1_7_and_v1_8_files_must_remain_unchanged: true
+  p4_1_files_must_remain_unchanged: true
+  p4_2b_unlocked: false
+  p4_3_unlocked: false
+  production_database_mode: read_only_query_only
+  production_writes_allowed: false
+  scheduler_changes_allowed: false
+  proposals_or_orders_allowed: false

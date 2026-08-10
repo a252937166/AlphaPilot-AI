@@ -1,0 +1,70 @@
+{
+  "schema_version": "p4.2a-independent-adjudication-v1",
+  "adjudication_id": "p4.2a-round2-adjudication-20260810-r1",
+  "created_at_utc": "2026-08-09T17:16:43Z",
+  "created_at_shanghai": "2026-08-10T01:16:43+08:00",
+  "verdict": "APPROVE_ROUND_2_RECORD_NO_MODEL_SELECTED",
+  "margin_gate_ruling": "UPHELD",
+  "blockers": [],
+  "reviewer": {
+    "identity": "independent_ai_architect_claude_code",
+    "reviewer_type": "ai",
+    "model": "Anthropic Claude Fable 5 (model id claude-fable-5)",
+    "impersonation_disclaimer": "Not a human reviewer. Issued under the owner governance amendment with requires_release_gate_amendment=true.",
+    "method": "read-only audit. No model call, no round execution, no artifact modification. All metrics recomputed from the sealed gold and the frozen per-model predictions rather than read from the result document."
+  },
+  "part_1_independent_recomputation": {
+    "gold_positive_count": 18,
+    "qwen3.7-flash": {"completed": "45/45", "tp": 15, "fp": 4, "fn": 3, "tn": 23, "predicted_positive": 19, "precision": 0.7894736842105263, "false_omission_rate": 0.11538461538461539, "adverse_flip_precision": 0.7368421052631579, "adverse_flip_false_omission_rate": 0.15384615384615385, "point_estimate_gate": "fail", "margin_gate": "fail", "precision_wilson_95_ci": [0.567, 0.915]},
+    "qwen3.6-plus": {"completed": "45/45", "tp": 16, "fp": 3, "fn": 2, "tn": 24, "predicted_positive": 19, "precision": 0.8421052631578947, "false_omission_rate": 0.07692307692307693, "adverse_flip_precision": 0.7894736842105263, "adverse_flip_false_omission_rate": 0.11538461538461539, "point_estimate_gate": "pass", "margin_gate": "fail", "precision_wilson_95_ci": [0.624, 0.945]},
+    "matches_reported_values": true,
+    "selection": "selected_model is null; correct, since neither model cleared the margin-adjusted development gate and no relative comparison was used",
+    "round_budget": {"consumed": 2, "ceiling": 6, "remaining": 4}
+  },
+  "part_2_the_calibration_moved_correctly": {
+    "finding": "Round 2 followed the direction this adjudicator set after Round 1 and both models moved into the computed feasible neighbourhood.",
+    "trajectory": {
+      "qwen3.7-flash": {"round_1": {"predicted_positive": 14, "tp": 11, "precision": 0.786, "false_omission_rate": 0.226}, "round_2": {"predicted_positive": 19, "tp": 15, "precision": 0.789, "false_omission_rate": 0.115}, "reading": "recovered four true positives and halved the false-omission rate while holding precision"},
+      "qwen3.6-plus": {"round_1": {"predicted_positive": 13, "tp": 9, "precision": 0.692, "false_omission_rate": 0.281}, "round_2": {"predicted_positive": 19, "tp": 16, "precision": 0.842, "false_omission_rate": 0.077}, "reading": "recovered seven true positives and improved on both metrics simultaneously"}
+    },
+    "assessment": "Round 1 failed because it moved the threshold; Round 2 sharpened the boundary instead, which is exactly what F-5 asked for. Both models now sit at 19 predicted positives, inside the target region. plus is one true positive short of the margin gate, which requires 17 of 19 at that operating point."
+  },
+  "part_3_margin_gate_upheld": {
+    "ruling": "The margin requirement stands. qwen3.6-plus does not clear the development gate and the heldout stays locked.",
+    "why_this_matters_more_than_usual": "This is the first time the margin requirement has actually cost something. It was added by this adjudicator after Round 1 and pre-registered before Round 2 ran. Relaxing it the moment it first blocks a candidate would make it a rule that only ever applies when it is free, which is the mirror image of moving a goalpost. A gate that folds the first time it binds was never a gate.",
+    "statistical_justification_independent_of_the_rule": {
+      "observation": "qwen3.6-plus scored 16 of 19. The Wilson 95 percent interval for that proportion runs from 0.624 to 0.945, so the 0.80 threshold sits well inside it.",
+      "conclusion": "The development data does not establish that plus clears 0.80. It is equally consistent with a true precision of 0.65 and one of 0.93. Independently of any margin rule, a point estimate of 0.842 on 19 trials is not evidence of clearing the bar.",
+      "cost_asymmetry_restated": "A false pass here spends an irreplaceable heldout round and roughly 35 minutes of owner adjudication. A false failure costs one cheap iteration, and four remain."
+    },
+    "gate_values_unchanged": "0.80 precision and 0.20 false-omission remain exactly as pre-registered, on both development and heldout. Nothing was tightened or loosened in this adjudication.",
+    "reachability_confirmed": {
+      "margin_feasible_region": "with 45 items and 18 gold positives, the margin-adjusted gates require tp >= 0.8P + 1 and tp >= 10 + 0.2P",
+      "examples": [{"P": 15, "tp_required": 13}, {"P": 18, "tp_required": 16}, {"P": 19, "tp_required": 17}, {"P": 20, "tp_required": 17}],
+      "conclusion": "The region is reachable, not hypothetical. plus needs one additional true positive at its current operating point, or can move to 18 predicted positives holding 16."
+    }
+  },
+  "part_4_procedural_checks": {
+    "runner_hardening_9f410ff": {"assessment": "acceptable", "verified": "The change adds the adverse-flip computation this adjudicator required plus per-stratum reporting. The base formulas remain tp/(tp+fp) and fn/(fn+tn), unchanged. It was committed before the round executed."},
+    "test_only_fix_0b6ba11": {"assessment": "legitimate", "verified": "One test file, five lines. It truncates the calibration state fixture back to its Round 1 prefix and asserts that prefix digest, isolating the fixture from state the real run appended. It does not touch the runner, the frozen design or any recorded result, and it does not mask a regression."},
+    "frozen_artifacts_untouched": {"v2_design": "unchanged", "human_adjudicated_gold": "unchanged", "development_frame_artifacts": "unchanged"},
+    "per_round_artifacts_correct": "The round added its own byte-frozen prompt and per-model contract files and appended two lines to the append-only calibration state, which matches the file-boundary ruling issued after Round 1.",
+    "launcher_defect_o4": "No launcher failure occurred in this round.",
+    "isolation_and_safety": {"heldout_v2_directory_exists": false, "production_llm_calls_delta": 0, "production_database": "read-only, zero changes", "trade_state": "1 proposal / 1 SIMULATE order / 0 non-SIMULATE, unchanged", "p4_1_config_sha256": "9d56e137baf10bd0858723a93aff02c57bf7b35f8705f1817b16a89ec615183f", "p4_1_observation_window": "running, 3 polls since it opened, zero failures"}
+  },
+  "part_5_round_3_conditions": [
+    "Pre-register Round 3 separately before any model call, with the byte-frozen prompt digest for each candidate.",
+    "The margin-adjusted development gate applies unchanged.",
+    "Target the margin-feasible region: at 19 predicted positives a model needs 17 true ones, and moving to 18 predicted positives holding 16 also clears. The remaining gap is small and specific, so prefer a change aimed at the three false positives plus asking whether either of the two missed true positives is recoverable, over any broad rewrite of the rubric.",
+    "Report both gates per stratum with the sampling frame and stratum sizes stated, plus the adverse-flip values, and no naive recall.",
+    "Selection stays rule-based on absolute gates; no relative promotion.",
+    "Do not touch, materialize or sample the heldout frame."
+  ],
+  "part_6_flag_for_the_owner": {
+    "id": "O-5",
+    "statement": "One round has now landed inside the margin band. The stated trigger for returning to the owner is two such rounds. If Round 3 also clears the point estimate but fails the margin, this adjudicator will bring the frame-enlargement question to the owner as a time-cost decision rather than continue spending rounds.",
+    "honest_limitation_to_state_at_that_point": "Enlarging the development frame sharpens the estimate but cannot make it conclusive. Distinguishing a true 0.80 from a true 0.85 with confidence needs samples in the hundreds, which human adjudication cannot supply. The margin rule is therefore a pragmatic proxy for clearly above rather than marginally at, not a proof of the threshold.",
+    "no_action_required_now": true
+  },
+  "phase_locks_unchanged": {"p4_2a_done": false, "heldout_unlocked": false, "p4_2b_unlocked": false, "p4_3_unlocked": false}
+}

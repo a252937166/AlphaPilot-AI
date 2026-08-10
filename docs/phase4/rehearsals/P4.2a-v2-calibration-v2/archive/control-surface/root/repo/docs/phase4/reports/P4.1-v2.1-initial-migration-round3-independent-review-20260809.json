@@ -1,0 +1,118 @@
+{
+  "schema_version": "p4.1-news-poll-v2.1-independent-review-v1",
+  "review_id": "p4.1-v2.1-initial-migration-round3-review-20260809-r1",
+  "created_at_utc": "2026-08-09T05:26:12Z",
+  "created_at_shanghai": "2026-08-09T13:26:12+08:00",
+  "verdict": "APPROVE_ROUND_3_EVIDENCE",
+  "blockers": [],
+  "backlog_migration_declared_complete": true,
+  "reviewer": {
+    "identity": "independent_ai_architect_claude_code",
+    "reviewer_type": "ai",
+    "model": "Anthropic Claude Fable 5 (model id claude-fable-5)",
+    "impersonation_disclaimer": "Not a human reviewer. Issued under the owner governance amendment with requires_release_gate_amendment=true.",
+    "method": "read-only audit only: no network fetch, no migration run, no scheduler start, no production database write, no proposal, no order, no trade. Database access used sqlite URI mode=ro with PRAGMA query_only=ON and total_changes verified 0.",
+    "verdict_authority_note": "The operator reported an APPROVE_ROUND_3_EVIDENCE self-audit. An operator self-audit cannot constitute the independent verdict; this report is the independent verdict and was produced by re-deriving every claim from the database and the frozen artifacts rather than from the operator's summary."
+  },
+  "review_scope": {
+    "review_baseline_commit": "954bccc0444506ca58359c76a699315115b3bcb2",
+    "audited_commits": [
+      "476455c P4.1-v2.1: harden round 3 evidence freezing",
+      "954bccc P4.1-v2.1: freeze migration round 3 evidence"
+    ],
+    "reviewed_evidence_path": "docs/phase4/reports/P4.1-v2.1-initial-migration-round3-evidence-20260809.json",
+    "reviewed_evidence_sha256": "57f9b99e99358b5e8c596485774702858e5c572cb3116407a279d0195b044318",
+    "reviewed_job_run_id": 76933,
+    "authorizing_receipt_sha256": "a46dc4abf9ca67340cd40314aa9f5d8f771e740be78cbbf9eb2e06750f24219b"
+  },
+  "verification_code_drift": {
+    "result": "pass",
+    "migration_runner_unchanged": "git diff 650beb4..954bccc over src/ and config/ is empty. src/alphapilot/jobs/news_poll.py still hashes to fef43741...0145 and config/p4_news_poll_v2_1.yaml to 9d56e137...183f, so round 3 executed exactly the runner and contract approved for round 2.",
+    "hardening_commit_scope": "476455c touches only scripts/freeze_p4_1_v2_1_migration_evidence.py and its tests; it does not touch the runner, the contract, or any decision path.",
+    "hardening_is_strengthening": "The freezer now validates the authorization receipt's authorized_round binding: it rejects a receipt outside migration scope, a receipt not authorizing exactly one round, an invalid entrypoint binding, a checkpoint-before mismatch, slice dates that disagree with the receipt or the CLI, and a checkpoint-after that is not the final authorized slice. This mechanises the detection binding this reviewer has been enforcing by hand since round 2 and can only reject more, never less."
+  },
+  "verification_hash_closure": {
+    "result": "pass",
+    "config_sha256": "9d56e137baf10bd0858723a93aff02c57bf7b35f8705f1817b16a89ec615183f",
+    "preregistration_sha256": "485f710398698c1692d8afd8de6cd06c71ddf2fbdf42713c6bd4defc4bdfd84b",
+    "controlled_probe_sha256": "5267be93ebcf9dd68bc8d4644ca34da15f834f5e7c6a49e76faa65034b825bdc",
+    "round3_receipt_sha256": "a46dc4abf9ca67340cd40314aa9f5d8f771e740be78cbbf9eb2e06750f24219b",
+    "evidence_file_sha256": "57f9b99e99358b5e8c596485774702858e5c572cb3116407a279d0195b044318",
+    "executed_source_sha256": "fef43741418dcddd0e2ed419e5e5617ee6826110f2529ccf5a5c231207400145",
+    "env_file_sha256": "97bd1ed328baf7a4758ed2269e0f556a2f03e04e919859e18a1c33ab0967a375"
+  },
+  "verification_jobrun": {
+    "result": "pass",
+    "id": 76933,
+    "status": "ok",
+    "error": null,
+    "started_at_utc": "2026-08-09 05:04:39.523793",
+    "finished_at_utc": "2026-08-09 05:06:07.636323",
+    "stats_bytes_observed": 35923,
+    "stats_raw_sha256_recomputed": "f881de16412a364dbcb008a6b0ed09566cd6e38eb743653966fd32b93e052f26",
+    "stats_canonical_json_sha256_recomputed": "beb5f838c7762cdc958d879c0bc17a7391da6916780d2a88b95ad8ace5ddc111",
+    "both_match_evidence": true,
+    "authorization_binding": "stats.execution_authorization binds receipt a46dc4ab...219b with authorization_id ...auth-20260809-r3, execution_mode initial_backlog_migration, run_mode coverage_gap_catchup, and all three gate booleans false."
+  },
+  "verification_scope_compliance": {
+    "result": "pass",
+    "expected_checkpoint_before": "2026-08-06",
+    "observed_checkpoint_before": "2026-08-06",
+    "expected_slice_dates": ["2026-08-07", "2026-08-08"],
+    "observed_slice_dates": ["2026-08-07", "2026-08-08"],
+    "checkpoint_after": "2026-08-08",
+    "single_use_verified": "Exactly one JobRun in the whole table references receipt a46dc4ab...219b, and no news_poll run exists with an id greater than 76933. Single use honoured for the third consecutive round."
+  },
+  "verification_slices_and_coverage": {
+    "result": "pass",
+    "slices": [
+      {"date_shanghai": "2026-08-07", "mode": "closed_date_reconciliation", "page_count": 40, "fetched": 1194, "inserted": 119, "duplicate_url": 1073, "duplicate_content_hash": 2, "filtered": 0, "pagination_complete": true, "page_cap_hit": false, "incremental_floor_utc": null, "failure": null, "newest_observed_at_utc": "2026-08-07T13:12:11Z", "disposition_identity_valid": true},
+      {"date_shanghai": "2026-08-08", "mode": "closed_date_reconciliation", "page_count": 45, "fetched": 1329, "inserted": 579, "duplicate_url": 746, "duplicate_content_hash": 4, "filtered": 0, "pagination_complete": true, "page_cap_hit": false, "incremental_floor_utc": null, "failure": null, "newest_observed_at_utc": "2026-08-07T16:00:00Z", "disposition_identity_valid": true}
+    ],
+    "page_count_check": "40 = ceil(1194/30) and 45 = ceil(1329/30); no page cap hit, so both closed days paginated to genuine exhaustion.",
+    "budget": {"logical": "85/160", "physical": "85/320", "retries": 0, "failures": 0},
+    "per_slice_identity": "1194 = 119 + 1073 + 2 and 1329 = 579 + 746 + 4; both slices report disposition_identity_valid true and slice sums equal the source aggregate on all five keys.",
+    "database_reconciliation": {
+      "2026-08-07": "1194 fetched, 1194 rows in the database. 119 + 1073 = 1192 accounted for directly; the remaining 2 correspond to the slice's 2 content-hash duplicates, whose twins are pre-existing v1-era rows stored under a different URL form, matched by content hash rather than URL. Closes exactly.",
+      "2026-08-08": "1329 fetched, 1325 rows in the database. 579 + 746 = 1325 exactly; the 4 content-hash duplicates are same-day content twins of rows already held. Closes exactly.",
+      "verdict": "Both days reconcile with no coverage hole. Per-slice dispositions introduced after finding F-2 made this attribution provable rather than inferred."
+    },
+    "saturday_timestamp_characteristic": "All 1325 database rows for Saturday 2026-08-08 carry published_at 00:00 CST, which is why the slice's newest observation is 2026-08-07T16:00:00Z. Friday 2026-08-07 shows the mixed pattern of 962 rows at 00:00 CST plus genuine intraday times. This is CNInfo's batch-disclosure timestamping, verified directly against the database, not an anomaly. Saturday exceeding Friday in volume is consistent with peak semi-annual reporting season.",
+    "daily_coverage_continuity": {"2026-08-03": 477, "2026-08-04": 1529, "2026-08-05": 1127, "2026-08-06": 1192, "2026-08-07": 1194, "2026-08-08": 1325, "verdict": "continuous with no missing date across the entire migration window"}
+  },
+  "verification_persistence_pit_safety": {
+    "result": "pass",
+    "news_items_before": 9187,
+    "news_items_after_independently_counted": 9907,
+    "cninfo_after_independently_counted": 6844,
+    "rows_by_source": {"cninfo": 698, "akshare_ths": 20, "sina_company_news": 2},
+    "total_inserted": 720,
+    "non_cninfo_note": "Rounds 1 and 2 inserted nothing from akshare_ths or sina_company_news; this round inserted 22. The manual migration entrypoint runs the whole news_poll job, so with the v1 scheduler unloaded these sources now accumulate between manual runs. This is inside the authorized entrypoint's scope, each source stayed within its own frozen budget, and it is disclosed rather than folded silently into the CNInfo totals.",
+    "pit": {"rows_with_available_time_not_after_published_at": 0, "whole_table_null_available_time": 0, "invalid_pit_chain_rows": 0, "verdict": "backfilled 08-07/08-08 announcements correctly carry an 08-09 availability timestamp"},
+    "dedup": {"duplicate_url_groups_whole_table": 0, "duplicate_content_hash_groups_whole_table": 0},
+    "sqlite_quick_check": "ok",
+    "safety": {"scheduler_launchagent_loaded": false, "scheduler_plist_sha256": "468083914b4dbe93fb564f82451ce7bac474674567d0edd3cee87ec2a018b9be", "running_job_runs": 0, "trade_proposals": 1, "broker_orders": 1, "non_simulate_broker_orders": 0, "persisted_vs_process_divergences": [], "process_effective_before_equals_after": true}
+  },
+  "verification_quality_gates": {"result": "pass", "ruff": "All checks passed", "mypy_strict_src_alphapilot": "no issues found in 157 source files", "pytest_full": "exit 0, no failures"},
+  "backlog_completion_determination": {
+    "declared_complete": true,
+    "checkpoint_after": "2026-08-08",
+    "current_shanghai_date_at_review": "2026-08-09",
+    "previous_shanghai_day": "2026-08-08",
+    "criterion": "Every closed Shanghai natural day through the previous day has been reconciled by a fully-paginated closed-date run with a committed checkpoint.",
+    "evidence": "Three authorized rounds closed 08-03, 08-04, 08-05, 08-06, 08-07 and 08-08 consecutively with no gap, each with pagination_complete true, page_cap_hit false, zero failures and zero retries. The checkpoint advanced 08-04 then 08-06 then 08-08, each time only on closed dates. Database day counts are continuous across the whole window.",
+    "authority": "The operator correctly left initial_backlog_migration_complete false and deferred the determination. This reviewer makes it: the initial backlog migration is COMPLETE as of checkpoint 2026-08-08."
+  },
+  "material_observation_for_next_gate": {
+    "id": "O-1",
+    "title": "The current-day incremental path has never executed in production",
+    "evidence": "All six slices across JobRuns 76931, 76932 and 76933 ran as closed_date_reconciliation with incremental_floor_utc null. The floor computation, the floor-reached pagination stop, and the separation of observed-high advance from date-checkpoint advance have therefore never run against live data.",
+    "why_it_matters": "This is exactly the code that the scheduler will execute on every poll once activated. Backlog completion says nothing about it.",
+    "consequence": "The standard incremental validation is not a formality; it is the first live exercise of that path, and scheduler activation must not be considered until it has passed review.",
+    "interaction_to_watch": "Because CNInfo batch-timestamps many announcements at 00:00 CST, the 30-minute overlap floor will frequently not be reached, so completeness will rest on pagination exhaustion rather than on the floor short-circuit. That is acceptable within the 2400-row daily capacity against an observed peak of 1533, but the validation evidence must report whether the floor was reached, the page count, and whether the observed high advanced while the date checkpoint correctly stayed at 2026-08-08."
+  },
+  "authorization_issued": {
+    "path": "docs/phase4/reports/P4.1-v2.1-standard-incremental-validation-authorization-20260809.json",
+    "scope": "exactly one standard_incremental_validation run; the first execution of the current-day incremental path"
+  }
+}

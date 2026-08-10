@@ -1,0 +1,75 @@
+{
+  "schema_version": "p4.2a-independent-review-v1",
+  "review_id": "p4.2a-dev45-owner-adjudication-review-20260809-r1",
+  "created_at_utc": "2026-08-09T13:43:23Z",
+  "created_at_shanghai": "2026-08-09T21:43:23+08:00",
+  "verdict": "APPROVE_SEAL_AND_START_ROUND_1",
+  "blockers": [],
+  "repository_head_at_review": "b54e4e589c8bbcdbb4794c456d141a3c4347c3ed",
+  "reviewer": {
+    "identity": "independent_ai_architect_claude_code",
+    "reviewer_type": "ai",
+    "model": "Anthropic Claude Fable 5 (model id claude-fable-5)",
+    "impersonation_disclaimer": "Not a human reviewer. Issued under the owner governance amendment with requires_release_gate_amendment=true.",
+    "method": "read-only audit. No model call was made, no artifact was sealed or modified, no calibration round was started."
+  },
+  "reviewed_artifact": {
+    "path": "/Users/ouyangduning/Desktop/cdx/P4.2a-development-frame-v2.owner-export.jsonl",
+    "sha256": "812ee8c86ab9f9ed269b1c6952046bddb11317b8624618d8444de5b03f612d31",
+    "bytes": 53730,
+    "row_count": 45
+  },
+  "checks": {
+    "identity_separation": {"adjudicator_id": "ouyang", "drafter_id": "OpenAI Codex GPT-5", "disjoint": true, "evaluated_model": "qwen3.7-flash", "drafter_is_not_the_evaluated_model": true, "method": "ai_drafted_human_adjudicated", "result": "pass"},
+    "coverage": {"all_items_confirmed": true, "annotation_status": "adjudicated on all 45", "id_set_matches_blind_sample": true, "result": "pass"},
+    "diff_recomputation": {"method": "recomputed changed_fields and the changed flag from human_label against the frozen draft_label, without trusting the export's own values", "agreement": "45/45", "draft_drift_detected": 0, "result": "pass"},
+    "adjudication_activity": {"items_changed": 9, "items_confirmed_unchanged": 36, "field_level_changes": {"direction": 5, "materiality": 4, "evidence_span": 1}},
+    "label_validity": {"materiality_in_range": "45/45", "direction_in_range": "45/45", "event_type_in_taxonomy": "45/45", "symbols_well_formed": "45/45", "result": "pass"},
+    "evidence_spans": {"exact_substring_of_original_text": "45/45", "result": "pass"},
+    "blindness_of_the_export": {"stratum_prediction_rank_or_score_fields_present": false, "result": "pass"}
+  },
+  "frame_fitness_assessment": {
+    "purpose": "Verify before sealing that both pre-registered gates can actually bind on this frame, rather than being satisfiable trivially.",
+    "predicted_positive_stratum": {"size": 30, "gold_material": 16, "baseline_precision": 0.5333333333333333, "gate": ">= 0.80", "can_bind": true},
+    "predicted_negative_stratum": {"size": 15, "gold_material": 2, "baseline_false_omission_rate": 0.13333333333333333, "gate": "<= 0.20", "can_bind": true, "why": "the negative stratum is not empty of true positives, so tightening the positive decision will push this metric upward and the gate has real force"},
+    "verdict": "The frame is fit for purpose. Neither gate is trivially satisfied and neither is unreachable by construction."
+  },
+  "substantive_findings": {
+    "diagnosis_independently_reconfirmed": {
+      "statement": "Baseline precision on this fresh, independent development frame is 0.533, against 0.525 measured on the now-spent heldout40. The over-prediction diagnosis is reproduced on a sample the model was never evaluated against, so it is a systematic property of the extractor rather than an artefact of the earlier 40-item draw.",
+      "significance": "This retires any hypothesis that the heldout result was sampling noise."
+    },
+    "narrow_corridor_warning": {
+      "id": "O-3",
+      "statement": "The false-omission headroom is thin. The negative stratum currently sits at 2 of 15 and the gate permits at most 3 of 15. Calibration must raise precision from 0.533 to 0.80 while adding at most one additional miss in that stratum.",
+      "implication": "Naive tightening of the materiality rubric will very likely trade precision gains for omissions and fail the second gate. The work needs to sharpen the boundary rather than simply move it.",
+      "not_a_reason_to_change_the_gate": "The 0.20 bound was set a priori in the pre-registration before any measurement. Relaxing it now, having seen the baseline, would be exactly the goalpost movement the owner's option A decision was meant to avoid."
+    },
+    "statistical_fragility_disclosed": {
+      "id": "L-3",
+      "statement": "A 15-item negative stratum makes the false-omission rate coarse: one item flipping moves it by 0.067, and the pass/fail boundary sits between 3 and 4 items. The development gate on this metric is therefore noisy and should be read as a coarse guard against regression, not as a precise estimate.",
+      "handling": "Recorded as a known limitation of the pre-registered design rather than corrected mid-round. The heldout frame's 20-item negative stratum is slightly better but shares the same character, and this limitation must be disclosed in any report that cites a false-omission rate."
+    },
+    "adjudication_intensity_note": {
+      "observation": "The owner changed 9 of 45 items here against 25 of 40 on the earlier heldout. The direction of change is coherent rather than random: the draft carried 22 items at materiality at or above 2 and the adjudicated gold carries 18, so the changes tighten in the same direction as the known over-prediction.",
+      "assessment": "A lower change rate is consistent with a stronger drafter and with an owner more practised in the rubric. It is not by itself evidence of reduced scrutiny, and nothing in the record contradicts the adjudication. Flagged only so that a future reader comparing the two sessions is not surprised."
+    }
+  },
+  "what_this_approves": "Codex may seal the human gold from the reviewed export and begin Round 1 of the flash to plus development calibration, under the pre-registered v2 design.",
+  "what_this_does_not_approve": [
+    "any access to, materialization of, or sampling from the heldout frame",
+    "any change to the 0.80 precision gate or the 0.20 false-omission gate",
+    "any change to the retired heldout identities, the frozen designs, or the recorded failed rounds",
+    "marking P4.2a done or unlocking P4.2b or P4.3"
+  ],
+  "conditions_on_round_1": [
+    "Seal the gold bound to export digest 812ee8c86ab9f9ed269b1c6952046bddb11317b8624618d8444de5b03f612d31 and record that digest in the round evidence.",
+    "Record every formal round including failures; the pre-registered ceiling is six rounds.",
+    "Both gates must be reported per stratum with the sampling frame stated, and no naive recall may appear, per the F-4 policy already implemented in the v2 design.",
+    "Report the false-omission rate together with its stratum size so its coarseness is visible.",
+    "Selection between flash and plus stays rule-based on absolute gates and is never made by comparing which model scored higher."
+  ],
+  "unaffected": {
+    "p4_1_observation_window": "open from 2026-08-10 00:00 CST for 08-10, 08-11 and 08-12; unaffected by this review and proceeding independently"
+  }
+}
