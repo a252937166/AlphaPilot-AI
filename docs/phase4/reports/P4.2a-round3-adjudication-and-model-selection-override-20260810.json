@@ -1,0 +1,77 @@
+{
+  "schema_version": "p4.2a-independent-adjudication-v1",
+  "adjudication_id": "p4.2a-round3-adjudication-and-owner-selection-20260810-r1",
+  "created_at_utc": "2026-08-10T02:07:45Z",
+  "created_at_shanghai": "2026-08-10T10:07:45+08:00",
+  "verdict": "APPROVE_ROUND_3_RECORD",
+  "development_gate": "CLEARED",
+  "selected_model_for_heldout": "qwen3.6-plus",
+  "selection_basis": "owner decision amending the pre-registered cost-first rule, taken before the heldout is spent",
+  "blockers": [],
+  "repository_head_at_adjudication": "423160893a6e6563fbe438e6d0b576a8a07d185f",
+  "reviewer": {
+    "identity": "independent_ai_architect_claude_code",
+    "reviewer_type": "ai",
+    "model": "Anthropic Claude Fable 5 (model id claude-fable-5)",
+    "impersonation_disclaimer": "Not a human reviewer. Issued under the owner governance amendment with requires_release_gate_amendment=true.",
+    "method": "read-only audit. No model call, no round execution, no artifact modification. All metrics recomputed from the sealed gold and the frozen per-model predictions rather than read from the result document."
+  },
+  "part_1_independent_recomputation": {
+    "gold_positive_count": 18,
+    "qwen3.7-flash": {"completed": "45/45", "tp": 13, "fp": 2, "fn": 5, "tn": 25, "predicted_positive": 15, "precision": 0.8666666666666667, "false_omission_rate": 0.16666666666666666, "adverse_flip_precision": 0.8, "adverse_flip_false_omission_rate": 0.2, "point_estimate_gate": "pass", "margin_gate": "pass", "precision_wilson_95_ci": [0.621, 0.963], "false_omission_wilson_95_ci": [0.073, 0.336]},
+    "qwen3.6-plus": {"completed": "45/45", "tp": 17, "fp": 1, "fn": 1, "tn": 26, "predicted_positive": 18, "precision": 0.9444444444444444, "false_omission_rate": 0.037037037037037035, "adverse_flip_precision": 0.8888888888888888, "adverse_flip_false_omission_rate": 0.07407407407407407, "point_estimate_gate": "pass", "margin_gate": "pass", "precision_wilson_95_ci": [0.742, 0.99], "false_omission_wilson_95_ci": [0.007, 0.183]},
+    "matches_reported_values": true,
+    "round_budget": {"consumed": 3, "ceiling": 6, "remaining": 3},
+    "o5_not_triggered": "Round 3 did not land in the margin band; both models cleared the margin gate, so the frame-enlargement question does not arise."
+  },
+  "part_2_the_operator_executed_correctly": {
+    "statement": "Codex applied the pre-registered flash-first cost rule and selected qwen3.7-flash without any relative comparison. That execution was correct and is affirmed. Nothing about the change of selection below is a criticism of the operator or a finding against the round.",
+    "calibration_trajectory": {
+      "qwen3.7-flash": ["r1: 14 predicted positive, 11 true, 0.786 / 0.226", "r2: 19 predicted positive, 15 true, 0.789 / 0.115", "r3: 15 predicted positive, 13 true, 0.867 / 0.167"],
+      "qwen3.6-plus": ["r1: 13 predicted positive, 9 true, 0.692 / 0.281", "r2: 19 predicted positive, 16 true, 0.842 / 0.077", "r3: 18 predicted positive, 17 true, 0.944 / 0.037"],
+      "reading": "plus converged steadily toward the human boundary. flash regained precision in Round 3 by predicting fewer positives again, which lifted its miss rate back up. The two models are not converging to the same place."
+    }
+  },
+  "part_3_facts_the_cost_rule_could_not_anticipate": {
+    "id": "F-6",
+    "fact_1_zero_margin": "flash's adverse-flip values land exactly on both thresholds, 0.800 precision and 0.200 false-omission. It satisfies the letter of the margin requirement while carrying none of the robustness that requirement exists to provide: a second adverse flip drops it to 11/15 = 0.733 and it fails. plus survives a second flip at 15/18 = 0.833.",
+    "fact_2_miss_rate": "flash misses 5 of the 18 material events, 27.8 percent. plus misses 1, 5.6 percent. The pre-registered gates constrain precision and bound the false-omission rate, but nothing in them distinguishes a model that finds three quarters of material news from one that finds nineteen twentieths.",
+    "fact_3_heldout_risk": "flash's false-omission 95 percent interval is 0.073 to 0.336 and contains the 0.20 gate, so its heldout outcome on that gate is genuinely uncertain. plus's interval is 0.007 to 0.183 and excludes 0.20.",
+    "why_this_was_not_foreseeable": "The cost-first rule was written when the only measurements available came from a frame blind to the decision boundary. Its implicit premise was that clearing the absolute gates implies adequate operational quality. Three rounds of boundary-spanning measurement have now separated those two things."
+  },
+  "part_4_owner_decision": {
+    "question_put_to_the_owner": "Both models cleared the development gate and the pre-registered rule selected flash on cost. Given that flash misses 27.8 percent of material events against plus's 5.6 percent, and that flash's false-omission interval contains the heldout gate, which model should be sent into the single heldout evaluation?",
+    "options_presented": ["switch to plus, amending the cost-first rule to a miss-rate-first rule", "keep flash under the original rule", "spend another development round trying to lower flash's miss rate"],
+    "owner_choice": "switch to qwen3.6-plus",
+    "decided_by": "owner (ouyang)",
+    "cost_accepted": "approximately 113 CNY per month more, from about 11.8 to about 124.8 at 15,000 calls per month under the frozen pricing formula",
+    "why_this_is_not_relative_promotion": "The reviewer did not override the rule on the ground that plus scored higher. The rule executed correctly and flash was validly selected. What changed is that the owner, holding both the money and the product requirement, amended a rule whose premise no longer matched the measurements. The amendment was made before the heldout was spent, was recorded before any new result exists, and rests on the operational meaning of the miss rate rather than on which model had the better number.",
+    "governance_form": "This is an owner amendment to a pre-registered selection rule, taken in advance of the measurement it affects. It is recorded here as such and must be cited in every downstream report."
+  },
+  "part_5_what_does_not_change": {
+    "gate_values": "precision at least 0.80 and false-omission at most 0.20 remain exactly as pre-registered on both development and heldout. Neither was touched.",
+    "margin_requirement": "unchanged and still applies",
+    "development_frame": "sealed and unchanged",
+    "heldout_design": "the heldout frame is still 40 predicted-positive plus 20 predicted-negative drawn from 2026-08-06 to 08-08, human-adjudicated, one-shot with zero retries",
+    "retired_identities": "the 40 spent heldout ids remain permanently retired",
+    "recorded_rounds": "Rounds 1, 2 and 3 stand as recorded, including that flash was the rule-selected model in Round 3"
+  },
+  "part_6_procedural_checks": {
+    "runner_hardening_65a87b3": {"assessment": "acceptable", "verified": "generalises the round number in the margin contract and adds per-stratum adverse-flip reporting; the base formulas tp/(tp+fp) and fn/(fn+tn) and the threshold constants are unchanged; committed before the round executed"},
+    "test_only_fix_c554477": {"assessment": "legitimate", "verified": "one test file, five lines, the same fixture-isolation pattern accepted in Round 2"},
+    "frozen_artifacts_untouched": true,
+    "heldout_directory_exists": false,
+    "safety": {"production_llm_calls_delta": 0, "trade_state": "1 proposal / 1 SIMULATE order / 0 non-SIMULATE", "p4_1_observation_window": "19 polls since it opened, zero failures"}
+  },
+  "part_7_next_steps": {
+    "immediate": "Pre-register the heldout round with qwen3.6-plus as the selected model, citing this owner amendment, before any heldout artifact is created.",
+    "required_before_the_one_shot": [
+      "byte-frozen prompt and contract digests for plus, matching the Round 3 configuration exactly",
+      "materialize, sample and blind the heldout frame from 2026-08-06 to 08-08, excluding the retired identities",
+      "AI draft by a drafter that is not the evaluated model, then owner human adjudication of 60 items, roughly 35 minutes",
+      "full synthetic path rehearsal and the read-only dry run, per the discipline established after the v1.7 incident",
+      "independent review before the single evaluation, which Codex executes rather than the reviewer"
+    ],
+    "phase_locks_unchanged": {"p4_2a_done": false, "p4_2b_unlocked": false, "p4_3_unlocked": false}
+  }
+}
