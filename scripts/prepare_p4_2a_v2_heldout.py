@@ -47,6 +47,16 @@ from alphapilot.llm.p4_news_event import (  # noqa: E402
 )
 
 JsonObject = dict[str, Any]
+Clock = Callable[[], datetime]
+ExecutionIdFactory = Callable[[], str]
+
+
+def _system_clock() -> datetime:
+    return datetime.now(UTC)
+
+
+def _random_execution_id() -> str:
+    return str(uuid.uuid4())
 
 PREREGISTRATION_PATH = Path("docs/phase4/reports/P4.2a-v2-heldout-preregistration-20260810.json")
 PREREGISTRATION_SHA256 = "ccecbf5ca7b48b16e445318b8c94a08927432f92c7e8c12f8ab40f2916578705"
@@ -1971,6 +1981,8 @@ def run_infer(
     settings: Settings | None = None,
     chat_json_fn: ChatJsonCallable | None = None,
     snapshot_loader: ProductionSnapshotLoader = dev_runner._production_snapshot,
+    clock: Clock = _system_clock,
+    execution_id_factory: ExecutionIdFactory = _random_execution_id,
 ) -> tuple[Path, Path]:
     candidates = _load_jsonl(binding.artifacts["materialized_inputs"], "held-out inputs")
     manifest = _load_json(binding.artifacts["materialization_manifest"], "materialization manifest")
@@ -2001,7 +2013,11 @@ def run_infer(
         ) from exc
     production_before = snapshot_loader(binding.root)
     materialization_sha256 = common.sha256_file(binding.artifacts["materialization_manifest"])
-    execution_id = str(uuid.uuid4())
+    execution_id = execution_id_factory()
+    try:
+        uuid.UUID(execution_id)
+    except (AttributeError, TypeError, ValueError) as exc:
+        raise HeldoutPreparationError("held-out inference execution id is not a UUID") from exc
     state = binding.artifacts["inference_state"]
     active_candidate_index: int | None = None
     active_candidate_id: int | None = None
@@ -2012,7 +2028,7 @@ def run_infer(
                 "schema_version": "p4.2a-v2-heldout-inference-state-v1",
                 "status": "inference_started",
                 "execution_id": execution_id,
-                "started_at_utc": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
+                "started_at_utc": clock().astimezone(UTC).isoformat().replace("+00:00", "Z"),
                 "eligible_candidate_count": len(candidates),
                 "candidate_order": "ascending_news_item_id",
                 "preregistration_sha256": PREREGISTRATION_SHA256,
@@ -2104,7 +2120,7 @@ def run_infer(
                     "execution_id": execution_id,
                     "preregistration_sha256": PREREGISTRATION_SHA256,
                     "materialization_manifest_sha256": materialization_sha256,
-                    "completed_at_utc": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
+                    "completed_at_utc": clock().astimezone(UTC).isoformat().replace("+00:00", "Z"),
                     "prediction_count": len(predictions),
                     "predictions_sha256": common.sha256_file(binding.artifacts["predictions"]),
                     "prediction_manifest_sha256": common.sha256_file(
@@ -2128,7 +2144,7 @@ def run_infer(
                     "execution_id": execution_id,
                     "preregistration_sha256": PREREGISTRATION_SHA256,
                     "materialization_manifest_sha256": materialization_sha256,
-                    "failed_at_utc": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
+                    "failed_at_utc": clock().astimezone(UTC).isoformat().replace("+00:00", "Z"),
                     "error_type": type(exc).__name__,
                     "failed_candidate_index": active_candidate_index,
                     "failed_news_item_id": active_candidate_id,
