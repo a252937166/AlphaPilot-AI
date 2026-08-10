@@ -1,0 +1,100 @@
+{
+  "schema_version": "p4.2a-calibration-round-preregistration-v1",
+  "preregistration_id": "p4.2a-v2-calibration-round-20260809-r1",
+  "created_at_utc": "2026-08-09T11:26:32Z",
+  "created_at_shanghai": "2026-08-09T19:26:32+08:00",
+  "owner_spec_commit": "3c66daffad307d9243c73a92162b7f47de2e8213",
+  "status": "preregistered_before_any_new_result",
+  "owner_decision": {
+    "chosen_option": "A",
+    "meaning": "Fix the extractor's materiality calibration and replace the development evaluation frame. The 0.80 precision threshold is NOT revisited and NOT moved.",
+    "rejected_options_recorded": {
+      "B_revisit_threshold": "not taken; the bar stays where it was pre-registered so the goalposts cannot be said to have moved after a failure",
+      "C_demote_materiality_to_a_ranking_signal": "not taken; the owner's requirement for proactive alerting on material news is retained"
+    }
+  },
+  "diagnosis_that_motivates_this_round": {
+    "primary_finding": "The v1.8 round failed only the materiality precision gate at 0.525 against 0.80, with 40 of 40 sampled predicted-positives judged positive by the model and only 21 confirmed material by the owner. The failure mode is systematic over-prediction, not span quality, not symbol mapping, and not harness defects.",
+    "structural_finding": "The dev60 frame could not have detected this. It was a uniform sample dominated by obvious negatives, where the model and the AI drafter agreed 0.94. On the predicted-positive frame the same two agree only 0.475. Agreement measured off the decision boundary carries no information about behaviour at the boundary.",
+    "anchoring_caveat_recorded": "On the spent heldout the ChatGPT draft agreed with the final gold at 0.850 with apparent precision 0.895. That figure is anchored, because the owner produced the gold by adjudicating that very draft and changed 25 of 40 items. It must not be cited as an independent benchmark or as evidence that a different model would pass.",
+    "what_is_independently_established": "qwen3.7-flash marks every item in the hard region as material. That is a calibration collapse at the boundary and it is measured against human-adjudicated gold, so it stands regardless of anchoring."
+  },
+  "frames": {
+    "development_frame_v2": {
+      "purpose": "iteration target that actually spans the decision boundary",
+      "source_window": "the existing materialized candidate pool from the 2026-08-04 to 2026-08-05 window, 3013 eligible candidates",
+      "must_exclude": "the 40 news_item_ids of the spent heldout40, which are permanently retired from every future frame",
+      "strata": {
+        "predicted_positive": {"count": 30, "drawn_from": "the 894-item predicted-positive pool minus retired ids"},
+        "predicted_negative": {"count": 15, "drawn_from": "the 2119-item predicted-negative pool"}
+      },
+      "total_items": 45,
+      "labelling_method": "ai_drafted_human_adjudicated, identical provenance discipline to the heldout: the drafting AI must not be the evaluated model, and the adjudicator must be a human distinct from the drafter",
+      "estimated_owner_time_minutes": 25,
+      "prompt_iteration_allowed": true
+    },
+    "heldout_frame_v2": {
+      "purpose": "the one-shot verdict",
+      "source_window": "2026-08-06 through 2026-08-08, temporally disjoint from the development frame and available because the backlog migration reconciled those days",
+      "strata": {"predicted_positive": {"count": 40}, "predicted_negative": {"count": 20}},
+      "total_items": 60,
+      "labelling_method": "ai_drafted_human_adjudicated",
+      "estimated_owner_time_minutes": 35,
+      "prompt_iteration_allowed": false,
+      "time_lock": "the heldout frame may not be materialized, sampled or drafted until the development gate below has been cleared and independently reviewed"
+    },
+    "why_a_predicted_negative_stratum_is_new_and_required": "The old design sampled only predicted positives, so it measured precision and could not observe misses at all. Calibration work tightens the positive decision, and tightening without a negative stratum optimises blind: precision could be bought entirely by rejecting real events. Both frames therefore carry a negative stratum."
+  },
+  "gates": {
+    "materiality_precision": {"scope": "predicted-positive stratum", "formula": "tp / (tp + fp)", "minimum": 0.8, "changed_from_previous_round": false, "note": "unchanged and deliberately not renegotiated after a failure"},
+    "materiality_false_omission_rate": {"scope": "predicted-negative stratum", "formula": "gold_positive_count / stratum_size", "maximum": 0.2, "changed_from_previous_round": "new gate", "rationale": "Set a priori, before any measurement, as the statement that tightening must not push more than one in five of the items the extractor rejects into being genuinely material. If this bar later proves miscalibrated as a target it may only be changed by a fresh pre-registration made before the next measurement, never after seeing a score."},
+    "symbol_gates": {"status": "unchanged", "note": "symbol exact-set gates passed at 40/40 on the spent heldout and are not the subject of this round"},
+    "zero_predicted_positive_policy": "fail, unchanged"
+  },
+  "development_gate_before_spending_a_new_heldout": {
+    "criteria": "On the development frame v2, the candidate configuration must satisfy BOTH materiality precision >= 0.80 on the predicted-positive stratum AND false-omission rate <= 0.20 on the predicted-negative stratum.",
+    "explicit_limitation": "The development frame is iterated on, so clearing it is optimistically biased and does NOT predict the heldout result. It is a necessary precondition for spending a one-shot, not evidence of success.",
+    "no_heldout_access": "No heldout item may be materialized, viewed, drafted or scored while development iteration is in progress."
+  },
+  "model_candidates": {
+    "evaluated": ["qwen3.7-flash", "qwen3.6-plus"],
+    "why_plus_is_back_in_scope": "The v1.7 selection preferred flash on a dev frame now known to be blind to the decision boundary, so that comparison carries no information about calibration. Both must be re-measured on the new frame.",
+    "selection_rule_fixed_in_advance": "If flash clears both development criteria, flash is selected for its cost advantage. Only if flash fails and plus clears both is plus selected. If neither clears them, no model is selected and prompt work continues. Selection is never made by comparing which model scored higher.",
+    "cost_context": "flash approximately 11.8 CNY per month against plus approximately 124.8 CNY per month at 15,000 calls, under the previously frozen formula."
+  },
+  "mandatory_corrections_carried_into_this_round": {
+    "F-4_recall_labelling": "On a predicted-positive frame, recall is structurally 1.0 and measures nothing. Reports must either omit it or label it explicitly as not estimable on this frame. With the new negative stratum, a genuine miss measure exists in the false-omission rate and should be reported in its place.",
+    "frame_disclosure": "Every reported metric must state the stratum it was computed on and the sampling frame that produced it, so a future reader cannot mistake a boundary-blind figure for a boundary measurement."
+  },
+  "ordering_discipline": [
+    "This pre-registration is committed before any new sample is drawn, any prompt is changed, or any model is called.",
+    "A new evaluation design version is pre-registered, declaring the frames, strata, seeds, gates and artifact paths, and declaring its byte-frozen lineage from the current design so existing frozen artifacts keep validating.",
+    "Development frame is built and adjudicated by the owner.",
+    "Prompt calibration iterates against the development frame only. Every formal development round is recorded, including failures.",
+    "Development gate is cleared and independently reviewed.",
+    "Only then is the heldout frame materialized, sampled, drafted and adjudicated.",
+    "The heldout evaluation runs exactly once, executed by Codex and not by the reviewer, with zero retries.",
+    "The full path, including report extensions and metric assembly, must be rehearsed against synthetic inputs before the one-shot boundary is crossed, as established after the v1.7 incident."
+  ],
+  "what_must_not_change": [
+    "the 0.80 precision threshold",
+    "the retired 40 heldout item ids, which may never appear in any future frame",
+    "the frozen v1.7 and v1.8 designs, their artifacts, and both recorded failed or failing rounds",
+    "the requirement that gold is human-adjudicated and that the drafting AI is never the evaluated model",
+    "P4.2b and P4.3 remain locked; nothing in this round unlocks them"
+  ],
+  "honest_cost_statement": {
+    "owner_time": "approximately 25 minutes for the development frame and approximately 35 minutes for the heldout frame, in two separate sessions",
+    "model_spend": "roughly 3 to 6 CNY for re-inference over the candidate pools",
+    "elapsed": "a few days of engineering plus the two adjudication sessions",
+    "risk_disclosed": "There is no guarantee the 0.80 bar is reachable by prompt calibration alone. If both models fail the development gate after a pre-registered number of iterations, that is an honest finding about the extractor and the owner will face a genuine choice between a stronger model, a different task decomposition, or accepting a downstream human confirmation step."
+  },
+  "iteration_budget": {
+    "maximum_formal_development_rounds": 6,
+    "rationale": "Bounded so that iteration cannot silently become an unbounded search against the development frame. If the gate is not cleared within six recorded rounds, the round closes with an honest negative finding and returns to the owner for a direction decision.",
+    "every_round_recorded": true
+  },
+  "unaffected": {
+    "p4_1_line": "This pre-registration does not touch P4.1. Scheduler deployment, the activation review and the three-trading-day observation window proceed independently."
+  }
+}

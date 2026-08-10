@@ -1,0 +1,250 @@
+{
+  "schema_version": "p4.2a-v2-heldout-preregistration-v1",
+  "preregistration_id": "p4.2a-v2-heldout-20260810-r1",
+  "created_at_utc": "2026-08-10T03:50:00Z",
+  "created_at_shanghai": "2026-08-10T11:50:00+08:00",
+  "status": "PREREGISTERED_BEFORE_SYNTHETIC_REHEARSAL_AND_ANY_HELDOUT_ARTIFACT",
+  "design": {
+    "path": "config/p4_event_evaluation_v2.yaml",
+    "sha256": "18a2428a4ec04bfea6e4f4d70692f38ea82fbaee5a223f30f2465b895b238e21",
+    "schema_version": "p4.2a-evaluation-design-v2"
+  },
+  "authorities": {
+    "owner_model_selection_amendment": {
+      "path": "docs/phase4/reports/P4.2a-round3-adjudication-and-model-selection-override-20260810.json",
+      "sha256": "2f8d0309c4071373d85d8835e01128468db15e3cdfb596331060ebd41d73957c",
+      "commit": "3cf402820511707776e3e25dd6b0ae6a77be0b2e"
+    },
+    "cost_correction_and_p4_2b_backlog": {
+      "path": "docs/phase4/reports/P4.2a-cost-correction-and-P4.2b-throughput-backlog-20260810.json",
+      "sha256": "e42eeb2342412662a84ce0304015e6f236661069b1e725f18fd8f4dfd3fd05c5",
+      "commit": "847593c409b9552cacf3f59913fdb9896ad0d3f0"
+    },
+    "selection_outcome": {
+      "path": "docs/phase4/eval/v2-calibration/development/P4.2a-development-v2-selection-outcome.json",
+      "sha256": "36b5a004b294f012b4ab1dab659d1b3d5d98320d794ad2fe90960a617f554da1"
+    },
+    "selected_contract_freeze": {
+      "path": "docs/phase4/eval/v2-calibration/development/P4.2a-development-v2-selected-contract-freeze.json",
+      "sha256": "0ebc5362055af7ef6409155befc5e09d345cd4f2d8d128ea0791a0c293f66f75"
+    }
+  },
+  "selected_extractor": {
+    "model": "qwen3.6-plus",
+    "selection_timing": "owner_amendment_before_heldout_spend",
+    "selection_basis": "miss_rate_first_owner_decision_not_relative_score_promotion",
+    "round_3_prompt": {
+      "path": "config/prompts/p4_news_event_extract_v2-r3.txt",
+      "sha256": "0291dc882aac42878ba00c4ed3970da72f19508308cd39211467b4fd92294f44",
+      "bytes_must_remain_unchanged": true
+    },
+    "round_3_contract": {
+      "path": "config/p4_event_extract_eval_v2-r3-qwen3.6-plus.yaml",
+      "sha256": "fa75a6cf33065745d02f74fe39e4f102723da43f37ac549058bb34fa8256a181",
+      "inference_semantics_must_remain_unchanged": true
+    },
+    "heldout_execution_contract": {
+      "path": "config/p4_event_extract_eval_v2-heldout-qwen3.6-plus.yaml",
+      "sha256": "26be1765204b122908e7bd09cac857c33bd3140233df47dc3358bc590e020199"
+    },
+    "contract_summary": {
+      "endpoint": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+      "temperature": 0.2,
+      "enable_thinking": false,
+      "max_output_tokens": 2000,
+      "total_deadline_seconds": 20.0,
+      "response_format": "json_object",
+      "explicit_cache_enabled": false,
+      "automatic_retries": 0,
+      "failed_candidate_retries": 0
+    }
+  },
+  "request_contract": {
+    "one_news_item_per_request": true,
+    "one_request_per_eligible_candidate": true,
+    "candidate_order": "ascending_news_item_id_without_gaps_or_reordering",
+    "multi_item_prompt_forbidden": true,
+    "prefilter_forbidden": true,
+    "additional_body_shortening_for_cost_forbidden": true,
+    "body_representation": "exact_round_3_frozen_contract_representation_including_its_existing_14000_character_bound",
+    "body_representation_rationale": "No new cost optimisation or shorter body is introduced; changing the frozen Round 3 representation would invalidate the 0.944 development measurement.",
+    "any_candidate_failure": "terminal_inference_failed_no_sampling_no_retry",
+    "production_llm_audit_writes": false
+  },
+  "source_frame": {
+    "frame_id": "p4.2a-heldout-frame-v2",
+    "timezone": "Asia/Shanghai",
+    "start_inclusive": "2026-08-06T00:00:00+08:00",
+    "end_exclusive": "2026-08-09T00:00:00+08:00",
+    "utc_start_inclusive": "2026-08-05T16:00:00Z",
+    "utc_end_exclusive": "2026-08-08T16:00:00Z",
+    "expected_raw_candidate_count": 4048,
+    "expected_raw_candidates_by_source": {
+      "cninfo": 2824,
+      "akshare_ths": 1021,
+      "sina_company_news": 203
+    },
+    "production_database": "data/alphapilot.db",
+    "database_open_mode": "mode=ro_and_PRAGMA_query_only=ON",
+    "source_lineage": {
+      "required_closed_dates_shanghai": [
+        "2026-08-06",
+        "2026-08-07",
+        "2026-08-08"
+      ],
+      "verified_checkpoint_date_shanghai": "2026-08-08",
+      "migration_job_run_ids": [
+        76932,
+        76933
+      ],
+      "round_3_evidence_sha256": "57f9b99e99358b5e8c596485774702858e5c572cb3116407a279d0195b044318",
+      "round_3_independent_review_sha256": "db68d926bd02a273daf88740c93b49bec413ff95160852f1ad1cacbaa82360c5",
+      "incremental_evidence_sha256": "b60946d37ebc687e8f7c7861ede743f5fba98844ba331d0bbfb7c19f4a0de7d7",
+      "incremental_independent_review_sha256": "c65c909c19bd0914cc8fcb5d098ca4b21454a0db19e223fd807647a92928979a"
+    }
+  },
+  "eligibility_and_sampling": {
+    "deterministic_document_ineligibility_reasons": [
+      "pdf_text_below_min_char_gate",
+      "pdf_exceeds_size_bound"
+    ],
+    "transient_download_or_extraction_failure": "fail_entire_materialization_without_partial_publish",
+    "retired_selection": {
+      "path": "docs/phase4/eval/P4.2a-heldout40-selection-v1.7.manifest.json",
+      "sha256": "9da50ea8720b01b58c6d19eb9d7b11705a0c561c61da432543e2ab5644b3abe1",
+      "count": 40,
+      "sorted_ids_compact_json_sha256": "014dccb72bec70b565e6ff5b65696ae1f005fcc339fd9a8b1b6d2068181a0f22",
+      "policy": "exclude_before_ranking_and_assert_zero_intersection"
+    },
+    "algorithm": "sha256_rank_without_replacement_per_stratum_v1",
+    "seed": "alphapilot-p4.2a-heldout-frame-v2-20260809-r1",
+    "rank_preimage": "utf8(seed) || NUL || utf8(stratum) || NUL || ascii(news_item_id) || NUL || ascii(input_sha256)",
+    "strata": {
+      "predicted_positive": {
+        "definition": "status == ok and materiality >= 2",
+        "selected_count": 40
+      },
+      "predicted_negative": {
+        "definition": "status == ok and materiality < 2",
+        "selected_count": 20
+      },
+      "extract_failed": {
+        "selected_count": 0,
+        "disposition": "excluded_reported_not_negative"
+      }
+    },
+    "insufficient_stratum_policy": "fail_without_substitution_or_sample_reduction",
+    "total_selected_count": 60
+  },
+  "owner_blindness_and_gold": {
+    "owner_order_algorithm": "sha256_rank_without_sampling_stratum_v1",
+    "private_manifest_keeps_sampling_metadata": true,
+    "blind_file_forbidden_recursive_fields": [
+      "sampling_stratum",
+      "model_prediction",
+      "predicted_materiality",
+      "selection_seed",
+      "selection_rank_sha256",
+      "selection_basis",
+      "score"
+    ],
+    "draft_annotator": "OpenAI Codex GPT-5",
+    "draft_annotator_is_evaluated_model": false,
+    "human_adjudicator": "ouyang",
+    "required_annotation_type": "ai_drafted_human_adjudicated",
+    "gold_is_final_only_after_60_of_60_human_confirmation": true,
+    "changed_fields_must_be_independently_recomputed": true
+  },
+  "metrics": {
+    "materiality_precision": {
+      "partition": "selected_model_predicted_positive_stratum",
+      "denominator": 40,
+      "formula": "tp / (tp + fp)",
+      "minimum": 0.8,
+      "gate": true
+    },
+    "materiality_false_omission_rate": {
+      "partition": "selected_model_predicted_negative_stratum",
+      "denominator": 20,
+      "formula": "fn / (fn + tn)",
+      "maximum": 0.2,
+      "gate": true
+    },
+    "materiality_recall": {
+      "value": null,
+      "formula": "not_estimable",
+      "gate": false
+    },
+    "symbol_exact_set_accuracy": {
+      "partition": "all_successful_heldout60_predictions",
+      "minimum": 0.95,
+      "gate": true
+    },
+    "development_and_heldout_pooling_forbidden": true,
+    "development_adverse_flip_margin_applies_to_heldout": false
+  },
+  "ordering": [
+    "commit_this_preregistration_and_runner_tests_before_any_heldout_action",
+    "complete_synthetic_full_path_rehearsal_and_freeze_pass_receipt",
+    "materialize_full_source_window_without_partial_publish",
+    "infer_every_eligible_candidate_once_in_ascending_id_order",
+    "sample_40_positive_and_20_negative_and_publish_blind60",
+    "draft_with_non_evaluated_codex_and_build_owner_adjudication_ui",
+    "wait_for_owner_human_adjudication",
+    "run_read_only_dry_run_and_independent_review",
+    "execute_exactly_one_zero_retry_heldout_evaluation_only_after_new_explicit_authorization"
+  ],
+  "artifacts": {
+    "synthetic_rehearsal": "docs/phase4/rehearsals/P4.2a-v2-calibration",
+    "materialized_inputs": "docs/phase4/eval/v2-calibration/heldout/materialization/candidate-inputs.jsonl",
+    "materialization_manifest": "docs/phase4/eval/v2-calibration/heldout/materialization/manifest.json",
+    "inference_state": "docs/phase4/eval/v2-calibration/heldout/P4.2a-heldout-v2-inference.state.jsonl",
+    "predictions": "docs/phase4/eval/v2-calibration/heldout/P4.2a-heldout-v2.predictions.jsonl",
+    "prediction_manifest": "docs/phase4/eval/v2-calibration/heldout/P4.2a-heldout-v2.predictions.manifest.json",
+    "private_selection": "docs/phase4/eval/v2-calibration/heldout/P4.2a-heldout-frame-v2.selection.json",
+    "owner_blind": "docs/phase4/eval/v2-calibration/heldout/P4.2a-heldout-frame-v2.blind.jsonl",
+    "ai_draft": "docs/phase4/eval/v2-calibration/heldout/P4.2a-heldout-frame-v2.labels-ai-drafted.jsonl",
+    "adjudication_ui": "docs/phase4/eval/v2-calibration/heldout/P4.2a-heldout-frame-v2.adjudication.html",
+    "owner_export": "docs/phase4/eval/v2-calibration/heldout/P4.2a-heldout-frame-v2.owner-export.jsonl",
+    "human_adjudicated": "docs/phase4/eval/v2-calibration/heldout/P4.2a-heldout-frame-v2.human-adjudicated.jsonl",
+    "owner_completion": "docs/phase4/eval/v2-calibration/heldout/P4.2a-heldout-frame-v2.owner-completion.json",
+    "evaluation_state": "docs/phase4/eval/v2-calibration/heldout/P4.2a-heldout-v2-evaluation.state.jsonl",
+    "report_directory": "docs/phase4/eval/v2-calibration/heldout/report"
+  },
+  "safety": {
+    "production_writes_allowed": false,
+    "scheduler_changes_allowed": false,
+    "p4_1_observation_window_mutation_allowed": false,
+    "proposals_or_orders_allowed": false,
+    "trading_mode": "research",
+    "live_trading_enabled": false,
+    "paper_trading_enabled": false,
+    "paper_auto_trading_enabled": false,
+    "futu_enable_trade": false,
+    "futu_enable_account_mutation": false,
+    "unlock_trade_permanently_blocked": true,
+    "p4_2a_done": false,
+    "p4_2b_unlocked": false,
+    "p4_3_unlocked": false
+  },
+  "authorization_boundary": {
+    "allowed_now": [
+      "implement_and_test_the_dedicated_pipeline",
+      "synthetic_rehearsal",
+      "materialization",
+      "candidate_inference",
+      "selection_and_blinding",
+      "non_evaluated_ai_draft",
+      "owner_adjudication_ui",
+      "read_only_dry_run_after_owner_gold"
+    ],
+    "forbidden_now": [
+      "heldout_metric_evaluation",
+      "retrying_any_failed_candidate_or_round",
+      "changing_prompt_model_contract_threshold_seed_or_gold",
+      "p4_2a_done",
+      "p4_2b_or_p4_3_unlock"
+    ],
+    "independent_review_required_before_one_shot_evaluation": true
+  }
+}

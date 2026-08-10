@@ -1,0 +1,62 @@
+{
+  "schema_version": "p4.2a-v2-selected-contract-freeze-v1",
+  "created_at_utc": "2026-08-10T03:50:00Z",
+  "status": "BYTE_FROZEN_FOR_HELDOUT_PREPARATION",
+  "selected_model": "qwen3.6-plus",
+  "selection_outcome": {
+    "path": "docs/phase4/eval/v2-calibration/development/P4.2a-development-v2-selection-outcome.json",
+    "sha256": "36b5a004b294f012b4ab1dab659d1b3d5d98320d794ad2fe90960a617f554da1"
+  },
+  "round_3_contract": {
+    "path": "config/p4_event_extract_eval_v2-r3-qwen3.6-plus.yaml",
+    "sha256": "fa75a6cf33065745d02f74fe39e4f102723da43f37ac549058bb34fa8256a181",
+    "schema_version": "p4.2a-development-event-extract-contract-v2-r3",
+    "inference_semantics_byte_frozen": true
+  },
+  "heldout_execution_contract": {
+    "path": "config/p4_event_extract_eval_v2-heldout-qwen3.6-plus.yaml",
+    "sha256": "26be1765204b122908e7bd09cac857c33bd3140233df47dc3358bc590e020199",
+    "schema_version": "p4.2a-heldout-event-extract-contract-v2"
+  },
+  "prompt": {
+    "path": "config/prompts/p4_news_event_extract_v2-r3.txt",
+    "sha256": "0291dc882aac42878ba00c4ed3970da72f19508308cd39211467b4fd92294f44",
+    "bytes_identical_to_round_3": true
+  },
+  "schema": {
+    "path": "config/schemas/p4_news_event_candidate_v1.schema.json",
+    "sha256": "c106cd15bd974de19ecc01d6e99e8f39c39fbf14df3a3b4dc74ee9b08ff6dd66"
+  },
+  "materialized_schema": {
+    "path": "config/schemas/p4_news_event_v1.schema.json",
+    "sha256": "0ac68654ce23ecd4e537d849d695e092c76dcb9de0fb03793e65ae62b181947f"
+  },
+  "request_shape": {
+    "one_news_item_per_request": true,
+    "one_request_per_eligible_candidate": true,
+    "automatic_retries": 0,
+    "failed_candidate_retries": 0,
+    "multi_item_prompt_forbidden": true,
+    "prefilter_forbidden": true,
+    "additional_body_shortening_for_cost_forbidden": true,
+    "input_representation": "exact_round_3_frozen_contract_representation"
+  },
+  "llm": {
+    "model": "qwen3.6-plus",
+    "endpoint": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+    "temperature": 0.2,
+    "enable_thinking": false,
+    "max_output_tokens": 2000,
+    "total_deadline_seconds": 20.0,
+    "response_format": "json_object",
+    "explicit_cache_enabled": false
+  },
+  "isolation": {
+    "production_database_mode": "read_only_query_only",
+    "production_llm_calls_write": false,
+    "scheduler_changes_allowed": false,
+    "proposals_or_orders_allowed": false,
+    "p4_2b_unlocked": false,
+    "p4_3_unlocked": false
+  }
+}

@@ -1,0 +1,193 @@
+{
+  "schema_version": "p4.2a-dev-iteration-blocker-v3",
+  "recorded_at_utc": "2026-08-04T10:44:42Z",
+  "round_id": "v1.4-r1",
+  "formal_dev_round_valid": false,
+  "development_ready_to_freeze": false,
+  "contract": {
+    "path": "config/p4_event_extract_eval_v1_4.yaml",
+    "sha256": "e6d3e7db08e2d226c850092f0f794d7194eaf1935a56cbfe267a86e1297f37fc",
+    "evaluation_design_path": "config/p4_event_evaluation_v1_3.yaml",
+    "evaluation_design_sha256": "79b58de72d797ee9a9e93ec0f37d5f1c1b0b0d86ca49db1736ecdb5cdc314aac",
+    "model": "qwen3.6-plus",
+    "endpoint": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+    "prompt_path": "config/prompts/p4_news_event_extract_v1_3.txt",
+    "prompt_sha256": "6110b39381789d9c2d2f6442e517c2b89a8a474a8f97c6a037a32f26f629aeee",
+    "evidence_span_match_mode": "unicode_whitespace_elided_contiguous_substring_v1",
+    "explicit_cache_enabled": false
+  },
+  "artifacts": {
+    "predictions": {
+      "path": "docs/phase4/eval/dev-iterations/P4.2a-dev60-v1.4-r1.predictions.jsonl",
+      "sha256": "5aaa4deded34dc858bc7e90b4db5dc2b2cf656f4d4dd673e5a9980d3152257b2"
+    },
+    "manifest": {
+      "path": "docs/phase4/eval/dev-iterations/P4.2a-dev60-v1.4-r1.manifest.json",
+      "sha256": "fa56b4f167530c7da1d0887f0163b13aa69b0a73de8e48a75cc6335cbbb1904a"
+    },
+    "report": {
+      "path": "docs/phase4/eval/dev-iterations/P4.2a-dev60-v1.4-r1.report.json",
+      "sha256": "5cf0722fb8851122720ea59c53cb355be9095f1b2a4d1658b827cf48a2dbf969"
+    }
+  },
+  "coverage": {
+    "expected": 60,
+    "success": 54,
+    "failure": 6,
+    "failure_counts": {
+      "post_validation_failed": 5,
+      "schema_validation_failed": 1
+    },
+    "failure_ids": [
+      253,
+      258,
+      280,
+      304,
+      336,
+      340
+    ],
+    "failed_reference_positive_ids": [
+      253,
+      258,
+      304,
+      336
+    ]
+  },
+  "safe_failure_disclosure": {
+    "post_validation_failed": {
+      "persisted_error_code": "post_validation_failed",
+      "field": "evidence_span",
+      "constraint": "whitespace_normalized_contiguous_substring",
+      "count": 5,
+      "ids": [
+        253,
+        258,
+        304,
+        336,
+        340
+      ],
+      "root_cause_status": "unadjudicated_from_safe_artifacts",
+      "raw_payload_persisted": false,
+      "exception_detail_persisted": false,
+      "note": "The safe artifacts prove the violated field and constraint only. They do not retain candidate spans, so they cannot distinguish paraphrase, table-cell synthesis, or another non-contiguous output cause."
+    },
+    "schema_validation_failed": {
+      "persisted_error_code": "schema_validation_failed",
+      "field": null,
+      "constraint": null,
+      "count": 1,
+      "ids": [
+        280
+      ],
+      "root_cause_status": "unproven",
+      "raw_payload_persisted": false,
+      "exception_detail_persisted": false,
+      "note": "The lower-level safe schema error does not expose a field or constraint. No field-level cause is inferred or invented."
+    }
+  },
+  "model_interagreement": {
+    "materiality_gte_2": {
+      "matches": 11,
+      "denominator": 13,
+      "value": 0.8461538461538461,
+      "development_target": 0.8,
+      "development_target_reached_on_comparable_rows": true,
+      "formal_gate_usable": false,
+      "reason": "Six rows failed extraction, including four reference-positive rows."
+    },
+    "symbol_exact_set": {
+      "matches": 49,
+      "denominator": 54,
+      "value": 0.9074074074074074,
+      "development_target": 0.95,
+      "development_target_reached": false,
+      "mismatch_ids": [
+        28,
+        44,
+        67,
+        71,
+        96
+      ]
+    }
+  },
+  "symbol_diagnostics": {
+    "current_round": {
+      "ai_label_defect_ids": [
+        44
+      ],
+      "model_subject_under_attribution_ids": [
+        28,
+        67,
+        71,
+        96
+      ]
+    },
+    "historical_v1_3_over_attribution_ids": [
+      75,
+      210,
+      232,
+      393
+    ],
+    "historical_ids_fixed_in_v1_4": [
+      75,
+      210,
+      232,
+      393
+    ],
+    "raw_frozen_labels_remain_unchanged": true,
+    "symbol_rule_relaxation_allowed": false,
+    "id_44_symbol_guessing_allowed": false
+  },
+  "report_integrity_observations": {
+    "historical_symbol_diagnostic_staleness": {
+      "field": "symbol_diagnostics.model_over_attribution_ids",
+      "status": "stale_historical_list_in_immutable_report",
+      "correction_recorded_in_this_blocker": true
+    },
+    "flash_baseline_comparison": {
+      "omitted_changed_dimensions": [
+        "evidence_span_match_mode",
+        "validation_contract"
+      ],
+      "baseline_comparable_count": 59,
+      "candidate_comparable_count": 54,
+      "causal_reading_forbidden": true,
+      "interpretation": "indicative_only_not_single_variable_causality"
+    }
+  },
+  "runtime_evidence": {
+    "started_at_utc": "2026-08-04T10:31:00.569971Z",
+    "completed_at_utc": "2026-08-04T10:34:22.979153Z",
+    "latency_ms_min": 2254,
+    "latency_ms_mean": 3111.5555555555557,
+    "latency_ms_max": 8059,
+    "prompt_tokens_total": 175883,
+    "prompt_tokens_mean": 3257.0925925925926,
+    "completion_tokens_total": 6830,
+    "completion_tokens_mean": 126.48148148148148,
+    "enable_thinking": false
+  },
+  "safety": {
+    "production_database_mode": "ro_query_only",
+    "production_writes": 0,
+    "production_llm_calls_before_and_after": [
+      109,
+      109
+    ],
+    "trade_proposals": 1,
+    "broker_orders": 1,
+    "non_simulate_orders": 0,
+    "database_quick_check": "ok",
+    "p4_1_frozen_config_sha256": "d0dcd665472b50092a1b4fa7f65f7115778e1b89ac11aca0ed49dc70beaa790b",
+    "heldout_accessed": false,
+    "dev_final_created": false,
+    "prediction_freeze_receipt_created": false
+  },
+  "next_step": {
+    "same_contract_rerun_allowed": false,
+    "threshold_relaxation_allowed": false,
+    "labels_mutable": false,
+    "heldout_access_allowed": false,
+    "recommended": "Pre-register a new prompt and contract that retain strict evidence validation, add literal-copy and JSON preflight instructions, and correct subject under-attribution without guessing symbols."
+  }
+}

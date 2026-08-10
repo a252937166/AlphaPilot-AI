@@ -1,0 +1,164 @@
+{
+  "schema_version": "p4.2a-calibration-design-clarifications-v1",
+  "clarification_id": "p4.2a-v2-calibration-design-clarifications-20260809-r1",
+  "created_at_utc": "2026-08-09T11:42:09Z",
+  "created_at_shanghai": "2026-08-09T19:42:09+08:00",
+  "status": "preregistered_before_sample_prompt_or_model_call",
+  "parent_preregistration": {
+    "path": "docs/phase4/reports/P4.2a-v2-calibration-round-preregistration-20260809.json",
+    "sha256": "493114c980993bef987883975ccebeb1e970478123f5d3757fa9692721731fcb",
+    "commit": "a389ad850386738aca2c0c3ef662103bb0237172",
+    "bytes_immutable": true
+  },
+  "candidate_pool_correction": {
+    "source_predictions": {
+      "path": "docs/phase4/eval/P4.2a-heldout-candidate-predictions-v1.7.jsonl",
+      "sha256": "b77429b16e92ddd74895915c5c628026f8a426a54f2bf006c59606c4c18bcc84",
+      "total_rows": 3013
+    },
+    "audited_partition_before_retirement": {
+      "predicted_positive": {
+        "definition": "status == ok and prediction.materiality >= 2",
+        "count": 894
+      },
+      "predicted_negative": {
+        "definition": "status == ok and prediction.materiality < 2",
+        "count": 2097
+      },
+      "extract_failed": {
+        "definition": "status != ok and prediction is absent",
+        "count": 22,
+        "development_sampling_disposition": "excluded_not_relabelled_as_predicted_negative",
+        "rationale": "A row without a prediction cannot enter a predicted-negative false-omission denominator."
+      }
+    },
+    "clarification_of_2119": "The preregistration's 2119 is the arithmetic complement 3013 - 894 and contains 22 extraction failures; it is not the predicted-negative pool.",
+    "retired_positive_ids": {
+      "source_manifest_path": "docs/phase4/eval/P4.2a-heldout40-selection-v1.7.manifest.json",
+      "source_manifest_sha256": "9da50ea8720b01b58c6d19eb9d7b11705a0c561c61da432543e2ab5644b3abe1",
+      "count": 40,
+      "sorted_ids_compact_json_sha256": "014dccb72bec70b565e6ff5b65696ae1f005fcc339fd9a8b1b6d2068181a0f22",
+      "sorted_ids": [
+        1189,
+        1200,
+        1207,
+        1262,
+        1418,
+        1420,
+        1576,
+        1593,
+        1604,
+        1713,
+        1725,
+        1726,
+        1745,
+        1749,
+        1791,
+        1831,
+        1911,
+        2209,
+        2415,
+        2502,
+        2510,
+        2830,
+        2951,
+        3003,
+        3037,
+        3071,
+        3189,
+        3244,
+        3289,
+        3317,
+        3412,
+        3426,
+        3711,
+        3748,
+        3833,
+        3938,
+        3988,
+        3993,
+        4042,
+        4044
+      ],
+      "all_are_predicted_positive": true,
+      "permanently_excluded_from_all_future_frames": true
+    },
+    "audited_development_sampling_pools_after_retirement": {
+      "predicted_positive": 854,
+      "predicted_negative": 2097,
+      "extract_failed_excluded": 22
+    }
+  },
+  "execution_order_resolution": {
+    "synthetic_full_path_rehearsal": "must pass before any heldout-v2 materialization, inference, sampling, drafting, adjudication, or evaluation",
+    "formal_development_round": {
+      "models_always_measured": [
+        "qwen3.7-flash",
+        "qwen3.6-plus"
+      ],
+      "fixed_call_order": [
+        "qwen3.7-flash",
+        "qwen3.6-plus"
+      ],
+      "automatic_retries": 0,
+      "maximum_rounds": 6,
+      "every_terminal_result_recorded": true
+    },
+    "selection_rule": "After both results in a formal round are recorded, select flash if it clears both gates; otherwise select plus if it clears both; otherwise no model is selected."
+  },
+  "blindness_resolution": {
+    "private_selection_manifest_contains": [
+      "sampling_stratum",
+      "selection_seed",
+      "selection_rank_sha256",
+      "source_prediction_identity"
+    ],
+    "owner_blind_jsonl_and_ui_forbid": [
+      "sampling_stratum",
+      "predicted_positive",
+      "predicted_negative",
+      "model_prediction",
+      "predicted_materiality",
+      "selection_seed",
+      "selection_rank_sha256",
+      "selection_basis"
+    ],
+    "scoring_join_key": "news_item_id",
+    "drafting_ai_must_not_be_evaluated_model": true,
+    "gold_must_be_human_adjudicated": true
+  },
+  "metric_resolution": {
+    "materiality_precision": {
+      "formula": "tp / (tp + fp)",
+      "threshold": 0.8,
+      "metric_partition": "candidate-round predicted-positive outputs across the fixed development frame",
+      "sampling_frame": "development_frame_v2_baseline_stratified_30_positive_15_negative"
+    },
+    "materiality_false_omission_rate": {
+      "formula": "fn / (fn + tn)",
+      "threshold": 0.2,
+      "metric_partition": "candidate-round predicted-negative outputs across the fixed development frame",
+      "sampling_frame": "development_frame_v2_baseline_stratified_30_positive_15_negative"
+    },
+    "materiality_recall": {
+      "reporting_status": "not_estimable_on_the_legacy_predicted_positive_frame",
+      "report_value": null,
+      "gate": false,
+      "replacement": "materiality_false_omission_rate"
+    },
+    "required_disclosure_for_every_metric": [
+      "metric_partition",
+      "sampling_frame",
+      "sampling_strata",
+      "denominator",
+      "formula",
+      "gate_or_diagnostic"
+    ]
+  },
+  "unchanged": {
+    "materiality_precision_threshold": 0.8,
+    "v1_7_and_v1_8_designs_and_results": "byte_frozen",
+    "p4_2b_unlocked": false,
+    "p4_3_unlocked": false
+  }
+}

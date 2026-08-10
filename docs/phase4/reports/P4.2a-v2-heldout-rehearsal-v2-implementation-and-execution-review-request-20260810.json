@@ -1,0 +1,317 @@
+{
+  "schema_version": "p4.2a-v2-heldout-rehearsal-v2-implementation-and-execution-review-request-v1",
+  "request_id": "P4.2A-V2-HELDOUT-REHEARSAL-V2-IMPLEMENTATION-AND-EXECUTION-REVIEW-20260810",
+  "created_at_utc": "2026-08-10T10:15:52Z",
+  "created_at_shanghai": "2026-08-10T18:15:52+08:00",
+  "status": "READY_FOR_OWNER_INDEPENDENT_REVIEW_REAL_HELDOUT_STILL_BLOCKED",
+  "requester": {
+    "reviewer_type": "operator_ai_self_audit_with_independent_read_only_agents",
+    "owner_approval_claimed": false,
+    "external_release_verdict_claimed": false,
+    "purpose": "Submit the immutable successor-v2 implementation commit and its single registered offline rehearsal for owner review."
+  },
+  "requested_owner_verdicts": {
+    "implementation_commit": "APPROVE_OR_REJECT",
+    "single_registered_offline_rehearsal": "APPROVE_OR_REJECT",
+    "source_frame_reconciliation": "CONFIRM_FROZEN_AVAILABLE_TIME_FRAME_OR_AUTHORIZE_A_NEW_CREATE_ONLY_DESIGN"
+  },
+  "authority": {
+    "successor_preregistration": {
+      "path": "docs/phase4/reports/P4.2a-v2-heldout-rehearsal-v2-preregistration-20260810.json",
+      "sha256": "35b6d757876e1308d8f28ded3dc36784afb4e5d7c5c1589b8c211cc079aac7c3",
+      "commit": "5a852271fbb9e49ab04b87827d2f6fac1ddc7463"
+    },
+    "bundle_schema": {
+      "path": "config/schemas/p4_2a_v2_heldout_rehearsal_bundle_v2.schema.json",
+      "sha256": "f5ff0516c58f2285302dab5d1a03daafd70ea887d4f323387d44c7c19623a8bc"
+    },
+    "full_pool_cost_acceptance": {
+      "path": "docs/phase4/reports/P4.2a-heldout-full-pool-inference-cost-acceptance-20260810.json",
+      "sha256": "7555b4e7ade255d0d947f2e9005246a490be92db71c8db1e559e616572e033e7",
+      "commit": "38687a4a8f926e2547541accbe59644727a7a83e",
+      "verdict": "ACCEPT_FULL_POOL_INFERENCE_COST; SAMPLING_DESIGN_NOT_AMENDED",
+      "cost_gate_accepted": true,
+      "implementation_or_real_heldout_authorized": false
+    },
+    "frozen_heldout_preregistration": {
+      "path": "docs/phase4/reports/P4.2a-v2-heldout-preregistration-20260810.json",
+      "sha256": "ccecbf5ca7b48b16e445318b8c94a08927432f92c7e8c12f8ab40f2916578705"
+    },
+    "retired_v1_incident": {
+      "path": "docs/phase4/reports/P4.2a-v2-heldout-rehearsal-v1-incident-20260810.json",
+      "sha256": "c3224b288f5181131351ae711a673ce94ec603375925d0cc968cef85d103e785"
+    },
+    "tooling_base_commit": "bb5ced1adc83bfe88fa4c86f9b70513a3de97503",
+    "retired_v1_evidence_commit": "924ddd6efe6da1437e4ea613f30603feb595573f",
+    "retired_v1_fail_close_commit": "d710e885b49006eedf4f70ea09cb81fe15d176a3"
+  },
+  "implementation": {
+    "commit": "1de2786d04467593ac3b6260b453ca0dfe8d3a5f",
+    "parent_commit": "38687a4a8f926e2547541accbe59644727a7a83e",
+    "descends_from_retired_v1_fail_close": true,
+    "changed_file_count": 6,
+    "files": [
+      {
+        "path": "scripts/prepare_p4_2a_v2_heldout.py",
+        "sha256": "9b6d452014514c4d810fb83d91a78cde8864e3cf8de02dabbdba3c9c378a5bd7"
+      },
+      {
+        "path": "scripts/rehearse_p4_2a_v2_heldout_full_path.py",
+        "sha256": "4db30c5c542334756c18956b55447b1241ed33fd4fd950c591599e9613b1f8b1"
+      },
+      {
+        "path": "scripts/validate_p4_2a_v2_heldout_rehearsal_bundle.py",
+        "sha256": "5246da0e558f32bc6c0a60eb363afa27d47bcdbbd09cd82cd93143e5f6d9346d"
+      },
+      {
+        "path": "src/alphapilot/core/__init__.py",
+        "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b",
+        "bytes": 1,
+        "reason": "A single newline makes the commit-bound package initializer honestly satisfy the preregistered control-file minimum byte count without changing runtime semantics."
+      },
+      {
+        "path": "tests/test_p4_2a_v2_heldout_rehearsal_v2_runner.py",
+        "sha256": "ea97716edb7b54d9c8e46549ef897d73a0bc4254b0996e09498f4ec9955289f9"
+      },
+      {
+        "path": "tests/test_p4_2a_v2_heldout_rehearsal_v2_validator.py",
+        "sha256": "6477b9c55f7ff5312e63678808f5e5efb8a81c10ca1141a97763d8301065a0a9"
+      }
+    ],
+    "implementation_properties": {
+      "locked_environment_before_synthetic_execution": "C.UTF-8/UTC/PYTHONHASHSEED=0 with hash randomization disabled",
+      "commit_and_runtime_preflight_before_claim": true,
+      "repository_read_bytes_bound_to_commit": true,
+      "unresolved_or_dynamic_local_imports_fail_closed": true,
+      "network_database_subprocess_and_out_of_workspace_writes_blocked": true,
+      "two_distinct_isolated_runs": true,
+      "registered_dependency_injection_seams_forbidden": true,
+      "registered_literal_path_symlink_substitution_forbidden": true,
+      "atomic_create_only_publication": "external deterministic stage-as-claim then renamex_np(RENAME_EXCL)",
+      "failure_or_interruption_after_durable_claim_forbids_retry": true,
+      "pre_claim_preflight_failure_effect": "no_claim_created_no_pipeline_started_official_one_shot_not_consumed"
+    }
+  },
+  "pre_execution_verification": {
+    "status": "PASS",
+    "implementation_commit": "1de2786d04467593ac3b6260b453ca0dfe8d3a5f",
+    "repository_control_count": 114,
+    "ast_local_import_closure_count": 30,
+    "python_inventory_sha256": "ab3e067417027bb98ea4335e9086d2046ac9dfd4eaf857acc8622dc8f0a13a31",
+    "package_inventory_sha256": "c3c7792eb31679c0eb7d3140e067d691df330cd3af302d2350bf15b74ac8ec42",
+    "registered_destination_absent": true,
+    "deterministic_claim_absent": true
+  },
+  "single_registered_execution": {
+    "registered_runner_invocation_count": 1,
+    "retry_count": 0,
+    "runner_exit_code": 0,
+    "runner_terminal_status": "passed",
+    "successor_gate": "PASS_REHEARSAL_V2_ONLY_REAL_HELDOUT_REMAINS_BLOCKED",
+    "observed_claim_directory_birth_utc": "2026-08-10T10:00:23Z",
+    "observed_bundle_file_mtime_utc": "2026-08-10T10:01:33Z",
+    "registered_directory": "docs/phase4/rehearsals/P4.2a-v2-calibration-v2",
+    "bundle": {
+      "path": "docs/phase4/rehearsals/P4.2a-v2-calibration-v2/bundle.json",
+      "sha256": "0f3cbb3fe0251994da457e1a8d36a09b06ba127a8f0b584a2d924eb02e47b01f",
+      "bytes": 59632,
+      "directory_file_count": 146,
+      "directory_count": 46,
+      "directory_total_bytes": 39607896,
+      "symlink_count": 0,
+      "hardlink_count": 0,
+      "special_file_count": 0,
+      "unexpected_entry_count": 0
+    },
+    "publication": {
+      "directory_absent_before_publish": true,
+      "staged_outside_repository": true,
+      "published_by_single_atomic_rename": true,
+      "atomic_create_only": true,
+      "deterministic_claim_absent_after_success": true,
+      "stale_claim_count_after_success": 0
+    },
+    "exactly_once_scope": {
+      "proved_scope": "this canonical local checkout and literal registered destination",
+      "cross_clone_or_cross_machine_global_cas_claimed": false,
+      "bootstrap_integrity_scope": "commit-bound preflight through the synthetic pipeline; not Python interpreter startup before self-hosted imports",
+      "durable_exactly_once_boundary": "successful create-only claim acquisition immediately before the first synthetic pipeline through atomic publication"
+    }
+  },
+  "independent_bundle_validation": {
+    "validator_exit_code": 0,
+    "status": "PASS_REHEARSAL_V2_ONLY_REAL_HELDOUT_REMAINS_BLOCKED",
+    "implementation_commit": "1de2786d04467593ac3b6260b453ca0dfe8d3a5f",
+    "run_a_artifact_count": 14,
+    "run_b_artifact_count": 14,
+    "run_a_artifact_bytes": 587559,
+    "run_b_artifact_bytes": 587559,
+    "byte_identical_artifact_count": 14,
+    "mismatch_count": 0,
+    "normalization_used": false,
+    "control_file_count": 116,
+    "control_file_bytes": 38328953,
+    "control_tree_member_count": 117,
+    "ast_local_import_closure_count": 30,
+    "run_a_merkle_root_sha256": "bd24b408895918b9023a69a4f440d7feccf14abdc0d6bb8cde67c59a5cb0f168",
+    "run_b_merkle_root_sha256": "bd24b408895918b9023a69a4f440d7feccf14abdc0d6bb8cde67c59a5cb0f168",
+    "control_manifest_sha256": "c2ce157e2888c91b26bf682fb6747b1bf60e25512192b5c3a0452e6b79e95582",
+    "control_surface_merkle_root_sha256": "7f6298314e92619b86af8fc57b6afbb655329ad604371cd55ef091c19f382047",
+    "bundle_root_sha256": "6b3fded42f705e4e02d80b5883a36db5555997e858632e8b7280d429d1dd72b5",
+    "runtime_binding": {
+      "python_inventory_sha256": "ab3e067417027bb98ea4335e9086d2046ac9dfd4eaf857acc8622dc8f0a13a31",
+      "package_inventory_count": 84,
+      "package_inventory_sha256": "c3c7792eb31679c0eb7d3140e067d691df330cd3af302d2350bf15b74ac8ec42",
+      "package_root_set_sha256": "fae235892c0988d4093d1ad12b034a6126d116e436393e837a8b2f71601fbd12",
+      "duplicate_normalized_package_count": 0,
+      "pyproject_sha256": "b38481e57b0ba88d1b9b728c2a57583d55cf175262a8a803b483cf4823e13e29",
+      "uv_lock_sha256": "10829f7ef74adfcbd4401000112b5539c899a899d09d8a3f78fdf8d95803a673"
+    },
+    "semantic_validation_all_passed": true,
+    "v1_fallback_used": false,
+    "retired_v1_receipt_or_gate_accepted": false
+  },
+  "verification_suite": {
+    "eight_related_test_files": {
+      "passed": 176,
+      "failed": 0
+    },
+    "runner_candidate_tests": {
+      "passed": 29,
+      "failed": 0
+    },
+    "validator_candidate_tests": {
+      "passed": 40,
+      "failed": 0
+    },
+    "locked_environment_merged_regression": {
+      "passed": 95,
+      "failed": 0
+    },
+    "ruff_check_scoped": "PASS",
+    "strict_mypy_scoped": "PASS",
+    "py_compile_scoped": "PASS",
+    "git_diff_check": "PASS",
+    "pre_execution_independent_verdict": "APPROVE_RUNNER_CANDIDATE",
+    "post_execution_independent_verdict": "POST_EXECUTION_APPROVE"
+  },
+  "safety_and_immutability": {
+    "bundle_claims": {
+      "real_database_reads": 0,
+      "real_network_calls": 0,
+      "real_model_calls": 0,
+      "production_writes": false,
+      "production_heldout_artifacts_changed": false,
+      "real_heldout_metrics_computed": false,
+      "real_metrics_disclosed": false,
+      "proposals_or_orders_allowed": false
+    },
+    "post_execution_read_only_database_recheck": {
+      "observed_at_utc": "2026-08-10T10:12:30Z",
+      "database": "data/alphapilot.db",
+      "open_mode": "readonly",
+      "pragma_query_only": 1,
+      "connection_total_changes": 0,
+      "llm_call_count": 118,
+      "p4_2a_or_heldout_or_calibration_llm_call_count": 0,
+      "llm_call_count_after_rehearsal_claim_birth": 0,
+      "heldout_named_table_count": 0,
+      "trade_proposal_count": 1,
+      "broker_order_count": 1,
+      "non_simulate_order_count": 0
+    },
+    "real_heldout_root_exists": false,
+    "registered_real_heldout_artifact_count": 0,
+    "trading_and_phase_locks": {
+      "trading_mode": "research",
+      "live_trading_enabled": false,
+      "paper_trading_enabled": false,
+      "paper_auto_trading_enabled": false,
+      "futu_enable_trade": false,
+      "futu_enable_account_mutation": false,
+      "unlock_trade_permanently_blocked": true,
+      "p4_2a_done": false,
+      "p4_2b_unlocked": false,
+      "p4_3_unlocked": false
+    },
+    "retired_v1": {
+      "unchanged": true,
+      "contract_sha256": "61ff631b0dc025bf7441fd3bd04636d0d6d34e5085b0ca570e6f8e2fcfd298ac",
+      "inputs_sha256": "a6c5e6e0da6341cecf01df038b36964af6d8bb433b72babf953b385addc87707",
+      "expected_sha256": "557433d6ebdd6e3585aad18c6204e28c1cae6417ab3b1b3591474c5f0189b9ac",
+      "receipt_sha256": "2610a8b3885426e44a7f32c1d964defcaa46a118bb531a2ecc9b0f3aefa1e0f5",
+      "receipt_remains_permanently_fail_closed": true
+    },
+    "preexisting_unrelated_worktree_changes_preserved": true,
+    "p4_1_observation_window_modified": false
+  },
+  "source_frame_reconciliation_required": {
+    "status": "BLOCKED_PENDING_OWNER_CONFIRMATION",
+    "bundle_status_semantics": "The bundle must retain BLOCKED_PENDING_OWNER_CLARIFICATION because that value is frozen by the preregistered schema. The later cost acceptance is an external post-preregistration authority and must not be rewritten into the immutable bundle.",
+    "frozen_authoritative_frame": {
+      "timestamp_field": "available_time",
+      "utc_start_inclusive": "2026-08-05T16:00:00Z",
+      "utc_end_exclusive": "2026-08-08T16:00:00Z",
+      "sources": [
+        "cninfo",
+        "akshare_ths",
+        "sina_company_news"
+      ],
+      "raw_count": 4048,
+      "by_source": {
+        "cninfo": 2824,
+        "akshare_ths": 1021,
+        "sina_company_news": 203
+      }
+    },
+    "read_only_sql_reconstruction_that_exactly_matches_cost_record_count": {
+      "provenance_note": "The cost acceptance record does not declare its timestamp-field SQL. A read-only reconstruction using published_at and the two recorded sources exactly reproduces its 4,727 count.",
+      "timestamp_field": "published_at",
+      "same_utc_window": true,
+      "sources_with_rows": [
+        "cninfo",
+        "akshare_ths"
+      ],
+      "raw_count": 4727,
+      "by_source": {
+        "cninfo": 3711,
+        "akshare_ths": 1016,
+        "sina_company_news": 0
+      }
+    },
+    "set_reconciliation": {
+      "intersection_count": 3839,
+      "frozen_frame_only_count": 209,
+      "frozen_frame_only_by_source": {
+        "sina_company_news": 203,
+        "akshare_ths": 5,
+        "cninfo": 1
+      },
+      "cost_reconstruction_only_count": 888,
+      "cost_reconstruction_only_by_source": {
+        "cninfo": 888
+      },
+      "union_count": 4936,
+      "cost_reconstruction_only_cninfo_available_time_min": "2026-08-08T19:50:07.790566Z",
+      "cost_reconstruction_only_cninfo_available_time_max": "2026-08-09T05:06:04.296997Z",
+      "all_cost_reconstruction_only_cninfo_rows_are_after_frozen_window": true,
+      "frozen_sina_rows_with_null_published_at": 203
+    },
+    "finding": "The accepted 4,727 estimate is not the frozen source frame: it changes the timestamp field and effectively drops Sina rows. Therefore it cannot silently replace the 4,048 available-time frame while also claiming that the sampling design was not amended.",
+    "recommended_owner_confirmation": "Treat 4,727 calls and CNY 66 as an accepted conservative cost envelope only; keep the frozen available_time three-source 4,048 raw frame authoritative and report realised eligible, ineligible, call, cost and predicted-positive counts after execution.",
+    "alternative_if_4727_is_intended_as_authoritative": "Issue a new create-only source-frame design and rebind implementation and rehearsal before any real materialization; direct comparability to v1.7 must then be qualified.",
+    "automatic_interpretation_or_real_execution_allowed": false
+  },
+  "phase_gate": {
+    "implementation_and_rehearsal_may_be_submitted_for_owner_review": true,
+    "owner_implementation_review_passed": false,
+    "real_heldout_materialization_unlocked": false,
+    "real_heldout_inference_unlocked": false,
+    "heldout_sampling_or_drafting_unlocked": false,
+    "heldout_metric_evaluation_unlocked": false,
+    "p4_2a_done": false,
+    "p4_2b_unlocked": false,
+    "p4_3_unlocked": false,
+    "next_action": "Owner reviews implementation commit 1de2786d04467593ac3b6260b453ca0dfe8d3a5f, the immutable registered bundle, and confirms the source-frame reconciliation before any real held-out artifact is materialized."
+  }
+}

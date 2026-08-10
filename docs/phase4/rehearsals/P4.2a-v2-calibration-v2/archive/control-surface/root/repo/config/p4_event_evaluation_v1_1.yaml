@@ -1,0 +1,453 @@
+schema_version: p4.2a-evaluation-design-v1.1
+owner_spec_commit: 8e8b9c343f817a6c9c0b204cc1d3d49c9f277a0f
+pre_registered_at: "2026-08-03T04:50:14Z"
+production_writes_allowed: false
+artifact_root: docs/phase4/eval
+
+base_annotation_contract:
+  path: config/p4_event_extract_eval_v1.yaml
+  sha256: b3eb24c63816043edf0ef728d8d9778cd9083d720649d6fff3ae6289bba74300
+  schema_version: p4.2a-event-extract-eval-v1
+  model: qwen3.6-flash
+  prompt:
+    path: config/prompts/p4_news_event_extract_v1.txt
+    sha256: 4474d61f17f6c8f9a6c909228423f17cc06083b5776f481c4044c0146efbde9d
+  result_schema:
+    path: config/schemas/p4_news_event_v1.schema.json
+    sha256: 0ac68654ce23ecd4e537d849d695e092c76dcb9de0fb03793e65ae62b181947f
+  taxonomy_version: p4-news-event-taxonomy-v1
+
+supersedes:
+  - base_annotation_contract.gold_sample.future_40
+  - base_annotation_contract.gold_sample.final_output_jsonl
+  - base_annotation_contract.gold_sample.predictions_output_jsonl
+  - base_annotation_contract.gold_sample.manifest_json
+  - base_annotation_contract.evaluation
+
+artifacts:
+  dev_60_frozen_jsonl:
+    path: docs/phase4/eval/P4.2a-gold-inventory60-v1.jsonl
+    sha256: 81b3c0b27cd344fe4c2a735261e501dd2f60a0927c14b2c37e5b2a4879b4a2ba
+  dev_final_predictions_jsonl:
+    path: docs/phase4/eval/P4.2a-dev60-final-predictions-v1.1.jsonl
+    create_only: true
+  dev_final_predictions_manifest_json:
+    path: docs/phase4/eval/P4.2a-dev60-final-predictions-v1.1.manifest.json
+    create_only: true
+  offline_trial_predictions_jsonl:
+    path: docs/phase4/eval/P4.2a-offline-extract-qwen3.6-flash-v1.jsonl
+    sha256: b1baca41a2d4cbbfa62ec921bc77ea760f2b80f7a075e1625c68fb74acac06a4
+  offline_trial_report_json:
+    path: docs/phase4/eval/P4.2a-offline-trial-v1.report.json
+    sha256: 794daa7b6f2152194575e3bf764139fdd046eb4aa31f4d310b57f92446b37e07
+  prediction_contract_freeze_receipt_json:
+    path: docs/phase4/eval/P4.2a-heldout-prediction-contract-freeze-v1.1.json
+    create_only: true
+  heldout_candidate_inputs_jsonl:
+    path: docs/phase4/eval/P4.2a-heldout-candidate-inputs-v1.1.jsonl
+    create_only: true
+  heldout_candidate_predictions_jsonl:
+    path: docs/phase4/eval/P4.2a-heldout-candidate-predictions-v1.1.jsonl
+    create_only: true
+  heldout_candidate_predictions_manifest_json:
+    path: docs/phase4/eval/P4.2a-heldout-candidate-predictions-v1.1.manifest.json
+    create_only: true
+  heldout_inference_state_jsonl:
+    path: docs/phase4/eval/P4.2a-heldout-inference-one-shot-v1.1.state.jsonl
+    create_only: true
+  heldout_selection_manifest_json:
+    path: docs/phase4/eval/P4.2a-heldout40-selection-v1.1.manifest.json
+    create_only: true
+  heldout_evaluation_state_jsonl:
+    path: docs/phase4/eval/P4.2a-heldout-evaluation-one-shot-v1.1.state.jsonl
+    create_only: true
+  dev_60_owner_annotations_jsonl:
+    path: docs/phase4/eval/P4.2a-gold-dev60-owner-labels-v1.1.jsonl
+    create_only: true
+  heldout_40_blind_sample_jsonl:
+    path: docs/phase4/eval/P4.2a-gold-heldout40-blind-sample-v1.1.jsonl
+    create_only: true
+  heldout_40_owner_annotations_jsonl:
+    path: docs/phase4/eval/P4.2a-gold-heldout40-owner-labels-v1.1.jsonl
+    create_only: true
+  combined_100_annotations_jsonl:
+    path: docs/phase4/eval/P4.2a-gold-annotation100-v1.1.jsonl
+    create_only: true
+  owner_completion_manifest_json:
+    path: docs/phase4/eval/P4.2a-owner-completion-v1.1.manifest.json
+    create_only: true
+  evaluation_report_directory:
+    path: docs/phase4/eval/reports
+    create_only_reports: true
+    append_only_failed_rounds: true
+
+splits:
+  dev_60:
+    sample_tag: dev60
+    role: prompt_development
+    count: 60
+    source_artifact: dev_60_frozen_jsonl
+    owner_completed_annotation_artifact: dev_60_owner_annotations_jsonl
+    prompt_iteration_allowed: true
+    heldout_data_access_allowed: false
+    materiality_metrics_gate: false
+  heldout_40:
+    sample_tag: heldout40
+    role: heldout_test
+    count: 40
+    prompt_iteration_allowed: false
+    owner_blind_sample_artifact: heldout_40_blind_sample_jsonl
+    owner_completed_annotation_artifact: heldout_40_owner_annotations_jsonl
+    selection_must_not_create:
+      - heldout_40_owner_annotations_jsonl
+      - combined_100_annotations_jsonl
+      - owner_completion_manifest_json
+    candidate_batch:
+      date_field: available_time
+      timezone: Asia/Shanghai
+      window_start_inclusive: "2026-08-04T00:00:00+08:00"
+      window_end_exclusive: "2026-08-06T00:00:00+08:00"
+      selection_ready_after: "2026-08-06T00:10:00+08:00"
+      trading_dates: ["2026-08-04", "2026-08-05"]
+      min_news_item_id_exclusive: 423
+      sources: [cninfo, akshare_ths, sina_company_news]
+      prediction_scope: all_eligible_batch_rows
+    prediction_inputs:
+      artifact: heldout_candidate_inputs_jsonl
+      create_once_before_prediction: true
+      cninfo_announcement_body_required: true
+      second_body_fetch_for_owner_delivery_forbidden: true
+      required_record_fields:
+        - news_item_id
+        - source
+        - url
+        - title
+        - ingested_symbol
+        - published_at
+        - available_time
+        - original_text
+        - body_state
+        - text_sha256
+        - input_sha256
+        - body_evidence
+      prediction_annotation_join_keys: [news_item_id, input_sha256, text_sha256]
+    eligible_pool:
+      prediction_status: ok
+      materiality_minimum: 2
+      positive_rate_denominator: successful_predictions
+      failed_predictions_are_ineligible_and_reported: true
+    sampling:
+      algorithm: sha256_rank_without_replacement_v1
+      deterministic_seed: alphapilot-p4.2a-heldout40-v1.1-20260803
+      rank_input_format: "utf8(seed) || 0x00 || ascii(news_item_id) || 0x00 || ascii(input_sha256)"
+      digest: sha256
+      order: digest_ascending_then_news_item_id_ascending
+      without_replacement: true
+      selected_count: 40
+      insufficient_pool_policy: fail_without_substitution
+
+prediction_contract_freeze:
+  development_source: dev60_only
+  versioned_contract_required_after_prompt_change: true
+  receipt_artifact: prediction_contract_freeze_receipt_json
+  receipt_created_before_heldout_candidate_prediction: true
+  receipt_created_after_dev_final_predictions: true
+  receipt_create_only: true
+  required_receipt_fields:
+    - design_schema_version
+    - design_sha256
+    - frozen_at_utc
+    - contract_path
+    - contract_sha256
+    - contract_schema_version
+    - model
+    - prompt_path
+    - prompt_sha256
+    - result_schema_path
+    - result_schema_sha256
+    - taxonomy_version
+    - dev_final_predictions_path
+    - dev_final_predictions_sha256
+    - dev_final_predictions_manifest_path
+    - dev_final_predictions_manifest_sha256
+    - dev_final_predictions_row_count
+    - dev_final_predictions_success_count
+    - dev_final_predictions_failure_count
+    - dev_final_predictions_identity_sha256
+    - dev_final_predictions_contract_sha256
+  required_model: qwen3.6-flash
+  required_result_schema_sha256: 0ac68654ce23ecd4e537d849d695e092c76dcb9de0fb03793e65ae62b181947f
+  required_taxonomy_version: p4-news-event-taxonomy-v1
+  bytes_reverified_before_each_heldout_use: true
+  prompt_change_after_receipt_forbidden: true
+  dev_final_predictions:
+    predictions_artifact: dev_final_predictions_jsonl
+    manifest_artifact: dev_final_predictions_manifest_json
+    row_count: 60
+    required_identity_match_artifact: dev_60_frozen_jsonl
+    ordered_by: news_item_id_ascending
+    ordered_identity_fields: [news_item_id, input_sha256, text_sha256]
+    ordered_identity_digest_format: "ascii(news_item_id) || 0x00 || lowercase_ascii(input_sha256) || 0x00 || lowercase_ascii(text_sha256) || 0x0A"
+    ordered_identity_digest: sha256
+    unique_news_item_ids_required: true
+    success_plus_failure_must_equal_row_count: true
+    contract_sha256_must_equal_receipt_contract_sha256: true
+    manifest_required_fields:
+      - design_sha256
+      - contract_sha256
+      - predictions_path
+      - predictions_sha256
+      - row_count
+      - success_count
+      - failure_count
+      - ordered_identity_sha256
+      - completed_at_utc
+  heldout_inference_requires_valid_receipt: true
+
+one_shot:
+  inference:
+    state_artifact: heldout_inference_state_jsonl
+    format: append_only_jsonl
+    started_event: inference_started
+    terminal_events: [inference_completed, inference_failed]
+    started_fsynced_before_first_model_call: true
+    maximum_started_events: 1
+    existing_started_event_blocks_rerun: true
+    required_preconditions:
+      - valid_prediction_contract_freeze_receipt
+      - dev_final_predictions_bytes_and_manifest_verified
+      - dev_final_predictions_contract_matches_active_contract
+  evaluation:
+    state_artifact: heldout_evaluation_state_jsonl
+    format: append_only_jsonl
+    started_event: evaluation_started
+    terminal_events: [evaluation_completed, evaluation_failed]
+    started_fsynced_before_first_score_read: true
+    maximum_started_events: 1
+    existing_started_event_blocks_reevaluation: true
+    required_preconditions:
+      - valid_owner_completion_manifest
+      - owner_completion_artifact_bytes_and_counts_verified
+      - combined_annotations_sha256_and_identity_match_manifest
+  invalidation_policy: register_new_heldout_sample_and_design_version
+
+owner_delivery:
+  predictions_visible: false
+  selection_basis_visible: false
+  forbidden_fields:
+    - prediction
+    - model_prediction
+    - model_output
+    - predicted_materiality
+    - selection_basis
+    - selection_reason
+    - selection_rank
+    - selection_score
+    - eligible_pool
+    - eligible_pool_size
+    - candidate_pool_membership
+    - prediction_artifact
+  forbidden_field_policy: fail_closed
+  required_owner_fields:
+    - news_item_id
+    - source
+    - url
+    - title
+    - ingested_symbol
+    - published_at
+    - available_time
+    - original_text
+    - input_sha256
+    - text_sha256
+    - annotation_status
+    - gold
+
+owner_annotation_completion:
+  schema_version: p4.2a-owner-completion-v1.1
+  manifest_artifact: owner_completion_manifest_json
+  manifest_create_only: true
+  dev:
+    blind_source_artifact: dev_60_frozen_jsonl
+    completed_annotation_artifact: dev_60_owner_annotations_jsonl
+    required_row_count: 60
+    required_completed_count: 60
+  heldout:
+    blind_source_artifact: heldout_40_blind_sample_jsonl
+    selection_manifest_artifact: heldout_selection_manifest_json
+    completed_annotation_artifact: heldout_40_owner_annotations_jsonl
+    required_row_count: 40
+    required_completed_count: 40
+  combined:
+    artifact: combined_100_annotations_jsonl
+    required_row_count: 100
+    create_only_after_preconditions: true
+    order: dev_then_heldout
+    renumbering_rule: dev_preserve_1_60_then_heldout_add_60_to_61_100
+    ordered_identity_fields: [sample_index, news_item_id, input_sha256, text_sha256]
+    ordered_identity_digest_format: "ascii(sample_index) || 0x00 || ascii(news_item_id) || 0x00 || lowercase_ascii(input_sha256) || 0x00 || lowercase_ascii(text_sha256) || 0x0A"
+    ordered_identity_digest: sha256
+  preconditions_before_combined_create:
+    - dev_owner_annotations_all_completed
+    - heldout_owner_annotations_all_completed
+    - dev_identity_and_hash_match_blind_source
+    - heldout_identity_and_hash_match_blind_source
+    - owner_outputs_pass_forbidden_field_blindness_check
+    - combined_target_and_completion_manifest_absent
+  required_manifest_fields:
+    - schema_version
+    - design_sha256
+    - annotation_contract_sha256
+    - dev_blind_sample_path
+    - dev_blind_sample_sha256
+    - dev_owner_annotations_path
+    - dev_owner_annotations_sha256
+    - dev_owner_annotations_row_count
+    - dev_completed_count
+    - heldout_blind_sample_path
+    - heldout_blind_sample_sha256
+    - heldout_selection_manifest_path
+    - heldout_selection_manifest_sha256
+    - heldout_owner_annotations_path
+    - heldout_owner_annotations_sha256
+    - heldout_owner_annotations_row_count
+    - heldout_completed_count
+    - combined_annotations_path
+    - combined_annotations_sha256
+    - combined_annotations_row_count
+    - combined_ordered_identity_sha256
+    - combined_renumbering_rule
+    - identity_validation_passed
+    - blindness_validation_passed
+    - completed_at_utc
+
+evaluation:
+  sample_count: 100
+  split_counts: {dev60: 60, heldout40: 40}
+  prompt_iteration_scope: dev60_only
+  heldout_test_runs_maximum: 1
+  materiality_positive_definition: materiality_gte_2
+  materiality_precision_formula: tp_divided_by_tp_plus_fp
+  materiality_zero_predicted_positive_policy: fail
+  materiality_precision_gate_scope: heldout40
+  materiality_precision_minimum: 0.80
+  symbol_mapping_formula: exact_set_match_accuracy
+  symbol_mapping_gate_scope: all100
+  symbol_mapping_accuracy_minimum: 0.95
+  symbol_bearing_exact_set_accuracy_minimum: 0.95
+  report_split_metrics: [dev60, heldout40, all100]
+  report_null_gold_false_positive_rate: true
+  event_type_exact_match_is_diagnostic: true
+  direction_exact_match_is_diagnostic: true
+  threshold_changes_forbidden: true
+  failed_rounds_append_only: true
+  heldout_rerun_forbidden: true
+  frozen_diagnostics:
+    offline_trial_predictions_artifact: offline_trial_predictions_jsonl
+    offline_trial_report_artifact: offline_trial_report_json
+    offline_trial_gold_intersection_failure_ids: [190]
+    offline_trial_failure_counts_for_recall_not_precision: true
+    active_prediction_failures_reported_separately: true
+  required_report_fields:
+    - design.schema_version
+    - design.sha256
+    - prediction_contract.contract_path
+    - prediction_contract.contract_sha256
+    - prediction_contract.model
+    - prediction_contract.prompt_path
+    - prediction_contract.prompt_sha256
+    - prediction_contract.result_schema_path
+    - prediction_contract.result_schema_sha256
+    - prediction_contract.taxonomy_version
+    - prediction_contract.dev_final_predictions_path
+    - prediction_contract.dev_final_predictions_sha256
+    - prediction_contract.dev_final_predictions_manifest_path
+    - prediction_contract.dev_final_predictions_manifest_sha256
+    - prediction_contract.dev_final_predictions_row_count
+    - prediction_contract.dev_final_predictions_success_count
+    - prediction_contract.dev_final_predictions_failure_count
+    - prediction_contract.dev_final_predictions_identity_sha256
+    - prediction_contract.dev_final_predictions_contract_sha256
+    - splits.dev60.sample_count
+    - splits.dev60.final_predictions_sha256
+    - splits.dev60.final_predictions_manifest_sha256
+    - splits.dev60.final_prediction_success_count
+    - splits.dev60.final_prediction_failure_count
+    - splits.dev60.final_prediction_failure_ids
+    - splits.dev60.final_prediction_identity_sha256
+    - splits.dev60.final_prediction_contract_sha256
+    - splits.heldout40.candidate_batch_count
+    - splits.heldout40.candidate_inputs_sha256
+    - splits.heldout40.candidate_predictions_sha256
+    - splits.heldout40.prediction_attempted_count
+    - splits.heldout40.prediction_success_count
+    - splits.heldout40.prediction_failure_count
+    - splits.heldout40.predicted_positive_pool_count
+    - splits.heldout40.predicted_positive_pool_rate
+    - splits.heldout40.selected_count
+    - splits.heldout40.selection_algorithm
+    - splits.heldout40.selection_seed
+    - splits.heldout40.selection_manifest_sha256
+    - one_shot.inference.started_at_utc
+    - one_shot.inference.terminal_at_utc
+    - one_shot.inference.status
+    - one_shot.inference.started_event_count
+    - one_shot.evaluation.started_at_utc
+    - one_shot.evaluation.terminal_at_utc
+    - one_shot.evaluation.status
+    - one_shot.evaluation.started_event_count
+    - owner_delivery.forbidden_field_violation_count
+    - owner_completion.manifest_path
+    - owner_completion.manifest_sha256
+    - owner_completion.dev_blind_sample_sha256
+    - owner_completion.dev_annotations_sha256
+    - owner_completion.dev_completed_count
+    - owner_completion.heldout_blind_sample_sha256
+    - owner_completion.heldout_selection_manifest_sha256
+    - owner_completion.heldout_annotations_sha256
+    - owner_completion.heldout_completed_count
+    - owner_completion.combined_annotations_sha256
+    - owner_completion.combined_row_count
+    - owner_completion.combined_ordered_identity_sha256
+    - owner_completion.combined_renumbering_rule
+    - owner_completion.identity_validation_passed
+    - owner_completion.blindness_validation_passed
+    - metrics.materiality_precision.heldout40.tp
+    - metrics.materiality_precision.heldout40.fp
+    - metrics.materiality_precision.heldout40.denominator
+    - metrics.materiality_precision.heldout40.value
+    - metrics.materiality_precision.heldout40.threshold
+    - metrics.materiality_precision.heldout40.passed
+    - metrics.materiality_precision.dev60.tp
+    - metrics.materiality_precision.dev60.fp
+    - metrics.materiality_precision.dev60.denominator
+    - metrics.materiality_precision.dev60.value
+    - metrics.materiality_recall.dev60.tp
+    - metrics.materiality_recall.dev60.fn
+    - metrics.materiality_recall.dev60.denominator
+    - metrics.materiality_recall.dev60.value
+    - metrics.symbol_exact_set.dev60
+    - metrics.symbol_exact_set.heldout40
+    - metrics.symbol_exact_set.all100
+    - metrics.symbol_bearing_exact_set.dev60
+    - metrics.symbol_bearing_exact_set.heldout40
+    - metrics.symbol_bearing_exact_set.all100
+    - diagnostics.offline_trial.predicted_materiality_gte_2_count
+    - diagnostics.offline_trial.successful_prediction_count
+    - diagnostics.offline_trial.predicted_materiality_gte_2_rate
+    - diagnostics.offline_trial.gold_intersection_failure_count
+    - diagnostics.offline_trial.gold_intersection_failure_ids
+    - diagnostics.active_prediction.gold_failure_count
+    - diagnostics.active_prediction.gold_failure_ids
+    - gates.materiality_precision_heldout40
+    - gates.symbol_mapping_all100
+    - gates.symbol_bearing_exact_set_all100
+    - gates.owner_delivery_blind
+    - gates.heldout_one_shot
+
+isolation:
+  p4_1_files_must_remain_unchanged: true
+  p4_2b_unlocked: false
+  production_database_mode: read_only_query_only
+  production_writes_allowed: false
+  scheduler_changes_allowed: false
+  proposals_or_orders_allowed: false

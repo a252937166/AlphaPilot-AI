@@ -1,0 +1,79 @@
+{
+  "schema_version": "p4.2a-v2-development-selection-outcome-v1",
+  "created_at_utc": "2026-08-10T03:50:00Z",
+  "status": "SELECTED_FOR_HELDOUT_PREPARATION_PENDING_ONE_SHOT",
+  "design": {
+    "path": "config/p4_event_evaluation_v2.yaml",
+    "sha256": "18a2428a4ec04bfea6e4f4d70692f38ea82fbaee5a223f30f2465b895b238e21"
+  },
+  "development_round": {
+    "round_number": 3,
+    "result": {
+      "path": "docs/phase4/reports/P4.2a-v2-development-calibration-round3-result-20260810.json",
+      "sha256": "709a68e99679a0ad0ae072a5122bec945de25ac183b10d4e21e1f00f98571978"
+    },
+    "internal_review": {
+      "path": "docs/phase4/reports/P4.2a-v2-development-calibration-round3-internal-review-20260810.json",
+      "sha256": "3c3745feac24d31bc2a79612a7ae181315379ea544114d77e9ac7994f3b20eaa"
+    },
+    "round_outcome": {
+      "path": "docs/phase4/eval/v2-calibration/development/rounds/r3/round-outcome.json",
+      "sha256": "aa564779f340a0ee227bf1c298ab7a29f7d0d684520fb60f0cddac23b9310b9e"
+    },
+    "calibration_state": {
+      "path": "docs/phase4/eval/v2-calibration/development/calibration.state.jsonl",
+      "sha256": "16b0da6fbf3d804c647a4fccf39fe93148fbb0bc9024a0ff5b93b6ddb013ac4e",
+      "line_count": 6
+    },
+    "original_rule_selected_model": "qwen3.7-flash",
+    "original_rule_execution_was_correct": true,
+    "rounds_consumed": 3,
+    "maximum_rounds": 6
+  },
+  "owner_amendment": {
+    "path": "docs/phase4/reports/P4.2a-round3-adjudication-and-model-selection-override-20260810.json",
+    "sha256": "2f8d0309c4071373d85d8835e01128468db15e3cdfb596331060ebd41d73957c",
+    "commit": "3cf402820511707776e3e25dd6b0ae6a77be0b2e",
+    "selected_model_for_heldout": "qwen3.6-plus",
+    "decision_timing": "before_any_v2_heldout_artifact_or_evaluation",
+    "selection_basis": "owner_amended_cost_first_rule_to_miss_rate_first_after_round_3_measurement"
+  },
+  "cost_correction": {
+    "path": "docs/phase4/reports/P4.2a-cost-correction-and-P4.2b-throughput-backlog-20260810.json",
+    "sha256": "e42eeb2342412662a84ce0304015e6f236661069b1e725f18fd8f4dfd3fd05c5",
+    "commit": "847593c409b9552cacf3f59913fdb9896ad0d3f0",
+    "owner_selection_changed": false,
+    "heldout_execution_changed": false
+  },
+  "selected_model": "qwen3.6-plus",
+  "development_metrics": {
+    "technical_completion": "45/45",
+    "materiality_precision": {
+      "tp": 17,
+      "fp": 1,
+      "denominator": 18,
+      "value": 0.9444444444444444,
+      "threshold": 0.8,
+      "passed": true
+    },
+    "materiality_false_omission_rate": {
+      "fn": 1,
+      "tn": 26,
+      "denominator": 27,
+      "value": 0.037037037037037035,
+      "threshold": 0.2,
+      "passed": true
+    },
+    "adverse_single_item_margin_passed": true,
+    "materiality_recall": null,
+    "materiality_recall_status": "not_estimable_omitted_in_favor_of_false_omission_rate"
+  },
+  "phase_gates": {
+    "development_gate_cleared": true,
+    "heldout_preparation_authorized": true,
+    "heldout_evaluation_authorized": false,
+    "p4_2a_done": false,
+    "p4_2b_unlocked": false,
+    "p4_3_unlocked": false
+  }
+}

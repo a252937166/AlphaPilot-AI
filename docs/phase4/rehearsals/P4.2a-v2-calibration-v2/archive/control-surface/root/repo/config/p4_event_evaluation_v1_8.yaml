@@ -1,0 +1,43 @@
+schema_version: p4.2a-evaluation-design-v1.8
+owner_spec_commit: 81d7165f5481a8cd1e9f6f0b7b3364c9551dd33c
+pre_registered_at: "2026-08-09T07:07:02Z"
+production_writes_allowed: false
+artifact_root: docs/phase4/eval
+
+extends_design:
+  path: config/p4_event_evaluation_v1_7.yaml
+  sha256: 4c7964ad547820f5672631939af93978f11cb9f91e5921087770ac7d0d79bec1
+  schema_version: p4.2a-evaluation-design-v1.7
+  inheritance:
+    active_prediction_contract: byte_frozen
+    prediction_contract_freeze_receipt: byte_frozen
+    model_selection_outcome: byte_frozen
+    heldout_candidate_window: byte_frozen
+    heldout_selection_seed: byte_frozen
+    heldout_selected_count: byte_frozen
+    evaluation_thresholds: byte_frozen
+    dev_annotation_bytes: byte_frozen
+    heldout_annotation_provenance: byte_frozen
+    prompt: byte_frozen
+    model: byte_frozen
+    model_result_schema: byte_frozen
+    materialized_result_schema: byte_frozen
+    candidate_slicing: byte_frozen
+    llm_parameters: byte_frozen
+
+artifact_overrides:
+  heldout_evaluation_state_jsonl:
+    path: docs/phase4/eval/P4.2a-heldout-evaluation-one-shot-v1.8-replacement.state.jsonl
+    create_only: true
+  evaluation_report_directory:
+    path: docs/phase4/eval/reports/v1.8-replacement
+    create_only_reports: true
+    append_only_failed_rounds: true
+
+isolation:
+  p4_1_files_must_remain_unchanged: true
+  p4_2b_unlocked: false
+  production_database_mode: read_only_query_only
+  production_writes_allowed: false
+  scheduler_changes_allowed: false
+  proposals_or_orders_allowed: false

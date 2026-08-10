@@ -1,0 +1,134 @@
+{
+  "schema_version": "p4.2a-development-calibration-round-preregistration-v1",
+  "round_number": 3,
+  "pre_registered_at": "2026-08-09T17:32:00Z",
+  "status": "preregistered_before_model_calls",
+  "design": {
+    "path": "config/p4_event_evaluation_v2.yaml",
+    "sha256": "18a2428a4ec04bfea6e4f4d70692f38ea82fbaee5a223f30f2465b895b238e21"
+  },
+  "parent_preregistration": {
+    "path": "docs/phase4/reports/P4.2a-v2-calibration-round-preregistration-20260809.json",
+    "sha256": "493114c980993bef987883975ccebeb1e970478123f5d3757fa9692721731fcb"
+  },
+  "clarification": {
+    "path": "docs/phase4/reports/P4.2a-v2-calibration-design-clarifications-20260809.json",
+    "sha256": "933d749f5debb97da1793c0ea134d537ac94e485969370d6522e803faeb1a9b7"
+  },
+  "owner_review": {
+    "path": "docs/phase4/reports/P4.2a-dev45-owner-adjudication-independent-review-20260809.json",
+    "sha256": "8ec8bc915dd028c9053e0986b8559148e33e574d018ee7ff5492903fce30d02f"
+  },
+  "prior_round": {
+    "round_number": 2,
+    "preregistration": {
+      "path": "docs/phase4/eval/v2-calibration/development/rounds/r2/round-preregistration.json",
+      "sha256": "a7c971ba59c2c7199e5becd95ac09fde9e5cd16a3eef225a8f244a934efc5812"
+    },
+    "outcome": {
+      "path": "docs/phase4/eval/v2-calibration/development/rounds/r2/round-outcome.json",
+      "sha256": "49026fad5e14771cbe1a5a83aa3311107b30ff02d708c31cd4a0dad4c2384c66"
+    }
+  },
+  "round_authorization": {
+    "path": "docs/phase4/reports/P4.2a-round2-adjudication-20260810.json",
+    "sha256": "a4af80bcf6fe355c48db56b189f7f8a6b9949c7f9d99b67773c8dbeaa539eaf0"
+  },
+  "development_frame": {
+    "frame_id": "p4.2a-development-frame-v2",
+    "expected_rows": 45,
+    "owner_export": {
+      "path": "docs/phase4/eval/v2-calibration/development/P4.2a-development-frame-v2.owner-export.jsonl",
+      "sha256": "812ee8c86ab9f9ed269b1c6952046bddb11317b8624618d8444de5b03f612d31"
+    },
+    "human_gold": {
+      "path": "docs/phase4/eval/v2-calibration/development/P4.2a-development-frame-v2.human-adjudicated.jsonl",
+      "sha256": "fc08abc2f78bcb693c4e048fcd43ddd4f37c9d6a7a70ac878467194efbacaaa8"
+    },
+    "owner_completion": {
+      "path": "docs/phase4/eval/v2-calibration/development/P4.2a-development-frame-v2.owner-completion.json",
+      "sha256": "51282ca598c1f99c2755d2954a8fe820b1b1f583205a0ff20676b30e613ca02b"
+    }
+  },
+  "prompt": {
+    "path": "config/prompts/p4_news_event_extract_v2-r3.txt",
+    "sha256": "0291dc882aac42878ba00c4ed3970da72f19508308cd39211467b4fd92294f44"
+  },
+  "candidate_prompt_summaries": {
+    "qwen3.7-flash": {
+      "prompt": {
+        "path": "config/prompts/p4_news_event_extract_v2-r3.txt",
+        "sha256": "0291dc882aac42878ba00c4ed3970da72f19508308cd39211467b4fd92294f44"
+      },
+      "summary": "同一字节、最小边界修订：新增证据角色防火墙，禁止用表决股数、历史财务或条件式测算冒充本次经济规模；收紧无相对股本比例的激励与纯程序文书；保留已签100%控制并表和具备完整参与方、持股、出资、项目及约束的窄项目型合资正例。不整体移动 materiality 阈值。项目型合资窄正例具有中高开发集过拟合风险，冻结后不得按单条结果回调。"
+    },
+    "qwen3.6-plus": {
+      "prompt": {
+        "path": "config/prompts/p4_news_event_extract_v2-r3.txt",
+        "sha256": "0291dc882aac42878ba00c4ed3970da72f19508308cd39211467b4fd92294f44"
+      },
+      "summary": "同一字节、最小边界修订：新增证据角色防火墙，禁止用表决股数、历史财务或条件式测算冒充本次经济规模；收紧无相对股本比例的激励与纯程序文书；保留已签100%控制并表和具备完整参与方、持股、出资、项目及约束的窄项目型合资正例。不整体移动 materiality 阈值。项目型合资窄正例具有中高开发集过拟合风险，冻结后不得按单条结果回调。"
+    }
+  },
+  "models": [
+    {
+      "model_slug": "qwen3.7-flash",
+      "model": "qwen3.7-flash",
+      "contract": {
+        "path": "config/p4_event_extract_eval_v2-r3-qwen3.7-flash.yaml",
+        "sha256": "af9de56e6e653accdf48435bd25f9355622158eaaf6d15b20273948629514eab"
+      }
+    },
+    {
+      "model_slug": "qwen3.6-plus",
+      "model": "qwen3.6-plus",
+      "contract": {
+        "path": "config/p4_event_extract_eval_v2-r3-qwen3.6-plus.yaml",
+        "sha256": "fa75a6cf33065745d02f74fe39e4f102723da43f37ac549058bb34fa8256a181"
+      }
+    }
+  ],
+  "execution": {
+    "fixed_model_order": [
+      "qwen3.7-flash",
+      "qwen3.6-plus"
+    ],
+    "expected_predictions_per_model": 45,
+    "automatic_retries": 0,
+    "failed_candidate_retries": 0,
+    "technical_failure_policy": "model_result_gate_fails_without_denominator_exclusion_or_replacement",
+    "terminal_result_policy": "append_once_even_when_failed"
+  },
+  "gates": {
+    "precision_minimum": 0.8,
+    "false_omission_rate_maximum": 0.2,
+    "recall_policy": "omit_or_emit_null_not_estimable_never_emit_naive_numeric_recall",
+    "selection_rule": "flash_if_both_gates_else_plus_if_both_gates_else_none",
+    "adverse_flip_margin": {
+      "applies_to": "development_gate_only",
+      "required": true,
+      "precision_adverse_flip": "one_true_positive_reclassified_as_false_positive",
+      "false_omission_adverse_flip": "one_true_negative_reclassified_as_false_negative",
+      "point_estimates_must_also_pass": true,
+      "heldout_gate_unchanged": true
+    }
+  },
+  "post_round_governance": {
+    "o5_trigger": "round_3_point_estimate_passes_but_adverse_flip_margin_fails",
+    "action": "pause_round_consumption_and_return_frame_enlargement_decision_to_owner",
+    "automatic_round_4_allowed": false
+  },
+  "artifacts": {
+    "round_directory": {
+      "path": "docs/phase4/eval/v2-calibration/development/rounds/r3"
+    },
+    "round_outcome": {
+      "path": "docs/phase4/eval/v2-calibration/development/rounds/r3/round-outcome.json",
+      "create_only": true
+    },
+    "calibration_state": {
+      "path": "docs/phase4/eval/v2-calibration/development/calibration.state.jsonl",
+      "append_only": true
+    }
+  }
+}
