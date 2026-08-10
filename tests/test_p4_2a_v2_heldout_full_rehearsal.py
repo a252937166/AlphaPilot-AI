@@ -5,6 +5,7 @@ import json
 from pathlib import Path
 
 import pytest
+from scripts import prepare_p4_2a_v2_heldout as prepare
 from scripts import rehearse_p4_2a_v2_heldout_full_path as rehearsal
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -106,10 +107,14 @@ def test_full_path_rehearsal_is_temp_isolated_create_only_and_code_bound(
         "evaluation_completed",
     ]
     assert receipt["synthetic_report_status"] == "synthetic_rehearsal"
-    assert rehearsal.validate_rehearsal_gate(
-        publish_directory,
-        project_root=PROJECT_ROOT,
-    )["status"] == "passed"
+    with pytest.raises(
+        prepare.HeldoutPreparationError,
+        match="rehearsal v1 is permanently retired",
+    ):
+        rehearsal.validate_rehearsal_gate(
+            publish_directory,
+            project_root=PROJECT_ROOT,
+        )
     published_text = "\n".join(
         path.read_text(encoding="utf-8") for path in sorted(publish_directory.iterdir())
     )
