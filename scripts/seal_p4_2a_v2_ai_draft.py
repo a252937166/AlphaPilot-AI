@@ -177,6 +177,7 @@ class V2AdjudicationContract:
     expected_count: int
     taxonomy: frozenset[str]
     artifacts: dict[str, Path]
+    blind_schema: str = BLIND_SCHEMA
 
 
 def _strict_json_object(line: str, *, label: str, line_number: int) -> dict[str, Any]:
@@ -401,6 +402,7 @@ def _find_hidden_metadata(value: object, *, path: str = "$") -> str | None:
                     "sampling",
                     "selection",
                     "rank",
+                    "score",
                     "prediction",
                     "predicted",
                     "model_output",
@@ -441,7 +443,7 @@ def validate_blind_rows(
         row = dict(raw_row)
         if set(row) != BLIND_FIELDS:
             raise V2AdjudicationError(
-                f"blind row {expected_index} fields drifted from {BLIND_SCHEMA}"
+                f"blind row {expected_index} fields drifted from {contract.blind_schema}"
             )
         leaked = _find_hidden_metadata(row)
         if leaked is not None:
@@ -453,7 +455,7 @@ def validate_blind_rows(
             raise V2AdjudicationError(f"blind duplicates news_item_id={news_item_id}")
         seen_ids.add(news_item_id)
         if (
-            row.get("schema_version") != BLIND_SCHEMA
+            row.get("schema_version") != contract.blind_schema
             or row.get("design") != contract.design_ref
             or row.get("frame_id") != contract.frame_id
             or row.get("sample_index") != expected_index

@@ -217,6 +217,7 @@ def forbidden_blind_paths(value: object, *, prefix: str = "$") -> list[str]:
                 "stratum" in normalized
                 or "prediction" in normalized
                 or "rank" in normalized
+                or "score" in normalized
                 or "selection" in normalized
                 or normalized.startswith("sampling")
                 or normalized.startswith("eligible_")
