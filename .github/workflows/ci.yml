@@ -45,7 +45,9 @@ jobs:
 
   backend-frozen-rehearsals:
     name: backend (frozen P4.2a rehearsals)
-    runs-on: macos-14
+    # macOS 15 is the oldest hosted image that provides the registered C.UTF-8
+    # locale; macOS 14 fails closed before the rehearsal can start.
+    runs-on: macos-15
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
@@ -57,6 +59,13 @@ jobs:
       - name: Verify frozen rehearsal lineage
         shell: bash
         run: |
+          v2_immutable_paths=(
+            scripts/rehearse_p4_2a_v2_heldout_full_path.py
+            scripts/validate_p4_2a_v2_heldout_rehearsal_bundle.py
+            tests/test_p4_2a_v2_heldout_full_rehearsal.py
+            tests/test_p4_2a_v2_heldout_rehearsal_v2_runner.py
+            tests/test_p4_2a_v2_heldout_rehearsal_v2_validator.py
+          )
           registered_paths=(
             scripts/build_p4_2a_v2_heldout_adjudication_ui.py
             scripts/evaluate_p4_2a_v2_heldout.py
@@ -76,6 +85,9 @@ jobs:
           )
           git merge-base --is-ancestor da374342781d6fde2f2c6d87d23582050bc8edaa HEAD
           git merge-base --is-ancestor 4fce89e89fe2dba656694a7cffdc0ee1af0305c0 HEAD
+          git diff --exit-code \
+            da374342781d6fde2f2c6d87d23582050bc8edaa HEAD \
+            -- "${v2_immutable_paths[@]}"
           observed_paths="$(git diff --name-only \
             d37040be87644977ddaad60b2590ac2e62b2aeed \
             4fce89e89fe2dba656694a7cffdc0ee1af0305c0 --)"
