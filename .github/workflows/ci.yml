@@ -27,7 +27,499 @@ jobs:
       - run: python -m pip install --upgrade pip
       - run: pip install -e ".[dev]"
       - run: ruff check src tests
-      - run: pytest
+      # These seven modules exercise historical P4.2a rehearsal contracts that
+      # are intentionally bound to Darwin, CPython 3.12.0, an exact 84-package
+      # environment, and their approved source commits.  They are executed in
+      # full by backend-frozen-rehearsals below; the portable matrix still runs
+      # every current, cross-platform test on each supported Python version.
+      - name: Run portable test suite
+        run: >-
+          pytest
+          --ignore=tests/test_p4_2a_v2_heldout.py
+          --ignore=tests/test_p4_2a_v2_heldout_finalizer.py
+          --ignore=tests/test_p4_2a_v2_heldout_full_rehearsal.py
+          --ignore=tests/test_p4_2a_v2_heldout_rehearsal_v2_runner.py
+          --ignore=tests/test_p4_2a_v2_heldout_rehearsal_v2_validator.py
+          --ignore=tests/test_p4_2a_v2_1_heldout_rehearsal_runner.py
+          --ignore=tests/test_p4_2a_v2_1_heldout_rehearsal_validator.py
+
+  backend-frozen-rehearsals:
+    name: backend (frozen P4.2a rehearsals)
+    # macOS 15 is the oldest hosted image that provides the registered C.UTF-8
+    # locale; macOS 14 fails closed before the rehearsal can start.
+    runs-on: macos-15
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # The registered tests prove commit/blob ancestry and reject shallow
+          # history.  Keeping the real checkout (rather than a Git worktree) is
+          # also required because the fail-closed guard requires a .git directory.
+          fetch-depth: 0
+      - name: Verify frozen rehearsal lineage
+        shell: bash
+        run: |
+          v2_immutable_paths=(
+            scripts/rehearse_p4_2a_v2_heldout_full_path.py
+            scripts/validate_p4_2a_v2_heldout_rehearsal_bundle.py
+            tests/test_p4_2a_v2_heldout_full_rehearsal.py
+            tests/test_p4_2a_v2_heldout_rehearsal_v2_runner.py
+            tests/test_p4_2a_v2_heldout_rehearsal_v2_validator.py
+          )
+          runtime_inventory_paths=(
+            docs/phase4/rehearsals/P4.2a-v2-calibration-v2/archive/control-surface/root/runtime/python.json
+            docs/phase4/rehearsals/P4.2a-v2-calibration-v2/archive/control-surface/root/runtime/packages.json
+          )
+          registered_paths=(
+            scripts/build_p4_2a_v2_heldout_adjudication_ui.py
+            scripts/evaluate_p4_2a_v2_heldout.py
+            scripts/finalize_p4_2a_v2_heldout_adjudication.py
+            scripts/prepare_p4_2a_v2_heldout.py
+            scripts/rehearse_p4_2a_v2_1_heldout_full_path.py
+            scripts/run_p4_2a_offline_extract.py
+            scripts/seal_p4_2a_v2_heldout_draft.py
+            scripts/validate_p4_2a_v2_1_heldout_rehearsal_bundle.py
+            tests/test_p4_2a_offline_extract.py
+            tests/test_p4_2a_v2_1_heldout_rehearsal_runner.py
+            tests/test_p4_2a_v2_1_heldout_rehearsal_validator.py
+            tests/test_p4_2a_v2_heldout.py
+            tests/test_p4_2a_v2_heldout_adjudication.py
+            tests/test_p4_2a_v2_heldout_evaluator.py
+            tests/test_p4_2a_v2_heldout_finalizer.py
+          )
+          git merge-base --is-ancestor da374342781d6fde2f2c6d87d23582050bc8edaa HEAD
+          git merge-base --is-ancestor 4fce89e89fe2dba656694a7cffdc0ee1af0305c0 HEAD
+          git diff --exit-code \
+            da374342781d6fde2f2c6d87d23582050bc8edaa HEAD \
+            -- "${v2_immutable_paths[@]}"
+          git diff --exit-code \
+            4fce89e89fe2dba656694a7cffdc0ee1af0305c0 HEAD \
+            -- "${runtime_inventory_paths[@]}"
+          observed_paths="$(git diff --name-only \
+            d37040be87644977ddaad60b2590ac2e62b2aeed \
+            4fce89e89fe2dba656694a7cffdc0ee1af0305c0 --)"
+          expected_paths="$(printf '%s\n' "${registered_paths[@]}")"
+          if [[ "$observed_paths" != "$expected_paths" ]]; then
+            echo "v2.1 registered authority list differs from the approved 15-path surface" >&2
+            exit 1
+          fi
+          git diff --exit-code \
+            4fce89e89fe2dba656694a7cffdc0ee1af0305c0 HEAD \
+            -- "${registered_paths[@]}"
+      - name: Verify registered inventory bytes before installation
+        run: |
+          /usr/bin/python3 -I -S -B - <<'PY'
+          import hashlib
+          import json
+          import re
+          from pathlib import Path
+
+          runtime_root = Path(
+              "docs/phase4/rehearsals/P4.2a-v2-calibration-v2/"
+              "archive/control-surface/root/runtime"
+          )
+          files = {
+              "python": runtime_root / "python.json",
+              "packages": runtime_root / "packages.json",
+          }
+          expected_sha256 = {
+              "python": "ab3e067417027bb98ea4335e9086d2046ac9dfd4eaf857acc8622dc8f0a13a31",
+              "packages": "c3c7792eb31679c0eb7d3140e067d691df330cd3af302d2350bf15b74ac8ec42",
+          }
+          payloads = {}
+          observed_sha256 = {}
+          for name, inventory_file in files.items():
+              if inventory_file.is_symlink() or not inventory_file.is_file():
+                  raise SystemExit(f"registered {name} inventory is not a regular file")
+              payloads[name] = inventory_file.read_bytes()
+              observed_sha256[name] = hashlib.sha256(payloads[name]).hexdigest()
+          if observed_sha256 != expected_sha256:
+              raise SystemExit(
+                  f"registered runtime inventory bytes drifted: {observed_sha256=}"
+              )
+
+          python_inventory = json.loads(payloads["python"])
+          if python_inventory != {
+              "abi_flags": "",
+              "cache_tag": "cpython-312",
+              "implementation": "CPython",
+              "version": "3.12.0",
+          }:
+              raise SystemExit("registered Python inventory schema or values drifted")
+
+          package_rows = json.loads(payloads["packages"])
+          if not isinstance(package_rows, list) or len(package_rows) != 84:
+              raise SystemExit("registered package inventory must contain exactly 84 rows")
+          for row in package_rows:
+              if not isinstance(row, dict) or set(row) != {"name", "version"}:
+                  raise SystemExit("registered package inventory row schema drifted")
+              if any(
+                  not isinstance(row[key], str)
+                  or not row[key]
+                  or row[key].strip() != row[key]
+                  for key in ("name", "version")
+              ):
+                  raise SystemExit("registered package inventory value is invalid")
+          names = [re.sub(r"[-_.]+", "-", row["name"]).lower() for row in package_rows]
+          if len(set(names)) != 84:
+              raise SystemExit("registered package inventory names are not unique")
+          versions = {name: row["version"] for name, row in zip(names, package_rows)}
+          if versions.get("pip") != "23.2.1" or versions.get("alphapilot-ai") != "0.5.0":
+              raise SystemExit("registered pip or project distribution version drifted")
+          print("verified registered inventory bytes, schemas, and 84-package count")
+          PY
+
+      - name: Install the registered CPython 3.12.0 distribution
+        shell: bash
+        run: |
+          set -euo pipefail
+          python_pkg="${RUNNER_TEMP}/python-3.12.0-macos11.pkg"
+          # This digest is the SHA2_256 messageDigest in Python.org's official
+          # python-3.12.0-macos11.pkg.sigstore bundle.
+          expected_pkg_sha256="d18c9ba65137b6f2ef2f4083b647273639f17e390f7439b3c2e35686040745db"
+          expected_pkg_size="45371285"
+          expected_leaf_fingerprint="C1A8FB2B4668D1BA221BC2A84DE43EDAA715C8FB85E320F478861ACECE5B8588"
+          curl --proto '=https' --proto-redir '=https' --tlsv1.2 \
+            --fail --location --retry 3 \
+            --output "$python_pkg" \
+            https://www.python.org/ftp/python/3.12.0/python-3.12.0-macos11.pkg
+          actual_pkg_sha256="$(shasum -a 256 "$python_pkg" | awk '{print $1}')"
+          if [[ "$actual_pkg_sha256" != "$expected_pkg_sha256" ]]; then
+            echo "Python.org CPython package SHA256 drifted" >&2
+            exit 1
+          fi
+          actual_pkg_size="$(stat -f '%z' "$python_pkg")"
+          if [[ "$actual_pkg_size" != "$expected_pkg_size" ]]; then
+            echo "Python.org CPython package size drifted" >&2
+            exit 1
+          fi
+          signature_output="$(pkgutil --check-signature "$python_pkg")"
+          printf '%s\n' "$signature_output"
+          if ! grep -Fq \
+            'Developer ID Installer: Python Software Foundation (BMM5U3QVKW)' \
+            <<<"$signature_output"; then
+            echo "CPython package is not signed by the registered PSF installer" >&2
+            exit 1
+          fi
+          if ! grep -Fq 'Notarization: trusted by the Apple notary service' \
+            <<<"$signature_output"; then
+            echo "CPython package notarization is not trusted" >&2
+            exit 1
+          fi
+          normalized_signature="$(printf '%s' "$signature_output" | tr -d '[:space:]')"
+          if [[ "$normalized_signature" != *"SHA256Fingerprint:${expected_leaf_fingerprint}"* ]]; then
+            echo "CPython package leaf certificate fingerprint drifted" >&2
+            exit 1
+          fi
+          spctl_output="$(spctl --assess --type install --verbose=4 "$python_pkg" 2>&1)"
+          printf '%s\n' "$spctl_output"
+          if ! grep -Fq 'source=Notarized Developer ID' <<<"$spctl_output"; then
+            echo "Gatekeeper did not accept the notarized CPython package" >&2
+            exit 1
+          fi
+          stapler_output="$(xcrun stapler validate "$python_pkg" 2>&1)"
+          printf '%s\n' "$stapler_output"
+          if ! grep -Fq 'The validate action worked!' <<<"$stapler_output"; then
+            echo "the CPython package notarization ticket is invalid" >&2
+            exit 1
+          fi
+          expanded_pkg="${RUNNER_TEMP}/python-3.12.0-expanded"
+          pkgutil --expand-full "$python_pkg" "$expanded_pkg"
+          framework_payload_version="$expanded_pkg/Python_Framework.pkg/Payload/Versions/3.12"
+          base_python="/Library/Frameworks/Python.framework/Versions/3.12/bin/python3.12"
+          original_argv_python="/Library/Frameworks/Python.framework/Versions/3.12/Resources/Python.app/Contents/MacOS/Python"
+          bundled_pip="/Library/Frameworks/Python.framework/Versions/3.12/lib/python3.12/ensurepip/_bundled/pip-23.2.1-py3-none-any.whl"
+          expected_python_sha256="f4cd716d4b54f205398bec6932cc59361b087494ca2ddb157a5e8631d4d6f863"
+          expected_original_argv_sha256="89c717ced41f6a395612366e5b038226d0d8fca36bbddd9321d385f5f370ebbe"
+          expected_bundled_pip_sha256="7ccf472345f20d35bdc9d1841ff5f313260c2c33fe417f48c30ac46cccabf5be"
+          payload_python="$framework_payload_version/bin/python3.12"
+          payload_original_argv="$framework_payload_version/Resources/Python.app/Contents/MacOS/Python"
+          payload_bundled_pip="$framework_payload_version/lib/python3.12/ensurepip/_bundled/pip-23.2.1-py3-none-any.whl"
+          if [[ ! -d "$framework_payload_version" || -L "$framework_payload_version" ]]; then
+            echo "expanded CPython framework payload is not a real directory" >&2
+            exit 1
+          fi
+          for payload_binary in "$payload_python" "$payload_original_argv"; do
+            if [[ ! -f "$payload_binary" || -L "$payload_binary" ]]; then
+              echo "expanded CPython binary is not a regular, non-symlink file: $payload_binary" >&2
+              exit 1
+            fi
+            if [[ "$(/usr/bin/stat -f '%Lp' "$payload_binary")" != "775" ]]; then
+              echo "expanded CPython binary mode drifted: $payload_binary" >&2
+              exit 1
+            fi
+          done
+          if [[ ! -f "$payload_bundled_pip" || -L "$payload_bundled_pip" ]]; then
+            echo "expanded bundled pip wheel is not a regular, non-symlink file" >&2
+            exit 1
+          fi
+          payload_python_sha256="$(/usr/bin/shasum -a 256 "$payload_python" | /usr/bin/awk '{print $1}')"
+          payload_original_argv_sha256="$(/usr/bin/shasum -a 256 "$payload_original_argv" | /usr/bin/awk '{print $1}')"
+          payload_bundled_pip_sha256="$(/usr/bin/shasum -a 256 "$payload_bundled_pip" | /usr/bin/awk '{print $1}')"
+          if [[ "$payload_python_sha256" != "$expected_python_sha256" ]]; then
+            echo "expanded CPython executable SHA256 drifted" >&2
+            exit 1
+          fi
+          if [[ "$payload_original_argv_sha256" != "$expected_original_argv_sha256" ]]; then
+            echo "expanded CPython original-argv executable SHA256 drifted" >&2
+            exit 1
+          fi
+          if [[ "$payload_bundled_pip_sha256" != "$expected_bundled_pip_sha256" ]]; then
+            echo "expanded bundled pip wheel SHA256 drifted" >&2
+            exit 1
+          fi
+
+          framework_root="/Library/Frameworks/Python.framework"
+          versions_root="$framework_root/Versions"
+          framework_version="$versions_root/3.12"
+          framework_backup="$versions_root/3.12.pre-codex-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          for parent_dir in "$framework_root" "$versions_root"; do
+            if [[ -L "$parent_dir" || ( -e "$parent_dir" && ! -d "$parent_dir" ) ]]; then
+              echo "Python framework parent is not a real directory: $parent_dir" >&2
+              exit 1
+            fi
+          done
+          if [[ -L "$framework_version" || ( -e "$framework_version" && ! -d "$framework_version" ) ]]; then
+            echo "existing Python 3.12 framework is not a real directory" >&2
+            exit 1
+          fi
+          if [[ -e "$framework_backup" || -L "$framework_backup" ]]; then
+            echo "refusing to overwrite an existing Python framework backup" >&2
+            exit 1
+          fi
+          sudo /bin/mkdir -p "$versions_root"
+          if [[ -d "$framework_version" ]]; then
+            sudo /bin/mv "$framework_version" "$framework_backup"
+          fi
+          # Move the verified 3.12 payload into a fresh version directory.
+          # Deliberately do not run pkg scripts, which execute Python before
+          # binary preflight.
+          sudo /bin/mv "$framework_payload_version" "$framework_version"
+          if [[ ! -d "$framework_version" || -L "$framework_version" ]]; then
+            echo "installed Python 3.12 framework is not a real directory" >&2
+            exit 1
+          fi
+          for installed_binary in "$base_python" "$original_argv_python"; do
+            if [[ ! -f "$installed_binary" || -L "$installed_binary" ]]; then
+              echo "installed CPython binary is not a regular, non-symlink file: $installed_binary" >&2
+              exit 1
+            fi
+            if [[ "$(/usr/bin/stat -f '%Lp' "$installed_binary")" != "775" ]]; then
+              echo "installed CPython binary mode drifted: $installed_binary" >&2
+              exit 1
+            fi
+          done
+          if [[ ! -f "$bundled_pip" || -L "$bundled_pip" ]]; then
+            echo "installed bundled pip wheel is not a regular, non-symlink file" >&2
+            exit 1
+          fi
+          actual_python_sha256="$(/usr/bin/shasum -a 256 "$base_python" | /usr/bin/awk '{print $1}')"
+          actual_original_argv_sha256="$(/usr/bin/shasum -a 256 "$original_argv_python" | /usr/bin/awk '{print $1}')"
+          actual_bundled_pip_sha256="$(/usr/bin/shasum -a 256 "$bundled_pip" | /usr/bin/awk '{print $1}')"
+          if [[ "$actual_python_sha256" != "$expected_python_sha256" ]]; then
+            echo "installed CPython executable SHA256 drifted" >&2
+            exit 1
+          fi
+          if [[ "$actual_original_argv_sha256" != "$expected_original_argv_sha256" ]]; then
+            echo "installed CPython original-argv executable SHA256 drifted" >&2
+            exit 1
+          fi
+          if [[ "$actual_bundled_pip_sha256" != "$expected_bundled_pip_sha256" ]]; then
+            echo "installed bundled pip wheel SHA256 drifted" >&2
+            exit 1
+          fi
+          echo "verified installed CPython binaries and bundled pip before first execution"
+          git switch --detach da374342781d6fde2f2c6d87d23582050bc8edaa
+
+      - name: Preflight the registered interpreter
+        shell: bash
+        run: |
+          set -euo pipefail
+          base_python="/Library/Frameworks/Python.framework/Versions/3.12/bin/python3.12"
+          "$base_python" -m venv .venv
+          LANG=C.UTF-8 LC_ALL=C.UTF-8 .venv/bin/python -I -S -B - <<'PY'
+          import hashlib
+          import locale
+          import sys
+          from pathlib import Path
+
+          if sys.version_info[:3] != (3, 12, 0):
+              raise SystemExit(f"registered interpreter version drifted: {sys.version}")
+          locale.setlocale(locale.LC_ALL, "C.UTF-8")
+          executable = Path(".venv/bin/python").resolve(strict=True)
+          original_argv_executable = (
+              Path(sys.base_prefix) / "Resources/Python.app/Contents/MacOS/Python"
+          )
+          expected = {
+              "python": "f4cd716d4b54f205398bec6932cc59361b087494ca2ddb157a5e8631d4d6f863",
+              "orig_argv": "89c717ced41f6a395612366e5b038226d0d8fca36bbddd9321d385f5f370ebbe",
+          }
+          observed = {
+              "python": hashlib.sha256(executable.read_bytes()).hexdigest(),
+              "orig_argv": hashlib.sha256(
+                  original_argv_executable.read_bytes()
+              ).hexdigest(),
+          }
+          if observed != expected:
+              raise SystemExit(f"registered interpreter executable drifted: {observed=}")
+          print("verified C.UTF-8 and both registered interpreter executables")
+          PY
+
+      - name: Recreate the registered package environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          .venv/bin/python -I -B - <<'PY'
+          import importlib.metadata
+
+          if importlib.metadata.version("pip") != "23.2.1":
+              raise SystemExit("the registered CPython distribution did not provide pip 23.2.1")
+          PY
+          builder="${RUNNER_TEMP}/alphapilot-build/bin/python"
+          /Library/Frameworks/Python.framework/Versions/3.12/bin/python3.12 \
+            -m venv "${RUNNER_TEMP}/alphapilot-build"
+          "$builder" -m pip install --disable-pip-version-check --no-deps \
+            setuptools==80.9.0 wheel==0.45.1 packaging==26.2
+          .venv/bin/python -I -B - <<'PY'
+          import json
+          import pathlib
+          import subprocess
+          import sys
+
+          inventory = pathlib.Path(
+              "docs/phase4/rehearsals/P4.2a-v2-calibration-v2/"
+              "archive/control-surface/root/runtime/packages.json"
+          )
+          rows = json.loads(inventory.read_text(encoding="utf-8"))
+          requirements = [
+              f"{row['name']}=={row['version']}"
+              for row in rows
+              if row["name"] not in {"alphapilot-ai", "pip"}
+          ]
+          subprocess.run(
+              [
+                  sys.executable,
+                  "-m",
+                  "pip",
+                  "install",
+                  "--disable-pip-version-check",
+                  "--no-deps",
+                  *requirements,
+              ],
+              check=True,
+          )
+          PY
+
+      - name: Install and verify the approved v2 source
+        shell: bash
+        run: |
+          set -euo pipefail
+          wheel_dir="${RUNNER_TEMP}/alphapilot-v2-editable-wheel"
+          mkdir -p "$wheel_dir"
+          ALPHAPILOT_WHEEL_DIR="$wheel_dir" \
+            "${RUNNER_TEMP}/alphapilot-build/bin/python" - <<'PY'
+          import os
+          from pathlib import Path
+
+          from setuptools.build_meta import build_editable
+
+          wheel_dir = Path(os.environ["ALPHAPILOT_WHEEL_DIR"])
+          wheel_name = build_editable(str(wheel_dir))
+          expected_name = "alphapilot_ai-0.5.0-0.editable-py3-none-any.whl"
+          if wheel_name != expected_name or not (wheel_dir / wheel_name).is_file():
+              raise SystemExit(f"canonical editable wheel drifted: {wheel_name}")
+          PY
+          .venv/bin/python -m pip install \
+            --disable-pip-version-check --no-index --no-deps --force-reinstall \
+            "$wheel_dir/alphapilot_ai-0.5.0-0.editable-py3-none-any.whl"
+          .venv/bin/python - <<'PY'
+          import hashlib
+          from pathlib import Path
+
+          from scripts import validate_p4_2a_v2_heldout_rehearsal_bundle as validator
+
+          python_payload, package_payload, roots, raw_count = validator._runtime_inventory(
+              Path.cwd()
+          )
+          observed = {
+              "python": hashlib.sha256(python_payload).hexdigest(),
+              "packages": hashlib.sha256(package_payload).hexdigest(),
+          }
+          expected = {
+              "python": "ab3e067417027bb98ea4335e9086d2046ac9dfd4eaf857acc8622dc8f0a13a31",
+              "packages": "c3c7792eb31679c0eb7d3140e067d691df330cd3af302d2350bf15b74ac8ec42",
+          }
+          if observed != expected or roots != [".venv/lib/python3.12/site-packages"]:
+              raise SystemExit(
+                  f"frozen runtime fingerprint drifted: {observed=}, {roots=}"
+              )
+          if raw_count != 84:
+              raise SystemExit(f"frozen runtime package count drifted: {raw_count}")
+          print("verified v2 runtime: Python SHA, package SHA, and 84-package count")
+          PY
+      - name: Run approved v2 frozen rehearsal tests
+        run: |
+          .venv/bin/python -m pytest \
+            tests/test_p4_2a_v2_heldout_full_rehearsal.py \
+            tests/test_p4_2a_v2_heldout_rehearsal_v2_runner.py \
+            tests/test_p4_2a_v2_heldout_rehearsal_v2_validator.py
+
+      - name: Install and verify the approved v2.1 source
+        shell: bash
+        run: |
+          set -euo pipefail
+          git switch --detach 4fce89e89fe2dba656694a7cffdc0ee1af0305c0
+          wheel_dir="${RUNNER_TEMP}/alphapilot-v2-1-editable-wheel"
+          mkdir -p "$wheel_dir"
+          ALPHAPILOT_WHEEL_DIR="$wheel_dir" \
+            "${RUNNER_TEMP}/alphapilot-build/bin/python" - <<'PY'
+          import os
+          from pathlib import Path
+
+          from setuptools.build_meta import build_editable
+
+          wheel_dir = Path(os.environ["ALPHAPILOT_WHEEL_DIR"])
+          wheel_name = build_editable(str(wheel_dir))
+          expected_name = "alphapilot_ai-0.5.0-0.editable-py3-none-any.whl"
+          if wheel_name != expected_name or not (wheel_dir / wheel_name).is_file():
+              raise SystemExit(f"canonical editable wheel drifted: {wheel_name}")
+          PY
+          .venv/bin/python -m pip install \
+            --disable-pip-version-check --no-index --no-deps --force-reinstall \
+            "$wheel_dir/alphapilot_ai-0.5.0-0.editable-py3-none-any.whl"
+          .venv/bin/python - <<'PY'
+          import hashlib
+          from pathlib import Path
+
+          from scripts import validate_p4_2a_v2_1_heldout_rehearsal_bundle as validator
+
+          python_payload, package_payload, roots, raw_count = (
+              validator._runtime_inventory_v2_1(Path.cwd())
+          )
+          observed = {
+              "python": hashlib.sha256(python_payload).hexdigest(),
+              "packages": hashlib.sha256(package_payload).hexdigest(),
+          }
+          expected = {
+              "python": "ab3e067417027bb98ea4335e9086d2046ac9dfd4eaf857acc8622dc8f0a13a31",
+              "packages": "c3c7792eb31679c0eb7d3140e067d691df330cd3af302d2350bf15b74ac8ec42",
+          }
+          if observed != expected or roots != [".venv/lib/python3.12/site-packages"]:
+              raise SystemExit(
+                  f"frozen v2.1 runtime fingerprint drifted: {observed=}, {roots=}"
+              )
+          if raw_count != 84:
+              raise SystemExit(f"frozen v2.1 runtime package count drifted: {raw_count}")
+          print("verified v2.1 runtime: Python SHA, package SHA, and 84-package count")
+          PY
+      - name: Run approved v2.1 frozen rehearsal tests
+        run: |
+          .venv/bin/python -m pytest \
+            tests/test_p4_2a_v2_heldout.py \
+            tests/test_p4_2a_v2_1_heldout_rehearsal_runner.py \
+            tests/test_p4_2a_v2_1_heldout_rehearsal_validator.py \
+            tests/test_p4_2a_v2_heldout_finalizer.py \
+            tests/test_p4_2a_offline_extract.py
 
   frontend:
     runs-on: ubuntu-latest
