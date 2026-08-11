@@ -115,6 +115,10 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--evaluation-design", type=Path, default=EVALUATION_DESIGN_V2_PATH)
     arguments = parser.parse_args(argv)
     try:
+        _binding, stage_authority = heldout.prevalidate_stage_authority(
+            PROJECT_ROOT,
+            stage="build-adjudication-ui",
+        )
         contract = heldout.load_registered_contract(arguments.evaluation_design)
         selection_path = base_seal._bound_input(
             arguments.selection_manifest
@@ -143,7 +147,12 @@ def main(argv: Sequence[str] | None = None) -> int:
             selection_payload,
             inference_completed_at,
         ) = heldout.read_bound_blind_bundle(
-            selection_path, blind_path, contract=contract
+            selection_path,
+            blind_path,
+            contract=contract,
+            stage="build-adjudication-ui",
+            prevalidated_authority=stage_authority,
+            validated_stage="build-adjudication-ui",
         )
         draft_rows, draft_payload = base_seal.read_jsonl(
             draft_path, label="heldout sealed draft"

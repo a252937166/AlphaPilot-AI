@@ -1,16 +1,15 @@
 #!/usr/bin/env python3
-"""Create-only finalize the P4.2a v2 held-out owner adjudication.
+"""Offline-rehearsal-only finalizer for P4.2a v2 held-out adjudication.
 
-The held-out owner export is never scored here.  This command only validates
-the blinded 60-row chain, independently recomputes every human delta, and
-freezes the raw export, canonical human gold, and completion manifest.  The
-one-shot evaluation remains a separate, independently authorized operation.
+The current successor release does not authorize canonical owner finalization;
+the CLI therefore fails closed before reading an owner export.  Only the
+private, nonserializable offline rehearsal capability may exercise this code
+path.  No result is scored here, and the one-shot evaluation remains locked.
 """
 
 from __future__ import annotations
 
 import argparse
-import json
 import sys
 from collections.abc import Mapping, Sequence
 from datetime import datetime
@@ -23,13 +22,13 @@ if __package__ in {None, ""}:
 
 from scripts import build_p4_2a_v2_heldout_adjudication_ui as heldout_ui  # noqa: E402
 from scripts import finalize_p4_2a_v2_dev_adjudication as base_finalizer  # noqa: E402
+from scripts import prepare_p4_2a_v2_heldout as prepare  # noqa: E402
 from scripts import seal_p4_2a_v2_ai_draft as base_seal  # noqa: E402
 from scripts import seal_p4_2a_v2_heldout_draft as heldout  # noqa: E402
 
-from alphapilot.llm.p4_news_eval import (  # noqa: E402
-    EVALUATION_DESIGN_V2_PATH,
-    EventEvaluationDesignError,
-)
+from alphapilot.llm.p4_news_eval import EVALUATION_DESIGN_V2_PATH  # noqa: E402
+
+FINALIZE_AUTHORITY_ERROR = "REJECTED_PENDING_OWNER_ADJUDICATION_AUTHORITY"
 
 
 def build_heldout_completion_manifest(
@@ -109,7 +108,8 @@ def build_heldout_completion_manifest(
         "p4_2b_unlocked": False,
         "p4_3_unlocked": False,
     }
-    return manifest
+    result: dict[str, Any] = manifest
+    return result
 
 
 def finalize_owner_export(
@@ -117,8 +117,17 @@ def finalize_owner_export(
     contract: base_seal.V2AdjudicationContract,
     owner_export_path: Path,
     completed_at: str,
+    execution_context: prepare._OfflineRehearsalCapability | None = None,
 ) -> tuple[dict[str, Any], dict[str, Any], dict[Path, str]]:
     """Validate all registered inputs and atomically freeze the three outputs."""
+
+    if execution_context is None:
+        raise base_seal.V2AdjudicationError(FINALIZE_AUTHORITY_ERROR)
+    _binding, stage_authority = heldout.prevalidate_stage_authority(
+        contract.project_root,
+        stage="finalize-owner-adjudication",
+        execution_context=execution_context,
+    )
 
     selection_path = contract.artifacts["development_private_selection_manifest"]
     blind_path = contract.artifacts["development_owner_blind_jsonl"]
@@ -137,6 +146,9 @@ def finalize_owner_export(
         selection_path,
         blind_path,
         contract=contract,
+        stage="finalize-owner-adjudication",
+        prevalidated_authority=stage_authority,
+        validated_stage="finalize-owner-adjudication",
     )
     selection, observed_selection_payload = base_seal.read_json_object(
         selection_path,
@@ -254,44 +266,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--owner-export", type=Path, required=True)
     parser.add_argument("--completed-at", required=True)
     parser.add_argument("--evaluation-design", type=Path, default=EVALUATION_DESIGN_V2_PATH)
-    arguments = parser.parse_args(argv)
-    try:
-        contract = heldout.load_registered_contract(arguments.evaluation_design)
-        summary, _completion, hashes = finalize_owner_export(
-            contract=contract,
-            owner_export_path=arguments.owner_export,
-            completed_at=arguments.completed_at,
-        )
-        raw_path = contract.artifacts["development_owner_raw_export_jsonl"]
-        human_path = contract.artifacts["development_human_adjudicated_jsonl"]
-        completion_path = contract.artifacts["development_owner_completion_manifest"]
-        raw_sha = base_seal.sha256_bytes(raw_path.read_bytes())
-    except (
-        EventEvaluationDesignError,
-        base_seal.V2AdjudicationError,
-        FileExistsError,
-        OSError,
-    ) as exc:
-        print(f"ERROR: {exc}", file=sys.stderr)
-        return 2
-    print(
-        json.dumps(
-            {
-                "status": "heldout_owner_gold_frozen_pending_dry_run",
-                "row_count": summary["row_count"],
-                "drafter_id": summary["drafter_id"],
-                "adjudicator_id": summary["adjudicator_id"],
-                "changed_item_count": summary["changed_item_count"],
-                "raw_export_sha256": raw_sha,
-                "human_gold_sha256": hashes[human_path],
-                "completion_manifest_sha256": hashes[completion_path],
-                "one_shot_evaluation_consumed": False,
-            },
-            ensure_ascii=False,
-            sort_keys=True,
-        )
-    )
-    return 0
+    parser.parse_args(argv)
+    print(f"ERROR: {FINALIZE_AUTHORITY_ERROR}", file=sys.stderr)
+    return 2
 
 
 if __name__ == "__main__":

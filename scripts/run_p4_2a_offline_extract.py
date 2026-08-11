@@ -10,7 +10,7 @@ import stat
 import sys
 import tempfile
 from collections import Counter
-from collections.abc import Collection, Iterator, Mapping, Sequence
+from collections.abc import Callable, Collection, Iterator, Mapping, Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -40,6 +40,8 @@ from alphapilot.llm.p4_news_event import (
 )
 
 JsonObject = dict[str, Any]
+RecordedAtClock = Callable[[], str]
+MonotonicNsClock = Callable[[], int]
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_DATABASE = Path("data/alphapilot.db")
@@ -152,6 +154,32 @@ class ExtractionSummary:
 
 def _utc_now() -> str:
     return datetime.now(UTC).isoformat()
+
+
+def _recorded_at_utc(clock: RecordedAtClock) -> str:
+    value = clock()
+    if not isinstance(value, str) or not value:
+        raise OfflineExtractError("recorded-at clock returned a non-string value")
+    try:
+        observed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError as exc:
+        raise OfflineExtractError("recorded-at clock returned invalid ISO-8601") from exc
+    if (
+        observed.tzinfo is None
+        or observed.utcoffset() is None
+        or observed.utcoffset() != UTC.utcoffset(observed)
+    ):
+        raise OfflineExtractError("recorded-at clock must return a UTC instant")
+    return value
+
+
+def _monotonic_ns_value(clock: MonotonicNsClock, *, previous: int | None) -> int:
+    value = clock()
+    if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+        raise OfflineExtractError("monotonic-ns clock returned an invalid value")
+    if previous is not None and value < previous:
+        raise OfflineExtractError("monotonic-ns clock moved backward")
+    return value
 
 
 def _mapping(value: object, name: str) -> Mapping[str, Any]:
@@ -1075,12 +1103,13 @@ def _base_output_row(
     prepared: PreparedRecord,
     contract: EventExtractContract,
     *,
+    recorded_at_utc: str,
     elapsed_ms: int,
     audit: AuditEvidence,
 ) -> JsonObject:
     row: JsonObject = {
         "schema_version": "p4.2a-offline-extract-row-v1",
-        "recorded_at_utc": _utc_now(),
+        "recorded_at_utc": recorded_at_utc,
         "news_item_id": prepared.record.news_item_id,
         "source": prepared.record.source,
         "input_sha256": prepared.input_sha256,
@@ -1190,11 +1219,15 @@ def extract_records(
     settings: Settings,
     retry_failures: bool,
     chat_json_fn: ChatJsonCallable | None = None,
+    recorded_at_clock: RecordedAtClock | None = None,
+    monotonic_ns_clock: MonotonicNsClock | None = None,
 ) -> ExtractionSummary:
     """Extract a fixed record set into an append-only, resumable eval JSONL."""
     _validate_runtime_contract(contract, settings)
     prepared_records = _prepare_records(contract, records)
     llm_call = chat_json if chat_json_fn is None else chat_json_fn
+    active_recorded_at_clock = _utc_now if recorded_at_clock is None else recorded_at_clock
+    active_monotonic_ns_clock = monotonic_ns if monotonic_ns_clock is None else monotonic_ns_clock
     newly_attempted = 0
     retried_failures = 0
     skipped_successes = 0
@@ -1220,7 +1253,8 @@ def extract_records(
                 newly_attempted += 1
 
             audit_after_id = _latest_audit_id(audit_session)
-            started = monotonic_ns()
+            started = _monotonic_ns_value(active_monotonic_ns_clock, previous=None)
+            latest_tick = started
             prediction: JsonObject | None = None
             caught: BaseException | None = None
             try:
@@ -1242,7 +1276,12 @@ def extract_records(
                     ingested_symbol=prepared.record.ingested_symbol,
                     universe_symbols=universe_symbols,
                 )
-                elapsed_seconds = (monotonic_ns() - started) / 1_000_000_000
+                completed_prediction = _monotonic_ns_value(
+                    active_monotonic_ns_clock,
+                    previous=started,
+                )
+                latest_tick = completed_prediction
+                elapsed_seconds = (completed_prediction - started) / 1_000_000_000
                 if elapsed_seconds > contract.timeout:
                     raise OfflineExtractDeadlineExceeded(
                         "logical extraction exceeded the frozen total deadline"
@@ -1251,7 +1290,11 @@ def extract_records(
                 if isinstance(error, (KeyboardInterrupt, SystemExit)):
                     raise
                 caught = error
-            elapsed_ms = (monotonic_ns() - started) // 1_000_000
+            completed_attempt = _monotonic_ns_value(
+                active_monotonic_ns_clock,
+                previous=latest_tick,
+            )
+            elapsed_ms = (completed_attempt - started) // 1_000_000
             audit = _audit_evidence(audit_session, audit_after_id)
             if caught is None and (audit.row_count != 1 or audit.ok is not True):
                 caught = OfflineExtractAuditEvidenceError(
@@ -1260,6 +1303,7 @@ def extract_records(
             base = _base_output_row(
                 prepared,
                 contract,
+                recorded_at_utc=_recorded_at_utc(active_recorded_at_clock),
                 elapsed_ms=elapsed_ms,
                 audit=audit,
             )
