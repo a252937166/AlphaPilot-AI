@@ -1,0 +1,2165 @@
+{
+  "schema_version": "p4.2a-v2-heldout-rehearsal-v2-2-preregistration-v1",
+  "preregistration_id": "P4.2A-V2-HELDOUT-REHEARSAL-V2-2-PREREGISTRATION-20260811",
+  "created_at_utc": "2026-08-11T09:31:56Z",
+  "created_at_shanghai": "2026-08-11T17:31:56+08:00",
+  "status": "PREREGISTERED_AWAITING_INDEPENDENT_REVIEW_AND_OWNER_IMPLEMENTATION_AUTHORIZATION",
+  "purpose": {
+    "objective": "Replace the failed v2.1 rehearsal harness with a single-authority-module v2.2 harness and make rehearsal attempts repeatable only when every attempt is durably and completely disclosed.",
+    "delta_is_harness_only": true,
+    "heldout_evaluation_one_shot_is_not_the_rehearsal_series": true,
+    "heldout_evaluation_one_shot_status": "UNCHANGED_AND_UNCONSUMED",
+    "evaluation_design_or_statistical_change": false
+  },
+  "ordering_discipline": {
+    "scope_authorization_head": "5fe756401f20e67ff5c868bf29f099c1bfe5b4d3",
+    "required_preregistration_parent": "5fe756401f20e67ff5c868bf29f099c1bfe5b4d3",
+    "this_preregistration_commit_policy": "SINGLE_COMMIT_EXACTLY_THREE_STATUS_A_PATHS",
+    "exact_paths": [
+      "docs/phase4/reports/P4.2a-v2-heldout-rehearsal-v2-2-preregistration-20260811.json",
+      "config/schemas/p4_2a_v2_2_heldout_rehearsal_bundle.schema.json",
+      "config/schemas/p4_2a_v2_2_heldout_release_authorization.schema.json"
+    ],
+    "exact_statuses": [
+      "A",
+      "A",
+      "A"
+    ],
+    "no_other_path_in_commit": true,
+    "each_path_unique_a_only": true,
+    "current_bytes_must_equal_creation_blob": true,
+    "no_later_touch_to_any_of_three": true,
+    "schemas_frozen_before_implementation": true,
+    "implementation_or_test_edit_before_this_commit": "FORBIDDEN",
+    "implementation_commit_must_descend_from_preregistration_and_later_owner_surface_authority": true
+  },
+  "registered_schemas": {
+    "bundle_schema": {
+      "path": "config/schemas/p4_2a_v2_2_heldout_rehearsal_bundle.schema.json",
+      "sha256": "19903ac94d4d7ced81c7f18e7b8880bd1dbb68fd3ededf3f0b91f89d034aa5db",
+      "draft": "https://json-schema.org/draft/2020-12/schema"
+    },
+    "release_authorization_schema": {
+      "path": "config/schemas/p4_2a_v2_2_heldout_release_authorization.schema.json",
+      "sha256": "098d213f510718aab0d9c6bfc950a30bb1c4841ca151631bea78c1bf0238e7ea",
+      "draft": "https://json-schema.org/draft/2020-12/schema"
+    },
+    "schema_meta_validation_required": true,
+    "strict_unknown_key_rejection_required": true,
+    "semantic_constraints_not_expressible_in_json_schema_must_be_recomputed_by_independent_validator": true,
+    "schemas_must_not_embed_preregistration_sha256": true
+  },
+  "authorities": {
+    "action_scope_authorization": {
+      "path": "docs/phase4/reports/P4.2a-v2-2-preregistration-scope-authorization-20260811.json",
+      "sha256": "7cef82e5e4b2fcce349cbc25672705ea75795b0b07865970c415945747aa3296",
+      "creating_commit": "5fe756401f20e67ff5c868bf29f099c1bfe5b4d3",
+      "unique_a_history_required": true,
+      "current_bytes_must_equal_creating_commit_blob": true,
+      "later_touch_forbidden": true
+    },
+    "remediation_request": {
+      "path": "docs/phase4/reports/P4.2a-v2-heldout-rehearsal-v2-1-failure-remediation-review-request-20260811.json",
+      "sha256": "820ed6c62a2e04a051d530bee7c33f5cfff21fd3fee25afd7587e18a407ce29f",
+      "creating_commit": "530f2dc9f89360ad7c12776d85c3bf369f209214",
+      "unique_a_history_required": true,
+      "current_bytes_must_equal_creating_commit_blob": true,
+      "later_touch_forbidden": true
+    },
+    "consumed_v2_1_incident": {
+      "path": "docs/phase4/reports/P4.2a-v2-heldout-rehearsal-v2-1-one-shot-consumed-incident-20260811.json",
+      "sha256": "d658336f61cdca0239584b696043fe4abc5ede1ef7aff76a4fe514b7b5d0735c",
+      "creating_commit": "7a6e8be39f9a0702bf8fb4a22c669dc7331b0d95",
+      "unique_a_history_required": true,
+      "current_bytes_must_equal_creating_commit_blob": true,
+      "later_touch_forbidden": true
+    },
+    "required_commit_topology": [
+      "7a6e8be39f9a0702bf8fb4a22c669dc7331b0d95",
+      "530f2dc9f89360ad7c12776d85c3bf369f209214",
+      "5fe756401f20e67ff5c868bf29f099c1bfe5b4d3",
+      "PREREGISTRATION_COMMIT"
+    ],
+    "topology_relationship": "each_entry_is_the_direct_parent_of_the_next_entry",
+    "scope_artifact_issuer_is_not_rewritten_as_human_owner": true,
+    "current_owner_transcript_acceptance": {
+      "verdict": "APPROVE_V2_2_PREREGISTRATION_SCOPE_ONLY",
+      "durable_repository_receipt": false,
+      "transcript_bound": true,
+      "permits_only_the_three_preregistration_schema_paths": true
+    },
+    "carry_forward_lineage": [
+      {
+        "path": "docs/phase4/reports/P4.2a-v2-heldout-rehearsal-v2-1-preregistration-20260810.json",
+        "sha256": "c303cfb13a42ecbb7e0acaec04de12a9e9169b89cf9e93ea79d0f120d1439d3e",
+        "creating_commit": "b302d5889f01296568340bcc15041cc554ceb2c7",
+        "unique_a_history_required": true,
+        "current_bytes_must_equal_creating_commit_blob": true,
+        "later_touch_forbidden": true
+      },
+      {
+        "path": "docs/phase4/reports/P4.2a-v2-heldout-rehearsal-v2-1-prediction-timing-seam-preregistration-20260810.json",
+        "sha256": "1052c7a33268572fc794517844dae4b6c1ea504121712ad2f55ec814a7446f9a",
+        "creating_commit": "b3c2d2216c1feffd9949f181fa6766f8357ff683",
+        "unique_a_history_required": true,
+        "current_bytes_must_equal_creating_commit_blob": true,
+        "later_touch_forbidden": true
+      },
+      {
+        "path": "docs/phase4/reports/P4.2a-rehearsal-v2-approval-and-frame-authority-ruling-20260810.json",
+        "sha256": "8605dd30dd6bffa9621b6efe5e01c4c9cead615c9639259c2e79e14fcbbc3421",
+        "creating_commit": "da374342781d6fde2f2c6d87d23582050bc8edaa",
+        "unique_a_history_required": true,
+        "current_bytes_must_equal_creating_commit_blob": true,
+        "later_touch_forbidden": true
+      },
+      {
+        "path": "docs/phase4/reports/P4.2a-successor-v2-1-code-gate-authorization-20260810.json",
+        "sha256": "e28db692dc150983f86f6760fb1a95584d8607658e8a78a0de35cf3fc81940cd",
+        "creating_commit": "aa082578aa48296f1dd394a380775a5a4546ca65",
+        "unique_a_history_required": true,
+        "current_bytes_must_equal_creating_commit_blob": true,
+        "later_touch_forbidden": true
+      },
+      {
+        "path": "docs/phase4/reports/P4.2a-v2-heldout-rehearsal-v2-1-scope-correction-owner-ruling-20260810.json",
+        "sha256": "36a3baea9ce5e4c28c7e6aff9e77c09691024a870513f49f2094b07963f3582e",
+        "creating_commit": "88690ef488925f9de922569f961ec4ff1a23bb78",
+        "unique_a_history_required": true,
+        "current_bytes_must_equal_creating_commit_blob": true,
+        "later_touch_forbidden": true
+      },
+      {
+        "path": "docs/phase4/reports/P4.2a-v2-1-control-plane-registry-expansion-authorization-20260811.json",
+        "sha256": "ab85a0ddd90728c7d41051e640b59f7dc777f2f2aec3c8290286206979251796",
+        "creating_commit": "d37040be87644977ddaad60b2590ac2e62b2aeed",
+        "unique_a_history_required": true,
+        "current_bytes_must_equal_creating_commit_blob": true,
+        "later_touch_forbidden": true
+      },
+      {
+        "path": "IMPLEMENTATION_COMMIT",
+        "sha256": null,
+        "creating_commit": "4fce89e89fe2dba656694a7cffdc0ee1af0305c0",
+        "parent_commit": "d37040be87644977ddaad60b2590ac2e62b2aeed",
+        "tree_and_exact_surface_must_be_rederived": true
+      },
+      {
+        "path": "docs/phase4/reports/P4.2a-v2-1-implementation-independent-review-20260811.json",
+        "sha256": "d144f77d4e7a2946f00e618fb768960b0abdd6e40caf5831f4f198700762d276",
+        "creating_commit": "ed59a0ce6057145068b7c87fc681dd0aeea47270",
+        "unique_a_history_required": true,
+        "current_bytes_must_equal_creating_commit_blob": true,
+        "later_touch_forbidden": true
+      },
+      {
+        "path": "docs/phase4/reports/P4.2a-v2-heldout-rehearsal-v2-1-one-shot-consumed-incident-20260811.json",
+        "sha256": "d658336f61cdca0239584b696043fe4abc5ede1ef7aff76a4fe514b7b5d0735c",
+        "creating_commit": "7a6e8be39f9a0702bf8fb4a22c669dc7331b0d95",
+        "unique_a_history_required": true,
+        "current_bytes_must_equal_creating_commit_blob": true,
+        "later_touch_forbidden": true
+      }
+    ]
+  },
+  "identity": {
+    "version": "v2.2",
+    "rehearsal_id": "P4.2A-V2-HELDOUT-REHEARSAL-V2-2-DETERMINISTIC-20260811",
+    "destination": "docs/phase4/rehearsals/P4.2a-v2-calibration-v2-2",
+    "bundle_path": "docs/phase4/rehearsals/P4.2a-v2-calibration-v2-2/bundle.json",
+    "series_token_sha256": "35ba1b83a9b187817d7a591758e1c131e867fcd37917cba0ab196799fff832ef",
+    "series_ledger_root": "/Users/ouyangduning/Documents/project/interesting/.alphapilot-p4-2a-v2-2-execution-claim-35ba1b83a9b187817d7a591758e1c131e867fcd37917cba0ab196799fff832ef",
+    "series_token_derivation": "SHA256(UTF8(lowercase_incident_sha256 || NUL || rehearsal_id || NUL || absolute_posix_destination))",
+    "derivation_incident_sha256": "d658336f61cdca0239584b696043fe4abc5ede1ef7aff76a4fe514b7b5d0735c",
+    "absolute_posix_destination": "/Users/ouyangduning/Documents/project/interesting/AlphaPilot-AI/docs/phase4/rehearsals/P4.2a-v2-calibration-v2-2",
+    "v2_1_destination_reuse_forbidden": true,
+    "v2_1_claim_reuse_forbidden": true,
+    "v2_1_empty_claim_must_remain_untouched": true
+  },
+  "rehearsal_attempt_policy": {
+    "selected_policy": "DISCLOSED_REPEATABLE_SERIES_V1",
+    "decision_has_no_default": true,
+    "property_being_protected": "A determinism claim must not be obtained by silently rerunning and cherry-picking one passing attempt.",
+    "why_single_use_is_not_selected": "A single rehearsal attempt converts every harness defect into a version cycle without providing stronger disclosure than a complete immutable attempt history.",
+    "protection_mechanism": "Every started attempt, failure, incomplete attempt, implementation epoch, authorization, evidence inventory, and first validated candidate is durably ordered and bound into the final bundle and release receipt.",
+    "narrowly_superseded_v2_1_rehearsal_rules": [
+      {
+        "source_path": "/future_owner_gates_required/official_registered_execution_count",
+        "previous_value": 1,
+        "v2_2_value": "unbounded_until_first_validated_success_or_owner_abandonment"
+      },
+      {
+        "source_path": "/future_owner_gates_required/failure_must_permanently_forbid_second_pipeline_start",
+        "previous_value": true,
+        "v2_2_value": "a failed or incomplete attempt permits only the next separately authorized disclosed ordinal; a validated candidate still forbids every later attempt"
+      },
+      {
+        "source_path": "/acceptance_evidence_required_before_any_v2_2_registered_run/9",
+        "previous_value": "action-time owner authorization for exactly one official registered attempt with zero retry",
+        "v2_2_value": "retained independently for every ordinal; it no longer caps the whole series at one ordinal"
+      },
+      {
+        "source_path": "/acceptance_evidence_required_before_any_v2_2_registered_run/10",
+        "previous_value": "registered destination and derived durable claim both absent immediately before the only authorized attempt",
+        "v2_2_value": "destination and series ledger absent before ordinal 1; later ordinals require exact existing ledger rehash and the destination still absent"
+      }
+    ],
+    "supersession_authority": {
+      "path": "docs/phase4/reports/P4.2a-v2-2-preregistration-scope-authorization-20260811.json",
+      "sha256": "7cef82e5e4b2fcce349cbc25672705ea75795b0b07865970c415945747aa3296",
+      "creating_commit": "5fe756401f20e67ff5c868bf29f099c1bfe5b4d3",
+      "field": "part_5_direction_for_the_v2_2_preregistration.must_reconsider_the_one_shot_property_of_the_rehearsal"
+    },
+    "series_attempt_limit": "UNBOUNDED_UNTIL_FIRST_VALIDATED_SUCCESS_OR_OWNER_ABANDONMENT",
+    "each_attempt_is_not_an_automatic_retry": true,
+    "per_attempt_internal_pipeline_retry_count": 0,
+    "per_attempt_action_time_owner_authorization_required": true,
+    "implementation_changes_between_attempts": "PERMITTED_ONLY_AS_A_NEW_AUTHORIZED_AND_INDEPENDENTLY_REVIEWED_EPOCH",
+    "first_validated_candidate_closes_series_before_bundle_publication": true,
+    "attempt_after_first_validated_candidate": "FORBIDDEN",
+    "owner_recovery_ruling_required_if_candidate_validated_but_bundle_not_published": true,
+    "abandoned_series_without_success_requires_create_only_incident": true,
+    "heldout_evaluation_one_shot_is_outside_this_supersession": true,
+    "fields_explicitly_retained": [
+      "each action-time owner authorization permits exactly one ordinal",
+      "automatic retry count is zero inside every attempt",
+      "series ledger state is acquired and fsynced before every pipeline start",
+      "all failure and incomplete records remain permanently disclosed",
+      "unknown or drifted state fails closed"
+    ]
+  },
+  "threat_model": {
+    "protected_against": [
+      "accidental deletion or overwrite by governed code paths",
+      "silent retry",
+      "attempt omission",
+      "attempt renumbering",
+      "failure or incomplete-attempt suppression",
+      "cherry-picking a later passing attempt",
+      "unreviewed implementation byte changes between attempts",
+      "module-identity split between __main__ and package import",
+      "audit-authority creation outside the active write root"
+    ],
+    "not_claimed": [
+      "cryptographic append-only storage against a malicious same-UID host user",
+      "immutability against host administrator or physical-disk mutation",
+      "network packet capture"
+    ],
+    "governance_boundary": "fail-stop code, governed operator, unique create-only Git receipts, filesystem create-only records, fsync, active rehash, and owner review",
+    "deletion_or_drift_of_any_live_ledger_byte": "FAIL_CLOSED_BEFORE_PIPELINE_DATABASE_NETWORK_MODEL_OR_ARTIFACT_WRITE",
+    "final_bundle_archives_all_ledger_and_attempt_evidence_bytes": true,
+    "owner_release_rehashes_live_ledger_against_bundle": true
+  },
+  "series_ledger_contract": {
+    "root_path": "/Users/ouyangduning/Documents/project/interesting/.alphapilot-p4-2a-v2-2-execution-claim-35ba1b83a9b187817d7a591758e1c131e867fcd37917cba0ab196799fff832ef",
+    "root_role": "PERMANENT_SERIES_LEDGER_NOT_ONE_SHOT_ATTEMPT_LOCK",
+    "root_creation": "mkdir mode 0700, no symlink, fsync parent, before first attempt pipeline",
+    "root_path_override_allowed": false,
+    "required_entries": [
+      "series.json",
+      ".series.lock",
+      "attempts"
+    ],
+    "series_json_create_only_mode": "0600",
+    "lock_file_create_only_mode": "0600",
+    "lock_file_bytes": "EMPTY",
+    "lock_file_is_included_in_live_ledger_merkle": true,
+    "concurrency_policy": "nonblocking exclusive flock held from ordinal allocation through terminal or process exit",
+    "attempts_directory_mode": "0700",
+    "attempt_directory_format": "attempts/%06d",
+    "started_path_format": "attempts/%06d/started.json",
+    "candidate_path_format": "attempts/%06d/candidate.json",
+    "terminal_path_format": "attempts/%06d/terminal.json",
+    "record_file_mode": "0600",
+    "every_file_and_containing_directory_fsynced": true,
+    "links_or_special_files_allowed": false,
+    "ordinal_start": 1,
+    "ordinal_rule": "strictly contiguous with no gap duplicate reuse or reorder",
+    "history_empty_root_formula": "SHA256(utf8('p4.2a-rehearsal-v2.2-history-empty-v1\\0'))",
+    "attempt_token_formula": "SHA256(utf8('p4.2a-rehearsal-v2.2-attempt-v1\\0') || series_token_digest_32_bytes || ordinal_u64be || implementation_commit_digest_20_bytes || previous_history_root_digest_32_bytes)",
+    "attempt_record_formula": "SHA256(utf8('p4.2a-rehearsal-v2.2-attempt-record-v1\\0') || ordinal_u64be || attempt_token_digest_32_bytes || started_sha256_digest_32_bytes || candidate_sha256_digest_or_zero32 || terminal_sha256_digest_or_zero32 || evidence_tree_root_digest_32_bytes)",
+    "history_step_formula": "SHA256(utf8('p4.2a-rehearsal-v2.2-history-step-v1\\0') || previous_history_root_digest_32_bytes || attempt_record_root_digest_32_bytes)",
+    "live_ledger_merkle_leaf_formula": "SHA256(utf8('p4.2a-rehearsal-v2.2-ledger-leaf-v1\\0') || utf8(ledger_relative_path) || NUL || SHA256(file_bytes).digest())",
+    "live_ledger_sort_order": "ascending_unsigned_utf8_path_bytes",
+    "live_ledger_exact_member_rule": "series.json, .series.lock, every regular started.json, candidate.json, terminal.json, and attempts/%06d/evidence/** file; directories are not leaves and any other entry rejects",
+    "started_written_before": [
+      "fixture database open",
+      "pipeline call",
+      "network or model boundary",
+      "artifact staging",
+      "bundle candidate construction"
+    ],
+    "candidate_written_and_fsynced_immediately_after_full_candidate_validation": true,
+    "candidate_receipt_presence_closes_series_even_if_terminal_or_bundle_publication_later_fails": true,
+    "terminal_is_separate_create_only_record": true,
+    "graceful_failure_requires_terminal": true,
+    "started_without_terminal_or_candidate_is_classified": "INCOMPLETE_UNTERMINALIZED",
+    "incomplete_attempt_must_be_disclosed_before_next_attempt": true,
+    "no_file_may_be_deleted_modified_replaced_or_readded": true,
+    "first_validated_candidate_is_the_only_selectable_candidate": true,
+    "live_history_must_equal_archived_history_at_bundle_validation_and_owner_release": true,
+    "attempt_evidence_root_format": "attempts/%06d/evidence",
+    "attempt_evidence_directory_mode": "0700",
+    "attempt_evidence_file_mode": "0600",
+    "attempt_evidence_write_rule": "every actual evidence byte used or cited by an attempt is written beneath its evidence root, fsynced, never deleted, and archived byte-for-byte",
+    "transient_scratch_is_not_evidence_and_may_not_support_any_PASS_or_failure_claim": true,
+    "evidence_subtree_becomes_immutable": "at candidate.json or terminal.json fsync, or when a later invocation acquires the series lock and classifies a started-only attempt",
+    "evidence_empty_root_formula": "SHA256(utf8('p4.2a-rehearsal-v2.2-evidence-empty-v1\\0'))",
+    "evidence_leaf_formula": "SHA256(utf8('p4.2a-rehearsal-v2.2-evidence-leaf-v1\\0') || utf8(evidence_relative_path) || NUL || SHA256(file_bytes).digest())",
+    "evidence_node_formula": "SHA256(utf8('p4.2a-rehearsal-v2.2-evidence-node-v1\\0') || left_digest_32_bytes || right_digest_32_bytes)",
+    "evidence_relative_path_basis": "POSIX path relative to attempts/%06d/evidence with that root prefix excluded",
+    "evidence_relative_path_normalization": "nonempty ASCII matching ^[A-Za-z0-9._/-]+$, forward slash separators, no leading slash, no empty dot or dot-dot segment, no trailing slash, no backslash or NUL, and round-trip Path.resolve must remain beneath the exact attempt evidence root",
+    "evidence_nested_directory_mode": "0700",
+    "evidence_sort_order": "ascending_unsigned_utf8_path_bytes",
+    "evidence_odd_leaf_policy": "duplicate_last_digest_at_each_level",
+    "terminal_artifact_inventory_relative_path": "exactly the same normalized evidence_relative_path used by the evidence leaf",
+    "bundle_attempt_artifact_relative_path": "exactly the same normalized evidence_relative_path; archive_relative_path is a separate field and is never hashed as the live evidence path",
+    "attempt_history_archive_mapping": {
+      "series.json": "archive/attempt-history/series.json",
+      ".series.lock": "archive/attempt-history/.series.lock",
+      "started.json": "archive/attempt-history/attempts/%06d/started.json",
+      "candidate.json": "archive/attempt-history/attempts/%06d/candidate.json when present",
+      "terminal.json": "archive/attempt-history/attempts/%06d/terminal.json when present",
+      "action_time_authorization": "archive/attempt-history/attempts/%06d/action-time-authorization.json",
+      "evidence_file": "archive/attempt-history/attempts/%06d/evidence/ + exact evidence_relative_path"
+    },
+    "archive_mapping_has_no_caller_override": true,
+    "zero_evidence_attempt_uses_domain_separated_empty_root": true,
+    "started_only_record_derivation": "candidate_digest=zero32, terminal_digest=zero32, outcome=INCOMPLETE_UNTERMINALIZED, and evidence root is the recomputed persisted evidence tree or the exact empty root",
+    "previous_history_root_for_next_attempt": "recompute every earlier record in ordinal order from live bytes; never accept a caller-supplied root without recomputation",
+    "series_json_contract": {
+      "additional_properties": false,
+      "canonical_encoding": "UTF-8 canonical JSON, keys sorted by unsigned UTF-8 bytes, separators comma and colon with no spaces, ensure_ascii=false, exactly one trailing LF",
+      "required": [
+        "schema_version",
+        "series_id",
+        "series_token_sha256",
+        "policy",
+        "ledger_root",
+        "attempt_limit",
+        "per_attempt_action_time_owner_authorization_required",
+        "automatic_retry_count",
+        "first_validated_candidate_closes_series",
+        "preregistration",
+        "bundle_schema",
+        "release_schema",
+        "created_at_utc"
+      ],
+      "properties": {
+        "schema_version": {
+          "type": "string",
+          "const": "p4.2a-v2-2-rehearsal-series-v1"
+        },
+        "series_id": {
+          "type": "string",
+          "const": "P4.2A-V2-HELDOUT-REHEARSAL-V2-2-DETERMINISTIC-20260811"
+        },
+        "series_token_sha256": {
+          "type": "string",
+          "official_const": "35ba1b83a9b187817d7a591758e1c131e867fcd37917cba0ab196799fff832ef",
+          "must_equal_execution_binding_series_token_sha256": true
+        },
+        "policy": {
+          "type": "string",
+          "const": "DISCLOSED_REPEATABLE_SERIES_V1"
+        },
+        "ledger_root": {
+          "type": "string",
+          "official_const": "/Users/ouyangduning/Documents/project/interesting/.alphapilot-p4-2a-v2-2-execution-claim-35ba1b83a9b187817d7a591758e1c131e867fcd37917cba0ab196799fff832ef",
+          "must_equal_execution_binding_ledger_root": true
+        },
+        "attempt_limit": {
+          "type": "string",
+          "const": "unbounded_until_first_validated_success_or_owner_abandonment"
+        },
+        "per_attempt_action_time_owner_authorization_required": {
+          "type": "boolean",
+          "const": true
+        },
+        "automatic_retry_count": {
+          "type": "integer",
+          "const": 0
+        },
+        "first_validated_candidate_closes_series": {
+          "type": "boolean",
+          "const": true
+        },
+        "preregistration": {
+          "type": "authorityRef",
+          "path": "docs/phase4/reports/P4.2a-v2-heldout-rehearsal-v2-2-preregistration-20260811.json"
+        },
+        "bundle_schema": {
+          "type": "fileRef",
+          "path": "config/schemas/p4_2a_v2_2_heldout_rehearsal_bundle.schema.json",
+          "sha256": "19903ac94d4d7ced81c7f18e7b8880bd1dbb68fd3ededf3f0b91f89d034aa5db"
+        },
+        "release_schema": {
+          "type": "fileRef",
+          "path": "config/schemas/p4_2a_v2_2_heldout_release_authorization.schema.json",
+          "sha256": "098d213f510718aab0d9c6bfc950a30bb1c4841ca151631bea78c1bf0238e7ea"
+        },
+        "created_at_utc": {
+          "type": "string",
+          "format": "RFC3339 UTC seconds with Z and no fractional seconds"
+        }
+      },
+      "unique_a_series_root_creation": false,
+      "series_json_is_created_once_inside_the_series_root": true,
+      "current_bytes_rehashed_before_every_attempt": true,
+      "execution_mode_branches": {
+        "REGISTERED_OFFICIAL": "series_token_sha256 and ledger_root equal the two official_const values",
+        "DISPOSABLE_FULL_SHAPE_TEST": "series_token_sha256 and ledger_root equal the private-capability values deterministically derived from the verified synthetic project root"
+      },
+      "active_validator_must_cross_equal_series_json_to_execution_binding": true
+    }
+  },
+  "attempt_record_contract": {
+    "started_exact_fields": [
+      "schema_version",
+      "series_id",
+      "series_token_sha256",
+      "ordinal",
+      "attempt_token_sha256",
+      "previous_history_root_sha256",
+      "implementation_epoch",
+      "implementation_commit",
+      "owner_action_time_authorization",
+      "control_merkle_root_sha256",
+      "command",
+      "command_sha256",
+      "environment",
+      "environment_sha256",
+      "interpreter_path",
+      "interpreter_sha256",
+      "created_at_utc"
+    ],
+    "candidate_exact_fields": [
+      "schema_version",
+      "series_id",
+      "ordinal",
+      "attempt_token_sha256",
+      "implementation_epoch",
+      "implementation_commit",
+      "run_a_root_sha256",
+      "run_b_root_sha256",
+      "control_surface_root_sha256",
+      "evidence_tree_root_sha256",
+      "candidate_content_root_sha256",
+      "validated_at_utc"
+    ],
+    "terminal_exact_fields": [
+      "schema_version",
+      "series_id",
+      "ordinal",
+      "attempt_token_sha256",
+      "outcome",
+      "reached_stage",
+      "implementation_epoch",
+      "implementation_commit",
+      "automatic_retry_count",
+      "artifact_inventory",
+      "error",
+      "evidence_tree_root_sha256",
+      "completed_at_utc"
+    ],
+    "record_canonical_encoding": "UTF-8 canonical JSON, keys sorted by unsigned UTF-8 bytes, separators comma and colon with no spaces, ensure_ascii=false, exactly one trailing LF",
+    "named_types": {
+      "lowercase_sha256": "JSON string matching ^[0-9a-f]{64}$",
+      "lowercase_git_commit": "JSON string matching ^[0-9a-f]{40}$ whose object exists",
+      "rfc3339_utc_seconds": "JSON string matching YYYY-MM-DDTHH:MM:SSZ with no fractional seconds",
+      "authority_ref": "object with exactly path, sha256, creating_commit, unique_a_history_verified; path is nonempty repo-relative POSIX, sha256 is lowercase_sha256, creating_commit is lowercase_git_commit, unique_a_history_verified is true",
+      "evidence_inventory_item": "object with exactly logical_name, relative_path, bytes, sha256, durability; logical_name is nonempty string, relative_path is the normalized path relative to this attempt evidence root, bytes is integer >=0, sha256 is lowercase_sha256, durability is LEDGER_PERSISTED",
+      "attempt_error": "object with exactly exception_type, message_sha256, failing_stage; exception_type and failing_stage are nonempty strings and message_sha256 is lowercase_sha256"
+    },
+    "started_json_schema": {
+      "additional_properties": false,
+      "required_exactly": "started_exact_fields",
+      "properties": {
+        "schema_version": "string const p4.2a-v2-2-rehearsal-attempt-started-v1",
+        "series_id": "string const P4.2A-V2-HELDOUT-REHEARSAL-V2-2-DETERMINISTIC-20260811",
+        "series_token_sha256": "lowercase_sha256 equal execution_binding.series_token_sha256 and series.json",
+        "ordinal": "integer >=1 equal filename, action authorization, expected CLI ordinal, and next live ordinal",
+        "attempt_token_sha256": "lowercase_sha256 recomputed by the registered attempt token formula",
+        "previous_history_root_sha256": "lowercase_sha256 recomputed from every prior live attempt",
+        "implementation_epoch": "integer >=1 equal the action authorization and registered epoch",
+        "implementation_commit": "lowercase_git_commit equal the action authorization and registered epoch commit",
+        "owner_action_time_authorization": "authority_ref for the exact action-time receipt used by this attempt",
+        "control_merkle_root_sha256": "lowercase_sha256 equal the action authorization and recomputed epoch control root",
+        "command": "nonempty array of nonempty strings exactly equal the observed sys.orig_argv registered by the selected execution mode and the action authorization; first item is observed_sys_orig_argv_executable_path",
+        "command_sha256": "lowercase_sha256 recomputed by action_time_authorization_contract.command_sha256_formula",
+        "environment": "object whose keys and values exactly equal exact_os_bootstrap_contract.exact_environment_values",
+        "environment_sha256": "lowercase_sha256 recomputed by action_time_authorization_contract.environment_sha256_formula",
+        "interpreter_path": "string equal exact_os_bootstrap_contract.python_launcher_path",
+        "interpreter_sha256": "string const f4cd716d4b54f205398bec6932cc59361b087494ca2ddb157a5e8631d4d6f863",
+        "created_at_utc": "rfc3339_utc_seconds"
+      }
+    },
+    "candidate_json_schema": {
+      "additional_properties": false,
+      "required_exactly": "candidate_exact_fields",
+      "properties": {
+        "schema_version": "string const p4.2a-v2-2-rehearsal-attempt-candidate-v1",
+        "series_id": "string const P4.2A-V2-HELDOUT-REHEARSAL-V2-2-DETERMINISTIC-20260811",
+        "ordinal": "integer >=1 equal started.json and the containing attempt directory",
+        "attempt_token_sha256": "lowercase_sha256 equal started.json",
+        "implementation_epoch": "integer >=1 equal started.json",
+        "implementation_commit": "lowercase_git_commit equal started.json",
+        "run_a_root_sha256": "lowercase_sha256 recomputed from selected run A",
+        "run_b_root_sha256": "lowercase_sha256 recomputed from selected run B",
+        "control_surface_root_sha256": "lowercase_sha256 recomputed from the epoch control archive",
+        "evidence_tree_root_sha256": "lowercase_sha256 recomputed from the immutable attempt evidence subtree",
+        "candidate_content_root_sha256": "lowercase_sha256 recomputed by candidate_content_root_formula",
+        "validated_at_utc": "rfc3339_utc_seconds"
+      }
+    },
+    "terminal_json_schema": {
+      "additional_properties": false,
+      "required_exactly": "terminal_exact_fields",
+      "properties": {
+        "schema_version": "string const p4.2a-v2-2-rehearsal-attempt-terminal-v1",
+        "series_id": "string const P4.2A-V2-HELDOUT-REHEARSAL-V2-2-DETERMINISTIC-20260811",
+        "ordinal": "integer >=1 equal started.json and the containing attempt directory",
+        "attempt_token_sha256": "lowercase_sha256 equal started.json",
+        "outcome": "enum FAILED or CANDIDATE_VALIDATED_AND_SELECTED",
+        "reached_stage": "nonempty string",
+        "implementation_epoch": "integer >=1 equal started.json",
+        "implementation_commit": "lowercase_git_commit equal started.json",
+        "automatic_retry_count": "integer const 0",
+        "artifact_inventory": "array of unique evidence_inventory_item objects sorted by ascending unsigned UTF-8 relative_path bytes and containing every and only persisted evidence file",
+        "error": "FAILED requires attempt_error; CANDIDATE_VALIDATED_AND_SELECTED requires null",
+        "evidence_tree_root_sha256": "lowercase_sha256 recomputed from artifact_inventory and live evidence bytes, using the registered empty root when the array is empty",
+        "completed_at_utc": "rfc3339_utc_seconds"
+      },
+      "outcome_branches": {
+        "FAILED": "candidate.json absent, error is attempt_error",
+        "CANDIDATE_VALIDATED_AND_SELECTED": "candidate.json present and error is null"
+      }
+    },
+    "active_validator_live_record_algorithm": "read each live and archived record as bytes, require source and archive bytes identical, strict-parse with duplicate-key rejection, require canonical reserialization byte equality, enforce the corresponding exact schema above, then recompute evidence, record, and ordered history roots without trusting bundle booleans",
+    "terminal_outcomes": [
+      "FAILED",
+      "CANDIDATE_VALIDATED_AND_SELECTED"
+    ],
+    "incomplete_has_no_terminal": true,
+    "unpersisted_artifact_must_be_labeled_not_persisted_not_pass": false,
+    "evidence_tree_root_scope": "pipeline-produced evidence bytes only; excludes started.json, candidate.json, terminal.json, history roots, and bundle.json",
+    "candidate_content_root_formula": "SHA256(utf8('p4.2a-rehearsal-v2.2-candidate-content-v1\\0') || previous_history_root_digest_32_bytes || run_a_root_digest_32_bytes || run_b_root_digest_32_bytes || control_surface_root_digest_32_bytes || evidence_tree_root_digest_32_bytes)",
+    "candidate_receipt_must_not_contain_bundle_sha_or_final_history_root": true,
+    "error_message_is_bound_by_sha256": true,
+    "no_secret_or_heldout_metric_disclosure": true,
+    "owner_action_time_authorization_exact_requirements": {
+      "create_only_unique_a": true,
+      "binds_series_id_token_ordinal_previous_history_root_epoch_commit_control_root_command_and_environment": true,
+      "authorizes_exactly_one_pipeline_attempt": true,
+      "automatic_retry_count": 0,
+      "does_not_authorize_real_heldout_evaluation": true
+    },
+    "outcome_shape": {
+      "FAILED": {
+        "candidate": null,
+        "terminal": "required",
+        "error": "required",
+        "evidence": "all actual bytes archived"
+      },
+      "INCOMPLETE_UNTERMINALIZED": {
+        "candidate": null,
+        "terminal": null,
+        "error": null,
+        "evidence": "all actual bytes archived or exact empty root"
+      },
+      "CANDIDATE_VALIDATED_AND_SELECTED": {
+        "candidate": "required",
+        "terminal": "required",
+        "error": null,
+        "evidence": "all actual bytes archived"
+      }
+    },
+    "not_persisted_evidence_allowed": false,
+    "every_actual_evidence_byte_must_be_archived": true
+  },
+  "harness_identity_contract": {
+    "selected_design": "THIN_MAIN_SHIM_AND_SINGLE_PACKAGE_IMPLEMENTATION_MODULE",
+    "thin_main_shim": {
+      "path": "scripts/rehearse_p4_2a_v2_2_heldout_full_path.py",
+      "role": "verify exact first OS process bootstrap then import package implementation and call cli_main",
+      "permitted_pre_import_modules": [
+        "os",
+        "sys"
+      ],
+      "authority_state_definitions": 0,
+      "contextvars_or_mutable_registries": 0,
+      "imports_validator": false,
+      "direct_pipeline_logic": false
+    },
+    "implementation_module": {
+      "path": "scripts/p4_2a_v2_2_heldout_rehearsal.py",
+      "module_name": "scripts.p4_2a_v2_2_heldout_rehearsal",
+      "sole_owner_of": [
+        "_AUDIT_POLICY",
+        "_TEMP_AUTHORITY",
+        "capability registry",
+        "process audit hook installation",
+        "series ledger state machine"
+      ],
+      "direct_execution_as_main": "REJECT_BEFORE_AUTHORITY_OR_PIPELINE",
+      "cli_entry": "cli_main"
+    },
+    "validator": {
+      "path": "scripts/validate_p4_2a_v2_2_heldout_rehearsal_bundle.py",
+      "module_name": "scripts.validate_p4_2a_v2_2_heldout_rehearsal_bundle",
+      "imports": "scripts.p4_2a_v2_2_heldout_rehearsal",
+      "imports_shim": false,
+      "nested_validation_must_use_same_implementation_module_object": true
+    },
+    "module_identity_proof": [
+      "sys.modules['scripts.p4_2a_v2_2_heldout_rehearsal'] is validator._implementation_module",
+      "id(_AUDIT_POLICY) observed by outer runner equals id observed by nested validator",
+      "id(_TEMP_AUTHORITY) observed by outer runner equals id observed by nested validator",
+      "module origin and current bytes equal implementation commit blob"
+    ],
+    "nested_authority_delegation": {
+      "registered_api_only": true,
+      "identity_root_creator_owner_and_lifetime_all_exact": true,
+      "borrowed_scope_must_be_subset_of_outer_scope": true,
+      "write_root_may_not_be_broadened": true,
+      "nested_temp_authority_must_be_created_inside_active_audit_write_root": true,
+      "arbitrary_private_tmp_creation_forbidden": true,
+      "forged_or_stolen_capability_rejected": true
+    },
+    "forbidden_forms": [
+      "validator importing the thin shim",
+      "implementation loaded once as __main__ and again by package name",
+      "second authority-owning module object",
+      "ambient sys.path or sitecustomize",
+      "auto re-exec as official bootstrap evidence",
+      "wrapper or monkeypatch bypassing a registered gate",
+      "global audit policy relaxation",
+      "path or validation override for registered execution"
+    ]
+  },
+  "exact_os_bootstrap_contract": {
+    "repository_root": "/Users/ouyangduning/Documents/project/interesting/AlphaPilot-AI",
+    "registered_official_operator_command_prefix": [
+      "/usr/bin/env",
+      "-i",
+      "LANG=C.UTF-8",
+      "LC_ALL=C.UTF-8",
+      "OPENBLAS_MAIN_FREE=1",
+      "PYTHONDONTWRITEBYTECODE=1",
+      "PYTHONHASHSEED=0",
+      "PYTHONNOUSERSITE=1",
+      "PYTHONPYCACHEPREFIX=/dev/null",
+      "PYTHONSAFEPATH=1",
+      "TZ=UTC",
+      "__CF_USER_TEXT_ENCODING=0x1F5:0x0:0x0",
+      "PATH=/usr/bin:/bin",
+      "ALPHAPILOT_P42A_REHEARSAL_V2_2_ENV_LOCKED=1",
+      "/Users/ouyangduning/Documents/project/interesting/AlphaPilot-AI/.venv/bin/python",
+      "-S",
+      "-P",
+      "-B",
+      "/Users/ouyangduning/Documents/project/interesting/AlphaPilot-AI/scripts/rehearse_p4_2a_v2_2_heldout_full_path.py",
+      "--execute"
+    ],
+    "registered_official_os_execve_argv_prefix": [
+      "/Users/ouyangduning/Documents/project/interesting/AlphaPilot-AI/.venv/bin/python",
+      "-S",
+      "-P",
+      "-B",
+      "/Users/ouyangduning/Documents/project/interesting/AlphaPilot-AI/scripts/rehearse_p4_2a_v2_2_heldout_full_path.py",
+      "--execute"
+    ],
+    "registered_official_observed_sys_orig_argv_prefix": [
+      "/Library/Frameworks/Python.framework/Versions/3.12/Resources/Python.app/Contents/MacOS/Python",
+      "-S",
+      "-P",
+      "-B",
+      "/Users/ouyangduning/Documents/project/interesting/AlphaPilot-AI/scripts/rehearse_p4_2a_v2_2_heldout_full_path.py",
+      "--execute"
+    ],
+    "required_nondefault_argv_suffix": [
+      "--attempt-authorization",
+      "/Users/ouyangduning/Documents/project/interesting/AlphaPilot-AI/docs/phase4/reports/P4.2a-v2-2-rehearsal-attempt-{ordinal:06d}-execution-authorization-{YYYYMMDD}.json",
+      "--expected-ordinal",
+      "{positive_decimal_ordinal}"
+    ],
+    "attempt_authorization_argument_has_no_default": true,
+    "expected_ordinal_argument_has_no_default": true,
+    "authorization_filename_ordinal_must_equal_argument_receipt_and_next_ledger_ordinal": true,
+    "receipt_must_bind_the_exact_full_argv_and_environment_sha256": true,
+    "exact_environment_keys": [
+      "LANG",
+      "LC_ALL",
+      "OPENBLAS_MAIN_FREE",
+      "PYTHONDONTWRITEBYTECODE",
+      "PYTHONHASHSEED",
+      "PYTHONNOUSERSITE",
+      "PYTHONPYCACHEPREFIX",
+      "PYTHONSAFEPATH",
+      "TZ",
+      "__CF_USER_TEXT_ENCODING",
+      "PATH",
+      "ALPHAPILOT_P42A_REHEARSAL_V2_2_ENV_LOCKED"
+    ],
+    "exact_environment_values": {
+      "LANG": "C.UTF-8",
+      "LC_ALL": "C.UTF-8",
+      "OPENBLAS_MAIN_FREE": "1",
+      "PYTHONDONTWRITEBYTECODE": "1",
+      "PYTHONHASHSEED": "0",
+      "PYTHONNOUSERSITE": "1",
+      "PYTHONPYCACHEPREFIX": "/dev/null",
+      "PYTHONSAFEPATH": "1",
+      "TZ": "UTC",
+      "__CF_USER_TEXT_ENCODING": "0x1F5:0x0:0x0",
+      "PATH": "/usr/bin:/bin",
+      "ALPHAPILOT_P42A_REHEARSAL_V2_2_ENV_LOCKED": "1"
+    },
+    "python_launcher_path": "/Users/ouyangduning/Documents/project/interesting/AlphaPilot-AI/.venv/bin/python",
+    "python_launcher_sha256": "f4cd716d4b54f205398bec6932cc59361b087494ca2ddb157a5e8631d4d6f863",
+    "sys_executable_path": "/Users/ouyangduning/Documents/project/interesting/AlphaPilot-AI/.venv/bin/python",
+    "os_execve_argv0_path": "/Users/ouyangduning/Documents/project/interesting/AlphaPilot-AI/.venv/bin/python",
+    "observed_sys_orig_argv_executable_path": "/Library/Frameworks/Python.framework/Versions/3.12/Resources/Python.app/Contents/MacOS/Python",
+    "python_resolved_orig_argv_executable_sha256": "89c717ced41f6a395612366e5b038226d0d8fca36bbddd9321d385f5f370ebbe",
+    "required_flags": [
+      "no_site",
+      "safe_path",
+      "dont_write_bytecode",
+      "hash_randomization_disabled"
+    ],
+    "exact_sys_path_order": [
+      "stdlib",
+      "lib-dynload",
+      ".venv/lib/python3.12/site-packages",
+      "repository-root",
+      "repository-root/src"
+    ],
+    "direct_orig_argv_and_main_file_must_match": true,
+    "action_authorization_exact_argv_definition": "the observed child sys.orig_argv beginning with observed_sys_orig_argv_executable_path, not the outer /usr/bin/env command and not os_execve argv[0]; it equals the selected execution-mode observed_sys_orig_argv prefix plus required_nondefault_argv_suffix with all placeholders resolved",
+    "disposable_full_shape_os_bootstrap": {
+      "serialized_mode_flag": false,
+      "root_or_capability_cli_argument": false,
+      "environment_mode_signal": false,
+      "synthetic_project_root_derivation": "resolve the regular nonsymlink shim __file__, require suffix scripts/rehearse_p4_2a_v2_2_heldout_full_path.py, and remove that exact suffix; the result is the sole candidate synthetic_project_root",
+      "mode_selection": "exact real shim path selects REGISTERED_OFFICIAL; any other candidate path selects DISPOSABLE_FULL_SHAPE_TEST only after the implementation module verifies the byte-exact nonoverlapping Git root and mints the private capability; every other state rejects",
+      "operator_command_template": [
+        "/usr/bin/env",
+        "-i",
+        "LANG=C.UTF-8",
+        "LC_ALL=C.UTF-8",
+        "OPENBLAS_MAIN_FREE=1",
+        "PYTHONDONTWRITEBYTECODE=1",
+        "PYTHONHASHSEED=0",
+        "PYTHONNOUSERSITE=1",
+        "PYTHONPYCACHEPREFIX=/dev/null",
+        "PYTHONSAFEPATH=1",
+        "TZ=UTC",
+        "__CF_USER_TEXT_ENCODING=0x1F5:0x0:0x0",
+        "PATH=/usr/bin:/bin",
+        "ALPHAPILOT_P42A_REHEARSAL_V2_2_ENV_LOCKED=1",
+        "/Users/ouyangduning/Documents/project/interesting/AlphaPilot-AI/.venv/bin/python",
+        "-S",
+        "-P",
+        "-B",
+        "{synthetic_project_root}/scripts/rehearse_p4_2a_v2_2_heldout_full_path.py",
+        "--execute",
+        "--attempt-authorization",
+        "{synthetic_project_root}/docs/phase4/reports/P4.2a-v2-2-rehearsal-attempt-{ordinal:06d}-execution-authorization-{YYYYMMDD}.json",
+        "--expected-ordinal",
+        "{positive_decimal_ordinal}"
+      ],
+      "os_execve_argv_template": [
+        "/Users/ouyangduning/Documents/project/interesting/AlphaPilot-AI/.venv/bin/python",
+        "-S",
+        "-P",
+        "-B",
+        "{synthetic_project_root}/scripts/rehearse_p4_2a_v2_2_heldout_full_path.py",
+        "--execute",
+        "--attempt-authorization",
+        "{synthetic_project_root}/docs/phase4/reports/P4.2a-v2-2-rehearsal-attempt-{ordinal:06d}-execution-authorization-{YYYYMMDD}.json",
+        "--expected-ordinal",
+        "{positive_decimal_ordinal}"
+      ],
+      "observed_sys_orig_argv_template": [
+        "/Library/Frameworks/Python.framework/Versions/3.12/Resources/Python.app/Contents/MacOS/Python",
+        "-S",
+        "-P",
+        "-B",
+        "{synthetic_project_root}/scripts/rehearse_p4_2a_v2_2_heldout_full_path.py",
+        "--execute",
+        "--attempt-authorization",
+        "{synthetic_project_root}/docs/phase4/reports/P4.2a-v2-2-rehearsal-attempt-{ordinal:06d}-execution-authorization-{YYYYMMDD}.json",
+        "--expected-ordinal",
+        "{positive_decimal_ordinal}"
+      ],
+      "sys_path_order": [
+        "stdlib from the fixed interpreter",
+        "lib-dynload from the fixed interpreter",
+        "the fixed registered .venv/lib/python3.12/site-packages",
+        "synthetic_project_root",
+        "synthetic_project_root/src"
+      ],
+      "capability_minted_after": "the implementation module verifies exact orig_argv/environment/interpreter/flags, root nonoverlap, Git topology, implementation and control blobs, module origins, destination and ledger derivation, fake boundaries, and real-path fingerprints",
+      "capability_minted_before": "series ledger creation, fixture database open, pipeline, network or model boundary, artifact staging, or validator delegation"
+    },
+    "pre_script_sitecustomize_or_runpy_wrapper_rejected": true,
+    "module_origin_full_scan_required": true,
+    "repo_loaded_sources_must_be_in_ast_control_closure_and_equal_commit_blobs": true
+  },
+  "implementation_epoch_contract": {
+    "epochs_may_exceed_one": true,
+    "epoch_numbering": "contiguous positive integers starting at 1",
+    "each_epoch_requires_before_first_attempt": [
+      "create-only owner exact A/M surface authorization",
+      "exact implementation commit descended from the v2.2 preregistration and that authority",
+      "independent implementation review",
+      "registered offline and static evidence review",
+      "control surface and Merkle root frozen for the epoch"
+    ],
+    "byte_change_without_new_epoch": "FORBIDDEN",
+    "implementation_commit_selection": "explicitly read from the action-time authorization and epoch record; never inferred from current HEAD",
+    "post_implementation_governance_commits": "permitted only as separately authorized unique-A authority or review artifacts and never counted as implementation surface",
+    "implementation_commit_must_be_ancestor_of_execution_head": true,
+    "registered_implementation_bytes_at_execution_must_equal_selected_implementation_commit_blobs": true,
+    "exact_surface_is_measured_between_the_epoch_surface_authority_base_and_selected_implementation_commit": true,
+    "unreviewed_epoch_attempt": "REJECT_BEFORE_LEDGER_ALLOCATION_OR_PIPELINE",
+    "attempts_bind_exact_epoch_commit_and_control_root": true,
+    "final_bundle_lists_every_epoch_used_by_any_attempt": true,
+    "owner_release_acknowledges_every_epoch": true
+  },
+  "prospective_implementation_contract": {
+    "preregisters_scope_but_does_not_authorize_implementation": true,
+    "registered_new_files": [
+      {
+        "path": "scripts/rehearse_p4_2a_v2_2_heldout_full_path.py",
+        "expected_status": "A",
+        "role": "thin main shim"
+      },
+      {
+        "path": "scripts/p4_2a_v2_2_heldout_rehearsal.py",
+        "expected_status": "A",
+        "role": "single authority-owning implementation"
+      },
+      {
+        "path": "scripts/validate_p4_2a_v2_2_heldout_rehearsal_bundle.py",
+        "expected_status": "A",
+        "role": "independent active validator"
+      },
+      {
+        "path": "tests/test_p4_2a_v2_2_heldout_rehearsal_runner.py",
+        "expected_status": "A",
+        "role": "runner, identity, ledger, and full-shape tests"
+      },
+      {
+        "path": "tests/test_p4_2a_v2_2_heldout_rehearsal_validator.py",
+        "expected_status": "A",
+        "role": "independent validator and history-tamper tests"
+      }
+    ],
+    "registered_existing_files_modified": [],
+    "exact_surface_count": 5,
+    "any_other_source_or_test_path": "FORBIDDEN_PENDING_NEW_OWNER_SCOPE_AUTHORIZATION",
+    "v2_1_source_tree_at_4fce_is_frozen_reference_not_to_be_modified": true,
+    "existing_prepare_and_consumer_modules_must_be_used_without_byte_change": true,
+    "implementation_commit_must_be_single_parent": true,
+    "implementation_surface_must_be_rederived_independently_by_runner_and_validator": true,
+    "code_gate_cannot_infer_authority_from_this_preregistration": true
+  },
+  "contract_inheritance": {
+    "base_preregistration": {
+      "path": "docs/phase4/reports/P4.2a-v2-heldout-rehearsal-v2-1-preregistration-20260810.json",
+      "sha256": "c303cfb13a42ecbb7e0acaec04de12a9e9169b89cf9e93ea79d0f120d1439d3e",
+      "creating_commit": "b302d5889f01296568340bcc15041cc554ceb2c7"
+    },
+    "base_prediction_timing_preregistration": {
+      "path": "docs/phase4/reports/P4.2a-v2-heldout-rehearsal-v2-1-prediction-timing-seam-preregistration-20260810.json",
+      "sha256": "1052c7a33268572fc794517844dae4b6c1ea504121712ad2f55ec814a7446f9a",
+      "creating_commit": "b3c2d2216c1feffd9949f181fa6766f8357ff683"
+    },
+    "source_projection": {
+      "source_file": "docs/phase4/reports/P4.2a-v2-heldout-rehearsal-v2-1-preregistration-20260810.json",
+      "exact_sections": [
+        "/frozen_inputs",
+        "/request_interval_contract",
+        "/materialization_manifest_amendment",
+        "/runtime_start_policy",
+        "/implementation_contract",
+        "/bundle_and_release_effects",
+        "/execution_safety",
+        "/locks"
+      ],
+      "rehearsal_contract_source": "/rehearsal_contract",
+      "rehearsal_contract_excluded_keys": [
+        "registered_runner",
+        "registered_validator",
+        "official_execution_count",
+        "domain_separated_merkle"
+      ],
+      "target_key_map": {
+        "/frozen_inputs": "frozen_inputs",
+        "/request_interval_contract": "request_interval_contract",
+        "/materialization_manifest_amendment": "materialization_manifest_amendment",
+        "/runtime_start_policy": "runtime_start_policy",
+        "/rehearsal_contract": "rehearsal_contract_non_delta",
+        "/implementation_contract": "implementation_contract_historical_v2_1",
+        "/bundle_and_release_effects": "bundle_and_release_effects_base_guarantees",
+        "/execution_safety": "execution_safety",
+        "/locks": "locks"
+      },
+      "exclusion_reason": "exact v2.2 harness identity, disclosed-repeatable series policy, and v2.2 Merkle domains",
+      "transform": "strict parse; deep copy each source JSON Pointer to its exact target_key_map key; delete exactly the four named rehearsal_contract keys before storing rehearsal_contract_non_delta; no other normalization"
+    },
+    "strict_inheritance_snapshot": {
+      "frozen_inputs": {
+        "evaluation_design": {
+          "path": "config/p4_event_evaluation_v2.yaml",
+          "sha256": "18a2428a4ec04bfea6e4f4d70692f38ea82fbaee5a223f30f2465b895b238e21"
+        },
+        "heldout_execution_contract": {
+          "path": "config/p4_event_extract_eval_v2-heldout-qwen3.6-plus.yaml",
+          "sha256": "26be1765204b122908e7bd09cac857c33bd3140233df47dc3358bc590e020199",
+          "model": "qwen3.6-plus"
+        },
+        "round3_prompt": {
+          "path": "config/prompts/p4_news_event_extract_v2-r3.txt",
+          "sha256": "0291dc882aac42878ba00c4ed3970da72f19508308cd39211467b4fd92294f44"
+        },
+        "round3_plus_contract": {
+          "path": "config/p4_event_extract_eval_v2-r3-qwen3.6-plus.yaml",
+          "sha256": "fa75a6cf33065745d02f74fe39e4f102723da43f37ac549058bb34fa8256a181"
+        },
+        "frame": {
+          "timestamp_field": "available_time",
+          "start_inclusive_utc": "2026-08-05T16:00:00Z",
+          "end_exclusive_utc": "2026-08-08T16:00:00Z",
+          "sources": [
+            "cninfo",
+            "akshare_ths",
+            "sina_company_news"
+          ],
+          "raw_count": 4048,
+          "raw_by_source": {
+            "cninfo": 2824,
+            "akshare_ths": 1021,
+            "sina_company_news": 203
+          },
+          "retired_id_count": 40,
+          "retired_ids_excluded_before_ranking": true
+        },
+        "sampling": {
+          "algorithm": "sha256_rank_without_replacement_per_stratum_v1",
+          "predicted_positive_quota": 40,
+          "predicted_negative_quota": 20,
+          "extract_failed_quota": 0,
+          "insufficient_stratum": "fail_closed_no_replacement_no_reduction"
+        },
+        "inference": {
+          "one_item_per_call": true,
+          "batching": false,
+          "body_truncation": false,
+          "prefilter": false,
+          "single_started_event": true,
+          "automatic_retries": 0,
+          "failed_candidate_retries": 0
+        },
+        "no_change": [
+          "evaluation_design",
+          "frame",
+          "retired_ids",
+          "sample_quotas",
+          "sampling_seed_and_rank_algorithm",
+          "prompt",
+          "contracts",
+          "selected_model",
+          "metric_formulas_and_thresholds",
+          "development_gold_and_rounds",
+          "heldout_evaluation_lock"
+        ]
+      },
+      "request_interval_contract": {
+        "scope": "CNInfo announcement PDF downloads performed inside the P4.2a materialization path",
+        "host": "static.cninfo.com.cn",
+        "policy": "minimum_start_to_start",
+        "min_start_to_start_seconds": 1.0,
+        "clock": "monotonic",
+        "first_request_delay": "none",
+        "automatic_retries": 0,
+        "per_candidate_retries": 0,
+        "akshare_ths": "not_applicable_no_external_document_fetch",
+        "sina_company_news": "not_applicable_no_external_document_fetch",
+        "implementation_location": "inside_run_materialize_before_the_registered_pdf_fetcher",
+        "sleep_policy": "sleep_remaining_then_reread_monotonic_until_floor_is_met",
+        "clock_not_advancing_clock_reversal_nan_or_nonfinite": "fail_closed_before_second_fetch",
+        "deterministic_candidate_document_ineligible": {
+          "exception_class": "scripts.build_p4_2a_gold_sample.CandidateDocumentIneligible",
+          "allowed_reasons": [
+            "pdf_text_below_min_char_gate",
+            "pdf_exceeds_size_bound"
+          ],
+          "action": "record_exact_reason_exclude_candidate_continue_materialization",
+          "automatic_retries": 0,
+          "return_to_pool": false
+        },
+        "unexpected_transport_download_or_extractor_exception": "abort_entire_materialization_immediately_zero_retry_zero_partial_publish",
+        "unknown_candidate_document_ineligible_reason": "fail_closed_zero_retry_zero_partial_publish",
+        "manifest_evidence": [
+          "configured_min_start_to_start_seconds",
+          "clock",
+          "first_request_delayed",
+          "request_start_count",
+          "observed_gap_count",
+          "minimum_observed_start_to_start_seconds",
+          "median_observed_start_to_start_seconds",
+          "violation_count",
+          "retry_count"
+        ]
+      },
+      "materialization_manifest_amendment": {
+        "schema_version": "p4.2a-v2-heldout-materialization-manifest-v2",
+        "artifact_count_change": 0,
+        "new_required_sections": [
+          "execution_authority",
+          "request_pacing",
+          "runtime_start_preflight"
+        ],
+        "execution_authority_exact_shape": {
+          "additional_keys": "forbidden_at_every_object_level",
+          "required_keys": [
+            "mode",
+            "frame_authority",
+            "successor_code_gate_authority",
+            "successor_preregistration",
+            "preregistration_commit",
+            "implementation_commit",
+            "rehearsal_bundle",
+            "release_authorization"
+          ],
+          "mode_values": [
+            "offline_rehearsal",
+            "real_owner_released"
+          ],
+          "frame_authority": {
+            "required_keys": [
+              "path",
+              "sha256"
+            ],
+            "path": "docs/phase4/reports/P4.2a-rehearsal-v2-approval-and-frame-authority-ruling-20260810.json",
+            "sha256": "8605dd30dd6bffa9621b6efe5e01c4c9cead615c9639259c2e79e14fcbbc3421"
+          },
+          "successor_code_gate_authority": {
+            "required_keys": [
+              "path",
+              "sha256"
+            ],
+            "path": "docs/phase4/reports/P4.2a-successor-v2-1-code-gate-authorization-20260810.json",
+            "sha256": "e28db692dc150983f86f6760fb1a95584d8607658e8a78a0de35cf3fc81940cd"
+          },
+          "successor_preregistration": {
+            "required_keys": [
+              "path",
+              "sha256"
+            ],
+            "path": "docs/phase4/reports/P4.2a-v2-heldout-rehearsal-v2-1-preregistration-20260810.json",
+            "sha256_must_equal_bundle_lineage_preregistration_sha256": true
+          },
+          "preregistration_commit": "must_equal_bundle_lineage_preregistration_commit",
+          "implementation_commit": "must_equal_bundle_lineage_implementation_commit",
+          "mode_branches": {
+            "offline_rehearsal": {
+              "rehearsal_bundle": null,
+              "release_authorization": null,
+              "nonrecursive_reason": "materialization_manifest_is_a_bundle_leaf_and_must_not_bind_the_containing_bundle"
+            },
+            "real_owner_released": {
+              "rehearsal_bundle_required_keys": [
+                "path",
+                "sha256",
+                "bundle_root_sha256"
+              ],
+              "rehearsal_bundle_path": "docs/phase4/rehearsals/P4.2a-v2-calibration-v2-1/bundle.json",
+              "release_authorization_required_keys": [
+                "path",
+                "sha256",
+                "receipt_creating_commit",
+                "verdict"
+              ],
+              "release_authorization_path": "docs/phase4/reports/P4.2a-v2-heldout-rehearsal-v2-1-release-authorization-20260810.json",
+              "release_authorization_verdict": "APPROVE_SUCCESSOR_V2_1_REAL_HELDOUT_PREPARATION"
+            }
+          },
+          "historical_v1_manifest_sections_and_semantics_preserved_except_for_the_registered_v2_evidence_addition": true
+        },
+        "request_pacing_exact_shape": {
+          "required_top_level_keys": [
+            "cninfo_pdf",
+            "akshare_ths",
+            "sina_company_news"
+          ],
+          "cninfo_pdf_required_keys": [
+            "host",
+            "policy",
+            "configured_min_start_to_start_seconds",
+            "clock",
+            "first_request_delayed",
+            "request_start_count",
+            "observed_gap_count",
+            "minimum_observed_start_to_start_seconds",
+            "median_observed_start_to_start_seconds",
+            "violation_count",
+            "retry_count"
+          ],
+          "cninfo_pdf_constants": {
+            "host": "static.cninfo.com.cn",
+            "policy": "minimum_start_to_start",
+            "configured_min_start_to_start_seconds": 1.0,
+            "clock": "monotonic",
+            "first_request_delayed": false,
+            "retry_count": 0
+          },
+          "gap_count_formula": "max(request_start_count - 1, 0)",
+          "minimum_and_median_null_only_when_gap_count_zero": true,
+          "violation_formula": "count(gap < configured_min_start_to_start_seconds)",
+          "akshare_ths": "not_applicable_no_external_document_fetch",
+          "sina_company_news": "not_applicable_no_external_document_fetch"
+        },
+        "runtime_start_preflight_exact_shape": {
+          "offline_required_keys": [
+            "mode",
+            "host_probe_performed",
+            "reason"
+          ],
+          "offline_constants": {
+            "mode": "offline_rehearsal",
+            "host_probe_performed": false,
+            "reason": "not_applicable_offline_rehearsal"
+          },
+          "real_required_keys": [
+            "mode",
+            "observed_at_utc",
+            "observed_at_shanghai",
+            "backup_stamp",
+            "database_backup_launchagent",
+            "database_backup_lock",
+            "verified_backup",
+            "operator_timing_attestation"
+          ],
+          "real_mode": "real",
+          "backup_stamp_required_keys": [
+            "path",
+            "expected_shanghai_date",
+            "observed_value",
+            "regular_file",
+            "symlink",
+            "mode"
+          ],
+          "launchagent_required_keys": [
+            "label",
+            "target",
+            "loaded",
+            "state",
+            "last_exit_code"
+          ],
+          "lock_required_keys": [
+            "path",
+            "nonblocking_exclusive_flock_acquired",
+            "held"
+          ],
+          "verified_backup_required_keys": [
+            "manifest_path",
+            "manifest_sha256",
+            "backup_path",
+            "backup_sha256",
+            "created_at_utc",
+            "created_at_shanghai",
+            "quick_check",
+            "verify_database_backup_passed"
+          ],
+          "operator_attestation_required_keys": [
+            "observed_start_cst",
+            "attester_identity",
+            "explicitly_supplied",
+            "input_channel",
+            "cninfo_midnight_batch_assessment",
+            "p4_1_dense_poll_slot_assessment",
+            "decision",
+            "automatic_blackout_verification",
+            "authority_path",
+            "authority_sha256"
+          ],
+          "operator_attestation_constants": {
+            "explicitly_supplied": true,
+            "input_channel": "required_real_CLI_flags_or_required_typed_run_materialize_argument_no_default",
+            "cninfo_midnight_batch_assessment": "clear_for_start",
+            "p4_1_dense_poll_slot_assessment": "clear_for_start",
+            "decision": "launched_outside_owner_identified_CNInfo_midnight_and_dense_P4_1_slots",
+            "automatic_blackout_verification": false,
+            "authority_path": "docs/phase4/reports/P4.2a-successor-v2-1-code-gate-authorization-20260810.json",
+            "authority_sha256": "e28db692dc150983f86f6760fb1a95584d8607658e8a78a0de35cf3fc81940cd"
+          }
+        },
+        "offline_runtime_start_preflight": "not_applicable_offline_rehearsal",
+        "real_runtime_start_preflight": "actual_observations_captured_at_start_not_owner_receipt_predictions",
+        "all_exact_consumers_must_be_updated_and_negative_tested": true,
+        "statistical_frame_or_sampling_change": false
+      },
+      "runtime_start_policy": {
+        "not_a_fixed_wall_clock": true,
+        "real_release_gate_precedes_runtime_probe": true,
+        "live_probe_required_before_real_network_or_artifact_write": true,
+        "code_verifiable_conditions": [
+          "backup_stamp_equals_current_Asia_Shanghai_date",
+          "database_backup_launchagent_loaded_state_not_running_last_exit_code_0",
+          "daily_backup_lock_not_held_proven_by_nonblocking_flock",
+          "latest_same_day_post_22_00_backup_passes_verify_database_backup"
+        ],
+        "registered_runtime_paths_and_formats": {
+          "runtime_directory": "~/Library/Application Support/AlphaPilot-AI/database-backup",
+          "stamp_filename": "last-success-shanghai-date",
+          "stamp_bytes": "YYYY-MM-DD\\n for the current Asia/Shanghai date",
+          "stamp_file_policy": "regular_non_symlink_mode_0600",
+          "lock_filename": ".daily-backup.lock",
+          "lock_probe": "open_without_truncation_then_flock_LOCK_EX_or_LOCK_NB_and_immediately_unlock",
+          "launchd_label": "com.alphapilot.database-backup",
+          "launchd_target": "gui/<current_uid>/com.alphapilot.database-backup",
+          "launchctl_binary": "/bin/launchctl",
+          "launchctl_required_values": {
+            "loaded": true,
+            "state": "not running",
+            "last_exit_code": 0
+          },
+          "backup_directory": "data/backups",
+          "manifest_glob": "alphapilot-full-*.manifest.json",
+          "manifest_selection": "latest created_at whose Asia/Shanghai date is current and hour is at least 22",
+          "manifest_format_version": 1,
+          "manifest_managed_by": "alphapilot.db.backup",
+          "manifest_verification": "alphapilot.db.backup.verify_database_backup must pass and return quick_check=ok"
+        },
+        "operator_timing_attestation_required": [
+          "nonempty_attester_identity",
+          "explicit_nondefault_input",
+          "actual_CST_start_decision",
+          "cninfo_midnight_batch_assessment_clear_for_start",
+          "p4_1_dense_poll_slot_assessment_clear_for_start"
+        ],
+        "operator_attestation_interface": {
+          "run_materialize_argument": "operator_timing_attestation_typed_object_or_none",
+          "none_blank_identity_implicit_default_or_any_nonclear_assessment": "fail_closed_before_database_open_artifact_parent_creation_network_or_model",
+          "canonical_CLI": "requires_explicit_attester_identity_and_two_separate_clear_for_start_flags_with_no_environment_or_config_default",
+          "offline_rehearsal": "not_applicable_and_cannot_be_reused_as_a_real_attestation"
+        },
+        "22_17_to_22_21_CST": "illustrative_consequence_only_not_a_gate_substitute",
+        "observations_persisted_in_materialization_manifest": true
+      },
+      "rehearsal_contract_non_delta": {
+        "temp_root_count": 2,
+        "temp_roots_distinct_and_outside_repository": true,
+        "real_run_materialize_function_called": true,
+        "fixture_database": {
+          "type": "temporary_SQLite",
+          "timestamp_field": "available_time",
+          "raw_count": 4048,
+          "by_source": {
+            "cninfo": 2824,
+            "akshare_ths": 1021,
+            "sina_company_news": 203
+          },
+          "retired_id_intersection": 0
+        },
+        "fake_external_boundaries": {
+          "pdf_fetcher": true,
+          "pdf_text_extractor": true,
+          "model": true,
+          "clock": true,
+          "sleeper": true,
+          "real_database_reads": 0,
+          "real_network_calls": 0,
+          "real_model_calls": 0
+        },
+        "full_path_after_materialization": [
+          "run_infer",
+          "run_select_blind",
+          "seal_draft",
+          "build_adjudication_ui",
+          "finalize_owner_adjudication",
+          "synthetic_evaluator_and_report_assembly"
+        ],
+        "artifact_inventory_same_as_v2": 14,
+        "required_result": {
+          "run_a_artifact_count": 14,
+          "run_b_artifact_count": 14,
+          "byte_identical_artifact_count": 14,
+          "mismatch_count": 0,
+          "missing_artifact_count": 0,
+          "unexpected_artifact_count": 0
+        },
+        "rate_limiter_positive_evidence": {
+          "synthetic_fixture_request_start_count": 2824,
+          "synthetic_fixture_observed_gap_count": 2823,
+          "minimum_gap_seconds": 1.0,
+          "median_gap_seconds": 1.0,
+          "violation_count": 0
+        },
+        "rate_limiter_negative_probe": {
+          "sleeper": "registered_noop",
+          "required_result": "PASS_NOOP_SLEEPER_REJECTED_BEFORE_SECOND_FETCH",
+          "underlying_fetch_count": 1,
+          "second_fetch_started": false
+        },
+        "candidate_document_handling_probes": {
+          "deterministic_ineligible_reasons": [
+            "pdf_text_below_min_char_gate",
+            "pdf_exceeds_size_bound"
+          ],
+          "deterministic_ineligible_required_result": "PASS_RECORDED_EXCLUDED_CONTINUED_ZERO_RETRY_ZERO_RETURN_TO_POOL",
+          "unexpected_transport_download_or_extractor_failure_required_result": "PASS_ABORTED_ENTIRE_MATERIALIZATION_ZERO_RETRY_ZERO_PARTIAL_PUBLISH",
+          "unknown_candidate_document_ineligible_reason_required_result": "PASS_FAIL_CLOSED_ZERO_RETRY_ZERO_PARTIAL_PUBLISH"
+        },
+        "release_gate_positive_probe": {
+          "temporary_git_repository": true,
+          "schema_valid_successor_receipt": true,
+          "unique_status_A_creation_touch": true,
+          "modified_after_creation_negative_probe": "must_reject_even_when_modified_bytes_are_committed",
+          "uses_same_validator_as_canonical_real_gate": true,
+          "registered_real_receipt_created_or_used": false
+        },
+        "complete_control_surface_archive": true,
+        "implementation_commit_blob_binding": true,
+        "ast_local_import_closure_exact": true,
+        "runtime_inventory_bound": true,
+        "independent_validator_required_before_publication": true
+      },
+      "implementation_contract_historical_v2_1": {
+        "implementation_commit": "must_be_recorded_in_bundle_and_descend_from_both_aa082578aa48296f1dd394a380775a5a4546ca65_and_the_commit_containing_this_preregistration",
+        "old_v2_prepare_sha256": "9b6d452014514c4d810fb83d91a78cde8864e3cf8de02dabbdba3c9c378a5bd7",
+        "old_v2_approval_accepted_for_modified_prepare": false,
+        "historical_v1_and_v2_files_modified": false,
+        "registered_modified_consumers": [
+          "scripts/prepare_p4_2a_v2_heldout.py",
+          "scripts/evaluate_p4_2a_v2_heldout.py",
+          "scripts/seal_p4_2a_v2_heldout_draft.py",
+          "scripts/build_p4_2a_v2_heldout_adjudication_ui.py",
+          "scripts/finalize_p4_2a_v2_heldout_adjudication.py"
+        ],
+        "registered_new_files": [
+          "scripts/rehearse_p4_2a_v2_1_heldout_full_path.py",
+          "scripts/validate_p4_2a_v2_1_heldout_rehearsal_bundle.py",
+          "tests/test_p4_2a_v2_1_heldout_rehearsal_runner.py",
+          "tests/test_p4_2a_v2_1_heldout_rehearsal_validator.py"
+        ],
+        "registered_existing_test_updates": [
+          "tests/test_p4_2a_v2_heldout.py",
+          "tests/test_p4_2a_v2_heldout_evaluator.py",
+          "tests/test_p4_2a_v2_heldout_adjudication.py"
+        ],
+        "forbidden_implementation_forms": [
+          "wrapper",
+          "monkeypatch",
+          "alternate_real_entrypoint",
+          "boolean_string_or_environment_rehearsal_bypass",
+          "reuse_v2_bundle_or_approval_for_modified_source"
+        ]
+      },
+      "bundle_and_release_effects_base_guarantees": {
+        "successful_bundle_status": "passed_awaiting_owner_review",
+        "bundle_itself_unlocks_real_materialization": false,
+        "release_receipt_create_only_after_owner_review": true,
+        "release_receipt_commit_binding": {
+          "reviewed_repository_head": "the_existing_rehearsal_evidence_and_review_head_examined_by_the_reviewer",
+          "receipt_creating_commit": "derived_by_the_gate_as_the_unique_status_A_touch_of_the_fixed_receipt_path_on_the_current_HEAD_first_parent_lineage_not_self_reported_inside_the_receipt",
+          "required_git_proof": "the_fixed_path_has_exactly_one_touch_and_it_is_A_current_bytes_equal_the_creation_commit_blob_there_is_no_later_M_D_R_C_or_readd_and_HEAD_and_the_creation_commit_descend_from_reviewed_repository_head_rehearsal_evidence_commit_implementation_commit_and_preregistration_commit",
+          "modified_after_owner_approval_even_if_committed": "fail_closed"
+        },
+        "release_receipt_must_bind": [
+          "preregistration_sha256_and_commit",
+          "both_schema_sha256_values",
+          "implementation_commit",
+          "bundle_sha256_and_merkle_root",
+          "rehearsal_evidence_commit",
+          "review_request_sha256",
+          "frame_authority_ruling_sha256",
+          "successor_v2_1_authorization_sha256"
+        ],
+        "release_authorizes": [
+          "materialize",
+          "infer",
+          "select-blind",
+          "blind-draft",
+          "owner-adjudication-ui"
+        ],
+        "release_does_not_authorize": [
+          "finalize-owner-adjudication",
+          "heldout-evaluation",
+          "p4.2b",
+          "p4.3"
+        ]
+      },
+      "execution_safety": {
+        "real_database_reads_during_rehearsal": 0,
+        "real_network_calls_during_rehearsal": 0,
+        "real_model_calls_during_rehearsal": 0,
+        "production_writes_during_rehearsal": false,
+        "real_heldout_artifact_writes_during_rehearsal": false,
+        "real_heldout_metrics_computed": false,
+        "real_metrics_disclosed": false,
+        "scheduler_or_p4_1_mutation": false,
+        "proposals_orders_or_trades": false
+      },
+      "locks": {
+        "trading_mode": "research",
+        "live_trading_enabled": false,
+        "paper_trading_enabled": false,
+        "paper_auto_trading_enabled": false,
+        "futu_enable_trade": false,
+        "futu_enable_account_mutation": false,
+        "p4_2a_done": false,
+        "heldout_materialization_unlocked": false,
+        "heldout_inference_unlocked": false,
+        "heldout_evaluation_unlocked": false,
+        "p4_2b_unlocked": false,
+        "p4_3_unlocked": false
+      }
+    },
+    "strict_inheritance_snapshot_sha256": "f3d74f06c9b114ce85768f647252db76edadc42a95ab6a6f29c05d69f39bea0e",
+    "snapshot_canonical_encoding": "CPython 3.12.0 json.loads default number types after duplicate-key rejection, followed by json.dumps(snapshot, sort_keys=true, separators=(',', ':'), ensure_ascii=false, allow_nan=false).encode('utf-8'); integral float values retain a .0 suffix, integer values do not, and no trailing LF is included in the digest",
+    "snapshot_typed_equality": "recursive equality requires identical JSON container kind and identical scalar Python type before value equality; in particular 1 and 1.0 are different",
+    "expected_snapshot_mismatch_count": 0,
+    "allowed_v2_2_delta_json_pointers": [
+      "/schema_version",
+      "/preregistration_id",
+      "/created_at_utc",
+      "/created_at_shanghai",
+      "/status",
+      "/purpose",
+      "/ordering_discipline",
+      "/registered_schemas",
+      "/authorities",
+      "/identity",
+      "/rehearsal_attempt_policy",
+      "/threat_model",
+      "/series_ledger_contract",
+      "/attempt_record_contract",
+      "/action_time_authorization_contract",
+      "/harness_identity_contract",
+      "/exact_os_bootstrap_contract",
+      "/synthetic_rebase_contract",
+      "/implementation_epoch_contract",
+      "/prospective_implementation_contract",
+      "/contract_inheritance",
+      "/additional_frozen_authorities",
+      "/pipeline_contract",
+      "/runtime_and_control_inheritance",
+      "/bundle_contract",
+      "/release_contract",
+      "/required_positive_tests",
+      "/required_negative_tests",
+      "/test_execution_contract",
+      "/future_owner_gates_required",
+      "/execution_safety",
+      "/locks",
+      "/authorization"
+    ],
+    "every_allowed_pointer_must_resolve_in_this_document": true,
+    "no_implicit_wildcard_or_unlisted_delta": true,
+    "bundle_schema_delta_domains": [
+      "/$id",
+      "/title",
+      "/required",
+      "/properties/schema_version",
+      "/properties/rehearsal_id",
+      "/properties/status",
+      "/properties/execution_binding",
+      "/properties/rehearsal_attempt_policy",
+      "/properties/harness_identity",
+      "/properties/implementation_epochs",
+      "/properties/attempt_history",
+      "/properties/evaluation_one_shot",
+      "/$defs/lineage",
+      "/$defs/publication/properties/directory",
+      "/$defs/realEntryGateValidation",
+      "/$defs/archive",
+      "/$defs/merkle",
+      "/$defs/semanticValidation",
+      "/$defs/remainingBlockers",
+      "/$defs/absolutePath",
+      "/$defs/authorityRef",
+      "/$defs/executionBinding",
+      "/$defs/rehearsalAttemptPolicy",
+      "/$defs/harnessIdentity",
+      "/$defs/implementationEpoch",
+      "/$defs/attemptFileEvidence",
+      "/$defs/archivedAuthorityEvidence",
+      "/$defs/attemptArtifactEvidence",
+      "/$defs/attemptError",
+      "/$defs/attemptRecord",
+      "/$defs/attemptHistory",
+      "/$defs/attemptHistoryArchive",
+      "/$defs/evaluationOneShot"
+    ],
+    "release_schema_delta_domains": [
+      "/$id",
+      "/title",
+      "/required",
+      "/properties/schema_version",
+      "/properties/authorization_id",
+      "/properties/verdict",
+      "/properties/owner_authorization",
+      "/properties/lineage",
+      "/properties/execution_binding",
+      "/properties/series_identity",
+      "/properties/attempt_history_acceptance",
+      "/properties/implementation_epochs",
+      "/properties/independent_checks",
+      "/properties/authorized_stages",
+      "/properties/still_gated",
+      "/properties/runtime_start_policy",
+      "/properties/production_integration_gate",
+      "/properties/evaluation_one_shot",
+      "/properties/locks",
+      "/$defs/absolutePath",
+      "/$defs/authorityRef",
+      "/$defs/executionBinding",
+      "/$defs/attemptOutcomeAcknowledgement",
+      "/$defs/implementationEpoch"
+    ],
+    "schema_delta_validation": "strip only the exact listed v2.2 additions or replacements, then require every retained v2.1 property and const to match; independently enforce the strict inheritance snapshot",
+    "independent_validator_must_recompute_not_trust_bundle_boolean": true
+  },
+  "frozen_inputs": {
+    "evaluation_design": {
+      "path": "config/p4_event_evaluation_v2.yaml",
+      "sha256": "18a2428a4ec04bfea6e4f4d70692f38ea82fbaee5a223f30f2465b895b238e21"
+    },
+    "heldout_execution_contract": {
+      "path": "config/p4_event_extract_eval_v2-heldout-qwen3.6-plus.yaml",
+      "sha256": "26be1765204b122908e7bd09cac857c33bd3140233df47dc3358bc590e020199",
+      "model": "qwen3.6-plus"
+    },
+    "round3_prompt": {
+      "path": "config/prompts/p4_news_event_extract_v2-r3.txt",
+      "sha256": "0291dc882aac42878ba00c4ed3970da72f19508308cd39211467b4fd92294f44"
+    },
+    "round3_plus_contract": {
+      "path": "config/p4_event_extract_eval_v2-r3-qwen3.6-plus.yaml",
+      "sha256": "fa75a6cf33065745d02f74fe39e4f102723da43f37ac549058bb34fa8256a181"
+    },
+    "frame": {
+      "timestamp_field": "available_time",
+      "start_inclusive_utc": "2026-08-05T16:00:00Z",
+      "end_exclusive_utc": "2026-08-08T16:00:00Z",
+      "sources": [
+        "cninfo",
+        "akshare_ths",
+        "sina_company_news"
+      ],
+      "raw_count": 4048,
+      "raw_by_source": {
+        "cninfo": 2824,
+        "akshare_ths": 1021,
+        "sina_company_news": 203
+      },
+      "retired_id_count": 40,
+      "retired_ids_excluded_before_ranking": true
+    },
+    "sampling": {
+      "algorithm": "sha256_rank_without_replacement_per_stratum_v1",
+      "predicted_positive_quota": 40,
+      "predicted_negative_quota": 20,
+      "extract_failed_quota": 0,
+      "insufficient_stratum": "fail_closed_no_replacement_no_reduction"
+    },
+    "inference": {
+      "one_item_per_call": true,
+      "batching": false,
+      "body_truncation": false,
+      "prefilter": false,
+      "single_started_event": true,
+      "automatic_retries": 0,
+      "failed_candidate_retries": 0
+    },
+    "no_change": [
+      "evaluation_design",
+      "frame",
+      "retired_ids",
+      "sample_quotas",
+      "sampling_seed_and_rank_algorithm",
+      "prompt",
+      "contracts",
+      "selected_model",
+      "metric_formulas_and_thresholds",
+      "development_gold_and_rounds",
+      "heldout_evaluation_lock"
+    ]
+  },
+  "pipeline_contract": {
+    "registered_entry": "thin main shim -> scripts.p4_2a_v2_2_heldout_rehearsal.cli_main",
+    "selected_attempt_path": [
+      "run_materialize",
+      "run_infer",
+      "run_select_blind",
+      "seal blind draft",
+      "build adjudication UI",
+      "offline synthetic finalize",
+      "offline synthetic evaluator"
+    ],
+    "two_distinct_temp_roots": true,
+    "run_labels": [
+      "run-a",
+      "run-b"
+    ],
+    "artifact_count_per_run": 14,
+    "exact_artifact_inventory": [
+      {
+        "logical_name": "materialized_inputs",
+        "source_relative_path": "docs/phase4/eval/v2-calibration/heldout/materialization/candidate-inputs.jsonl"
+      },
+      {
+        "logical_name": "materialization_manifest",
+        "source_relative_path": "docs/phase4/eval/v2-calibration/heldout/materialization/manifest.json"
+      },
+      {
+        "logical_name": "inference_state",
+        "source_relative_path": "docs/phase4/eval/v2-calibration/heldout/P4.2a-heldout-v2-inference.state.jsonl"
+      },
+      {
+        "logical_name": "predictions",
+        "source_relative_path": "docs/phase4/eval/v2-calibration/heldout/P4.2a-heldout-v2.predictions.jsonl"
+      },
+      {
+        "logical_name": "prediction_manifest",
+        "source_relative_path": "docs/phase4/eval/v2-calibration/heldout/P4.2a-heldout-v2.predictions.manifest.json"
+      },
+      {
+        "logical_name": "private_selection",
+        "source_relative_path": "docs/phase4/eval/v2-calibration/heldout/P4.2a-heldout-frame-v2.selection.json"
+      },
+      {
+        "logical_name": "owner_blind",
+        "source_relative_path": "docs/phase4/eval/v2-calibration/heldout/P4.2a-heldout-frame-v2.blind.jsonl"
+      },
+      {
+        "logical_name": "ai_draft",
+        "source_relative_path": "docs/phase4/eval/v2-calibration/heldout/P4.2a-heldout-frame-v2.labels-ai-drafted.jsonl"
+      },
+      {
+        "logical_name": "adjudication_ui",
+        "source_relative_path": "docs/phase4/eval/v2-calibration/heldout/P4.2a-heldout-frame-v2.adjudication.html"
+      },
+      {
+        "logical_name": "owner_export",
+        "source_relative_path": "docs/phase4/eval/v2-calibration/heldout/P4.2a-heldout-frame-v2.owner-export.jsonl"
+      },
+      {
+        "logical_name": "human_adjudicated",
+        "source_relative_path": "docs/phase4/eval/v2-calibration/heldout/P4.2a-heldout-frame-v2.human-adjudicated.jsonl"
+      },
+      {
+        "logical_name": "owner_completion",
+        "source_relative_path": "docs/phase4/eval/v2-calibration/heldout/P4.2a-heldout-frame-v2.owner-completion.json"
+      },
+      {
+        "logical_name": "evaluation_state",
+        "source_relative_path": "docs/phase4/eval/v2-calibration/heldout/P4.2a-heldout-v2-evaluation.state.jsonl"
+      },
+      {
+        "logical_name": "synthetic_report",
+        "source_relative_path": "docs/phase4/eval/v2-calibration/heldout/report/P4.2a-heldout-v2-evaluation-result.json"
+      }
+    ],
+    "byte_identical_count_required": 14,
+    "mismatch_count_required": 0,
+    "normalization_allowed": false,
+    "real_database_reads": 0,
+    "real_network_calls": 0,
+    "real_model_calls": 0,
+    "production_writes": false,
+    "one_candidate_per_model_call": true,
+    "merge_allowed": false,
+    "truncate_allowed": false,
+    "prefilter_allowed": false,
+    "fetch_or_model_retry_count_inside_attempt": 0,
+    "unexpected_fetch_extract_or_model_failure": "abort_attempt_without_partial_candidate_publication",
+    "only_deterministic_ineligible_reasons_continue": [
+      "pdf_text_below_min_char_gate",
+      "pdf_exceeds_size_bound"
+    ],
+    "full_owner_chain_must_be_replayed": true,
+    "selected_candidate_must_be_first_validated_candidate_in_series": true
+  },
+  "request_interval_contract": {
+    "scope": "CNInfo announcement PDF downloads performed inside the P4.2a materialization path",
+    "host": "static.cninfo.com.cn",
+    "policy": "minimum_start_to_start",
+    "min_start_to_start_seconds": 1.0,
+    "clock": "monotonic",
+    "first_request_delay": "none",
+    "automatic_retries": 0,
+    "per_candidate_retries": 0,
+    "akshare_ths": "not_applicable_no_external_document_fetch",
+    "sina_company_news": "not_applicable_no_external_document_fetch",
+    "implementation_location": "inside_run_materialize_before_the_registered_pdf_fetcher",
+    "sleep_policy": "sleep_remaining_then_reread_monotonic_until_floor_is_met",
+    "clock_not_advancing_clock_reversal_nan_or_nonfinite": "fail_closed_before_second_fetch",
+    "deterministic_candidate_document_ineligible": {
+      "exception_class": "scripts.build_p4_2a_gold_sample.CandidateDocumentIneligible",
+      "allowed_reasons": [
+        "pdf_text_below_min_char_gate",
+        "pdf_exceeds_size_bound"
+      ],
+      "action": "record_exact_reason_exclude_candidate_continue_materialization",
+      "automatic_retries": 0,
+      "return_to_pool": false
+    },
+    "unexpected_transport_download_or_extractor_exception": "abort_entire_materialization_immediately_zero_retry_zero_partial_publish",
+    "unknown_candidate_document_ineligible_reason": "fail_closed_zero_retry_zero_partial_publish",
+    "manifest_evidence": [
+      "configured_min_start_to_start_seconds",
+      "clock",
+      "first_request_delayed",
+      "request_start_count",
+      "observed_gap_count",
+      "minimum_observed_start_to_start_seconds",
+      "median_observed_start_to_start_seconds",
+      "violation_count",
+      "retry_count"
+    ]
+  },
+  "runtime_and_control_inheritance": {
+    "locked_cpython": "3.12.0",
+    "package_inventory_count": 84,
+    "package_inventory_sha256": "c3c7792eb31679c0eb7d3140e067d691df330cd3af302d2350bf15b74ac8ec42",
+    "ambient_python_git_tmp_or_dynamic_loader_environment_allowed": false,
+    "git_replace_or_grafts_or_commit_graph_or_fsmonitor_allowed": false,
+    "repo_or_site_namespace_shadow_allowed": false,
+    "repo_pyc_execution_allowed": false,
+    "all_loaded_repo_sources_must_be_in_ast_closure_and_commit_bound": true,
+    "all_referenced_pass_test_bytes_must_be_in_control_archive_and_merkle": true,
+    "f8_status_after_v2_2": "PARTIALLY_CLOSED_FOR_REFERENCED_PASS_TESTS_ONLY",
+    "f8_remaining_gap": "Unreferenced tests remain outside the control archive and may drift without this gate detecting them.",
+    "runtime_real_start_conditions_unchanged": true
+  },
+  "bundle_contract": {
+    "path": "docs/phase4/rehearsals/P4.2a-v2-calibration-v2-2/bundle.json",
+    "destination_create_only": true,
+    "publication_occurs_once_after_first_validated_candidate": true,
+    "bundle_schema_sha256": "19903ac94d4d7ced81c7f18e7b8880bd1dbb68fd3ededf3f0b91f89d034aa5db",
+    "release_schema_sha256": "098d213f510718aab0d9c6bfc950a30bb1c4841ca151631bea78c1bf0238e7ea",
+    "required_new_sections": [
+      "rehearsal_attempt_policy",
+      "harness_identity",
+      "implementation_epochs",
+      "attempt_history",
+      "archive.attempt_history",
+      "evaluation_one_shot"
+    ],
+    "attempt_history_archive_root": "archive/attempt-history",
+    "every_started_candidate_terminal_and_actual_evidence_byte_archived": true,
+    "every_attempt_action_time_authorization_byte_archived_and_merkle_bound": true,
+    "unpersisted_evidence_must_not_be_fabricated": "NOT_APPLICABLE_ALL_ACTUAL_EVIDENCE_BYTES_MUST_BE_PERSISTED_AND_ARCHIVED",
+    "selected_attempt_only_requires_two_runs_of_14_artifacts": true,
+    "earlier_attempts_report_actual_outcome_and_inventory": true,
+    "attempt_history_merkle_domain": "p4.2a-rehearsal-v2.2",
+    "bundle_root_formula": "SHA256(utf8('p4.2a-rehearsal-bundle-v2.2\\0') || attempt_history_root_digest_32_bytes || run_a_root_digest_32_bytes || run_b_root_digest_32_bytes || control_surface_root_digest_32_bytes)",
+    "bundle_must_bind_live_ledger_root": true,
+    "active_validator_reenumerates_live_ledger_and_archive": true,
+    "missing_extra_modified_reordered_or_after_success_attempt": "REJECT",
+    "every_epoch_authority_and_review_rehashed": true,
+    "every_referenced_pass_test_rehashed": true,
+    "bundle_manifest_not_in_merkle": true,
+    "empty_attempt_evidence_uses_registered_domain_separated_root": true
+  },
+  "release_contract": {
+    "release_receipt_path": "docs/phase4/reports/P4.2a-v2-heldout-rehearsal-v2-2-release-authorization-20260811.json",
+    "receipt_create_only_after_bundle_and_independent_review": true,
+    "receipt_current_bytes_must_equal_its_unique_status_A_creation_blob": true,
+    "receipt_must_have_no_later_touch": true,
+    "receipt_creation_commit_is_derived_from_git_history_not_serialized_in_the_receipt": true,
+    "reviewed_repository_head_is_the_pre_receipt_evidence_head_not_a_self_referential_receipt_commit": true,
+    "owner_must_acknowledge": [
+      "attempt count",
+      "ordered outcome for every ordinal",
+      "all failed and incomplete attempts",
+      "selected first validated candidate ordinal",
+      "every implementation epoch and its owner authorization and independent review",
+      "attempt-history root",
+      "live-ledger root",
+      "disclosed repeatability policy"
+    ],
+    "owner_accepts_disclosed_repeatability_exact_field": true,
+    "receipt_binds_bundle_sha_root_history_root_live_root_and_selected_epoch": true,
+    "active_release_gate_rehashes_live_ledger_before_database_network_or_artifact_write": true,
+    "synthetic_same_validator_positive_probe": {
+      "required": true,
+      "execution_binding_mode": "DISPOSABLE_FULL_SHAPE_TEST",
+      "uses_same_receipt_schema_and_active_evidence_acceptance_validator": true,
+      "uses_private_rebase_capability": true,
+      "receipt_series_token_and_ledger_root_equal_private_execution_binding": true,
+      "official_registered_paths_untouched": true,
+      "cannot_unlock_or_be_accepted_by_official_validation": true,
+      "schema_only_dummy_is_not_sufficient": true
+    },
+    "any_post_bundle_ledger_change": "REJECT",
+    "authorized_stages_if_future_receipt_approves": [],
+    "still_gated": [
+      "materialize",
+      "infer",
+      "select-blind",
+      "blind-draft",
+      "owner-adjudication-ui",
+      "finalize-owner-adjudication",
+      "heldout-evaluation",
+      "p4.2b",
+      "p4.3"
+    ],
+    "current_preregistration_does_not_create_or_approve_receipt": true,
+    "receipt_role": "ACCEPT_REHEARSAL_EVIDENCE_FOR_SEPARATE_PRODUCTION_INTEGRATION_REVIEW",
+    "this_receipt_unlocks_real_stages": false,
+    "separate_production_integration_gate_required": true,
+    "production_integration_gate_requires": [
+      "new preregistration and exact code-surface authority",
+      "central prepare release-dispatch integration without weakening existing gates",
+      "registered tests and active validator coverage",
+      "exact implementation commit and independent review",
+      "new production release receipt"
+    ],
+    "owner_outcome_cross_checks": [
+      "attempt count equals ordered record count",
+      "failed count equals FAILED records",
+      "incomplete count equals INCOMPLETE_UNTERMINALIZED records",
+      "exactly one CANDIDATE_VALIDATED_AND_SELECTED record exists",
+      "selected ordinal equals that unique candidate ordinal",
+      "every ordinal is contiguous and every record root equals the bundle history",
+      "owner outcomes equal bundle records byte-for-byte after canonicalization"
+    ]
+  },
+  "required_positive_tests": [
+    "exact OS env-i CPython -S -P -B synthetic canonical-root run loads thin shim as __main__ and nested validator imports the one package implementation object",
+    "shim contains no authority state and calls package cli_main",
+    "validator and runner observe identical _AUDIT_POLICY and _TEMP_AUTHORITY object identities",
+    "two failed attempts followed by one validated candidate produce ordinals 1,2,3 and a bundle containing all three records",
+    "same implementation epoch may be used by multiple separately authorized attempts",
+    "a newly authorized and independently reviewed implementation epoch may follow a failed attempt and remains fully disclosed",
+    "selected attempt runs the exact full materialize-to-owner-chain path twice and yields 14 of 14 byte-identical artifacts",
+    "every PASS-cited test byte is copied into control archive and contributes to control Merkle",
+    "independent validator replays full history and selected pipeline evidence without trusting producer booleans",
+    "same active evidence-acceptance validator accepts a schema-valid disposable receipt with complete acknowledged outcomes and all epochs under the private rebase capability, while official validation rejects that receipt",
+    "zero-evidence started-only crash derives the exact domain-separated empty evidence root and unique next previous-history root",
+    "failed and incomplete attempt evidence subtrees remain live, are archived byte-for-byte, and rehash under the final bundle",
+    "disposable full-shape test uses only a private deterministic rebase capability and a DISPOSABLE_FULL_SHAPE_TEST schema binding",
+    "evidence acceptance receipt keeps every real stage locked pending a separate production-integration gate"
+  ],
+  "required_negative_tests": [
+    "validator importing thin shim rejected",
+    "implementation direct __main__ execution rejected",
+    "second authority-owning module object rejected",
+    "forged borrowed authority rejected",
+    "delegation with wrong identity root creator owner or lifetime rejected",
+    "nested authority attempting external or ambient private tmp mkdir rejected",
+    "ordinary Python, sitecustomize, runpy wrapper, altered orig_argv, environment drift, module shadow, or stale pyc rejected before ledger or pipeline",
+    "missing per-attempt action-time owner authorization rejected before ordinal allocation",
+    "concurrent lock holder rejected before attempt directory creation",
+    "ordinal gap duplicate reorder or reused attempt token rejected",
+    "started written after any pipeline activity rejected",
+    "parameterized started.json candidate.json and terminal.json tamper matrix rejects duplicate key noncanonical bytes extra field missing field and field type drift before bundle or release acceptance and before any validator DB network or artifact write",
+    "parameterized live-record cross-binding matrix rejects series ordinal attempt-token epoch commit history-root evidence-root command environment and outcome drift before bundle or release acceptance and before any validator DB network or artifact write",
+    "any live versus archive started candidate or terminal byte mismatch rejected before bundle or release acceptance and before any validator DB network or artifact write",
+    "automatic retry within one attempt rejected",
+    "missing failure or incomplete attempt rejected",
+    "deleted modified readded hardlinked symlinked or special ledger entry rejected",
+    "candidate receipt followed by a later attempt rejected",
+    "candidate validated but bundle absent requires recovery ruling and cannot start another attempt",
+    "implementation byte drift without a new authorized reviewed epoch rejected",
+    "epoch authority or independent review missing or modified rejected",
+    "bundle omitting one attempt one evidence file or one referenced PASS test rejected",
+    "live ledger and bundle history mismatch rejected",
+    "release acknowledgement omitting or changing one outcome rejected",
+    "release acknowledged attempt failed or incomplete count mismatch rejected before database network or artifact write",
+    "release selected ordinal mismatch or more than one selected success rejected before database network or artifact write",
+    "release acknowledged outcome reorder or record-root mismatch rejected before database network or artifact write",
+    "release selected implementation epoch or commit mismatch rejected before database network or artifact write",
+    "release attempt-history or live-ledger root mismatch rejected before database network or artifact write",
+    "attempt after bundle publication rejected",
+    "any attempt to touch the real v2.2 ledger or destination during disposable tests rejected",
+    "any reuse or deletion of v2.1 claim or destination rejected",
+    "any heldout evaluation attempt or unlock rejected",
+    "NOT_PERSISTED evidence marker rejected",
+    "started-only record with arbitrary evidence or history root rejected",
+    "test-mode binding in official validation or official path in test-mode validation rejected",
+    "evidence acceptance receipt presented to the existing v2.1 production gate rejected"
+  ],
+  "test_execution_contract": {
+    "disposable_full_shape_root": "byte-exact synthetic canonical repository in a fresh noncanonical temporary root",
+    "bootstrap": "OS first exec with exact env-i, fixed interpreter, -S -P -B, shim as __main__, package validator nested",
+    "path_or_validation_override": false,
+    "synthetic_destination_and_ledger_are_canonical_for_synthetic_root": true,
+    "real_repository_destination_and_ledger_must_remain_absent_or_unchanged": true,
+    "failure_persistence_tests_consume_only_synthetic_series_ledgers": true,
+    "no_gate_monkeypatch_or_alternate_entry": true,
+    "tests_that_support_PASS_must_be_named_in_evidence_and_archived_by_bytes": true
+  },
+  "future_owner_gates_required": [
+    "independent preregistration and both-schema review",
+    "separate owner implementation and exact A/M surface authorization",
+    "exact implementation commit containing only the later-authorized surface",
+    "independent implementation review plus registered offline and static evidence",
+    "per-attempt action-time owner authorization binding ordinal history epoch commit command and environment",
+    "pre-attempt absence or exact-ledger rehash and exclusive lock",
+    "post-bundle independent validation",
+    "owner bundle and complete-attempt-history evidence-acceptance authorization",
+    "separate production-integration preregistration and exact code-surface authority",
+    "central release-dispatch integration implementation and registered test evidence",
+    "independent production-integration implementation review",
+    "new owner production release receipt before any real materialize infer select draft UI finalize or evaluation stage"
+  ],
+  "execution_safety": {
+    "no_code_or_test_change_authorized_by_this_preregistration": true,
+    "no_rehearsal_attempt_authorized_by_this_preregistration": true,
+    "no_real_database_read_authorized": true,
+    "no_network_call_authorized": true,
+    "no_model_call_authorized": true,
+    "no_production_write_authorized": true,
+    "no_real_heldout_materialization_or_inference_authorized": true,
+    "no_heldout_evaluation_authorized": true,
+    "no_p4_2b_or_p4_3_authorized": true,
+    "no_trading_or_order_mutation_authorized": true,
+    "p4_1_observation_window": "NO_EFFECT_ATTRIBUTABLE_TO_V2_2_PREREGISTRATION",
+    "existing_unrelated_dirty_worktree_must_be_preserved": true
+  },
+  "locks": {
+    "p4_2a_done": false,
+    "rehearsal_v2_1_status": "FAILED_ONE_SHOT_CONSUMED_NO_RETRY",
+    "rehearsal_v2_1_empty_claim_must_be_preserved": true,
+    "rehearsal_v2_2_implementation_unlocked": false,
+    "rehearsal_v2_2_execution_unlocked": false,
+    "real_heldout_materialization_unlocked": false,
+    "real_heldout_inference_unlocked": false,
+    "heldout_evaluation_one_shot_unchanged_and_unconsumed": true,
+    "heldout_evaluation_unlocked": false,
+    "p4_2b_unlocked": false,
+    "p4_3_unlocked": false,
+    "trading_mode": "research",
+    "non_simulate_orders_allowed": false
+  },
+  "authorization": {
+    "verdict": "PREREGISTER_ONLY",
+    "authorized_now": [
+      "create this preregistration",
+      "create the v2.2 bundle schema",
+      "create the v2.2 release authorization schema",
+      "perform read-only independent review"
+    ],
+    "not_authorized_now": [
+      "create or edit any source file",
+      "create or edit any test file",
+      "run a registered rehearsal attempt",
+      "create the v2.2 series ledger",
+      "create the v2.2 rehearsal destination or bundle",
+      "create a review request or release receipt",
+      "read the real heldout database",
+      "use network or model services",
+      "materialize infer finalize or evaluate real heldout data",
+      "unlock P4.2b P4.3 or trading"
+    ]
+  },
+  "action_time_authorization_contract": {
+    "path_template": "docs/phase4/reports/P4.2a-v2-2-rehearsal-attempt-{ordinal:06d}-execution-authorization-{YYYYMMDD}.json",
+    "additional_properties": false,
+    "canonical_encoding": "UTF-8 canonical JSON, keys sorted by unsigned UTF-8 bytes, separators comma and colon with no spaces, ensure_ascii=false, exactly one trailing LF",
+    "required": [
+      "schema_version",
+      "authorization_id",
+      "created_at_utc",
+      "created_at_shanghai",
+      "verdict",
+      "owner",
+      "series_id",
+      "series_token_sha256",
+      "ledger_root",
+      "ordinal",
+      "previous_history_root_sha256",
+      "implementation_epoch",
+      "implementation_commit",
+      "owner_exact_surface_authorization",
+      "independent_implementation_review",
+      "control_merkle_root_sha256",
+      "exact_argv",
+      "command_sha256",
+      "exact_environment",
+      "environment_sha256",
+      "authorized_pipeline_starts",
+      "automatic_retry_count",
+      "heldout_evaluation_authorized",
+      "locks"
+    ],
+    "properties": {
+      "schema_version": {
+        "type": "string",
+        "const": "p4.2a-v2-2-rehearsal-attempt-execution-authorization-v1"
+      },
+      "authorization_id": {
+        "type": "string",
+        "pattern": "^P4\\.2A-V2-2-REHEARSAL-ATTEMPT-[0-9]{6}-EXECUTION-AUTHORIZATION-[0-9]{8}$"
+      },
+      "created_at_utc": {
+        "type": "string",
+        "format": "RFC3339 UTC seconds with Z and no fractional seconds"
+      },
+      "created_at_shanghai": {
+        "type": "string",
+        "format": "RFC3339 seconds with exact +08:00 offset and no fractional seconds"
+      },
+      "verdict": {
+        "type": "string",
+        "const": "APPROVE_EXACTLY_ONE_V2_2_REHEARSAL_ATTEMPT_ZERO_AUTOMATIC_RETRY"
+      },
+      "owner": {
+        "type": "object",
+        "exact": {
+          "identity": "ouyang",
+          "approved": true,
+          "scope": "one_disclosed_v2_2_rehearsal_ordinal_only"
+        }
+      },
+      "series_id": {
+        "type": "string",
+        "const": "P4.2A-V2-HELDOUT-REHEARSAL-V2-2-DETERMINISTIC-20260811"
+      },
+      "series_token_sha256": {
+        "type": "string",
+        "official_const": "35ba1b83a9b187817d7a591758e1c131e867fcd37917cba0ab196799fff832ef"
+      },
+      "ledger_root": {
+        "type": "string",
+        "official_const": "/Users/ouyangduning/Documents/project/interesting/.alphapilot-p4-2a-v2-2-execution-claim-35ba1b83a9b187817d7a591758e1c131e867fcd37917cba0ab196799fff832ef"
+      },
+      "ordinal": {
+        "type": "integer",
+        "minimum": 1
+      },
+      "previous_history_root_sha256": {
+        "type": "lowercase_sha256"
+      },
+      "implementation_epoch": {
+        "type": "integer",
+        "minimum": 1
+      },
+      "implementation_commit": {
+        "type": "lowercase_git_commit"
+      },
+      "owner_exact_surface_authorization": {
+        "type": "authorityRef"
+      },
+      "independent_implementation_review": {
+        "type": "authorityRef"
+      },
+      "control_merkle_root_sha256": {
+        "type": "lowercase_sha256"
+      },
+      "exact_argv": {
+        "type": "array_of_nonempty_strings",
+        "must_equal_selected_execution_mode_observed_sys_orig_argv_prefix_and_nondefault_suffix": true,
+        "first_entry_must_equal_observed_sys_orig_argv_executable_path_not_venv_launcher": true
+      },
+      "command_sha256": {
+        "type": "lowercase_sha256"
+      },
+      "exact_environment": {
+        "type": "object",
+        "must_equal_exact_bootstrap_environment": true
+      },
+      "environment_sha256": {
+        "type": "lowercase_sha256"
+      },
+      "authorized_pipeline_starts": {
+        "type": "integer",
+        "const": 1
+      },
+      "automatic_retry_count": {
+        "type": "integer",
+        "const": 0
+      },
+      "heldout_evaluation_authorized": {
+        "type": "boolean",
+        "const": false
+      },
+      "locks": {
+        "type": "object",
+        "exact": {
+          "real_heldout_materialization": false,
+          "real_heldout_inference": false,
+          "heldout_evaluation": false,
+          "p4_2b": false,
+          "p4_3": false,
+          "trading": false
+        }
+      }
+    },
+    "command_sha256_formula": "SHA256(utf8('p4.2a-v2.2-argv-v1\\0') || NUL-separated UTF-8 argv entries)",
+    "environment_sha256_formula": "SHA256(utf8('p4.2a-v2.2-env-v1\\0') || for sorted keys: utf8(key) || NUL || utf8(value) || NUL)",
+    "ordinal_must_equal_filename_authorization_id_expected_argv_and_next_live_ledger_ordinal": true,
+    "previous_root_must_be_recomputed_from_live_history": true,
+    "receipt_must_not_serialize_its_own_sha256_or_creating_commit": true,
+    "git_topology": {
+      "fixed_path_exactly_one_history_touch": true,
+      "touch_status": "A",
+      "current_bytes_equal_creation_blob": true,
+      "no_later_M_D_R_C_or_readd": true,
+      "creation_commit_descends_from_epoch_independent_review": true,
+      "execution_head_descends_from_creation_commit": true
+    },
+    "disposable_test_receipt": {
+      "uses_same_exact_shape": true,
+      "private_rebase_capability_rederives_synthetic_series_token_and_paths": true,
+      "cannot_unlock_official_mode": true
+    }
+  },
+  "synthetic_rebase_contract": {
+    "purpose": "exercise exact OS __main__ plus nested validator full shape without touching registered paths",
+    "capability": "module-private identity capability, nonserializable, not a bool/string/env/CLI/path argument",
+    "entry_mode_source": "resolved shim __file__ and exact sys.orig_argv under exact_os_bootstrap_contract.disposable_full_shape_os_bootstrap; no caller-supplied mode root or capability",
+    "mint_preconditions": [
+      "locked exact OS bootstrap is already active",
+      "project root is a byte-exact disposable Git repository and is neither equal to nor an ancestor or descendant of the registered root",
+      "implementation and every frozen control byte equal the selected implementation commit",
+      "fixture database, destination, ledger, and every write root are inside or deterministically adjacent to the disposable root",
+      "real registered destination and ledger absence or exact pre-test state is fingerprinted",
+      "network and model boundaries are registered fakes"
+    ],
+    "deterministic_mapping": {
+      "project_root": "synthetic_project_root derived only from the verified shim __file__ suffix",
+      "shim_path": "synthetic_project_root + '/scripts/rehearse_p4_2a_v2_2_heldout_full_path.py'",
+      "action_authorization_path": "synthetic_project_root + '/docs/phase4/reports/P4.2a-v2-2-rehearsal-attempt-' + ordinal_6_digits + '-execution-authorization-' + YYYYMMDD + '.json'",
+      "absolute_destination": "synthetic_project_root + '/docs/phase4/rehearsals/P4.2a-v2-calibration-v2-2'",
+      "series_token": "SHA256(UTF8(lowercase_incident_sha256 || NUL || rehearsal_id || NUL || synthetic_absolute_destination))",
+      "ledger_root": "synthetic_project_root.parent + '/.alphapilot-p4-2a-v2-2-execution-claim-' + synthetic_series_token"
+    },
+    "exact_rebased_consumers": [
+      "process shim path and repo/src sys.path entries",
+      "action-time authorization path, exact_argv, series token, and ledger root",
+      "series.json series token and ledger root",
+      "started.json command, environment, authority ref, series token, and history binding",
+      "candidate.json and terminal.json series and attempt bindings",
+      "bundle execution_binding and attempt_history series token and ledger root",
+      "evidence-acceptance receipt execution_binding and series_identity",
+      "nested active validator project root, destination, ledger, archive, and every read/write authority"
+    ],
+    "every_rebased_consumer_must_equal_the_single_private_capability": true,
+    "no_independent_path_recomputation_or_caller_override": true,
+    "schema_execution_binding_mode": "DISPOSABLE_FULL_SHAPE_TEST",
+    "official_schema_execution_binding_mode": "REGISTERED_OFFICIAL",
+    "active_validator_recomputes_mapping_and_requires_private_capability": true,
+    "official_validation_rejects_test_mode": true,
+    "test_validation_rejects_official_paths": true,
+    "real_paths_rehashed_unchanged_after_test": true,
+    "no_validation_or_path_override": true
+  },
+  "additional_frozen_authorities": {
+    "same_publisher_interval_basis": {
+      "path": "config/p4_news_poll_v2_1.yaml",
+      "sha256": "9d56e137baf10bd0858723a93aff02c57bf7b35f8705f1817b16a89ec615183f"
+    },
+    "full_pool_cost_acceptance": {
+      "path": "docs/phase4/reports/P4.2a-heldout-full-pool-inference-cost-acceptance-20260810.json",
+      "sha256": "7555b4e7ade255d0d947f2e9005246a490be92db71c8db1e559e616572e033e7"
+    }
+  }
+}
