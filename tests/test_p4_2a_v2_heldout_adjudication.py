@@ -2,20 +2,70 @@ from __future__ import annotations
 
 import copy
 import json
+from collections.abc import Callable
 from dataclasses import replace
 from pathlib import Path
-from typing import Any
+from typing import Any, TypeVar, cast
 
 import pytest
 from scripts import build_p4_2a_v2_heldout_adjudication_ui as ui
+from scripts import finalize_p4_2a_v2_heldout_adjudication as finalizer
 from scripts import p4_2a_v2_dev_common as common
 from scripts import prepare_p4_2a_v2_heldout as prepare
 from scripts import seal_p4_2a_v2_ai_draft as base
 from scripts import seal_p4_2a_v2_heldout_draft as heldout
 
+_TestCallable = TypeVar("_TestCallable", bound=Callable[..., object])
+_fixture: Callable[[_TestCallable], _TestCallable] = cast(
+    Callable[[_TestCallable], _TestCallable], pytest.fixture
+)
+_parametrize: Callable[..., Callable[[_TestCallable], _TestCallable]] = cast(
+    Callable[..., Callable[[_TestCallable], _TestCallable]],
+    pytest.mark.parametrize,
+)
+
+
+@_fixture
+def _unit_release_gate_isolation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The successor runner owns real release/capability integration probes."""
+
+    authority = prepare._OfflineRehearsalCapability(
+        _nonce=object(),
+        project_root=prepare.PROJECT_ROOT,
+        database=prepare.PROJECT_ROOT / "never-opened-unit-fixture.db",
+        artifact_paths=(),
+        pdf_fetcher=lambda _url, _policy: b"",
+        pdf_text_extractor=lambda _payload, _policy: cast(Any, None),
+        monotonic=lambda: 0.0,
+        sleep=lambda _seconds: None,
+        inference_settings=cast(Any, object()),
+        chat_json_fn=cast(Any, lambda *_args, **_kwargs: {}),
+        snapshot_loader=cast(Any, lambda _root: None),
+        wall_clock=cast(Any, lambda: None),
+        execution_id_factory=lambda: "00000000-0000-4000-8000-000000000001",
+        prediction_recorded_at_clock=lambda: "2026-08-10T12:30:00Z",
+        prediction_monotonic_ns_clock=lambda: 0,
+        preregistration_commit=prepare.SUCCESSOR_V2_1_PREREGISTRATION_COMMIT,
+        implementation_commit="2" * 40,
+    )
+    monkeypatch.setattr(
+        prepare,
+        "validate_v2_1_stage_authorization",
+        lambda _binding, *, stage, execution_context=None: authority,
+    )
+
+
+_ISOLATED_OWNER_CHAIN = cast(
+    Callable[[_TestCallable], _TestCallable],
+    pytest.mark.usefixtures("_unit_release_gate_isolation"),
+)
+
 
 def _sha(value: str) -> str:
-    return base.sha256_bytes(value.encode())
+    digest: str = base.sha256_bytes(value.encode())
+    return digest
 
 
 def _contract(tmp_path: Path) -> base.V2AdjudicationContract:
@@ -187,7 +237,7 @@ def _manifest(
 
 
 def _write_jsonl(path: Path, rows: list[dict[str, Any]]) -> bytes:
-    payload = base.canonical_jsonl_bytes(rows)
+    payload: bytes = base.canonical_jsonl_bytes(rows)
     path.write_bytes(payload)
     return payload
 
@@ -270,7 +320,7 @@ def test_heldout_selection_requires_40_20_and_hides_recursive_metadata(
         common.validate_blind_row(scored[0])
 
 
-@pytest.mark.parametrize(
+@_parametrize(
     "drafter_id",
     ["openai-codex gpt5", " OpenAI Codex GPT-5", "OpenAI Codex GPT-5 "],
 )
@@ -290,7 +340,8 @@ def test_heldout_drafter_identity_must_match_registered_bytes(
         )
 
 
-@pytest.mark.parametrize("tamper", ["seed", "source_lineage", "rank"])
+@_parametrize("tamper", ["seed", "source_lineage", "rank"])
+@_ISOLATED_OWNER_CHAIN
 def test_draft_gate_rederives_full_producer_chain_before_output(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -327,6 +378,7 @@ def test_draft_gate_rederives_full_producer_chain_before_output(
     assert binding.artifacts["ai_draft"].exists() is False
 
 
+@_ISOLATED_OWNER_CHAIN
 def test_ui_gate_rederives_full_producer_chain_before_owner_handoff(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -353,6 +405,7 @@ def test_ui_gate_rederives_full_producer_chain_before_owner_handoff(
     assert binding.artifacts["adjudication_ui"].exists() is False
 
 
+@_ISOLATED_OWNER_CHAIN
 def test_draft_gate_rejects_incomplete_materialization_before_owner_output(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -383,6 +436,7 @@ def test_draft_gate_rejects_incomplete_materialization_before_owner_output(
     assert binding.artifacts["ai_draft"].exists() is False
 
 
+@_ISOLATED_OWNER_CHAIN
 def test_heldout_seal_and_ui_clis_are_create_only_and_stop_before_owner_gold(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -395,6 +449,23 @@ def test_heldout_seal_and_ui_clis_are_create_only_and_stop_before_owner_gold(
     _write_jsonl(candidate_path, _candidate(blind))
     monkeypatch.setattr(heldout, "load_registered_contract", lambda _path: contract)
     monkeypatch.setattr(prepare, "load_binding", lambda _root: binding)
+    isolated_authorize = prepare.validate_v2_1_stage_authorization
+    observed_stages: list[str] = []
+
+    def record_stage(
+        active_binding: prepare.HeldoutBinding,
+        *,
+        stage: str,
+        execution_context: prepare.ExecutionContext = None,
+    ) -> prepare.V21ReleaseAuthorization | prepare._OfflineRehearsalCapability:
+        observed_stages.append(stage)
+        return isolated_authorize(
+            active_binding,
+            stage=stage,
+            execution_context=execution_context,
+        )
+
+    monkeypatch.setattr(prepare, "validate_v2_1_stage_authorization", record_stage)
 
     assert (
         heldout.main(
@@ -407,7 +478,12 @@ def test_heldout_seal_and_ui_clis_are_create_only_and_stop_before_owner_gold(
         )
         == 0
     )
+    assert observed_stages
+    assert set(observed_stages) == {"seal-draft"}
+    observed_stages.clear()
     assert ui.main([]) == 0
+    assert observed_stages
+    assert set(observed_stages) == {"build-adjudication-ui"}
     rendered = contract.artifacts["development_adjudication_html"].read_text()
     assert "Held-out 60 人工裁定" in rendered
     assert "sampling_stratum" not in rendered
@@ -451,3 +527,77 @@ def test_registered_heldout_contract_is_60_and_dev45_contract_stays_unchanged() 
     assert development.frame_id == base.FRAME_ID
     assert development.expected_count == 45
     assert development.blind_schema == base.BLIND_SCHEMA
+
+
+@_parametrize(
+    ("entrypoint", "argv", "stage"),
+    [
+        (
+            heldout.main,
+            [
+                "--candidate-draft",
+                "/must/not/be/read.jsonl",
+                "--drafted-at",
+                "2026-08-10T04:02:00Z",
+            ],
+            "seal-draft",
+        ),
+        (ui.main, [], "build-adjudication-ui"),
+    ],
+)
+def test_seal_and_ui_revalidate_release_before_heldout_input_read(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    entrypoint: Any,
+    argv: list[str],
+    stage: str,
+) -> None:
+    observed: list[str] = []
+
+    def blocked(
+        _binding: prepare.HeldoutBinding,
+        *,
+        stage: str,
+        execution_context: object = None,
+    ) -> None:
+        del execution_context
+        observed.append(stage)
+        raise prepare.HeldoutPreparationError("BLOCKED_PENDING_SUCCESSOR_V2_1_OWNER_RELEASE")
+
+    def forbidden_contract_read(*_args: object, **_kwargs: object) -> Any:
+        raise AssertionError("heldout contract/input read occurred before release gate")
+
+    monkeypatch.setattr(prepare, "validate_v2_1_stage_authorization", blocked)
+    monkeypatch.setattr(heldout, "load_registered_contract", forbidden_contract_read)
+
+    assert entrypoint(argv) == 2
+    assert observed == [stage]
+    assert "BLOCKED_PENDING_SUCCESSOR_V2_1_OWNER_RELEASE" in capsys.readouterr().err
+
+
+def test_canonical_finalize_is_fixed_rejection_before_owner_export_read(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    contract = _contract(tmp_path)
+    nonexistent_export = tmp_path / "must-not-be-read.jsonl"
+
+    with pytest.raises(
+        base.V2AdjudicationError,
+        match=finalizer.FINALIZE_AUTHORITY_ERROR,
+    ):
+        finalizer.finalize_owner_export(
+            contract=contract,
+            owner_export_path=nonexistent_export,
+            completed_at="2026-08-10T05:00:00Z",
+        )
+    assert nonexistent_export.exists() is False
+    assert finalizer.main(
+        [
+            "--owner-export",
+            str(nonexistent_export),
+            "--completed-at",
+            "2026-08-10T05:00:00Z",
+        ]
+    ) == 2
+    assert finalizer.FINALIZE_AUTHORITY_ERROR in capsys.readouterr().err

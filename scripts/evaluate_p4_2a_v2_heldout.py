@@ -3,9 +3,9 @@
 
 The command has two deliberately separate modes:
 
-* ``--dry-run`` validates every real input but substitutes structurally
-  isomorphic labels before metrics are assembled.  It never creates the
-  one-shot state or a report.
+* The read-only dry-run machinery validates every input and substitutes
+  structurally isomorphic labels, but under the current successor release it
+  is callable only by the private offline rehearsal capability.
 * ``--formal`` is unavailable without a separate independent-review
   authorization.  It claims the create-only state only after every preflight
   has passed, writes one create-only report, and always appends one terminal
@@ -20,6 +20,7 @@ import argparse
 import fcntl
 import hashlib
 import json
+import math
 import os
 import re
 import stat
@@ -76,6 +77,35 @@ COST_CORRECTION_PATH = Path(
     "docs/phase4/reports/P4.2a-cost-correction-and-P4.2b-throughput-backlog-20260810.json"
 )
 COST_CORRECTION_SHA256 = "e42eeb2342412662a84ce0304015e6f236661069b1e725f18fd8f4dfd3fd05c5"
+SUCCESSOR_PREREGISTRATION_PATH = Path(
+    "docs/phase4/reports/"
+    "P4.2a-v2-heldout-rehearsal-v2-1-preregistration-20260810.json"
+)
+SUCCESSOR_PREREGISTRATION_SHA256 = (
+    "c303cfb13a42ecbb7e0acaec04de12a9e9169b89cf9e93ea79d0f120d1439d3e"
+)
+SUCCESSOR_PREREGISTRATION_COMMIT = "b302d5889f01296568340bcc15041cc554ceb2c7"
+FRAME_AUTHORITY_PATH = Path(
+    "docs/phase4/reports/"
+    "P4.2a-rehearsal-v2-approval-and-frame-authority-ruling-20260810.json"
+)
+FRAME_AUTHORITY_SHA256 = (
+    "8605dd30dd6bffa9621b6efe5e01c4c9cead615c9639259c2e79e14fcbbc3421"
+)
+SUCCESSOR_CODE_GATE_AUTHORITY_PATH = Path(
+    "docs/phase4/reports/P4.2a-successor-v2-1-code-gate-authorization-20260810.json"
+)
+SUCCESSOR_CODE_GATE_AUTHORITY_SHA256 = (
+    "e28db692dc150983f86f6760fb1a95584d8607658e8a78a0de35cf3fc81940cd"
+)
+SUCCESSOR_REHEARSAL_BUNDLE_PATH = Path(
+    "docs/phase4/rehearsals/P4.2a-v2-calibration-v2-1/bundle.json"
+)
+SUCCESSOR_RELEASE_AUTHORIZATION_PATH = Path(
+    "docs/phase4/reports/"
+    "P4.2a-v2-heldout-rehearsal-v2-1-release-authorization-20260810.json"
+)
+MATERIALIZATION_MANIFEST_SCHEMA = "p4.2a-v2-heldout-materialization-manifest-v2"
 
 FRAME_ID = "p4.2a-heldout-frame-v2"
 MODEL = "qwen3.6-plus"
@@ -104,6 +134,7 @@ REPORT_FILENAME = "P4.2a-heldout-v2-evaluation-result.json"
 DESIGN_REF = {"path": str(DESIGN_PATH), "sha256": DESIGN_SHA256}
 
 _SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
+_GIT_COMMIT_RE = re.compile(r"^[0-9a-f]{40}$")
 _SYMBOL_RE = re.compile(r"^[0-9]{6}$")
 _EVENT_TYPES = frozenset(
     {
@@ -450,7 +481,8 @@ def _render_expected_adjudication_ui(
         raise HeldoutEvaluationError("held-out adjudication UI inputs are invalid") from exc
     if row_count != EXPECTED_COUNT:
         raise HeldoutEvaluationError("held-out adjudication UI row count drifted")
-    return rendered
+    rendered_bytes: bytes = rendered
+    return rendered_bytes
 
 
 def load_control_bundle(root: Path = PROJECT_ROOT) -> ControlBundle:
@@ -792,6 +824,320 @@ def _validate_candidate_rows(
     return tuple(normalized), by_id
 
 
+def _finite_number(value: object, label: str) -> float:
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise HeldoutEvaluationError(f"{label} must be a finite number")
+    normalized = float(value)
+    if not math.isfinite(normalized):
+        raise HeldoutEvaluationError(f"{label} must be a finite number")
+    return normalized
+
+
+def _validate_execution_authority(value: object) -> str:
+    authority = _mapping(value, "materialization.execution_authority")
+    _exact_keys(
+        authority,
+        {
+            "mode",
+            "frame_authority",
+            "successor_code_gate_authority",
+            "successor_preregistration",
+            "preregistration_commit",
+            "implementation_commit",
+            "rehearsal_bundle",
+            "release_authorization",
+        },
+        "materialization.execution_authority",
+    )
+    frame = _mapping(authority.get("frame_authority"), "execution_authority.frame_authority")
+    successor = _mapping(
+        authority.get("successor_code_gate_authority"),
+        "execution_authority.successor_code_gate_authority",
+    )
+    preregistration = _mapping(
+        authority.get("successor_preregistration"),
+        "execution_authority.successor_preregistration",
+    )
+    for reference, label in (
+        (frame, "execution_authority.frame_authority"),
+        (successor, "execution_authority.successor_code_gate_authority"),
+        (preregistration, "execution_authority.successor_preregistration"),
+    ):
+        _exact_keys(reference, {"path", "sha256"}, label)
+    if (
+        dict(frame)
+        != {"path": str(FRAME_AUTHORITY_PATH), "sha256": FRAME_AUTHORITY_SHA256}
+        or dict(successor)
+        != {
+            "path": str(SUCCESSOR_CODE_GATE_AUTHORITY_PATH),
+            "sha256": SUCCESSOR_CODE_GATE_AUTHORITY_SHA256,
+        }
+        or dict(preregistration)
+        != {
+            "path": str(SUCCESSOR_PREREGISTRATION_PATH),
+            "sha256": SUCCESSOR_PREREGISTRATION_SHA256,
+        }
+        or authority.get("preregistration_commit") != SUCCESSOR_PREREGISTRATION_COMMIT
+        or not isinstance(authority.get("implementation_commit"), str)
+        or _GIT_COMMIT_RE.fullmatch(cast(str, authority["implementation_commit"])) is None
+    ):
+        raise HeldoutEvaluationError("materialization execution authority drifted")
+
+    mode = authority.get("mode")
+    if mode == "offline_rehearsal":
+        if authority.get("rehearsal_bundle") is not None or authority.get(
+            "release_authorization"
+        ) is not None:
+            raise HeldoutEvaluationError(
+                "offline materialization authority must be nonrecursive"
+            )
+        return mode
+    if mode != "real_owner_released":
+        raise HeldoutEvaluationError("materialization execution authority mode drifted")
+
+    bundle = _mapping(authority.get("rehearsal_bundle"), "execution_authority.rehearsal_bundle")
+    release = _mapping(
+        authority.get("release_authorization"),
+        "execution_authority.release_authorization",
+    )
+    _exact_keys(bundle, {"path", "sha256", "bundle_root_sha256"}, "rehearsal bundle")
+    _exact_keys(
+        release,
+        {"path", "sha256", "receipt_creating_commit", "verdict"},
+        "release authorization",
+    )
+    if (
+        bundle.get("path") != str(SUCCESSOR_REHEARSAL_BUNDLE_PATH)
+        or not _is_sha(bundle.get("sha256"))
+        or not _is_sha(bundle.get("bundle_root_sha256"))
+        or release.get("path") != str(SUCCESSOR_RELEASE_AUTHORIZATION_PATH)
+        or not _is_sha(release.get("sha256"))
+        or not isinstance(release.get("receipt_creating_commit"), str)
+        or _GIT_COMMIT_RE.fullmatch(cast(str, release["receipt_creating_commit"])) is None
+        or release.get("verdict")
+        != "APPROVE_SUCCESSOR_V2_1_REAL_HELDOUT_PREPARATION"
+    ):
+        raise HeldoutEvaluationError("real materialization release authority drifted")
+    return mode
+
+
+def _validate_request_pacing(value: object) -> None:
+    pacing = _mapping(value, "materialization.request_pacing")
+    _exact_keys(
+        pacing,
+        {"cninfo_pdf", "akshare_ths", "sina_company_news"},
+        "materialization.request_pacing",
+    )
+    if (
+        pacing.get("akshare_ths") != "not_applicable_no_external_document_fetch"
+        or pacing.get("sina_company_news")
+        != "not_applicable_no_external_document_fetch"
+    ):
+        raise HeldoutEvaluationError("non-CNInfo request pacing evidence drifted")
+    cninfo = _mapping(pacing.get("cninfo_pdf"), "materialization.request_pacing.cninfo_pdf")
+    _exact_keys(
+        cninfo,
+        {
+            "host",
+            "policy",
+            "configured_min_start_to_start_seconds",
+            "clock",
+            "first_request_delayed",
+            "request_start_count",
+            "observed_gap_count",
+            "minimum_observed_start_to_start_seconds",
+            "median_observed_start_to_start_seconds",
+            "violation_count",
+            "retry_count",
+        },
+        "materialization.request_pacing.cninfo_pdf",
+    )
+    request_count = _nonnegative_int(cninfo.get("request_start_count"), "CNInfo request count")
+    gap_count = _nonnegative_int(cninfo.get("observed_gap_count"), "CNInfo gap count")
+    violation_count = _nonnegative_int(cninfo.get("violation_count"), "CNInfo violation count")
+    retry_count = _nonnegative_int(cninfo.get("retry_count"), "CNInfo retry count")
+    minimum = cninfo.get("minimum_observed_start_to_start_seconds")
+    median = cninfo.get("median_observed_start_to_start_seconds")
+    if gap_count == 0:
+        gap_statistics_valid = minimum is None and median is None
+    else:
+        minimum_value = _finite_number(minimum, "CNInfo minimum observed gap")
+        median_value = _finite_number(median, "CNInfo median observed gap")
+        gap_statistics_valid = (
+            minimum_value >= 1.0
+            and median_value >= minimum_value
+        )
+    if (
+        cninfo.get("host") != "static.cninfo.com.cn"
+        or cninfo.get("policy") != "minimum_start_to_start"
+        or cninfo.get("configured_min_start_to_start_seconds") != 1.0
+        or cninfo.get("clock") != "monotonic"
+        or cninfo.get("first_request_delayed") is not False
+        or request_count != EXPECTED_RAW_BY_SOURCE["cninfo"]
+        or gap_count != max(request_count - 1, 0)
+        or not gap_statistics_valid
+        or violation_count != 0
+        or retry_count != 0
+    ):
+        raise HeldoutEvaluationError("CNInfo request pacing evidence drifted")
+
+
+def _validate_runtime_start_preflight(value: object, *, authority_mode: str) -> None:
+    preflight = _mapping(value, "materialization.runtime_start_preflight")
+    if authority_mode == "offline_rehearsal":
+        _exact_keys(
+            preflight,
+            {"mode", "host_probe_performed", "reason"},
+            "offline runtime start preflight",
+        )
+        if dict(preflight) != {
+            "mode": "offline_rehearsal",
+            "host_probe_performed": False,
+            "reason": "not_applicable_offline_rehearsal",
+        }:
+            raise HeldoutEvaluationError("offline runtime start preflight drifted")
+        return
+
+    _exact_keys(
+        preflight,
+        {
+            "mode",
+            "observed_at_utc",
+            "observed_at_shanghai",
+            "backup_stamp",
+            "database_backup_launchagent",
+            "database_backup_lock",
+            "verified_backup",
+            "operator_timing_attestation",
+        },
+        "real runtime start preflight",
+    )
+    observed_utc = _aware_datetime(preflight.get("observed_at_utc"), "runtime observed_at_utc")
+    observed_shanghai = _aware_datetime(
+        preflight.get("observed_at_shanghai"), "runtime observed_at_shanghai"
+    )
+    if observed_utc.astimezone(UTC) != observed_shanghai.astimezone(UTC):
+        raise HeldoutEvaluationError("runtime start timestamps disagree")
+
+    stamp = _mapping(preflight.get("backup_stamp"), "runtime backup stamp")
+    launchagent = _mapping(
+        preflight.get("database_backup_launchagent"), "runtime launchagent"
+    )
+    lock = _mapping(preflight.get("database_backup_lock"), "runtime backup lock")
+    backup = _mapping(preflight.get("verified_backup"), "runtime verified backup")
+    attestation = _mapping(
+        preflight.get("operator_timing_attestation"), "runtime operator attestation"
+    )
+    _exact_keys(
+        stamp,
+        {"path", "expected_shanghai_date", "observed_value", "regular_file", "symlink", "mode"},
+        "runtime backup stamp",
+    )
+    _exact_keys(
+        launchagent,
+        {"label", "target", "loaded", "state", "last_exit_code"},
+        "runtime launchagent",
+    )
+    _exact_keys(
+        lock,
+        {"path", "nonblocking_exclusive_flock_acquired", "held"},
+        "runtime backup lock",
+    )
+    _exact_keys(
+        backup,
+        {
+            "manifest_path",
+            "manifest_sha256",
+            "backup_path",
+            "backup_sha256",
+            "created_at_utc",
+            "created_at_shanghai",
+            "quick_check",
+            "verify_database_backup_passed",
+        },
+        "runtime verified backup",
+    )
+    _exact_keys(
+        attestation,
+        {
+            "observed_start_cst",
+            "attester_identity",
+            "explicitly_supplied",
+            "input_channel",
+            "cninfo_midnight_batch_assessment",
+            "p4_1_dense_poll_slot_assessment",
+            "decision",
+            "automatic_blackout_verification",
+            "authority_path",
+            "authority_sha256",
+        },
+        "runtime operator attestation",
+    )
+    expected_date = observed_shanghai.date().isoformat()
+    backup_created_utc = _aware_datetime(
+        backup.get("created_at_utc"), "verified backup created_at_utc"
+    )
+    backup_created_shanghai = _aware_datetime(
+        backup.get("created_at_shanghai"), "verified backup created_at_shanghai"
+    )
+    operator_start = _aware_datetime(
+        attestation.get("observed_start_cst"), "operator observed_start_cst"
+    )
+    attester = attestation.get("attester_identity")
+    if (
+        preflight.get("mode") != "real"
+        or stamp.get("expected_shanghai_date") != expected_date
+        or stamp.get("observed_value") != expected_date
+        or stamp.get("regular_file") is not True
+        or stamp.get("symlink") is not False
+        or stamp.get("mode") != "0600"
+        or launchagent.get("label") != "com.alphapilot.database-backup"
+        or launchagent.get("loaded") is not True
+        or launchagent.get("state") != "not running"
+        or launchagent.get("last_exit_code") != 0
+        or lock.get("nonblocking_exclusive_flock_acquired") is not True
+        or lock.get("held") is not False
+        or not _is_sha(backup.get("manifest_sha256"))
+        or not _is_sha(backup.get("backup_sha256"))
+        or backup_created_utc.astimezone(UTC) != backup_created_shanghai.astimezone(UTC)
+        or backup_created_shanghai.date().isoformat() != expected_date
+        or backup_created_shanghai.hour < 22
+        or backup.get("quick_check") != "ok"
+        or backup.get("verify_database_backup_passed") is not True
+        or operator_start.astimezone(UTC) != observed_utc.astimezone(UTC)
+        or not isinstance(attester, str)
+        or not attester.strip()
+        or attestation.get("explicitly_supplied") is not True
+        or attestation.get("input_channel")
+        != "required_real_CLI_flags_or_required_typed_run_materialize_argument_no_default"
+        or attestation.get("cninfo_midnight_batch_assessment") != "clear_for_start"
+        or attestation.get("p4_1_dense_poll_slot_assessment") != "clear_for_start"
+        or attestation.get("decision")
+        != "launched_outside_owner_identified_CNInfo_midnight_and_dense_P4_1_slots"
+        or attestation.get("automatic_blackout_verification") is not False
+        or attestation.get("authority_path") != str(SUCCESSOR_CODE_GATE_AUTHORITY_PATH)
+        or attestation.get("authority_sha256") != SUCCESSOR_CODE_GATE_AUTHORITY_SHA256
+    ):
+        raise HeldoutEvaluationError("real runtime start preflight drifted")
+    for field, expected_name in (
+        (stamp.get("path"), "last-success-shanghai-date"),
+        (lock.get("path"), ".daily-backup.lock"),
+    ):
+        if not isinstance(field, str) or Path(field).name != expected_name:
+            raise HeldoutEvaluationError("runtime backup path evidence drifted")
+    target = launchagent.get("target")
+    if (
+        not isinstance(target, str)
+        or not target.startswith("gui/")
+        or not target.endswith("/com.alphapilot.database-backup")
+        or any(
+            not isinstance(backup.get(field), str) or not cast(str, backup[field])
+            for field in ("manifest_path", "backup_path")
+        )
+    ):
+        raise HeldoutEvaluationError("runtime backup evidence drifted")
+
+
 def _validate_materialization_manifest(
     manifest: JsonObject,
     candidates: Sequence[JsonObject],
@@ -800,59 +1146,8 @@ def _validate_materialization_manifest(
     root: Path,
     paths: ArtifactPaths,
     inputs_payload: bytes,
-    allow_synthetic_rehearsal: bool = False,
     control_root: Path = PROJECT_ROOT,
 ) -> None:
-    if manifest.get("synthetic_rehearsal") is True:
-        if not allow_synthetic_rehearsal:
-            raise HeldoutEvaluationError(
-                "synthetic materialization cannot enter the production evaluator"
-            )
-        _exact_keys(
-            manifest,
-            {
-                "schema_version",
-                "frame_id",
-                "synthetic_rehearsal",
-                "lineage",
-                "artifacts",
-                "counts",
-                "production_database",
-            },
-            "synthetic materialization manifest",
-        )
-        synthetic_artifacts = _mapping(
-            manifest.get("artifacts"), "synthetic materialization artifacts"
-        )
-        if (
-            manifest.get("schema_version")
-            != "p4.2a-v2-heldout-materialization-manifest-v1"
-            or manifest.get("frame_id") != FRAME_ID
-            or manifest.get("lineage")
-            != {
-                "preregistration_sha256": PREREGISTRATION_SHA256,
-                "design_sha256": DESIGN_SHA256,
-                "heldout_contract_sha256": HELDOUT_CONTRACT_SHA256,
-            }
-            or synthetic_artifacts
-            != {
-                "eligible_inputs_jsonl": {
-                    "path": _registered_path(root, paths.materialized_inputs),
-                    "sha256": _sha256_bytes(inputs_payload),
-                    "create_only": True,
-                }
-            }
-            or manifest.get("counts")
-            != {
-                "all_candidates": len(candidates),
-                "eligible_candidates": len(candidates),
-                "ineligible_candidates": 0,
-            }
-            or manifest.get("production_database")
-            != {"opened": False, "reads": 0, "writes": 0}
-        ):
-            raise HeldoutEvaluationError("synthetic materialization manifest drifted")
-        return
     _exact_keys(
         manifest,
         {
@@ -863,8 +1158,16 @@ def _validate_materialization_manifest(
             "counts",
             "layers",
             "production_database",
+            "execution_authority",
+            "request_pacing",
+            "runtime_start_preflight",
         },
         "materialization manifest",
+    )
+    authority_mode = _validate_execution_authority(manifest.get("execution_authority"))
+    _validate_request_pacing(manifest.get("request_pacing"))
+    _validate_runtime_start_preflight(
+        manifest.get("runtime_start_preflight"), authority_mode=authority_mode
     )
     lineage = _mapping(manifest.get("lineage"), "materialization.lineage")
     _exact_keys(
@@ -929,7 +1232,7 @@ def _validate_materialization_manifest(
         "materialization.production_database.writes",
     )
     if (
-        manifest.get("schema_version") != "p4.2a-v2-heldout-materialization-manifest-v1"
+        manifest.get("schema_version") != MATERIALIZATION_MANIFEST_SCHEMA
         or manifest.get("frame_id") != FRAME_ID
         or lineage.get("preregistration")
         != {"path": str(PREREGISTRATION_PATH), "sha256": PREREGISTRATION_SHA256}
@@ -2001,9 +2304,53 @@ def load_preflight(
     root: Path = PROJECT_ROOT,
     paths: ArtifactPaths | None = None,
     require_unclaimed_state: bool = True,
+    execution_context: heldout_prepare._OfflineRehearsalCapability | None = None,
 ) -> Preflight:
+    try:
+        authority_binding = heldout_prepare.load_binding(root)
+        stage_authority = heldout_prepare.validate_v2_1_stage_authorization(
+            authority_binding,
+            stage="evaluation",
+            execution_context=execution_context,
+        )
+    except heldout_prepare.HeldoutPreparationError as exc:
+        raise HeldoutEvaluationError(
+            f"held-out evaluation remains authority-gated: {exc}"
+        ) from exc
     controls = load_control_bundle(root)
     resolved_paths = paths or registered_artifact_paths(root, controls.design)
+    if isinstance(
+        stage_authority,
+        (
+            heldout_prepare.V21ReleaseAuthorization,
+            heldout_prepare._OfflineRehearsalCapability,
+        ),
+    ):
+        expected_paths = {
+            "materialized_inputs": authority_binding.artifacts["materialized_inputs"],
+            "materialization_manifest": authority_binding.artifacts[
+                "materialization_manifest"
+            ],
+            "inference_state": authority_binding.artifacts["inference_state"],
+            "predictions": authority_binding.artifacts["predictions"],
+            "prediction_manifest": authority_binding.artifacts["prediction_manifest"],
+            "selection": authority_binding.artifacts["private_selection"],
+            "blind": authority_binding.artifacts["owner_blind"],
+            "draft": authority_binding.artifacts["ai_draft"],
+            "adjudication_ui": authority_binding.artifacts["adjudication_ui"],
+            "owner_export": authority_binding.artifacts["owner_export"],
+            "human_adjudicated": authority_binding.artifacts["human_adjudicated"],
+            "owner_completion": authority_binding.artifacts["owner_completion"],
+            "evaluation_state": authority_binding.artifacts["evaluation_state"],
+            "report": authority_binding.artifacts["report_directory"] / REPORT_FILENAME,
+        }
+        if any(
+            cast(Path, getattr(resolved_paths, name)).resolve() != expected.resolve()
+            for name, expected in expected_paths.items()
+        ):
+            raise HeldoutEvaluationError(
+                "held-out evaluator inputs are not the registered successor artifacts"
+            )
     declared_artifact_root = resolved_paths.artifact_root or root
     if declared_artifact_root.is_symlink() or not declared_artifact_root.is_dir():
         raise HeldoutEvaluationError("declared held-out artifact root is unavailable")
@@ -2078,6 +2425,25 @@ def load_preflight(
         retired_ids=controls.retired_ids,
         active_contract=active_contract,
     )
+    if (
+        resolved_paths.materialized_inputs.resolve()
+        == authority_binding.artifacts["materialized_inputs"].resolve()
+        and resolved_paths.materialization_manifest.resolve()
+        == authority_binding.artifacts["materialization_manifest"].resolve()
+    ):
+        try:
+            heldout_prepare.validate_v2_1_materialization_manifest(
+                authority_binding,
+                materialization_manifest,
+                candidates,
+                inputs_sha256=_sha256_bytes(materialized_inputs_payload),
+                validated_stage="evaluation",
+                execution_context=execution_context,
+            )
+        except heldout_prepare.HeldoutPreparationError as exc:
+            raise HeldoutEvaluationError(
+                f"materialization manifest v2 producer validation failed: {exc}"
+            ) from exc
     _validate_materialization_manifest(
         materialization_manifest,
         candidates,
@@ -2085,7 +2451,6 @@ def load_preflight(
         root=artifact_root,
         paths=resolved_paths,
         inputs_payload=materialized_inputs_payload,
-        allow_synthetic_rehearsal=root.resolve() != PROJECT_ROOT.resolve(),
         control_root=root.resolve(),
     )
     predictions_by_id, strata, stratum_counts = _validate_prediction_rows(predictions, candidates)
@@ -2432,10 +2797,15 @@ def dry_run(
     root: Path = PROJECT_ROOT,
     paths: ArtifactPaths | None = None,
     clock: Callable[[], datetime] = lambda: datetime.now(UTC),
+    execution_context: heldout_prepare._OfflineRehearsalCapability | None = None,
 ) -> JsonObject:
     """Validate the real chain, then exercise metrics/report only on synthetic data."""
 
-    preflight = load_preflight(root=root, paths=paths)
+    preflight = load_preflight(
+        root=root,
+        paths=paths,
+        execution_context=execution_context,
+    )
     before = {
         path: _sha256_file(path)
         for path in (

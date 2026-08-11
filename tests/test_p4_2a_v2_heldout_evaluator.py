@@ -8,7 +8,7 @@ import stat
 from collections.abc import Callable, Mapping
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, cast
+from typing import Any, TypeVar, cast
 
 import pytest
 from scripts import evaluate_p4_2a_v2_heldout as evaluator
@@ -17,6 +17,33 @@ from scripts import prepare_p4_2a_v2_heldout as heldout_prepare
 
 JsonObject = dict[str, Any]
 Tamper = Callable[[Any], None]
+_TestCallable = TypeVar("_TestCallable", bound=Callable[..., object])
+_fixture: Callable[[_TestCallable], _TestCallable] = cast(
+    Callable[[_TestCallable], _TestCallable], pytest.fixture
+)
+_parametrize: Callable[..., Callable[[_TestCallable], _TestCallable]] = cast(
+    Callable[..., Callable[[_TestCallable], _TestCallable]],
+    pytest.mark.parametrize,
+)
+
+
+@_fixture
+def _unit_release_gate_isolation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """These fixtures exercise consumers; the successor runner probes the real gate."""
+
+    monkeypatch.setattr(
+        heldout_prepare,
+        "validate_v2_1_stage_authorization",
+        lambda _binding, *, stage, execution_context=None: execution_context or stage,
+    )
+
+
+_ISOLATED_CONSUMER = cast(
+    Callable[[_TestCallable], _TestCallable],
+    pytest.mark.usefixtures("_unit_release_gate_isolation"),
+)
 
 
 def _sha(value: str) -> str:
@@ -201,7 +228,8 @@ def _fixture_bundle(tmp_path: Path) -> evaluator.ArtifactPaths:
     }
 
     def relative(path: Path) -> str:
-        return evaluator._registered_path(tmp_path, path)
+        registered_path: str = evaluator._registered_path(tmp_path, path)
+        return registered_path
 
     prereg_eligibility = cast(
         Mapping[str, Any], controls.preregistration["eligibility_and_sampling"]
@@ -260,7 +288,7 @@ def _fixture_bundle(tmp_path: Path) -> evaluator.ArtifactPaths:
         for identifier, source in ineligible_id_sources
     ]
     materialization_manifest: JsonObject = {
-        "schema_version": "p4.2a-v2-heldout-materialization-manifest-v1",
+        "schema_version": evaluator.MATERIALIZATION_MANIFEST_SCHEMA,
         "frame_id": evaluator.FRAME_ID,
         "lineage": {
             "preregistration": {
@@ -307,6 +335,47 @@ def _fixture_bundle(tmp_path: Path) -> evaluator.ArtifactPaths:
             "ineligible_candidates": ineligible_layer,
         },
         "production_database": {"mode": "ro", "pragma_query_only": 1, "writes": 0},
+        "execution_authority": {
+            "mode": "offline_rehearsal",
+            "frame_authority": {
+                "path": str(evaluator.FRAME_AUTHORITY_PATH),
+                "sha256": evaluator.FRAME_AUTHORITY_SHA256,
+            },
+            "successor_code_gate_authority": {
+                "path": str(evaluator.SUCCESSOR_CODE_GATE_AUTHORITY_PATH),
+                "sha256": evaluator.SUCCESSOR_CODE_GATE_AUTHORITY_SHA256,
+            },
+            "successor_preregistration": {
+                "path": str(evaluator.SUCCESSOR_PREREGISTRATION_PATH),
+                "sha256": evaluator.SUCCESSOR_PREREGISTRATION_SHA256,
+            },
+            "preregistration_commit": evaluator.SUCCESSOR_PREREGISTRATION_COMMIT,
+            "implementation_commit": "1" * 40,
+            "rehearsal_bundle": None,
+            "release_authorization": None,
+        },
+        "request_pacing": {
+            "cninfo_pdf": {
+                "host": "static.cninfo.com.cn",
+                "policy": "minimum_start_to_start",
+                "configured_min_start_to_start_seconds": 1.0,
+                "clock": "monotonic",
+                "first_request_delayed": False,
+                "request_start_count": evaluator.EXPECTED_RAW_BY_SOURCE["cninfo"],
+                "observed_gap_count": evaluator.EXPECTED_RAW_BY_SOURCE["cninfo"] - 1,
+                "minimum_observed_start_to_start_seconds": 1.0,
+                "median_observed_start_to_start_seconds": 1.0,
+                "violation_count": 0,
+                "retry_count": 0,
+            },
+            "akshare_ths": "not_applicable_no_external_document_fetch",
+            "sina_company_news": "not_applicable_no_external_document_fetch",
+        },
+        "runtime_start_preflight": {
+            "mode": "offline_rehearsal",
+            "host_probe_performed": False,
+            "reason": "not_applicable_offline_rehearsal",
+        },
     }
     payloads["materialization_manifest"] = _write_json(
         paths.materialization_manifest, materialization_manifest
@@ -797,6 +866,7 @@ def test_control_bundle_binds_every_frozen_control_and_source_lineage_file() -> 
     assert len(controls.retired_ids) == 40
 
 
+@_ISOLATED_CONSUMER
 def test_dry_run_validates_full_real_chain_but_scores_only_synthetic(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -816,7 +886,7 @@ def test_dry_run_validates_full_real_chain_but_scores_only_synthetic(
         paths.owner_completion,
     )
     before = {path: path.read_bytes() for path in input_paths}
-    original = evaluator.score_heldout
+    original = cast(Callable[..., JsonObject], evaluator.score_heldout)
     observed: dict[str, bool] = {}
 
     def synthetic_only(*args: Any, **kwargs: Any) -> JsonObject:
@@ -839,6 +909,7 @@ def test_dry_run_validates_full_real_chain_but_scores_only_synthetic(
     assert before == {path: path.read_bytes() for path in before}
 
 
+@_ISOLATED_CONSUMER
 def test_score_uses_registered_40_positive_and_20_negative_partitions(
     tmp_path: Path,
 ) -> None:
@@ -854,7 +925,7 @@ def test_score_uses_registered_40_positive_and_20_negative_partitions(
     assert score["symbol_exact_set_accuracy"]["passed"] is True
 
 
-@pytest.mark.parametrize(
+@_parametrize(
     ("artifact", "tamper", "match"),
     [
         (
@@ -951,6 +1022,7 @@ def test_score_uses_registered_40_positive_and_20_negative_partitions(
         ),
     ],
 )
+@_ISOLATED_CONSUMER
 def test_jsonl_tamper_classes_fail_closed(
     tmp_path: Path, artifact: str, tamper: Tamper, match: str
 ) -> None:
@@ -962,7 +1034,7 @@ def test_jsonl_tamper_classes_fail_closed(
         evaluator.load_preflight(paths=paths)
 
 
-@pytest.mark.parametrize(
+@_parametrize(
     "recorded_times",
     [
         ("2026-08-10T03:59:59Z", "2026-08-10T04:05:00Z"),
@@ -970,6 +1042,7 @@ def test_jsonl_tamper_classes_fail_closed(
         ("2026-08-10T04:05:00Z", "2026-08-10T04:11:00Z"),
     ],
 )
+@_ISOLATED_CONSUMER
 def test_prediction_recorded_times_must_close_inside_ordered_inference_window(
     tmp_path: Path,
     recorded_times: tuple[str, str],
@@ -983,6 +1056,7 @@ def test_prediction_recorded_times_must_close_inside_ordered_inference_window(
         evaluator.load_preflight(paths=paths)
 
 
+@_ISOLATED_CONSUMER
 def test_materialization_rejects_coherent_eligible_identity_relink(
     tmp_path: Path,
 ) -> None:
@@ -1009,10 +1083,11 @@ def test_materialization_rejects_coherent_eligible_identity_relink(
         evaluator.load_preflight(paths=paths)
 
 
-@pytest.mark.parametrize(
+@_parametrize(
     "available_time",
     ["2026-08-05T15:59:59Z", "2026-08-08T16:00:00Z"],
 )
+@_ISOLATED_CONSUMER
 def test_materialization_rejects_candidate_outside_frozen_source_window(
     tmp_path: Path,
     available_time: str,
@@ -1026,6 +1101,7 @@ def test_materialization_rejects_candidate_outside_frozen_source_window(
         evaluator.load_preflight(paths=paths)
 
 
+@_ISOLATED_CONSUMER
 def test_materialization_rejects_coherent_raw_source_composition_tamper(
     tmp_path: Path,
 ) -> None:
@@ -1050,6 +1126,73 @@ def test_materialization_rejects_coherent_raw_source_composition_tamper(
         evaluator.load_preflight(paths=paths)
 
 
+@_ISOLATED_CONSUMER
+def test_materialization_manifest_v1_is_rejected_by_v2_consumer(tmp_path: Path) -> None:
+    paths = _fixture_bundle(tmp_path)
+    manifest = _read_json(paths.materialization_manifest)
+    manifest["schema_version"] = "p4.2a-v2-heldout-materialization-manifest-v1"
+    _write_json(paths.materialization_manifest, manifest)
+
+    with pytest.raises(
+        evaluator.HeldoutEvaluationError,
+        match="materialization header/control binding drifted",
+    ):
+        evaluator.load_preflight(paths=paths)
+
+
+@_parametrize(
+    ("section", "tamper", "match"),
+    [
+        (
+            "execution_authority",
+            lambda value: value.__setitem__("release_authorization", {}),
+            "nonrecursive",
+        ),
+        (
+            "request_pacing",
+            lambda value: cast(dict[str, Any], value["cninfo_pdf"]).__setitem__(
+                "minimum_observed_start_to_start_seconds", 0.999
+            ),
+            "request pacing evidence drifted",
+        ),
+        (
+            "runtime_start_preflight",
+            lambda value: value.__setitem__("host_probe_performed", True),
+            "offline runtime start preflight drifted",
+        ),
+    ],
+)
+@_ISOLATED_CONSUMER
+def test_materialization_manifest_v2_new_sections_fail_closed(
+    tmp_path: Path,
+    section: str,
+    tamper: Tamper,
+    match: str,
+) -> None:
+    paths = _fixture_bundle(tmp_path)
+    manifest = _read_json(paths.materialization_manifest)
+    tamper(cast(dict[str, Any], manifest[section]))
+    _write_json(paths.materialization_manifest, manifest)
+
+    with pytest.raises(evaluator.HeldoutEvaluationError, match=match):
+        evaluator.load_preflight(paths=paths)
+
+
+def test_evaluation_stage_gate_runs_before_any_heldout_input_read(
+    tmp_path: Path,
+) -> None:
+    paths = _artifact_paths(tmp_path / "must-not-be-read")
+
+    with pytest.raises(
+        evaluator.HeldoutEvaluationError,
+        match="held-out evaluation remains authority-gated: held-out evaluation remains locked",
+    ):
+        evaluator.load_preflight(paths=paths)
+    assert paths.artifact_root is not None
+    assert paths.artifact_root.exists() is False
+
+
+@_ISOLATED_CONSUMER
 def test_candidate_contract_hash_recomputation_rejects_coherent_artifact_relink(
     tmp_path: Path,
 ) -> None:
@@ -1081,6 +1224,7 @@ def test_candidate_contract_hash_recomputation_rejects_coherent_artifact_relink(
         evaluator.load_preflight(paths=paths)
 
 
+@_ISOLATED_CONSUMER
 def test_inference_must_start_after_preregistration_and_source_window(
     tmp_path: Path,
 ) -> None:
@@ -1096,6 +1240,7 @@ def test_inference_must_start_after_preregistration_and_source_window(
         evaluator.load_preflight(paths=paths)
 
 
+@_ISOLATED_CONSUMER
 def test_boolean_readonly_integer_evidence_fails_closed(tmp_path: Path) -> None:
     paths = _fixture_bundle(tmp_path)
     states = _read_jsonl(paths.inference_state)
@@ -1114,7 +1259,7 @@ def test_boolean_readonly_integer_evidence_fails_closed(tmp_path: Path) -> None:
         evaluator.load_preflight(paths=paths)
 
 
-@pytest.mark.parametrize(
+@_parametrize(
     ("artifact", "tamper", "match"),
     [
         (
@@ -1204,6 +1349,7 @@ def test_boolean_readonly_integer_evidence_fails_closed(tmp_path: Path) -> None:
         ),
     ],
 )
+@_ISOLATED_CONSUMER
 def test_json_manifest_tamper_classes_fail_closed(
     tmp_path: Path, artifact: str, tamper: Tamper, match: str
 ) -> None:
@@ -1213,6 +1359,7 @@ def test_json_manifest_tamper_classes_fail_closed(
         evaluator.load_preflight(paths=paths)
 
 
+@_ISOLATED_CONSUMER
 def test_adjudication_ui_bytes_are_bound_by_completion(tmp_path: Path) -> None:
     paths = _fixture_bundle(tmp_path)
     paths.adjudication_ui.write_text("tampered UI")
@@ -1220,6 +1367,7 @@ def test_adjudication_ui_bytes_are_bound_by_completion(tmp_path: Path) -> None:
         evaluator.load_preflight(paths=paths)
 
 
+@_ISOLATED_CONSUMER
 def test_adjudication_ui_is_rerendered_instead_of_trusting_completion_hash(
     tmp_path: Path,
 ) -> None:
@@ -1239,6 +1387,7 @@ def test_adjudication_ui_is_rerendered_instead_of_trusting_completion_hash(
         evaluator.load_preflight(paths=paths)
 
 
+@_ISOLATED_CONSUMER
 def test_coherently_rebound_draft_must_not_precede_inference_completion(
     tmp_path: Path,
 ) -> None:
@@ -1293,6 +1442,7 @@ def test_coherently_rebound_draft_must_not_precede_inference_completion(
         evaluator.load_preflight(paths=paths)
 
 
+@_ISOLATED_CONSUMER
 def test_adjudication_timestamps_may_follow_owner_navigation_order(tmp_path: Path) -> None:
     paths = _fixture_bundle(tmp_path)
     owner = _read_jsonl(paths.owner_export)
@@ -1326,6 +1476,7 @@ def test_adjudication_timestamps_may_follow_owner_navigation_order(tmp_path: Pat
     assert len(preflight.human) == evaluator.EXPECTED_COUNT
 
 
+@_ISOLATED_CONSUMER
 def test_declared_artifact_root_rejects_path_escape(tmp_path: Path) -> None:
     paths = _fixture_bundle(tmp_path)
     escaped = evaluator.ArtifactPaths(
@@ -1349,6 +1500,7 @@ def test_declared_artifact_root_rejects_path_escape(tmp_path: Path) -> None:
         evaluator.load_preflight(paths=escaped)
 
 
+@_ISOLATED_CONSUMER
 def test_authorization_requires_distinct_identity_current_hashes_and_receipt(
     tmp_path: Path,
 ) -> None:
@@ -1391,7 +1543,7 @@ def test_authorization_requires_distinct_identity_current_hashes_and_receipt(
     assert not paths.evaluation_state.exists()
 
 
-@pytest.mark.parametrize(
+@_parametrize(
     ("field", "value"),
     [
         ("reviewer_type", "human"),
@@ -1399,6 +1551,7 @@ def test_authorization_requires_distinct_identity_current_hashes_and_receipt(
         ("reviewer_model", "claude-other"),
     ],
 )
+@_ISOLATED_CONSUMER
 def test_authorization_requires_exact_registered_reviewer_object(
     tmp_path: Path,
     field: str,
@@ -1420,6 +1573,7 @@ def test_authorization_requires_exact_registered_reviewer_object(
     assert not paths.evaluation_state.exists()
 
 
+@_ISOLATED_CONSUMER
 def test_authorization_integer_booleans_fail_closed(tmp_path: Path) -> None:
     paths = _fixture_bundle(tmp_path)
     review, _digest_before, receipt = _authorization(tmp_path, paths)
@@ -1470,6 +1624,7 @@ def test_authorization_integer_booleans_fail_closed(tmp_path: Path) -> None:
     assert not paths.evaluation_state.exists()
 
 
+@_ISOLATED_CONSUMER
 def test_authorization_schema_rejects_arbitrary_secret_fields(tmp_path: Path) -> None:
     paths = _fixture_bundle(tmp_path)
     review, _digest_before, _receipt = _authorization(tmp_path, paths)
@@ -1486,6 +1641,7 @@ def test_authorization_schema_rejects_arbitrary_secret_fields(tmp_path: Path) ->
     assert not paths.evaluation_state.exists()
 
 
+@_ISOLATED_CONSUMER
 def test_formal_claims_once_reports_safe_authorization_projection_and_terminalizes(
     tmp_path: Path,
 ) -> None:
@@ -1535,6 +1691,7 @@ def test_formal_claims_once_reports_safe_authorization_projection_and_terminaliz
         )
 
 
+@_ISOLATED_CONSUMER
 def test_formal_preflight_failure_does_not_claim_state(tmp_path: Path) -> None:
     paths = _fixture_bundle(tmp_path)
     review, digest, _receipt = _authorization(tmp_path, paths)
@@ -1550,6 +1707,7 @@ def test_formal_preflight_failure_does_not_claim_state(tmp_path: Path) -> None:
     assert not paths.report.exists()
 
 
+@_ISOLATED_CONSUMER
 def test_formal_start_must_follow_owner_completion_without_claiming_state(
     tmp_path: Path,
 ) -> None:
@@ -1570,6 +1728,7 @@ def test_formal_start_must_follow_owner_completion_without_claiming_state(
     assert not paths.report.exists()
 
 
+@_ISOLATED_CONSUMER
 def test_failure_after_claim_appends_safe_terminal_and_never_retries(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

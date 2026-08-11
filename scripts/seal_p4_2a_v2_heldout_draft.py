@@ -76,6 +76,68 @@ def _mapping(value: object, *, label: str) -> Mapping[str, Any]:
     return value
 
 
+def validate_stage_authority(
+    project_root: Path,
+    *,
+    stage: str,
+    execution_context: prepare._OfflineRehearsalCapability | None = None,
+) -> prepare.HeldoutBinding:
+    """Revalidate the successor authority before any held-out input is read."""
+
+    try:
+        binding = prepare.load_binding(project_root)
+        prepare.validate_v2_1_stage_authorization(
+            binding,
+            stage=stage,
+            execution_context=execution_context,
+        )
+        return binding
+    except prepare.HeldoutPreparationError as exc:
+        raise base.V2AdjudicationError(
+            f"heldout {stage} remains authority-gated: {exc}"
+        ) from exc
+
+
+def prevalidate_stage_authority(
+    project_root: Path,
+    *,
+    stage: str,
+    execution_context: prepare._OfflineRehearsalCapability | None = None,
+    prevalidated_authority: prepare._PrevalidatedStageAuthority | None = None,
+    validated_stage: str | None = None,
+) -> tuple[prepare.HeldoutBinding, prepare._PrevalidatedStageAuthority]:
+    """Mint once at stage entry or consume the same identity-bound stage token."""
+
+    try:
+        binding = prepare.load_binding(project_root)
+        if prevalidated_authority is None:
+            if validated_stage is not None:
+                raise prepare.HeldoutPreparationError(
+                    "validated_stage requires prevalidated authority"
+                )
+            delegated = prepare._prevalidate_v2_1_stage_authorization(
+                binding,
+                stage=stage,
+                execution_context=execution_context,
+            )
+        else:
+            if execution_context is not None or validated_stage != stage:
+                raise prepare.HeldoutPreparationError(
+                    "prevalidated consumer authority is ambiguous or cross-stage"
+                )
+            prepare._consume_prevalidated_v2_1_stage_authorization(
+                binding,
+                prevalidated_authority,
+                validated_stage,
+            )
+            delegated = prevalidated_authority
+        return binding, delegated
+    except prepare.HeldoutPreparationError as exc:
+        raise base.V2AdjudicationError(
+            f"heldout {stage} remains authority-gated: {exc}"
+        ) from exc
+
+
 def _verify_preregistration(project_root: Path, design_sha256: str) -> None:
     path = (project_root / PREREGISTRATION_RELATIVE_PATH).resolve()
     preregistration, payload = base.read_json_object(path, label="heldout preregistration")
@@ -308,6 +370,10 @@ def read_bound_blind_bundle(
     blind_path: Path,
     *,
     contract: base.V2AdjudicationContract,
+    execution_context: prepare._OfflineRehearsalCapability | None = None,
+    stage: str = "seal-draft",
+    prevalidated_authority: prepare._PrevalidatedStageAuthority | None = None,
+    validated_stage: str | None = None,
 ) -> tuple[list[dict[str, Any]], bytes, bytes, str]:
     """Re-derive and bind the complete producer chain before owner access.
 
@@ -318,7 +384,13 @@ def read_bound_blind_bundle(
     """
 
     try:
-        binding = prepare.load_binding(contract.project_root)
+        binding, delegated = prevalidate_stage_authority(
+            contract.project_root,
+            stage=stage,
+            execution_context=execution_context,
+            prevalidated_authority=prevalidated_authority,
+            validated_stage=validated_stage,
+        )
         if binding.root != contract.project_root.resolve():
             raise prepare.HeldoutPreparationError("producer project root drifted")
         expected_paths = {
@@ -348,7 +420,11 @@ def read_bound_blind_bundle(
             binding.artifacts["predictions"], "held-out predictions"
         )
         execution = prepare._selection_execution_binding_from_artifacts(
-            binding, candidates, predictions
+            binding,
+            candidates,
+            predictions,
+            prevalidated_authority=delegated,
+            validated_stage=stage,
         )
         recomputed = prepare.select_and_blind(
             binding,
@@ -443,13 +519,14 @@ def seal_candidate_rows(
             raise base.V2AdjudicationError(
                 "heldout draft timestamp precedes completed candidate inference"
             )
-    return base.seal_candidate_rows(
+    sealed: list[dict[str, Any]] = base.seal_candidate_rows(
         blind_rows,
         candidate_rows,
         contract=contract,
         drafter_id=drafter,
         drafted_at=drafted_at,
     )
+    return sealed
 
 
 def validate_draft_timeline(
@@ -489,6 +566,10 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--evaluation-design", type=Path, default=EVALUATION_DESIGN_V2_PATH)
     arguments = parser.parse_args(argv)
     try:
+        _binding, stage_authority = prevalidate_stage_authority(
+            PROJECT_ROOT,
+            stage="seal-draft",
+        )
         contract = load_registered_contract(arguments.evaluation_design)
         selection_path = base._bound_input(
             arguments.selection_manifest
@@ -511,7 +592,12 @@ def main(argv: Sequence[str] | None = None) -> int:
             raise base.V2AdjudicationError("candidate draft must not be a symlink")
         candidate_path = candidate_path.resolve()
         blind_rows, _, _, inference_completed_at = read_bound_blind_bundle(
-            selection_path, blind_path, contract=contract
+            selection_path,
+            blind_path,
+            contract=contract,
+            stage="seal-draft",
+            prevalidated_authority=stage_authority,
+            validated_stage="seal-draft",
         )
         candidate_rows, _ = base.read_jsonl(candidate_path, label="heldout candidate draft")
         sealed = seal_candidate_rows(
