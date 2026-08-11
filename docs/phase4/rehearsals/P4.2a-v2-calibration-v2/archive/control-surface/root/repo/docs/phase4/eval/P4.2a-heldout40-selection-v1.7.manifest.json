@@ -1,0 +1,507 @@
+{
+  "annotation_contract": {
+    "path": "config/p4_event_extract_eval_v1.yaml",
+    "sha256": "b3eb24c63816043edf0ef728d8d9778cd9083d720649d6fff3ae6289bba74300"
+  },
+  "candidate_inputs": {
+    "cninfo_bodies_frozen_before_prediction": true,
+    "count": 3013,
+    "path": "docs/phase4/eval/P4.2a-heldout-materialization-v1.7/candidate-inputs.jsonl",
+    "sha256": "e550435b77c4525fb05717cf6d1c313448b9b7323b2e496f0450484a3a980f88"
+  },
+  "candidate_predictions": {
+    "attempted_count": 3013,
+    "failure_count": 22,
+    "manifest_path": "docs/phase4/eval/P4.2a-heldout-candidate-predictions-v1.7.manifest.json",
+    "manifest_sha256": "c1c37af1e6ab310f9f263fb04370f5515c491b826a54babdbe4eab721a288d7a",
+    "path": "docs/phase4/eval/P4.2a-heldout-candidate-predictions-v1.7.jsonl",
+    "sha256": "b77429b16e92ddd74895915c5c628026f8a426a54f2bf006c59606c4c18bcc84",
+    "success_count": 2991
+  },
+  "created_at_utc": "2026-08-06T10:30:11.395258Z",
+  "design": {
+    "path": "config/p4_event_evaluation_v1_7.yaml",
+    "schema_version": "p4.2a-evaluation-design-v1.7",
+    "sha256": "4c7964ad547820f5672631939af93978f11cb9f91e5921087770ac7d0d79bec1"
+  },
+  "eligible_pool": {
+    "count": 894,
+    "definition": "status=ok and prediction.materiality>=2",
+    "positive_rate": 0.29889669007021064,
+    "positive_rate_denominator": "successful_predictions"
+  },
+  "inference": {
+    "events": [
+      {
+        "at_utc": "2026-08-06T09:15:57.132240Z",
+        "batch_plan": {
+          "algorithm": "frozen_candidate_order_contiguous_v1",
+          "batch_count": 2,
+          "batches": [
+            {
+              "batch_index": 1,
+              "candidate_count": 2000,
+              "end_offset_exclusive": 2000,
+              "first_news_item_id": 1098,
+              "last_news_item_id": 3144,
+              "start_offset": 0
+            },
+            {
+              "batch_index": 2,
+              "candidate_count": 1013,
+              "end_offset_exclusive": 3013,
+              "first_news_item_id": 3145,
+              "last_news_item_id": 4167,
+              "start_offset": 2000
+            }
+          ],
+          "candidate_count": 3013,
+          "max_items_per_batch": 2000
+        },
+        "candidate_count": 3013,
+        "candidate_identity_sha256": "6e223fea1c77c9908c147501bb30e2e3e268cd163bea3854652a54f252a11749",
+        "candidate_inputs_sha256": "e550435b77c4525fb05717cf6d1c313448b9b7323b2e496f0450484a3a980f88",
+        "contract_sha256": "68474e4bd4fd5c9c88711dd5e102898ad1ed75a0fb984045efbd14e51a6db701",
+        "database": {
+          "connection_total_changes": 0,
+          "pragma_query_only": 1,
+          "sqlite_uri_mode": "ro"
+        },
+        "design_sha256": "4c7964ad547820f5672631939af93978f11cb9f91e5921087770ac7d0d79bec1",
+        "event": "inference_started",
+        "freeze_receipt_sha256": "1b2aae88d075dbe1d93660b76f9463f35157f7dbd00a6dc7f73d61370b4231a1",
+        "materialization": {
+          "eligible_candidate_count": 3013,
+          "ineligible_by_reason": {
+            "pdf_exceeds_size_bound": 12,
+            "pdf_text_below_min_char_gate": 45
+          },
+          "ineligible_candidate_count": 57,
+          "manifest_path": "docs/phase4/eval/P4.2a-heldout-materialization-v1.7/manifest.json",
+          "manifest_sha256": "3808852cceecbbd384109d36a595d1704197bcaf5344f94530b5b65a5aaa7d6b",
+          "raw_candidate_count": 3070
+        },
+        "model_calls_started": 0,
+        "schema_version": "p4.2a-heldout-inference-state-v1.2",
+        "settings_safety": {
+          "futu_enable_account_mutation": false,
+          "futu_enable_trade": false,
+          "live_trading_enabled": false,
+          "paper_auto_trading_enabled": false,
+          "trading_mode": "research",
+          "unlock_trade_permanently_blocked": true
+        }
+      },
+      {
+        "at_utc": "2026-08-06T10:30:11.395258Z",
+        "attempted_count": 3013,
+        "batch_execution": {
+          "algorithm": "frozen_candidate_order_contiguous_v1",
+          "automatic_retries": 0,
+          "batch_count": 2,
+          "batches": [
+            {
+              "attempted_count": 2000,
+              "batch_index": 1,
+              "candidate_count": 2000,
+              "end_offset_exclusive": 2000,
+              "failure_count": 11,
+              "first_news_item_id": 1098,
+              "last_news_item_id": 3144,
+              "model_calls_retried": 0,
+              "start_offset": 0,
+              "success_count": 1989,
+              "successful_rows_retried": 0
+            },
+            {
+              "attempted_count": 1013,
+              "batch_index": 2,
+              "candidate_count": 1013,
+              "end_offset_exclusive": 3013,
+              "failure_count": 11,
+              "first_news_item_id": 3145,
+              "last_news_item_id": 4167,
+              "model_calls_retried": 0,
+              "start_offset": 2000,
+              "success_count": 1002,
+              "successful_rows_retried": 0
+            }
+          ],
+          "candidate_count": 3013,
+          "each_candidate_model_calls_maximum": 1,
+          "max_items_per_batch": 2000,
+          "totals": {
+            "attempted_count": 3013,
+            "failure_count": 22,
+            "model_calls_retried": 0,
+            "success_count": 2991,
+            "successful_rows_retried": 0
+          }
+        },
+        "candidate_count": 3013,
+        "contract_sha256": "68474e4bd4fd5c9c88711dd5e102898ad1ed75a0fb984045efbd14e51a6db701",
+        "design_sha256": "4c7964ad547820f5672631939af93978f11cb9f91e5921087770ac7d0d79bec1",
+        "event": "inference_completed",
+        "failure_count": 22,
+        "materialization": {
+          "eligible_candidate_count": 3013,
+          "ineligible_by_reason": {
+            "pdf_exceeds_size_bound": 12,
+            "pdf_text_below_min_char_gate": 45
+          },
+          "ineligible_candidate_count": 57,
+          "manifest_path": "docs/phase4/eval/P4.2a-heldout-materialization-v1.7/manifest.json",
+          "manifest_sha256": "3808852cceecbbd384109d36a595d1704197bcaf5344f94530b5b65a5aaa7d6b",
+          "raw_candidate_count": 3070
+        },
+        "prediction_manifest_sha256": "c1c37af1e6ab310f9f263fb04370f5515c491b826a54babdbe4eab721a288d7a",
+        "schema_version": "p4.2a-heldout-inference-state-v1.2",
+        "success_count": 2991
+      }
+    ],
+    "path": "docs/phase4/eval/P4.2a-heldout-inference-one-shot-v1.7.state.jsonl",
+    "started_at_utc": "2026-08-06T09:15:57.132240Z",
+    "started_event_count": 1,
+    "state_sha256": "44253bfb643458ebf2b1e86ef5bddcdf4d01469ebf60ffcb02c2096ad54cfbe3",
+    "status": "completed",
+    "terminal_at_utc": "2026-08-06T10:30:11.395258Z"
+  },
+  "materialization": {
+    "eligible_candidate_count": 3013,
+    "ineligible_by_reason": {
+      "pdf_exceeds_size_bound": 12,
+      "pdf_text_below_min_char_gate": 45
+    },
+    "ineligible_candidate_count": 57,
+    "manifest_path": "docs/phase4/eval/P4.2a-heldout-materialization-v1.7/manifest.json",
+    "manifest_sha256": "3808852cceecbbd384109d36a595d1704197bcaf5344f94530b5b65a5aaa7d6b",
+    "raw_candidate_count": 3070
+  },
+  "owner_delivery": {
+    "combined_created": false,
+    "combined_target_path": "docs/phase4/eval/P4.2a-gold-annotation100-v1.7.jsonl",
+    "dev60_source_sha256": "81b3c0b27cd344fe4c2a735261e501dd2f60a0927c14b2c37e5b2a4879b4a2ba",
+    "forbidden_field_violation_count": 0,
+    "heldout_blind_sample_count": 40,
+    "heldout_blind_sample_path": "docs/phase4/eval/P4.2a-gold-heldout40-blind-sample-v1.7.jsonl",
+    "heldout_blind_sample_sha256": "74fdb229600092a13a0dfa8ba694e71d64548cff2c416ec6a1344a8e6b9fab58",
+    "predictions_visible": false,
+    "selection_basis_visible": false
+  },
+  "prediction_contract": {
+    "contract_path": "config/p4_event_extract_eval_v1_7.yaml",
+    "contract_schema_version": "p4.2a-event-extract-eval-v1.7",
+    "contract_sha256": "68474e4bd4fd5c9c88711dd5e102898ad1ed75a0fb984045efbd14e51a6db701",
+    "design_schema_version": "p4.2a-evaluation-design-v1.6",
+    "design_sha256": "57e04f99a8ee91b64fe0aa4dc479e95c3de65fd31f04ac6c5879d4f81e5539c9",
+    "dev_final_predictions_contract_sha256": "68474e4bd4fd5c9c88711dd5e102898ad1ed75a0fb984045efbd14e51a6db701",
+    "dev_final_predictions_failure_count": 0,
+    "dev_final_predictions_identity_sha256": "48235e5ed026f22f19b1d571b42f0166489de1e035df0aacefa59f94ab157dea",
+    "dev_final_predictions_manifest_path": "docs/phase4/eval/P4.2a-dev60-final-predictions-v1.6.manifest.json",
+    "dev_final_predictions_manifest_sha256": "c246bda5f6b0bd163a6aa2e65f0833136279bbd3f11ba6f842a2b32eb58e2df2",
+    "dev_final_predictions_path": "docs/phase4/eval/P4.2a-dev60-final-predictions-v1.6.jsonl",
+    "dev_final_predictions_row_count": 60,
+    "dev_final_predictions_sha256": "533d2e00fd0aeeed50cb6916793964f9d0f3048455b598124c5c8eb4736aedb4",
+    "dev_final_predictions_success_count": 60,
+    "endpoint": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+    "evidence_span_match_mode": "unicode_whitespace_elided_contiguous_substring_v1",
+    "explicit_cache_enabled": false,
+    "freeze_receipt_sha256": "1b2aae88d075dbe1d93660b76f9463f35157f7dbd00a6dc7f73d61370b4231a1",
+    "frozen_at_utc": "2026-08-04T14:01:35.642937Z",
+    "model": "qwen3.7-flash",
+    "prompt_path": "config/prompts/p4_news_event_extract_v1_5.txt",
+    "prompt_sha256": "4b44ed5efe281b68664b415865b758b75b30ace6eda2617952de66a87596c204",
+    "result_schema_path": "config/schemas/p4_news_event_v1.schema.json",
+    "result_schema_sha256": "0ac68654ce23ecd4e537d849d695e092c76dcb9de0fb03793e65ae62b181947f",
+    "taxonomy_version": "p4-news-event-taxonomy-v1"
+  },
+  "schema_version": "p4.2a-heldout-selection-manifest-v1.2",
+  "selection": {
+    "algorithm": "sha256_rank_without_replacement_v1",
+    "seed": "alphapilot-p4.2a-heldout40-v1.1-20260803",
+    "selected": [
+      {
+        "declared_input_sha256": "143c86bd80506eccd6fa2c6b6726351b9ec17fa3eb5e7d1798bc05451314f103",
+        "input_sha256": "7da6585d71df1a93466da22cfd33938e30565b64fe1056ca4805acc62cb52a88",
+        "news_item_id": 3412,
+        "selection_rank_sha256": "0091c7c2c4f3464ea6184ccc80a85e4d042969867b26c3018e88a2e9f71c6eba",
+        "text_sha256": "7d540180ee603ed8f085c4d56d05fdd2895678a015f17d8c531ec706f0d2383e"
+      },
+      {
+        "declared_input_sha256": "2b023415f8d7961fe676fa641311a51939db9995dde19036cf78939b694648dc",
+        "input_sha256": "df7defeb7376125480b07e432dc56ed2977feb8d657a3b75c1c00c6e9de5fb80",
+        "news_item_id": 1200,
+        "selection_rank_sha256": "00cb230357f569dd92f37e951e3f30f1e23fc75433698c72057b06462f0614bb",
+        "text_sha256": "81d1100322ef21031716e325b87c6e01f2bcafe4914da3a42cbac7c002f7e852"
+      },
+      {
+        "declared_input_sha256": "1e5ae654b7bfbd5a9c49b41c887ab17f0999081b7c96afc65cf23eade73e13fe",
+        "input_sha256": "fb3ac1ceb0a55f46864969206d955a253bd260523c082eb432efe6f16b1f33c4",
+        "news_item_id": 1726,
+        "selection_rank_sha256": "00f34130da9c34e9ad0eddf6032ec5ceba63a817d8b0e251b9d775b26bef8e0e",
+        "text_sha256": "c7f3d30a8083e443dc0efac6103dbbf597a3e6206d9ac7d4b201df844d01e954"
+      },
+      {
+        "declared_input_sha256": "1e24768d1636f11a9d68577e86be728e49dbfc5010f69b5eb05ecc15b2697b52",
+        "input_sha256": "02f7d115b5a15678e85fb3f25b276c56b2cfe2b92248c441a866c53f7fd7b1fa",
+        "news_item_id": 1207,
+        "selection_rank_sha256": "01633dee76b750aa6d79f0e5a5807bed3ba25374421c2fafcbbb6a820e2eb9f0",
+        "text_sha256": "cb4aa49386f49f981f60a144ee67d6b915bc33a73a24dbeba8fa23313ad5fb07"
+      },
+      {
+        "declared_input_sha256": "72d926a5677895545c707ddcc405a2c09721a980622b8d4611e1eeed12c90d6f",
+        "input_sha256": "a8553319b55a38fbb86045e71eaba4bdd0f236611dd0172851413e47d69c4b28",
+        "news_item_id": 1593,
+        "selection_rank_sha256": "01a1a929d1b6da4e89031b38db4fd2cb3450f6ff2ddcafc4721dc348ba101baf",
+        "text_sha256": "d92c92df31d13a9bdcf8d09c96f08dd6211ff3e9eaa30f9c1cfc7741bec5aaf4"
+      },
+      {
+        "declared_input_sha256": "84475d930054eea990be6a2edd9f4e7272868a45bdf9cbd63ecba32898ae457d",
+        "input_sha256": "d181ecef5fa20a41c2a14fbc79a94385b9864f3f220fd86920dc35847631ee9e",
+        "news_item_id": 3711,
+        "selection_rank_sha256": "01b05639fdd2b7a19c8ae0af25ace54695ceac87c0b5af7409dea690b7a3bb78",
+        "text_sha256": "7b34581e859789d0456976608d940c44a51711627c30cf798c72d3afb78df2c6"
+      },
+      {
+        "declared_input_sha256": "0a88265abf2a86b8d600ca4672e4c23023031c545c018a6d96aa2e4270d3a925",
+        "input_sha256": "915cc5c723a398b06fe7b8e871a977882c2eac64d6fb54d11e0ce46f8818e96e",
+        "news_item_id": 1749,
+        "selection_rank_sha256": "01b79f35ff121197d99b581b9e9827472cd5dad96fdbb87962591f783c8c9ffb",
+        "text_sha256": "42dd521c5227088784fe48ca7acc5b856b814748efe4ac533aabf2b68c52170e"
+      },
+      {
+        "declared_input_sha256": "db42f5bf3198423547aa1a1d4403e2dcca1321c505aa4996e7d89a0184efc5ac",
+        "input_sha256": "464940f62a88bf89b0e0ef5344e37ba1943a7dbaed9dc041d56921f60e3f7a18",
+        "news_item_id": 1189,
+        "selection_rank_sha256": "020b1a200e4cd550bd4140fe6e4c09353e8609c2e4ea5fdcea56928f437d7eef",
+        "text_sha256": "f9a22c2460c40fd7e5c689f1a2b17a0f0c71df5b4e268ea5bce36d1cf836a1c3"
+      },
+      {
+        "declared_input_sha256": "da627818439ddb7d2683973dd96d06f3559ea8eb729e3cb07b4c22a46f7f8cbd",
+        "input_sha256": "019e32007c03d732ef640df4deb8c536d24943726955b6a1270ed52d6470304c",
+        "news_item_id": 2502,
+        "selection_rank_sha256": "02364931ebf3a0d3201bd6eec54f6e01ffd48a245042dbb962becb49acf8a8f9",
+        "text_sha256": "7ab3abf6227a21d5aaae56017291804387cfcf3356a7cd3bfea77ae0150dfd10"
+      },
+      {
+        "declared_input_sha256": "1c49788babbe2f86ac95db2327176e248bf6d4672dd986a39328f1326b42c70b",
+        "input_sha256": "4702bcc18428b97e664b7249bdadae21cddb1f3e672c759f78767281b16ba54b",
+        "news_item_id": 3189,
+        "selection_rank_sha256": "02fff30fb948a27502531358bc7a42c9daede70097a4f80dcb034522b203638b",
+        "text_sha256": "c2b4ef5f3970662deebcaae6e33a2f4525641e142d0bf7c0fe2d131aae713c95"
+      },
+      {
+        "declared_input_sha256": "f457d29f48c8c8d1072b102286d123fd966b80536713568f0b13d9105eaf8ec4",
+        "input_sha256": "bda52d972d5cfba2b8fd650283e7939868d7914b7c1bceb65de3c9ba793692d0",
+        "news_item_id": 3071,
+        "selection_rank_sha256": "039d063067795ebb7bea951c359d962a8939718814f31467ab3c68add0b713ca",
+        "text_sha256": "ed0277a63446f0d65dc2295359b2a64f5fedfb711d5c4c5b70dea1da941851b8"
+      },
+      {
+        "declared_input_sha256": "330a261d6db79c8ac6fc93f292510014237a4cc7f0a8c0d1169630397d9e4b7c",
+        "input_sha256": "b75c568c6995de708923a2c5087877cf19cc95fd185557f6b660b6b355edcab0",
+        "news_item_id": 3938,
+        "selection_rank_sha256": "03cabed8e9b93ae3cd0d2ba95db4a447b92bf930c89a60f4fb2a937d48dfd23f",
+        "text_sha256": "ab110bc75489ddb9b17436c23da489271de800eb4e06cfec51b8625b67174e61"
+      },
+      {
+        "declared_input_sha256": "afc55a601930622a9d71e414076ef8db7163e5e8148733a5cd5dffae8ec03aad",
+        "input_sha256": "49514f5aefae12c6976b3676a4e8d025f0fd5ea89fc3749e011ea429a3e47f8e",
+        "news_item_id": 1745,
+        "selection_rank_sha256": "03fcfbcc4ddcef128a4cdb16c77214e64eb82cf6d834e31e7ebdf5cefa37ccf0",
+        "text_sha256": "cfa591c96f6454a1695e0656947dab0f03cab5c8c025bc292b51b8c29d739aa7"
+      },
+      {
+        "declared_input_sha256": "87495a6464c6c38b972a47cc2bb16fea67e3de21b1262965d08f452ac3cadc97",
+        "input_sha256": "220a18eed46fc7cd07426fa30b3dd521cfcc86c9c2492ad7064641d669f7b043",
+        "news_item_id": 1791,
+        "selection_rank_sha256": "043d2facae8c126614db3a9629c8fe973c8c2628d9e4afdf347e0cd1f80bbd41",
+        "text_sha256": "398821e20cba5f347b90705abca11a3fed823107271363ffe94fff65d0ab56d5"
+      },
+      {
+        "declared_input_sha256": "24f06cdaacbc52bc14587e4e34d1247fdad8a61b0461297d0e73049caef835c6",
+        "input_sha256": "19ac7dd9cd713edeeabc1ad577579f7bef6f7f7600422a2bb9e40f58b1ff8f55",
+        "news_item_id": 3289,
+        "selection_rank_sha256": "046b59b23d9df94d2e885a647f7f228f8f96d01e703181a7f5cc89f3310a72e1",
+        "text_sha256": "ed00da33dce6cc2820a4e6d4b2f9fb0fe0b04c59f7e5aff54a8e6e29004e6d52"
+      },
+      {
+        "declared_input_sha256": "c75ef1cb3f4e7a2827b699ab752d83085717d4272e384c9120e6fad1eb4db866",
+        "input_sha256": "645372f0f173a802d959f469a4d16d49de94297b9904ef223cf4fb12a788ba76",
+        "news_item_id": 4042,
+        "selection_rank_sha256": "048536a73dde69fe0bfe3206bd72e9a8ac9c3936f6cc9af025900cad5c3589e7",
+        "text_sha256": "4057e471bd4d8116cdada53a1ab07cd1e1d102b12128436183dcbf7d37c0834a"
+      },
+      {
+        "declared_input_sha256": "ec5ee416fd23a9d0f426c9facc706362ffd27fe3c7a73c0be05ecde110d6b90b",
+        "input_sha256": "61fd8209fead4816843dda596461e5fbd9d8dd347df5315cde7cbb8007180f49",
+        "news_item_id": 1831,
+        "selection_rank_sha256": "04ba568d4f132015ad2ae4d1613b98f246630e679aa7230da80e716202e44dba",
+        "text_sha256": "80499bb235f3c68d99b0efdeaed392cd428005d1b498afce2236a7763d641640"
+      },
+      {
+        "declared_input_sha256": "f0b3f207c6fbd90e52931dbaf56f3805c9ba79198fb5b31c71cb5755ed1e5119",
+        "input_sha256": "8a30348152b50f66c1d2fcec65e7217bd4e66b6111e0e0364df6c06ed2be3647",
+        "news_item_id": 1262,
+        "selection_rank_sha256": "04ea4b3d75b3aa88284068cd5e4becb8ced070fcfa29327906337f119c169a96",
+        "text_sha256": "e21b295b6eb0f20df859d2a9c862ed76fd0ce9633ac4ad722e31f59b71d37738"
+      },
+      {
+        "declared_input_sha256": "d248ae0d660f161fd6f1845ec2ff4a11348f7d24ba7617816c32f3dc499dfc03",
+        "input_sha256": "a5090643a4dfa77b96c8f61fbc6e6d8d4f2cfa342334e81bac03d8155830ff5d",
+        "news_item_id": 3244,
+        "selection_rank_sha256": "04fc00ed6b08857925fbc366aedf106062cc592baa7a0816e5df37196a435cac",
+        "text_sha256": "77cb03e520e85fee6e79b52dae9b221b1e9ccc9314906cb411b8988f5c935d29"
+      },
+      {
+        "declared_input_sha256": "56011734e2e79acbc967ef5eda7dbc4c689603c4c7d0be0d2337920fe4f08254",
+        "input_sha256": "f2656c8884278dd8085db839c15d41fa86832b59799367598d759cb5ce1524be",
+        "news_item_id": 1420,
+        "selection_rank_sha256": "050c38dc5063a0a29b25b27c40ffba973224388e95176104b91dfb2ab7ed9168",
+        "text_sha256": "9e77def1593f21dddcf9a58b93e5494651c27848ba94d618a6e863c184e55b30"
+      },
+      {
+        "declared_input_sha256": "8c03753dd70adbd8ae8e3b674a488b04bbdc2b04afe34fbd425137c7fe1712cd",
+        "input_sha256": "73f062c78a9b4a5f7f90851399d563b14d29cf8e6e141268942d09af93265e74",
+        "news_item_id": 2830,
+        "selection_rank_sha256": "053440998f9138c40ee31680e73f5927f97ba8d26b1b77901fa2963b9a0e4a58",
+        "text_sha256": "4c7df64afe081f21e76357b8cd04f654d25acec85d79f89fd600a561a5ad58ee"
+      },
+      {
+        "declared_input_sha256": "2aac7b6336e3a282cb3dc78474d7bab34575dff7fdc34cfe5a9ffa29a67d27e1",
+        "input_sha256": "f6d1cc0bb57e9fe6f86386dd1b558a8f794a5064e1b96b9a37e03ac1e76af151",
+        "news_item_id": 1725,
+        "selection_rank_sha256": "0553e60299e3144390b9b49e9fa1c6b7cab82b9509d3ec3acaa770158b451cd1",
+        "text_sha256": "6ec413a545048c939181ca7e85b9bca9eef45fa9db49ca849c9e41ccbc748415"
+      },
+      {
+        "declared_input_sha256": "a1839213481aed7bed04568f7c03daa87d072b189458991274a64d61ce2980b8",
+        "input_sha256": "3d07f1b23ef233b1101650833ae1dd7c547db7e640f2eaaa9d1d101f0368e0c0",
+        "news_item_id": 2209,
+        "selection_rank_sha256": "056af70ab69bc663d0b04db4a91d35efd09b3f0d758895ae666e11c534268f98",
+        "text_sha256": "e6606b274c011192eeff04e78ee9dbe683ac95d5164061a8b8b3e4e2ab027082"
+      },
+      {
+        "declared_input_sha256": "a25f30f27d4bb6bbbf7fbe30049f5355729f0558b8d73698a3356206e26b05bd",
+        "input_sha256": "9e09cd451d1a973cfdcdfb26486518939fc0616d471f91537e652add16c14685",
+        "news_item_id": 4044,
+        "selection_rank_sha256": "059d27428d0e1a056770809e7db690c4e96cf1b7f7d20b293562809674db8bc2",
+        "text_sha256": "841f99718b6531f57762011334ef49daae0cf147bc7e01375ec2031f6c7821d1"
+      },
+      {
+        "declared_input_sha256": "c8a7e7541001f43f3b714ae2256944053894d0963bae15a961817b1970f2dd64",
+        "input_sha256": "29295861e53967d0c52108ece2b1c9741831936eca0dc182b3e469913aa69e69",
+        "news_item_id": 3003,
+        "selection_rank_sha256": "05be8fd898d1e25a36e09db1b529b71c28dbb0865eab33198e2ad1bfff79f53a",
+        "text_sha256": "e7ce55c3777bd66f09c95df26cb3d39a052dde8d0353628a7e9e117d1e350c23"
+      },
+      {
+        "declared_input_sha256": "59d10da1bae5318b7c6c03c4f8fea711624d600a423fb16caec97c93889612e2",
+        "input_sha256": "8067a997ad5f8faa893b14025adfa8dda72b35f339e5fbd7776087680a3bf5e5",
+        "news_item_id": 3037,
+        "selection_rank_sha256": "05dcd8f564de5783c5423a9382538cee01e72fd136aa29b53b6d0f029cbc0a4d",
+        "text_sha256": "7262cbae6224214078e423d26a12f5121f4e85909464bf4e76c084c7bc972293"
+      },
+      {
+        "declared_input_sha256": "f449baa5538ce601349820f05d6d39104f9a00da7561e2b47a3c3656cec66b8c",
+        "input_sha256": "f5839e4a8ab3fda8487d0470f8dd1173abbfc2bdf2509d86595164ea3c557a4f",
+        "news_item_id": 1576,
+        "selection_rank_sha256": "064c33b79cece6721c86238ce33cd4eb0578bf020a2a96339ec442eb917bc085",
+        "text_sha256": "c686d6b1c3af0a19f025aeaa747e212eb4d895bf38ca5310ecd10cfc84eea14b"
+      },
+      {
+        "declared_input_sha256": "0ed82ad77ba91706a566f9f012900667442511606e6c51aed525fca8e12e0f72",
+        "input_sha256": "6adbc326255c26215aa474cdc791b653ec746950b73156164f33c9989840059a",
+        "news_item_id": 1713,
+        "selection_rank_sha256": "0659cccf79c1859c5fdbb1f2125daab7b12dabcb9d0c072dcd98cbd1cd102656",
+        "text_sha256": "96ad3753c1ce9b338934f98bf2c05c3cbb0604684758a6fcde0ddbefd892acb4"
+      },
+      {
+        "declared_input_sha256": "85c63d98ac04f81eec73bef67051a4e336ded12aacee580e175193fac4cafb03",
+        "input_sha256": "439533177c08bf9700684ccf3b532ff0fe5e3543b52e29f32e50e7fb2c612d31",
+        "news_item_id": 3317,
+        "selection_rank_sha256": "065d75a6cb117416dae87192eb6a74fd604ad28db74d8d07d8029477965c08bf",
+        "text_sha256": "13c95c84845567a5fffd1aa5a6c222fd9ceaf9542f1be355c5aac21f3802ed7a"
+      },
+      {
+        "declared_input_sha256": "02873e0b6f90c9512d4fbfaef0da99233ac14d7e3966144fca818d2e57810f2f",
+        "input_sha256": "dc5e6c15dde6e01948ba05451c5022bedc5736071fb5eb36dc95eeb551c55a2f",
+        "news_item_id": 2510,
+        "selection_rank_sha256": "06b004ff279e4ab62a16d4b54d3b18816577921171d8477be8741c5ed38972e7",
+        "text_sha256": "67e15e764b99e8d84dd1555dee90df171a10dea7f1e7febbeab3aca019b8deef"
+      },
+      {
+        "declared_input_sha256": "be91b0cff85d49ccf84242e5fa92f0af067b985e95eda7898125de4b5d1b8e33",
+        "input_sha256": "792ba637d02d936fe25f355f66556394f7b4200522de8ee61a6ade6161e47c75",
+        "news_item_id": 3748,
+        "selection_rank_sha256": "06ca307c39ddf75fb26f1b10c83f6aa9207df222471d9d28269421eb2f870ad8",
+        "text_sha256": "b6b4e7e8a47eb5691d2c3c76f05a4317c56a9238293984b8522cfee6a13a8379"
+      },
+      {
+        "declared_input_sha256": "a353a26c7639cea85cdce1c774ac0214338a41fa27945a1c919e5319ac08023b",
+        "input_sha256": "e2ec91b7f61685d5bf41b2fa484c370e67035e1b7c6a1e4f7111fcff433abe81",
+        "news_item_id": 3426,
+        "selection_rank_sha256": "06d3673ce579bf8ea5bdfea6b464dc1b5450b375fc0ad3a5d25624f26f51c461",
+        "text_sha256": "7117cae47d68bd1e3db894dd0871d2877c702cde17010d177144b398095ce2a0"
+      },
+      {
+        "declared_input_sha256": "257028b99a5ef99f1378939bcd009a77b547170f52824165cbc2f4b103a9ea67",
+        "input_sha256": "deb0fc8eb2ec560524c6d82303be63e17a18fa0ae8e3b88cf6cd5c442f8686b0",
+        "news_item_id": 2415,
+        "selection_rank_sha256": "06fa708276b0b0a6ab04f9c7bad9405c50d9d48eb29cf8712e074054b52bce39",
+        "text_sha256": "0397563bf9586300d9d0b15bfddd5f0925b8ce800b6101d6f76b8242f6d44e3b"
+      },
+      {
+        "declared_input_sha256": "e564ddd688fbbd920fd2e8bcc7175ff642d249ccb5ae48ecd1b4ea4c8e2cbfc7",
+        "input_sha256": "21207ce19eb8c15f301e5ebe7e9189521c8f3338840578e02d1cfe09fee6a876",
+        "news_item_id": 3833,
+        "selection_rank_sha256": "0729d5b337224cc0cc94ec2695519c4a4832bf2fa52dacfebbd24a0744b4b9cc",
+        "text_sha256": "f6acc530cb16b031511baec1b0879112e375726372572c40ca57eeda962b7b18"
+      },
+      {
+        "declared_input_sha256": "1f13eacdcd2e4def4c367ea98143b9f7d16972531cea1a0ae33d7c7a175ba625",
+        "input_sha256": "1009b8d2a40fa72b7cdcda70bee306ec30c4f1bf9360551cd1b1b88872af4bc8",
+        "news_item_id": 3988,
+        "selection_rank_sha256": "07ea54c984935d8f4a81a596abaddf7be93488455f535d80bfb8989f2d3005ea",
+        "text_sha256": "c9c3ea535e03e3c0f6535fc64cb29cba570e8c54670ad9192f0aa22eb126106b"
+      },
+      {
+        "declared_input_sha256": "c2ca1bfc3d6ef4dc3f964bfb4950f61ccc6aa4131122461261a3da409925d753",
+        "input_sha256": "940965b025f9b0c8b3d8b84c315e8ba27bbcded13890ddea6ab6dc08f90de381",
+        "news_item_id": 2951,
+        "selection_rank_sha256": "0809c4afe9236b29a1ecab0caf89626ce6a8bf6be8504df51343d9171c7ba9a2",
+        "text_sha256": "d1e2df4bb767a689295e75da0231504d1dadc22db34738e4571610d3cdf9edde"
+      },
+      {
+        "declared_input_sha256": "07c7044f14bfd358e25812918deb0e2530e882d850912fc91154e230ec00d7fa",
+        "input_sha256": "a798216e88545300086f9433e5dfb789d8bad11ad1580fd1d2eb423d82abff55",
+        "news_item_id": 1911,
+        "selection_rank_sha256": "08193d9b4d1f662c19002d9424389ff38989a099572a90d48655ccd64e46a61d",
+        "text_sha256": "88eb90a5becb4f57df7925146297799f78394037ab24366ec643c74a3cbbb249"
+      },
+      {
+        "declared_input_sha256": "9d1b773710ec0cb023a52183eb44b2c1783beca9839cb41e6e8e991224882d0d",
+        "input_sha256": "af4599bb61a19989999d8759881990fca7d79bf9749ca5cd4090e20b5369f52c",
+        "news_item_id": 1418,
+        "selection_rank_sha256": "08b3b85518fe02fee028216bb7abfce06a572fd1b5773b33057a19a5946d4bbb",
+        "text_sha256": "82caa991f95a1bea1600f5cecb5017d659d62912afc3de6d12995d0cb8d4a79b"
+      },
+      {
+        "declared_input_sha256": "9fb6fe120b1adc876efba03f2d0c8881d22a5bc9939032a7ea3b1a6e280a9bac",
+        "input_sha256": "3aeed501025365cf48f13a8d98e35c6ab8dc9b8ab8ee44baf6d6f39516340b7a",
+        "news_item_id": 1604,
+        "selection_rank_sha256": "0900d0f7bb31e42b54e5dc2e10a30b4afa404d4b8d09f0a22af2168776bc0895",
+        "text_sha256": "3a2a50f2c9ce06979fb5c9be0bd9b3e85fdc02ef211e6804e463714308f43e79"
+      },
+      {
+        "declared_input_sha256": "9b3d1d26eb126cad9d393d55079c86403b7ae64057270b097489e34b6255a42b",
+        "input_sha256": "cdecd28060e44cae9b5bde82a393a5c6f786b41012d751aa6f9582496e1872b6",
+        "news_item_id": 3993,
+        "selection_rank_sha256": "0926e8964d880cc6b7209d9272daf57302f509bcf27b2821871873d513abd459",
+        "text_sha256": "e5d3819ec11767074cf4ddf68b5176dcb07dd62183ef1ff8a43d96a3fe56921d"
+      }
+    ],
+    "selected_count": 40,
+    "without_replacement": true
+  }
+}

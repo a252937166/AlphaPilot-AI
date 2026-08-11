@@ -1,0 +1,371 @@
+{
+  "all_source_reconciliation": {
+    "aggregate": {
+      "duplicate_content_hash": 2,
+      "duplicate_url": 122,
+      "fetched": 137,
+      "filtered": 0,
+      "inserted": 13
+    },
+    "all_disposition_identities_valid": true,
+    "by_source": {
+      "akshare_caixin": {
+        "attempted": false,
+        "disposition_identity_valid": true,
+        "duplicate_content_hash": 0,
+        "duplicate_url": 0,
+        "failures": 0,
+        "fetched": 0,
+        "filtered": 0,
+        "inserted": 0,
+        "logical_requests": 0,
+        "physical_attempts": 0,
+        "retries": 0,
+        "status": "excluded_missing_native_title"
+      },
+      "akshare_cls": {
+        "attempted": false,
+        "disposition_identity_valid": true,
+        "duplicate_content_hash": 0,
+        "duplicate_url": 0,
+        "failures": 0,
+        "fetched": 0,
+        "filtered": 0,
+        "inserted": 0,
+        "logical_requests": 0,
+        "physical_attempts": 0,
+        "retries": 0,
+        "status": "unavailable"
+      },
+      "akshare_ths": {
+        "attempted": null,
+        "disposition_identity_valid": true,
+        "duplicate_content_hash": 0,
+        "duplicate_url": 8,
+        "failures": 0,
+        "fetched": 20,
+        "filtered": 0,
+        "inserted": 12,
+        "logical_requests": 1,
+        "physical_attempts": 1,
+        "retries": 0,
+        "status": "ok"
+      },
+      "cninfo": {
+        "attempted": null,
+        "disposition_identity_valid": true,
+        "duplicate_content_hash": 0,
+        "duplicate_url": 0,
+        "failures": 0,
+        "fetched": 0,
+        "filtered": 0,
+        "inserted": 0,
+        "logical_requests": 1,
+        "physical_attempts": 1,
+        "retries": 0,
+        "status": "ok"
+      },
+      "futu_auxiliary": {
+        "attempted": false,
+        "disposition_identity_valid": true,
+        "duplicate_content_hash": 0,
+        "duplicate_url": 0,
+        "failures": 0,
+        "fetched": 0,
+        "filtered": 0,
+        "inserted": 0,
+        "logical_requests": 0,
+        "physical_attempts": 0,
+        "retries": 0,
+        "status": "pending_trading_day_latency_retest"
+      },
+      "sina_company_news": {
+        "attempted": null,
+        "disposition_identity_valid": true,
+        "duplicate_content_hash": 2,
+        "duplicate_url": 114,
+        "failures": 0,
+        "fetched": 117,
+        "filtered": 0,
+        "inserted": 1,
+        "logical_requests": 5,
+        "physical_attempts": 5,
+        "retries": 0,
+        "status": "ok"
+      }
+    },
+    "counters_equal": true,
+    "failures": 0,
+    "job_run_totals": {
+      "duplicate_content_hash": 2,
+      "duplicate_url": 122,
+      "fetched": 137,
+      "inserted": 13
+    },
+    "logical_requests": 7,
+    "physical_attempts": 7,
+    "retries": 0
+  },
+  "checkpoint": {
+    "checkpoint_committed": true,
+    "date_checkpoint_advanced": false,
+    "initial_backlog_migration": false,
+    "latest_attempt_observed_at_utc": "2026-08-07T16:00:00+00:00",
+    "lineage_before": "v2.1_daily_checkpoint",
+    "newest_observed_at_utc": "2026-08-07T16:00:00+00:00",
+    "observed_high_advanced": false,
+    "observed_high_after_utc": "2026-08-07T16:00:00+00:00",
+    "observed_high_before_utc": "2026-08-07T16:00:00+00:00",
+    "partial_checkpoint": false,
+    "verified_checkpoint_date_shanghai_after": "2026-08-08",
+    "verified_checkpoint_date_shanghai_before": "2026-08-08"
+  },
+  "created_at_shanghai": "2026-08-09T15:22:55.346231+08:00",
+  "created_at_utc": "2026-08-09T07:22:55.346231Z",
+  "daily_slices": [
+    {
+      "checkpoint_committed": true,
+      "coverage_proven": true,
+      "date_closed": false,
+      "date_shanghai": "2026-08-09",
+      "disposition_identity_valid": true,
+      "disposition_total": 0,
+      "duplicate_content_hash": 0,
+      "duplicate_url": 0,
+      "failure": null,
+      "fetched": 0,
+      "filtered": 0,
+      "final_page_has_more_value": false,
+      "final_page_raw_row_count": 0,
+      "floor_reached": false,
+      "incremental_floor_utc": "2026-08-07T15:30:00+00:00",
+      "inserted": 0,
+      "logical_requests": 1,
+      "mode": "current_date_incremental",
+      "newest_observed_at_utc": null,
+      "page_cap_hit": false,
+      "page_count": 1,
+      "pagination_complete": true,
+      "pagination_stop_conditions": [
+        "empty_page",
+        "has_more_false",
+        "short_page"
+      ],
+      "pagination_termination_family": "pagination_exhaustion",
+      "physical_attempts": 1
+    }
+  ],
+  "execution_contract": {
+    "canonical_column": "szse",
+    "coverage_gap": false,
+    "execution_mode": "standard_incremental_validation",
+    "failures": 0,
+    "logical_requests": 7,
+    "physical_attempts": 7,
+    "retries": 0,
+    "run_mode": "regular_incremental",
+    "strict_tls": true,
+    "terminal_diagnostics": null
+  },
+  "execution_source": {
+    "path": "src/alphapilot/jobs/news_poll.py",
+    "sha256": "fef43741418dcddd0e2ed419e5e5617ee6826110f2529ccf5a5c231207400145",
+    "source_or_config_drift_after_execution": false
+  },
+  "frozen_bindings": {
+    "authorization_id": "p4.1-v2.1-standard-incremental-validation-auth-20260809-r1",
+    "authorization_receipt_path": "docs/phase4/reports/P4.1-v2.1-standard-incremental-validation-authorization-20260809.json",
+    "authorization_receipt_sha256": "b605dd90fbd9a47439d9e1415c02d02a97f3f859c8f07ea0e8ab9d7a319372f1",
+    "config_path": "config/p4_news_poll_v2_1.yaml",
+    "config_sha256": "9d56e137baf10bd0858723a93aff02c57bf7b35f8705f1817b16a89ec615183f",
+    "controlled_probe_path": "config/p4_news_poll_v2_1.probe.json",
+    "controlled_probe_sha256": "5267be93ebcf9dd68bc8d4644ca34da15f834f5e7c6a49e76faa65034b825bdc",
+    "expected_and_observed_scope_equal": true,
+    "expected_checkpoint_date_shanghai_after": "2026-08-08",
+    "expected_checkpoint_date_shanghai_before": "2026-08-08",
+    "expected_slice_dates_shanghai": [
+      "2026-08-09"
+    ],
+    "observed_checkpoint_date_shanghai_after": "2026-08-08",
+    "observed_checkpoint_date_shanghai_before": "2026-08-08",
+    "observed_slice_dates_shanghai": [
+      "2026-08-09"
+    ],
+    "preregistration_path": "config/p4_news_poll_v2_1.preregistration.json",
+    "preregistration_sha256": "485f710398698c1692d8afd8de6cd06c71ddf2fbdf42713c6bd4defc4bdfd84b",
+    "receipt_uses_observed": 1
+  },
+  "job_run": {
+    "error": null,
+    "finished_at_utc": "2026-08-09T07:16:07.661948Z",
+    "id": 76934,
+    "job_name": "news_poll",
+    "started_at_utc": "2026-08-09T07:16:03.944642Z",
+    "stats_bytes": 9349,
+    "stats_canonical_json_sha256": "9d3d9129f55afd3ebde0ebbb526305ec3ff44a1b2818fb03b9f27a6e22d2bec8",
+    "stats_raw_sha256": "8023e14c359cf4fd42194fdb4d5154a0d0d0b5a7c685f0d29e393db754190b7e",
+    "status": "ok"
+  },
+  "pagination_termination_proof": {
+    "explanation": "The final CNInfo response was an empty page with hasMore=false; it was also shorter than page_size. The overlap floor predates the requested CST slice and was not reached.",
+    "floor_precedes_slice_start": true,
+    "floor_reached": false,
+    "incremental_floor_utc": "2026-08-07T15:30:00+00:00",
+    "slice_start_utc": "2026-08-08T16:00:00Z",
+    "stop_conditions": [
+      "empty_page",
+      "has_more_false",
+      "short_page"
+    ],
+    "termination_family": "pagination_exhaustion"
+  },
+  "persisted_safety_configuration": {
+    "env_effective": {
+      "futu_enable_account_mutation": false,
+      "futu_enable_trade": false,
+      "live_trading_enabled": false,
+      "paper_auto_trading_enabled": false,
+      "paper_trading_enabled": false,
+      "trading_mode": "research"
+    },
+    "env_file_mtime_utc": "2026-08-08T19:37:01.175468Z",
+    "env_file_sha256": "97bd1ed328baf7a4758ed2269e0f556a2f03e04e919859e18a1c33ab0967a375",
+    "env_mtime_precedes_run_start": true,
+    "env_path": ".env",
+    "structural_code_invariants": {
+      "unlock_trade_permanently_blocked": true,
+      "v2_1_scheduler_activated_constant": false
+    }
+  },
+  "persisted_vs_process_divergences": [],
+  "persistence_evidence": {
+    "available_time_not_after_published_at_rows": 0,
+    "cninfo_after": 6844,
+    "cninfo_before": 6844,
+    "cninfo_inserted": 0,
+    "coverage_gap_catchup_rows": 0,
+    "coverage_gap_marked_rows": 0,
+    "db_commit_completed_at_utc": "2026-08-09T07:16:07.658966Z",
+    "db_flush_completed_at_utc": "2026-08-09T07:16:07.658680Z",
+    "first_available_time_utc": "2026-08-09T07:16:04.523452Z",
+    "global_duplicate_content_hash_groups": 0,
+    "global_duplicate_url_groups": 0,
+    "invalid_pit_chain_rows": 0,
+    "last_available_time_utc": "2026-08-09T07:16:07.657582Z",
+    "news_items_after": 9920,
+    "news_items_before": 9907,
+    "news_items_inserted": 13,
+    "per_source_persistence_timing": {
+      "akshare_ths": {
+        "db_commit_completed_at_utc": "2026-08-09T07:16:04.527858Z",
+        "db_flush_completed_at_utc": "2026-08-09T07:16:04.526831Z",
+        "last_available_time_utc": "2026-08-09T07:16:04.523452Z"
+      },
+      "sina_company_news": {
+        "db_commit_completed_at_utc": "2026-08-09T07:16:07.658966Z",
+        "db_flush_completed_at_utc": "2026-08-09T07:16:07.658680Z",
+        "last_available_time_utc": "2026-08-09T07:16:07.657582Z"
+      }
+    },
+    "poll_completed_at_utc": "2026-08-09T07:16:07.660102Z",
+    "rows_by_source": {
+      "akshare_ths": 12,
+      "sina_company_news": 1
+    },
+    "run_marker_rows": 13,
+    "sources": [
+      "akshare_ths",
+      "sina_company_news"
+    ],
+    "sqlite_query_only_total_changes": 0,
+    "sqlite_quick_check": "ok"
+  },
+  "phase_gates": {
+    "initial_backlog_migration_complete": true,
+    "next_action": "Independent reviewer must validate JobRun 76934 and this evidence. Scheduler code/deployment activation remains a separate review gate.",
+    "p4_2b_production_wiring_unlocked": false,
+    "p4_3_unlocked": false,
+    "scheduler_activated": false,
+    "standard_incremental_validation_complete": false,
+    "this_authorized_run_succeeded": true
+  },
+  "process_effective_safety": {
+    "after": {
+      "futu_enable_account_mutation": false,
+      "futu_enable_trade": false,
+      "live_trading_enabled": false,
+      "paper_auto_trading_enabled": false,
+      "paper_trading_enabled": false,
+      "trading_mode": "research",
+      "unlock_trade_permanently_blocked": true
+    },
+    "before": {
+      "futu_enable_account_mutation": false,
+      "futu_enable_trade": false,
+      "live_trading_enabled": false,
+      "paper_auto_trading_enabled": false,
+      "paper_trading_enabled": false,
+      "trading_mode": "research",
+      "unlock_trade_permanently_blocked": true
+    },
+    "before_and_after_equal": true,
+    "broker_order_ids_after": [
+      1
+    ],
+    "broker_order_ids_before": [
+      1
+    ],
+    "trade_proposal_ids_after": [
+      "p23-s2-live-20260722T021152Z-600000"
+    ],
+    "trade_proposal_ids_before": [
+      "p23-s2-live-20260722T021152Z-600000"
+    ]
+  },
+  "repository_head_at_evidence_freeze": "b1b8ceedf53f4f724e71701bc8d4212606b36c10",
+  "repository_head_at_execution": "b1b8ceedf53f4f724e71701bc8d4212606b36c10",
+  "review_status": "pending_independent_review",
+  "runtime_observer": {
+    "capture_path": "docs/phase4/reports/P4.1-v2.1-standard-incremental-validation-runtime-capture-20260809.json",
+    "capture_sha256": "a97359b42d14778d923bac320c0db95bd0d1f01d89e3438f50c695c0e9cad0cc",
+    "method": {
+      "captured_source_lines": {
+        "page_cap_hit": 1600,
+        "pagination_complete": 1597
+      },
+      "decision_source_modified": false,
+      "http_client_replaced": false,
+      "retry_loop_present": false,
+      "type": "python_read_only_line_trace"
+    },
+    "path": "scripts/run_p4_1_v2_1_incremental_validation_once.py",
+    "sha256_at_evidence_freeze": "957851717f0ce2641dbc62dad5086e767e19f53f424dea90f46460bb3fdcf0fd"
+  },
+  "runtime_safety": {
+    "broker_orders_after": 1,
+    "non_simulate_broker_orders": 0,
+    "running_job_runs_after": 0,
+    "scheduler_launchagent_loaded_after": false,
+    "scheduler_plist_path": "/Users/ouyangduning/Library/LaunchAgents/com.alphapilot.scheduler.plist",
+    "scheduler_plist_sha256": "468083914b4dbe93fb564f82451ce7bac474674567d0edd3cee87ec2a018b9be",
+    "trade_proposals_after": 1
+  },
+  "schema_version": "p4.1-news-poll-v2.1-standard-incremental-validation-evidence-v1",
+  "slice_to_source_reconciliation": {
+    "all_equal": true,
+    "slice_sums": {
+      "duplicate_content_hash": 0,
+      "duplicate_url": 0,
+      "fetched": 0,
+      "filtered": 0,
+      "inserted": 0
+    },
+    "source_aggregate": {
+      "duplicate_content_hash": 0,
+      "duplicate_url": 0,
+      "fetched": 0,
+      "filtered": 0,
+      "inserted": 0
+    }
+  }
+}

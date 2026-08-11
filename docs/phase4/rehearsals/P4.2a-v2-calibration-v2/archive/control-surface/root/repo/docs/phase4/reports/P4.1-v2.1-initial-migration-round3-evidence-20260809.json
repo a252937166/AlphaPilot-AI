@@ -1,0 +1,250 @@
+{
+  "checkpoint": {
+    "checkpoint_committed": true,
+    "initial_backlog_migration": false,
+    "latest_attempt_observed_at_utc": "2026-08-07T16:00:00+00:00",
+    "lineage_before": "v2.1_daily_checkpoint",
+    "newest_observed_at_utc": "2026-08-07T16:00:00+00:00",
+    "partial_checkpoint": false,
+    "verified_checkpoint_date_shanghai_after": "2026-08-08",
+    "verified_checkpoint_date_shanghai_before": "2026-08-06"
+  },
+  "created_at_shanghai": "2026-08-09T13:07:44.973432+08:00",
+  "created_at_utc": "2026-08-09T05:07:44.973432Z",
+  "daily_slices": [
+    {
+      "checkpoint_committed": true,
+      "coverage_proven": true,
+      "date_shanghai": "2026-08-07",
+      "disposition_identity_valid": true,
+      "disposition_total": 1194,
+      "duplicate_content_hash": 2,
+      "duplicate_url": 1073,
+      "failure": null,
+      "fetched": 1194,
+      "filtered": 0,
+      "inserted": 119,
+      "logical_requests": 40,
+      "mode": "closed_date_reconciliation",
+      "newest_observed_at_utc": "2026-08-07T13:12:11Z",
+      "page_cap_hit": false,
+      "page_count": 40,
+      "pagination_complete": true,
+      "physical_attempts": 40
+    },
+    {
+      "checkpoint_committed": true,
+      "coverage_proven": true,
+      "date_shanghai": "2026-08-08",
+      "disposition_identity_valid": true,
+      "disposition_total": 1329,
+      "duplicate_content_hash": 4,
+      "duplicate_url": 746,
+      "failure": null,
+      "fetched": 1329,
+      "filtered": 0,
+      "inserted": 579,
+      "logical_requests": 45,
+      "mode": "closed_date_reconciliation",
+      "newest_observed_at_utc": "2026-08-07T16:00:00Z",
+      "page_cap_hit": false,
+      "page_count": 45,
+      "pagination_complete": true,
+      "physical_attempts": 45
+    }
+  ],
+  "execution_contract": {
+    "canonical_column": "szse",
+    "coverage_gap": true,
+    "execution_mode": "initial_backlog_migration",
+    "failures": 0,
+    "logical_requests": 85,
+    "physical_attempts": 85,
+    "request_budget": {
+      "logical_request_count": 85,
+      "max_dates_per_run": 2,
+      "max_logical_requests_per_run": 160,
+      "max_pages_per_day": 80,
+      "max_physical_attempts_per_run": 320,
+      "page_size": 30,
+      "physical_attempt_count": 85
+    },
+    "retries": 0,
+    "run_mode": "coverage_gap_catchup",
+    "strict_tls": true,
+    "terminal_diagnostics": null
+  },
+  "execution_source": {
+    "path": "src/alphapilot/jobs/news_poll.py",
+    "sha256": "fef43741418dcddd0e2ed419e5e5617ee6826110f2529ccf5a5c231207400145",
+    "source_or_config_drift_after_execution": false
+  },
+  "frozen_bindings": {
+    "authorization_id": "p4.1-v2.1-initial-backlog-migration-auth-20260809-r3",
+    "authorization_receipt_path": "docs/phase4/reports/P4.1-v2.1-initial-migration-authorization-round3-20260809.json",
+    "authorization_receipt_sha256": "a46dc4abf9ca67340cd40314aa9f5d8f771e740be78cbbf9eb2e06750f24219b",
+    "config_path": "config/p4_news_poll_v2_1.yaml",
+    "config_sha256": "9d56e137baf10bd0858723a93aff02c57bf7b35f8705f1817b16a89ec615183f",
+    "controlled_probe_path": "config/p4_news_poll_v2_1.probe.json",
+    "controlled_probe_sha256": "5267be93ebcf9dd68bc8d4644ca34da15f834f5e7c6a49e76faa65034b825bdc",
+    "expected_checkpoint_date_shanghai_before": "2026-08-06",
+    "expected_slice_dates_shanghai": [
+      "2026-08-07",
+      "2026-08-08"
+    ],
+    "preregistration_path": "config/p4_news_poll_v2_1.preregistration.json",
+    "preregistration_sha256": "485f710398698c1692d8afd8de6cd06c71ddf2fbdf42713c6bd4defc4bdfd84b",
+    "receipt_uses_observed": 1
+  },
+  "job_run": {
+    "error": null,
+    "finished_at_utc": "2026-08-09T05:06:07.636323Z",
+    "id": 76933,
+    "job_name": "news_poll",
+    "started_at_utc": "2026-08-09T05:04:39.523793Z",
+    "stats_bytes": 35923,
+    "stats_canonical_json_sha256": "beb5f838c7762cdc958d879c0bc17a7391da6916780d2a88b95ad8ace5ddc111",
+    "stats_raw_sha256": "f881de16412a364dbcb008a6b0ed09566cd6e38eb743653966fd32b93e052f26",
+    "status": "ok"
+  },
+  "persisted_safety_configuration": {
+    "env_effective": {
+      "futu_enable_account_mutation": false,
+      "futu_enable_trade": false,
+      "live_trading_enabled": false,
+      "paper_auto_trading_enabled": false,
+      "paper_trading_enabled": false,
+      "trading_mode": "research"
+    },
+    "env_file_mtime_utc": "2026-08-08T19:37:01.175468Z",
+    "env_file_sha256": "97bd1ed328baf7a4758ed2269e0f556a2f03e04e919859e18a1c33ab0967a375",
+    "env_mtime_precedes_run_start": true,
+    "env_path": ".env",
+    "structural_code_invariants": {
+      "unlock_trade_permanently_blocked": true,
+      "v2_1_scheduler_activated_constant": false
+    }
+  },
+  "persisted_vs_process_divergences": [],
+  "persistence_evidence": {
+    "available_time_not_after_published_at_rows": 0,
+    "cninfo_after": 6844,
+    "cninfo_before": 6146,
+    "cninfo_inserted": 698,
+    "coverage_gap_catchup_rows": 720,
+    "coverage_gap_marked_rows": 720,
+    "db_commit_completed_at_utc": "2026-08-09T05:06:07.634549Z",
+    "db_flush_completed_at_utc": "2026-08-09T05:06:07.634140Z",
+    "first_available_time_utc": "2026-08-09T05:06:04.296997Z",
+    "global_duplicate_content_hash_groups": 0,
+    "global_duplicate_url_groups": 0,
+    "invalid_pit_chain_rows": 0,
+    "last_available_time_utc": "2026-08-09T05:06:07.633565Z",
+    "news_items_after": 9907,
+    "news_items_before": 9187,
+    "per_source_persistence_timing": {
+      "akshare_ths": {
+        "db_commit_completed_at_utc": "2026-08-09T05:06:04.545057Z",
+        "db_flush_completed_at_utc": "2026-08-09T05:06:04.542860Z",
+        "last_available_time_utc": "2026-08-09T05:06:04.541545Z"
+      },
+      "cninfo": {
+        "db_commit_completed_at_utc": "2026-08-09T05:06:04.339812Z",
+        "db_flush_completed_at_utc": "2026-08-09T05:06:04.330744Z",
+        "last_available_time_utc": "2026-08-09T05:06:04.296997Z"
+      },
+      "sina_company_news": {
+        "db_commit_completed_at_utc": "2026-08-09T05:06:07.634549Z",
+        "db_flush_completed_at_utc": "2026-08-09T05:06:07.634140Z",
+        "last_available_time_utc": "2026-08-09T05:06:07.633565Z"
+      }
+    },
+    "poll_completed_at_utc": "2026-08-09T05:06:07.635113Z",
+    "rows_by_source": {
+      "akshare_ths": 20,
+      "cninfo": 698,
+      "sina_company_news": 2
+    },
+    "run_marker_rows": 720,
+    "sources": [
+      "akshare_ths",
+      "cninfo",
+      "sina_company_news"
+    ],
+    "sqlite_query_only_total_changes": 0,
+    "sqlite_quick_check": "ok"
+  },
+  "phase_gates": {
+    "all_closed_dates_through_previous_shanghai_day_reconciled": true,
+    "initial_backlog_migration_complete": false,
+    "next_action": "Independent reviewer must validate JobRun 76933 and, if accepted, issue the standard-incremental-validation receipt with initial_backlog_migration_complete=true; scheduler remains frozen.",
+    "p4_2b_production_wiring_unlocked": false,
+    "p4_3_unlocked": false,
+    "scheduler_activated": false,
+    "standard_incremental_validation_complete": false,
+    "this_authorized_run_succeeded": true
+  },
+  "process_effective_safety": {
+    "after": {
+      "futu_enable_account_mutation": false,
+      "futu_enable_trade": false,
+      "live_trading_enabled": false,
+      "paper_auto_trading_enabled": false,
+      "paper_trading_enabled": false,
+      "trading_mode": "research",
+      "unlock_trade_permanently_blocked": true
+    },
+    "before": {
+      "futu_enable_account_mutation": false,
+      "futu_enable_trade": false,
+      "live_trading_enabled": false,
+      "paper_auto_trading_enabled": false,
+      "paper_trading_enabled": false,
+      "trading_mode": "research",
+      "unlock_trade_permanently_blocked": true
+    },
+    "before_and_after_equal": true,
+    "broker_order_ids_after": [
+      1
+    ],
+    "broker_order_ids_before": [
+      1
+    ],
+    "trade_proposal_ids_after": [
+      "p23-s2-live-20260722T021152Z-600000"
+    ],
+    "trade_proposal_ids_before": [
+      "p23-s2-live-20260722T021152Z-600000"
+    ]
+  },
+  "repository_head_at_evidence_freeze": "476455c7ef170e3abb9c243a8fe5c8e16fc2fb98",
+  "repository_head_at_execution": "476455c",
+  "review_status": "pending_independent_review",
+  "runtime_safety": {
+    "broker_orders_after": 1,
+    "non_simulate_broker_orders": 0,
+    "running_job_runs_after": 0,
+    "scheduler_launchagent_loaded_after": false,
+    "scheduler_plist_path": "/Users/ouyangduning/Library/LaunchAgents/com.alphapilot.scheduler.plist",
+    "scheduler_plist_sha256": "468083914b4dbe93fb564f82451ce7bac474674567d0edd3cee87ec2a018b9be",
+    "trade_proposals_after": 1
+  },
+  "schema_version": "p4.1-news-poll-v2.1-initial-migration-round-evidence-v2",
+  "slice_to_source_reconciliation": {
+    "all_equal": true,
+    "slice_sums": {
+      "duplicate_content_hash": 6,
+      "duplicate_url": 1819,
+      "fetched": 2523,
+      "filtered": 0,
+      "inserted": 698
+    },
+    "source_aggregate": {
+      "duplicate_content_hash": 6,
+      "duplicate_url": 1819,
+      "fetched": 2523,
+      "filtered": 0,
+      "inserted": 698
+    }
+  }
+}

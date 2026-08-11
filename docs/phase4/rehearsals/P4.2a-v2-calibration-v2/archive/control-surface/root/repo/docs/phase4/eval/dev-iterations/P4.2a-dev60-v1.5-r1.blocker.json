@@ -1,0 +1,180 @@
+{
+  "schema_version": "p4.2a-dev-iteration-blocker-v4",
+  "recorded_at_utc": "2026-08-04T11:11:22Z",
+  "round_id": "v1.5-r1",
+  "formal_dev_round_valid": false,
+  "development_ready_to_freeze": false,
+  "contract": {
+    "path": "config/p4_event_extract_eval_v1_5.yaml",
+    "sha256": "a07f9f37e0877bd06ce3dc9e8a0e03c51bbb92fdc3ba6738b6932d7679aca560",
+    "evaluation_design_path": "config/p4_event_evaluation_v1_4.yaml",
+    "evaluation_design_sha256": "3a392a6c834cdde219f54e149f22e235b0316765d0bd69501bb1f312d7ee0e33",
+    "model": "qwen3.6-plus",
+    "endpoint": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+    "prompt_path": "config/prompts/p4_news_event_extract_v1_4.txt",
+    "prompt_sha256": "ff42e6905e009e8a7a3a0ae7b7fedce043cbf73f55f3551cf76bbfdcfef33f2b",
+    "evidence_span_match_mode": "unicode_whitespace_elided_contiguous_substring_v1",
+    "explicit_cache_enabled": false
+  },
+  "artifacts": {
+    "predictions": {
+      "path": "docs/phase4/eval/dev-iterations/P4.2a-dev60-v1.5-r1.predictions.jsonl",
+      "sha256": "e9642568d50e0c4d9c1fe7726a117cb90269ed61ce116cd8665a989eb24dc297"
+    },
+    "manifest": {
+      "path": "docs/phase4/eval/dev-iterations/P4.2a-dev60-v1.5-r1.manifest.json",
+      "sha256": "211212ba610a876dd107986c06e12501db08d7f03e9c87a1f5007d306f47f51e"
+    },
+    "report": {
+      "path": "docs/phase4/eval/dev-iterations/P4.2a-dev60-v1.5-r1.report.json",
+      "sha256": "250545184031919e798a69dfd00dae9b8a06eb1b4168d628c0e5c48c00b7f845"
+    }
+  },
+  "coverage": {
+    "expected": 60,
+    "success": 50,
+    "failure": 10,
+    "failure_counts": {
+      "post_validation_failed": 9,
+      "schema_validation_failed": 1
+    },
+    "failure_ids": [
+      9,
+      250,
+      272,
+      280,
+      303,
+      304,
+      306,
+      336,
+      340,
+      360
+    ],
+    "failed_reference_positive_ids": [
+      272,
+      304,
+      306,
+      336
+    ]
+  },
+  "safe_failure_disclosure": {
+    "post_validation_failed": {
+      "persisted_error_code": "post_validation_failed",
+      "field": "evidence_span",
+      "constraint": "whitespace_normalized_contiguous_substring",
+      "count": 9,
+      "ids": [
+        9,
+        250,
+        272,
+        303,
+        304,
+        306,
+        336,
+        340,
+        360
+      ],
+      "root_cause_status": "unadjudicated_from_safe_artifacts",
+      "raw_payload_persisted": false,
+      "exception_detail_persisted": false,
+      "note": "The safe artifacts prove only the violated field and constraint. Candidate spans were intentionally not persisted, so no item-level paraphrase, table synthesis, or character-level cause is asserted."
+    },
+    "schema_validation_failed": {
+      "persisted_error_code": "schema_validation_failed",
+      "field": null,
+      "constraint": null,
+      "count": 1,
+      "ids": [
+        280
+      ],
+      "root_cause_status": "unproven",
+      "raw_payload_persisted": false,
+      "exception_detail_persisted": false,
+      "note": "The lower-level safe schema error still does not expose a field or constraint. No field-level cause is inferred or invented."
+    }
+  },
+  "model_interagreement": {
+    "materiality_gte_2": {
+      "matches": 11,
+      "denominator": 12,
+      "value": 0.9166666666666666,
+      "development_target": 0.8,
+      "development_target_reached_on_comparable_rows": true,
+      "formal_gate_usable": false,
+      "reason": "Ten rows failed extraction, including four reference-positive rows."
+    },
+    "symbol_exact_set": {
+      "matches": 48,
+      "denominator": 50,
+      "value": 0.96,
+      "development_target": 0.95,
+      "development_target_reached_on_comparable_rows": true,
+      "formal_gate_usable": false,
+      "mismatch_ids": [
+        44,
+        393
+      ]
+    }
+  },
+  "symbol_diagnostics": {
+    "ai_label_defect_ids": [
+      44
+    ],
+    "current_model_mismatch_ids_excluding_label_defects": [
+      393
+    ],
+    "id_393_historical_over_attribution_recurred": true,
+    "raw_frozen_labels_remain_unchanged": true,
+    "symbol_rule_relaxation_allowed": false,
+    "id_44_symbol_guessing_allowed": false
+  },
+  "comparison_disclosure": {
+    "flash_baseline_comparable_count": 59,
+    "candidate_comparable_count": 50,
+    "changed_dimensions": [
+      "model",
+      "endpoint",
+      "prompt_version",
+      "evidence_span_match_mode",
+      "validation_contract"
+    ],
+    "causal_reading_forbidden": true,
+    "interpretation": "indicative_only_not_single_variable_causality"
+  },
+  "runtime_evidence": {
+    "started_at_utc": "2026-08-04T11:04:42.529614Z",
+    "completed_at_utc": "2026-08-04T11:08:22.207429Z",
+    "latency_ms_min": 2210,
+    "latency_ms_mean": 3165.46,
+    "latency_ms_max": 5613,
+    "prompt_tokens_total": 166891,
+    "prompt_tokens_mean": 3337.82,
+    "completion_tokens_total": 6621,
+    "completion_tokens_mean": 132.42,
+    "enable_thinking": false
+  },
+  "safety": {
+    "production_database_mode": "ro_query_only",
+    "production_writes": 0,
+    "production_llm_calls_before_and_after": [
+      109,
+      109
+    ],
+    "trade_proposals": 1,
+    "broker_orders": 1,
+    "non_simulate_orders": 0,
+    "database_quick_check": "ok",
+    "p4_1_frozen_config_sha256": "d0dcd665472b50092a1b4fa7f65f7115778e1b89ac11aca0ed49dc70beaa790b",
+    "heldout_accessed": false,
+    "dev_final_created": false,
+    "prediction_freeze_receipt_created": false
+  },
+  "next_step": {
+    "same_contract_rerun_allowed": false,
+    "threshold_relaxation_allowed": false,
+    "labels_mutable": false,
+    "heldout_access_allowed": false,
+    "explicit_cache_must_remain_disabled": true,
+    "recommended": "Diagnose only from the frozen dev set, pre-register a new versioned contract before any additional model output, preserve the active matcher and zero-retry rule, and do not create dev-final or freeze artifacts until one 60-of-60 round passes both metric targets."
+  }
+}
