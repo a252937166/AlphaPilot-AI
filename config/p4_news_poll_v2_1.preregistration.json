@@ -1,0 +1,36 @@
+{
+  "schema_version": "p4.1-news-poll-v2.1-preregistration-v1",
+  "created_at": "2026-08-06T11:20:00Z",
+  "implementation_status": "code_ready_manual_migration_locked_scheduler_inactive",
+  "config_path": "config/p4_news_poll_v2_1.yaml",
+  "config_sha256": "9d56e137baf10bd0858723a93aff02c57bf7b35f8705f1817b16a89ec615183f",
+  "superseded_v2_config_path": "config/p4_news_poll_v2.yaml",
+  "superseded_v2_config_sha256": "a76a1cd9f1afd021de4d343a6550a1eb05ddad1b14d8d39cbaae2659574a5834",
+  "controlled_probe_path": "config/p4_news_poll_v2_1.probe.json",
+  "controlled_probe_sha256": "5267be93ebcf9dd68bc8d4644ca34da15f834f5e7c6a49e76faa65034b825bdc",
+  "canonical_column": "szse",
+  "daily_capacity_rows": 2400,
+  "max_dates_per_run": 2,
+  "initial_backlog_migration": {
+    "legacy_watermark_utc": "2026-08-03T13:37:29Z",
+    "first_slice_date_shanghai": "2026-08-03",
+    "activation_review_required": true,
+    "complete": false
+  },
+  "activation_gates": {
+    "code_ready": true,
+    "scheduler_activated": false,
+    "initial_backlog_migration_complete": false,
+    "standard_incremental_validation_complete": false
+  },
+  "manual_execution": {
+    "initial_migration_entrypoint": "run_news_poll_v2_1_initial_migration",
+    "incremental_validation_entrypoint": "run_news_poll_v2_1_incremental_validation",
+    "authorization_receipt_schema": "p4.1-news-poll-v2.1-manual-authorization-v1",
+    "scheduler_activation_forbidden_until_both_gates_pass": true
+  },
+  "phase_locks": {
+    "p4_2b_production_wiring_unlocked": false,
+    "p4_3_unlocked": false
+  }
+}

@@ -145,6 +145,11 @@ function recommendationMeta(scoreValue: unknown): BadgeMeta {
   return { label: '减持', cls: 'red', title }
 }
 
+function fmtAmountYi(value: number | null | undefined): string {
+  if (value == null || !Number.isFinite(value)) return '—'
+  return `${(value / 1e8).toFixed(2)} 亿`
+}
+
 function statusMeta(candidate: ScreenCandidateSummary): BadgeMeta {
   if (!diffSnapshotValid.value || !screenDiff.value) {
     return { label: '—', cls: 'gray', title: '缺少同批次选股 diff，无法判断状态' }
@@ -615,6 +620,16 @@ onMounted(loadInitial)
                     >
                       {{ recommendationMeta(candidate.score).label }}
                     </span>
+                    <span
+                      v-if="candidate.high_volatility"
+                      class="badge red"
+                      title="波动披露：年化波动率处于高位（risk_score < 20）；仅提示，不影响排序"
+                    >高波动</span>
+                    <span
+                      v-if="candidate.low_liquidity"
+                      class="badge yellow"
+                      :title="`流动性披露：近20日日均成交额 ${fmtAmountYi(candidate.avg_amount_20d)}，低于 0.5 亿披露线；仅提示，不影响排序`"
+                    >薄流动</span>
                   </td>
                   <td>
                     <span

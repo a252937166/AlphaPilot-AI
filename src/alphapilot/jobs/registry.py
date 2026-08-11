@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from dataclasses import dataclass
 from threading import Lock
-from typing import Any
+from typing import Any, Literal
 
 from apscheduler.triggers.base import BaseTrigger
 
@@ -19,9 +19,28 @@ from alphapilot.services.notifications import push_job_failure
 @dataclass(frozen=True, slots=True)
 class JobSpec:
     name: str
-    func: Callable[..., dict[str, Any]]
+    func: Callable[..., dict[str, Any] | JobOutcome]
     trigger: BaseTrigger | None
     enabled_key: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class JobOutcome:
+    """A successful terminal outcome whose status is explicit.
+
+    Existing jobs may keep returning a plain stats mapping, which remains an
+    ``ok`` outcome.  ``degraded`` is deliberately successful at the execution
+    boundary: it is persisted without an exception or failure notification,
+    while callers and acceptance gates can still distinguish it from ``ok``.
+    """
+
+    status: Literal["ok", "degraded"]
+    stats: dict[str, Any]
+
+    def __post_init__(self) -> None:
+        if self.status not in {"ok", "degraded"}:
+            raise ValueError("JobOutcome status must be ok or degraded")
+        object.__setattr__(self, "stats", dict(self.stats))
 
 
 JOBS: dict[str, JobSpec] = {}
@@ -63,7 +82,7 @@ def _run_job_locked(name: str, spec: JobSpec, kwargs: dict[str, Any]) -> JobRun:
 
     try:
         with bind_job_run(run_id=run_id, job_name=name):
-            stats = spec.func(**kwargs)
+            result = spec.func(**kwargs)
     except Exception as exc:  # the audit row is the scheduler's failure boundary
         with get_session() as session:
             failed = session.get(JobRun, run_id)
@@ -85,8 +104,14 @@ def _run_job_locked(name: str, spec: JobSpec, kwargs: dict[str, Any]) -> JobRun:
         completed = session.get(JobRun, run_id)
         if completed is None:
             raise RuntimeError(f"job audit row disappeared: {run_id}")
-        completed.status = "ok"
+        if isinstance(result, JobOutcome):
+            completed.status = result.status
+            stats = result.stats
+        else:
+            completed.status = "ok"
+            stats = result
         completed.finished_at = utcnow()
+        completed.error = None
         completed.stats = stats
     return completed
 

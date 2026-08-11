@@ -1,0 +1,74 @@
+{
+  "schema_version": "p4.1-news-poll-v2.1-manual-authorization-v1",
+  "authorization_id": "p4.1-v2.1-standard-incremental-validation-auth-20260809-r1",
+  "authorized_at_utc": "2026-08-09T05:26:12Z",
+  "authorized_by": "independent_ai_architect_claude_code (reviewer_type=ai; Anthropic Claude Fable 5, model id claude-fable-5; not a human reviewer, per owner governance amendment requires_release_gate_amendment=true)",
+  "execution_mode": "standard_incremental_validation",
+  "authorized": true,
+  "network_execution_authorized": true,
+  "scheduler_activated": false,
+  "initial_backlog_migration_complete": true,
+  "standard_incremental_validation_complete": false,
+  "config_path": "config/p4_news_poll_v2_1.yaml",
+  "config_sha256": "9d56e137baf10bd0858723a93aff02c57bf7b35f8705f1817b16a89ec615183f",
+  "backlog_completion_basis": {
+    "declared_by": "independent AI architect review of migration round 3",
+    "review_report_path": "docs/phase4/reports/P4.1-v2.1-initial-migration-round3-independent-review-20260809.json",
+    "checkpoint_date_shanghai": "2026-08-08",
+    "closed_dates_reconciled": ["2026-08-03", "2026-08-04", "2026-08-05", "2026-08-06", "2026-08-07", "2026-08-08"],
+    "authorizing_rounds": [
+      {"job_run_id": 76931, "receipt_sha256": "4f8d2172a1cf13e33a2417280d3453aa19e7622df1299bdf40f35abf6f62ca0f", "closed": ["2026-08-03", "2026-08-04"]},
+      {"job_run_id": 76932, "receipt_sha256": "9d704e4b523d1c52cc5c567ff66c4c661b8324d5034130292f629853d359cfa3", "closed": ["2026-08-05", "2026-08-06"]},
+      {"job_run_id": 76933, "receipt_sha256": "a46dc4abf9ca67340cd40314aa9f5d8f771e740be78cbbf9eb2e06750f24219b", "closed": ["2026-08-07", "2026-08-08"]}
+    ],
+    "why_true_here": "This is the first receipt in which initial_backlog_migration_complete is true. It is set on the strength of an independent review, not on operator self-declaration, and it is the loader-enforced precondition for the standard incremental validation entrypoint."
+  },
+  "review_basis": {
+    "verdict": "APPROVE_ROUND_3_EVIDENCE",
+    "validated_job_run_id": 76933,
+    "validated_evidence_sha256": "57f9b99e99358b5e8c596485774702858e5c572cb3116407a279d0195b044318",
+    "validated_stats_raw_sha256": "f881de16412a364dbcb008a6b0ed09566cd6e38eb743653966fd32b93e052f26",
+    "validated_stats_canonical_json_sha256": "beb5f838c7762cdc958d879c0bc17a7391da6916780d2a88b95ad8ace5ddc111",
+    "validated_executed_source_sha256": "fef43741418dcddd0e2ed419e5e5617ee6826110f2529ccf5a5c231207400145",
+    "blockers_found": 0
+  },
+  "authorized_round": {
+    "rounds_authorized": 1,
+    "entrypoint": "run_news_poll_v2_1_incremental_validation",
+    "expected_checkpoint_date_shanghai_before": "2026-08-08",
+    "expected_slice_dates_shanghai": ["2026-08-09"],
+    "expected_slice_derivation": "_v2_1_slice_dates evaluated read-only against the committed checkpoint 2026-08-08 with max_dates_per_run=2 at Shanghai date 2026-08-09; only the current day remains, so exactly one slice is expected",
+    "expected_checkpoint_date_shanghai_after": "2026-08-08",
+    "why_checkpoint_must_not_advance": "2026-08-09 is the current Shanghai day and therefore not closed. A correct run advances only the observed high and must leave the date checkpoint at 2026-08-08. A checkpoint that advances to 2026-08-09 would mean an unclosed day was disguised as closed and is a hard failure, not a success.",
+    "single_use_binding": "This receipt authorizes exactly one validation run. The loader cannot enforce single use, so the expected checkpoint and slice bindings above are the detection binding, and the hardened evidence freezer now also validates them mechanically. Three consecutive rounds have honoured this obligation, which is the basis for extending it here.",
+    "note_if_run_after_midnight_cst": "If execution slips past 2026-08-09 24:00 CST the derived slice set changes and this receipt no longer matches. In that case do not run: report the drift and request a re-scoped receipt."
+  },
+  "first_execution_warning": {
+    "id": "O-1",
+    "statement": "This is the FIRST live execution of the current-day incremental path. All six slices of the three migration rounds ran as closed_date_reconciliation with a null floor, so the floor computation, the floor-reached pagination stop, and the separation of observed-high advance from date-checkpoint advance have never run against real data.",
+    "implication": "Treat this as a genuine test, not a formality. A failure here is an expected possible outcome and must be reported honestly rather than retried."
+  },
+  "mandatory_conditions": [
+    "Stop on any failure: do not retry, do not adjust configuration, do not treat a failed run as a checkpoint seed; submit the failure evidence for adjudication as-is.",
+    "The evidence must explicitly report, for the current-day slice: mode (expected current_date_incremental), the computed incremental_floor_utc, whether the floor was reached, page_count, page_cap_hit, pagination_complete, the observed high before and after, and the date checkpoint before and after.",
+    "The date checkpoint must remain 2026-08-08. Report the value observed; do not correct it if it differs.",
+    "Continue the round-3 evidence schema: per-slice dispositions with identity checks, slice-to-source reconciliation, persisted-versus-process safety disclosure, executed source SHA-256, and expected-versus-observed scope binding.",
+    "A low announcement count is a legitimate outcome for a Sunday. Report it as observed; do not widen the window or treat a small day as a defect.",
+    "Because CNInfo batch-timestamps many announcements at 00:00 CST, the 30-minute overlap floor may never be reached and completeness may rest on pagination exhaustion. Report which mechanism actually terminated pagination.",
+    "Trading safety must hold throughout: trading_mode=research, live_trading_enabled=false, paper_trading_enabled=false, paper_auto_trading_enabled=false, futu_enable_account_mutation=false, futu_enable_trade=false, unlock_trade permanently blocked, zero non-SIMULATE broker orders, proposals and orders unchanged.",
+    "Do not modify, overwrite or reissue any existing evidence or authorization artifact; the new evidence file must be create-only."
+  ],
+  "scope_limits": {
+    "authorizes_only": "one manual standard incremental validation run through run_news_poll_v2_1_incremental_validation bound to the config SHA above",
+    "does_not_authorize": [
+      "scheduler activation or redeployment; V2_1_SCHEDULER_ACTIVATED must remain False and the LaunchAgent must remain unloaded",
+      "any further initial_backlog_migration round",
+      "any P4.2b production wiring or P4.3 unlock",
+      "any trade proposal, order, delegation, or trade in any environment",
+      "any production database mutation outside news_items inserts performed by the authorized run itself",
+      "any modification of .env, frozen configs, pre-registration, probe, or prior receipts"
+    ],
+    "completion_status_after_this_round": "Even on success, standard_incremental_validation_complete stays false in this receipt and may only be set true after the validation evidence is independently reviewed. Scheduler activation is a further, separate gate after that."
+  },
+  "next_gate": "Submit the validation evidence for independent review. If accepted, the remaining sequence is: scheduler redeployment from the hardened template (the installed plist predates the paper_trading_enabled and futu_enable_trade pins), then a scheduler activation review, then a fresh three-trading-day observation window under the frozen config, then the P4.1 acceptance verdict that gates P4.2b and P4.3."
+}

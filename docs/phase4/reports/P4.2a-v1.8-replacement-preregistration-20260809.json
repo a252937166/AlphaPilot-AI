@@ -1,0 +1,78 @@
+{
+  "schema_version": "p4.2a-replacement-evaluation-preregistration-v1",
+  "status": "pre_registered_not_executed",
+  "pre_registered_at_utc": "2026-08-09T07:07:02Z",
+  "owner_authorization": {
+    "path": "docs/phase4/reports/P4.2a-replacement-evaluation-authorization-20260809.json",
+    "sha256": "2e33220faa424419c199466019b1cb94f4c4cd7e0bb60e9d978fdb0689f0089f",
+    "decision": "OPTION_B_REGISTER_FAILED_ROUND_AND_AUTHORIZE_ONE_REPLACEMENT"
+  },
+  "failed_round_immutable_evidence": {
+    "incident_path": "docs/phase4/reports/P4.2a-heldout-one-shot-consumed-incident-20260809.json",
+    "incident_sha256": "5182cfcfcbe419bc8c724365ba81fdbcdd92356de5064d864937f29f2573f963",
+    "state_path": "docs/phase4/eval/P4.2a-heldout-evaluation-one-shot-v1.7.state.jsonl",
+    "state_sha256": "ba1eef1517fa30c37a7fcba5b171405cf537c84dbbbb70cec57f542842fdc0ff",
+    "mutation_forbidden": true
+  },
+  "replacement_design": {
+    "path": "config/p4_event_evaluation_v1_8.yaml",
+    "sha256": "bb36b9713cbf70fa5293683e767655b70720a2baa9e8822bc0396c4e6284452e",
+    "schema_version": "p4.2a-evaluation-design-v1.8",
+    "extends_path": "config/p4_event_evaluation_v1_7.yaml",
+    "extends_sha256": "4c7964ad547820f5672631939af93978f11cb9f91e5921087770ac7d0d79bec1",
+    "byte_frozen_scope_count": 15,
+    "new_state_path": "docs/phase4/eval/P4.2a-heldout-evaluation-one-shot-v1.8-replacement.state.jsonl",
+    "new_report_directory": "docs/phase4/eval/reports/v1.8-replacement"
+  },
+  "frozen_inputs": {
+    "heldout_inference_state": {
+      "path": "docs/phase4/eval/P4.2a-heldout-inference-one-shot-v1.7.state.jsonl",
+      "sha256": "44253bfb643458ebf2b1e86ef5bddcdf4d01469ebf60ffcb02c2096ad54cfbe3"
+    },
+    "heldout_selection_manifest": {
+      "path": "docs/phase4/eval/P4.2a-heldout40-selection-v1.7.manifest.json",
+      "sha256": "9da50ea8720b01b58c6d19eb9d7b11705a0c561c61da432543e2ab5644b3abe1"
+    },
+    "heldout_predictions": {
+      "path": "docs/phase4/eval/P4.2a-heldout-candidate-predictions-v1.7.jsonl",
+      "sha256": "b77429b16e92ddd74895915c5c628026f8a426a54f2bf006c59606c4c18bcc84"
+    },
+    "combined_owner_annotations": {
+      "path": "docs/phase4/eval/P4.2a-gold-annotation100-v1.7.jsonl",
+      "sha256": "ec922eeb3cfcee0ee06b870fda275f14842c324ade2273a3912302f36ab047b4"
+    },
+    "owner_completion_manifest": {
+      "path": "docs/phase4/eval/P4.2a-owner-completion-v1.7.manifest.json",
+      "sha256": "770ee8052a7f30a51e0e7cbbb924d498a5c9c2b00682059562abd7a7150f8c75"
+    }
+  },
+  "pre_registered_implementation": {
+    "version_pairing": "derive the active extraction contract identity from the loaded evaluation design; reject every undeclared or hash-drifted contract",
+    "diagnostic_versioning": "derive candidate-selector diagnostic eligibility from the same active contract binding; no design-version allow-list",
+    "lineage_proof": "require scope-gated byte-frozen validation of the v1.7 inference state and selection manifest under v1.8",
+    "dry_run": "walk report extensions and report assembly using score-redacted synthetic metrics; never compute or serialize real heldout scores",
+    "synthetic_rehearsal": "run the complete claim-to-report path on structurally equivalent synthetic inputs outside docs/phase4/eval",
+    "formal_execution": "forbidden until the implementation and evidence receive independent review approval"
+  },
+  "unchanged_contract": {
+    "heldout_sample": true,
+    "selection_seed": true,
+    "selection_window": true,
+    "sample_count": true,
+    "predictions": true,
+    "model": true,
+    "prompt": true,
+    "extraction_contract": true,
+    "freeze_receipt": true,
+    "thresholds": true,
+    "metric_definitions": true,
+    "owner_gold": true
+  },
+  "phase_locks": {
+    "replacement_round_executed": false,
+    "p4_2b_unlocked": false,
+    "p4_3_unlocked": false,
+    "production_writes_allowed": false,
+    "proposals_or_orders_allowed": false
+  }
+}

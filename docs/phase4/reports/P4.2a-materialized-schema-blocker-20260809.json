@@ -1,0 +1,88 @@
+{
+  "schema_version": "p4.2a-independent-review-blocker-v1",
+  "report_id": "p4.2a-materialized-schema-selection-blocker-20260809-r1",
+  "created_at_utc": "2026-08-09T06:11:41Z",
+  "created_at_shanghai": "2026-08-09T14:11:41+08:00",
+  "verdict": "BLOCKED",
+  "blocked_step": "P4.2a one-shot heldout evaluation (scoring of qwen3.7-flash against the human-adjudicated gold)",
+  "reviewer": {
+    "identity": "independent_ai_architect_claude_code",
+    "reviewer_type": "ai",
+    "model": "Anthropic Claude Fable 5 (model id claude-fable-5)",
+    "impersonation_disclaimer": "Not a human reviewer. Issued under the owner governance amendment with requires_release_gate_amendment=true.",
+    "action_taken": "Recorded evidence and stopped. No self-repair, no contract relaxation, no workaround, no retry, no edit to any frozen design, contract or artifact."
+  },
+  "one_shot_status": {
+    "consumed": false,
+    "evidence": "docs/phase4/eval/P4.2a-heldout-evaluation-one-shot-v1.7.state.jsonl does not exist and docs/phase4/eval/reports/v1.7 is empty. Both aborts to date occur during input validation, before the one-shot state is written. The single evaluation attempt remains available.",
+    "attempts_so_far": 2,
+    "note": "Neither attempt reached scoring, produced a report, or touched the heldout predictions."
+  },
+  "fix_5adaa3f_review": {
+    "verdict": "APPROVE",
+    "blockers": 0,
+    "scope": "scripts/build_p4_2a_gold_sample.py, scripts/run_p4_2a_heldout_predictions.py, src/alphapilot/llm/p4_news_eval.py and tests. git diff over config/ and docs/phase4/eval/ between e892b8d and 5adaa3f is empty; the v1.7 design still hashes to 4c7964ad...bec1 and the three combine-owner outputs are byte-identical to the digests recorded before the fix.",
+    "why_correct": "Lineage is now a first-class, verified concept rather than an inference. _extended_design_lineage validates each parent edge strictly: the declared path, SHA-256 and schema_version must equal the design actually loaded, the inheritance block must be non-empty with every entry byte_frozen, and repeated ancestors are rejected. byte_frozen_design_identities walks one parent edge at a time and stops at the first edge that does not freeze every required scope, so a scope broken at an intermediate design can never be regained by a more distant ancestor. Acceptance is scope-gated through PREDICTION_FREEZE_DESIGN_SCOPES rather than being a blanket ancestor allow-list, and the sibling freeze-receipt check was fixed the same way, so the class was addressed rather than the single call site.",
+    "independently_measured_boundary": {
+      "accepted_identities_under_prediction_freeze_scopes": ["p4.2a-evaluation-design-v1.7 / 4c7964ad...bec1", "p4.2a-evaluation-design-v1.6 / 57e04f99...39c9"],
+      "ancestor_chain_length": 6,
+      "v1_5_rejected": true,
+      "why_v1_5_is_rejected": "The v1.6 to v1.5 edge does not declare active_prediction_contract or prediction_contract_freeze_receipt byte_frozen, so freezing continuity breaks there and traversal stops at v1.6.",
+      "v1_1_rejected": true,
+      "unrelated_sha_rejected": true,
+      "non_string_rejected": true,
+      "unknown_scope_behaviour": "Requesting a scope no ancestor freezes returns only the current design identity, which is the correct fail-closed direction. An earlier assertion by this reviewer that it should raise was wrong and is corrected here.",
+      "negative_regression_tests_present": ["test_v1_7_dev_final_freeze_accepts_only_declared_v1_6_lineage", "test_prediction_freeze_receipt_binds_sha_and_schema_to_same_lineage_entry"]
+    },
+    "quality_gates": {"ruff": "All checks passed", "mypy_strict_src_alphapilot": "no issues found in 157 source files", "pytest_full": "exit 0"},
+    "verdict_authority_note": "The operator again reported an independent APPROVE. An operator self-audit is not the independent verdict; this approval was reached by re-reading the diff, empirically probing the acceptance boundary, and re-running the gates."
+  },
+  "defect": {
+    "title": "Representation mismatch: stored materialized predictions are validated against the raw model-output schema",
+    "observed_error": "P4.2a evaluation failed: successful prediction news item 268 violates schema: 'evidence_candidate_id' is a required property",
+    "raising_site": "scripts/evaluate_p4_2a_gold.py line 489, using the validator constructed at line 545 from the schema selected at line 537",
+    "mechanism": "Line 537 reads schema = getattr(event_contract, 'schema', None). For the active v1.7 contract, evidence_candidate_selection is true, so contract.schema is the RAW MODEL OUTPUT schema whose required list ends with evidence_candidate_id. The predictions actually persisted are MATERIALIZED records whose required list ends with evidence_span. Validating materialized records against the raw model schema can never succeed.",
+    "measured_evidence": {
+      "contract_schema_required": ["symbols", "event_type", "direction", "materiality", "summary", "confidence", "evidence_candidate_id"],
+      "contract_materialized_schema_required": ["symbols", "event_type", "direction", "materiality", "summary", "confidence", "evidence_span"],
+      "stored_prediction_keys": ["confidence", "direction", "event_type", "evidence_span", "materiality", "summary", "symbols"],
+      "dev_final_successful_predictions_missing_evidence_candidate_id": "60 of 60",
+      "heldout40_successful_predictions_missing_evidence_candidate_id": "40 of 40",
+      "interpretation": "No stored prediction anywhere carries evidence_candidate_id, because materialization deliberately resolves the selected candidate id into an exact raw slice. The stored form matches contract.materialized_schema exactly."
+    },
+    "correct_behaviour_exists_elsewhere": "build_p4_2a_gold_sample.validate_heldout_candidate_predictions validates the same records against active_contract.materialized_schema and raises when that schema is absent. The two validators disagree about which representation stored predictions are in; the gold-sample side is right.",
+    "which_records_trip_it_first": "news item 268 belongs to the dev60 set, not heldout40, so the abort occurs while validating the dev-final predictions. The heldout predictions would fail identically once reached; nothing about this defect is specific to the dev set.",
+    "same_family_as_previous_two_blockers": "This is the third instance today of a validator ignoring an artifact's declared role, lineage or representation. The first was combine-owner treating a SHA-bound input as a create-only output; the second was the dev-final manifest validated against the wrong design generation; this one validates a materialized record against the raw model schema. All three are latent defects on paths that had never been executed end to end, not regressions.",
+    "why_it_was_never_caught": "The v1.6 evidence-candidate protocol introduced the two-schema split, and no heldout evaluation has ever run under any design version, so this call site has never seen a materialized record from a candidate-selection contract."
+  },
+  "explicitly_refused_actions": [
+    "Editing the active prediction contract or the v1.7 design so that contract.schema matches the stored records: those bytes are frozen and bound to the executed one-shot inference.",
+    "Rewriting the dev-final or heldout prediction records to add evidence_candidate_id: they are create-only frozen model output and adding a field would falsify what the model returned.",
+    "Passing a different scope, design or annotation file to make the evaluator proceed.",
+    "Retrying the one-shot evaluation in any form before the defect is fixed and reviewed."
+  ],
+  "recommended_remediation": {
+    "principle": "A validator must select the schema that matches the representation of the records it is validating. When the active contract declares evidence_candidate_selection, persisted prediction records are materialized and must be validated against materialized_schema; the raw model schema applies only to the model's immediate response during inference.",
+    "proposed_change": "In scripts/evaluate_p4_2a_gold.py, select materialized_schema when the active contract declares evidence_candidate_selection, and fail closed if that schema is absent, mirroring validate_heldout_candidate_predictions. Codex should sweep for other consumers of contract.schema that are actually reading persisted predictions and fix the class rather than this one call site, as was done for the lineage defect.",
+    "why_this_is_code_not_contract": "The fix lives in the evaluator, so the frozen contract, design and prediction bytes are untouched and every binding to the executed one-shot inference is preserved.",
+    "mandatory_conditions": [
+      "Pre-register the fix before use: commit the code change and offline fixture tests first, then run the evaluation once.",
+      "Add a negative regression test that a record genuinely missing a materialized-schema required field, and a raw model response lacking evidence_span, both still fail closed, so the fix does not degrade into skipping validation.",
+      "Do not change any threshold, metric definition, selection rule, prompt, model, prediction contract or evaluation design.",
+      "The combine-owner outputs must not be regenerated; they remain create-only with the digests recorded in the previous blocker report.",
+      "The heldout evaluation remains one-shot with zero retries and has still not been consumed."
+    ],
+    "process_recommendation": "Three latent defects have now been found by executing this path for the first time, each one gate deeper than the last. Before the next attempt, consider a dry-run mode that walks every validation stage against the real frozen inputs without writing the one-shot state or a report, so remaining defects surface in one pass instead of one per attempt. Such a mode must be read-only and must not be able to produce a scored report."
+  },
+  "state_ready_for_evaluation_once_unblocked": {
+    "design_sha256": "4c7964ad547820f5672631939af93978f11cb9f91e5921087770ac7d0d79bec1",
+    "combined_annotations_sha256": "ec922eeb3cfcee0ee06b870fda275f14842c324ade2273a3912302f36ab047b4",
+    "heldout_owner_annotations_sha256": "3ff3aeae165a6da1f9b60d873c08489200cadb03f10d1188729aa013854658e5",
+    "owner_completion_manifest_sha256": "770ee8052a7f30a51e0e7cbbb924d498a5c9c2b00682059562abd7a7150f8c75",
+    "heldout_adjudicated_export_sha256": "e0a8de7484f1532918286bcc6e96128ab3e71390aa6dc90fe9f49b84407d571e",
+    "heldout_ai_draft_sha256": "c734f3c09928b462d5c25cf9888f265b6825e1f9ab51a6cf452f35b839ad53a5",
+    "invocation": "PYTHONPATH=. python scripts/evaluate_p4_2a_gold.py --scope heldout-final-v1.7 --evaluation-design config/p4_event_evaluation_v1_7.yaml --heldout-adjudicated-export docs/phase4/eval/P4.2a-gold-heldout40-v1.7.adjudicated.jsonl --heldout-ai-draft docs/phase4/eval/P4.2a-gold-heldout40-v1.7.labels-ai-drafted.jsonl --output docs/phase4/eval/reports/v1.7/P4.2a-heldout-final-v1.7-report.json",
+    "note": "No input needs to change; the same invocation should proceed once schema selection is corrected."
+  },
+  "next_gate": "Codex fixes the schema-selection defect with pre-registered code plus negative tests, ideally together with a read-only dry-run stage walker, and submits it for independent review. Once approved, the one-shot heldout evaluation runs exactly once and P4.2a is adjudicated on its result, pass or fail."
+}

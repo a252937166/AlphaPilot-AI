@@ -1,0 +1,2 @@
+{"at_utc":"2026-08-09T10:06:40.570000Z","design_sha256":"bb36b9713cbf70fa5293683e767655b70720a2baa9e8822bc0396c4e6284452e","event":"evaluation_started"}
+{"at_utc":"2026-08-09T10:06:40.941686Z","design_sha256":"bb36b9713cbf70fa5293683e767655b70720a2baa9e8822bc0396c4e6284452e","event":"evaluation_completed","passed":false,"report_path":"docs/phase4/eval/reports/v1.8-replacement/P4.2a-heldout-evaluation-v1.8-replacement.json","report_sha256":"c2957297e733a919bdd31c4aa4faafb50c4c4d5c0edac29f663dac03e34a3a8f"}

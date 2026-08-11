@@ -32,10 +32,12 @@ from alphapilot.db.models import (
     JobRun,
 )
 from alphapilot.jobs import event_backfill
+from alphapilot.jobs import registry as job_registry
 from alphapilot.jobs import scheduler as scheduler_module
 from alphapilot.jobs.registry import (
     JOBS,
     JobExecutionError,
+    JobOutcome,
     JobSpec,
     register,
     run_job,
@@ -456,6 +458,61 @@ def test_run_job_passes_explicit_kwargs() -> None:
 
     assert record.status == "ok"
     assert record.stats == {"force": True}
+
+
+def test_run_job_persists_degraded_outcome_without_failure_notification(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    name = "test_degraded_job_outcome"
+    pushed: list[int] = []
+
+    def push_failure(_session: object, record: JobRun) -> None:
+        pushed.append(record.id)
+
+    def task() -> JobOutcome:
+        return JobOutcome(
+            status="degraded",
+            stats={"terminal_diagnostics": {"code": "fixture_degraded"}},
+        )
+
+    monkeypatch.setattr(job_registry, "push_job_failure", push_failure)
+    register(JobSpec(name=name, func=task, trigger=None))
+    try:
+        record = run_job(name)
+    finally:
+        JOBS.pop(name, None)
+
+    assert record.status == "degraded"
+    assert record.error is None
+    assert record.finished_at is not None
+    assert record.stats == {"terminal_diagnostics": {"code": "fixture_degraded"}}
+    assert pushed == []
+
+
+def test_run_job_rejects_invalid_job_outcome_as_failure_and_notifies(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    name = "test_invalid_job_outcome"
+    pushed: list[int] = []
+
+    def push_failure(_session: object, record: JobRun) -> None:
+        pushed.append(record.id)
+
+    def task() -> JobOutcome:
+        return JobOutcome(status="failed", stats={})  # type: ignore[arg-type]
+
+    monkeypatch.setattr(job_registry, "push_job_failure", push_failure)
+    register(JobSpec(name=name, func=task, trigger=None))
+    try:
+        record = run_job(name)
+    finally:
+        JOBS.pop(name, None)
+
+    assert record.status == "failed"
+    assert record.error == "ValueError: JobOutcome status must be ok or degraded"
+    assert record.finished_at is not None
+    assert record.stats == {}
+    assert pushed == [record.id]
 
 
 def test_run_job_persists_partial_stats_from_failure() -> None:

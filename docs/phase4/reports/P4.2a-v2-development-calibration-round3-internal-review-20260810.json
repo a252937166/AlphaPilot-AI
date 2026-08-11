@@ -1,0 +1,117 @@
+{
+  "schema_version": "p4.2a-v2-development-calibration-internal-review-v1",
+  "generated_at_utc": "2026-08-09T17:59:11Z",
+  "generated_at_cst": "2026-08-10T01:59:11+08:00",
+  "reviewer": {
+    "reviewer_type": "ai_internal_read_only_team",
+    "role": "independent_recomputation_and_artifact_audit",
+    "not_an_external_release_approver": true
+  },
+  "scope": "Round 3 immutable development calibration result only",
+  "review_inputs": {
+    "gold_sha256": "fc08abc2f78bcb693c4e048fcd43ddd4f37c9d6a7a70ac878467194efbacaaa8",
+    "flash_predictions_sha256": "12614efa41b3e7533e00a56011b40555de873ca52026fd70ca32799c167f34bd",
+    "plus_predictions_sha256": "6c7497d4ba80daab0b22b251e850401ceaa71924ff9b91f700c83097cd0aec31",
+    "round_outcome_sha256": "aa564779f340a0ee227bf1c298ab7a29f7d0d684520fb60f0cddac23b9310b9e",
+    "calibration_state_sha256": "16b0da6fbf3d804c647a4fccf39fe93148fbb0bc9024a0ff5b93b6ddb013ac4e"
+  },
+  "method": [
+    "Recomputed every materiality confusion cell directly from the frozen human-adjudicated dev45 labels and prediction JSONL files.",
+    "Recomputed point precision, false-omission rate, and both one-adverse-item transformations without trusting report fields.",
+    "Recomputed baseline-stratum and inverse-probability-weighted diagnostics.",
+    "Verified all JSON/JSONL, manifest, report, terminal, outcome, and append-only state hash closures.",
+    "Compared the first four calibration-state lines and all Round 1/2 artifacts to their frozen repository versions.",
+    "Rechecked production SQLite in ro/query_only mode and compared trading, llm_calls, heldout, environment, and P4.1 configuration safety evidence."
+  ],
+  "verdict": "APPROVE_RESULT_RECORDED_MODEL_SELECTED_PENDING_EXTERNAL_ADJUDICATION",
+  "blocker_count": 0,
+  "recomputed_metrics": {
+    "qwen3.7-flash": {
+      "tp": 13,
+      "fp": 2,
+      "fn": 5,
+      "tn": 25,
+      "precision": 0.8666666666666667,
+      "false_omission_rate": 0.16666666666666666,
+      "adverse_precision": 0.8,
+      "adverse_false_omission_rate": 0.2,
+      "point_gates_passed": true,
+      "adverse_margin_passed": true,
+      "technical_completion": "45/45"
+    },
+    "qwen3.6-plus": {
+      "tp": 17,
+      "fp": 1,
+      "fn": 1,
+      "tn": 26,
+      "precision": 0.9444444444444444,
+      "false_omission_rate": 0.037037037037037035,
+      "adverse_precision": 0.8888888888888888,
+      "adverse_false_omission_rate": 0.07407407407407407,
+      "point_gates_passed": true,
+      "adverse_margin_passed": true,
+      "technical_completion": "45/45"
+    },
+    "naive_materiality_recall_emitted": false
+  },
+  "selection_review": {
+    "selected_model": "qwen3.7-flash",
+    "selection_is_correct": true,
+    "reason": "The pre-registered absolute rule selects flash when flash clears every point and adverse development gate. Plus was still fully measured and also passed; its stronger score was not used for selection.",
+    "relative_ranking_used": false,
+    "o5_triggered": false,
+    "automatic_round_4_allowed": false
+  },
+  "completion_and_lineage": {
+    "model_order": [
+      "qwen3.7-flash",
+      "qwen3.6-plus"
+    ],
+    "network_candidate_calls": 90,
+    "retries": 0,
+    "round_preregistration_sha256": "72517cdc546adedf543e9e9abffecdca3b18a2193f2865f7c476edde25512134",
+    "state_line_count": 6,
+    "round_1_and_2_prefix_unchanged": true,
+    "round_1_and_2_artifact_count_verified": 20,
+    "all_hash_bindings_closed": true,
+    "evidence_spans_exact_original_substrings": "90/90"
+  },
+  "safety_recheck": {
+    "production_db_uri_mode": "ro",
+    "pragma_query_only": 1,
+    "connection_total_changes": 0,
+    "production_llm_calls_before_after": "111/111",
+    "production_llm_calls_delta": 0,
+    "trade_proposals": 1,
+    "broker_orders": 1,
+    "non_simulate_orders": 0,
+    "heldout_v2_exists": false,
+    "p4_1_config_sha256": "9d56e137baf10bd0858723a93aff02c57bf7b35f8705f1817b16a89ec615183f",
+    "p4_2b_unlocked": false,
+    "p4_3_unlocked": false,
+    "secret_or_raw_transport_payload_persisted": false
+  },
+  "post_run_quality_gate": {
+    "initial_failure_count": 8,
+    "classification": "fixture_state_prefix_drift_after_legitimate_append",
+    "test_only_fix_commit": "c5544776aea5aaeeff0229d3d6b7fdb3f14febf1",
+    "runner_or_result_changed": false,
+    "focused_tests": "pass",
+    "full_pytest_after_fix": "pass",
+    "ruff": "pass",
+    "strict_mypy": "pass"
+  },
+  "non_blocking_observations": [
+    "Flash passes the adverse margin exactly at 0.80 precision and 0.20 false-omission rate; this is still a pass under the pre-registered inclusive thresholds but should be stated explicitly in the external adjudication.",
+    "Plus is materially farther inside both development margins, but the fixed absolute flash-first selection rule forbids choosing it by relative score.",
+    "The development frame remains small and stratified; this result is not a heldout estimate or production acceptance claim."
+  ],
+  "phase_gate": {
+    "round_3_result_may_be_submitted_for_external_adjudication": true,
+    "p4_2a_done": false,
+    "heldout_access_allowed": false,
+    "p4_2b_unlocked": false,
+    "p4_3_unlocked": false,
+    "next_action": "external independent adjudication of the immutable Round 3 result and selected candidate"
+  }
+}

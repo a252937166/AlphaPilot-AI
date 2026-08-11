@@ -1,0 +1,90 @@
+{
+  "artifacts": {
+    "output_jsonl": "docs/phase4/eval/P4.2a-offline-extract-qwen3.6-flash-v1.jsonl",
+    "output_mode": "append_only_resume",
+    "report_json": "docs/phase4/eval/P4.2a-offline-trial-v1.report.json",
+    "report_mode": "create_only_atomic"
+  },
+  "contract": {
+    "max_retries": 0,
+    "max_tokens": 2000,
+    "model": "qwen3.6-flash",
+    "path": "config/p4_event_extract_eval_v1.yaml",
+    "purpose": "p4_news_event_extract",
+    "sha256": "b3eb24c63816043edf0ef728d8d9778cd9083d720649d6fff3ae6289bba74300",
+    "timeout_seconds": 20.0
+  },
+  "coverage": {
+    "coverage": 1.0,
+    "expected_count": 423,
+    "failure_count": 17,
+    "newly_attempted_count": 0,
+    "output_line_count": 423,
+    "recorded_count": 423,
+    "retried_failure_count": 0,
+    "skipped_exact_success_count": 406,
+    "skipped_failure_count": 17,
+    "success_count": 406,
+    "success_coverage": 0.9598108747044918
+  },
+  "database_safety_table": {
+    "checks": [
+      {
+        "connection_total_changes": 0,
+        "database": "data/alphapilot.db",
+        "name": "production_database_read_only_query_only",
+        "passed": true,
+        "pragma_query_only": 1,
+        "required_tables_found": [
+          "news_items",
+          "securities"
+        ],
+        "sqlite_uri_mode": "ro"
+      }
+    ],
+    "passed": 1,
+    "total": 1
+  },
+  "failures": {
+    "by_safe_reason": {
+      "http_status_400": 1,
+      "post_validation_failed": 16
+    },
+    "count": 17,
+    "raw_exception_or_transport_payload_persisted": false
+  },
+  "generated_at_utc": "2026-08-03T04:17:02.384969+00:00",
+  "inventory": {
+    "cutoff_news_item_id": 423,
+    "expected_count": 423,
+    "order": "news_items.id ASC",
+    "processed_in_id_order": true
+  },
+  "isolated_llm_audit": {
+    "checkpoint_success_evidence_check": "406/406",
+    "checkpoint_success_rows": 406,
+    "checkpoint_success_rows_with_recorded_audit": 406,
+    "created_tables": [
+      "llm_calls"
+    ],
+    "current_process_llm_call_rows": 0,
+    "database": ":memory:",
+    "expected_table_count": 1,
+    "production_llm_calls_written": 0,
+    "table_check": "0/1",
+    "table_count": 1
+  },
+  "isolation": {
+    "api_routes_changed": false,
+    "forbidden_production_table": "news_events",
+    "jobs_registry_changed": false,
+    "migrations_or_orm_models_changed": false,
+    "p4_2b_unlocked": false,
+    "production_tables_created": [],
+    "production_writes_allowed": false,
+    "proposals_or_orders_created": false,
+    "scheduler_changed": false
+  },
+  "schema_version": "p4.2a-offline-trial-report-v1",
+  "trial_outcome": "completed_with_failures"
+}

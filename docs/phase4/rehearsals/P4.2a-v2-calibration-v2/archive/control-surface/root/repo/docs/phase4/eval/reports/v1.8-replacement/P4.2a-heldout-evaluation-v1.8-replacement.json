@@ -1,0 +1,1005 @@
+{
+  "candidate_materialization": {
+    "eligible_candidate_count": 3013,
+    "ineligible_by_reason": {
+      "pdf_exceeds_size_bound": 12,
+      "pdf_text_below_min_char_gate": 45
+    },
+    "ineligible_candidate_count": 57,
+    "manifest_path": "docs/phase4/eval/P4.2a-heldout-materialization-v1.7/manifest.json",
+    "manifest_sha256": "3808852cceecbbd384109d36a595d1704197bcaf5344f94530b5b65a5aaa7d6b",
+    "raw_candidate_count": 3070
+  },
+  "comparison_disclosure": {
+    "causal_reading_forbidden": true,
+    "changed_dimensions": [
+      "model",
+      "endpoint",
+      "prompt_version",
+      "evidence_span_match_mode",
+      "validation_contract",
+      "model_input_representation",
+      "model_result_schema",
+      "candidate_materialization",
+      "input_identity_contract"
+    ],
+    "interpretation": "indicative_only_not_single_variable_causality"
+  },
+  "design": {
+    "path": "config/p4_event_evaluation_v1_8.yaml",
+    "schema_version": "p4.2a-evaluation-design-v1.8",
+    "sha256": "bb36b9713cbf70fa5293683e767655b70720a2baa9e8822bc0396c4e6284452e"
+  },
+  "diagnostics": {
+    "active_prediction": {
+      "gold_failure_count": 0,
+      "gold_failure_ids": []
+    },
+    "offline_trial": {
+      "all_failure_count": 17,
+      "all_failure_ids": [
+        4,
+        5,
+        118,
+        133,
+        136,
+        157,
+        166,
+        173,
+        174,
+        185,
+        190,
+        197,
+        233,
+        269,
+        373,
+        386,
+        388
+      ],
+      "artifact_path": "docs/phase4/eval/P4.2a-offline-extract-qwen3.6-flash-v1.jsonl",
+      "artifact_sha256": "b1baca41a2d4cbbfa62ec921bc77ea760f2b80f7a075e1625c68fb74acac06a4",
+      "failure_counts_for_recall_not_precision": true,
+      "gold_intersection_failure_count": 1,
+      "gold_intersection_failure_ids": [
+        190
+      ],
+      "predicted_materiality_gte_2_count": 81,
+      "predicted_materiality_gte_2_rate": 0.19950738916256158,
+      "successful_prediction_count": 406
+    }
+  },
+  "evidence_validation": {
+    "comparison_semantics": "immutable_actual_then_external_counterfactual_then_fresh_actual",
+    "v1_3_actual": {
+      "blocker_sha256": "6efed45a618a9892fdcd321dd43db2232b3ddf1a4eb2ada7d371cb0da9a3dc3d",
+      "evidence_source": "immutable_local_artifacts",
+      "failure_count": 7,
+      "failure_ids": [
+        250,
+        258,
+        287,
+        304,
+        306,
+        336,
+        358
+      ],
+      "historical_round_immutable": true,
+      "manifest_sha256": "4eb7f05e8196ac5dd4d646bb1b8be7a56b93123e4866b0ba4a79121ffb370262",
+      "persisted_failure_detail": {
+        "constraint": null,
+        "count": 7,
+        "field": null,
+        "reason": "post_validation_failed"
+      },
+      "predictions_sha256": "b882a5cdad7025f8499eae75b617e189174ef866ab949749dd58c4a193229134",
+      "report_sha256": "781f6b7f30d97b9a43978feccec6891fa9b959aca0572a53784527a7e0e926e9",
+      "success_count": 53
+    },
+    "v1_4_actual": {
+      "active_contract": {
+        "path": "config/p4_event_extract_eval_v1_4.yaml",
+        "sha256": "e6d3e7db08e2d226c850092f0f794d7194eaf1935a56cbfe267a86e1297f37fc"
+      },
+      "artifacts": {
+        "blocker": {
+          "path": "docs/phase4/eval/dev-iterations/P4.2a-dev60-v1.4-r1.blocker.json",
+          "sha256": "3d0038515e208bca37e096b280ec411da2086addd8696d2ee6e8afa36fad00f9"
+        },
+        "manifest": {
+          "path": "docs/phase4/eval/dev-iterations/P4.2a-dev60-v1.4-r1.manifest.json",
+          "sha256": "fa56b4f167530c7da1d0887f0163b13aa69b0a73de8e48a75cc6335cbbb1904a"
+        },
+        "predictions": {
+          "path": "docs/phase4/eval/dev-iterations/P4.2a-dev60-v1.4-r1.predictions.jsonl",
+          "sha256": "5aaa4deded34dc858bc7e90b4db5dc2b2cf656f4d4dd673e5a9980d3152257b2"
+        },
+        "report": {
+          "path": "docs/phase4/eval/dev-iterations/P4.2a-dev60-v1.4-r1.report.json",
+          "sha256": "5cf0722fb8851122720ea59c53cb355be9095f1b2a4d1658b827cf48a2dbf969"
+        }
+      },
+      "evaluation_design": {
+        "path": "config/p4_event_evaluation_v1_3.yaml",
+        "sha256": "79b58de72d797ee9a9e93ec0f37d5f1c1b0b0d86ca49db1736ecdb5cdc314aac"
+      },
+      "extraction": {
+        "expected_count": 60,
+        "failure_count": 6,
+        "failure_ids": [
+          253,
+          258,
+          280,
+          304,
+          336,
+          340
+        ],
+        "failures_by_reason": {
+          "post_validation_failed": 5,
+          "schema_validation_failed": 1
+        },
+        "legacy_exact_shadow": {
+          "comparable_count": 54,
+          "match_count": 45,
+          "mismatch_count": 9,
+          "mismatch_ids": [
+            250,
+            255,
+            260,
+            274,
+            287,
+            306,
+            352,
+            358,
+            360
+          ]
+        },
+        "post_validation": {
+          "constraint": "whitespace_normalized_contiguous_substring",
+          "failure_ids": [
+            253,
+            258,
+            304,
+            336,
+            340
+          ],
+          "field": "evidence_span",
+          "root_cause": "unadjudicated_from_safe_artifacts"
+        },
+        "schema_validation": {
+          "failure_ids": [
+            280
+          ],
+          "root_cause": "unproven"
+        },
+        "success_count": 54
+      },
+      "formal_dev_round_valid": false,
+      "heldout_accessed": false,
+      "historical_round_immutable": true,
+      "metrics": {
+        "materiality_positive_agreement": 0.8461538461538461,
+        "symbol_adjudication": {
+          "ai_label_defect_ids": [
+            44
+          ],
+          "current_model_under_attribution_ids": [
+            28,
+            67,
+            71,
+            96
+          ],
+          "historical_v1_3_over_attribution_ids_now_correct": [
+            75,
+            210,
+            232,
+            393
+          ]
+        },
+        "symbol_exact_set": {
+          "agreement": 0.9074074074074074,
+          "denominator": 54,
+          "matches": 49,
+          "mismatch_ids": [
+            28,
+            44,
+            67,
+            71,
+            96
+          ]
+        }
+      },
+      "prompt": {
+        "path": "config/prompts/p4_news_event_extract_v1_3.txt",
+        "sha256": "6110b39381789d9c2d2f6442e517c2b89a8a474a8f97c6a037a32f26f629aeee"
+      },
+      "report_integrity_disclosure": {
+        "baseline_comparable_count": 59,
+        "candidate_comparable_count": 54,
+        "causal_reading_forbidden": true,
+        "flash_baseline_changed_dimensions_omitted": [
+          "evidence_span_match_mode",
+          "validation_contract"
+        ],
+        "immutable_report_preserved": true
+      },
+      "round_id": "v1.4-r1"
+    },
+    "v1_4_legacy_exact_shadow": {
+      "comparable_count": 54,
+      "diagnostic_only": true,
+      "evidence_span_match_mode": "exact_contiguous_substring_v1",
+      "historical_round_immutable": true,
+      "match_count": 45,
+      "mismatch_count": 9,
+      "mismatch_ids": [
+        250,
+        255,
+        260,
+        274,
+        287,
+        306,
+        352,
+        358,
+        360
+      ]
+    },
+    "v1_4_r1_actual": {
+      "active_contract": {
+        "path": "config/p4_event_extract_eval_v1_4.yaml",
+        "sha256": "e6d3e7db08e2d226c850092f0f794d7194eaf1935a56cbfe267a86e1297f37fc"
+      },
+      "artifacts": {
+        "blocker": {
+          "path": "docs/phase4/eval/dev-iterations/P4.2a-dev60-v1.4-r1.blocker.json",
+          "sha256": "3d0038515e208bca37e096b280ec411da2086addd8696d2ee6e8afa36fad00f9"
+        },
+        "manifest": {
+          "path": "docs/phase4/eval/dev-iterations/P4.2a-dev60-v1.4-r1.manifest.json",
+          "sha256": "fa56b4f167530c7da1d0887f0163b13aa69b0a73de8e48a75cc6335cbbb1904a"
+        },
+        "predictions": {
+          "path": "docs/phase4/eval/dev-iterations/P4.2a-dev60-v1.4-r1.predictions.jsonl",
+          "sha256": "5aaa4deded34dc858bc7e90b4db5dc2b2cf656f4d4dd673e5a9980d3152257b2"
+        },
+        "report": {
+          "path": "docs/phase4/eval/dev-iterations/P4.2a-dev60-v1.4-r1.report.json",
+          "sha256": "5cf0722fb8851122720ea59c53cb355be9095f1b2a4d1658b827cf48a2dbf969"
+        }
+      },
+      "evaluation_design": {
+        "path": "config/p4_event_evaluation_v1_3.yaml",
+        "sha256": "79b58de72d797ee9a9e93ec0f37d5f1c1b0b0d86ca49db1736ecdb5cdc314aac"
+      },
+      "extraction": {
+        "expected_count": 60,
+        "failure_count": 6,
+        "failure_ids": [
+          253,
+          258,
+          280,
+          304,
+          336,
+          340
+        ],
+        "failures_by_reason": {
+          "post_validation_failed": 5,
+          "schema_validation_failed": 1
+        },
+        "legacy_exact_shadow": {
+          "comparable_count": 54,
+          "match_count": 45,
+          "mismatch_count": 9,
+          "mismatch_ids": [
+            250,
+            255,
+            260,
+            274,
+            287,
+            306,
+            352,
+            358,
+            360
+          ]
+        },
+        "post_validation": {
+          "constraint": "whitespace_normalized_contiguous_substring",
+          "failure_ids": [
+            253,
+            258,
+            304,
+            336,
+            340
+          ],
+          "field": "evidence_span",
+          "root_cause": "unadjudicated_from_safe_artifacts"
+        },
+        "schema_validation": {
+          "failure_ids": [
+            280
+          ],
+          "root_cause": "unproven"
+        },
+        "success_count": 54
+      },
+      "formal_dev_round_valid": false,
+      "heldout_accessed": false,
+      "historical_round_immutable": true,
+      "metrics": {
+        "materiality_positive_agreement": 0.8461538461538461,
+        "symbol_adjudication": {
+          "ai_label_defect_ids": [
+            44
+          ],
+          "current_model_under_attribution_ids": [
+            28,
+            67,
+            71,
+            96
+          ],
+          "historical_v1_3_over_attribution_ids_now_correct": [
+            75,
+            210,
+            232,
+            393
+          ]
+        },
+        "symbol_exact_set": {
+          "agreement": 0.9074074074074074,
+          "denominator": 54,
+          "matches": 49,
+          "mismatch_ids": [
+            28,
+            44,
+            67,
+            71,
+            96
+          ]
+        }
+      },
+      "prompt": {
+        "path": "config/prompts/p4_news_event_extract_v1_3.txt",
+        "sha256": "6110b39381789d9c2d2f6442e517c2b89a8a474a8f97c6a037a32f26f629aeee"
+      },
+      "report_integrity_disclosure": {
+        "baseline_comparable_count": 59,
+        "candidate_comparable_count": 54,
+        "causal_reading_forbidden": true,
+        "flash_baseline_changed_dimensions_omitted": [
+          "evidence_span_match_mode",
+          "validation_contract"
+        ],
+        "immutable_report_preserved": true
+      },
+      "round_id": "v1.4-r1"
+    },
+    "v1_5_actual": {
+      "all_successes_pass_active_matcher": true,
+      "evidence_span_match_mode": "unicode_whitespace_elided_contiguous_substring_v1",
+      "expected_count": 60,
+      "failure_count": 10,
+      "failure_ids": [
+        9,
+        250,
+        272,
+        280,
+        303,
+        304,
+        306,
+        336,
+        340,
+        360
+      ],
+      "failures_by_validation_field_and_constraint": {
+        "evidence_span": {
+          "whitespace_normalized_contiguous_substring": 9
+        }
+      },
+      "formal_round_valid": false,
+      "success_count": 50
+    },
+    "v1_5_legacy_exact_shadow": {
+      "comparable_count": 50,
+      "diagnostic_only": true,
+      "does_not_change_active_validation": true,
+      "evidence_span_match_mode": "exact_contiguous_substring_v1",
+      "match_count": 38,
+      "mismatch_count": 12,
+      "mismatch_ids": [
+        253,
+        255,
+        258,
+        260,
+        268,
+        274,
+        287,
+        310,
+        326,
+        345,
+        352,
+        358
+      ],
+      "whitespace_matcher_recovered_ids": [
+        253,
+        255,
+        258,
+        260,
+        268,
+        274,
+        287,
+        310,
+        326,
+        345,
+        352,
+        358
+      ]
+    },
+    "v1_5_r1_actual": {
+      "active_contract": {
+        "path": "config/p4_event_extract_eval_v1_5.yaml",
+        "sha256": "a07f9f37e0877bd06ce3dc9e8a0e03c51bbb92fdc3ba6738b6932d7679aca560"
+      },
+      "artifacts": {
+        "blocker": {
+          "path": "docs/phase4/eval/dev-iterations/P4.2a-dev60-v1.5-r1.blocker.json",
+          "sha256": "856cdd30972b4b287b2c944930c06531b7fd14b2897fa230c71faa9549bfc4a0"
+        },
+        "manifest": {
+          "path": "docs/phase4/eval/dev-iterations/P4.2a-dev60-v1.5-r1.manifest.json",
+          "sha256": "211212ba610a876dd107986c06e12501db08d7f03e9c87a1f5007d306f47f51e"
+        },
+        "predictions": {
+          "path": "docs/phase4/eval/dev-iterations/P4.2a-dev60-v1.5-r1.predictions.jsonl",
+          "sha256": "e9642568d50e0c4d9c1fe7726a117cb90269ed61ce116cd8665a989eb24dc297"
+        },
+        "report": {
+          "path": "docs/phase4/eval/dev-iterations/P4.2a-dev60-v1.5-r1.report.json",
+          "sha256": "250545184031919e798a69dfd00dae9b8a06eb1b4168d628c0e5c48c00b7f845"
+        }
+      },
+      "evaluation_design": {
+        "path": "config/p4_event_evaluation_v1_4.yaml",
+        "sha256": "3a392a6c834cdde219f54e149f22e235b0316765d0bd69501bb1f312d7ee0e33"
+      },
+      "extraction": {
+        "expected_count": 60,
+        "failure_count": 10,
+        "failure_ids": [
+          9,
+          250,
+          272,
+          280,
+          303,
+          304,
+          306,
+          336,
+          340,
+          360
+        ],
+        "failures_by_reason": {
+          "post_validation_failed": 9,
+          "schema_validation_failed": 1
+        },
+        "gold_intersection_failure_ids": [
+          272,
+          304,
+          306,
+          336
+        ],
+        "post_validation": {
+          "constraint": "whitespace_normalized_contiguous_substring",
+          "failure_ids": [
+            9,
+            250,
+            272,
+            303,
+            304,
+            306,
+            336,
+            340,
+            360
+          ],
+          "field": "evidence_span",
+          "root_cause": "unadjudicated_from_safe_artifacts"
+        },
+        "schema_validation": {
+          "failure_ids": [
+            280
+          ],
+          "root_cause": "unproven"
+        },
+        "success_count": 50
+      },
+      "formal_dev_round_valid": false,
+      "heldout_accessed": false,
+      "historical_round_immutable": true,
+      "metrics": {
+        "materiality_positive_agreement": {
+          "agreement": 0.9166666666666666,
+          "denominator": 12,
+          "formal_gate_usable": false,
+          "matches": 11
+        },
+        "symbol_adjudication": {
+          "ai_label_defect_ids": [
+            44
+          ],
+          "current_model_over_attribution_ids": [
+            393
+          ],
+          "frozen_dev_labels_remain_unchanged": true,
+          "symbol_rule_relaxation_allowed": false
+        },
+        "symbol_exact_set": {
+          "agreement": 0.96,
+          "denominator": 50,
+          "formal_gate_usable": false,
+          "matches": 48,
+          "mismatch_ids": [
+            44,
+            393
+          ]
+        }
+      },
+      "prompt": {
+        "path": "config/prompts/p4_news_event_extract_v1_4.txt",
+        "sha256": "ff42e6905e009e8a7a3a0ae7b7fedce043cbf73f55f3551cf76bbfdcfef33f2b"
+      },
+      "report_integrity_disclosure": {
+        "baseline_comparable_count": 59,
+        "candidate_comparable_count": 50,
+        "causal_reading_forbidden": true,
+        "changed_dimensions": [
+          "model",
+          "endpoint",
+          "prompt_version",
+          "evidence_span_match_mode",
+          "validation_contract"
+        ],
+        "immutable_report_preserved": true
+      },
+      "round_id": "v1.5-r1"
+    },
+    "v1_6_actual": {
+      "all_successes_pass_active_matcher": true,
+      "evidence_span_match_mode": "unicode_whitespace_elided_contiguous_substring_v1",
+      "expected_count": 60,
+      "failure_count": 0,
+      "failure_ids": [],
+      "failures_by_validation_field_and_constraint": {},
+      "formal_round_valid": true,
+      "success_count": 60
+    },
+    "v1_6_legacy_exact_shadow": {
+      "comparable_count": 60,
+      "diagnostic_only": true,
+      "does_not_change_active_validation": true,
+      "evidence_span_match_mode": "exact_contiguous_substring_v1",
+      "match_count": 60,
+      "mismatch_count": 0,
+      "mismatch_ids": [],
+      "whitespace_matcher_recovered_ids": []
+    },
+    "v1_7_actual": {
+      "all_successes_pass_active_matcher": true,
+      "evidence_span_match_mode": "unicode_whitespace_elided_contiguous_substring_v1",
+      "expected_count": 60,
+      "failure_count": 0,
+      "failure_ids": [],
+      "failures_by_validation_field_and_constraint": {},
+      "formal_round_valid": true,
+      "success_count": 60
+    },
+    "v1_7_legacy_exact_shadow": {
+      "comparable_count": 60,
+      "diagnostic_only": true,
+      "does_not_change_active_validation": true,
+      "evidence_span_match_mode": "exact_contiguous_substring_v1",
+      "match_count": 60,
+      "mismatch_count": 0,
+      "mismatch_ids": [],
+      "whitespace_matcher_recovered_ids": []
+    },
+    "whitespace_normalized_counterfactual": {
+      "evidence_source": "independent_reviewer_external_reproduction",
+      "failure_count": 2,
+      "historical_round_immutable": true,
+      "locally_recomputed_from_persisted_raw_payload": false,
+      "normalization_recovered_ids": [
+        250,
+        258,
+        287,
+        306,
+        358
+      ],
+      "not_a_rewrite_of_v1_3": true,
+      "reviewer_adjudicated_root_cause": {
+        "affected_count": 7,
+        "evidence_source": "independent_reviewer_external_reproduction",
+        "field": "evidence_span",
+        "prior_constraint": "exact_contiguous_substring"
+      },
+      "success_count": 58,
+      "true_synthesis_failure_ids": [
+        304,
+        336
+      ]
+    }
+  },
+  "gates": {
+    "heldout_one_shot": true,
+    "materiality_precision_heldout40": false,
+    "owner_delivery_blind": true,
+    "symbol_bearing_exact_set_all100": true,
+    "symbol_mapping_all100": true
+  },
+  "generated_at_utc": "2026-08-09T10:06:40.941686Z",
+  "input_identity": {
+    "active_model_input_sha256": {
+      "field": "input_sha256",
+      "ordered_identity_sha256": "ce92b03cf97a6d2441008844734f890cd3ee23dbd4a8468c5017085847f626af",
+      "representation": "canonical_ordered_evidence_candidates_user_json_v1",
+      "row_count": 60
+    },
+    "declared_frozen_input_sha256": {
+      "field": "declared_input_sha256",
+      "ordered_identity_sha256": "e3b7e5afc84d9611bb09895296109a081bfaf57ada841b6dc360681e0d10145f",
+      "representation": "legacy_eight_field_user_json_v1",
+      "row_count": 60
+    },
+    "dual_hash_identity": {
+      "digest_components": [
+        "news_item_id",
+        "input_sha256",
+        "declared_input_sha256",
+        "text_sha256"
+      ],
+      "distinct_hash_pair_count": 60,
+      "ordered_identity_sha256": "48235e5ed026f22f19b1d571b42f0166489de1e035df0aacefa59f94ab157dea",
+      "required": true,
+      "rows_with_both": 60
+    }
+  },
+  "metrics": {
+    "annotation_semantics": {
+      "all100": {
+        "annotation_type": "mixed_ai_dev_and_human_heldout",
+        "human_ground_truth": false,
+        "metric_semantics": "mixed_reference_diagnostic"
+      },
+      "dev60": {
+        "annotation_type": "ai_drafted_dev_signal",
+        "human_ground_truth": false,
+        "metric_semantics": "model_interagreement"
+      },
+      "heldout40": {
+        "annotation_type": "ai_drafted_human_adjudicated",
+        "human_ground_truth": true,
+        "metric_semantics": "human_adjudicated_gold"
+      }
+    },
+    "materiality_mixed_reference_diagnostic": {
+      "all100": {
+        "denominator": 57,
+        "fn": 0,
+        "fp": 20,
+        "tn": 43,
+        "tp": 37,
+        "value": 0.6491228070175439
+      }
+    },
+    "materiality_mixed_reference_recall_diagnostic": {
+      "all100": {
+        "denominator": 37,
+        "fn": 0,
+        "tp": 37,
+        "value": 1.0
+      }
+    },
+    "materiality_model_interagreement": {
+      "dev60": {
+        "denominator": 17,
+        "fn": 0,
+        "fp": 1,
+        "tn": 43,
+        "tp": 16,
+        "value": 0.9411764705882353
+      }
+    },
+    "materiality_model_interagreement_recall": {
+      "dev60": {
+        "denominator": 16,
+        "fn": 0,
+        "tp": 16,
+        "value": 1.0
+      }
+    },
+    "materiality_precision": {
+      "heldout40": {
+        "denominator": 40,
+        "fn": 0,
+        "fp": 19,
+        "passed": false,
+        "threshold": 0.8,
+        "tn": 0,
+        "tp": 21,
+        "value": 0.525
+      }
+    },
+    "materiality_recall": {
+      "heldout40": {
+        "denominator": 21,
+        "fn": 0,
+        "tp": 21,
+        "value": 1.0
+      }
+    },
+    "symbol_bearing_exact_set": {
+      "all100": {
+        "denominator": 77,
+        "matches": 74,
+        "value": 0.961038961038961
+      },
+      "dev60": {
+        "denominator": 37,
+        "matches": 34,
+        "value": 0.918918918918919
+      },
+      "heldout40": {
+        "denominator": 40,
+        "matches": 40,
+        "value": 1.0
+      }
+    },
+    "symbol_exact_set": {
+      "all100": {
+        "denominator": 100,
+        "matches": 97,
+        "value": 0.97
+      },
+      "dev60": {
+        "denominator": 60,
+        "matches": 57,
+        "value": 0.95
+      },
+      "heldout40": {
+        "denominator": 40,
+        "matches": 40,
+        "value": 1.0
+      }
+    }
+  },
+  "one_shot": {
+    "evaluation": {
+      "started_at_utc": "2026-08-09T10:06:40.570000Z",
+      "started_event_count": 1,
+      "status": "completed",
+      "terminal_at_utc": "2026-08-09T10:06:40.941686Z"
+    },
+    "inference": {
+      "materialization": {
+        "eligible_candidate_count": 3013,
+        "ineligible_by_reason": {
+          "pdf_exceeds_size_bound": 12,
+          "pdf_text_below_min_char_gate": 45
+        },
+        "ineligible_candidate_count": 57,
+        "manifest_path": "docs/phase4/eval/P4.2a-heldout-materialization-v1.7/manifest.json",
+        "manifest_sha256": "3808852cceecbbd384109d36a595d1704197bcaf5344f94530b5b65a5aaa7d6b",
+        "raw_candidate_count": 3070
+      },
+      "started_at_utc": "2026-08-06T09:15:57.132240Z",
+      "started_event_count": 1,
+      "status": "completed",
+      "terminal_at_utc": "2026-08-06T10:30:11.395258Z"
+    }
+  },
+  "owner_completion": {
+    "blindness_validation_passed": true,
+    "combined_annotations_sha256": "ec922eeb3cfcee0ee06b870fda275f14842c324ade2273a3912302f36ab047b4",
+    "combined_ordered_identity_sha256": "2524c1ad118c891f368ac4610eb9239c762ed97067e0fa1eb25a5b20c4bf2e63",
+    "combined_renumbering_rule": "dev_preserve_1_60_then_heldout_add_60_to_61_100",
+    "combined_row_count": 100,
+    "dev_annotations_sha256": "d1b9720dc06a4ff4989b65d2c1c302f614b0fbc427bedabde4ef87ad606a011d",
+    "dev_blind_sample_sha256": "81b3c0b27cd344fe4c2a735261e501dd2f60a0927c14b2c37e5b2a4879b4a2ba",
+    "dev_completed_count": 60,
+    "heldout_adjudicator_ids": [
+      "ouyang"
+    ],
+    "heldout_annotation_type": "ai_drafted_human_adjudicated",
+    "heldout_annotations_sha256": "3ff3aeae165a6da1f9b60d873c08489200cadb03f10d1188729aa013854658e5",
+    "heldout_blind_sample_sha256": "74fdb229600092a13a0dfa8ba694e71d64548cff2c416ec6a1344a8e6b9fab58",
+    "heldout_completed_count": 40,
+    "heldout_drafter_ids": [
+      "chatgpt_web (OpenAI ChatGPT, 网页版; AI 起草者，非人工)"
+    ],
+    "heldout_human_adjudication_validated": true,
+    "heldout_selection_manifest_sha256": "9da50ea8720b01b58c6d19eb9d7b11705a0c561c61da432543e2ab5644b3abe1",
+    "identity_validation_passed": true,
+    "manifest_path": "docs/phase4/eval/P4.2a-owner-completion-v1.7.manifest.json",
+    "manifest_sha256": "770ee8052a7f30a51e0e7cbbb924d498a5c9c2b00682059562abd7a7150f8c75"
+  },
+  "owner_delivery": {
+    "annotation_path": "docs/phase4/eval/P4.2a-gold-annotation100-v1.7.jsonl",
+    "annotation_sha256": "ec922eeb3cfcee0ee06b870fda275f14842c324ade2273a3912302f36ab047b4",
+    "forbidden_field_violation_count": 0,
+    "heldout_adjudication": {
+      "adjudication_export_path": "docs/phase4/eval/P4.2a-gold-heldout40-v1.7.adjudicated.jsonl",
+      "adjudication_export_sha256": "e0a8de7484f1532918286bcc6e96128ab3e71390aa6dc90fe9f49b84407d571e",
+      "adjudication_identity_sha256": "98c6c14502c7262c7f34b061c82d380f0f0c8690d88ddbc8647f376614d6f7db",
+      "ai_draft_path": "docs/phase4/eval/P4.2a-gold-heldout40-v1.7.labels-ai-drafted.jsonl",
+      "ai_draft_sha256": "c734f3c09928b462d5c25cf9888f265b6825e1f9ab51a6cf452f35b839ad53a5",
+      "annotation_type": "ai_drafted_human_adjudicated",
+      "blind_sample_sha256": "74fdb229600092a13a0dfa8ba694e71d64548cff2c416ec6a1344a8e6b9fab58",
+      "blindness_validation_passed": true,
+      "canonical_heldout_annotations_sha256": "3ff3aeae165a6da1f9b60d873c08489200cadb03f10d1188729aa013854658e5",
+      "canonical_reconstruction_passed": true,
+      "changed_count": 25,
+      "changed_fields": {
+        "direction": 13,
+        "event_type": 3,
+        "evidence_span": 9,
+        "materiality": 11
+      },
+      "confirmed_unchanged_count": 15,
+      "first_adjudicated_at_utc": "2026-08-09T05:04:50.359000Z",
+      "human_adjudication_validated": true,
+      "last_adjudicated_at_utc": "2026-08-09T05:06:29.294000Z",
+      "row_count": 40
+    }
+  },
+  "passed": false,
+  "phase_gate": {
+    "p4_2a_evaluation_passed": false,
+    "p4_2b_unlocked": false,
+    "production_writes_performed": false,
+    "proposals_or_orders_created": false
+  },
+  "prediction_contract": {
+    "candidate_materialization": {
+      "algorithm_version": "ordered-raw-partition-unicode-whitespace-display-v1",
+      "candidate_field": "evidence_candidate_id",
+      "final_field": "evidence_span",
+      "invalid_candidate_policy": "fail_closed_without_repair",
+      "matcher_revalidation_required": true,
+      "materialization": "exact_raw_slice_from_registered_start_end"
+    },
+    "contract_path": "config/p4_event_extract_eval_v1_7.yaml",
+    "contract_sha256": "68474e4bd4fd5c9c88711dd5e102898ad1ed75a0fb984045efbd14e51a6db701",
+    "dev_final_predictions_contract_sha256": "68474e4bd4fd5c9c88711dd5e102898ad1ed75a0fb984045efbd14e51a6db701",
+    "dev_final_predictions_failure_count": 0,
+    "dev_final_predictions_identity_sha256": "48235e5ed026f22f19b1d571b42f0166489de1e035df0aacefa59f94ab157dea",
+    "dev_final_predictions_manifest_path": "docs/phase4/eval/P4.2a-dev60-final-predictions-v1.6.manifest.json",
+    "dev_final_predictions_manifest_sha256": "c246bda5f6b0bd163a6aa2e65f0833136279bbd3f11ba6f842a2b32eb58e2df2",
+    "dev_final_predictions_path": "docs/phase4/eval/P4.2a-dev60-final-predictions-v1.6.jsonl",
+    "dev_final_predictions_row_count": 60,
+    "dev_final_predictions_sha256": "533d2e00fd0aeeed50cb6916793964f9d0f3048455b598124c5c8eb4736aedb4",
+    "dev_final_predictions_success_count": 60,
+    "endpoint": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+    "evidence_span_match_mode": "unicode_whitespace_elided_contiguous_substring_v1",
+    "explicit_cache_enabled": false,
+    "freeze_receipt_sha256": "1b2aae88d075dbe1d93660b76f9463f35157f7dbd00a6dc7f73d61370b4231a1",
+    "input_representation": {
+      "active_model_input_identity": "canonical_ordered_evidence_candidates_user_json_v1",
+      "declared_input_identity": "legacy_eight_field_user_json_v1",
+      "dual_hash_identity_required": true,
+      "name": "ordered_evidence_candidates_v1",
+      "original_text_in_model_message": false
+    },
+    "materialized_result_schema": {
+      "path": "config/schemas/p4_news_event_v1.schema.json",
+      "sha256": "0ac68654ce23ecd4e537d849d695e092c76dcb9de0fb03793e65ae62b181947f"
+    },
+    "model": "qwen3.7-flash",
+    "model_result_schema": {
+      "path": "config/schemas/p4_news_event_candidate_v1.schema.json",
+      "sha256": "c106cd15bd974de19ecc01d6e99e8f39c39fbf14df3a3b4dc74ee9b08ff6dd66"
+    },
+    "prompt_path": "config/prompts/p4_news_event_extract_v1_5.txt",
+    "prompt_sha256": "4b44ed5efe281b68664b415865b758b75b30ace6eda2617952de66a87596c204",
+    "result_schema_path": "config/schemas/p4_news_event_v1.schema.json",
+    "result_schema_sha256": "0ac68654ce23ecd4e537d849d695e092c76dcb9de0fb03793e65ae62b181947f",
+    "taxonomy_version": "p4-news-event-taxonomy-v1"
+  },
+  "report_artifact": {
+    "create_only": true,
+    "path": "docs/phase4/eval/reports/v1.8-replacement/P4.2a-heldout-evaluation-v1.8-replacement.json"
+  },
+  "schema_version": "p4.2a-gold-evaluation-report-v1.1",
+  "splits": {
+    "dev60": {
+      "final_prediction_contract_sha256": "68474e4bd4fd5c9c88711dd5e102898ad1ed75a0fb984045efbd14e51a6db701",
+      "final_prediction_failure_count": 0,
+      "final_prediction_failure_ids": [],
+      "final_prediction_identity_sha256": "48235e5ed026f22f19b1d571b42f0166489de1e035df0aacefa59f94ab157dea",
+      "final_prediction_success_count": 60,
+      "final_predictions_manifest_sha256": "c246bda5f6b0bd163a6aa2e65f0833136279bbd3f11ba6f842a2b32eb58e2df2",
+      "final_predictions_sha256": "533d2e00fd0aeeed50cb6916793964f9d0f3048455b598124c5c8eb4736aedb4",
+      "sample_count": 60
+    },
+    "heldout40": {
+      "candidate_batch_count": 3013,
+      "candidate_inputs_sha256": "e550435b77c4525fb05717cf6d1c313448b9b7323b2e496f0450484a3a980f88",
+      "candidate_predictions_sha256": "b77429b16e92ddd74895915c5c628026f8a426a54f2bf006c59606c4c18bcc84",
+      "manifest_sha256": "9da50ea8720b01b58c6d19eb9d7b11705a0c561c61da432543e2ab5644b3abe1",
+      "materialization": {
+        "eligible_candidate_count": 3013,
+        "ineligible_by_reason": {
+          "pdf_exceeds_size_bound": 12,
+          "pdf_text_below_min_char_gate": 45
+        },
+        "ineligible_candidate_count": 57,
+        "manifest_path": "docs/phase4/eval/P4.2a-heldout-materialization-v1.7/manifest.json",
+        "manifest_sha256": "3808852cceecbbd384109d36a595d1704197bcaf5344f94530b5b65a5aaa7d6b",
+        "raw_candidate_count": 3070
+      },
+      "predicted_positive_pool_count": 894,
+      "predicted_positive_pool_rate": 0.29889669007021064,
+      "prediction_attempted_count": 3013,
+      "prediction_failure_count": 22,
+      "prediction_success_count": 2991,
+      "selected_count": 40,
+      "selection_algorithm": "sha256_rank_without_replacement_v1",
+      "selection_manifest_sha256": "9da50ea8720b01b58c6d19eb9d7b11705a0c561c61da432543e2ab5644b3abe1",
+      "selection_seed": "alphapilot-p4.2a-heldout40-v1.1-20260803"
+    }
+  },
+  "symbol_diagnostics": {
+    "adjusted_exact_set": {
+      "agreement": 0.9661016949152542,
+      "denominator": 59,
+      "diagnostic_only": true,
+      "excluded_ai_label_defect_ids": [
+        44
+      ],
+      "matches": 57,
+      "mismatch_ids": [
+        71,
+        96
+      ],
+      "not_a_gate": true
+    },
+    "ai_label_defect_ids": [
+      44
+    ],
+    "raw_gate": {
+      "agreement": 0.95,
+      "denominator": 60,
+      "development_target": 0.95,
+      "development_target_reached": true,
+      "matches": 57,
+      "mismatch_ids": [
+        44,
+        71,
+        96
+      ]
+    },
+    "raw_gate_uses_frozen_ai_labels_unchanged": true,
+    "v1_4_r1_actual": {
+      "ai_label_defect_ids": [
+        44
+      ],
+      "current_model_under_attribution_ids": [
+        28,
+        67,
+        71,
+        96
+      ],
+      "historical_v1_3_over_attribution_ids_now_correct": [
+        75,
+        210,
+        232,
+        393
+      ]
+    },
+    "v1_5_r1_actual": {
+      "ai_label_defect_ids": [
+        44
+      ],
+      "current_model_over_attribution_ids": [
+        393
+      ],
+      "frozen_dev_labels_remain_unchanged": true,
+      "symbol_rule_relaxation_allowed": false
+    }
+  }
+}

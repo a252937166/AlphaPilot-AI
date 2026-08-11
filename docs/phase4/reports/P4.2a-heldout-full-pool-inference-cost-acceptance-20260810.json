@@ -1,0 +1,67 @@
+{
+  "schema_version": "p4.2a-independent-adjudication-v1",
+  "adjudication_id": "p4.2a-heldout-full-pool-inference-cost-acceptance-20260810-r1",
+  "created_at_utc": "2026-08-10T07:57:45Z",
+  "created_at_shanghai": "2026-08-10T15:57:45+08:00",
+  "verdict": "ACCEPT_FULL_POOL_INFERENCE_COST; SAMPLING_DESIGN_NOT_AMENDED",
+  "repository_head_at_adjudication": "5a852271fbb9e49ab04b87827d2f6fac1ddc7463",
+  "reviewer": {
+    "identity": "independent_ai_architect_claude_code",
+    "reviewer_type": "ai",
+    "model": "Anthropic Claude Fable 5 (model id claude-fable-5)",
+    "impersonation_disclaimer": "Not a human reviewer. Issued under the owner governance amendment with requires_release_gate_amendment=true.",
+    "method": "read-only. No materialization, no inference, no artifact created beyond this record."
+  },
+  "part_1_reviewer_error_corrected": {
+    "id": "C-3",
+    "what_i_said": "In the previous instruction to the operator I wrote that the heldout round costs about 0.84 CNY and roughly three minutes because it is only 60 items.",
+    "why_it_was_wrong": "I conflated the 60 items the owner adjudicates with the number of model calls. The 40/20 stratification is defined over model predictions, so every eligible item in the window must be predicted before any stratum exists to sample from. The call count is the pool size, not the sample size.",
+    "credit": "The operator caught this and stopped rather than proceeding on my figure. Refusing to act on a reviewer's number that does not survive contact with the design is the correct behaviour and is recorded as such.",
+    "pattern_note": "This is the second cost figure I have had to correct in two days, after C-1. Both errors ran in the same direction, understating volume. Any future cost statement from this reviewer must be derived from measured pool sizes rather than from a remembered formula."
+  },
+  "part_2_measured_facts": {
+    "heldout_window": "2026-08-06 through 2026-08-08 Shanghai, closed dates reconciled by migration JobRuns 76932 and 76933",
+    "pool_size_by_source": {"cninfo": 3711, "akshare_ths": 1016, "total": 4727},
+    "comparison_to_v1_7": {"raw_candidates": 3070, "eligible": 3013, "predicted_positive_pool": 894, "predicted_positive_rate": 0.299},
+    "per_call_cost_qwen3_6_plus_cny": 0.013959,
+    "per_call_latency_ms": 3180,
+    "full_pool_projection": {"calls": 4727, "cost_cny": 66, "serial_hours": 4.2, "cninfo_pdf_fetches": 3711}
+  },
+  "part_3_options_considered": {
+    "option_a_full_pool_inference": {
+      "description": "predict every eligible item in the window, then rank and sample 40 predicted positives and 20 predicted negatives using the pre-registered sha256_rank_without_replacement_per_stratum_v1 algorithm",
+      "cost": "about 66 CNY, 4.2 hours unattended, about 3,711 CNInfo PDF fetches",
+      "advantages": ["matches the algorithm already pre-registered in the v2 design", "matches what the v1.7 heldout did, so the two results stay comparable, including the predicted-positive rate", "selection is deterministically recomputable and therefore auditable by an outside party", "yields the model's positive rate on a fresh window as a diagnostic byproduct", "requires no design amendment immediately before a one-shot"]
+    },
+    "option_b_adaptive_quota_sampling": {
+      "description": "fix a deterministic traversal order by the same sha256 rank, then infer in that order until 40 predicted positives and 20 predicted negatives have been collected",
+      "cost": "about 134 to 200 calls, 2 to 3 CNY, roughly 7 minutes, about 150 CNInfo fetches",
+      "statistical_validity": "sound; traversing a deterministically permuted pool and stopping at quota yields a uniform random sample of each stratum, and remains fully recomputable",
+      "advantages": ["roughly 35 times fewer model calls and 25 times fewer requests to a third-party disclosure site"],
+      "disadvantages": ["amends the sampling design immediately before the one-shot", "loses direct comparability with the v1.7 pool rate", "adds a new code path at the exact point where four latent defects have already been found"]
+    }
+  },
+  "part_4_ruling": {
+    "decision": "Option A. The full-pool inference cost is accepted and the sampling design is NOT amended.",
+    "reasoning": "The money and the wall-clock are negligible: 66 CNY and 4.2 unattended hours. What is not negligible is design churn immediately before a one-shot. Every one of the four latent defects found in this phase surfaced on a path that had been changed or had never been executed, and the v1.7 one-shot was consumed by exactly such a defect. Trading design stability for a saving of about 64 CNY is a bad exchange at this specific moment.",
+    "comparability_value": "Keeping the v1.7 procedure means the v2 predicted-positive rate can be read against 29.9 percent directly. Given that the model has changed from flash to plus and the prompt from v1_5 to v2-r3, that comparison is a real diagnostic rather than bookkeeping.",
+    "explicit_cost_acceptance": {"calls": "up to about 4,727", "cost_cny": "about 66", "serial_hours": "about 4.2", "third_party_fetches": "about 3,711 CNInfo PDF downloads, subject to the frozen per-source request interval"},
+    "conditions": [
+      "The inference must remain one item per call, exactly as Rounds 1 to 3 were calibrated. No batching, no body truncation, no pre-filter in this round.",
+      "The full-pool inference is itself one-shot under the v2 design's inference state contract, with a single started event and zero retries.",
+      "The materialization must respect the frozen per-source request interval and the deterministic ineligibility rules; unextractable documents are excluded with a recorded reason, never retried into the pool.",
+      "Report the realised call count, cost, pool size, ineligible counts and the predicted-positive rate in the round evidence, so the accepted estimate can be checked against what actually happened."
+    ]
+  },
+  "part_5_this_is_not_the_production_design": {
+    "statement": "Full-pool inference is correct for a one-shot evaluation and wrong for production. P4.2b must never predict the entire daily pool; that is precisely what the pre-filter, symbol restriction and announcement-type whitelist in the C-1 backlog exist to prevent.",
+    "figures_for_contrast": {"evaluation_one_off": "4,727 calls once", "production_naive_daily": "1,300 to 1,600 calls per day, about 544 to 628 CNY per month", "production_with_backlog_applied": "roughly 300 to 400 calls per day, about 50 to 170 CNY per month"}
+  },
+  "part_6_remaining_gate": {
+    "statement": "The successor rehearsal v2 implementation and its single offline rehearsal still require independent review before any heldout artifact is materialized. That review has not been performed; this record accepts a cost, not an implementation.",
+    "preregistration_reviewed_by_operator_only": {"commit": "5a85227", "preregistration_sha256_prefix": "35b6d757", "schema_sha256_prefix": "f5ff0516", "operator_verdict": "APPROVE_PREREGISTRATION_BYTES", "note": "an operator self-review is not the independent verdict; the implementation and rehearsal must still be submitted"},
+    "v1_rehearsal_retired": {"commit": "d710e88", "incident_sha256_prefix": "c3224b28", "assessment": "recorded as permanently fail-closed with the v1 evidence preserved, which is the correct handling"}
+  },
+  "phase_locks_unchanged": {"p4_2a_done": false, "heldout_materialized": false, "p4_2b_unlocked": false, "p4_3_unlocked": false},
+  "p4_1_unaffected": "observation window running for 2026-08-10 through 08-12"
+}

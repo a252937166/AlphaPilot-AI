@@ -1,0 +1,63 @@
+{
+  "schema_version": "p4.2a-dev-iteration-blocker-v1",
+  "recorded_at_utc": "2026-08-04T07:00:29Z",
+  "round_id": "v1.1-r1",
+  "round_manifest_sha256": "e55e4707e52b49927fccb72e809edc4af6da26fa147a79c83ae06b8499e5f304",
+  "round_predictions_sha256": "917f26439258f92326c06e3fd169c9e10009e17b147b13dd7364d867b50b7de1",
+  "round_report_sha256": "d97c34aaf2ffab44b1d12661245fabeb298055a1affcc923523c27d7745ccf28",
+  "round_failure_counts": {
+    "post_validation_failed": 20,
+    "http_status_403": 10
+  },
+  "round_report_metric_caveat": {
+    "positive_capture_scope": "comparable_rows_only",
+    "failed_reference_positive_count": 10,
+    "failed_reference_positive_ids": [
+      253,
+      258,
+      260,
+      272,
+      287,
+      304,
+      306,
+      309,
+      326,
+      336
+    ],
+    "development_ready_to_freeze": false,
+    "reason": "The immutable r1 report predates the aggregate fail-closed field; its positive_capture=1.0 excludes 30 failed rows and must not be read as full-dev coverage."
+  },
+  "post_round_diagnostic_requests": [
+    {
+      "kind": "single_dev_contract_probe",
+      "request_count": 1,
+      "automatic_retries": 0,
+      "result": "http_status_403"
+    },
+    {
+      "kind": "minimal_provider_error_code_probe",
+      "request_count": 1,
+      "automatic_retries": 0,
+      "http_status": 403,
+      "provider_error_code": "AllocationQuota.FreeTierOnly",
+      "provider_error_type": "AllocationQuota.FreeTierOnly",
+      "provider_message": "The free quota has been exhausted. To continue accessing the model on a paid basis, please complete your payment information （or disable the \"use free tier only\" mode in the management console if already completed)."
+    }
+  ],
+  "classification": "external_llm_free_quota_exhausted",
+  "not_rate_limit": true,
+  "v1_1_freeze_allowed": false,
+  "v1_2_contract_pre_registered": true,
+  "v1_2_contract_sha256": "cad06a1f39639605e84694dcf05cfcb0a4a097c20eaee4abba5adfa329b63a21",
+  "v1_2_prompt_sha256": "5080bdb2b373f6360527c79465da8645884fd33308c9e3d061120b0a1298fe05",
+  "v1_2_run_started": false,
+  "heldout_accessed": false,
+  "dev_final_created": false,
+  "prediction_freeze_receipt_created": false,
+  "production_writes": 0,
+  "raw_prompt_persisted": false,
+  "raw_transport_response_persisted": false,
+  "credential_persisted": false,
+  "p4_1_frozen_config_sha256": "d0dcd665472b50092a1b4fa7f65f7115778e1b89ac11aca0ed49dc70beaa790b",
+  "required_external_action": "Restore qwen3.6-flash access without changing the frozen model, then run a new create-only dev iteration round against the pre-registered v1.2 contract."
+}

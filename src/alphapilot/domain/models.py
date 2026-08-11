@@ -133,6 +133,11 @@ class ScreeningCandidate(BaseModel):
     trend_score: float | None = Field(default=None, ge=0, le=100)
     risk_score: float | None = Field(default=None, ge=0, le=100)
     quality_placeholder_score: float | None = Field(default=None, ge=0, le=100)
+    # Display-only disclosure fields: they annotate a candidate and never
+    # filter or reorder the shortlist (P4.3 owns the actual gates).
+    avg_amount_20d: float | None = Field(default=None, ge=0)
+    low_liquidity: bool | None = None
+    high_volatility: bool | None = None
     p_up_5d: float | None = Field(default=None, ge=0, le=1)
     p_up_20d: float | None = Field(default=None, ge=0, le=1)
     expected_return_5d: float | None = None

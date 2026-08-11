@@ -1,0 +1,60 @@
+schema_version: p4.2a-development-event-extract-contract-v2-r1
+round_number: 1
+owner_spec_commit: b75098f60f7c6935825cc7bf81a72e052b6a8234
+pre_registered_at: "2026-08-09T14:02:37Z"
+production_writes_allowed: false
+heldout_access_allowed: false
+artifact_root: docs/phase4/eval/v2-calibration
+
+extends_contract:
+  path: config/p4_event_extract_eval_v1_7.yaml
+  sha256: 68474e4bd4fd5c9c88711dd5e102898ad1ed75a0fb984045efbd14e51a6db701
+  schema_version: p4.2a-event-extract-eval-v1.7
+
+contract_files:
+  prompt:
+    path: config/prompts/p4_news_event_extract_v2-r1.txt
+    sha256: 9441690be1a21c7bbafc1f16ec5e6174220d5bcd7f4e89f0bf32e8ace068817a
+  schema:
+    path: config/schemas/p4_news_event_candidate_v1.schema.json
+    sha256: c106cd15bd974de19ecc01d6e99e8f39c39fbf14df3a3b4dc74ee9b08ff6dd66
+  materialized_schema:
+    path: config/schemas/p4_news_event_v1.schema.json
+    sha256: 0ac68654ce23ecd4e537d849d695e092c76dcb9de0fb03793e65ae62b181947f
+
+llm:
+  purpose: p4_news_event_extract
+  model: qwen3.6-plus
+  endpoint: https://dashscope.aliyuncs.com/compatible-mode/v1
+  temperature: 0.2
+  enable_thinking: false
+  max_output_tokens: 2000
+  total_deadline_seconds: 20.0
+  max_retries: 0
+  max_items_per_run: 45
+  response_format: json_object
+  explicit_cache:
+    enabled: false
+    cache_control: null
+
+development_frame:
+  frame_id: p4.2a-development-frame-v2
+  expected_rows: 45
+  owner_export:
+    path: docs/phase4/eval/v2-calibration/development/P4.2a-development-frame-v2.owner-export.jsonl
+    sha256: 812ee8c86ab9f9ed269b1c6952046bddb11317b8624618d8444de5b03f612d31
+  human_gold:
+    path: docs/phase4/eval/v2-calibration/development/P4.2a-development-frame-v2.human-adjudicated.jsonl
+    sha256: fc08abc2f78bcb693c4e048fcd43ddd4f37c9d6a7a70ac878467194efbacaaa8
+  owner_completion:
+    path: docs/phase4/eval/v2-calibration/development/P4.2a-development-frame-v2.owner-completion.json
+    sha256: 51282ca598c1f99c2755d2954a8fe820b1b1f583205a0ff20676b30e613ca02b
+
+isolation:
+  production_database: data/alphapilot.db
+  open_mode: read_only_query_only
+  production_llm_calls_write: false
+  heldout_access: false
+  p4_2b_unlocked: false
+  p4_3_unlocked: false
+  proposals_or_orders_allowed: false
