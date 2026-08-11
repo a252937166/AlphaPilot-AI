@@ -1,0 +1,633 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://alphapilot.local/schemas/p4_2a_v2_heldout_rehearsal_bundle_v2.schema.json",
+  "title": "AlphaPilot P4.2a deterministic held-out rehearsal v2 bundle",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "rehearsal_id",
+    "status",
+    "lineage",
+    "publication",
+    "determinism",
+    "archive",
+    "execution_environment",
+    "merkle",
+    "semantic_validation",
+    "safety",
+    "locks",
+    "remaining_blockers"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "p4.2a-v2-heldout-rehearsal-bundle-v2"
+    },
+    "rehearsal_id": {
+      "const": "P4.2A-V2-HELDOUT-REHEARSAL-V2-DETERMINISTIC-20260810"
+    },
+    "status": {
+      "const": "passed"
+    },
+    "lineage": {
+      "$ref": "#/$defs/lineage"
+    },
+    "publication": {
+      "$ref": "#/$defs/publication"
+    },
+    "determinism": {
+      "$ref": "#/$defs/determinism"
+    },
+    "archive": {
+      "$ref": "#/$defs/archive"
+    },
+    "execution_environment": {
+      "$ref": "#/$defs/executionEnvironment"
+    },
+    "merkle": {
+      "$ref": "#/$defs/merkle"
+    },
+    "semantic_validation": {
+      "$ref": "#/$defs/semanticValidation"
+    },
+    "safety": {
+      "$ref": "#/$defs/safety"
+    },
+    "locks": {
+      "$ref": "#/$defs/locks"
+    },
+    "remaining_blockers": {
+      "$ref": "#/$defs/remainingBlockers"
+    }
+  },
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "gitCommit": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$"
+    },
+    "relativePath": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9._/-]+$",
+      "not": {
+        "anyOf": [
+          {"pattern": "^/"},
+          {"pattern": "//"},
+          {"pattern": "(^|/)\\.{1,2}(/|$)"},
+          {"pattern": "/$"}
+        ]
+      }
+    },
+    "fileRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "sha256"],
+      "properties": {
+        "path": {
+          "$ref": "#/$defs/relativePath"
+        },
+        "sha256": {
+          "$ref": "#/$defs/sha256"
+        }
+      }
+    },
+    "artifactRecord": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["logical_name", "source_relative_path", "bytes", "sha256"],
+      "properties": {
+        "logical_name": {
+          "type": "string"
+        },
+        "source_relative_path": {
+          "$ref": "#/$defs/relativePath"
+        },
+        "bytes": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "sha256": {
+          "$ref": "#/$defs/sha256"
+        }
+      }
+    },
+    "artifactList": {
+      "type": "array",
+      "minItems": 14,
+      "maxItems": 14,
+      "prefixItems": [
+        {
+          "allOf": [
+            {"$ref": "#/$defs/artifactRecord"},
+            {"properties": {"logical_name": {"const": "materialized_inputs"}, "source_relative_path": {"const": "docs/phase4/eval/v2-calibration/heldout/materialization/candidate-inputs.jsonl"}}}
+          ]
+        },
+        {
+          "allOf": [
+            {"$ref": "#/$defs/artifactRecord"},
+            {"properties": {"logical_name": {"const": "materialization_manifest"}, "source_relative_path": {"const": "docs/phase4/eval/v2-calibration/heldout/materialization/manifest.json"}}}
+          ]
+        },
+        {
+          "allOf": [
+            {"$ref": "#/$defs/artifactRecord"},
+            {"properties": {"logical_name": {"const": "inference_state"}, "source_relative_path": {"const": "docs/phase4/eval/v2-calibration/heldout/P4.2a-heldout-v2-inference.state.jsonl"}}}
+          ]
+        },
+        {
+          "allOf": [
+            {"$ref": "#/$defs/artifactRecord"},
+            {"properties": {"logical_name": {"const": "predictions"}, "source_relative_path": {"const": "docs/phase4/eval/v2-calibration/heldout/P4.2a-heldout-v2.predictions.jsonl"}}}
+          ]
+        },
+        {
+          "allOf": [
+            {"$ref": "#/$defs/artifactRecord"},
+            {"properties": {"logical_name": {"const": "prediction_manifest"}, "source_relative_path": {"const": "docs/phase4/eval/v2-calibration/heldout/P4.2a-heldout-v2.predictions.manifest.json"}}}
+          ]
+        },
+        {
+          "allOf": [
+            {"$ref": "#/$defs/artifactRecord"},
+            {"properties": {"logical_name": {"const": "private_selection"}, "source_relative_path": {"const": "docs/phase4/eval/v2-calibration/heldout/P4.2a-heldout-frame-v2.selection.json"}}}
+          ]
+        },
+        {
+          "allOf": [
+            {"$ref": "#/$defs/artifactRecord"},
+            {"properties": {"logical_name": {"const": "owner_blind"}, "source_relative_path": {"const": "docs/phase4/eval/v2-calibration/heldout/P4.2a-heldout-frame-v2.blind.jsonl"}}}
+          ]
+        },
+        {
+          "allOf": [
+            {"$ref": "#/$defs/artifactRecord"},
+            {"properties": {"logical_name": {"const": "ai_draft"}, "source_relative_path": {"const": "docs/phase4/eval/v2-calibration/heldout/P4.2a-heldout-frame-v2.labels-ai-drafted.jsonl"}}}
+          ]
+        },
+        {
+          "allOf": [
+            {"$ref": "#/$defs/artifactRecord"},
+            {"properties": {"logical_name": {"const": "adjudication_ui"}, "source_relative_path": {"const": "docs/phase4/eval/v2-calibration/heldout/P4.2a-heldout-frame-v2.adjudication.html"}}}
+          ]
+        },
+        {
+          "allOf": [
+            {"$ref": "#/$defs/artifactRecord"},
+            {"properties": {"logical_name": {"const": "owner_export"}, "source_relative_path": {"const": "docs/phase4/eval/v2-calibration/heldout/P4.2a-heldout-frame-v2.owner-export.jsonl"}}}
+          ]
+        },
+        {
+          "allOf": [
+            {"$ref": "#/$defs/artifactRecord"},
+            {"properties": {"logical_name": {"const": "human_adjudicated"}, "source_relative_path": {"const": "docs/phase4/eval/v2-calibration/heldout/P4.2a-heldout-frame-v2.human-adjudicated.jsonl"}}}
+          ]
+        },
+        {
+          "allOf": [
+            {"$ref": "#/$defs/artifactRecord"},
+            {"properties": {"logical_name": {"const": "owner_completion"}, "source_relative_path": {"const": "docs/phase4/eval/v2-calibration/heldout/P4.2a-heldout-frame-v2.owner-completion.json"}}}
+          ]
+        },
+        {
+          "allOf": [
+            {"$ref": "#/$defs/artifactRecord"},
+            {"properties": {"logical_name": {"const": "evaluation_state"}, "source_relative_path": {"const": "docs/phase4/eval/v2-calibration/heldout/P4.2a-heldout-v2-evaluation.state.jsonl"}}}
+          ]
+        },
+        {
+          "allOf": [
+            {"$ref": "#/$defs/artifactRecord"},
+            {"properties": {"logical_name": {"const": "synthetic_report"}, "source_relative_path": {"const": "docs/phase4/eval/v2-calibration/heldout/report/P4.2a-heldout-v2-evaluation-result.json"}}}
+          ]
+        }
+      ],
+      "items": false
+    },
+    "runArchive": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["run_label", "archive_root", "artifact_count", "artifacts", "artifact_merkle_root_sha256"],
+      "properties": {
+        "run_label": {
+          "type": "string"
+        },
+        "archive_root": {
+          "$ref": "#/$defs/relativePath"
+        },
+        "artifact_count": {
+          "const": 14
+        },
+        "artifacts": {
+          "$ref": "#/$defs/artifactList"
+        },
+        "artifact_merkle_root_sha256": {
+          "$ref": "#/$defs/sha256"
+        }
+      }
+    },
+    "controlFile": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["logical_name", "bundle_relative_path", "source_kind", "repository_path", "bytes", "sha256"],
+      "properties": {
+        "logical_name": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9._/-]+$"
+        },
+        "bundle_relative_path": {
+          "$ref": "#/$defs/relativePath"
+        },
+        "source_kind": {
+          "enum": ["python_source", "package_initializer", "frozen_control", "project_manifest", "lockfile", "control_manifest", "python_runtime", "package_inventory"]
+        },
+        "repository_path": {
+          "oneOf": [
+            {"$ref": "#/$defs/relativePath"},
+            {"type": "null"}
+          ]
+        },
+        "bytes": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "sha256": {
+          "$ref": "#/$defs/sha256"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "source_kind": {
+                "enum": ["python_source", "package_initializer", "frozen_control", "project_manifest", "lockfile"]
+              }
+            },
+            "required": ["source_kind"]
+          },
+          "then": {
+            "properties": {
+              "repository_path": {"$ref": "#/$defs/relativePath"}
+            }
+          },
+          "else": {
+            "properties": {
+              "repository_path": {"type": "null"}
+            }
+          }
+        }
+      ]
+    },
+    "controlManifestRecord": {
+      "allOf": [
+        {"$ref": "#/$defs/controlFile"},
+        {
+          "properties": {
+            "logical_name": {"const": "control_surface_manifest"},
+            "bundle_relative_path": {"const": "archive/control-surface/manifest.json"},
+            "source_kind": {"const": "control_manifest"},
+            "repository_path": {"type": "null"}
+          }
+        }
+      ]
+    },
+    "controlRootFile": {
+      "allOf": [
+        {"$ref": "#/$defs/controlFile"},
+        {
+          "properties": {
+            "source_kind": {
+              "enum": ["python_source", "package_initializer", "frozen_control", "project_manifest", "lockfile", "python_runtime", "package_inventory"]
+            }
+          }
+        }
+      ]
+    },
+    "lineage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["preregistration", "bundle_schema", "parent_preregistration", "v1_incident", "tooling_base_commit", "v1_evidence_commit", "v1_fail_close_commit", "implementation_commit", "design", "heldout_contract", "round3_prompt", "round3_plus_contract", "retired_v1_artifacts"],
+      "properties": {
+        "preregistration": {
+          "allOf": [
+            {"$ref": "#/$defs/fileRef"},
+            {"properties": {"path": {"const": "docs/phase4/reports/P4.2a-v2-heldout-rehearsal-v2-preregistration-20260810.json"}}}
+          ]
+        },
+        "bundle_schema": {
+          "allOf": [
+            {"$ref": "#/$defs/fileRef"},
+            {"properties": {"path": {"const": "config/schemas/p4_2a_v2_heldout_rehearsal_bundle_v2.schema.json"}}}
+          ]
+        },
+        "parent_preregistration": {
+          "allOf": [
+            {"$ref": "#/$defs/fileRef"},
+            {"properties": {"path": {"const": "docs/phase4/reports/P4.2a-v2-heldout-preregistration-20260810.json"}, "sha256": {"const": "ccecbf5ca7b48b16e445318b8c94a08927432f92c7e8c12f8ab40f2916578705"}}}
+          ]
+        },
+        "v1_incident": {
+          "allOf": [
+            {"$ref": "#/$defs/fileRef"},
+            {"properties": {"path": {"const": "docs/phase4/reports/P4.2a-v2-heldout-rehearsal-v1-incident-20260810.json"}, "sha256": {"const": "c3224b288f5181131351ae711a673ce94ec603375925d0cc968cef85d103e785"}}}
+          ]
+        },
+        "tooling_base_commit": {
+          "const": "bb5ced1adc83bfe88fa4c86f9b70513a3de97503"
+        },
+        "v1_evidence_commit": {
+          "const": "924ddd6efe6da1437e4ea613f30603feb595573f"
+        },
+        "v1_fail_close_commit": {
+          "const": "d710e885b49006eedf4f70ea09cb81fe15d176a3"
+        },
+        "implementation_commit": {
+          "$ref": "#/$defs/gitCommit"
+        },
+        "design": {
+          "allOf": [
+            {"$ref": "#/$defs/fileRef"},
+            {"properties": {"path": {"const": "config/p4_event_evaluation_v2.yaml"}, "sha256": {"const": "18a2428a4ec04bfea6e4f4d70692f38ea82fbaee5a223f30f2465b895b238e21"}}}
+          ]
+        },
+        "heldout_contract": {
+          "allOf": [
+            {"$ref": "#/$defs/fileRef"},
+            {"properties": {"path": {"const": "config/p4_event_extract_eval_v2-heldout-qwen3.6-plus.yaml"}, "sha256": {"const": "26be1765204b122908e7bd09cac857c33bd3140233df47dc3358bc590e020199"}}}
+          ]
+        },
+        "round3_prompt": {
+          "allOf": [
+            {"$ref": "#/$defs/fileRef"},
+            {"properties": {"path": {"const": "config/prompts/p4_news_event_extract_v2-r3.txt"}, "sha256": {"const": "0291dc882aac42878ba00c4ed3970da72f19508308cd39211467b4fd92294f44"}}}
+          ]
+        },
+        "round3_plus_contract": {
+          "allOf": [
+            {"$ref": "#/$defs/fileRef"},
+            {"properties": {"path": {"const": "config/p4_event_extract_eval_v2-r3-qwen3.6-plus.yaml"}, "sha256": {"const": "fa75a6cf33065745d02f74fe39e4f102723da43f37ac549058bb34fa8256a181"}}}
+          ]
+        },
+        "retired_v1_artifacts": {
+          "type": "array",
+          "minItems": 4,
+          "maxItems": 4,
+          "prefixItems": [
+            {"allOf": [{"$ref": "#/$defs/fileRef"}, {"properties": {"path": {"const": "docs/phase4/rehearsals/P4.2a-v2-calibration/contract.json"}, "sha256": {"const": "61ff631b0dc025bf7441fd3bd04636d0d6d34e5085b0ca570e6f8e2fcfd298ac"}}}]},
+            {"allOf": [{"$ref": "#/$defs/fileRef"}, {"properties": {"path": {"const": "docs/phase4/rehearsals/P4.2a-v2-calibration/inputs.jsonl"}, "sha256": {"const": "a6c5e6e0da6341cecf01df038b36964af6d8bb433b72babf953b385addc87707"}}}]},
+            {"allOf": [{"$ref": "#/$defs/fileRef"}, {"properties": {"path": {"const": "docs/phase4/rehearsals/P4.2a-v2-calibration/expected.json"}, "sha256": {"const": "557433d6ebdd6e3585aad18c6204e28c1cae6417ab3b1b3591474c5f0189b9ac"}}}]},
+            {"allOf": [{"$ref": "#/$defs/fileRef"}, {"properties": {"path": {"const": "docs/phase4/rehearsals/P4.2a-v2-calibration/pass-receipt.json"}, "sha256": {"const": "2610a8b3885426e44a7f32c1d964defcaa46a118bb531a2ecc9b0f3aefa1e0f5"}}}]}
+          ],
+          "items": false
+        }
+      }
+    },
+    "publication": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["directory", "bundle_manifest", "atomic_create_only", "directory_absent_before_publish", "staged_outside_repository", "published_by_single_atomic_rename", "symlink_count", "unexpected_entry_count"],
+      "properties": {
+        "directory": {"const": "docs/phase4/rehearsals/P4.2a-v2-calibration-v2"},
+        "bundle_manifest": {"const": "bundle.json"},
+        "atomic_create_only": {"const": true},
+        "directory_absent_before_publish": {"const": true},
+        "staged_outside_repository": {"const": true},
+        "published_by_single_atomic_rename": {"const": true},
+        "symlink_count": {"const": 0},
+        "unexpected_entry_count": {"const": 0}
+      }
+    },
+    "determinism": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["run_labels", "distinct_temp_roots", "temp_roots_outside_repository_and_destination", "temp_root_values_persisted", "artifact_count_per_run", "byte_identical_artifact_count", "mismatch_count", "normalization_used", "wall_clock", "monotonic_clock", "uuid_policy", "persisted_path_policy", "temp_root_leak_count"],
+      "properties": {
+        "run_labels": {"const": ["run-a", "run-b"]},
+        "distinct_temp_roots": {"const": true},
+        "temp_roots_outside_repository_and_destination": {"const": true},
+        "temp_root_values_persisted": {"const": false},
+        "artifact_count_per_run": {"const": 14},
+        "byte_identical_artifact_count": {"const": 14},
+        "mismatch_count": {"const": 0},
+        "normalization_used": {"const": false},
+        "wall_clock": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["policy", "value_utc"],
+          "properties": {
+            "policy": {"const": "every_injected_wall_clock_read_returns_the_same_value"},
+            "value_utc": {"const": "2026-08-10T08:15:00Z"}
+          }
+        },
+        "monotonic_clock": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["policy", "initial_seconds", "step_seconds", "reset_for_each_run"],
+          "properties": {
+            "policy": {"const": "deterministic_counter_advance_per_read"},
+            "initial_seconds": {"const": 1000.0},
+            "step_seconds": {"const": 0.001},
+            "reset_for_each_run": {"const": true}
+          }
+        },
+        "uuid_policy": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["algorithm", "namespace", "name_formula", "uuid4_forbidden"],
+          "properties": {
+            "algorithm": {"const": "uuid5_sha1_rfc4122"},
+            "namespace": {"const": "4a8a9839-d0a6-509a-b193-ddf4b5700780"},
+            "name_formula": {"const": "logical_record_type + NUL + stable_business_key"},
+            "uuid4_forbidden": {"const": true}
+          }
+        },
+        "persisted_path_policy": {"const": "posix_relative_to_synthetic_root_never_absolute"},
+        "temp_root_leak_count": {"const": 0}
+      }
+    },
+    "archive": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["artifact_path_rule", "runs", "control_surface"],
+      "properties": {
+        "artifact_path_rule": {"const": "archive_root + '/' + source_relative_path"},
+        "runs": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 2,
+          "prefixItems": [
+            {"allOf": [{"$ref": "#/$defs/runArchive"}, {"properties": {"run_label": {"const": "run-a"}, "archive_root": {"const": "archive/run-a/root"}}}]},
+            {"allOf": [{"$ref": "#/$defs/runArchive"}, {"properties": {"run_label": {"const": "run-b"}, "archive_root": {"const": "archive/run-b/root"}}}]}
+          ],
+          "items": false
+        },
+        "control_surface": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["archive_root", "manifest", "file_count", "tree_member_count", "tree_member_count_rule", "manifest_included_in_merkle", "files", "merkle_root_sha256"],
+          "properties": {
+            "archive_root": {"const": "archive/control-surface/root"},
+            "manifest": {"$ref": "#/$defs/controlManifestRecord"},
+            "file_count": {"type": "integer", "minimum": 1},
+            "tree_member_count": {"type": "integer", "minimum": 2},
+            "tree_member_count_rule": {"const": "tree_member_count == file_count + 1"},
+            "manifest_included_in_merkle": {"const": true},
+            "files": {
+              "type": "array",
+              "minItems": 1,
+              "uniqueItems": true,
+              "items": {"$ref": "#/$defs/controlRootFile"}
+            },
+            "merkle_root_sha256": {"$ref": "#/$defs/sha256"}
+          }
+        }
+      }
+    },
+    "executionEnvironment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["pyproject", "uv_lock", "python", "packages"],
+      "properties": {
+        "pyproject": {
+          "allOf": [{"$ref": "#/$defs/fileRef"}, {"properties": {"path": {"const": "pyproject.toml"}, "sha256": {"const": "b38481e57b0ba88d1b9b728c2a57583d55cf175262a8a803b483cf4823e13e29"}}}]
+        },
+        "uv_lock": {
+          "allOf": [{"$ref": "#/$defs/fileRef"}, {"properties": {"path": {"const": "uv.lock"}, "sha256": {"const": "10829f7ef74adfcbd4401000112b5539c899a899d09d8a3f78fdf8d95803a673"}}}]
+        },
+        "python": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["implementation", "version", "cache_tag", "abi_flags", "inventory_path", "inventory_sha256"],
+          "properties": {
+            "implementation": {"const": "CPython"},
+            "version": {"const": "3.12.0"},
+            "cache_tag": {"const": "cpython-312"},
+            "abi_flags": {"const": ""},
+            "inventory_path": {"const": "archive/control-surface/root/runtime/python.json"},
+            "inventory_sha256": {"const": "ab3e067417027bb98ea4335e9086d2046ac9dfd4eaf857acc8622dc8f0a13a31"}
+          }
+        },
+        "packages": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["source_call", "path_scope", "sysconfig_path_keys", "absolute_path_roots_policy", "selected_path_roots_project_relative", "selected_path_roots_sha256", "editable_repository_metadata_excluded", "excluded_repository_metadata_path", "canonicalization", "inventory_path", "raw_distribution_count", "count", "duplicate_normalized_name_count", "duplicate_normalized_name_policy", "duplicate_metadata_negative_probe", "sha256"],
+          "properties": {
+            "source_call": {"const": "importlib.metadata.distributions(path=derived_absolute_selected_path_roots)"},
+            "path_scope": {"const": "deduplicated_resolved_sysconfig_purelib_and_platlib_only_no_sys_path_fallback"},
+            "sysconfig_path_keys": {"const": ["purelib", "platlib"]},
+            "absolute_path_roots_policy": {"const": "derived_at_validation_time_not_persisted"},
+            "selected_path_roots_project_relative": {"const": [".venv/lib/python3.12/site-packages"]},
+            "selected_path_roots_sha256": {"const": "fae235892c0988d4093d1ad12b034a6126d116e436393e837a8b2f71601fbd12"},
+            "editable_repository_metadata_excluded": {"const": true},
+            "excluded_repository_metadata_path": {"const": "src/alphapilot_ai.egg-info"},
+            "canonicalization": {"const": "sorted_unique_pep503_normalized_name_and_importlib_metadata_version_as_canonical_json_array_newline"},
+            "inventory_path": {"const": "archive/control-surface/root/runtime/packages.json"},
+            "raw_distribution_count": {"const": 84},
+            "count": {"const": 84},
+            "duplicate_normalized_name_count": {"const": 0},
+            "duplicate_normalized_name_policy": {"const": "fail_closed_before_inventory_hash_acceptance"},
+            "duplicate_metadata_negative_probe": {"const": "PASS_INJECTED_SECOND_SAME_NORMALIZED_NAME_REJECTED"},
+            "sha256": {"const": "c3c7792eb31679c0eb7d3140e067d691df330cd3af302d2350bf15b74ac8ec42"}
+          }
+        }
+      }
+    },
+    "merkle": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["hash", "path_encoding", "sort_order", "leaf_formula", "control_tree_path_basis", "control_manifest_leaf_relative_path", "control_manifest_leaf_formula", "node_formula", "odd_leaf_policy", "empty_tree_policy", "run_a_root_sha256", "run_b_root_sha256", "control_surface_root_sha256", "bundle_root_formula", "bundle_root_sha256", "bundle_manifest_is_not_a_member_of_any_merkle_tree"],
+      "properties": {
+        "hash": {"const": "sha256"},
+        "path_encoding": {"const": "utf-8-posix-relative"},
+        "sort_order": {"const": "ascending_unsigned_utf8_path_bytes"},
+        "leaf_formula": {"const": "SHA256(utf8('p4.2a-rehearsal-leaf-v2\\0') || utf8(relative_path) || NUL || SHA256(file_bytes).digest())"},
+        "control_tree_path_basis": {"const": "bundle_relative_paths_for_manifest_and_every_control_root_file"},
+        "control_manifest_leaf_relative_path": {"const": "archive/control-surface/manifest.json"},
+        "control_manifest_leaf_formula": {"const": "SHA256(utf8('p4.2a-rehearsal-leaf-v2\\0') || utf8('archive/control-surface/manifest.json') || NUL || SHA256(control_manifest_bytes).digest())"},
+        "node_formula": {"const": "SHA256(utf8('p4.2a-rehearsal-node-v2\\0') || left_digest_32_bytes || right_digest_32_bytes)"},
+        "odd_leaf_policy": {"const": "duplicate_last_digest_at_each_level"},
+        "empty_tree_policy": {"const": "forbidden"},
+        "run_a_root_sha256": {"$ref": "#/$defs/sha256"},
+        "run_b_root_sha256": {"$ref": "#/$defs/sha256"},
+        "control_surface_root_sha256": {"$ref": "#/$defs/sha256"},
+        "bundle_root_formula": {"const": "SHA256(utf8('p4.2a-rehearsal-bundle-v2\\0') || run_a_root_digest_32_bytes || run_b_root_digest_32_bytes || control_surface_root_digest_32_bytes)"},
+        "bundle_root_sha256": {"$ref": "#/$defs/sha256"},
+        "bundle_manifest_is_not_a_member_of_any_merkle_tree": {"const": true}
+      }
+    },
+    "semanticValidation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["json_schema_valid", "lineage_rehash_passed", "retired_v1_immutability_passed", "implementation_commit_object_exists", "implementation_commit_descends_from_v1_fail_close", "implementation_commit_tree_binding_passed", "full_archive_rehash_passed", "control_manifest_rehash_passed", "artifact_semantics_passed", "run_artifact_bytes_equal", "ast_local_import_closure_complete", "package_initializers_complete", "control_surface_exact_set_match", "environment_binding_passed", "package_inventory_path_scope_binding_passed", "package_duplicate_metadata_negative_probe_passed", "merkle_roots_recomputed", "no_v1_fallback", "v1_receipt_or_gate_accepted", "independent_gate_result"],
+      "properties": {
+        "json_schema_valid": {"const": true},
+        "lineage_rehash_passed": {"const": true},
+        "retired_v1_immutability_passed": {"const": true},
+        "implementation_commit_object_exists": {"const": true},
+        "implementation_commit_descends_from_v1_fail_close": {"const": true},
+        "implementation_commit_tree_binding_passed": {"const": true},
+        "full_archive_rehash_passed": {"const": true},
+        "control_manifest_rehash_passed": {"const": true},
+        "artifact_semantics_passed": {"const": true},
+        "run_artifact_bytes_equal": {"const": true},
+        "ast_local_import_closure_complete": {"const": true},
+        "package_initializers_complete": {"const": true},
+        "control_surface_exact_set_match": {"const": true},
+        "environment_binding_passed": {"const": true},
+        "package_inventory_path_scope_binding_passed": {"const": true},
+        "package_duplicate_metadata_negative_probe_passed": {"const": true},
+        "merkle_roots_recomputed": {"const": true},
+        "no_v1_fallback": {"const": true},
+        "v1_receipt_or_gate_accepted": {"const": false},
+        "independent_gate_result": {"const": "PASS_REHEARSAL_V2_ONLY_REAL_HELDOUT_REMAINS_BLOCKED"}
+      }
+    },
+    "safety": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["real_database_reads", "real_network_calls", "real_model_calls", "production_writes", "production_heldout_artifacts_changed", "real_heldout_metrics_computed", "real_metrics_disclosed", "proposals_or_orders_allowed"],
+      "properties": {
+        "real_database_reads": {"const": 0},
+        "real_network_calls": {"const": 0},
+        "real_model_calls": {"const": 0},
+        "production_writes": {"const": false},
+        "production_heldout_artifacts_changed": {"const": false},
+        "real_heldout_metrics_computed": {"const": false},
+        "real_metrics_disclosed": {"const": false},
+        "proposals_or_orders_allowed": {"const": false}
+      }
+    },
+    "locks": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["trading_mode", "live_trading_enabled", "paper_trading_enabled", "paper_auto_trading_enabled", "futu_enable_trade", "futu_enable_account_mutation", "unlock_trade_permanently_blocked", "p4_2a_done", "p4_2b_unlocked", "p4_3_unlocked"],
+      "properties": {
+        "trading_mode": {"const": "research"},
+        "live_trading_enabled": {"const": false},
+        "paper_trading_enabled": {"const": false},
+        "paper_auto_trading_enabled": {"const": false},
+        "futu_enable_trade": {"const": false},
+        "futu_enable_account_mutation": {"const": false},
+        "unlock_trade_permanently_blocked": {"const": true},
+        "p4_2a_done": {"const": false},
+        "p4_2b_unlocked": {"const": false},
+        "p4_3_unlocked": {"const": false}
+      }
+    },
+    "remainingBlockers": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["cost_and_strata_authority_conflict", "real_heldout_materialization_unlocked", "real_heldout_inference_unlocked", "heldout_metric_evaluation_unlocked"],
+      "properties": {
+        "cost_and_strata_authority_conflict": {"const": "BLOCKED_PENDING_OWNER_CLARIFICATION"},
+        "real_heldout_materialization_unlocked": {"const": false},
+        "real_heldout_inference_unlocked": {"const": false},
+        "heldout_metric_evaluation_unlocked": {"const": false}
+      }
+    }
+  }
+}

@@ -1,0 +1,2 @@
+{"at_utc":"2026-08-09T06:50:46.256014Z","design_sha256":"4c7964ad547820f5672631939af93978f11cb9f91e5921087770ac7d0d79bec1","event":"evaluation_started"}
+{"at_utc":"2026-08-09T06:50:46.595633Z","design_sha256":"4c7964ad547820f5672631939af93978f11cb9f91e5921087770ac7d0d79bec1","event":"evaluation_failed","safe_reason":"DevIterationError"}

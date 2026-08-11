@@ -1,0 +1,93 @@
+{
+  "schema_version": "p4.2a-v2-heldout-rehearsal-v2-1-scope-correction-disclosure-v1",
+  "disclosure_id": "P4.2A-V2-HELDOUT-REHEARSAL-V2-1-SCOPE-CORRECTION-DISCLOSURE-20260810",
+  "created_at_utc": "2026-08-10T14:06:16Z",
+  "created_at_shanghai": "2026-08-10T22:06:16+08:00",
+  "status": "PENDING_OWNER_ACCEPTANCE_OF_RETROSPECTIVE_SCOPE_CORRECTION",
+  "authority": {
+    "successor_code_gate": {
+      "path": "docs/phase4/reports/P4.2a-successor-v2-1-code-gate-authorization-20260810.json",
+      "sha256": "e28db692dc150983f86f6760fb1a95584d8607658e8a78a0de35cf3fc81940cd",
+      "commit": "aa082578aa48296f1dd394a380775a5a4546ca65"
+    },
+    "base_preregistration": {
+      "path": "docs/phase4/reports/P4.2a-v2-heldout-rehearsal-v2-1-preregistration-20260810.json",
+      "sha256": "c303cfb13a42ecbb7e0acaec04de12a9e9169b89cf9e93ea79d0f120d1439d3e",
+      "commit": "b302d5889f01296568340bcc15041cc554ceb2c7"
+    }
+  },
+  "ordering_deviation": {
+    "classification": "UNCOMMITTED_TEST_IMPLEMENTATION_PRECEDED_SCOPE_REGISTRATION",
+    "omitted_base_registry_path": "tests/test_p4_2a_v2_heldout_finalizer.py",
+    "transient_implementation": {
+      "sha256": "89cb5db119887b39aabad3496331f91faf4f518e00cee2351d08c8f0668869cb",
+      "git_diff_stat": "1 file changed, 70 insertions(+), 20 deletions(-)",
+      "changed_line_count": 90,
+      "committed": false,
+      "formal_registered_rehearsal_executed": false,
+      "real_database_activity": 0,
+      "real_network_activity": 0,
+      "real_model_activity": 0,
+      "formal_heldout_artifacts_created": 0,
+      "checks_observed_for_these_exact_bytes": [
+        {
+          "command": ".venv/bin/ruff check scripts/prepare_p4_2a_v2_heldout.py tests/test_p4_2a_v2_heldout.py tests/test_p4_2a_v2_heldout_finalizer.py",
+          "result": "All checks passed!"
+        }
+      ],
+      "pytest_result_for_exact_transient_sha": "not_captured_and_must_not_be_inferred"
+    },
+    "restoration": {
+      "restored_before_this_disclosure": true,
+      "restored_sha256": "d6e8b3bd9281af8064c5b700d0d42f3be54b8c5709b6787208d7cad96347d533",
+      "equals_base_preregistration_commit_blob": true,
+      "git_diff_against_base_preregistration_commit": "none",
+      "baseline_test_command": "PYTHONDONTWRITEBYTECODE=1 .venv/bin/pytest -q tests/test_p4_2a_v2_heldout_finalizer.py",
+      "baseline_test_result": "8 failed",
+      "common_failure_boundary": "legacy synthetic fixture has no private offline capability and is rejected by validate_v2_1_stage_authorization before owner export input",
+      "restoration_does_not_erase_the_prior_ordering_deviation": true
+    },
+    "root_cause": "the base preregistration registered modified finalizer production code but omitted its existing finalizer test path, and capability-aware test bytes were drafted before that omission was detected",
+    "audit_attribution": "the initial remediation advice also omitted the need to disclose the transient implementation; this disclosure corrects both omissions"
+  },
+  "requested_scope_correction": {
+    "operation": "append_one_path_to_registered_existing_test_updates",
+    "path": "tests/test_p4_2a_v2_heldout_finalizer.py",
+    "purpose": "update legacy finalizer tests to use the real private offline rehearsal capability while preserving canonical finalize fail-closed behavior",
+    "production_source_change": false,
+    "statistical_design_change": false,
+    "frame_prompt_contract_model_seed_threshold_or_gold_change": false
+  },
+  "owner_decision_gate": {
+    "current_verdict": "PENDING",
+    "this_disclosure_does_not_authorize_reapplication": true,
+    "required_owner_identity": "ouyang",
+    "required_create_only_ruling_path": "docs/phase4/reports/P4.2a-v2-heldout-rehearsal-v2-1-scope-correction-owner-ruling-20260810.json",
+    "required_ruling_bindings": [
+      "this disclosure path, SHA-256, and commit",
+      "the transient implementation SHA-256 and exact diff stat",
+      "the restored baseline SHA-256 and zero diff",
+      "an explicit ACCEPT or REJECT of the retrospective registry correction"
+    ],
+    "if_accepted": {
+      "target_test_may_be_reapplied_only_after_owner_ruling_commit": true,
+      "implementation_commit_must_descend_from_disclosure_and_owner_ruling_commits": true,
+      "updated_test_must_use_actual_minted_capability_without_registry_or_gate_bypass": true,
+      "updated_test_must_be_archived_in_the_complete_control_surface_and_merkle_root": true
+    },
+    "if_rejected": {
+      "target_test_must_remain_at_restored_sha256": "d6e8b3bd9281af8064c5b700d0d42f3be54b8c5709b6787208d7cad96347d533",
+      "implementation_evidence_must_not_claim_the_legacy_finalizer_suite_is_green": true
+    }
+  },
+  "unchanged_locks": {
+    "real_heldout_materialization_before_owner_release": "forbidden",
+    "real_network_or_model_activity": "forbidden",
+    "canonical_finalize_owner_adjudication": "REJECTED_PENDING_OWNER_ADJUDICATION_AUTHORITY",
+    "heldout_evaluation": "locked",
+    "p4_2a_done": false,
+    "p4_2b_unlocked": false,
+    "p4_3_unlocked": false
+  },
+  "authorization_effect": "disclosure_only_and_does_not_approve_scope_implementation_rehearsal_release_or_real_execution"
+}

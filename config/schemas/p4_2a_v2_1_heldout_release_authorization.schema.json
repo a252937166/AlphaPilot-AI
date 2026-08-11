@@ -1,0 +1,262 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://alphapilot.local/schemas/p4_2a_v2_1_heldout_release_authorization.schema.json",
+  "title": "AlphaPilot P4.2a successor v2.1 real held-out preparation release authorization",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "authorization_id",
+    "created_at_utc",
+    "created_at_shanghai",
+    "verdict",
+    "reviewed_repository_head",
+    "reviewer",
+    "owner_authorization",
+    "lineage",
+    "independent_checks",
+    "authorized_stages",
+    "still_gated",
+    "runtime_start_policy",
+    "locks"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "p4.2a-v2-heldout-rehearsal-v2-1-release-authorization-v1"
+    },
+    "authorization_id": {
+      "const": "P4.2A-V2-HELDOUT-REHEARSAL-V2-1-RELEASE-AUTHORIZATION-20260810"
+    },
+    "created_at_utc": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "created_at_shanghai": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "verdict": {
+      "const": "APPROVE_SUCCESSOR_V2_1_REAL_HELDOUT_PREPARATION"
+    },
+    "reviewed_repository_head": {
+      "$ref": "#/$defs/gitCommit"
+    },
+    "reviewer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["identity", "reviewer_type", "model", "method", "independent_of_operator"],
+      "properties": {
+        "identity": {"type": "string", "minLength": 1},
+        "reviewer_type": {"enum": ["human", "ai"]},
+        "model": {"type": ["string", "null"]},
+        "method": {"type": "string", "minLength": 1},
+        "independent_of_operator": {"const": true}
+      }
+    },
+    "owner_authorization": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["owner", "approved", "approval_scope"],
+      "properties": {
+        "owner": {"const": "ouyang"},
+        "approved": {"const": true},
+        "approval_scope": {"const": "real_heldout_preparation_only_not_evaluation"}
+      }
+    },
+    "lineage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "preregistration",
+        "bundle_schema",
+        "release_schema",
+        "bundle",
+        "bundle_root_sha256",
+        "preregistration_commit",
+        "implementation_commit",
+        "rehearsal_evidence_commit",
+        "frame_authority_ruling",
+        "successor_v2_1_authorization",
+        "review_request"
+      ],
+      "properties": {
+        "preregistration": {
+          "allOf": [
+            {"$ref": "#/$defs/fileRef"},
+            {"properties": {"path": {"const": "docs/phase4/reports/P4.2a-v2-heldout-rehearsal-v2-1-preregistration-20260810.json"}}}
+          ]
+        },
+        "bundle_schema": {
+          "allOf": [
+            {"$ref": "#/$defs/fileRef"},
+            {"properties": {"path": {"const": "config/schemas/p4_2a_v2_1_heldout_rehearsal_bundle.schema.json"}}}
+          ]
+        },
+        "release_schema": {
+          "allOf": [
+            {"$ref": "#/$defs/fileRef"},
+            {"properties": {"path": {"const": "config/schemas/p4_2a_v2_1_heldout_release_authorization.schema.json"}}}
+          ]
+        },
+        "bundle": {
+          "allOf": [
+            {"$ref": "#/$defs/fileRef"},
+            {"properties": {"path": {"const": "docs/phase4/rehearsals/P4.2a-v2-calibration-v2-1/bundle.json"}}}
+          ]
+        },
+        "bundle_root_sha256": {"$ref": "#/$defs/sha256"},
+        "preregistration_commit": {"$ref": "#/$defs/gitCommit"},
+        "implementation_commit": {"$ref": "#/$defs/gitCommit"},
+        "rehearsal_evidence_commit": {"$ref": "#/$defs/gitCommit"},
+        "frame_authority_ruling": {
+          "allOf": [
+            {"$ref": "#/$defs/fileRef"},
+            {"properties": {"path": {"const": "docs/phase4/reports/P4.2a-rehearsal-v2-approval-and-frame-authority-ruling-20260810.json"}, "sha256": {"const": "8605dd30dd6bffa9621b6efe5e01c4c9cead615c9639259c2e79e14fcbbc3421"}}}
+          ]
+        },
+        "successor_v2_1_authorization": {
+          "allOf": [
+            {"$ref": "#/$defs/fileRef"},
+            {"properties": {"path": {"const": "docs/phase4/reports/P4.2a-successor-v2-1-code-gate-authorization-20260810.json"}, "sha256": {"const": "e28db692dc150983f86f6760fb1a95584d8607658e8a78a0de35cf3fc81940cd"}}}
+          ]
+        },
+        "review_request": {
+          "allOf": [
+            {"$ref": "#/$defs/fileRef"},
+            {"properties": {"path": {"const": "docs/phase4/reports/P4.2a-v2-heldout-rehearsal-v2-1-implementation-and-execution-review-request-20260810.json"}}}
+          ]
+        }
+      }
+    },
+    "independent_checks": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "bundle_full_rehash_passed",
+        "implementation_commit_binding_passed",
+        "double_run_14_of_14_byte_identical",
+        "real_run_materialize_path_covered",
+        "request_interval_evidence_passed",
+        "noop_sleeper_negative_probe_passed",
+        "synthetic_successor_release_receipt_positive_probe_passed",
+        "release_receipt_create_only_git_history_probes_passed",
+        "materialization_execution_authority_mode_branches_passed",
+        "deterministic_ineligible_and_unexpected_failure_semantics_passed",
+        "seal_and_ui_release_gate_probes_passed",
+        "canonical_finalize_remains_gated_probe_passed",
+        "operator_timing_attestation_explicit_input_negative_probes_passed",
+        "full_downstream_replay_passed",
+        "real_database_reads",
+        "real_network_calls",
+        "real_model_calls",
+        "production_writes",
+        "old_v2_approval_used_for_current_source"
+      ],
+      "properties": {
+        "bundle_full_rehash_passed": {"const": true},
+        "implementation_commit_binding_passed": {"const": true},
+        "double_run_14_of_14_byte_identical": {"const": true},
+        "real_run_materialize_path_covered": {"const": true},
+        "request_interval_evidence_passed": {"const": true},
+        "noop_sleeper_negative_probe_passed": {"const": true},
+        "synthetic_successor_release_receipt_positive_probe_passed": {"const": true},
+        "release_receipt_create_only_git_history_probes_passed": {"const": true},
+        "materialization_execution_authority_mode_branches_passed": {"const": true},
+        "deterministic_ineligible_and_unexpected_failure_semantics_passed": {"const": true},
+        "seal_and_ui_release_gate_probes_passed": {"const": true},
+        "canonical_finalize_remains_gated_probe_passed": {"const": true},
+        "operator_timing_attestation_explicit_input_negative_probes_passed": {"const": true},
+        "full_downstream_replay_passed": {"const": true},
+        "real_database_reads": {"const": 0},
+        "real_network_calls": {"const": 0},
+        "real_model_calls": {"const": 0},
+        "production_writes": {"const": false},
+        "old_v2_approval_used_for_current_source": {"const": false}
+      }
+    },
+    "authorized_stages": {
+      "const": ["materialize", "infer", "select-blind", "blind-draft", "owner-adjudication-ui"]
+    },
+    "still_gated": {
+      "const": ["finalize-owner-adjudication", "heldout-evaluation", "p4.2b", "p4.3"]
+    },
+    "runtime_start_policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "live_probe_required",
+        "probe_timing",
+        "backup_stamp_policy",
+        "database_backup_launchagent_policy",
+        "database_backup_lock_policy",
+        "latest_backup_manifest_policy",
+        "avoid_cninfo_midnight_batch",
+        "avoid_dense_p4_1_trading_slots",
+        "observations_must_be_recorded_in_materialization_manifest"
+      ],
+      "properties": {
+        "live_probe_required": {"const": true},
+        "probe_timing": {"const": "after_release_gate_before_real_network_or_artifact_write"},
+        "backup_stamp_policy": {"const": "current_Asia_Shanghai_date"},
+        "database_backup_launchagent_policy": {"const": "loaded_state_not_running_last_exit_code_0"},
+        "database_backup_lock_policy": {"const": "nonblocking_flock_proves_not_held"},
+        "latest_backup_manifest_policy": {"const": "created_after_22_00_CST_quick_check_ok_database_exists"},
+        "avoid_cninfo_midnight_batch": {"const": true},
+        "avoid_dense_p4_1_trading_slots": {"const": true},
+        "observations_must_be_recorded_in_materialization_manifest": {"const": true}
+      }
+    },
+    "locks": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "p4_2a_done",
+        "heldout_evaluation_unlocked",
+        "p4_2b_unlocked",
+        "p4_3_unlocked",
+        "trading_mode",
+        "non_simulate_orders_allowed"
+      ],
+      "properties": {
+        "p4_2a_done": {"const": false},
+        "heldout_evaluation_unlocked": {"const": false},
+        "p4_2b_unlocked": {"const": false},
+        "p4_3_unlocked": {"const": false},
+        "trading_mode": {"const": "research"},
+        "non_simulate_orders_allowed": {"const": false}
+      }
+    }
+  },
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "gitCommit": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$"
+    },
+    "relativePath": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9._/-]+$",
+      "not": {
+        "anyOf": [
+          {"pattern": "^/"},
+          {"pattern": "//"},
+          {"pattern": "(^|/)\\.{1,2}(/|$)"},
+          {"pattern": "/$"}
+        ]
+      }
+    },
+    "fileRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "sha256"],
+      "properties": {
+        "path": {"$ref": "#/$defs/relativePath"},
+        "sha256": {"$ref": "#/$defs/sha256"}
+      }
+    }
+  }
+}

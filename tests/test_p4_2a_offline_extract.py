@@ -5,7 +5,7 @@ import sqlite3
 from collections.abc import Callable
 from dataclasses import replace
 from pathlib import Path
-from typing import Any
+from typing import Any, TypeVar, cast
 
 import pytest
 from scripts import run_p4_2a_offline_extract as runner
@@ -22,6 +22,12 @@ from alphapilot.llm.p4_news_event import (
 )
 
 FROZEN_MAX_AVAILABLE_TIME = "2026-08-03 02:10:09.075785"
+
+_TestCallable = TypeVar("_TestCallable", bound=Callable[..., object])
+_parametrize: Callable[..., Callable[[_TestCallable], _TestCallable]] = cast(
+    Callable[..., Callable[[_TestCallable], _TestCallable]],
+    pytest.mark.parametrize,
+)
 
 
 def _settings() -> Settings:
@@ -239,18 +245,24 @@ def test_v1_6_separates_frozen_legacy_hash_from_candidate_request_hash(
     called = 0
 
     def candidate_chat(
-        _purpose: str,
-        _system: str,
+        purpose: str,
+        system: str,
         user: str,
-        _schema: dict[str, Any],
-        **kwargs: Any,
+        schema: dict[str, Any],
+        *,
+        timeout: float | None = None,
+        max_tokens: int | None = None,
+        max_retries: int = 1,
+        settings: Settings | None = None,
+        session: Session | None = None,
     ) -> dict[str, Any]:
         nonlocal called
+        del purpose, system, schema, timeout, max_tokens, max_retries, settings
         called += 1
         payload = json.loads(user)
         assert "original_text" not in payload
         assert payload["evidence_candidates"]
-        _record_audit(kwargs.get("session"), ok=True, error=None)
+        _record_audit(session, ok=True, error=None)
         return {
             "symbols": ["600519"],
             "event_type": "other",
@@ -475,6 +487,112 @@ def test_total_deadline_is_fail_closed_after_model_returns(
     assert row["security"]["llm_audit_status"] == "recorded"
 
 
+def test_extract_records_uses_explicit_deterministic_timing_dependencies(
+    tmp_path: Path,
+) -> None:
+    contract = _contract_for_root(tmp_path)
+    output = tmp_path / "eval" / "deterministic-timing.jsonl"
+    recorded_calls = 0
+    monotonic_calls = 0
+
+    def recorded_at_clock() -> str:
+        nonlocal recorded_calls
+        recorded_calls += 1
+        return "2026-08-10T12:30:00Z"
+
+    def monotonic_ns_clock() -> int:
+        nonlocal monotonic_calls
+        monotonic_calls += 1
+        return 1_000_000_000
+
+    summary = runner.extract_records(
+        contract,
+        [_one_record()],
+        output_path=output,
+        eval_root=tmp_path / "eval",
+        universe_symbols={"600519"},
+        settings=_settings(),
+        retry_failures=False,
+        chat_json_fn=_fake_chat(),
+        recorded_at_clock=recorded_at_clock,
+        monotonic_ns_clock=monotonic_ns_clock,
+    )
+
+    assert summary.success_count == 1
+    assert recorded_calls == 1
+    assert monotonic_calls == 3
+    row = json.loads(output.read_text(encoding="utf-8"))
+    assert row["recorded_at_utc"] == "2026-08-10T12:30:00Z"
+    assert row["latency_ms"] == 0
+
+
+def test_extract_records_resolves_omitted_timing_clock_at_call_time(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(runner, "_utc_now", lambda: "2026-08-10T12:31:00Z")
+    contract = _contract_for_root(tmp_path)
+    output = tmp_path / "eval" / "default-timing.jsonl"
+
+    runner.extract_records(
+        contract,
+        [_one_record()],
+        output_path=output,
+        eval_root=tmp_path / "eval",
+        universe_symbols={"600519"},
+        settings=_settings(),
+        retry_failures=False,
+        chat_json_fn=_fake_chat(),
+    )
+
+    row = json.loads(output.read_text(encoding="utf-8"))
+    assert row["recorded_at_utc"] == "2026-08-10T12:31:00Z"
+
+
+@_parametrize(
+    "value",
+    ["not-a-date", "2026-08-10T12:30:00", "2026-08-10T12:30:00+01:00"],
+)
+def test_recorded_at_clock_rejects_invalid_or_non_utc_values(value: str) -> None:
+    with pytest.raises(runner.OfflineExtractError, match="recorded-at clock"):
+        runner._recorded_at_utc(lambda: value)
+
+
+@_parametrize("value", [True, -1, 1.5])
+def test_monotonic_ns_clock_rejects_invalid_values(value: object) -> None:
+    with pytest.raises(runner.OfflineExtractError, match="monotonic-ns clock"):
+        runner._monotonic_ns_value(
+            cast(runner.MonotonicNsClock, lambda: value),
+            previous=None,
+        )
+
+
+def test_monotonic_ns_clock_rejects_backward_motion() -> None:
+    with pytest.raises(runner.OfflineExtractError, match="moved backward"):
+        runner._monotonic_ns_value(lambda: 9, previous=10)
+
+
+def test_extract_records_rejects_third_tick_moving_backward(
+    tmp_path: Path,
+) -> None:
+    ticks = iter((0, 10, 5))
+    output = tmp_path / "eval" / "backward-third-tick.jsonl"
+    with pytest.raises(runner.OfflineExtractError, match="moved backward"):
+        runner.extract_records(
+            _contract_for_root(tmp_path),
+            [_one_record()],
+            output_path=output,
+            eval_root=tmp_path / "eval",
+            universe_symbols={"600519"},
+            settings=_settings(),
+            retry_failures=False,
+            chat_json_fn=_fake_chat(),
+            recorded_at_clock=lambda: "2026-08-10T12:30:00Z",
+            monotonic_ns_clock=lambda: next(ticks),
+        )
+    assert not output.read_bytes()
+
+
 def test_post_validation_failure_persists_only_safe_field_and_constraint(
     tmp_path: Path,
 ) -> None:
@@ -482,10 +600,10 @@ def test_post_validation_failure_persists_only_safe_field_and_constraint(
     output = tmp_path / "eval" / "post-validation.jsonl"
 
     def invalid_evidence_chat(
-        _purpose: str,
-        _system: str,
-        _user: str,
-        _schema: dict[str, Any],
+        purpose: str,
+        system: str,
+        user: str,
+        schema: dict[str, Any],
         *,
         timeout: float | None = None,
         max_tokens: int | None = None,
@@ -493,6 +611,7 @@ def test_post_validation_failure_persists_only_safe_field_and_constraint(
         settings: Settings | None = None,
         session: Session | None = None,
     ) -> dict[str, Any]:
+        del purpose, system, user, schema
         assert timeout == 20.0
         assert max_tokens == 2_000
         assert max_retries == 0
@@ -537,7 +656,7 @@ def test_post_validation_failure_persists_only_safe_field_and_constraint(
     assert row["security"]["raw_transport_response_persisted"] is False
 
 
-@pytest.mark.parametrize(
+@_parametrize(
     ("field", "constraint", "expected_field", "expected_constraint"),
     [
         (
@@ -565,10 +684,10 @@ def test_schema_validation_failure_persists_only_safe_structured_metadata(
     output = tmp_path / "eval" / f"schema-validation-{expected_field}.jsonl"
 
     def schema_failure_chat(
-        _purpose: str,
-        _system: str,
-        _user: str,
-        _schema: dict[str, Any],
+        purpose: str,
+        system: str,
+        user: str,
+        schema: dict[str, Any],
         *,
         timeout: float | None = None,
         max_tokens: int | None = None,
@@ -576,6 +695,7 @@ def test_schema_validation_failure_persists_only_safe_structured_metadata(
         settings: Settings | None = None,
         session: Session | None = None,
     ) -> dict[str, Any]:
+        del purpose, system, user, schema
         assert timeout == 20.0
         assert max_tokens == 2_000
         assert max_retries == 0
