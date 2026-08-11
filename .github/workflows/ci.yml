@@ -15,12 +15,12 @@ jobs:
       matrix:
         python-version: ["3.11", "3.12", "3.13"]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       # The S6 frozen-baseline guard test needs this commit's objects; a full
       # clone is too heavy, so fetch just the pinned baseline snapshot.
       # Mirrors src/alphapilot/backtest/s6_presign.py::FROZEN_BASELINE_COMMIT.
       - run: git fetch --depth=1 origin b9d2b19b1e701a31ecdcab3dca8ed86575f89b30
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: ${{ matrix.python-version }}
           cache: pip
@@ -50,7 +50,7 @@ jobs:
     runs-on: macos-15
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           # The registered tests prove commit/blob ancestry and reject shallow
           # history.  Keeping the real checkout (rather than a Git worktree) is
@@ -527,7 +527,7 @@ jobs:
       run:
         working-directory: apps/web
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
