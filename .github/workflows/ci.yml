@@ -20,7 +20,7 @@ jobs:
       # clone is too heavy, so fetch just the pinned baseline snapshot.
       # Mirrors src/alphapilot/backtest/s6_presign.py::FROZEN_BASELINE_COMMIT.
       - run: git fetch --depth=1 origin b9d2b19b1e701a31ecdcab3dca8ed86575f89b30
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: ${{ matrix.python-version }}
           cache: pip
