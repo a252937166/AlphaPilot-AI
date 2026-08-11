@@ -27,7 +27,139 @@ jobs:
       - run: python -m pip install --upgrade pip
       - run: pip install -e ".[dev]"
       - run: ruff check src tests
-      - run: pytest
+      # These seven modules exercise historical P4.2a rehearsal contracts that
+      # are intentionally bound to Darwin, CPython 3.12.0, an exact 84-package
+      # environment, and their approved source commits.  They are executed in
+      # full by backend-frozen-rehearsals below; the portable matrix still runs
+      # every current, cross-platform test on each supported Python version.
+      - name: Run portable test suite
+        run: >-
+          pytest
+          --ignore=tests/test_p4_2a_v2_heldout.py
+          --ignore=tests/test_p4_2a_v2_heldout_finalizer.py
+          --ignore=tests/test_p4_2a_v2_heldout_full_rehearsal.py
+          --ignore=tests/test_p4_2a_v2_heldout_rehearsal_v2_runner.py
+          --ignore=tests/test_p4_2a_v2_heldout_rehearsal_v2_validator.py
+          --ignore=tests/test_p4_2a_v2_1_heldout_rehearsal_runner.py
+          --ignore=tests/test_p4_2a_v2_1_heldout_rehearsal_validator.py
+
+  backend-frozen-rehearsals:
+    name: backend (frozen P4.2a rehearsals)
+    runs-on: macos-14
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # The registered tests prove commit/blob ancestry and reject shallow
+          # history.  Keeping the real checkout (rather than a Git worktree) is
+          # also required because the fail-closed guard requires a .git directory.
+          fetch-depth: 0
+      - name: Verify frozen rehearsal lineage
+        shell: bash
+        run: |
+          registered_paths=(
+            scripts/build_p4_2a_v2_heldout_adjudication_ui.py
+            scripts/evaluate_p4_2a_v2_heldout.py
+            scripts/finalize_p4_2a_v2_heldout_adjudication.py
+            scripts/prepare_p4_2a_v2_heldout.py
+            scripts/rehearse_p4_2a_v2_1_heldout_full_path.py
+            scripts/run_p4_2a_offline_extract.py
+            scripts/seal_p4_2a_v2_heldout_draft.py
+            scripts/validate_p4_2a_v2_1_heldout_rehearsal_bundle.py
+            tests/test_p4_2a_offline_extract.py
+            tests/test_p4_2a_v2_1_heldout_rehearsal_runner.py
+            tests/test_p4_2a_v2_1_heldout_rehearsal_validator.py
+            tests/test_p4_2a_v2_heldout.py
+            tests/test_p4_2a_v2_heldout_adjudication.py
+            tests/test_p4_2a_v2_heldout_evaluator.py
+            tests/test_p4_2a_v2_heldout_finalizer.py
+          )
+          git merge-base --is-ancestor da374342781d6fde2f2c6d87d23582050bc8edaa HEAD
+          git merge-base --is-ancestor 4fce89e89fe2dba656694a7cffdc0ee1af0305c0 HEAD
+          observed_paths="$(git diff --name-only \
+            d37040be87644977ddaad60b2590ac2e62b2aeed \
+            4fce89e89fe2dba656694a7cffdc0ee1af0305c0 --)"
+          expected_paths="$(printf '%s\n' "${registered_paths[@]}")"
+          if [[ "$observed_paths" != "$expected_paths" ]]; then
+            echo "v2.1 registered authority list differs from the approved 15-path surface" >&2
+            exit 1
+          fi
+          git diff --exit-code \
+            4fce89e89fe2dba656694a7cffdc0ee1af0305c0 HEAD \
+            -- "${registered_paths[@]}"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12.0"
+          cache: pip
+      - name: Recreate the registered 84-package runtime
+        run: |
+          python -m venv .venv
+          .venv/bin/python -m pip install pip==23.2.1
+          .venv/bin/python - <<'PY'
+          import json
+          import pathlib
+          import subprocess
+          import sys
+
+          inventory = pathlib.Path(
+              "docs/phase4/rehearsals/P4.2a-v2-calibration-v2/"
+              "archive/control-surface/root/runtime/packages.json"
+          )
+          rows = json.loads(inventory.read_text(encoding="utf-8"))
+          requirements = [
+              f"{row['name']}=={row['version']}"
+              for row in rows
+              if row["name"] not in {"alphapilot-ai", "pip"}
+          ]
+          subprocess.run(
+              [sys.executable, "-m", "pip", "install", *requirements],
+              check=True,
+          )
+          PY
+          .venv/bin/python -m pip install --no-deps -e .
+          .venv/bin/python - <<'PY'
+          import hashlib
+          from pathlib import Path
+
+          from scripts import validate_p4_2a_v2_heldout_rehearsal_bundle as validator
+
+          python_payload, package_payload, roots, raw_count = validator._runtime_inventory(
+              Path.cwd()
+          )
+          observed = {
+              "python": hashlib.sha256(python_payload).hexdigest(),
+              "packages": hashlib.sha256(package_payload).hexdigest(),
+          }
+          expected = {
+              "python": "ab3e067417027bb98ea4335e9086d2046ac9dfd4eaf857acc8622dc8f0a13a31",
+              "packages": "c3c7792eb31679c0eb7d3140e067d691df330cd3af302d2350bf15b74ac8ec42",
+          }
+          if observed != expected or roots != [".venv/lib/python3.12/site-packages"]:
+              raise SystemExit(
+                  f"frozen runtime fingerprint drifted: {observed=}, {roots=}"
+              )
+          if raw_count != 84:
+              raise SystemExit(f"frozen runtime package count drifted: {raw_count}")
+          print("verified frozen runtime: Python SHA, package SHA, and 84-package count")
+          PY
+      - name: Run approved v2 frozen rehearsal tests
+        run: |
+          git switch --detach da374342781d6fde2f2c6d87d23582050bc8edaa
+          .venv/bin/python -m pip install --no-deps -e .
+          .venv/bin/python -m pytest \
+            tests/test_p4_2a_v2_heldout_full_rehearsal.py \
+            tests/test_p4_2a_v2_heldout_rehearsal_v2_runner.py \
+            tests/test_p4_2a_v2_heldout_rehearsal_v2_validator.py
+      - name: Run approved v2.1 frozen rehearsal tests
+        run: |
+          git switch --detach 4fce89e89fe2dba656694a7cffdc0ee1af0305c0
+          .venv/bin/python -m pip install --no-deps -e .
+          .venv/bin/python -m pytest \
+            tests/test_p4_2a_v2_heldout.py \
+            tests/test_p4_2a_v2_1_heldout_rehearsal_runner.py \
+            tests/test_p4_2a_v2_1_heldout_rehearsal_validator.py \
+            tests/test_p4_2a_v2_heldout_finalizer.py \
+            tests/test_p4_2a_offline_extract.py
 
   frontend:
     runs-on: ubuntu-latest
