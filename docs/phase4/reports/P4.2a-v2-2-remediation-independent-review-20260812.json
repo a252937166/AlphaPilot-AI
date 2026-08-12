@@ -1,0 +1,60 @@
+{
+  "schema_version": "p4.2a-independent-review-v1",
+  "review_id": "p4.2a-v2-2-remediation-review-20260812-r1",
+  "created_at_utc": "2026-08-12T10:03:16Z",
+  "created_at_shanghai": "2026-08-12T18:03:16+08:00",
+  "verdict": "APPROVE_REMEDIATION_AND_IMPLEMENTATION",
+  "blockers": [],
+  "reviewed_commit": "fae44154d3504017742934ff3b3961642c35eb65",
+  "supersedes_block": {"review": "docs/phase4/reports/P4.2a-v2-2-implementation-independent-review-20260812.json", "sha256": "1a24210b2829e25ba17e4399735752ef31390841610e1933d1c049a6069138f7", "note": "the BLOCKED record stands as history; this review clears it for the successor commit only"},
+  "reviewer": {
+    "identity": "independent_ai_architect_claude_code",
+    "reviewer_type": "ai",
+    "model": "Anthropic Claude Fable 5 (model id claude-fable-5)",
+    "impersonation_disclaimer": "Not a human reviewer. Issued under the owner governance amendment with requires_release_gate_amendment=true.",
+    "method": "read-only static review, an independent mechanism proof, and one decisive execution probe under the exact launch mode that previously failed. No ledger, destination, attempt or real execution was created."
+  },
+  "part_1_commit_shape": {
+    "parent": "cf10ef8d636049b0fc206c8698a809be3090e1d7",
+    "single_parent": true,
+    "delta": "exactly two modified paths, scripts/p4_2a_v2_2_heldout_rehearsal.py and tests/test_p4_2a_v2_2_heldout_rehearsal_runner.py",
+    "cumulative_surface_vs_preregistration": "still exactly the five preregistered A paths",
+    "topology_gate": "a registered test pins the preregistration commit shape and constrains this successor's surface, so the constraint is machine-checked rather than promised"
+  },
+  "part_2_root_cause_independently_confirmed": {
+    "mechanism": "A background job launched with & from a non-interactive shell has SIGINT set to SIG_IGN, and an ignored disposition survives exec. The exact-OS child therefore ignored the SIGINT the tests use to drive FAILED attempts; attempts that should have terminated in seconds instead entered the genuine dual replay of roughly 134 plus 133 seconds and post-run control work, overrunning the embedded 300-second budget with empty pipes.",
+    "reviewer_probe": "bash -c 'python3 -c \"import signal; print(signal.getsignal(signal.SIGINT))\" & wait' prints 1, SIG_IGN, while the same command in the foreground prints the default handler. Reproduced on this host during this review.",
+    "explains_everything": "All four reviewer executions used nohup with &, so all inherited SIG_IGN and failed identically, including the isolated quiet-host run. The operator's original three runs were foreground and passed. The disagreement was never about the pipeline's speed; it was about who launched it and how.",
+    "reviewer_correction": "The BLOCKED review listed the launcher-bytes test as an in-suite error suggesting cross-test interference. Rechecking the original failure summary shows exactly fourteen affected nodes and the launcher test is not among them; the reviewer's dot-position mapping was off by parametrization offsets. The interference claim is withdrawn. In the remediated unified run that test passes in 0.054 seconds after the heavy fixtures."
+  },
+  "part_3_fix_verified": {
+    "implementation_side": "_normalize_cli_interrupt_handler is the first statement of cli_main, before any preflight or ledger action; it installs default_int_handler and raises if the installation did not take effect",
+    "test_side": "_spawn_exact_attempt now deliberately sets SIG_IGN around the spawn so every exact-OS child permanently inherits the reviewer's failure condition; the suite can only pass if the CLI restores the handler itself. The accidental review condition became a standing regression gate, which is the strongest possible form of this fix.",
+    "budgets": "the diff touches no 300.0 or 3600 value; the non-success and success budgets are unchanged, and the operator explicitly chose fixing determinism over raising budgets",
+    "static_gates_rerun_by_reviewer": "ruff clean on all five files, strict mypy clean on the three sources, py_compile clean, and the disclosed test-file probe still shows exactly the original nineteen findings with none added"
+  },
+  "part_4_reproducibility_gap_closed": {
+    "operator_correction_accepted": "The original 252/252 claim is corrected on the record: it was an arithmetic aggregate of three separate foreground pytest processes plus a collect-only count, not one unified run, and not CI. The correction cites the original session transcripts.",
+    "unified_evidence_verified": {
+      "runner": {"result": "150 passed in 7176.35s", "log_sha256_prefix": "650b857d7b79dff1", "junit_sha256_prefix": "7cf21e0294e737a4", "host": "MBP-KNXGX24FV5-1946.local"},
+      "validator": {"result": "102 passed in 2324.98s", "log_sha256_prefix": "db9a01e92b58278b", "junit_sha256_prefix": "b3b891b488ddf937"},
+      "launch_mode": "genuine nohup background, single pytest process, single basetemp per suite, matching the reviewer's failure conditions",
+      "note": "evidence lives under /private/tmp and is volatile; the digests recorded here anchor it"
+    },
+    "reviewer_probe_decisive": "test_exact_os_concurrent_holder_rejects_next_ordinal_before_attempt_creation, the one FAILED node in the blocked run, was rerun by the reviewer from the remediation checkout under the identical nohup background launch: 1 passed in 373.15 seconds.",
+    "proportionality": "The reviewer did not rerun the full 2.6-hour suite. The mechanism is proven, the previously failing node passes under the failing launch mode, the operator's unified full-suite evidence is digest-anchored on this host, and the first registered rehearsal attempt will re-exercise the real path under the ledger in any case."
+  },
+  "part_5_what_this_unlocks": {
+    "unlocks": ["landing fae44154 as the v2.2 implementation", "creating the series ledger at its preregistered content-addressed root", "rehearsal attempts under DISCLOSED_REPEATABLE_SERIES_V1, each still requiring its own action-time owner authorization with zero retries inside an attempt"],
+    "landing_constraint": "fae44154 must remain the exact reachable implementation commit; land it with a merge, never a rebase or squash, since the harness and topology gates bind commit digests",
+    "still_gated": ["the bundle produced by the first validated attempt requires independent review before any release receipt", "real heldout materialization, inference and evaluation remain locked behind that review and the owner release", "P4.2a is not done and P4.2b and P4.3 stay locked"],
+    "suite_cost_recorded": "the unified gate now costs about 2 hours 38 minutes serial; accepted as the price of an exact-OS gate, relevant to anyone scheduling it"
+  },
+  "part_6_boundaries_verified": {
+    "v2_2_claim_or_destination": "none exists",
+    "real_heldout_root": "absent",
+    "v2_1_claim": "still the empty 0700 directory",
+    "heldout_evaluation_one_shot": "unconsumed",
+    "p4_1": "observation window closed with day three complete; acceptance evidence due after 2026-08-13 00:10 CST, unaffected by this review"
+  }
+}
