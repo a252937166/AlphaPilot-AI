@@ -42,6 +42,7 @@ IMPLEMENTATION_MODULE = "scripts.p4_2a_v2_2_heldout_rehearsal"
 VALIDATOR_MODULE = "scripts.validate_p4_2a_v2_2_heldout_rehearsal_bundle"
 PREREGISTRATION_COMMIT = "be6423506f598c290db7ad944b002763fdf806ab"
 PREREGISTRATION_PARENT = "5fe756401f20e67ff5c868bf29f099c1bfe5b4d3"
+INITIAL_IMPLEMENTATION_COMMIT = "cf10ef8d636049b0fc206c8698a809be3090e1d7"
 INDEPENDENT_REVIEW_COMMIT = "b21e1bdbf865dfd9c7605ecc7794fc3f8701ed1f"
 INDEPENDENT_REVIEW_RELATIVE = Path(
     "docs/phase4/reports/P4.2a-v2-2-preregistration-independent-review-20260811.json"
@@ -903,13 +904,18 @@ def _exact_attempt_command(binding: Any, ordinal: int) -> list[str]:
 
 
 def _spawn_exact_attempt(binding: Any, ordinal: int) -> subprocess.Popen[str]:
-    return subprocess.Popen(
-        _exact_attempt_command(binding, ordinal),
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True,
-        env=_locked_environment(),
-    )
+    previous_sigint = signal.getsignal(signal.SIGINT)
+    try:
+        signal.signal(signal.SIGINT, signal.SIG_IGN)
+        return subprocess.Popen(
+            _exact_attempt_command(binding, ordinal),
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            env=_locked_environment(),
+        )
+    finally:
+        signal.signal(signal.SIGINT, previous_sigint)
 
 
 def _wait_for_disposable_started_checkpoint(
@@ -1596,13 +1602,39 @@ def test_preregistration_commit_shape_and_current_implementation_topology() -> N
         )
         assert [line[3:] for line in status] == [path.as_posix() for path in git_order]
         assert all(line[:2] in {"??", "A "} for line in status)
-    else:
+    elif head == INITIAL_IMPLEMENTATION_COMMIT:
         parents = _git("rev-list", "--parents", "-n", "1", head).decode().split()
         assert parents == [head, PREREGISTRATION_COMMIT]
         surface = (
             _git("diff-tree", "--no-commit-id", "--name-status", "-r", head).decode().splitlines()
         )
         assert surface == [f"A\t{path.as_posix()}" for path in git_order]
+    else:
+        parents = _git("rev-list", "--parents", "-n", "1", head).decode().split()
+        assert parents == [head, INITIAL_IMPLEMENTATION_COMMIT]
+        remediation_surface = (
+            _git("diff-tree", "--no-commit-id", "--name-status", "-r", head).decode().splitlines()
+        )
+        assert remediation_surface == [
+            f"M\t{path.as_posix()}"
+            for path in sorted(
+                (IMPLEMENTATION_RELATIVE, RUNNER_TEST_RELATIVE),
+                key=lambda path: os.fsencode(path.as_posix()),
+            )
+        ]
+        cumulative_surface = (
+            _git(
+                "diff",
+                "--name-status",
+                PREREGISTRATION_COMMIT,
+                head,
+                "--",
+                *(path.as_posix() for path in REGISTERED_SURFACE),
+            )
+            .decode()
+            .splitlines()
+        )
+        assert cumulative_surface == [f"A\t{path.as_posix()}" for path in git_order]
 
 
 @pytest.mark.parametrize("include_initial_sibling", (True, False))
@@ -3321,6 +3353,33 @@ def test_bundle_publication_uses_one_kernel_noreplace_rename_and_parent_fsync() 
 def test_cli_surface_and_disposable_only_started_checkpoint_are_exact() -> None:
     implementation = importlib.import_module(IMPLEMENTATION_MODULE)
     assert inspect.signature(implementation.cli_main).parameters == {}
+    previous_sigint = signal.getsignal(signal.SIGINT)
+    try:
+        signal.signal(signal.SIGINT, signal.SIG_IGN)
+        implementation._normalize_cli_interrupt_handler()
+        assert signal.getsignal(signal.SIGINT) is signal.default_int_handler
+    finally:
+        signal.signal(signal.SIGINT, previous_sigint)
+    cli_tree = ast.parse(inspect.getsource(implementation.cli_main))
+    cli_function = cli_tree.body[0]
+    assert isinstance(cli_function, (ast.FunctionDef, ast.AsyncFunctionDef))
+    cli_statements = cli_function.body
+    if (
+        cli_statements
+        and isinstance(cli_statements[0], ast.Expr)
+        and isinstance(cli_statements[0].value, ast.Constant)
+        and isinstance(cli_statements[0].value.value, str)
+    ):
+        cli_statements = cli_statements[1:]
+    assert isinstance(cli_statements[0], ast.Try)
+    first_try_statement = cli_statements[0].body[0]
+    assert isinstance(first_try_statement, ast.Expr)
+    assert isinstance(first_try_statement.value, ast.Call)
+    assert isinstance(first_try_statement.value.func, ast.Name)
+    assert first_try_statement.value.func.id == "_normalize_cli_interrupt_handler"
+    spawn_source = inspect.getsource(_spawn_exact_attempt)
+    assert "signal.signal(signal.SIGINT, signal.SIG_IGN)" in spawn_source
+    assert "signal.signal(signal.SIGINT, previous_sigint)" in spawn_source
     parser = implementation._parser()
     actions = {
         action.dest: action

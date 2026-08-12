@@ -8271,6 +8271,14 @@ def _parser() -> argparse.ArgumentParser:
     return parser
 
 
+def _normalize_cli_interrupt_handler() -> None:
+    """Make SIGINT deterministic when a detached parent ignored it before exec."""
+
+    signal.signal(signal.SIGINT, signal.default_int_handler)
+    if signal.getsignal(signal.SIGINT) is not signal.default_int_handler:
+        raise RehearsalV22Error("v2.2 CLI could not install the Python SIGINT handler")
+
+
 def _run_cli() -> JsonObject:
     arguments = _parser().parse_args()
     if arguments.execute is not True:
@@ -8364,6 +8372,7 @@ def cli_main() -> int:
     """The sole package entry called by the state-free exact-OS shim."""
 
     try:
+        _normalize_cli_interrupt_handler()
         result = _run_cli()
     except SystemExit:
         raise
