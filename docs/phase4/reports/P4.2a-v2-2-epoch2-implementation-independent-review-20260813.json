@@ -1,0 +1,47 @@
+{
+  "schema_version": "p4.2a-independent-review-v1",
+  "review_id": "p4.2a-v2-2-epoch2-implementation-review-20260813-r1",
+  "created_at_utc": "2026-08-12T18:24:52Z",
+  "created_at_shanghai": "2026-08-13T02:24:52+08:00",
+  "verdict": "APPROVE_EPOCH2_IMPLEMENTATION",
+  "blockers": [],
+  "reviewed_commit": "1b4e05c6acd513bb1bc11245911da97b6a128ca1",
+  "reviewer": {
+    "identity": "independent_ai_architect_claude_code",
+    "reviewer_type": "ai",
+    "model": "Anthropic Claude Fable 5 (model id claude-fable-5)",
+    "impersonation_disclaimer": "Not a human reviewer. Issued under the owner governance amendment with requires_release_gate_amendment=true.",
+    "method": "read-only static review plus reviewer-run tests in the branch worktree. No real-repository preflight was executed, no receipt, authority, ledger, destination or attempt exists.",
+    "lineage_note": "this review is committed on the implementation branch as a descendant of 1b4e05c6acd513bb1bc11245911da97b6a128ca1 so the runtime requirement that the review commit has the implementation as an ancestor holds by construction"
+  },
+  "part_1_commit_shape": {
+    "parent": "fa4f9e0233de20d5edef201e3a93aed10a67b8be",
+    "parent_is_the_owner_surface_authority": true,
+    "single_parent": true,
+    "surface": "exactly the two authorized M paths, matching the six-field authority's exact_surface row for row",
+    "file_digests_match_report": {"scripts/p4_2a_v2_2_heldout_rehearsal.py": "6a9b81ee219b93d73daefbb3c091e36661b41db1b0cb734472cdcc5aa5842e5d", "tests/test_p4_2a_v2_2_heldout_rehearsal_runner.py": "eee84acdd96b65f3603ce673f9ad9c688fb7d4111e58ab209b3b5667d43a4675"},
+    "no_merge_rebase_or_squash": true
+  },
+  "part_2_change_reviewed": {
+    "cli": "a required mutually-exclusive argparse group now separates --execute from --preflight-only, so the two modes cannot be combined and neither can be omitted",
+    "preflight_behaviour": "_read_only_implementation_preflight validates the owner surface authority, the epoch-2 topology, the post-implementation review authority, the full control surface and the current bytes of all five registered files, then returns before any action receipt read, temporary authority, ledger, destination or filesystem write",
+    "zero_write_discipline": ["an explicit zero-write policy guard raises if absent", "shallow clones and object alternates are rejected", "partial or include-bearing Git config is rejected", "a snapshot taken before and after validation must be identical or the preflight fails", "the emitted report pins action_receipt_required false, action_receipts_read 0 and ledgers_created 0"],
+    "execute_path": "semantically unchanged; the 24-field action schema is untouched",
+    "f9_amended_control_satisfied": "this is exactly the executable read-only stop the amended F-9 control demanded: it requires no action receipt and cannot write"
+  },
+  "part_3_reviewer_run_evidence": {
+    "static": "ruff clean on both changed files; strict mypy clean on the implementation module; py_compile clean",
+    "tests_run_by_reviewer": {
+      "nodes": ["test_exact_os_read_only_preflight_validates_epoch_control_and_registered_bytes", "test_ordinary_wrapper_sitecustomize_environment_and_orig_argv_drift_all_reject", "test_preregistration_commit_shape_and_current_implementation_topology", "test_genuine_epoch_two_reads_owner_base_and_exact_am_surface_then_post_review"],
+      "result": "4 passed in 109.38s",
+      "note": "the first node is the new exact-OS positive that boots the real interpreter chain and exercises the preflight end to end in a synthetic root"
+    },
+    "operator_evidence_accepted": "topology, CLI and epoch-2 matrix 9 of 9, exact-OS read-only positive 1 of 1 at 109.70s, and an independent read-only code audit, consistent with everything re-derived here"
+  },
+  "part_4_what_this_unlocks": {
+    "unlocks": ["running the real-repository --preflight-only invocation and attaching its passing output to the attempt-1 review request"],
+    "still_gated": ["attempt 1 itself requires the owner's separate action-time confirmation, recorded in a sibling record per F-10", "the ledger is created lazily by the authorized attempt, not by the preflight", "bundle review, release, real materialization, inference and evaluation all remain behind their own gates"],
+    "merge_note": "land this branch on main by merge only, preserving 1b4e05c and this review commit; the runtime reads authorities by commit digest"
+  },
+  "part_5_boundaries": {"ledger": "does not exist", "destination": "does not exist", "heldout_root": "does not exist", "v2_1_claim": "empty 0700 directory, unchanged", "heldout_evaluation_one_shot": "unconsumed", "p4_1": "second window verdict UPHOLD_FAIL issued separately; misfire remediation and the new window proceed independently", "phase_locks": {"p4_2a_done": false, "p4_2b_unlocked": false, "p4_3_unlocked": false}}
+}
