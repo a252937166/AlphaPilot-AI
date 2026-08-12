@@ -1,0 +1,98 @@
+{
+  "schema_version": "p4.1-v2-observation-context-v1",
+  "recorded_at_utc": "2026-08-12T16:34:38Z",
+  "recorded_at_shanghai": "2026-08-13T00:34:38+08:00",
+  "frozen_config_sha256": "9d56e137baf10bd0858723a93aff02c57bf7b35f8705f1817b16a89ec615183f",
+  "observation_start_utc": "2026-08-09T16:00:00Z",
+  "observation_end_utc": "2026-08-12T16:00:00Z",
+  "reporter_network_policy": {
+    "network_calls_performed_by_acceptance_runner": false,
+    "network_calls_permitted_during_report_generation": false,
+    "external_facts_are_not_used_to_override_local_gate_evidence": true
+  },
+  "gate_policy": {
+    "does_not_override_expected_slots_complete": true,
+    "does_not_override_critical_source_failures_zero": true,
+    "does_not_turn_operational_failures_green": true
+  },
+  "host_unavailability_intervals": [],
+  "v1_external_attestations_reused": false,
+  "monday_suppression_observation": {
+    "date_shanghai": "2026-08-10",
+    "suppressed_slots_shanghai": [
+      "2026-08-10T09:00:00+08:00",
+      "2026-08-10T09:30:00+08:00",
+      "2026-08-10T09:40:00+08:00"
+    ],
+    "job_runs_observed_in_suppressed_interval": 0,
+    "recovery_slot_shanghai": "2026-08-10T09:50:00+08:00",
+    "recovery_job_run": {
+      "id": 77791,
+      "status": "ok",
+      "poll_started_at_utc": "2026-08-10T01:50:01.174390+00:00",
+      "poll_completed_at_utc": "2026-08-10T01:50:18.447747+00:00",
+      "run_mode": "coverage_gap_catchup",
+      "coverage_gap": true,
+      "suppressed_slot_count": 3,
+      "span_seconds": 3001,
+      "span_basis": "first_suppressed_slot_to_actual_poll_started_at"
+    },
+    "coverage_accounting": "The three intentionally suppressed slots are excluded from the 61-slot Monday cadence contract; the 09:50 run is separately retained as a coverage-gap catch-up and does not restore decision timeliness."
+  },
+  "w_1_backup_contention_observation": {
+    "watch_item": "W-1",
+    "launch_agent_snapshot": {
+      "label": "com.alphapilot.database-backup",
+      "run_interval_seconds": 900,
+      "nice": 10,
+      "low_priority_io": true,
+      "runs": 121,
+      "last_exit_code": 0,
+      "state_at_record": "not running"
+    },
+    "daily_observations": [
+      {
+        "date_shanghai": "2026-08-10",
+        "news_poll_job_run_id": 78600,
+        "news_poll_status": "ok",
+        "news_poll_started_at_utc": "2026-08-10T14:00:00.254710+00:00",
+        "news_poll_completed_at_utc": "2026-08-10T14:00:05.092854+00:00",
+        "news_poll_duration_seconds": 4.896,
+        "backup_manifest": "data/backups/alphapilot-full-20260810T140605227286Z.manifest.json",
+        "backup_manifest_sha256": "bd43d5517695d3bcfc7cae63ed407417c1fed31961394381507d27a60d6d3e07",
+        "backup_created_at_utc": "2026-08-10T14:06:05.227286Z",
+        "backup_database_sha256": "42a5c9320c8f13143381780cdb4ed8e6b05140318d523bc20a88211c0545bffe",
+        "backup_quick_check": "ok"
+      },
+      {
+        "date_shanghai": "2026-08-11",
+        "news_poll_job_run_id": 80207,
+        "news_poll_status": "ok",
+        "news_poll_started_at_utc": "2026-08-11T14:00:00.207825+00:00",
+        "news_poll_completed_at_utc": "2026-08-11T14:00:05.475209+00:00",
+        "news_poll_duration_seconds": 5.362,
+        "backup_manifest": "data/backups/alphapilot-full-20260811T140428778875Z.manifest.json",
+        "backup_manifest_sha256": "b38aa4edf3da136c67d4245580475cac3918f88689720511262960db738b2b2b",
+        "backup_created_at_utc": "2026-08-11T14:04:28.778875Z",
+        "backup_database_sha256": "b6b6b92d393813b860f4737164a24662657f9b321c07027473f38f840e462fc3",
+        "backup_quick_check": "ok"
+      },
+      {
+        "date_shanghai": "2026-08-12",
+        "news_poll_job_run_id": 81811,
+        "news_poll_status": "ok",
+        "news_poll_started_at_utc": "2026-08-12T14:00:00.296589+00:00",
+        "news_poll_completed_at_utc": "2026-08-12T14:00:06.031293+00:00",
+        "news_poll_duration_seconds": 5.829,
+        "backup_manifest": "data/backups/alphapilot-full-20260812T140415415325Z.manifest.json",
+        "backup_manifest_sha256": "7d8993c0d91c2d10950396c74de62e8e3bff8ea5ac8873585df151eb0e9b8dcb",
+        "backup_created_at_utc": "2026-08-12T14:04:15.415325Z",
+        "backup_database_sha256": "96e9487e0a6b78e80fb90561f0cc613780aa4946d72a585483d0e42393208a1c",
+        "backup_quick_check": "ok"
+      }
+    ],
+    "comparison_basis": "Each 22:00 Shanghai news poll completed before that date's verified full-database backup began. The adjacent 21:30 and 22:30 poll runs were also status ok.",
+    "conclusion": "No W-1 backup contention affecting the registered P4.1 gate was observed during the three-day window.",
+    "inference_limit": "This is a timing-and-outcome inference from local JobRun rows, launchd state, and create-only backup manifests; it does not claim that backup I/O can never contend with polling."
+  }
+}
