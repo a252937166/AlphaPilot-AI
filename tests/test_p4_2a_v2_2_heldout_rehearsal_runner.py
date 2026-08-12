@@ -43,6 +43,7 @@ VALIDATOR_MODULE = "scripts.validate_p4_2a_v2_2_heldout_rehearsal_bundle"
 PREREGISTRATION_COMMIT = "be6423506f598c290db7ad944b002763fdf806ab"
 PREREGISTRATION_PARENT = "5fe756401f20e67ff5c868bf29f099c1bfe5b4d3"
 INITIAL_IMPLEMENTATION_COMMIT = "cf10ef8d636049b0fc206c8698a809be3090e1d7"
+EPOCH_TWO_SURFACE_AUTHORITY_COMMIT = "fa4f9e0233de20d5edef201e3a93aed10a67b8be"
 INDEPENDENT_REVIEW_COMMIT = "b21e1bdbf865dfd9c7605ecc7794fc3f8701ed1f"
 INDEPENDENT_REVIEW_RELATIVE = Path(
     "docs/phase4/reports/P4.2a-v2-2-preregistration-independent-review-20260811.json"
@@ -644,7 +645,7 @@ def _initialize_synthetic_epoch_two(
     implementation = importlib.import_module(IMPLEMENTATION_MODULE)
     _initialize_synthetic_epoch_one(binding)
     base_commit = _fixture_git(binding.project_root, "rev-parse", "HEAD").decode().strip()
-    target_relative = IMPLEMENTATION_RELATIVE
+    target_relatives = (IMPLEMENTATION_RELATIVE, RUNNER_TEST_RELATIVE)
     surface_relative = Path(
         "docs/phase4/reports/P4.2a-v2-2-synthetic-epoch-2-surface-authorization.json"
     )
@@ -656,7 +657,11 @@ def _initialize_synthetic_epoch_two(
             "implementation_epoch": 2,
             "base_commit": base_commit,
             "exact_surface": [
-                {"path": target_relative.as_posix(), "status": "M"},
+                {"path": relative.as_posix(), "status": "M"}
+                for relative in sorted(
+                    target_relatives,
+                    key=lambda path: os.fsencode(path.as_posix()),
+                )
             ],
         }
     )
@@ -665,9 +670,10 @@ def _initialize_synthetic_epoch_two(
         surface_relative,
         surface_payload,
     )
-    target = binding.project_root / target_relative
-    target.write_bytes(target.read_bytes() + b"\n# synthetic epoch two byte\n")
-    changed_paths = [target_relative]
+    for target_relative in target_relatives:
+        target = binding.project_root / target_relative
+        target.write_bytes(target.read_bytes() + b"\n# synthetic epoch two byte\n")
+    changed_paths = list(target_relatives)
     if add_extra_path:
         extra_relative = Path("docs/phase4/reports/synthetic-forbidden-extra.txt")
         extra = binding.project_root / extra_relative
@@ -900,6 +906,32 @@ def _exact_attempt_command(binding: Any, ordinal: int) -> list[str]:
         action_path.as_posix(),
         "--expected-ordinal",
         str(ordinal),
+    ]
+
+
+def _exact_read_only_preflight_command(
+    binding: Any,
+    *,
+    implementation_epoch: int,
+    implementation_commit: str,
+    owner_surface_authorization: Any,
+    independent_review: Any,
+) -> list[str]:
+    return [
+        _fixed_interpreter().as_posix(),
+        "-S",
+        "-P",
+        "-B",
+        binding.shim_path.as_posix(),
+        "--preflight-only",
+        "--implementation-epoch",
+        str(implementation_epoch),
+        "--implementation-commit",
+        implementation_commit,
+        "--owner-surface-authorization",
+        (binding.project_root / owner_surface_authorization.path).as_posix(),
+        "--independent-implementation-review",
+        (binding.project_root / independent_review.path).as_posix(),
     ]
 
 
@@ -1587,6 +1619,7 @@ def test_preregistration_commit_shape_and_current_implementation_topology() -> N
     )
     assert preregistration_parents == [PREREGISTRATION_COMMIT, PREREGISTRATION_PARENT]
     head = _git("rev-parse", "HEAD").decode().strip()
+    parents = _git("rev-list", "--parents", "-n", "1", head).decode().split()
     git_order = tuple(sorted(REGISTERED_SURFACE, key=lambda path: os.fsencode(path.as_posix())))
     if head == PREREGISTRATION_COMMIT:
         status = (
@@ -1603,19 +1636,61 @@ def test_preregistration_commit_shape_and_current_implementation_topology() -> N
         assert [line[3:] for line in status] == [path.as_posix() for path in git_order]
         assert all(line[:2] in {"??", "A "} for line in status)
     elif head == INITIAL_IMPLEMENTATION_COMMIT:
-        parents = _git("rev-list", "--parents", "-n", "1", head).decode().split()
         assert parents == [head, PREREGISTRATION_COMMIT]
         surface = (
             _git("diff-tree", "--no-commit-id", "--name-status", "-r", head).decode().splitlines()
         )
         assert surface == [f"A\t{path.as_posix()}" for path in git_order]
-    else:
-        parents = _git("rev-list", "--parents", "-n", "1", head).decode().split()
-        assert parents == [head, INITIAL_IMPLEMENTATION_COMMIT]
+    elif parents == [head, INITIAL_IMPLEMENTATION_COMMIT]:
         remediation_surface = (
-            _git("diff-tree", "--no-commit-id", "--name-status", "-r", head).decode().splitlines()
+            _git("diff-tree", "--no-commit-id", "--name-status", "-r", head)
+            .decode()
+            .splitlines()
         )
         assert remediation_surface == [
+            f"M\t{path.as_posix()}"
+            for path in sorted(
+                (IMPLEMENTATION_RELATIVE, RUNNER_TEST_RELATIVE),
+                key=lambda path: os.fsencode(path.as_posix()),
+            )
+        ]
+        cumulative_surface = (
+            _git(
+                "diff",
+                "--name-status",
+                PREREGISTRATION_COMMIT,
+                head,
+                "--",
+                *(path.as_posix() for path in REGISTERED_SURFACE),
+            )
+            .decode()
+            .splitlines()
+        )
+        assert cumulative_surface == [f"A\t{path.as_posix()}" for path in git_order]
+    elif head == EPOCH_TWO_SURFACE_AUTHORITY_COMMIT:
+        status = (
+            _git(
+                "status",
+                "--porcelain=v1",
+                "--untracked-files=all",
+            )
+            .decode()
+            .splitlines()
+        )
+        assert [line[3:] for line in status] == [
+            path.as_posix()
+            for path in sorted(
+                (IMPLEMENTATION_RELATIVE, RUNNER_TEST_RELATIVE),
+                key=lambda path: os.fsencode(path.as_posix()),
+            )
+        ]
+        assert all(line[:2] in {" M", "M "} for line in status)
+    else:
+        assert parents == [head, EPOCH_TWO_SURFACE_AUTHORITY_COMMIT]
+        epoch_two_surface = (
+            _git("diff-tree", "--no-commit-id", "--name-status", "-r", head).decode().splitlines()
+        )
+        assert epoch_two_surface == [
             f"M\t{path.as_posix()}"
             for path in sorted(
                 (IMPLEMENTATION_RELATIVE, RUNNER_TEST_RELATIVE),
@@ -1707,7 +1782,8 @@ def test_genuine_epoch_two_reads_owner_base_and_exact_am_surface_then_post_revie
     surface_document = json.loads((binding.project_root / owner_surface.path).read_bytes())
     assert surface_document["implementation_epoch"] == 2
     assert surface_document["exact_surface"] == [
-        {"path": IMPLEMENTATION_RELATIVE.as_posix(), "status": "M"}
+        {"path": IMPLEMENTATION_RELATIVE.as_posix(), "status": "M"},
+        {"path": RUNNER_TEST_RELATIVE.as_posix(), "status": "M"},
     ]
     assert _fixture_git(
         binding.project_root,
@@ -2340,6 +2416,133 @@ def test_exact_os_missing_action_receipt_rejects_before_ledger_or_destination(
     assert _tree_fingerprint(binding.ledger_root) is None
     assert _tree_fingerprint(binding.destination) is None
     assert _all_real_path_fingerprints() == before
+
+
+def test_exact_os_read_only_preflight_validates_epoch_control_and_registered_bytes(
+    tmp_path: Path,
+) -> None:
+    implementation = importlib.import_module(IMPLEMENTATION_MODULE)
+    before_real = _all_real_path_fingerprints()
+    binding = _synthetic_binding(tmp_path.resolve(), label="read-only-preflight")
+    implementation_commit, owner_surface, independent_review, execution_head = (
+        _initialize_synthetic_epoch_two(binding)
+    )
+    command = _exact_read_only_preflight_command(
+        binding,
+        implementation_epoch=2,
+        implementation_commit=implementation_commit,
+        owner_surface_authorization=owner_surface,
+        independent_review=independent_review,
+    )
+    assert "--attempt-authorization" not in command
+    before_project = _tree_fingerprint(binding.project_root)
+    before_temp = tuple(
+        sorted(binding.project_root.parent.glob(".alphapilot-p4-2a-v2-2-temp-*"))
+    )
+    completed = subprocess.run(
+        command,
+        check=False,
+        capture_output=True,
+        text=True,
+        env=_locked_environment(),
+        timeout=3600,
+    )
+    assert completed.returncode == 0
+    assert completed.stderr == ""
+    result = implementation.strict_json_loads(
+        completed.stdout,
+        source="read-only implementation preflight result",
+    )
+    assert implementation._canonical_json_bytes(result) == completed.stdout.encode("utf-8")
+    assert set(result) == {
+        "schema_version",
+        "status",
+        "mode",
+        "execution_head",
+        "implementation_epoch",
+        "implementation_commit",
+        "owner_exact_surface_authorization",
+        "independent_implementation_review",
+        "control_merkle_root_sha256",
+        "control_record_count",
+        "registered_surface",
+        "effect_summary",
+    }
+    assert result == {
+        **result,
+        "schema_version": "p4.2a-v2-2-read-only-implementation-preflight-v1",
+        "status": "PASS_READ_ONLY_IMPLEMENTATION_PREFLIGHT",
+        "mode": "NONREGISTERED_READ_ONLY_TEST",
+        "execution_head": execution_head,
+        "implementation_epoch": 2,
+        "implementation_commit": implementation_commit,
+        "owner_exact_surface_authorization": owner_surface.as_json(),
+        "independent_implementation_review": independent_review.as_json(),
+        "effect_summary": {
+            "action_receipt_required": False,
+            "action_receipts_read": 0,
+            "project_and_gate_state_writes_permitted": False,
+            "temporary_authorities_created": 0,
+            "ledgers_created": 0,
+            "attempts_allocated": 0,
+            "pipeline_starts": 0,
+            "automatic_retries": 0,
+            "heldout_evaluation_attempts_consumed": 0,
+            "shallow_alternate_partial_and_included_git_config_rejected": True,
+            "stdout_persistence_controlled_by_caller": True,
+        },
+    }
+    assert isinstance(result["control_record_count"], int)
+    assert result["control_record_count"] > len(REGISTERED_SURFACE)
+    assert isinstance(result["control_merkle_root_sha256"], str)
+    assert len(result["control_merkle_root_sha256"]) == 64
+    assert [row["path"] for row in result["registered_surface"]] == [
+        relative.as_posix() for relative in REGISTERED_SURFACE
+    ]
+    assert all(set(row) == {"path", "sha256"} for row in result["registered_surface"])
+    assert [row["sha256"] for row in result["registered_surface"]] == [
+        _sha256(
+            _fixture_git(
+                binding.project_root,
+                "show",
+                f"{implementation_commit}:{relative.as_posix()}",
+            )
+        )
+        for relative in REGISTERED_SURFACE
+    ]
+    mixed_arguments = subprocess.run(
+        [
+            *command,
+            "--attempt-authorization",
+            binding.action_authorization_path.as_posix(),
+            "--expected-ordinal",
+            "1",
+        ],
+        check=False,
+        capture_output=True,
+        text=True,
+        env=_locked_environment(),
+        timeout=300,
+    )
+    assert mixed_arguments.returncode == 1
+    assert mixed_arguments.stdout == ""
+    mixed_error = implementation.strict_json_loads(
+        mixed_arguments.stderr,
+        source="mixed preflight and attempt arguments rejection",
+    )
+    assert mixed_error == {
+        "schema_version": "p4.2a-v2-2-rehearsal-execution-error-v1",
+        "status": "FAILED_NO_AUTOMATIC_RETRY",
+        "exception_type": "RehearsalV22Error",
+        "message_sha256": _sha256(b"v2.2 read-only preflight arguments are not exact"),
+    }
+    assert _tree_fingerprint(binding.project_root) == before_project
+    assert _tree_fingerprint(binding.ledger_root) is None
+    assert _tree_fingerprint(binding.destination) is None
+    assert tuple(
+        sorted(binding.project_root.parent.glob(".alphapilot-p4-2a-v2-2-temp-*"))
+    ) == before_temp
+    assert _all_real_path_fingerprints() == before_real
 
 
 def test_ordinary_wrapper_sitecustomize_environment_and_orig_argv_drift_all_reject(
@@ -3386,10 +3589,55 @@ def test_cli_surface_and_disposable_only_started_checkpoint_are_exact() -> None:
         for action in parser._actions
         if action.dest != "help"
     }
-    assert set(actions) == {"execute", "attempt_authorization", "expected_ordinal"}
-    assert all(action.required for action in actions.values())
+    assert set(actions) == {
+        "execute",
+        "preflight_only",
+        "attempt_authorization",
+        "expected_ordinal",
+        "implementation_epoch",
+        "implementation_commit",
+        "owner_surface_authorization",
+        "independent_implementation_review",
+    }
+    operation_groups = [
+        group
+        for group in parser._mutually_exclusive_groups
+        if {action.dest for action in group._group_actions}
+        == {"execute", "preflight_only"}
+    ]
+    assert len(operation_groups) == 1
+    assert operation_groups[0].required is True
+    assert not any(action.required for action in actions.values())
     assert actions["attempt_authorization"].default is None
     assert actions["expected_ordinal"].default is None
+    assert actions["implementation_epoch"].default is None
+    assert actions["implementation_commit"].default is None
+    assert actions["owner_surface_authorization"].default is None
+    assert actions["independent_implementation_review"].default is None
+    with pytest.raises(SystemExit):
+        parser.parse_args([])
+    with pytest.raises(SystemExit):
+        parser.parse_args(["--execute", "--preflight-only"])
+    read_only_source = inspect.getsource(implementation._read_only_implementation_preflight)
+    for forbidden in (
+        "_validate_action_authorization",
+        "_create_temporary_authority",
+        "SeriesLedger",
+        "_execution_capability_scope",
+        "_execute_authorized_attempt",
+    ):
+        assert forbidden not in read_only_source
+    run_source = inspect.getsource(implementation._run_cli)
+    assert run_source.index("_read_only_implementation_preflight(") < run_source.index(
+        "_create_temporary_authority("
+    )
+    policy = implementation._read_only_preflight_policy(PROJECT_ROOT)
+    assert policy.write_roots == ()
+    assert policy.exact_write_paths == ()
+    assert policy.create_only_roots == ()
+    assert policy.sqlite_roots == ()
+    assert policy.git_roots == (PROJECT_ROOT,)
+    assert policy.subprocess_mode == "git-read"
     source = inspect.getsource(implementation._execute_authorized_attempt)
     assert source.count("os.kill(os.getpid(), signal.SIGSTOP)") == 1
     checkpoint_if = next(
