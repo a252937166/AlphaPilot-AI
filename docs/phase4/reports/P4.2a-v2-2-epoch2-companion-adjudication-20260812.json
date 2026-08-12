@@ -1,0 +1,48 @@
+{
+  "schema_version": "p4.2a-independent-adjudication-v1",
+  "adjudication_id": "p4.2a-v2-2-epoch2-companion-20260812-r1",
+  "created_at_utc": "2026-08-12T15:38:10Z",
+  "created_at_shanghai": "2026-08-12T23:38:10+08:00",
+  "purpose": "companion narrative for the machine-consumable epoch-2 surface authority committed immediately after this document; the machine authority is limited to six fields by the registered contract and can carry no rationale",
+  "issued_by": {
+    "identity": "independent_ai_architect_claude_code",
+    "reviewer_type": "ai",
+    "model": "Anthropic Claude Fable 5 (model id claude-fable-5)",
+    "impersonation_disclaimer": "Not a human reviewer and not the owner. The six-field authority that follows asserts owner approval because the owner gave it explicitly; see the transcript binding below."
+  },
+  "part_1_supersession_and_correction": {
+    "supersedes": {"document": "docs/phase4/reports/P4.2a-v2-2-epoch2-surface-authorization-20260812.json", "sha256": "d880f5366050d3236e2121a8c5bd663761989583e35c19ed573129fce09a8244", "commit": "d4a9e60", "status": "superseded, retained as history, never machine-consumable"},
+    "C-6": {
+      "title": "The reviewer authored an authority document the machine cannot consume",
+      "detail": "d4a9e60 was written in the reviewer's narrative document style without first reading the consuming validator. The runtime requires exactly six top-level fields with pinned values, rejects an empty exact_surface outright, and requires the authority commit to be the direct child of its declared base. The narrative document failed all three, reproduced read-only by the operator as 'later epoch surface authorization shape drifted'. Same error class as C-5: a condition or artifact issued without checking the mechanism that must consume it.",
+      "rule_tightened": "Any document destined for a machine gate must have its field set, pinned values, ordering rules and encoding read out of the consuming code first, and be checked against those exact predicates before commit. Narrative content goes in a companion document, never in the machine artifact."
+    },
+    "empty_surface_ruling_withdrawn": "The empty-surface epoch idea in d4a9e60 is void: the registered validator rejects an empty exact_surface by design, and that rule is complied with, not amended."
+  },
+  "part_2_owner_approval": {
+    "approved_by": "owner (ouyang), in person",
+    "binding": "transcript-bound: the owner was asked to approve the exact two-path epoch-2 surface and answered 批准 on 2026-08-12 (CST evening). Recorded here because the six-field machine authority has no room for binding metadata, mirroring the F-10 pattern.",
+    "approved_surface": [
+      {"path": "scripts/p4_2a_v2_2_heldout_rehearsal.py", "status": "M"},
+      {"path": "tests/test_p4_2a_v2_2_heldout_rehearsal_runner.py", "status": "M"}
+    ],
+    "approved_content_scope": "add a formal read-only preflight entry point to the rehearsal implementation plus its registered tests, and nothing else",
+    "explicitly_out_of_scope": ["any change to gates, thresholds, samples, seeds, models, prompts, contracts or gold", "any change to the shim or validator files", "any ledger, destination or attempt creation", "any change to the empty-surface rule or the 24-field attempt schema"]
+  },
+  "part_3_f9_control_amended": {
+    "original_control": "run the real-repository read-only preflight before asking the owner to confirm attempt 1",
+    "defect_found_by_operator": "the original control was not executable as specified: _preflight_action requires a committed owner action receipt whose own inputs depend on later derivation steps, and the CLI has no read-only stop, creating temporary authority immediately after preflight",
+    "amended_control": "the epoch-2 change introduces a formal preflight-only invocation that validates the authority chain, epoch topology, control surface and registered bytes against the real repository and then STOPS: no action receipt required, no temporary authority, no ledger, no filesystem write. Its passing output on the real repository is mandatory evidence in the review request before the owner is asked to confirm attempt 1.",
+    "note": "the synthetic-topology blind spot in the exact-OS tests remains recorded under F-9 and is not fixed in this epoch; the preflight demonstration is the compensating control"
+  },
+  "part_4_sequence": [
+    "commit this companion document alone",
+    "commit the six-field machine authority as the direct child of this document's commit, with base_commit set to that parent",
+    "operator implements the approved two-path surface as the direct child of the authority commit",
+    "independent implementation review created after the implementation commit",
+    "real-repository preflight-only run, output attached to the review request",
+    "digest re-derivation, then the owner's separate action-time confirmation for attempt 1, recorded in a sibling record per F-10",
+    "attempt 1 starts; the ledger is created lazily by the authorized attempt"
+  ],
+  "part_5_boundaries": {"zero_consumption": "ledger, destination, heldout root, temporary authority: none exists; v2.1 claim remains the empty 0700 directory", "p4_1": "three-day acceptance evidence due after 2026-08-13 00:10 CST; this work must not contend with it", "phase_locks": {"p4_2a_done": false, "heldout_evaluation_one_shot": "unconsumed", "p4_2b_unlocked": false, "p4_3_unlocked": false}}
+}
