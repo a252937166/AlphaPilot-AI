@@ -27,7 +27,7 @@ jobs:
       - run: python -m pip install --upgrade pip
       - run: pip install -e ".[dev]"
       - run: ruff check src tests
-      # These seven modules exercise historical P4.2a rehearsal contracts that
+      # These nine modules exercise historical P4.2a rehearsal contracts that
       # are intentionally bound to Darwin, CPython 3.12.0, an exact 84-package
       # environment, and their approved source commits.  They are executed in
       # full by backend-frozen-rehearsals below; the portable matrix still runs
@@ -42,13 +42,17 @@ jobs:
           --ignore=tests/test_p4_2a_v2_heldout_rehearsal_v2_validator.py
           --ignore=tests/test_p4_2a_v2_1_heldout_rehearsal_runner.py
           --ignore=tests/test_p4_2a_v2_1_heldout_rehearsal_validator.py
+          --ignore=tests/test_p4_2a_v2_2_heldout_rehearsal_runner.py
+          --ignore=tests/test_p4_2a_v2_2_heldout_rehearsal_validator.py
 
   backend-frozen-rehearsals:
     name: backend (frozen P4.2a rehearsals)
     # macOS 15 is the oldest hosted image that provides the registered C.UTF-8
     # locale; macOS 14 fails closed before the rehearsal can start.
     runs-on: macos-15
-    timeout-minutes: 30
+    # v2.2 alone takes about 2h38m in the registered runtime.  Leave enough
+    # room for the already-frozen v2/v2.1 suites and environment recreation.
+    timeout-minutes: 240
     steps:
       - uses: actions/checkout@v7
         with:
@@ -87,8 +91,16 @@ jobs:
             tests/test_p4_2a_v2_heldout_evaluator.py
             tests/test_p4_2a_v2_heldout_finalizer.py
           )
+          v2_2_registered_paths=(
+            scripts/rehearse_p4_2a_v2_2_heldout_full_path.py
+            scripts/p4_2a_v2_2_heldout_rehearsal.py
+            scripts/validate_p4_2a_v2_2_heldout_rehearsal_bundle.py
+            tests/test_p4_2a_v2_2_heldout_rehearsal_runner.py
+            tests/test_p4_2a_v2_2_heldout_rehearsal_validator.py
+          )
           git merge-base --is-ancestor da374342781d6fde2f2c6d87d23582050bc8edaa HEAD
           git merge-base --is-ancestor 4fce89e89fe2dba656694a7cffdc0ee1af0305c0 HEAD
+          git merge-base --is-ancestor fae44154d3504017742934ff3b3961642c35eb65 HEAD
           git diff --exit-code \
             da374342781d6fde2f2c6d87d23582050bc8edaa HEAD \
             -- "${v2_immutable_paths[@]}"
@@ -106,6 +118,9 @@ jobs:
           git diff --exit-code \
             4fce89e89fe2dba656694a7cffdc0ee1af0305c0 HEAD \
             -- "${registered_paths[@]}"
+          git diff --exit-code \
+            fae44154d3504017742934ff3b3961642c35eb65 HEAD \
+            -- "${v2_2_registered_paths[@]}"
       - name: Verify registered inventory bytes before installation
         run: |
           /usr/bin/python3 -I -S -B - <<'PY'
@@ -168,6 +183,72 @@ jobs:
               raise SystemExit("registered pip or project distribution version drifted")
           print("verified registered inventory bytes, schemas, and 84-package count")
           PY
+
+      - name: Recreate the exact registered v2.2 repository path
+        shell: bash
+        run: |
+          set -euo pipefail
+          implementation_commit="fae44154d3504017742934ff3b3961642c35eb65"
+          registered_parent="/Users/ouyangduning/Documents/project/interesting"
+          registered_root="${registered_parent}/AlphaPilot-AI"
+          v2_1_claim="${registered_parent}/.alphapilot-p4-2a-v2-1-execution-claim-52378ddcda558a8489795c62a5c4d290687700801320508c03c51589c202e962"
+          v2_2_ledger="${registered_parent}/.alphapilot-p4-2a-v2-2-execution-claim-35ba1b83a9b187817d7a591758e1c131e867fcd37917cba0ab196799fff832ef"
+          sudo /usr/bin/install -d \
+            -o "$(/usr/bin/id -u)" \
+            -g "$(/usr/bin/id -g)" \
+            "$registered_parent"
+          for absent_path in "$registered_root" "$v2_1_claim" "$v2_2_ledger"; do
+            if [[ -e "$absent_path" || -L "$absent_path" ]]; then
+              echo "protected registered path exists before v2.2 setup: $absent_path" >&2
+              exit 1
+            fi
+          done
+          git clone --no-hardlinks "$GITHUB_WORKSPACE" "$registered_root"
+          git -C "$registered_root" switch --detach "$implementation_commit"
+          if [[ ! -d "$registered_root/.git" || -L "$registered_root/.git" ]]; then
+            echo "registered v2.2 checkout does not have a real .git directory" >&2
+            exit 1
+          fi
+          if [[ "$(git -C "$registered_root" rev-parse --is-shallow-repository)" != "false" ]]; then
+            echo "registered v2.2 checkout is shallow" >&2
+            exit 1
+          fi
+          if [[ -e "$registered_root/.git/objects/info/alternates" ]]; then
+            echo "registered v2.2 checkout borrows its object store" >&2
+            exit 1
+          fi
+          required_commits=(
+            be6423506f598c290db7ad944b002763fdf806ab
+            b21e1bdbf865dfd9c7605ecc7794fc3f8701ed1f
+            cf10ef8d636049b0fc206c8698a809be3090e1d7
+            fae44154d3504017742934ff3b3961642c35eb65
+          )
+          for required_commit in "${required_commits[@]}"; do
+            git -C "$registered_root" cat-file -e "${required_commit}^{commit}"
+          done
+          protected_roots=(
+            "$v2_2_ledger"
+            "$registered_root/docs/phase4/rehearsals/P4.2a-v2-calibration-v2-2"
+            "$registered_root/docs/phase4/rehearsals/P4.2a-v2-calibration-v2-1"
+            "$registered_root/docs/phase4/eval/v2-calibration/heldout"
+          )
+          for protected_root in "${protected_roots[@]}"; do
+            if [[ -e "$protected_root" || -L "$protected_root" ]]; then
+              echo "protected execution root exists before frozen v2.2 tests: $protected_root" >&2
+              exit 1
+            fi
+          done
+          umask 077
+          /bin/mkdir "$v2_1_claim"
+          /bin/chmod 0700 "$v2_1_claim"
+          if [[ "$(/usr/bin/stat -f '%Lp' "$v2_1_claim")" != "700" ]]; then
+            echo "v2.1 claim mode is not 0700" >&2
+            exit 1
+          fi
+          if [[ -n "$(/usr/bin/find "$v2_1_claim" -mindepth 1 -maxdepth 1 -print -quit)" ]]; then
+            echo "v2.1 claim is not empty" >&2
+            exit 1
+          fi
 
       - name: Install the registered CPython 3.12.0 distribution
         shell: bash
@@ -520,6 +601,105 @@ jobs:
             tests/test_p4_2a_v2_1_heldout_rehearsal_validator.py \
             tests/test_p4_2a_v2_heldout_finalizer.py \
             tests/test_p4_2a_offline_extract.py
+
+      - name: Recreate and verify the exact registered v2.2 runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          registered_root="/Users/ouyangduning/Documents/project/interesting/AlphaPilot-AI"
+          base_python="/Library/Frameworks/Python.framework/Versions/3.12/bin/python3.12"
+          "$base_python" -m venv "$registered_root/.venv"
+          "$registered_root/.venv/bin/python" -I -B - <<'PY'
+          import importlib.metadata
+
+          if importlib.metadata.version("pip") != "23.2.1":
+              raise SystemExit("the registered CPython distribution did not provide pip 23.2.1")
+          PY
+          ALPHAPILOT_REGISTERED_ROOT="$registered_root" \
+            "$registered_root/.venv/bin/python" -I -B - <<'PY'
+          import json
+          import os
+          import pathlib
+          import subprocess
+          import sys
+
+          root = pathlib.Path(os.environ["ALPHAPILOT_REGISTERED_ROOT"])
+          inventory = root / (
+              "docs/phase4/rehearsals/P4.2a-v2-calibration-v2/"
+              "archive/control-surface/root/runtime/packages.json"
+          )
+          rows = json.loads(inventory.read_text(encoding="utf-8"))
+          requirements = [
+              f"{row['name']}=={row['version']}"
+              for row in rows
+              if row["name"] not in {"alphapilot-ai", "pip"}
+          ]
+          subprocess.run(
+              [
+                  sys.executable,
+                  "-m",
+                  "pip",
+                  "install",
+                  "--disable-pip-version-check",
+                  "--no-deps",
+                  *requirements,
+              ],
+              check=True,
+          )
+          PY
+          wheel_dir="${RUNNER_TEMP}/alphapilot-v2-2-editable-wheel"
+          mkdir -p "$wheel_dir"
+          (
+            cd "$registered_root"
+            ALPHAPILOT_WHEEL_DIR="$wheel_dir" \
+              "${RUNNER_TEMP}/alphapilot-build/bin/python" - <<'PY'
+          import os
+          from pathlib import Path
+
+          from setuptools.build_meta import build_editable
+
+          wheel_dir = Path(os.environ["ALPHAPILOT_WHEEL_DIR"])
+          wheel_name = build_editable(str(wheel_dir))
+          expected_name = "alphapilot_ai-0.5.0-0.editable-py3-none-any.whl"
+          if wheel_name != expected_name or not (wheel_dir / wheel_name).is_file():
+              raise SystemExit(f"canonical editable wheel drifted: {wheel_name}")
+          PY
+          )
+          "$registered_root/.venv/bin/python" -m pip install \
+            --disable-pip-version-check --no-index --no-deps --force-reinstall \
+            "$wheel_dir/alphapilot_ai-0.5.0-0.editable-py3-none-any.whl"
+          (
+            cd "$registered_root"
+            .venv/bin/python - <<'PY'
+          import hashlib
+          from pathlib import Path
+
+          from scripts import validate_p4_2a_v2_2_heldout_rehearsal_bundle as validator
+
+          python_payload, package_payload = validator._independent_runtime_inventory()
+          observed = {
+              "python": hashlib.sha256(python_payload).hexdigest(),
+              "packages": hashlib.sha256(package_payload).hexdigest(),
+          }
+          expected = {
+              "python": "ab3e067417027bb98ea4335e9086d2046ac9dfd4eaf857acc8622dc8f0a13a31",
+              "packages": "c3c7792eb31679c0eb7d3140e067d691df330cd3af302d2350bf15b74ac8ec42",
+          }
+          if observed != expected:
+              raise SystemExit(f"frozen v2.2 runtime fingerprint drifted: {observed=}")
+          print("verified v2.2 runtime: Python SHA, package SHA, and 84-package count")
+          PY
+          )
+
+      - name: Run approved v2.2 frozen rehearsal tests at fae44154
+        shell: bash
+        timeout-minutes: 200
+        run: |
+          set -euo pipefail
+          cd /Users/ouyangduning/Documents/project/interesting/AlphaPilot-AI
+          .venv/bin/python -m pytest \
+            tests/test_p4_2a_v2_2_heldout_rehearsal_runner.py \
+            tests/test_p4_2a_v2_2_heldout_rehearsal_validator.py
 
   frontend:
     runs-on: ubuntu-latest
