@@ -1,0 +1,59 @@
+{
+  "schema_version": "p4.2a-v2-2-implementation-epoch-surface-authorization-v1",
+  "authorization_id": "P4.2A-V2-2-EPOCH2-SURFACE-AUTHORIZATION-20260812",
+  "created_at_utc": "2026-08-12T14:32:17Z",
+  "created_at_shanghai": "2026-08-12T22:32:17+08:00",
+  "verdict": "AUTHORIZE_IMPLEMENTATION_EPOCH_2_WITH_EMPTY_SURFACE",
+  "issued_by": {
+    "identity": "independent_ai_architect_claude_code",
+    "reviewer_type": "ai",
+    "model": "Anthropic Claude Fable 5 (model id claude-fable-5)",
+    "impersonation_disclaimer": "Not a human reviewer and not the owner. Issued under the owner governance amendment with requires_release_gate_amendment=true; the owner may override. The per-attempt action-time confirmation remains reserved to the owner in person and is NOT granted here."
+  },
+  "part_1_why_epoch_2_is_necessary": {
+    "epoch_1_topology": "the registered contract requires the epoch-1 implementation commit to be the direct single-parent child of the preregistration commit be64235",
+    "real_history": "be64235 was followed by cf10ef8, which independent review BLOCKED, then by the remediation fae44154 whose parent is cf10ef8, approved and landed by merge be7a2ce. No commit satisfying the epoch-1 rule can exist for the approved bytes: rebinding to cf10ef8 fails require_current because the working bytes are fae44154's, and fae44154 itself is not a direct child of be64235 and is not an ancestor of the review commit 16f3e70.",
+    "conclusion": "The epoch-1 rule encodes an idealized straight-line history. The actual history was bent by a blocker and its remediation, which is the governance process working, not a defect. The contract's own escape is a later epoch, and it is used here rather than any relaxation of the epoch-1 rule."
+  },
+  "part_2_authorized_surface": {
+    "epoch": 2,
+    "base": "the creating commit of this authorization document",
+    "exact_am_surface": [],
+    "surface_rationale": "All five registered files are already byte-exact to the approved fae44154 blobs, re-verified 5 of 5 at authorization time. Epoch 2 changes nothing; it re-anchors the epoch topology onto the real history. The implementation commit must therefore introduce ZERO additions and ZERO modifications relative to the base.",
+    "implementation_commit_requirements": [
+      "direct single-parent child of the creating commit of this authorization",
+      "empty tree diff against its parent: no added, modified, deleted or renamed path anywhere, registered or otherwise",
+      "descends from the v2.2 preregistration be64235, which is automatic on main",
+      "its five registered blobs remain byte-identical to fae44154"
+    ],
+    "independent_review_requirement": "a fresh independent implementation review must be created in a commit that has the epoch-2 implementation commit as an ancestor, with an APPROVE verdict naming that commit, satisfying the runtime lineage check",
+    "explicitly_not_authorized": ["any byte change to any registered path", "any change outside this empty-surface re-anchoring", "ledger creation, attempt execution, or any real materialization, inference or evaluation", "any widening of the closed 24-field attempt-authorization schema"]
+  },
+  "part_3_findings": {
+    "F-9": {
+      "title": "The exact-OS tests validate a synthetic epoch topology, so a real-history incompatibility reached the attempt gate undetected",
+      "evidence": "the test suite re-commits the current five files as a synthetic direct child of a synthetic preregistration commit, so every topology test passes regardless of whether the real repository can satisfy the epoch rule",
+      "disposition": "recorded, not fixed in this epoch, because fixing it means changing registered test files. The compensating control below is mandatory instead.",
+      "compensating_control": "Before the owner is asked for the attempt-1 action-time confirmation, the operator must run the real-repository read-only preflight, the same validation chain the attempt would run up to but excluding ledger creation, against the real repo and the epoch-2 record, and include its passing output in the review request. A preflight that cannot be run read-only must be reported, not worked around."
+    },
+    "F-10": {
+      "title": "The attempt-authorization schema is closed at 24 fields, so the transcript-bound owner confirmation cannot be recorded inside it",
+      "disposition": "correct behaviour of a closed schema; do not widen it. The owner's action-time confirmation is recorded in a separate create-only sibling record that cites the attempt authorization by digest, mirroring how the v2.1 incident recorded transcript-bound authority."
+    }
+  },
+  "part_4_sequence_to_attempt_1": [
+    "commit this authorization alone",
+    "create the empty epoch-2 implementation commit as its direct child",
+    "independent implementation review of that commit, created after it",
+    "real-repository read-only preflight demonstration per F-9",
+    "re-derive series token, history root, control merkle root, argv and environment digests against the epoch-2 record",
+    "owner action-time confirmation in person, recorded in a sibling create-only record per F-10",
+    "attempt 1 may then start; the ledger is created lazily by the authorized attempt itself"
+  ],
+  "part_5_boundaries": {
+    "zero_consumption_confirmed": "no ledger, destination, heldout root, temporary authority, ordinal, pipeline start or retry exists or was consumed; the v2.1 claim remains the empty 0700 directory",
+    "operator_conduct": "the preflight refused to fabricate a passing authorization and the operator stopped with a precise diagnosis of all four binding conflicts rather than bending any of them; this is the intended behaviour of the regime",
+    "p4_1": "the three-day window has closed; acceptance evidence is due after 2026-08-13 00:10 CST and this authorization must not delay or contend with it",
+    "phase_locks": {"p4_2a_done": false, "heldout_evaluation_one_shot": "unconsumed", "p4_2b_unlocked": false, "p4_3_unlocked": false}
+  }
+}
