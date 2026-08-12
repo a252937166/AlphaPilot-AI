@@ -1,0 +1,61 @@
+{
+  "schema_version": "p4.2a-independent-review-v1",
+  "review_id": "p4.2a-v2-2-implementation-review-20260812-r1",
+  "created_at_utc": "2026-08-12T05:57:08Z",
+  "created_at_shanghai": "2026-08-12T13:57:08+08:00",
+  "verdict": "BLOCKED_REGISTERED_GATE_NOT_REPRODUCIBLE",
+  "reviewed_commit": "cf10ef8d636049b0fc206c8698a809be3090e1d7",
+  "reviewer": {
+    "identity": "independent_ai_architect_claude_code",
+    "reviewer_type": "ai",
+    "model": "Anthropic Claude Fable 5 (model id claude-fable-5)",
+    "impersonation_disclaimer": "Not a human reviewer. Issued under the owner governance amendment with requires_release_gate_amendment=true.",
+    "method": "read-only static review plus four independent executions of the registered test gates on the registered host. No ledger, destination, attempt, or real execution was created; nothing one-shot was consumed."
+  },
+  "part_1_what_passed_review": {
+    "commit_shape": "single parent be64235, exactly the five preregistered A paths, digests as reported",
+    "shim": "imports only os and sys, hand-implements SHA-256 to avoid earlier imports, zero authority state, zero validator references, 293 lines",
+    "implementation_module": "rejects direct __main__ at line 21 before any authority exists; sole owner of both ContextVars",
+    "validator": "imports the implementation module, never the shim; shim path appears only as data strings",
+    "identity_proofs": "id()-based ContextVar and module-object equality checks present in code as preregistered",
+    "static_gates_rerun_by_reviewer": "ruff clean, strict mypy clean on the three sources, py_compile clean",
+    "disclosed_probe_reproduced": "the operator's voluntarily disclosed non-registered probe of strict mypy over the two test files reproduces at exactly 19 findings, all test-scaffolding type-narrowing; agreed not a blocker",
+    "in_process_tests": "238 of 252 pass, including every identity, ledger-formula, tamper-matrix, carry-forward and schema test that does not spawn the full exact-OS pipeline",
+    "fast_exact_os_paths": "bootstrap-to-rejection tests pass quickly, e.g. the missing-action-receipt rejection, so the exec chain itself works"
+  },
+  "part_2_the_blocker": {
+    "statement": "The registered acceptance claim of 252/252 passing is not reproducible by the independent reviewer on the registered host. Fourteen tests, thirteen errors and one failure, share a single root cause: the exact-OS full-pipeline child produces no output within its embedded 300-second budget and is killed.",
+    "error_shape": "subprocess.TimeoutExpired after 300.0 seconds with stdout='' and stderr='', child killed with returncode -9 by the test harness; the one FAILED test asserts 'exact-OS child timed out' with the same empty output",
+    "affected": ["test_exact_os_series_two_failures_then_first_success_closes_at_ordinal_three", "test_exact_os_attempt_after_published_candidate_rejects_without_ordinal_four", "test_exact_full_shape_release_creation_blob_cross_drift_rejects_before_replay (six parametrizations)", "test_exact_os_selected_attempt_runs_full_path_twice_and_archives_fourteen_passes", "test_started_only_crash_uses_empty_evidence_root_and_unique_next_history", "test_failed_incomplete_success_history_keeps_every_evidence_subtree", "test_exact_os_concurrent_holder_rejects_next_ordinal_before_attempt_creation (FAILED)", "test_exact_os_genuine_capability_rejects_stolen_closure_and_atomic_race_probes", "test_create_only_audit_rejects_every_existing_member_mutation_and_external_mkdir", "test_fixed_launcher_and_observed_orig_argv_executable_are_distinct_exact_bytes (errored in suite context, passes alone)"],
+    "reproduction_evidence": [
+      "attempt 1, secondary worktree, suite: same error family at the same positions before being killed by a tool limit",
+      "attempt 2, secondary worktree, suite: 59 passes then the error block, then wedged",
+      "attempt 3, registered root at detached cf10ef8, full suite to completion: 238 passed, 13 errors, 1 failure, all timeouts",
+      "attempt 4, decisive: one affected test run alone on a quiet host took 501 seconds total, its child exceeded the 300-second budget with zero output while consuming roughly twenty percent CPU, working rather than deadlocked"
+    ],
+    "discrepancy_with_operator_report": "The operator reported Runner 150/150 and Validator 102/102 including the full-shape series tests. Four reviewer executions on the same machine contradict that. This review does not assert the operator's report was false; it asserts the gate does not reproduce for the reviewer, and an acceptance gate that passes only in one party's environment is not yet a gate."
+  },
+  "part_3_ruled_out_by_measurement": {
+    "note": "recorded to save remediation time and to correct the reviewer's own interim guesses",
+    "shim_hash_speed": "the hand-written SHA-256 measures 849 KB/s and both pinned binaries are about 151 KB, so shim hashing costs under one second; the reviewer's earlier hypothesis that it was the bottleneck is disproven",
+    "worktree_path_pinning": "the reviewer's earlier statement that the tests reject foreign directories was wrong; the exact-OS tests build fully synthetic project roots under pytest temp and behave identically in both locations",
+    "database_contention": "the real-path fingerprint set covers five protected paths and not the live database, so P4.1 polling cannot break the fixtures",
+    "deadlock": "the child shows steady partial CPU and its subprocess tree keeps changing, so it is slow, not stuck",
+    "reviewer_load_contamination": "excluded by attempt 4, run alone on a quiet host"
+  },
+  "part_4_what_is_required_to_clear": [
+    "Explain the reproducibility gap: under what measured conditions did the operator's run pass, including per-test wall-clock for the exact-OS family.",
+    "Profile where the child spends its budget and either make it fit 300 seconds, or raise the embedded test budgets with a stated justification and the resulting suite duration, or register an explicit environmental precondition for the gate. Any of these changes the five-path surface and therefore requires a new commit descending from cf10ef8 and a fresh independent review.",
+    "The suite-context-only error of the launcher-bytes test, which passes alone, must also be explained by the remediation, since it suggests cross-test interference within the exact-OS family.",
+    "Nothing was consumed. Under DISCLOSED_REPEATABLE_SERIES_V1 this costs exactly one review cycle, which is the design working as intended."
+  ],
+  "part_5_unchanged": {
+    "no_ledger_destination_or_attempt_exists": true,
+    "v2_1_claim": "still the empty 0700 directory",
+    "real_heldout_root": "still absent",
+    "heldout_evaluation_one_shot": "unconsumed",
+    "trading_state": "1 proposal, 0 non-SIMULATE orders",
+    "p4_1": "observation window day three in progress, unaffected; acceptance evidence due after 2026-08-13 00:10 CST",
+    "phase_locks": {"p4_2a_done": false, "p4_2b_unlocked": false, "p4_3_unlocked": false}
+  }
+}
