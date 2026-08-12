@@ -1,0 +1,41 @@
+{
+  "schema_version": "p4.1-news-v2.1-acceptance-verdict-v1",
+  "verdict_id": "p4.1-v2.1-three-day-acceptance-verdict-20260813-r1",
+  "created_at_utc": "2026-08-12T17:51:10Z",
+  "created_at_shanghai": "2026-08-13T01:51:10+08:00",
+  "verdict": "UPHOLD_FAIL",
+  "window": ["2026-08-10", "2026-08-11", "2026-08-12"],
+  "evidence": {"path": "docs/phase4/reports/P4.1-news-v2.1-acceptance-20260812.json", "sha256": "aca50f26cf071bfde51c32b5e68a22198410606c6d975ea2b5622b65f48b76f6", "commit": "95380fc"},
+  "reviewer": {
+    "identity": "independent_ai_architect_claude_code",
+    "reviewer_type": "ai",
+    "model": "Anthropic Claude Fable 5 (model id claude-fable-5)",
+    "impersonation_disclaimer": "Not a human reviewer. Issued under the owner governance amendment with requires_release_gate_amendment=true.",
+    "method": "read-only; slot accounting, all-jobs timelines and data continuity re-derived from the production database"
+  },
+  "part_1_verdict": {
+    "ruling": "The pre-registered gate expected_slots_complete failed at 186 of 189 and the verdict is FAIL, upheld without renegotiation. Slot coverage 98.4 percent is not the gate; completeness is.",
+    "what_passed": "Every one of the 186 runs that fired succeeded. Zero failed slots, zero degraded slots, zero non-terminal slots across all three days. All data-integrity gates green: per-date inserts, checkpoint contracts, query calendar, dedup, PIT coverage, request accounting, read-only database discipline, zero broker orders. The Monday host-gap policy worked in production: 09:00, 09:30 and 09:40 suppressed, 09:50 recovery ran. Watch item W-1 cleared: backups never overlapped a poll.",
+    "contrast_with_v1": "The first acceptance failed with 127 failed runs and a deadlocked watermark. This one lost three fire events and no data. The system's data plane is sound; what failed is fire reliability of one job under host duress."
+  },
+  "part_2_root_cause_supplied": {
+    "context": "The frozen report honestly recorded root_cause_accounting_complete=false because the three missing slots were unexplained at freeze time. This review supplies the classification with database evidence.",
+    "missing_slots": ["2026-08-11T12:00 CST", "2026-08-11T18:00 CST", "2026-08-12T12:00 CST"],
+    "not_host_sleep": "The per-minute market snapshot job kept firing through two of the three windows, so the host was awake and the scheduler process alive.",
+    "mechanism": "All three misses sit inside short scheduler event-loop stalls visible as gaps in the per-minute snapshot record: 03:58:05Z to 04:00:05Z on 08-11 with the 03:59 snapshot also skipped, 09:58:50Z to 10:04:49Z on 08-11, and scattered skipped minutes around 03:57 to 04:01Z on 08-12. A stall of one to six minutes crossed each news_poll due time, and the job's misfire tolerance is too small to fire late, so the instance was skipped. The snapshot job simply resumes at its next minute and is not gated, which is why the damage shows only in news_poll slots.",
+    "timing_pattern": "The stalls cluster at host-local midnight and early morning, 12:00 and 18:00 CST equal 00:00 and 06:00 local, which are classic macOS maintenance windows. The exact host process is not identified and does not need to be; the defect that is ours to fix is that a one-to-six-minute stall costs a slot at all.",
+    "data_loss": "None. The poll following each missed slot fetched normally under the incremental-floor semantics, 170, 204 and 1,143 items respectively with zero failures, and per-date CNInfo totals are healthy. A missed slot delays ingestion by up to thirty minutes; it loses nothing."
+  },
+  "part_3_remediation_prescribed": {
+    "code_change": {
+      "what": "Give news_poll misfire tolerance: coalesce true and a misfire grace of 600 seconds, so a stalled loop fires the poll once, late, instead of skipping it. Late execution is harmless by construction: the poller is idempotent, floor-based and PIT-stamped at write time, and a poll ten minutes late still lands well before the next slot.",
+      "why_600": "The widest observed stall is about six minutes; 600 seconds absorbs it with margin while still being far below the thirty-minute slot spacing.",
+      "scope": "scheduler job registration only; the frozen v2.1 news-poll contract 9d56e137 is not touched. Pre-register the change, land it with tests, independent review before the new window.",
+      "note": "apply the same tolerance to any job whose slots are acceptance-gated; the per-minute snapshot needs none"
+    },
+    "ops_watch": {"id": "W-2", "statement": "host maintenance-window stalls of one to six minutes around local midnight and 06:00; no forced host fix required once misfire tolerance exists, but if stalls grow past the grace the window will fail again and the host process must then be hunted down"},
+    "new_window": "A fresh three-trading-day window under the unchanged frozen config after the misfire fix lands and is reviewed: 2026-08-13, 08-14 and 08-17 if the fix lands within Wednesday, verdict on 08-18. Same gates, no renegotiation.",
+    "what_does_not_restart": "The backlog migration, incremental validation, scheduler deployment and activation all stand; only the observation window re-runs."
+  },
+  "part_4_locks": {"p4_1_done": false, "p4_2b_unlocked": false, "p4_3_unlocked": false, "scheduler": "remains running; the window re-run needs no redeployment"}
+}
