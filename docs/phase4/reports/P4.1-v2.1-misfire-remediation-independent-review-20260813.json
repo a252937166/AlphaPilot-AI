@@ -1,0 +1,43 @@
+{
+  "schema_version": "p4.1-news-v2.1-remediation-review-v1",
+  "review_id": "p4.1-v2.1-misfire-remediation-review-20260813-r1",
+  "created_at_utc": "2026-08-13T03:02:36Z",
+  "created_at_shanghai": "2026-08-13T11:02:36+08:00",
+  "verdict": "APPROVE",
+  "blockers": [],
+  "reviewed": {
+    "preregistration": {"path": "docs/phase4/reports/P4.1-v2.1-news-poll-misfire-remediation-preregistration-20260813.json", "commit": "7c68a261"},
+    "implementation_commit": "cbcda55c",
+    "merged_to_main_as": "64e0ad2",
+    "prescribing_verdict": {"path": "docs/phase4/reports/P4.1-v2.1-acceptance-verdict-20260813.json", "commit": "d37395d"}
+  },
+  "reviewer": {
+    "identity": "independent_ai_architect_claude_code",
+    "reviewer_type": "ai",
+    "model": "Anthropic Claude Fable 5 (model id claude-fable-5)",
+    "impersonation_disclaimer": "Not a human reviewer. Issued under the owner governance amendment with requires_release_gate_amendment=true.",
+    "method": "static diff review against the prescription plus reviewer-run tests in a detached worktree at cbcda55c"
+  },
+  "part_1_surface_verified": {
+    "chain": "prereg 7c68a261 precedes implementation cbcda55c, single-parent, no other commits between",
+    "diff": [
+      "src/alphapilot/jobs/news_poll.py: +1, misfire_grace_time=600 on the news_poll JobSpec",
+      "src/alphapilot/jobs/registry.py: +9, JobSpec gains misfire_grace_time: int | None = None with __post_init__ positive-int validation",
+      "src/alphapilot/jobs/scheduler.py: +4, plumbs job_options['misfire_grace_time'] into APScheduler add_job",
+      "tests: +87, including the all-jobs coalesce-True assertion and grace plumbing coverage"
+    ],
+    "matches_prescription_exactly": "coalesce true plus 600-second grace on news_poll, scheduler job registration only; no other job's behaviour changes",
+    "frozen_contract_untouched": "zero diff under config/; news-poll contract SHA remains 9d56e137"
+  },
+  "part_2_reviewer_run_evidence": {
+    "worktree": "detached at cbcda55c, PYTHONPATH isolated",
+    "tests": "tests/test_phase2_jobs.py + tests/test_p4_news_poll.py all passed, no failures",
+    "static": "ruff clean on the three changed source files; strict mypy clean on registry.py"
+  },
+  "part_3_activation": {
+    "requires": "scheduler restart between slots so the running process picks up the grace; the frozen config needs no change and the deployment does not restart",
+    "deadline": "before the 12:00 CST 2026-08-13 risk slot, the first slot class that failed in window two",
+    "new_window": {"days": ["2026-08-13", "2026-08-14", "2026-08-17"], "verdict_due": "2026-08-18", "owner_confirmed": "transcript-bound, 2026-08-13 morning CST", "gates": "identical to both prior windows, no renegotiation"}
+  },
+  "part_4_locks": {"p4_1_done": false, "window_counting_rule": "2026-08-13 counts as day one per the owner's confirmation. Slots that fired before the restart ran without the grace; if a pre-restart stall already skipped a slot today, the day fails the completeness gate honestly and the window slides to 08-14, 08-17, 08-18 with verdict 08-19. At restart the operator must therefore also report today's slot ledger so far."}
+}

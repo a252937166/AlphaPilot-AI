@@ -1,0 +1,17 @@
+{
+  "schema_version": "p4.2a-erratum-v1",
+  "erratum_id": "p4.2a-attempt1-adjudication-erratum-20260813-r1",
+  "created_at_utc": "2026-08-13T03:02:36Z",
+  "corrects": {
+    "document": "docs/phase4/reports/P4.2a-attempt1-adjudication-and-epoch3-companion-20260813.json",
+    "sha256": "aef641f0624ffa5ec8f722356b10c9e3fe0424edd93969f3251eecffac176521",
+    "commit": "7fc122f",
+    "field": "part_1_attempt_1_adjudication.series_design_vindicated"
+  },
+  "defect": "The elided citation of the attempt-1 history root reads 076ae961fc149ae271bccfea..., which splices two non-adjacent segments of the digest instead of truncating it. The original document is create-only and stays as committed; this erratum supplies the correct value.",
+  "correct_value": {
+    "previous_history_root_sha256_for_ordinal_2": "076ae961fc149ae271bf5a3724c1677abccfea7139589909ea717a7f4a38083a",
+    "source": "attempts/000001 terminal record in the official series ledger; the runtime re-derives this from the ledger history itself, so no gate consumes the narrative citation"
+  },
+  "issued_by": {"identity": "independent_ai_architect_claude_code", "reviewer_type": "ai"}
+}
