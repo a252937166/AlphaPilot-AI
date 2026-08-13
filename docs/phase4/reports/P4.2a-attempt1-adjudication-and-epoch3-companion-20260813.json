@@ -1,0 +1,70 @@
+{
+  "schema_version": "p4.2a-independent-adjudication-v1",
+  "adjudication_id": "p4.2a-attempt1-adjudication-and-epoch3-companion-20260813-r1",
+  "created_at_utc": "2026-08-13T03:02:36Z",
+  "created_at_shanghai": "2026-08-13T11:02:36+08:00",
+  "issued_by": {
+    "identity": "independent_ai_architect_claude_code",
+    "reviewer_type": "ai",
+    "model": "Anthropic Claude Fable 5 (model id claude-fable-5)",
+    "impersonation_disclaimer": "Not a human reviewer and not the owner. The six-field authority that follows asserts owner approval because the owner gave it explicitly; the transcript binding is recorded below."
+  },
+  "part_1_attempt_1_adjudication": {
+    "verdict": "VALID_RECORDED_FAILED_ATTEMPT",
+    "facts_verified": {
+      "authority_chain_on_main": "Q eb1eb4f review request, R 38a1be8 strict 24-field authorization, B b3e62a9 owner confirmation binding",
+      "terminal_record": "ordinal 1, outcome FAILED, reached_stage started_persisted, implementation_epoch 2 at commit 1b4e05c, automatic_retry_count 0",
+      "replay_pipeline_starts": 0,
+      "no_candidate_bundle_destination_heldout_or_temp_residue": true,
+      "ledger_state": "series.json, lock, attempt 000001 started, terminal and evidence probes present; history chained"
+    },
+    "root_cause_confirmed_from_source": "The official-only self-fingerprint defect is real and deterministic. _ledger_create_only_probes captures _real_path_fingerprints() before performing its own two legitimate create-only evidence writes into the official ledger, and the fingerprint set explicitly includes registered_v2_2_ledger, the official ledger tree. The post-write equality assertion therefore always fails on the official path. Disposable tests place the active ledger in a temporary directory, so the official-path fingerprint never moved in any test.",
+    "series_design_vindicated": "Under the single-use regimes this defect would have burned a fourth rehearsal generation. Under DISCLOSED_REPEATABLE_SERIES_V1 it cost one immutably recorded failed ordinal. The failure record stays forever; nothing is deleted; ordinal 1 is permanently consumed; the next lawful ordinal is 2 and must bind previous_history_root_sha256 076ae961fc149ae271bccfea... exactly as the operator computed.",
+    "correction_to_the_previous_next_step": "Ordinal 2 is a NEW disclosed attempt, never a retry, per the preregistered attempt policy."
+  },
+  "part_2_epoch_numbering_correction": {
+    "conflict": "The preregistration declares epoch numbering as contiguous positive integers starting at 1, but the immutable history's first record carries implementation_epoch 2, because epoch 1, the fae44154 implementation, was structurally unconsumable under the initial direct-child topology rule and never reached the ledger.",
+    "ruling": [
+      "Epoch 1 is recorded as ASSIGNED_AND_STRUCTURALLY_UNCONSUMABLE: its bytes were approved and carried forward into epoch 2 unchanged; it executed nothing and appears in no ledger record.",
+      "The immutable history legitimately begins at epoch 2. The history is never rewritten or renumbered.",
+      "Bundle construction and validation must accept a declared epoch origin and must disclose the void epoch 1 with its commit and reason in the final bundle, satisfying the preregistration's requirement that the bundle lists every epoch and the release acknowledges each.",
+      "The numbering contract's intent, no gaps and no reuse among EXECUTED epochs, is preserved; only the assumption that execution starts at 1 is corrected."
+    ],
+    "why_now": "Fixing only the fingerprint defect would let a future attempt succeed and then fail at bundle construction against the start-at-1 assumption, wasting another ordinal on a known conflict. Both must land in one epoch."
+  },
+  "part_3_finding": {
+    "F-11": {
+      "title": "Disposable-versus-official environment divergence struck again, this time via ledger location",
+      "detail": "The exact-OS tests run their active ledger in temporary directories, so the interaction between the real-path fingerprint set and an active ledger at the registered official location was untestable by construction. This is the same class as F-9's synthetic topology blind spot.",
+      "requirement_on_epoch_3_tests": "The registered tests must exercise the fingerprint discipline with an active ledger at the fingerprinted location, by injection or equivalent, so that a self-fingerprint regression can fail in a disposable test rather than only in an official attempt."
+    }
+  },
+  "part_4_owner_approvals_recorded": {
+    "epoch_3_surface": {
+      "approved_by": "owner (ouyang), in person, transcript-bound, 2026-08-13 morning CST",
+      "approved_surface": [
+        {"path": "scripts/p4_2a_v2_2_heldout_rehearsal.py", "status": "M"},
+        {"path": "scripts/validate_p4_2a_v2_2_heldout_rehearsal_bundle.py", "status": "M"},
+        {"path": "tests/test_p4_2a_v2_2_heldout_rehearsal_runner.py", "status": "M"},
+        {"path": "tests/test_p4_2a_v2_2_heldout_rehearsal_validator.py", "status": "M"}
+      ],
+      "approved_content_scope": "fix the ledger self-fingerprint defect so the fingerprint discipline excludes only the active official ledger's own legitimate create-only writes; make bundle construction and validation accept the epoch-2 origin with void epoch 1 disclosed; add the F-11 test coverage; nothing else",
+      "explicitly_out_of_scope": ["gates, thresholds, samples, seeds, models, prompts, contracts, gold", "the shim file", "the 24-field attempt schema", "any ledger mutation or history rewrite"]
+    },
+    "p4_1_new_window": {
+      "approved_by": "owner (ouyang), same exchange",
+      "window": ["2026-08-13", "2026-08-14", "2026-08-17"],
+      "verdict_due": "2026-08-18",
+      "condition": "scheduler restart between slots so the 600-second misfire grace is live before the 12:00 CST risk slot; gates identical to both prior windows"
+    }
+  },
+  "part_5_sequence": [
+    "commit this companion alone, then the six-field epoch-3 authority as its direct child",
+    "operator implements the four-path surface as the direct child of the authority commit, on a branch",
+    "independent implementation review committed after the implementation",
+    "real-repository --preflight-only run attached to the ordinal-2 review request",
+    "ordinal-2 Q, R, B chain with the owner's separate action-time confirmation",
+    "attempt 2 executes as a new disclosed attempt binding previous_history_root 076ae961..."
+  ],
+  "part_6_boundaries": {"heldout_evaluation_one_shot": "unconsumed", "v2_1_claim": "unchanged", "trading": "1 proposal, 0 non-SIMULATE", "p4_2b_p4_3": "locked"}
+}
