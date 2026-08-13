@@ -3231,5 +3231,6 @@ def register_news_poll_job() -> None:
             name="news_poll",
             func=run_news_poll,
             trigger=_news_poll_trigger() if _news_poll_scheduler_enabled() else None,
+            misfire_grace_time=600,
         )
     )
