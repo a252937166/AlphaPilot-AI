@@ -6,9 +6,12 @@ from contextlib import contextmanager
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from threading import Event, Lock
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
+from apscheduler.events import EVENT_JOB_EXECUTED, EVENT_JOB_MISSED
+from apscheduler.executors import base as executor_base
 from apscheduler.triggers.interval import IntervalTrigger
 from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.orm import Session
@@ -842,3 +845,85 @@ def test_scheduler_skips_manual_only_jobs() -> None:
         scheduler_module.shutdown_scheduler()
         JOBS.clear()
         JOBS.update(original_jobs)
+
+
+def test_scheduler_applies_job_local_misfire_grace_without_global_spread() -> None:
+    original_jobs = dict(JOBS)
+
+    def task() -> dict[str, Any]:
+        return {}
+
+    JOBS.clear()
+    register(JobSpec(name="ordinary", func=task, trigger=IntervalTrigger(hours=1)))
+    register(
+        JobSpec(
+            name="acceptance_gated",
+            func=task,
+            trigger=IntervalTrigger(hours=1),
+            misfire_grace_time=600,
+        )
+    )
+    try:
+        scheduler = scheduler_module.start_scheduler(Settings(scheduler_enabled=True))
+        assert scheduler is not None
+        jobs = {job.id: job for job in scheduler.get_jobs()}
+        assert jobs["ordinary"].misfire_grace_time == 1
+        assert jobs["acceptance_gated"].misfire_grace_time == 600
+        assert all(job.coalesce is True for job in jobs.values())
+        assert all(job.max_instances == 1 for job in jobs.values())
+    finally:
+        scheduler_module.shutdown_scheduler()
+        JOBS.clear()
+        JOBS.update(original_jobs)
+
+
+@pytest.mark.parametrize("grace", [0, -1, True, False])
+def test_job_spec_rejects_invalid_misfire_grace(grace: int) -> None:
+    with pytest.raises(
+        ValueError,
+        match="misfire_grace_time must be a positive integer",
+    ):
+        JobSpec(
+            name="invalid-grace",
+            func=lambda: {},
+            trigger=IntervalTrigger(hours=1),
+            misfire_grace_time=grace,
+        )
+
+
+def test_six_hundred_second_misfire_boundary_uses_pinned_scheduler_semantics(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    now = datetime(2026, 8, 13, 2, tzinfo=UTC)
+    calls: list[str] = []
+
+    class FrozenDateTime(datetime):
+        @classmethod
+        def now(cls, tz: object = None) -> datetime:
+            assert tz is UTC
+            return now
+
+    job = SimpleNamespace(
+        id="news_poll",
+        misfire_grace_time=600,
+        func=lambda: calls.append("executed"),
+        args=(),
+        kwargs={},
+    )
+    monkeypatch.setattr(executor_base, "datetime", FrozenDateTime)
+
+    events = executor_base.run_job(
+        job,
+        "default",
+        [
+            now - timedelta(seconds=600),
+            now - timedelta(seconds=600, microseconds=1),
+        ],
+        __name__,
+    )
+
+    assert calls == ["executed"]
+    assert [event.code for event in events] == [
+        EVENT_JOB_EXECUTED,
+        EVENT_JOB_MISSED,
+    ]

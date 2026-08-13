@@ -22,6 +22,15 @@ class JobSpec:
     func: Callable[..., dict[str, Any] | JobOutcome]
     trigger: BaseTrigger | None
     enabled_key: str | None = None
+    misfire_grace_time: int | None = None
+
+    def __post_init__(self) -> None:
+        if self.misfire_grace_time is not None and (
+            isinstance(self.misfire_grace_time, bool)
+            or not isinstance(self.misfire_grace_time, int)
+            or self.misfire_grace_time <= 0
+        ):
+            raise ValueError("job misfire_grace_time must be a positive integer")
 
 
 @dataclass(frozen=True, slots=True)
