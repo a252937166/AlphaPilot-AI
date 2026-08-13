@@ -1,0 +1,233 @@
+{
+  "schema_version": "p4.2a-v2-2-rehearsal-attempt-review-request-v1",
+  "request_id": "P4.2A-V2-2-REHEARSAL-ATTEMPT-000001-REVIEW-REQUEST-20260813",
+  "created_at_utc": "2026-08-13T02:12:00Z",
+  "created_at_shanghai": "2026-08-13T10:12:00+08:00",
+  "status": "READY_FOR_OWNER_ACTION_TIME_CONFIRMATION_ACTION_RECEIPT_NOT_CREATED",
+  "requester": {
+    "identity": "codex_operator_ai",
+    "owner_approval_claimed": false,
+    "action_authorization_created": false,
+    "attempt_started": false,
+    "purpose": "Submit the landed epoch-2 implementation, the single real-root read-only preflight result, and one exact proposed 24-field ordinal-1 authorization document for owner action-time confirmation."
+  },
+  "landed_epoch_2": {
+    "merge_commit": "0364079d8d7660e26eb67665bd3afa82c17c334c",
+    "merge_parents": [
+      "d37395dd717c8aed0b55f961912489284e9a95d5",
+      "d15bea522cfd892f6837772a2142b903e03a9436"
+    ],
+    "implementation_commit": "1b4e05c6acd513bb1bc11245911da97b6a128ca1",
+    "implementation_commit_preserved_without_rebase_or_squash": true,
+    "independent_review_commit": "d15bea522cfd892f6837772a2142b903e03a9436",
+    "independent_review_commit_preserved_without_rebase_or_squash": true,
+    "main_and_origin_main_equal_merge_commit_before_preflight": true
+  },
+  "registered_read_only_preflight": {
+    "invocation_count": 1,
+    "retry_count": 0,
+    "launch_mode": "foreground_exact_OS_registered_root",
+    "workdir": "/Users/ouyangduning/Documents/project/interesting/AlphaPilot-AI",
+    "exit_code": 0,
+    "stderr": "",
+    "wall_clock_seconds": null,
+    "wall_clock_note": "The invocation was not wrapped by time or output redirection because its exact process contract is rigid; no elapsed-time claim is inferred from polling timestamps.",
+    "stdout_canonical_json_sha256": "0ca07ed74af42ec4006cb1e77739c3cf49c3f2735bac485329530e698fa3edbf",
+    "stdout_bytes": 2117,
+    "stdout": {
+      "control_merkle_root_sha256": "6e08da2c7fec2c17e599fd828fea4e0b2f4ec5c73666026e69f144f8d4a80c53",
+      "control_record_count": 75,
+      "effect_summary": {
+        "action_receipt_required": false,
+        "action_receipts_read": 0,
+        "attempts_allocated": 0,
+        "automatic_retries": 0,
+        "heldout_evaluation_attempts_consumed": 0,
+        "ledgers_created": 0,
+        "pipeline_starts": 0,
+        "project_and_gate_state_writes_permitted": false,
+        "shallow_alternate_partial_and_included_git_config_rejected": true,
+        "stdout_persistence_controlled_by_caller": true,
+        "temporary_authorities_created": 0
+      },
+      "execution_head": "0364079d8d7660e26eb67665bd3afa82c17c334c",
+      "implementation_commit": "1b4e05c6acd513bb1bc11245911da97b6a128ca1",
+      "implementation_epoch": 2,
+      "independent_implementation_review": {
+        "creating_commit": "0364079d8d7660e26eb67665bd3afa82c17c334c",
+        "path": "docs/phase4/reports/P4.2a-v2-2-epoch2-implementation-independent-review-20260813.json",
+        "sha256": "3805054e3369eff725c4aa1ffe60f565a4571063aa7465b17be401879a19fa2b",
+        "unique_a_history_verified": true
+      },
+      "mode": "REGISTERED_OFFICIAL",
+      "owner_exact_surface_authorization": {
+        "creating_commit": "fa4f9e0233de20d5edef201e3a93aed10a67b8be",
+        "path": "docs/phase4/reports/P4.2a-v2-2-epoch2-surface-authority-20260812.json",
+        "sha256": "641090a20a63831984ce0ffeafe7cfe22147752c3ea4600f4bc450f6c4969698",
+        "unique_a_history_verified": true
+      },
+      "registered_surface": [
+        {
+          "path": "scripts/rehearse_p4_2a_v2_2_heldout_full_path.py",
+          "sha256": "660d6b6e820581eae792e6c04f35b15b30bdb2427d93c3a934af9146f0e044c0"
+        },
+        {
+          "path": "scripts/p4_2a_v2_2_heldout_rehearsal.py",
+          "sha256": "6a9b81ee219b93d73daefbb3c091e36661b41db1b0cb734472cdcc5aa5842e5d"
+        },
+        {
+          "path": "scripts/validate_p4_2a_v2_2_heldout_rehearsal_bundle.py",
+          "sha256": "3d8c815d5f4a047ba803a227bc79ede5f96f0fe464245664d9f26cf1d2bc3838"
+        },
+        {
+          "path": "tests/test_p4_2a_v2_2_heldout_rehearsal_runner.py",
+          "sha256": "eee84acdd96b65f3603ce673f9ad9c688fb7d4111e58ab209b3b5667d43a4675"
+        },
+        {
+          "path": "tests/test_p4_2a_v2_2_heldout_rehearsal_validator.py",
+          "sha256": "f102c3cdf135ee9800881a41589cebc52cb9638cb53655f827fa94c9220f1b27"
+        }
+      ],
+      "schema_version": "p4.2a-v2-2-read-only-implementation-preflight-v1",
+      "status": "PASS_READ_ONLY_IMPLEMENTATION_PREFLIGHT"
+    }
+  },
+  "preflight_before_after_equality": {
+    "head": "0364079d8d7660e26eb67665bd3afa82c17c334c",
+    "origin_main": "0364079d8d7660e26eb67665bd3afa82c17c334c",
+    "worktree_porcelain_v1_z_sha256": "5dbb899ceee13775dcd4ccbf1ac0ffa394cb223de54b2769b3b034b43d746a92",
+    "pre_existing_unrelated_user_state": {
+      "apps/web/src/components/NotificationBell.vue_binary_diff_sha256": "9a392b2e25f7afc54b02c264154a817a49b33a2446a6ba20ba0d2a87b739061d",
+      "docs/AlphaPilot-AI-UI-16x9_file_hash_inventory_sha256": "a16ed2f912785f07bde6f778aa94b552a4e7e240444f61afd6815363a2ac173f",
+      "docs/phase4/eval/P4.2a-gold-heldout40-blind-sample-v1.7.adjudication.html_sha256": "280d6cb614c6261b81cb626c2b92c1d003bc9606c7cb0a508df9f1e0d4832203"
+    },
+    "official_gate_paths": {
+      "v2_2_ledger": "absent",
+      "v2_2_destination": "absent",
+      "v2_1_destination": "absent",
+      "real_heldout_root": "absent",
+      "v2_1_claim": {"kind": "directory", "mode": "0700", "entry_count": 0},
+      "v2_2_temporary_authority_count": 0
+    },
+    "git_repository_shape": {
+      "config_sha256": "64dfda886cfa8565a3b1abf8fbfe7bde770d835bdfd419e8bc43ee676951b0af",
+      "shallow_file": "absent",
+      "alternates_file": "absent",
+      "config_worktree_file": "absent"
+    },
+    "all_values_equal_before_and_after": true
+  },
+  "proposed_action_authorization": {
+    "official_path": "docs/phase4/reports/P4.2a-v2-2-rehearsal-attempt-000001-execution-authorization-20260813.json",
+    "canonical_json_sha256": "3336603fa60bca80d89078724b2012da7a0d192401084453675d2e98fbb7aeda",
+    "canonical_json_bytes": 2862,
+    "effective_now": false,
+    "official_path_exists": false,
+    "owner_confirmation_received": false,
+    "document": {
+      "authorization_id": "P4.2A-V2-2-REHEARSAL-ATTEMPT-000001-EXECUTION-AUTHORIZATION-20260813",
+      "authorized_pipeline_starts": 1,
+      "automatic_retry_count": 0,
+      "command_sha256": "d8c6a5131ca82fc5332a6c08a502fab6f5b0816c969e03247ae15b0e25c566ad",
+      "control_merkle_root_sha256": "6e08da2c7fec2c17e599fd828fea4e0b2f4ec5c73666026e69f144f8d4a80c53",
+      "created_at_shanghai": "2026-08-13T10:12:00+08:00",
+      "created_at_utc": "2026-08-13T02:12:00Z",
+      "environment_sha256": "7537511db11ce9d45417a56ea760ea2083fe0bc44e22eb99f154467cffe3a6ed",
+      "exact_argv": [
+        "/Library/Frameworks/Python.framework/Versions/3.12/Resources/Python.app/Contents/MacOS/Python",
+        "-S",
+        "-P",
+        "-B",
+        "/Users/ouyangduning/Documents/project/interesting/AlphaPilot-AI/scripts/rehearse_p4_2a_v2_2_heldout_full_path.py",
+        "--execute",
+        "--attempt-authorization",
+        "/Users/ouyangduning/Documents/project/interesting/AlphaPilot-AI/docs/phase4/reports/P4.2a-v2-2-rehearsal-attempt-000001-execution-authorization-20260813.json",
+        "--expected-ordinal",
+        "1"
+      ],
+      "exact_environment": {
+        "ALPHAPILOT_P42A_REHEARSAL_V2_2_ENV_LOCKED": "1",
+        "LANG": "C.UTF-8",
+        "LC_ALL": "C.UTF-8",
+        "OPENBLAS_MAIN_FREE": "1",
+        "PATH": "/usr/bin:/bin",
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "PYTHONHASHSEED": "0",
+        "PYTHONNOUSERSITE": "1",
+        "PYTHONPYCACHEPREFIX": "/dev/null",
+        "PYTHONSAFEPATH": "1",
+        "TZ": "UTC",
+        "__CF_USER_TEXT_ENCODING": "0x1F5:0x0:0x0"
+      },
+      "heldout_evaluation_authorized": false,
+      "implementation_commit": "1b4e05c6acd513bb1bc11245911da97b6a128ca1",
+      "implementation_epoch": 2,
+      "independent_implementation_review": {
+        "creating_commit": "0364079d8d7660e26eb67665bd3afa82c17c334c",
+        "path": "docs/phase4/reports/P4.2a-v2-2-epoch2-implementation-independent-review-20260813.json",
+        "sha256": "3805054e3369eff725c4aa1ffe60f565a4571063aa7465b17be401879a19fa2b",
+        "unique_a_history_verified": true
+      },
+      "ledger_root": "/Users/ouyangduning/Documents/project/interesting/.alphapilot-p4-2a-v2-2-execution-claim-35ba1b83a9b187817d7a591758e1c131e867fcd37917cba0ab196799fff832ef",
+      "locks": {
+        "heldout_evaluation": false,
+        "p4_2b": false,
+        "p4_3": false,
+        "real_heldout_inference": false,
+        "real_heldout_materialization": false,
+        "trading": false
+      },
+      "ordinal": 1,
+      "owner": {
+        "approved": true,
+        "identity": "ouyang",
+        "scope": "one_disclosed_v2_2_rehearsal_ordinal_only"
+      },
+      "owner_exact_surface_authorization": {
+        "creating_commit": "fa4f9e0233de20d5edef201e3a93aed10a67b8be",
+        "path": "docs/phase4/reports/P4.2a-v2-2-epoch2-surface-authority-20260812.json",
+        "sha256": "641090a20a63831984ce0ffeafe7cfe22147752c3ea4600f4bc450f6c4969698",
+        "unique_a_history_verified": true
+      },
+      "previous_history_root_sha256": "318b5c9ed06b2eed4ea55bf6f14da4c27e11b4cb2122e3f182847644aa549605",
+      "schema_version": "p4.2a-v2-2-rehearsal-attempt-execution-authorization-v1",
+      "series_id": "P4.2A-V2-HELDOUT-REHEARSAL-V2-2-DETERMINISTIC-20260811",
+      "series_token_sha256": "35ba1b83a9b187817d7a591758e1c131e867fcd37917cba0ab196799fff832ef",
+      "verdict": "APPROVE_EXACTLY_ONE_V2_2_REHEARSAL_ATTEMPT_ZERO_AUTOMATIC_RETRY"
+    },
+    "shape_assertion": "The nested document has exactly the registered 24 fields. The official action path remains absent and the nested owner.approved value is a proposed future byte string, not a claim that confirmation has already occurred."
+  },
+  "requested_owner_action_time_confirmation": {
+    "required_identity": "ouyang",
+    "confirm_exact_sha256": "3336603fa60bca80d89078724b2012da7a0d192401084453675d2e98fbb7aeda",
+    "scope": "exactly ordinal 1 of series token 35ba1b83a9b187817d7a591758e1c131e867fcd37917cba0ab196799fff832ef; one pipeline start; zero automatic retry; no heldout evaluation",
+    "suggested_confirmation_text": "本人 ouyang 确认并批准 SHA-256 3336603fa60bca80d89078724b2012da7a0d192401084453675d2e98fbb7aeda 所标识的 24 字段 canonical action authorization，仅授权 v2.2 series 35ba1b83a9b187817d7a591758e1c131e867fcd37917cba0ab196799fff832ef 的 ordinal 1 一次 pipeline start，automatic retry 为 0；真实 heldout materialization、inference、evaluation、P4.2b、P4.3 和 trading 继续锁定。",
+    "confirmation_not_present_in_this_request": true,
+    "must_regenerate_if_live_history_control_bytes_or_bindings_change": true,
+    "must_regenerate_if_not_confirmed_on_shanghai_date_2026_08_13": true
+  },
+  "post_confirmation_plan_not_yet_executed": {
+    "binding_evidence_path": "docs/phase4/reports/P4.2a-v2-2-rehearsal-attempt-000001-owner-confirmation-binding-20260813.json",
+    "binding_evidence_records": [
+      "this review-request path and SHA-256",
+      "the exact proposed action-authorization path and SHA-256",
+      "the owner confirmation text, timestamp and current conversation binding",
+      "a statement that the companion is evidence only and is not a field in the 24-field authorization schema"
+    ],
+    "action_authorization_write": "After confirmation only, write the exact nested 24-field document as canonical one-line JSON plus LF at the official path and commit it as a unique status-A path descendant of the independent implementation review.",
+    "attempt_start": "Only after the committed receipt and companion are rehashed and the live history, current bytes, exact command and exact environment are revalidated."
+  },
+  "current_locks": {
+    "action_authorization_created": false,
+    "owner_action_time_confirmation_received": false,
+    "ledger_created": false,
+    "destination_created": false,
+    "attempts_allocated": 0,
+    "pipeline_starts": 0,
+    "heldout_evaluation_attempts_consumed": 0,
+    "p4_2a_done": false,
+    "p4_2b_unlocked": false,
+    "p4_3_unlocked": false,
+    "trading_unlocked": false
+  }
+}
