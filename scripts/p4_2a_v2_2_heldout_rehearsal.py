@@ -801,6 +801,36 @@ INITIAL_SURFACE_REVIEW_RELATIVE = Path(
 )
 INITIAL_SURFACE_REVIEW_SHA256 = "6707e2b3c0b2ba87712e88b59ceaed17524be2de947b764a94c8b170b2a30bb6"
 INITIAL_SURFACE_REVIEW_COMMIT = "b21e1bdbf865dfd9c7605ecc7794fc3f8701ed1f"
+VOID_EPOCH_ONE_IMPLEMENTATION_COMMIT = "fae44154d3504017742934ff3b3961642c35eb65"
+VOID_EPOCH_ONE_IMPLEMENTATION_PARENT = "cf10ef8d636049b0fc206c8698a809be3090e1d7"
+VOID_EPOCH_ONE_LANDING_COMMIT = "be7a2cedff1ad4bf523d88d83fa333126d502720"
+VOID_EPOCH_ONE_REVIEW_RELATIVE = Path(
+    "docs/phase4/reports/P4.2a-v2-2-remediation-independent-review-20260812.json"
+)
+VOID_EPOCH_ONE_REVIEW_SHA256 = (
+    "e348bbc6c2976d473bf2b8e5b280784fd45ff7ae1ba7d7a4119309eb178b16cf"
+)
+VOID_EPOCH_ONE_REVIEW_COMMIT = "16f3e700c2ca9da997c8c0180e8b780aeae93346"
+VOID_EPOCH_ONE_ADJUDICATION_RELATIVE = Path(
+    "docs/phase4/reports/P4.2a-attempt1-adjudication-and-epoch3-companion-20260813.json"
+)
+VOID_EPOCH_ONE_ADJUDICATION_SHA256 = (
+    "aef641f0624ffa5ec8f722356b10c9e3fe0424edd93969f3251eecffac176521"
+)
+VOID_EPOCH_ONE_ADJUDICATION_COMMIT = "7fc122f575801ff43d2446a2c59491a086735e93"
+VOID_EPOCH_ONE_RULING = (
+    "Epoch 1 is recorded as ASSIGNED_AND_STRUCTURALLY_UNCONSUMABLE: its bytes "
+    "were approved and carried forward into epoch 2 unchanged; it executed "
+    "nothing and appears in no ledger record.",
+    "The immutable history legitimately begins at epoch 2. The history is never "
+    "rewritten or renumbered.",
+    "Bundle construction and validation must accept a declared epoch origin and "
+    "must disclose the void epoch 1 with its commit and reason in the final bundle, "
+    "satisfying the preregistration's requirement that the bundle lists every epoch "
+    "and the release acknowledges each.",
+    "The numbering contract's intent, no gaps and no reuse among EXECUTED epochs, "
+    "is preserved; only the assumption that execution starts at 1 is corrected.",
+)
 INCIDENT_RELATIVE = Path(
     "docs/phase4/reports/P4.2a-v2-heldout-rehearsal-v2-1-one-shot-consumed-incident-20260811.json"
 )
@@ -6434,10 +6464,17 @@ def _implementation_epochs(
             groups.append([record])
         else:
             groups[-1].append(record)
-    if [group[0].implementation_epoch for group in groups] != list(range(1, len(groups) + 1)):
+    used_epochs = [group[0].implementation_epoch for group in groups]
+    if used_epochs not in (
+        list(range(1, len(groups) + 1)),
+        list(range(2, len(groups) + 2)),
+    ):
         raise RehearsalV22Error("implementation epoch numbers are not contiguous")
     result: list[JsonObject] = []
-    for expected_epoch, records in enumerate(groups, 1):
+    if used_epochs[0] == 2:
+        result.append(_void_epoch_one(binding, execution_head=execution_head))
+    for records in groups:
+        expected_epoch = records[0].implementation_epoch
         first = records[0]
         authorization = _validate_action_authorization(
             binding,
@@ -6497,6 +6534,137 @@ def _implementation_epochs(
             }
         )
     return result
+
+
+def _void_epoch_one(
+    binding: ExecutionBinding,
+    *,
+    execution_head: str,
+) -> JsonObject:
+    root = binding.project_root.absolute()
+    head = _git_commit(root, execution_head, "void epoch execution head")
+    implementation_commit = _git_commit(
+        root,
+        VOID_EPOCH_ONE_IMPLEMENTATION_COMMIT,
+        "void epoch implementation commit",
+    )
+    parents = (
+        _git_bytes(
+            root,
+            "rev-list",
+            "--parents",
+            "-n",
+            "1",
+            implementation_commit,
+            "--",
+        )
+        .decode("ascii", errors="strict")
+        .strip()
+        .split()
+    )
+    if parents != [implementation_commit, VOID_EPOCH_ONE_IMPLEMENTATION_PARENT]:
+        raise RehearsalV22Error("void epoch implementation parent drifted")
+    observed_surface = _parse_name_status(
+        _git_bytes(
+            root,
+            "diff",
+            "--no-ext-diff",
+            "--no-textconv",
+            "--name-status",
+            "--no-renames",
+            VOID_EPOCH_ONE_IMPLEMENTATION_PARENT,
+            implementation_commit,
+            "--",
+        )
+    )
+    if observed_surface != {
+        IMPLEMENTATION_RELATIVE.as_posix(): "M",
+        RUNNER_TEST_RELATIVE.as_posix(): "M",
+    }:
+        raise RehearsalV22Error("void epoch implementation surface drifted")
+    owner = AuthorityReference(
+        INITIAL_SURFACE_REVIEW_RELATIVE.as_posix(),
+        INITIAL_SURFACE_REVIEW_SHA256,
+        INITIAL_SURFACE_REVIEW_COMMIT,
+    )
+    validate_unique_a_authority(
+        root,
+        owner,
+        execution_head=head,
+        allow_initial_sibling=True,
+    )
+    adjudication = AuthorityReference(
+        VOID_EPOCH_ONE_ADJUDICATION_RELATIVE.as_posix(),
+        VOID_EPOCH_ONE_ADJUDICATION_SHA256,
+        VOID_EPOCH_ONE_ADJUDICATION_COMMIT,
+    )
+    adjudication_payload = validate_unique_a_authority(
+        root,
+        adjudication,
+        execution_head=head,
+    )
+    adjudication_document = _object(
+        strict_json_loads(adjudication_payload, source="void epoch adjudication"),
+        "void epoch adjudication",
+    )
+    correction = _object(
+        adjudication_document.get("part_2_epoch_numbering_correction"),
+        "void epoch numbering correction",
+    )
+    if correction.get("ruling") != list(VOID_EPOCH_ONE_RULING):
+        raise RehearsalV22Error("void epoch numbering correction drifted")
+    review = AuthorityReference(
+        VOID_EPOCH_ONE_REVIEW_RELATIVE.as_posix(),
+        VOID_EPOCH_ONE_REVIEW_SHA256,
+        VOID_EPOCH_ONE_REVIEW_COMMIT,
+    )
+    review_payload = validate_unique_a_authority(
+        root,
+        review,
+        execution_head=head,
+    )
+    review_document = _object(
+        strict_json_loads(review_payload, source="void epoch implementation review"),
+        "void epoch implementation review",
+    )
+    if (
+        review_document.get("verdict") != "APPROVE_REMEDIATION_AND_IMPLEMENTATION"
+        or review_document.get("blockers") != []
+        or review_document.get("reviewed_commit") != implementation_commit
+    ):
+        raise RehearsalV22Error("void epoch implementation review drifted")
+    landing = _git_commit(
+        root,
+        VOID_EPOCH_ONE_LANDING_COMMIT,
+        "void epoch landing commit",
+    )
+    landing_parents = (
+        _git_bytes(root, "rev-list", "--parents", "-n", "1", landing, "--")
+        .decode("ascii", errors="strict")
+        .strip()
+        .split()
+    )
+    if landing_parents != [landing, VOID_EPOCH_ONE_REVIEW_COMMIT, implementation_commit]:
+        raise RehearsalV22Error("void epoch merge-only landing topology drifted")
+    if not _git_is_ancestor(root, landing, head):
+        raise RehearsalV22Error("void epoch landing is outside execution lineage")
+    control = build_control_surface(root, implementation_commit, require_current=False)
+    return {
+        "epoch": 1,
+        "implementation_commit": implementation_commit,
+        "owner_exact_surface_authorization": owner.as_json(),
+        # A frozen closed schema has no status/reason field.  This independently
+        # issued correction reference is the schema-compatible void discriminator
+        # and carries the full structural-unconsumability reason.
+        "independent_implementation_review": adjudication.as_json(),
+        "control_merkle_root_sha256": control.merkle_root_sha256,
+        # The closed schema requires positive bounds.  The validator treats this
+        # exact signed row as a zero-attempt sentinel and requires epoch 2 to own
+        # ordinal 1; no ledger record may claim epoch 1.
+        "first_attempt_ordinal": 1,
+        "last_attempt_ordinal": 1,
+        "all_attempts_authorized": True,
+    }
 
 
 def _execution_binding_document(binding: ExecutionBinding) -> JsonObject:
@@ -7696,6 +7864,89 @@ def _preallocation_authority_probes(
     }
 
 
+def _validate_active_ledger_positive_transition(
+    *,
+    binding: ExecutionBinding,
+    before_real: Mapping[str, Mapping[str, str]],
+    after_real: Mapping[str, Mapping[str, str]],
+    before_active: Mapping[str, str],
+    after_active: Mapping[str, str],
+    created: tuple[tuple[Path, bytes], ...],
+) -> JsonObject:
+    if set(before_real) != set(after_real) or set(before_real) != {
+        "registered_v2_2_destination",
+        "registered_v2_2_ledger",
+        "retired_v2_1_destination",
+        "consumed_v2_1_claim",
+        "real_heldout_root",
+    }:
+        raise RehearsalV22Error("registered fingerprint key set drifted")
+    expected_created: dict[str, str] = {}
+    for path, payload in created:
+        try:
+            relative = path.relative_to(binding.ledger_root).as_posix()
+        except ValueError as exc:
+            raise RehearsalV22Error(
+                "positive ledger evidence escaped the active ledger"
+            ) from exc
+        if relative in expected_created:
+            raise RehearsalV22Error("positive ledger evidence path was duplicated")
+        expected_created[relative] = f"file:{_sha256(payload)}:0600:1"
+    changed_existing = {
+        relative
+        for relative, value in before_active.items()
+        if after_active.get(relative) != value
+    }
+    created_active = {
+        relative: value
+        for relative, value in after_active.items()
+        if relative not in before_active
+    }
+    removed_active = set(before_active).difference(after_active)
+    if (
+        changed_existing
+        or removed_active
+        or created_active != expected_created
+        or before_active == after_active
+    ):
+        raise RehearsalV22Error(
+            "active ledger positive create-only transition exceeded exact evidence writes"
+        )
+    official = binding.mode == "REGISTERED_OFFICIAL"
+    if official:
+        if (
+            binding.ledger_root != OFFICIAL_LEDGER_ROOT
+            or before_real["registered_v2_2_ledger"] != before_active
+            or after_real["registered_v2_2_ledger"] != after_active
+        ):
+            raise RehearsalV22Error(
+                "official active ledger fingerprint is not the registered ledger fingerprint"
+            )
+        changed_real = {
+            name for name in before_real if before_real[name] != after_real[name]
+        }
+        if changed_real != {"registered_v2_2_ledger"}:
+            raise RehearsalV22Error(
+                "official positive ledger writes changed a non-ledger registered path"
+            )
+    elif binding.mode == "DISPOSABLE_FULL_SHAPE_TEST":
+        if binding.ledger_root == OFFICIAL_LEDGER_ROOT or before_real != after_real:
+            raise RehearsalV22Error(
+                "disposable positive ledger writes changed a real registered path"
+            )
+    else:
+        raise RehearsalV22Error("positive ledger transition mode drifted")
+    return {
+        "active_ledger_fingerprinted": True,
+        "active_ledger_is_registered_ledger": official,
+        "exact_legal_create_only_paths": sorted(
+            expected_created, key=lambda value: value.encode("utf-8")
+        ),
+        "non_active_registered_paths_unchanged": True,
+        "negative_probe_baseline_is_after_positive_writes": True,
+    }
+
+
 def _ledger_create_only_probes(
     *,
     binding: ExecutionBinding,
@@ -7703,6 +7954,7 @@ def _ledger_create_only_probes(
     prior_history: HistoryValidation,
 ) -> JsonObject:
     before_real = _real_path_fingerprints()
+    before_active = _tree_fingerprint(binding.ledger_root)
     first = lease.persist_evidence("probes/same-parent-first.txt", b"first\n")
     second = lease.persist_evidence("probes/same-parent-second.txt", b"second\n")
     if (
@@ -7711,6 +7963,18 @@ def _ledger_create_only_probes(
         or second.read_bytes() != b"second\n"
     ):
         raise RehearsalV22Error("same-parent create-only evidence positive probe failed")
+    positive_real = _real_path_fingerprints()
+    positive_active = _tree_fingerprint(binding.ledger_root)
+    fingerprint_discipline = _validate_active_ledger_positive_transition(
+        binding=binding,
+        before_real=before_real,
+        after_real=positive_real,
+        before_active=before_active,
+        after_active=positive_active,
+        created=((first, b"first\n"), (second, b"second\n")),
+    )
+    negative_real_baseline = positive_real
+    negative_active_baseline = positive_active
     target = lease.attempt_root / "started.json"
     relocated = lease.attempt_root / "started-relocated.json"
     linked = lease.attempt_root / "started-linked.json"
@@ -7801,7 +8065,8 @@ def _ledger_create_only_probes(
             )
         )
     after_real = _real_path_fingerprints()
-    if before_real != after_real:
+    after_active = _tree_fingerprint(binding.ledger_root)
+    if negative_real_baseline != after_real or negative_active_baseline != after_active:
         raise RehearsalV22Error("ledger create-only probes changed registered paths")
     return {
         "schema_version": "p4.2a-v2-2-ledger-create-only-probes-v1",
@@ -7813,10 +8078,11 @@ def _ledger_create_only_probes(
                 second.relative_to(lease.evidence_root).as_posix(),
             ],
         },
+        "active_ledger_fingerprint_discipline": fingerprint_discipline,
         "event_mutation_probes": mutation_probes,
         "prior_attempt_late_evidence_probes": prior_probes,
         "all_forbidden_mutations_rejected_before_effect": True,
-        "real_path_fingerprints_before": before_real,
+        "real_path_fingerprints_before": negative_real_baseline,
         "real_path_fingerprints_after": after_real,
         "real_path_fingerprints_unchanged": True,
     }

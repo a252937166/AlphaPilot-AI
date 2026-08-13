@@ -181,6 +181,36 @@ INDEPENDENT_REVIEW_SHA256 = (
 INDEPENDENT_REVIEW_COMMIT = "b21e1bdbf865dfd9c7605ecc7794fc3f8701ed1f"
 INITIAL_REVIEWED_COMMIT = "be6423506f598c290db7ad944b002763fdf806ab"
 INITIAL_IMPLEMENTATION_PARENT = INITIAL_REVIEWED_COMMIT
+VOID_EPOCH_ONE_IMPLEMENTATION_COMMIT = "fae44154d3504017742934ff3b3961642c35eb65"
+VOID_EPOCH_ONE_IMPLEMENTATION_PARENT = "cf10ef8d636049b0fc206c8698a809be3090e1d7"
+VOID_EPOCH_ONE_LANDING_COMMIT = "be7a2cedff1ad4bf523d88d83fa333126d502720"
+VOID_EPOCH_ONE_REVIEW_RELATIVE = Path(
+    "docs/phase4/reports/P4.2a-v2-2-remediation-independent-review-20260812.json"
+)
+VOID_EPOCH_ONE_REVIEW_SHA256 = (
+    "e348bbc6c2976d473bf2b8e5b280784fd45ff7ae1ba7d7a4119309eb178b16cf"
+)
+VOID_EPOCH_ONE_REVIEW_COMMIT = "16f3e700c2ca9da997c8c0180e8b780aeae93346"
+VOID_EPOCH_ONE_ADJUDICATION_RELATIVE = Path(
+    "docs/phase4/reports/P4.2a-attempt1-adjudication-and-epoch3-companion-20260813.json"
+)
+VOID_EPOCH_ONE_ADJUDICATION_SHA256 = (
+    "aef641f0624ffa5ec8f722356b10c9e3fe0424edd93969f3251eecffac176521"
+)
+VOID_EPOCH_ONE_ADJUDICATION_COMMIT = "7fc122f575801ff43d2446a2c59491a086735e93"
+VOID_EPOCH_ONE_RULING = (
+    "Epoch 1 is recorded as ASSIGNED_AND_STRUCTURALLY_UNCONSUMABLE: its bytes "
+    "were approved and carried forward into epoch 2 unchanged; it executed "
+    "nothing and appears in no ledger record.",
+    "The immutable history legitimately begins at epoch 2. The history is never "
+    "rewritten or renumbered.",
+    "Bundle construction and validation must accept a declared epoch origin and "
+    "must disclose the void epoch 1 with its commit and reason in the final bundle, "
+    "satisfying the preregistration's requirement that the bundle lists every epoch "
+    "and the release acknowledges each.",
+    "The numbering contract's intent, no gaps and no reuse among EXECUTED epochs, "
+    "is preserved; only the assumption that execution starts at 1 is corrected.",
+)
 _V2_2_REMEDIATION_AUTHORITY = (
     "docs/phase4/reports/"
     "P4.2a-v2-heldout-rehearsal-v2-1-failure-remediation-review-request-20260811.json",
@@ -1563,6 +1593,188 @@ def _unique_a_authority(
     return payload
 
 
+def _validate_implementation_review_authority(
+    root: Path,
+    reference: Mapping[str, Any],
+    *,
+    implementation_commit: str,
+    execution_head: str,
+    require_worktree: bool,
+) -> bytes:
+    """Validate a direct or merge-projected post-implementation review."""
+
+    path = _relative(reference.get("path"), "implementation review path")
+    creating_commit = _git_commit(
+        root,
+        reference.get("creating_commit"),
+        "implementation review creating commit",
+    )
+    expected_sha = _sha(reference.get("sha256"), "implementation review SHA")
+    reviewed_implementation = _git_commit(
+        root,
+        implementation_commit,
+        "reviewed implementation commit",
+    )
+    head = _git_commit(root, execution_head, "implementation review execution HEAD")
+
+    def parse_touches(history: str) -> list[tuple[str, str, tuple[str, ...]]]:
+        touches: list[tuple[str, str, tuple[str, ...]]] = []
+        active: str | None = None
+        for raw in history.splitlines():
+            line = raw.strip()
+            if not line:
+                continue
+            if line.startswith("@@"):
+                active = _commit(line[2:], "implementation review history commit")
+                continue
+            if active is None:
+                raise RehearsalV22ValidationError(
+                    "implementation review Git history is malformed"
+                )
+            fields = tuple(line.split("\t"))
+            if len(fields) < 2:
+                raise RehearsalV22ValidationError(
+                    "implementation review Git status is malformed"
+                )
+            touches.append((active, fields[0], fields[1:]))
+        return touches
+
+    def first_parent_touches(start: str) -> list[tuple[str, str, tuple[str, ...]]]:
+        return parse_touches(
+            _git_bytes(
+                root,
+                "log",
+                "--first-parent",
+                "--diff-merges=first-parent",
+                "--format=@@%H",
+                "--name-status",
+                "--find-renames",
+                "--find-copies",
+                start,
+                "--",
+                path,
+            ).decode("utf-8", errors="strict")
+        )
+
+    def all_touches() -> list[tuple[str, str, tuple[str, ...]]]:
+        return parse_touches(
+            _git_bytes(
+                root,
+                "log",
+                "--all",
+                "--diff-merges=first-parent",
+                "--format=@@%H",
+                "--name-status",
+                "--find-renames",
+                "--find-copies",
+                "--",
+                path,
+            ).decode("utf-8", errors="strict")
+        )
+
+    def path_diff(base: str, commit: str) -> tuple[str, ...]:
+        return tuple(
+            _git_bytes(
+                root,
+                "diff",
+                "--no-ext-diff",
+                "--no-textconv",
+                "--name-status",
+                "--no-renames",
+                base,
+                commit,
+                "--",
+                path,
+            )
+            .decode("utf-8", errors="strict")
+            .splitlines()
+        )
+
+    if first_parent_touches(head) != [(creating_commit, "A", (path,))]:
+        raise RehearsalV22ValidationError(
+            "implementation review is not one first-parent status-A projection"
+        )
+    if not _git_is_ancestor(root, reviewed_implementation, creating_commit) or not (
+        _git_is_ancestor(root, creating_commit, head)
+    ):
+        raise RehearsalV22ValidationError(
+            "implementation review projection escaped implementation or execution lineage"
+        )
+    payload = _git_blob(root, creating_commit, path)
+    if _sha256(payload) != expected_sha or _git_optional_blob(root, head, path) != payload:
+        raise RehearsalV22ValidationError(
+            "implementation review projection bytes or SHA drifted"
+        )
+
+    parents = _git_parents(root, creating_commit)
+    if len(parents) == 1:
+        source_review = creating_commit
+        if _diff_name_status(root, parents[0], source_review) != (("A", path),):
+            raise RehearsalV22ValidationError(
+                "direct implementation review creation surface drifted"
+            )
+    elif len(parents) == 2:
+        main_parent, review_parent = parents
+        if (
+            path_diff(main_parent, creating_commit) != (f"A\t{path}",)
+            or path_diff(review_parent, creating_commit) != ()
+            or _git_optional_blob(root, review_parent, path) != payload
+        ):
+            raise RehearsalV22ValidationError(
+                "implementation review merge projection topology drifted"
+            )
+        branch_touches = first_parent_touches(review_parent)
+        if len(branch_touches) != 1 or branch_touches[0][1:] != ("A", (path,)):
+            raise RehearsalV22ValidationError(
+                "implementation review source branch is not one status-A history"
+            )
+        source_review = _git_commit(
+            root,
+            branch_touches[0][0],
+            "source implementation review commit",
+        )
+        source_parents = _git_parents(root, source_review)
+        if (
+            len(source_parents) != 1
+            or _diff_name_status(root, source_parents[0], source_review)
+            != (("A", path),)
+            or _git_blob(root, source_review, path) != payload
+            or not _git_is_ancestor(root, reviewed_implementation, source_review)
+            or not _git_is_ancestor(root, source_review, review_parent)
+        ):
+            raise RehearsalV22ValidationError(
+                "implementation review source commit or preserved bytes drifted"
+            )
+    else:
+        raise RehearsalV22ValidationError(
+            "implementation review projection is neither direct nor two-parent landing"
+        )
+    if not _git_is_ancestor(root, reviewed_implementation, source_review):
+        raise RehearsalV22ValidationError(
+            "implementation review predates its reviewed implementation"
+        )
+    expected_global_touches = {(creating_commit, "A", (path,))}
+    if source_review != creating_commit:
+        expected_global_touches.add((source_review, "A", (path,)))
+    global_touches = all_touches()
+    if len(global_touches) != len(expected_global_touches) or set(global_touches) != (
+        expected_global_touches
+    ):
+        raise RehearsalV22ValidationError(
+            "implementation review has a non-projection global Git touch"
+        )
+    if require_worktree:
+        current = _regular_bytes(
+            _safe_path(root, path, "implementation review worktree file"),
+            "implementation review worktree file",
+        )
+        if current != payload:
+            raise RehearsalV22ValidationError(
+                "implementation review worktree bytes differ from projection"
+            )
+    return payload
+
+
 def _validate_initial_sibling_authority(
     root: Path,
     reference: Mapping[str, Any],
@@ -2452,6 +2664,30 @@ def _validate_epoch_shape(value: object, label: str) -> JsonObject:
     return epoch
 
 
+def _is_void_epoch_one(epoch: Mapping[str, Any]) -> bool:
+    return (
+        epoch.get("epoch") == 1
+        and epoch.get("implementation_commit") == VOID_EPOCH_ONE_IMPLEMENTATION_COMMIT
+        and epoch.get("owner_exact_surface_authorization")
+        == {
+            "path": INDEPENDENT_REVIEW_RELATIVE.as_posix(),
+            "sha256": INDEPENDENT_REVIEW_SHA256,
+            "creating_commit": INDEPENDENT_REVIEW_COMMIT,
+            "unique_a_history_verified": True,
+        }
+        and epoch.get("independent_implementation_review")
+        == {
+            "path": VOID_EPOCH_ONE_ADJUDICATION_RELATIVE.as_posix(),
+            "sha256": VOID_EPOCH_ONE_ADJUDICATION_SHA256,
+            "creating_commit": VOID_EPOCH_ONE_ADJUDICATION_COMMIT,
+            "unique_a_history_verified": True,
+        }
+        and epoch.get("first_attempt_ordinal") == 1
+        and epoch.get("last_attempt_ordinal") == 1
+        and epoch.get("all_attempts_authorized") is True
+    )
+
+
 def _epoch_map(bundle: Mapping[str, Any]) -> dict[int, JsonObject]:
     rows = _array(bundle.get("implementation_epochs"), "bundle implementation epochs")
     result: dict[int, JsonObject] = {}
@@ -2461,12 +2697,17 @@ def _epoch_map(bundle: Mapping[str, Any]) -> dict[int, JsonObject]:
         number = cast(int, epoch["epoch"])
         if number != index or number in result:
             raise RehearsalV22ValidationError("implementation epochs are not contiguous")
+        if index == 1 and _is_void_epoch_one(epoch):
+            result[number] = epoch
+            continue
         if cast(int, epoch["first_attempt_ordinal"]) != prior_last + 1:
             raise RehearsalV22ValidationError("implementation epoch attempt intervals have a gap")
         prior_last = cast(int, epoch["last_attempt_ordinal"])
         result[number] = epoch
     if not result:
         raise RehearsalV22ValidationError("bundle has no implementation epoch")
+    if _is_void_epoch_one(result[1]) and len(result) < 2:
+        raise RehearsalV22ValidationError("void epoch 1 lacks an executed epoch 2")
     return result
 
 
@@ -4296,6 +4537,120 @@ def _validate_implementation_review_document(
         )
 
 
+def _validate_void_epoch_one(
+    *,
+    project_root: Path,
+    epoch: Mapping[str, Any],
+    execution_head: str,
+) -> None:
+    if not _is_void_epoch_one(epoch):
+        raise RehearsalV22ValidationError("void epoch 1 marker drifted")
+    implementation_commit = _git_commit(
+        project_root,
+        VOID_EPOCH_ONE_IMPLEMENTATION_COMMIT,
+        "void epoch implementation commit",
+    )
+    if (
+        _git_parents(project_root, implementation_commit)
+        != (VOID_EPOCH_ONE_IMPLEMENTATION_PARENT,)
+        or _diff_name_status(
+            project_root,
+            VOID_EPOCH_ONE_IMPLEMENTATION_PARENT,
+            implementation_commit,
+        )
+        != (
+            ("M", "scripts/p4_2a_v2_2_heldout_rehearsal.py"),
+            ("M", "tests/test_p4_2a_v2_2_heldout_rehearsal_runner.py"),
+        )
+        or not _git_is_ancestor(project_root, implementation_commit, execution_head)
+    ):
+        raise RehearsalV22ValidationError("void epoch implementation topology drifted")
+    owner = _validate_authority_ref(
+        epoch["owner_exact_surface_authorization"],
+        "void epoch owner authority",
+    )
+    _validate_initial_sibling_authority(
+        project_root,
+        owner,
+        execution_head=execution_head,
+    )
+    adjudication = _validate_authority_ref(
+        epoch["independent_implementation_review"],
+        "void epoch adjudication",
+    )
+    adjudication_payload = _unique_a_authority(
+        project_root,
+        adjudication,
+        require_worktree=True,
+    )
+    if not _git_is_ancestor(
+        project_root,
+        VOID_EPOCH_ONE_ADJUDICATION_COMMIT,
+        execution_head,
+    ):
+        raise RehearsalV22ValidationError("void epoch adjudication is outside lineage")
+    adjudication_document = _object(
+        strict_json_loads(adjudication_payload, label="void epoch adjudication"),
+        "void epoch adjudication",
+    )
+    correction = _object(
+        adjudication_document.get("part_2_epoch_numbering_correction"),
+        "void epoch numbering correction",
+    )
+    _require_equal(
+        correction.get("ruling"),
+        list(VOID_EPOCH_ONE_RULING),
+        "void epoch structural-unconsumability ruling",
+    )
+    remediation_review = {
+        "path": VOID_EPOCH_ONE_REVIEW_RELATIVE.as_posix(),
+        "sha256": VOID_EPOCH_ONE_REVIEW_SHA256,
+        "creating_commit": VOID_EPOCH_ONE_REVIEW_COMMIT,
+        "unique_a_history_verified": True,
+    }
+    review_payload = _unique_a_authority(
+        project_root,
+        remediation_review,
+        require_worktree=True,
+    )
+    review_document = _object(
+        strict_json_loads(review_payload, label="void epoch implementation review"),
+        "void epoch implementation review",
+    )
+    _validate_implementation_review_document(
+        document=review_document,
+        implementation_commit=implementation_commit,
+        label="void epoch implementation review",
+    )
+    landing = _git_commit(
+        project_root,
+        VOID_EPOCH_ONE_LANDING_COMMIT,
+        "void epoch merge-only landing",
+    )
+    if (
+        _git_parents(project_root, landing)
+        != (VOID_EPOCH_ONE_REVIEW_COMMIT, implementation_commit)
+        or not _git_is_ancestor(project_root, landing, execution_head)
+    ):
+        raise RehearsalV22ValidationError("void epoch merge-only landing drifted")
+    control = implementation.build_control_surface(
+        project_root,
+        implementation_commit,
+        require_current=False,
+    )
+    if (
+        control.implementation_commit != implementation_commit
+        or control.merkle_root_sha256 != epoch["control_merkle_root_sha256"]
+        or control.loaded_repository_sources
+        or not set(control.ast_closure_paths).issubset(
+            record["repository_path"]
+            for record in control.records
+            if record["repository_path"] is not None
+        )
+    ):
+        raise RehearsalV22ValidationError("void epoch control surface replay drifted")
+
+
 def _validate_implementation_epochs(
     *,
     project_root: Path,
@@ -4310,6 +4665,13 @@ def _validate_implementation_epochs(
     _git_commit(project_root, execution_head, "execution HEAD")
     for index, raw in enumerate(epochs, 1):
         epoch = _validate_epoch_shape(raw, f"implementation epoch {index}")
+        if index == 1 and _is_void_epoch_one(epoch):
+            _validate_void_epoch_one(
+                project_root=project_root,
+                epoch=epoch,
+                execution_head=execution_head,
+            )
+            continue
         implementation_commit = _git_commit(
             project_root,
             epoch["implementation_commit"],
@@ -4346,11 +4708,6 @@ def _validate_implementation_epochs(
                 owner,
                 require_worktree=True,
             )
-        review_payload = _unique_a_authority(
-            project_root,
-            review,
-            require_worktree=True,
-        )
         parents = _git_parents(project_root, implementation_commit)
         if len(parents) != 1:
             raise RehearsalV22ValidationError("implementation epoch commit is not single-parent")
@@ -4500,6 +4857,21 @@ def _validate_implementation_epochs(
                 raise RehearsalV22ValidationError(
                     "later epoch implementation differs from owner exact surface"
                 )
+        review_payload = (
+            _unique_a_authority(
+                project_root,
+                review,
+                require_worktree=True,
+            )
+            if index == 1
+            else _validate_implementation_review_authority(
+                project_root,
+                review,
+                implementation_commit=implementation_commit,
+                execution_head=execution_head,
+                require_worktree=True,
+            )
+        )
         review_document = _object(
             strict_json_loads(review_payload, label=f"epoch {index} independent review"),
             f"epoch {index} independent review",
@@ -4563,6 +4935,15 @@ def _validate_implementation_epochs(
             execution_head=execution_head,
             require_current_bytes=(index == replay.selected_implementation_epoch),
         )
+    if _is_void_epoch_one(_object(epochs[0], "implementation epoch 1")):
+        if any(record.get("implementation_epoch") == 1 for record in replay.records):
+            raise RehearsalV22ValidationError(
+                "void epoch 1 unexpectedly owns a ledger attempt"
+            )
+        if not replay.records or replay.records[0].get("implementation_epoch") != 2:
+            raise RehearsalV22ValidationError(
+                "executed implementation history does not begin at epoch 2"
+            )
     selected = _object(
         epochs[replay.selected_implementation_epoch - 1], "selected implementation epoch"
     )
