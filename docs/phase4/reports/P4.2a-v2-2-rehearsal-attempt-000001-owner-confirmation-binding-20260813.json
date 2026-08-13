@@ -1,0 +1,66 @@
+{
+  "schema_version": "p4.2a-v2-2-rehearsal-attempt-owner-confirmation-binding-v1",
+  "binding_id": "P4.2A-V2-2-REHEARSAL-ATTEMPT-000001-OWNER-CONFIRMATION-BINDING-20260813",
+  "created_at_utc": "2026-08-13T02:29:46Z",
+  "created_at_shanghai": "2026-08-13T10:29:46+08:00",
+  "status": "BOUND_OWNER_CONFIRMATION_TO_COMMITTED_ACTION_AUTHORIZATION",
+  "owner_confirmation": {
+    "identity": "ouyang",
+    "binding_method": "transcript-bound",
+    "source": "the owner user message in the current Codex task immediately preceding action-time receipt creation",
+    "platform_message_timestamp_available_to_filesystem": false,
+    "confirmation_observed_at_utc": "2026-08-13T02:27:41Z",
+    "confirmation_observed_at_shanghai": "2026-08-13T10:27:41+08:00",
+    "exact_text": "本人 ouyang 已审阅 attempt-1 评审请求（路径 docs/phase4/reports/P4.2a-v2-2-rehearsal-attempt-000001-review-request-20260813.json，SHA-256 e4efa6b0d9b28f3b31a220aa3ea877751e3557d2af44110b79cd26316c7f79a7，commit eb1eb4f6307179ce75a447c333ea6993d185ddd7）及其中 SHA-256 0ca07ed74af42ec4006cb1e77739c3cf49c3f2735bac485329530e698fa3edbf 的真实注册根只读 preflight。确认 SHA-256 3336603fa60bca80d89078724b2012da7a0d192401084453675d2e98fbb7aeda 是固定的 24 字段 action authorization 提案字节，授权自本确认起生效；仅授权 series 35ba1b83a9b187817d7a591758e1c131e867fcd37917cba0ab196799fff832ef 的 ordinal 1 一次 pipeline start，automatic retry 为 0；真实 heldout materialization、inference、evaluation、P4.2b、P4.3 和 trading 继续锁定。",
+    "effective_from": "the owner confirmation above; the proposal-fixed timestamps in the machine receipt do not claim an earlier effective authorization"
+  },
+  "review_request": {
+    "path": "docs/phase4/reports/P4.2a-v2-2-rehearsal-attempt-000001-review-request-20260813.json",
+    "sha256": "e4efa6b0d9b28f3b31a220aa3ea877751e3557d2af44110b79cd26316c7f79a7",
+    "creating_commit": "eb1eb4f6307179ce75a447c333ea6993d185ddd7",
+    "unique_a_history_verified": true
+  },
+  "registered_read_only_preflight": {
+    "canonical_stdout_sha256": "0ca07ed74af42ec4006cb1e77739c3cf49c3f2735bac485329530e698fa3edbf",
+    "status": "PASS_READ_ONLY_IMPLEMENTATION_PREFLIGHT",
+    "mode": "REGISTERED_OFFICIAL",
+    "execution_head": "0364079d8d7660e26eb67665bd3afa82c17c334c",
+    "implementation_commit": "1b4e05c6acd513bb1bc11245911da97b6a128ca1",
+    "control_merkle_root_sha256": "6e08da2c7fec2c17e599fd828fea4e0b2f4ec5c73666026e69f144f8d4a80c53",
+    "control_record_count": 75
+  },
+  "action_authorization": {
+    "path": "docs/phase4/reports/P4.2a-v2-2-rehearsal-attempt-000001-execution-authorization-20260813.json",
+    "sha256": "3336603fa60bca80d89078724b2012da7a0d192401084453675d2e98fbb7aeda",
+    "creating_commit": "38a1be8fe44cd209090eb8e9f7d5a220a07ff6a2",
+    "unique_a_history_verified": true,
+    "canonical_json_bytes": 2862,
+    "schema_field_count": 24,
+    "proposal_fixed_at_utc": "2026-08-13T02:12:00Z",
+    "proposal_fixed_at_shanghai": "2026-08-13T10:12:00+08:00",
+    "authorization_effective_only_after_owner_confirmation": true
+  },
+  "authorized_scope": {
+    "series_token_sha256": "35ba1b83a9b187817d7a591758e1c131e867fcd37917cba0ab196799fff832ef",
+    "ordinal": 1,
+    "authorized_pipeline_starts": 1,
+    "automatic_retry_count": 0,
+    "scope": "one_disclosed_v2_2_rehearsal_ordinal_only"
+  },
+  "explicit_exclusions": {
+    "real_heldout_materialization": false,
+    "real_heldout_inference": false,
+    "heldout_evaluation": false,
+    "p4_2b": false,
+    "p4_3": false,
+    "trading": false
+  },
+  "machine_boundary": {
+    "evidence_only": true,
+    "consumed_by_rehearsal_runner": false,
+    "passed_as_attempt_authorization": false,
+    "machine_attempt_authorization_remains_exactly_24_fields": true,
+    "this_document_adds_no_field_to_the_machine_authorization": true,
+    "required_git_topology": "this binding document is committed as a single-file status-A direct child of action authorization commit 38a1be8fe44cd209090eb8e9f7d5a220a07ff6a2; topology is verified externally because this document cannot self-reference its own creating commit"
+  }
+}
