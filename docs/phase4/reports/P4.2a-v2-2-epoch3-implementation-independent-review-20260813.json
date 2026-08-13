@@ -1,0 +1,74 @@
+{
+  "schema_version": "p4.2a-independent-review-v1",
+  "review_id": "p4.2a-v2-2-epoch3-implementation-review-20260813-r1",
+  "created_at_utc": "2026-08-13T05:38:54Z",
+  "created_at_shanghai": "2026-08-13T13:38:54+08:00",
+  "verdict": "APPROVE_EPOCH3_IMPLEMENTATION",
+  "blockers": [],
+  "reviewed_commit": "4d5d16643bb3618191e4510b7ee3889ae7678cea",
+  "reviewer": {
+    "identity": "independent_ai_architect_claude_code",
+    "reviewer_type": "ai",
+    "model": "Anthropic Claude Fable 5 (model id claude-fable-5)",
+    "impersonation_disclaimer": "Not a human reviewer. Issued under the owner governance amendment with requires_release_gate_amendment=true.",
+    "method": "full four-file diff read; every void-epoch pinned fact re-derived independently against the real repository; reviewer-run tests in a detached worktree at the reviewed commit; static gates re-run",
+    "lineage_note": "this review is committed as a single-parent child of 4d5d16643bb3618191e4510b7ee3889ae7678cea adding exactly this one file, so the runtime lineage requirement holds and the landing merge will satisfy the validator's first-parent single-A projection rule that this very commit introduces and tests"
+  },
+  "part_1_commit_shape": {
+    "parent": "d6c9c353217e00730457bf6b944ff26a32b8cf85",
+    "parent_is_the_owner_surface_authority": true,
+    "single_parent": true,
+    "surface": "exactly the four authorized M paths, matching the six-field epoch-3 authority row for row in byte order",
+    "descends_from_preregistration_be64235": true,
+    "file_digests_at_reviewed_commit": {
+      "scripts/p4_2a_v2_2_heldout_rehearsal.py": "75f798b442e3adbddda7db0a01745c2dfb16777b6f1a8c5170b57fe68d3766c8",
+      "scripts/validate_p4_2a_v2_2_heldout_rehearsal_bundle.py": "8c2e34370174122d02232e76314ec7cc092523c8424773891b4cdb8335b53b0d",
+      "tests/test_p4_2a_v2_2_heldout_rehearsal_runner.py": "8aa5719a967a82ed72202b76d61507fc39dc71c1fdd5fa8febf9451b0d7845ef",
+      "tests/test_p4_2a_v2_2_heldout_rehearsal_validator.py": "26b4e2bc028c5853f588a1e2cae381c63709a7e0ead5b636c427ef2b3b910825"
+    },
+    "no_merge_rebase_or_squash": true
+  },
+  "part_2_changes_reviewed": {
+    "a_self_fingerprint_fix": {
+      "old_defect": "the create-only probes snapshotted all five registered path fingerprints before performing their own two legitimate evidence writes into the active ledger, so the equality assertion could never pass when the active ledger was the registered official ledger",
+      "new_discipline": "_validate_active_ledger_positive_transition requires the exact five-key fingerprint set; requires the active ledger's change to be exactly the two probe files with pinned content hash, mode 0600 and link count 1, created strictly inside the ledger root, with nothing else created, modified or removed; in REGISTERED_OFFICIAL mode it additionally requires the active ledger to BE the registered official ledger and requires the only changed registered path to be the ledger itself; in DISPOSABLE_FULL_SHAPE_TEST mode it requires no real registered path to move at all; negative mutation probes then run against the post-positive-write baseline for both the real set and the active ledger, so all forbidden-mutation coverage is preserved and the active ledger is now fingerprint-guarded in disposable runs too, which the old code did not do",
+      "exclusion_is_minimal": "the only writes ever exempted from the immutability assertion are the two probe files themselves, byte-pinned; a third file, an escaped path, a modified existing member, a removed member, or any movement of the destination, retired claim, consumed claim or heldout root still fails closed",
+      "call_site_audit": "all sixteen _real_path_fingerprints call sites in the implementation were audited: the only official-mode assertion spanning legitimate ledger writes was the fixed probe span; the remaining spans are disposable-only, write-free forgery probes, or post-seal read-only replay scopes, and the official execution capability deliberately carries no fingerprint snapshot"
+    },
+    "b_void_epoch_one_disclosure": {
+      "producer": "_implementation_epochs now accepts used-epoch numbering [1..n] or [2..n+1] and, for the [2..] origin, prepends the row built by _void_epoch_one, which validates against the real repository: fae44154 is the single child of cf10ef8 with exactly the two-path M surface, the remediation review 16f3e70 is a unique-A APPROVE_REMEDIATION_AND_IMPLEMENTATION of that commit, the landing be7a2ce is the merge of exactly those two parents inside execution lineage, and the attempt-1 adjudication 7fc122f is a unique-A authority whose part-2 ruling equals the pinned four-sentence text byte for byte",
+      "consumer": "_epoch_map forces table contiguity from 1, so a [2..] history that omits the void row fails; the sentinel is recognized only by exact match on every field including both pinned authority references; the sentinel is excluded from attempt-interval accounting so epoch 2 must own ordinal 1; _validate_void_epoch_one re-derives all git facts, both authority payloads, the ruling text and the fae44154 control-surface replay; the release cross-validation rejects selecting the void epoch's commit; and the ledger-side check requires that no attempt record claims epoch 1 and that the first record claims epoch 2",
+      "ruling_on_the_sentinel_expression": "ACCEPTED. The frozen bundle and release row schemas require positive ordinal bounds and cannot express zero attempts, so the row carries first/last ordinal 1 as schema-required filler while the exact-match discriminator plus interval exclusion plus the ledger-side epoch-2-owns-ordinal-1 rule make the filler non-consumable. The structural-unconsumability reason is carried by the byte-pinned 7fc122f adjudication reference in the row's review field, which satisfies the companion's requirement to disclose commit and reason. A release reviewer reading the bundle naively could misread the filler ordinals, so the release review MUST cite this paragraph; with that noted, honest disclosure holds and both frozen JSON schemas validate the row, proven by test against the actual Draft 2020-12 definitions",
+      "tamper_behaviour_verified": "a sentinel with a drifted adjudication digest falls out of the discriminator, is treated as a claimed real epoch 1, and fails closed on interval accounting or initial-epoch topology"
+    },
+    "c_merge_projection_review_validation": {
+      "what": "later-epoch independent reviews are now validated by _validate_implementation_review_authority, which accepts either a direct single-parent unique-A creation or a review created on the implementation branch and landed by merge, with the merge's first-parent projection as the citable creating commit",
+      "scope_ruling": "in scope. The epoch-2 row cannot validate without it: the landed epoch-2 review d15bea5 reaches main through merge 0364079d, and the new validator test proves the old unique-A rule rejects exactly that real topology, so this generalization IS the 'accept the epoch-2 origin' requirement, not an extra",
+      "strictness_preserved": "first-parent history must show exactly one status-A touch of the path; bytes are pinned at the source review, the review-branch head, the projection commit and the current worktree; implementation-before-review and review-before-head ancestry are both required; a global --all sweep permits no touch of the path anywhere beyond the source review and its projection; epoch-1 rows keep the original strict unique-A rule"
+    },
+    "d_out_of_scope_untouched": "gates, thresholds, samples, seeds, models, prompts, contracts, gold, the shim file, the 24-field attempt schema and the ledger are all untouched; the diff contains no gate constant, no schema widening and no history rewrite"
+  },
+  "part_3_reviewer_run_evidence": {
+    "pinned_facts_re_derived": "all six void-epoch git facts re-verified directly against the real repository (fae44154 parent and surface, be7a2ce merge parents, 16f3e70 unique-A digest e348bbc6 and verdict, 7fc122f unique-A digest aef641f0); ruling text confirmed byte-equal across implementation constant, validator constant and the committed adjudication; owner-reference constants confirmed to denote the same path, digest 6707e2b3 and commit b21e1bd in both files",
+    "tests_run_by_reviewer": {
+      "focused_nodes": "9 passed in 35.80s, including the real-lineage round trip of _void_epoch_one plus _validate_void_epoch_one against the real repository, the landed epoch-2 review projection validation, the official-branch fingerprint transition unit positives and negatives, the epoch-table disclosure and contiguity unit test, the frozen-schema compatibility test and the release non-selectability test",
+      "exact_os_create_only_audit": "test_create_only_audit_rejects_every_existing_member_mutation_and_external_mkdir run to completion at the reviewed commit, exercising the repaired probe path end to end on a real filesystem in disposable mode, PASSED",
+      "real_control_surface": "build_control_surface(real repo, fae44154, require_current=False) executed read-only by the reviewer and returned merkle 7583253608ed0397..., closing the one piece the real-lineage test stubs for cost",
+      "static": "ruff clean on all four changed files; strict mypy clean on both changed scripts"
+    },
+    "operator_evidence_accepted": "post-commit key regressions 9 of 9, ruff, strict mypy and diff-check green; official ledger mtimes unchanged; no ordinal-2 artifact exists; the interrupted stale full-module run was correctly excluded from evidence"
+  },
+  "part_4_merge_condition": {
+    "full_registered_gate": "the complete registered test-module gate must run to completion on 4d5d16643bb3618191e4510b7ee3889ae7678cea before the branch merges, with its output attached to the merge report. Run it overnight after today's gated P4.1 slots, nice-adjusted, so it cannot contend with the observation window. Any failure returns the branch to review; this condition is why the verdict approves the implementation while still gating the merge",
+    "landing_rule": "merge only, preserving 4d5d1664 and this review commit; the runtime and validator read authorities by commit digest and the new projection rule requires this exact topology"
+  },
+  "part_5_what_this_unlocks_and_what_stays_gated": {
+    "unlocks": ["after the full gate passes and the branch lands: the real-repository --preflight-only demonstration, then the ordinal-2 review request"],
+    "still_gated": [
+      "attempt 2 requires the fresh Q/R/B chain and the owner's separate action-time confirmation; it is a NEW disclosed attempt, never a retry, and must bind previous_history_root_sha256 076ae961fc149ae271bf5a3724c1677abccfea7139589909ea717a7f4a38083a exactly as the ledger history dictates",
+      "bundle review, release, real materialization, inference and the heldout evaluation remain behind their own gates"
+    ],
+    "residual_risk_disclosed": "the official-mode branch of the fingerprint transition can never touch a real filesystem before attempt 2 by design, since only an authorized attempt may write the official ledger; compensation is the disposable-mode real-filesystem run through the identical shared predicate path plus the injected official-branch positives and negatives, and the reviewer judges this the maximum evidence obtainable without consuming an ordinal"
+  },
+  "part_6_boundaries": {"ledger": "one FAILED attempt, ordinal 1, immutable", "destination_and_heldout_root": "do not exist", "v2_1_claim": "empty 0700 directory, unchanged", "heldout_evaluation_one_shot": "unconsumed", "trading": "zero non-SIMULATE", "phase_locks": {"p4_2a_done": false, "p4_2b_unlocked": false, "p4_3_unlocked": false}}
+}
