@@ -1,0 +1,99 @@
+{
+  "schema_version": "p4.1-news-poll-v2.1-misfire-remediation-preregistration-v1",
+  "preregistration_id": "p4.1-v2.1-news-poll-misfire-remediation-20260813-r1",
+  "created_at_utc": "2026-08-13T01:57:02Z",
+  "created_at_shanghai": "2026-08-13T09:57:02+08:00",
+  "status": "REGISTERED_PENDING_IMPLEMENTATION_AND_INDEPENDENT_REVIEW",
+  "decision_basis": {
+    "verdict_path": "docs/phase4/reports/P4.1-v2.1-acceptance-verdict-20260813.json",
+    "verdict_sha256": "87f910ed5f225e5d9e39648f2ac29351d2e8501935750f5f196741be9e47b543",
+    "verdict_commit": "d37395dd717c8aed0b55f961912489284e9a95d5",
+    "verdict": "UPHOLD_FAIL",
+    "owner_direction_binding": "current repository-governance transcript: preregister the d37395d coalesce plus 600-second news_poll misfire remediation, include tests, and return it for review",
+    "this_record_does_not_impersonate_the_owner_or_independent_reviewer": true
+  },
+  "observed_defect": {
+    "id": "P4.1-V2.1-NEWS-POLL-MISFIRE-001",
+    "failed_window": ["2026-08-10", "2026-08-11", "2026-08-12"],
+    "observed_slots": 186,
+    "expected_slots": 189,
+    "missing_slots_shanghai": [
+      "2026-08-11T12:00:00+08:00",
+      "2026-08-11T18:00:00+08:00",
+      "2026-08-12T12:00:00+08:00"
+    ],
+    "root_cause_class": "scheduler event-loop stalls crossed news_poll due times while the effective APScheduler misfire grace remained at its one-second default",
+    "data_plane_disposition": "all 186 fired runs were terminal ok; incremental-floor successors recovered the delayed range; no data loss or trade-side effect was observed"
+  },
+  "frozen_baseline": {
+    "repository_head": "d37395dd717c8aed0b55f961912489284e9a95d5",
+    "config_path": "config/p4_news_poll_v2_1.yaml",
+    "config_sha256": "9d56e137baf10bd0858723a93aff02c57bf7b35f8705f1817b16a89ec615183f",
+    "apscheduler_version": "3.11.3",
+    "existing_scheduler_coalesce_default": true,
+    "existing_scheduler_max_instances": 1,
+    "existing_effective_unspecified_misfire_grace_seconds": 1,
+    "baseline_file_sha256": {
+      "src/alphapilot/jobs/registry.py": "9f456158358a8e21ffaedb7fe069a203d424ea8fee81cc9ff87553ac9c8dd701",
+      "src/alphapilot/jobs/scheduler.py": "bb3fbe9962fe056d0bf43bce04a270371eb29b6dfede0cf072d37f888d1760aa",
+      "src/alphapilot/jobs/news_poll.py": "af29cade1574842c4a7739ecf8a1c2183fdcbd4ff5e63f39478c0e952e5f4f4c",
+      "tests/test_phase2_jobs.py": "fac2a4653153fd6f8e04ec6043c173db13bba3b8c5f2c612c018465e771ff7f8",
+      "tests/test_p4_news_poll.py": "d12d34752361943d14303bf875200e1b593ed71d1fae09e667b12c815fa84d22"
+    }
+  },
+  "prospective_implementation_contract": {
+    "exact_surface": [
+      {"path": "src/alphapilot/jobs/news_poll.py", "status": "M"},
+      {"path": "src/alphapilot/jobs/registry.py", "status": "M"},
+      {"path": "src/alphapilot/jobs/scheduler.py", "status": "M"},
+      {"path": "tests/test_p4_news_poll.py", "status": "M"},
+      {"path": "tests/test_phase2_jobs.py", "status": "M"}
+    ],
+    "exact_surface_count": 5,
+    "surface_order": "bytewise path order",
+    "implementation_commit_must_be_the_single_parent_child_of_this_preregistration_creation_commit": true,
+    "implementation_commit_must_contain_exactly_the_five_status_M_rows_above": true,
+    "no_A_D_R_C_or_extra_M_path_is_allowed": true,
+    "required_behavior": [
+      "JobSpec gains one optional positive job-local misfire_grace_time value; omission preserves APScheduler's existing default",
+      "the scheduler continues to install coalesce=true and max_instances=1 for every scheduled job and passes a misfire grace only when the JobSpec explicitly declares one",
+      "register_news_poll_job declares misfire_grace_time=600 whether its trigger is enabled or disabled; when enabled the installed APScheduler news_poll job has coalesce=true, max_instances=1 and misfire_grace_time=600",
+      "multiple overdue news_poll fire times are coalesced to the latest one and at most one late invocation is eligible; elapsed lateness greater than 600 seconds is still missed",
+      "the remediation introduces no job-internal retry, manual replacement run, duplicate slot replay, reservation or acceptance-gate weakening",
+      "jobs without an explicit grace retain the existing scheduler default; poll_market_snapshot is not modified and does not receive the news_poll grace"
+    ]
+  },
+  "test_contract": {
+    "required_assertions": [
+      "the registered news_poll JobSpec declares exactly 600 seconds and retains the frozen v2.1 trigger route",
+      "the installed APScheduler news_poll job has coalesce=true, max_instances=1 and misfire_grace_time=600",
+      "an ordinary scheduled JobSpec with no grace keeps the APScheduler one-second default",
+      "invalid non-positive or boolean JobSpec grace values fail closed before scheduler start",
+      "the frozen 61/64/64 slot contract, Monday suppression and 09:50 recovery remain unchanged",
+      "the v2.1 config SHA-256 remains 9d56e137baf10bd0858723a93aff02c57bf7b35f8705f1817b16a89ec615183f"
+    ],
+    "required_commands": [
+      "PYTHONPATH=. .venv/bin/pytest -q tests/test_p4_news_poll.py tests/test_p4_news_poll_v2_1.py tests/test_phase2_jobs.py tests/test_scheduler_daemon.py",
+      ".venv/bin/ruff check src/alphapilot/jobs/registry.py src/alphapilot/jobs/scheduler.py src/alphapilot/jobs/news_poll.py tests/test_phase2_jobs.py tests/test_p4_news_poll.py",
+      "PYTHONPATH=. .venv/bin/mypy --strict src/alphapilot/jobs/registry.py src/alphapilot/jobs/scheduler.py src/alphapilot/jobs/news_poll.py",
+      "git diff --check"
+    ],
+    "report_exact_commands_counts_wall_clock_and_changed_file_sha256": true
+  },
+  "explicit_non_goals": [
+    "do not modify config/p4_news_poll_v2_1.yaml or any prior preregistration, evidence, receipt or verdict",
+    "do not modify news-poll trigger times, request budgets, pagination, deduplication, PIT timestamps, checkpoints, sources, database writes or trading behavior",
+    "do not modify scheduler plist, launchd state, environment variables or poll_market_snapshot",
+    "do not rerun backlog migration, incremental validation, deployment or activation",
+    "do not start or backfill the new observation window before independent implementation review and a controlled scheduler process refresh",
+    "do not mark P4.1 complete or unlock P4.2b or P4.3"
+  ],
+  "post_implementation_gates": {
+    "independent_implementation_review_required": true,
+    "merge_must_preserve_the_preregistration_and_implementation_commits": true,
+    "controlled_scheduler_process_refresh_required_after_review": true,
+    "new_window_if_landed_in_time": ["2026-08-13", "2026-08-14", "2026-08-17"],
+    "new_window_uses_the_same_frozen_config_and_acceptance_gates": true,
+    "old_window_remains_FAIL": true
+  }
+}
