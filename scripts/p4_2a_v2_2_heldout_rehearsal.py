@@ -7891,7 +7891,9 @@ def _action_reference(
     execution_head: str,
 ) -> AuthorityReference:
     try:
-        relative = binding.action_authorization_path.relative_to(binding.project_root).as_posix()
+        relative = binding.action_authorization_path.relative_to(
+            binding.project_root
+        ).as_posix()
     except ValueError as exc:
         raise RehearsalV22Error("action authorization path escapes project root") from exc
     normalized = _relative_text(relative, "action authorization path")
@@ -7906,6 +7908,170 @@ def _action_reference(
         execution_head=execution_head,
     )
     return AuthorityReference(normalized, _sha256(payload), creating_commit)
+
+
+def _authority_reference_for_path(
+    project_root: Path,
+    authority_path: Path,
+    *,
+    execution_head: str,
+    label: str,
+) -> AuthorityReference:
+    root = project_root.absolute()
+    try:
+        relative = authority_path.absolute().relative_to(root).as_posix()
+    except ValueError as exc:
+        raise RehearsalV22Error(f"{label} path escapes project root") from exc
+    normalized = _relative_text(relative, f"{label} path")
+    payload = _regular_bytes(
+        root / normalized,
+        label,
+        allow_zero=False,
+    )
+    creating_commit = _unique_a_commit_for_path(
+        root,
+        normalized,
+        execution_head=execution_head,
+    )
+    return AuthorityReference(normalized, _sha256(payload), creating_commit)
+
+
+def _read_only_implementation_preflight(
+    project_root: Path,
+    *,
+    implementation_epoch: int,
+    implementation_commit: str,
+    owner_surface_authorization_path: Path,
+    independent_review_path: Path,
+) -> JsonObject:
+    """Validate the real implementation lineage and bytes without an attempt receipt."""
+
+    root = project_root.absolute()
+    policy = _AUDIT_POLICY.get()
+    if (
+        policy is None
+        or not _audit_policy_is_issued(policy)
+        or policy.project_root != root
+        or policy.write_roots
+        or policy.exact_write_paths
+        or policy.create_only_roots
+        or policy.sqlite_roots
+        or policy.git_roots != (root,)
+        or policy.subprocess_mode != "git-read"
+    ):
+        raise RehearsalV22Error("read-only implementation preflight lacks a zero-write policy")
+    git_directory = root / ".git"
+    for forbidden in (
+        git_directory / "shallow",
+        git_directory / "objects/info/alternates",
+    ):
+        if os.path.lexists(forbidden):
+            raise RehearsalV22Error(
+                "read-only implementation preflight rejects shallow or alternate Git objects"
+            )
+    git_config = _regular_bytes(
+        git_directory / "config",
+        "read-only implementation preflight Git config",
+        allow_zero=False,
+    ).lower()
+    if (
+        b"promisor" in git_config
+        or b"partialclone" in git_config
+        or b"[include" in git_config
+    ):
+        raise RehearsalV22Error(
+            "read-only implementation preflight rejects partial or included Git config"
+        )
+    execution_head = _current_execution_head(root)
+    owner_surface = _authority_reference_for_path(
+        root,
+        owner_surface_authorization_path,
+        execution_head=execution_head,
+        label="owner exact-surface authorization",
+    )
+    independent_review = _authority_reference_for_path(
+        root,
+        independent_review_path,
+        execution_head=execution_head,
+        label="independent implementation review",
+    )
+    control = build_control_surface(
+        root,
+        implementation_commit,
+        require_current=True,
+    )
+    epoch = validate_implementation_epoch(
+        root,
+        epoch=implementation_epoch,
+        implementation_commit=implementation_commit,
+        owner_surface_authorization=owner_surface,
+        independent_review=independent_review,
+        control_merkle_root_sha256=control.merkle_root_sha256,
+        execution_head=execution_head,
+        require_current_bytes=True,
+    )
+    registered_surface = [
+        {
+            "path": relative.as_posix(),
+            "sha256": _sha256(
+                validate_implementation_blob(
+                    root,
+                    epoch.implementation_commit,
+                    relative.as_posix(),
+                    require_current=True,
+                )
+            ),
+        }
+        for relative in IMPLEMENTATION_SURFACE
+    ]
+    if (
+        _current_execution_head(root) != execution_head
+        or _authority_reference_for_path(
+            root,
+            owner_surface_authorization_path,
+            execution_head=execution_head,
+            label="owner exact-surface authorization",
+        )
+        != owner_surface
+        or _authority_reference_for_path(
+            root,
+            independent_review_path,
+            execution_head=execution_head,
+            label="independent implementation review",
+        )
+        != independent_review
+    ):
+        raise RehearsalV22Error("read-only implementation preflight snapshot changed")
+    return {
+        "schema_version": "p4.2a-v2-2-read-only-implementation-preflight-v1",
+        "status": "PASS_READ_ONLY_IMPLEMENTATION_PREFLIGHT",
+        "mode": (
+            "REGISTERED_OFFICIAL"
+            if root == REGISTERED_PROJECT_ROOT
+            else "NONREGISTERED_READ_ONLY_TEST"
+        ),
+        "execution_head": execution_head,
+        "implementation_epoch": epoch.epoch,
+        "implementation_commit": epoch.implementation_commit,
+        "owner_exact_surface_authorization": owner_surface.as_json(),
+        "independent_implementation_review": independent_review.as_json(),
+        "control_merkle_root_sha256": control.merkle_root_sha256,
+        "control_record_count": len(control.records),
+        "registered_surface": registered_surface,
+        "effect_summary": {
+            "action_receipt_required": False,
+            "action_receipts_read": 0,
+            "project_and_gate_state_writes_permitted": False,
+            "temporary_authorities_created": 0,
+            "ledgers_created": 0,
+            "attempts_allocated": 0,
+            "pipeline_starts": 0,
+            "automatic_retries": 0,
+            "heldout_evaluation_attempts_consumed": 0,
+            "shallow_alternate_partial_and_included_git_config_rejected": True,
+            "stdout_persistence_controlled_by_caller": True,
+        },
+    }
 
 
 def _preflight_action(
@@ -8023,13 +8189,18 @@ def _create_temporary_authority(
 
 
 def _preflight_policy(binding: ExecutionBinding) -> _AuditPolicy:
+    return _read_only_preflight_policy(binding.project_root)
+
+
+def _read_only_preflight_policy(project_root: Path) -> _AuditPolicy:
+    root = project_root.absolute()
     return _AuditPolicy(
-        project_root=binding.project_root,
+        project_root=root,
         write_roots=(),
         exact_write_paths=(),
         create_only_roots=(),
         sqlite_roots=(),
-        git_roots=(binding.project_root,),
+        git_roots=(root,),
         subprocess_mode="git-read",
     )
 
@@ -8265,9 +8436,15 @@ def _positive_ordinal(value: str) -> int:
 
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--execute", action="store_true", required=True)
-    parser.add_argument("--attempt-authorization", type=Path, required=True)
-    parser.add_argument("--expected-ordinal", type=_positive_ordinal, required=True)
+    operation = parser.add_mutually_exclusive_group(required=True)
+    operation.add_argument("--execute", action="store_true")
+    operation.add_argument("--preflight-only", action="store_true")
+    parser.add_argument("--attempt-authorization", type=Path)
+    parser.add_argument("--expected-ordinal", type=_positive_ordinal)
+    parser.add_argument("--implementation-epoch", type=_positive_ordinal)
+    parser.add_argument("--implementation-commit")
+    parser.add_argument("--owner-surface-authorization", type=Path)
+    parser.add_argument("--independent-implementation-review", type=Path)
     return parser
 
 
@@ -8281,9 +8458,67 @@ def _normalize_cli_interrupt_handler() -> None:
 
 def _run_cli() -> JsonObject:
     arguments = _parser().parse_args()
-    if arguments.execute is not True:
-        raise RehearsalV22Error("v2.2 execution flag is absent")
     project_root = _main_project_root()
+    preflight_values = (
+        arguments.implementation_epoch,
+        arguments.implementation_commit,
+        arguments.owner_surface_authorization,
+        arguments.independent_implementation_review,
+    )
+    if arguments.preflight_only is True:
+        if (
+            arguments.execute is True
+            or arguments.attempt_authorization is not None
+            or arguments.expected_ordinal is not None
+            or any(value is None for value in preflight_values)
+        ):
+            raise RehearsalV22Error("v2.2 read-only preflight arguments are not exact")
+        owner_surface_path = cast(Path, arguments.owner_surface_authorization).absolute()
+        independent_review_path = cast(
+            Path,
+            arguments.independent_implementation_review,
+        ).absolute()
+        expected_argv = (
+            (project_root / SHIM_RELATIVE).as_posix(),
+            "--preflight-only",
+            "--implementation-epoch",
+            str(cast(int, arguments.implementation_epoch)),
+            "--implementation-commit",
+            cast(str, arguments.implementation_commit),
+            "--owner-surface-authorization",
+            owner_surface_path.as_posix(),
+            "--independent-implementation-review",
+            independent_review_path.as_posix(),
+        )
+        if tuple(sys.argv) != expected_argv:
+            raise RehearsalV22Error("v2.2 read-only preflight argv is not exact")
+        with (
+            _bootstrap_evidence_scope(
+                project_root=project_root,
+                shim_path=project_root / SHIM_RELATIVE,
+                argv=tuple(sys.argv),
+                orig_argv=tuple(sys.orig_argv),
+                environment=dict(os.environ),
+            ) as bootstrap,
+            _audited_execution(
+                _read_only_preflight_policy(project_root),
+                bootstrap=bootstrap,
+            ),
+        ):
+            return _read_only_implementation_preflight(
+                project_root,
+                implementation_epoch=cast(int, arguments.implementation_epoch),
+                implementation_commit=cast(str, arguments.implementation_commit),
+                owner_surface_authorization_path=owner_surface_path,
+                independent_review_path=independent_review_path,
+            )
+    if (
+        arguments.execute is not True
+        or arguments.attempt_authorization is None
+        or arguments.expected_ordinal is None
+        or any(value is not None for value in preflight_values)
+    ):
+        raise RehearsalV22Error("v2.2 execution arguments are not exact")
     action_path = cast(Path, arguments.attempt_authorization).absolute()
     binding = _derive_binding_unchecked(
         project_root,
