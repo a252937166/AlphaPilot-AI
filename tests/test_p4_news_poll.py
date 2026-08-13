@@ -2067,12 +2067,14 @@ def test_news_poll_scheduler_requires_explicit_env_enable(
     monkeypatch.setenv(news_poll.NEWS_POLL_ENABLED_ENV, "false")
     news_poll.register_news_poll_job()
     assert JOBS["news_poll"].trigger is None
+    assert JOBS["news_poll"].misfire_grace_time == 600
 
     monkeypatch.setenv(news_poll.NEWS_POLL_ENABLED_ENV, "true")
     news_poll.register_news_poll_job()
     registered = JOBS["news_poll"]
     assert registered.trigger is not None
     assert registered.func is news_poll.run_news_poll
+    assert registered.misfire_grace_time == 600
     assert news_poll.run_news_poll.__kwdefaults__ is not None
     assert (
         news_poll.run_news_poll.__kwdefaults__["config_path"]

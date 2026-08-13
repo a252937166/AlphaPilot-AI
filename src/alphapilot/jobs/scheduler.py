@@ -41,6 +41,9 @@ def start_scheduler(settings: Settings | None = None) -> BackgroundScheduler | N
         for name, spec in JOBS.items():
             if spec.trigger is None or not _job_enabled(resolved, spec.enabled_key):
                 continue
+            job_options: dict[str, int] = {}
+            if spec.misfire_grace_time is not None:
+                job_options["misfire_grace_time"] = spec.misfire_grace_time
             scheduler.add_job(
                 run_job,
                 trigger=spec.trigger,
@@ -49,6 +52,7 @@ def start_scheduler(settings: Settings | None = None) -> BackgroundScheduler | N
                 replace_existing=True,
                 max_instances=1,
                 coalesce=True,
+                **job_options,
             )
         scheduler.start()
         _scheduler = scheduler
