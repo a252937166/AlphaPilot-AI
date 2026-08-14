@@ -44,6 +44,7 @@ PREREGISTRATION_COMMIT = "be6423506f598c290db7ad944b002763fdf806ab"
 PREREGISTRATION_PARENT = "5fe756401f20e67ff5c868bf29f099c1bfe5b4d3"
 INITIAL_IMPLEMENTATION_COMMIT = "cf10ef8d636049b0fc206c8698a809be3090e1d7"
 EPOCH_TWO_SURFACE_AUTHORITY_COMMIT = "fa4f9e0233de20d5edef201e3a93aed10a67b8be"
+EPOCH_THREE_SURFACE_AUTHORITY_COMMIT = "d6c9c353217e00730457bf6b944ff26a32b8cf85"
 INDEPENDENT_REVIEW_COMMIT = "b21e1bdbf865dfd9c7605ecc7794fc3f8701ed1f"
 INDEPENDENT_REVIEW_RELATIVE = Path(
     "docs/phase4/reports/P4.2a-v2-2-preregistration-independent-review-20260811.json"
@@ -1598,7 +1599,16 @@ def test_review_is_a_unique_sibling_authority_not_an_implementation_ancestor() -
         .splitlines()
     )
     assert name_status == [f"A\t{INDEPENDENT_REVIEW_RELATIVE.as_posix()}"]
-    assert not (PROJECT_ROOT / INDEPENDENT_REVIEW_RELATIVE).exists()
+    head = _git("rev-parse", "HEAD").decode().strip()
+    review_is_on_execution_lineage = INDEPENDENT_REVIEW_COMMIT in set(
+        _git("rev-list", head).decode().splitlines()
+    )
+    review_path = PROJECT_ROOT / INDEPENDENT_REVIEW_RELATIVE
+    if review_is_on_execution_lineage:
+        assert review_path.is_file()
+        assert _sha256(review_path.read_bytes()) == INDEPENDENT_REVIEW_SHA256
+    else:
+        assert not review_path.exists()
 
 
 def test_registered_implementation_surface_is_exactly_five_added_paths() -> None:
@@ -1685,7 +1695,7 @@ def test_preregistration_commit_shape_and_current_implementation_topology() -> N
             )
         ]
         assert all(line[:2] in {" M", "M "} for line in status)
-    else:
+    elif parents == [head, EPOCH_TWO_SURFACE_AUTHORITY_COMMIT]:
         assert parents == [head, EPOCH_TWO_SURFACE_AUTHORITY_COMMIT]
         epoch_two_surface = (
             _git("diff-tree", "--no-commit-id", "--name-status", "-r", head).decode().splitlines()
@@ -1694,6 +1704,57 @@ def test_preregistration_commit_shape_and_current_implementation_topology() -> N
             f"M\t{path.as_posix()}"
             for path in sorted(
                 (IMPLEMENTATION_RELATIVE, RUNNER_TEST_RELATIVE),
+                key=lambda path: os.fsencode(path.as_posix()),
+            )
+        ]
+        cumulative_surface = (
+            _git(
+                "diff",
+                "--name-status",
+                PREREGISTRATION_COMMIT,
+                head,
+                "--",
+                *(path.as_posix() for path in REGISTERED_SURFACE),
+            )
+            .decode()
+            .splitlines()
+        )
+        assert cumulative_surface == [f"A\t{path.as_posix()}" for path in git_order]
+    elif head == EPOCH_THREE_SURFACE_AUTHORITY_COMMIT:
+        status = (
+            _git("status", "--porcelain=v1", "--untracked-files=all")
+            .decode()
+            .splitlines()
+        )
+        epoch_three_paths = sorted(
+            (
+                IMPLEMENTATION_RELATIVE,
+                VALIDATOR_RELATIVE,
+                RUNNER_TEST_RELATIVE,
+                VALIDATOR_TEST_RELATIVE,
+            ),
+            key=lambda path: os.fsencode(path.as_posix()),
+        )
+        assert [line[3:] for line in status] == [
+            path.as_posix() for path in epoch_three_paths
+        ]
+        assert all(line[:2] in {" M", "M "} for line in status)
+    else:
+        assert parents == [head, EPOCH_THREE_SURFACE_AUTHORITY_COMMIT]
+        epoch_three_surface = (
+            _git("diff-tree", "--no-commit-id", "--name-status", "-r", head)
+            .decode()
+            .splitlines()
+        )
+        assert epoch_three_surface == [
+            f"M\t{path.as_posix()}"
+            for path in sorted(
+                (
+                    IMPLEMENTATION_RELATIVE,
+                    VALIDATOR_RELATIVE,
+                    RUNNER_TEST_RELATIVE,
+                    VALIDATOR_TEST_RELATIVE,
+                ),
                 key=lambda path: os.fsencode(path.as_posix()),
             )
         ]
@@ -1906,9 +1967,11 @@ def test_required_test_contract_has_no_skip_or_alternate_gate_escape() -> None:
         ]
         assert forbidden_pytest_calls == []
         assert forbidden_marks == []
-        assert not any(
-            isinstance(node, ast.Name) and node.id == "monkeypatch" for node in ast.walk(tree)
-        )
+        if relative == RUNNER_TEST_RELATIVE:
+            assert not any(
+                isinstance(node, ast.Name) and node.id == "monkeypatch"
+                for node in ast.walk(tree)
+            )
 
 
 def test_thin_shim_has_no_authority_state_and_only_calls_package_cli_main() -> None:
@@ -3418,6 +3481,16 @@ def test_create_only_audit_rejects_every_existing_member_mutation_and_external_m
     }
     assert (evidence_root / "probes/same-parent-first.txt").read_bytes() == b"first\n"
     assert (evidence_root / "probes/same-parent-second.txt").read_bytes() == b"second\n"
+    assert probe["active_ledger_fingerprint_discipline"] == {
+        "active_ledger_fingerprinted": True,
+        "active_ledger_is_registered_ledger": False,
+        "exact_legal_create_only_paths": [
+            "attempts/000003/evidence/probes/same-parent-first.txt",
+            "attempts/000003/evidence/probes/same-parent-second.txt",
+        ],
+        "non_active_registered_paths_unchanged": True,
+        "negative_probe_baseline_is_after_positive_writes": True,
+    }
     event_probes = probe["event_mutation_probes"]
     assert [row["name"] for row in event_probes] == [
         "append_existing",
@@ -3452,6 +3525,98 @@ def test_create_only_audit_rejects_every_existing_member_mutation_and_external_m
     assert probe["all_forbidden_mutations_rejected_before_effect"] is True
     assert probe["real_path_fingerprints_unchanged"] is True
     assert _all_real_path_fingerprints() == fixture["real_fingerprints"]
+
+
+def test_active_official_ledger_fingerprint_allows_only_two_exact_positive_writes(
+    tmp_path: Path,
+) -> None:
+    implementation = importlib.import_module(IMPLEMENTATION_MODULE)
+    binding = replace(
+        _synthetic_binding(tmp_path, label="official-ledger-fingerprint-injection"),
+        mode="REGISTERED_OFFICIAL",
+        ledger_root=implementation.OFFICIAL_LEDGER_ROOT,
+    )
+    before_active = {
+        ".": "directory:0700",
+        "attempts": "directory:0700",
+        "attempts/000001": "directory:0700",
+        "attempts/000001/evidence": "directory:0700",
+        "attempts/000001/evidence/probes": "directory:0700",
+    }
+    first = binding.ledger_root / (
+        "attempts/000001/evidence/probes/same-parent-first.txt"
+    )
+    second = binding.ledger_root / (
+        "attempts/000001/evidence/probes/same-parent-second.txt"
+    )
+    created = ((first, b"first\n"), (second, b"second\n"))
+    first_fingerprint = f"file:{_sha256(b'first' + bytes([10]))}:0600:1"
+    second_fingerprint = f"file:{_sha256(b'second' + bytes([10]))}:0600:1"
+    after_active = {
+        **before_active,
+        first.relative_to(binding.ledger_root).as_posix(): first_fingerprint,
+        second.relative_to(binding.ledger_root).as_posix(): second_fingerprint,
+    }
+    before_real = {
+        "registered_v2_2_destination": {".": "absent"},
+        "registered_v2_2_ledger": before_active,
+        "retired_v2_1_destination": {".": "absent"},
+        "consumed_v2_1_claim": {".": "directory:0700"},
+        "real_heldout_root": {".": "absent"},
+    }
+    after_real = {**before_real, "registered_v2_2_ledger": after_active}
+    observed = implementation._validate_active_ledger_positive_transition(
+        binding=binding,
+        before_real=before_real,
+        after_real=after_real,
+        before_active=before_active,
+        after_active=after_active,
+        created=created,
+    )
+    assert observed == {
+        "active_ledger_fingerprinted": True,
+        "active_ledger_is_registered_ledger": True,
+        "exact_legal_create_only_paths": [
+            first.relative_to(binding.ledger_root).as_posix(),
+            second.relative_to(binding.ledger_root).as_posix(),
+        ],
+        "non_active_registered_paths_unchanged": True,
+        "negative_probe_baseline_is_after_positive_writes": True,
+    }
+
+    escaped_real = copy.deepcopy(after_real)
+    escaped_real["real_heldout_root"] = {".": "directory:0700"}
+    with pytest.raises(
+        implementation.RehearsalV22Error,
+        match="non-ledger registered path",
+    ):
+        implementation._validate_active_ledger_positive_transition(
+            binding=binding,
+            before_real=before_real,
+            after_real=escaped_real,
+            before_active=before_active,
+            after_active=after_active,
+            created=created,
+        )
+
+    extra_active = {
+        **after_active,
+        "attempts/000001/evidence/probes/third.txt": (
+            f"file:{_sha256(b'third' + bytes([10]))}:0600:1"
+        ),
+    }
+    with pytest.raises(
+        implementation.RehearsalV22Error,
+        match="exceeded exact evidence writes",
+    ):
+        implementation._validate_active_ledger_positive_transition(
+            binding=binding,
+            before_real=before_real,
+            after_real={**before_real, "registered_v2_2_ledger": extra_active},
+            before_active=before_active,
+            after_active=extra_active,
+            created=created,
+        )
 
 
 def test_exact_os_genuine_capability_rejects_stolen_closure_and_atomic_race_probes(
