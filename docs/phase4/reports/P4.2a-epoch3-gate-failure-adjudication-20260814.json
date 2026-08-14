@@ -1,0 +1,64 @@
+{
+  "schema_version": "p4.2a-independent-adjudication-v1",
+  "adjudication_id": "p4.2a-epoch3-gate-failure-adjudication-20260814-r1",
+  "created_at_utc": "2026-08-14T00:55:38Z",
+  "created_at_shanghai": "2026-08-14T08:55:38+08:00",
+  "issued_by": {
+    "identity": "independent_ai_architect_claude_code",
+    "reviewer_type": "ai",
+    "model": "Anthropic Claude Fable 5 (model id claude-fable-5)",
+    "impersonation_disclaimer": "Not a human reviewer and not the owner."
+  },
+  "part_1_gate_result_recorded": {
+    "candidate": "4d5d16643bb3618191e4510b7ee3889ae7678cea",
+    "runner": "151 passed, 2 failed, 7048 seconds, natural exit 1; validator not started per stop rule",
+    "evidence_digests": {
+      "runner.log": "69a6aa48326e3679eccb64622dbc3d87e4b9eeaacd97ccc4a5d3a031e4bceced",
+      "runner.junit.xml": "9d08ff61b1606467ae510e50fee66607a49ed6b285b2e83a099e3356b81f79a0",
+      "runner-failure-summary.json": "2e2a79aae196cd9395f0038f02071638894b909d7eb150ed6ec464fe070cdffe"
+    },
+    "boundary_verified_by_operator": "gate clone clean at the candidate; official fingerprints byte-identical to pre-gate; ledger unchanged with only the immutable ordinal-1 FAILED record; no merge, preflight, Q, R, B or ordinal 2"
+  },
+  "part_2_failures_root_caused": {
+    "failure_1": {
+      "test": "test_review_is_a_unique_sibling_authority_not_an_implementation_ancestor",
+      "assertion": "the preregistration review file must be absent from the working tree",
+      "truth_history": "b21e1bd is not an ancestor of fae44154 and the file is absent from that tree, so the last full-suite run, which was at fae44154, passed honestly. The remediation review 16f3e70 was committed on the main line that already contained b21e1bd, and the landing merge be7a2ce carries it as first parent, so every main tree after be7a2ce contains the file. No full suite ran on any post-merge tree until this gate: epoch-2 evidence was matrix and focused nodes only. The assertion has been latently false for two days and the gate is the first thing that could catch it.",
+      "classification": "stale absolute absence assertion over live repository topology, same bent-history family as F-9 and the epoch-1 rule"
+    },
+    "failure_2": {
+      "test": "module AST contract at the runner test file",
+      "assertion": "no ast.Name node spelled monkeypatch may appear anywhere in the runner test module, alongside bans on pytest.skip and xfail",
+      "cause": "the new epoch-table disclosure unit test was written with the monkeypatch fixture inside the runner module; the validator test module carries no such ban and its monkeypatch-based real-lineage test passed",
+      "classification": "change violated the changed file's own registered self-contract"
+    }
+  },
+  "part_3_rulings": {
+    "approval_of_4d5d1664_void": "the APPROVE_EPOCH3_IMPLEMENTATION review conditioned merge on this gate; the condition failed, so that approval is void for merge purposes. The candidate 4d5d1664 and its review commit 55dbe91 remain in history untouched as the disclosed failed candidate; the branch is never rewritten.",
+    "supersession_authorized": "a corrected epoch-3 implementation candidate is authorized as a NEW direct single-parent child of the SAME six-field authority d6c9c353 with the SAME exact four-M surface, on a NEW branch. No new owner authorization is required: the owner approved the surface and content scope, not a byte-pinned diff, and both fixes fall inside that scope, the stale-absence repair being part of accepting the real bent history and the test relocation being part of the F-11 coverage. The epoch is unconsumed: no ledger record references any epoch-3 commit.",
+    "fix_prescription": [
+      "runner test 1602 family: keep every shape assertion (digest, verdict, reviewed commit, sibling parents, unique-A surface); replace the absolute worktree-absence assertion with the ancestry-conditioned truth: when b21e1bd is an ancestor of HEAD the file must exist in the working tree with SHA 6707e2b3..., otherwise it must be absent",
+      "remove the monkeypatch name from the runner test module entirely: relocate the epoch-table disclosure unit test to the validator test module, preserving its coverage exactly (table rows 1,2,3 with the void row first, void excluded from interval accounting so epoch 2 owns ordinal 1, and the gap history rejected as non-contiguous)",
+      "everything else byte-identical to 4d5d1664"
+    ]
+  },
+  "part_4_findings": {
+    "F-12": {
+      "title": "Reviewer focused-node evidence cannot bind a changed registered test module",
+      "detail": "the independent review of 4d5d1664 ran 9 focused nodes plus one exact-OS node and re-derived pinned facts, but a registered test file's self-contracts and stale assertions bind the whole module; both failures lived in un-run parts of a changed file",
+      "rule": "whenever a registered test file is on the change surface, the independent review must run that complete test module before issuing APPROVE; the reviewer commits to doing so for the corrected candidate"
+    },
+    "F-13": {
+      "title": "Absolute absence assertions over live repository state are topology time bombs",
+      "detail": "an assertion that a repo path does not exist encodes the topology of its authoring moment; later lawful governance merges falsify it silently",
+      "rule": "registered tests asserting absence of real repository paths must condition on the ancestry fact that creates the path, never assert absolutely; the corrected candidate applies this to the one existing instance"
+    }
+  },
+  "part_5_sequence": [
+    "operator implements the corrected candidate on a new branch as the direct child of d6c9c353",
+    "independent review runs the complete runner and validator test modules at the corrected candidate before any verdict",
+    "full registered gate re-runs in the persistent gate clone as the unchanged merge condition",
+    "then merge-only, real-root preflight, ordinal-2 Q, R, owner confirmation, attempt 2 binding previous_history_root 076ae961fc149ae271bf5a3724c1677abccfea7139589909ea717a7f4a38083a"
+  ],
+  "part_6_boundaries": {"ledger": "ordinal 1 FAILED only", "heldout_evaluation_one_shot": "unconsumed", "trading": "zero non-SIMULATE", "p4_1": "window day one complete 8/13, day two in progress, unaffected"}
+}
