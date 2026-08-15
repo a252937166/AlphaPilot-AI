@@ -1,0 +1,51 @@
+{
+  "schema_version": "p4.2a-independent-adjudication-v1",
+  "adjudication_id": "p4.2a-epoch3-r2-gate-pass-and-landing-authorization-20260815-r1",
+  "created_at_utc": "2026-08-15T09:29:00Z",
+  "created_at_shanghai": "2026-08-15T17:29:00+08:00",
+  "verdict": "GATE_PASSED_LANDING_AUTHORIZED",
+  "issued_by": {
+    "identity": "independent_ai_architect_claude_code",
+    "reviewer_type": "ai",
+    "model": "Anthropic Claude Fable 5 (model id claude-fable-5)",
+    "impersonation_disclaimer": "Not a human reviewer and not the owner."
+  },
+  "part_1_gate_result": {
+    "candidate": "d4fb0d8c763b9fa104949ea2ac58bc921d9e8889",
+    "runner": "152 passed, 0 failed, 6878.33 seconds",
+    "validator": "109 passed, 0 failed, 2094.82 seconds",
+    "junit_totals_verified_by_reviewer": "both summaries PASS_JUNIT_EXACT with failures 0, errors 0, skipped 0, disabled 0 and testcase counts 152 and 109",
+    "evidence_digests_recomputed_by_reviewer": {
+      "runner.log": "c565537c6db812754ad3310f57ee8a7bc7a1314e9546a3700ee387e412404636",
+      "validator.log": "396aad47fa30e7dfe97e778e521f7e9f898aff7f26bb255b617e1eb98eeba683",
+      "runner.junit.xml": "6f4b51a755c8b3acf3f729da0b7dd208d634dc028ffc3c3cd4a5d59ce8241523",
+      "validator.junit.xml": "ee0ab107c8f07a4187b01aa6df865036aecdaaea9df9235908ed3419a74e4336",
+      "postcheck.json": "1ef03fde844fd976743eb7b8a4c541e1902458297204ba9e91abdca3ba3934b9",
+      "HARNESS_SHA256SUMS": "ce1ca73e7f4c2e0ce7493d08abbbbc5b69d2dff30f358c62eaf85a629d29650a"
+    },
+    "postcheck_verified": "PASS_GATE_POSTCHECK: gate clean at the candidate, official fingerprints unchanged, and the C-7 backup readback net with no new backup artifacts and an unchanged stamp",
+    "harness_freeze_held": "the post-gate freeze re-check reports PASS_OPERATOR_HARNESS_STATIC_CHECK and the manifest digest equals the armed-time value, so no operator script changed across the run"
+  },
+  "part_2_merge_condition_discharged": {
+    "ruling": "the merge condition of the r2 independent review is satisfied. The reviewer's own two full module runs and this operator gate agree node for node, 152 and 109, in two independent environments.",
+    "landing_authorized": "merge only, preserving d4fb0d8c763b9fa104949ea2ac58bc921d9e8889 and the review commit bf9f610bda54523d69ecda0a72bf8fe89eaef78c byte-exact"
+  },
+  "part_3_unpushed_local_merge_ruling": {
+    "observed": "a local merge commit d74978c was produced before the landing report generator failed on a stale prearmed log filename; it was never pushed and canonical main remains 578a625",
+    "ruling": "the local merge object is NOT authorized for push as-is. It was created before the landing report existed and its message content cannot cite the report. Discard it and re-create the merge after the report is written. Nothing depends on its object id: no authority, digest or ledger record references a merge commit.",
+    "rationale": "landing is a governance act whose commit message binds the gate evidence; recreating it costs nothing and keeps the record honest"
+  },
+  "part_4_landing_report_fix": {
+    "defect": "the landing report generator referenced an incorrect prearmed log filename and exited before writing any file; classification OPERATOR_TOOL_PATH_ERROR, zero consumption",
+    "freeze_order_interaction": "the harness freeze forbids silent edits, so this correction is adjudicated here rather than self-corrected. The report generator is hereby unfrozen for exactly this one filename correction; every other frozen script stays byte-locked and the manifest must be regenerated and re-verified after the fix",
+    "requirement": "before the fix, read the actual filename from the evidence directory listing rather than from memory, and record the corrected name in the report"
+  },
+  "part_5_sequence_after_landing": [
+    "write the landing report citing the digests recorded in part 1",
+    "re-create the merge, merge-only, and push; canonical main advances from 578a625",
+    "run the real-repository preflight-only on the landed tree and attach its passing output",
+    "build the ordinal-2 review request Q binding epoch 3, implementation commit d4fb0d8c, and previous_history_root_sha256 076ae961fc149ae271bf5a3724c1677abccfea7139589909ea717a7f4a38083a",
+    "stop before R; the reviewer signs the 24-field attempt authorization after reviewing Q, and the owner's in-person action-time confirmation is recorded separately as B"
+  ],
+  "part_6_boundaries": {"ledger": "ordinal 1 FAILED only; next ordinal 2; history root unchanged", "destination_and_heldout_root": "do not exist", "heldout_evaluation_one_shot": "unconsumed", "trading": "zero non-SIMULATE", "p4_1": "window days one and two complete, day three 2026-08-17, verdict 2026-08-18", "phase_locks": {"p4_2a_done": false, "p4_2b_unlocked": false, "p4_3_unlocked": false}}
+}
