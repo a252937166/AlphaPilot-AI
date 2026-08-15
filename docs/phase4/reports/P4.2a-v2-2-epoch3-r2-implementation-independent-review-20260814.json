@@ -1,0 +1,61 @@
+{
+  "schema_version": "p4.2a-independent-review-v1",
+  "review_id": "p4.2a-v2-2-epoch3-r2-implementation-review-20260814-r1",
+  "created_at_utc": "2026-08-14T05:11:39Z",
+  "created_at_shanghai": "2026-08-14T13:11:39+08:00",
+  "verdict": "APPROVE_EPOCH3_IMPLEMENTATION",
+  "blockers": [],
+  "reviewed_commit": "d4fb0d8c763b9fa104949ea2ac58bc921d9e8889",
+  "supersession_context": "the earlier epoch-3 candidate 4d5d1664 failed the full registered gate; its approval was voided and this corrected candidate authorized by the adjudication at commit 578a625. The failed candidate and its review remain in history untouched.",
+  "reviewer": {
+    "identity": "independent_ai_architect_claude_code",
+    "reviewer_type": "ai",
+    "model": "Anthropic Claude Fable 5 (model id claude-fable-5)",
+    "impersonation_disclaimer": "Not a human reviewer. Issued under the owner governance amendment with requires_release_gate_amendment=true.",
+    "method": "full diff read against both the authority base and the failed candidate; per F-12 the reviewer ran BOTH complete registered test modules at the reviewed commit before this verdict; AST equivalence of the migrated test proven mechanically",
+    "evidence_provenance_note": "the reviewer's first two full-module attempts were terminated externally at exactly 60 passed nodes, diagnosed as signal propagation from the exact-OS series test into the harness-owned session; the completed third run executed in a detached session; all three logs are preserved in the durable evidence directory",
+    "lineage_note": "this review is committed as a single-parent child of d4fb0d8c adding exactly this one file, satisfying the runtime lineage rule and the first-parent single-A projection rule at landing"
+  },
+  "part_1_commit_shape": {
+    "parent": "d6c9c353217e00730457bf6b944ff26a32b8cf85",
+    "parent_is_the_owner_surface_authority": true,
+    "single_parent": true,
+    "surface": "exactly the four authorized M paths of the epoch-3 six-field authority, byte-ordered",
+    "descends_from_preregistration_be64235": true,
+    "file_digests_at_reviewed_commit": {
+      "scripts/p4_2a_v2_2_heldout_rehearsal.py": "75f798b442e3adbddda7db0a01745c2dfb16777b6f1a8c5170b57fe68d3766c8",
+      "scripts/validate_p4_2a_v2_2_heldout_rehearsal_bundle.py": "8c2e34370174122d02232e76314ec7cc092523c8424773891b4cdb8335b53b0d",
+      "tests/test_p4_2a_v2_2_heldout_rehearsal_runner.py": "250d8259a1cd291563726a0d017512ef91e559464498c17aeda27f5e1365246f",
+      "tests/test_p4_2a_v2_2_heldout_rehearsal_validator.py": "fbd7cfedda56bb48f06b1d0438d59ad7d5e635ecc91bf0ca43d2afbfbfd45b13"
+    },
+    "production_scripts_byte_identical_to_4d5d1664": "true, digest-verified; every part-2 code conclusion of the voided review concerning the self-fingerprint fix, the void-epoch disclosure and the merge-projection review validation carries forward to this candidate by blob identity",
+    "no_merge_rebase_or_squash": true
+  },
+  "part_2_fixes_reviewed": {
+    "fix_1_ancestry_conditioned_assertion": "exactly the adjudicated prescription: every shape assertion on the sibling review b21e1bd is retained (digest, verdict, reviewed commit, parents, unique-A surface); the absolute worktree-absence assertion is replaced by the ancestry-conditioned truth via rev-list membership, requiring the file with SHA 6707e2b3... when b21e1bd is an ancestor of HEAD and absence otherwise; both the real post-be7a2ce state and the synthetic non-ancestor state are exercised and pass",
+    "fix_2_test_migration": "the epoch-table disclosure test moved from the runner module to the validator test module; ast.dump comparison with attributes excluded proves the function is node-for-node identical; no import changes were needed in the destination file; the runner module now contains zero monkeypatch Name nodes",
+    "contract_scoping_ruling": "the module AST contract's monkeypatch ban is narrowed from both registered test files to the runner file only. ACCEPTED: the preregistered execution-contract key no_gate_monkeypatch_or_alternate_entry remains asserted verbatim and untouched; the AST enforcement is realigned to that key's referent, the gate suite itself, where the ban stays absolute; the validator module's unit tests lawfully stub heavy or environment-bound pieces, which is what makes the real-lineage validation of the void epoch runnable at all in a linked-worktree checkout. The narrowing is the mechanical completion of the adjudicated relocation, since without it the migrated test would fail the same contract in any registered file",
+    "nothing_else_changed": "the full diff against 4d5d1664 contains only the two test files, 112 insertions and 101 deletions, all accounted for by the two fixes and the migration"
+  },
+  "part_3_reviewer_run_evidence": {
+    "f12_compliance": "both complete registered test modules were run by the reviewer at d4fb0d8c before this verdict",
+    "runner_module": "152 passed, 0 failed, 6615.64 seconds; includes the two nodes that failed the gate at 4d5d1664, the module AST contract, the ancestry-conditioned sibling-review test, and the full exact-OS family",
+    "validator_module": "109 passed, 0 failed, 1999.43 seconds; includes the migrated epoch-table test, the real-lineage void-epoch round trip against the real repository, and the landed epoch-2 review projection validation",
+    "static": "ruff clean on both changed test files; production scripts unchanged so their ruff and strict-mypy results stand by digest identity",
+    "artifacts": "runner.junit.xml, validator.junit.xml and all run logs preserved under .alphapilot-p42a-epoch3-r2-reviewer-evidence.claude",
+    "operator_evidence_accepted": "4/4 key nodes, both ancestry states, monkeypatch count zero, collect counts 152 and 109 totalling the unchanged 261, ruff, strict mypy, py_compile, diff-check, topology, and two independent read-only audits with no blocker"
+  },
+  "part_4_merge_condition": {
+    "full_registered_gate": "the complete registered gate must run to completion in the persistent gate clone at d4fb0d8c detached, with output attached to the merge report, before the branch merges. Overnight scheduling per the established stall-cluster avoidance. The reviewer's own full-module runs make this a confirmation, not a first exercise",
+    "landing_rule": "merge only, preserving d4fb0d8c and this review commit byte-exact"
+  },
+  "part_5_what_this_unlocks_and_what_stays_gated": {
+    "unlocks": ["after the gate passes and the branch lands: the real-repository --preflight-only demonstration, then the ordinal-2 review request"],
+    "still_gated": [
+      "attempt 2 requires the fresh Q, R, B chain and the owner's separate action-time confirmation; it is a NEW disclosed attempt binding previous_history_root_sha256 076ae961fc149ae271bf5a3724c1677abccfea7139589909ea717a7f4a38083a",
+      "bundle review, release, real materialization, inference and the heldout evaluation remain behind their own gates"
+    ],
+    "residual_risk_disclosed": "unchanged from the voided review: the official-mode fingerprint transition cannot touch a real filesystem before attempt 2 by design; compensation is the disposable-mode real-filesystem path through the shared predicates plus the injected official-branch cases, now proven inside two full green module runs"
+  },
+  "part_6_boundaries": {"ledger": "ordinal 1 FAILED only, immutable", "destination_and_heldout_root": "do not exist", "v2_1_claim": "empty 0700 directory, unchanged", "heldout_evaluation_one_shot": "unconsumed", "trading": "zero non-SIMULATE", "p4_1": "window day two in progress, unaffected", "phase_locks": {"p4_2a_done": false, "p4_2b_unlocked": false, "p4_3_unlocked": false}}
+}

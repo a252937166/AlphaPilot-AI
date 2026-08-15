@@ -12,6 +12,7 @@ import subprocess
 import sys
 from collections.abc import Callable
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
@@ -1720,6 +1721,461 @@ def test_validator_independent_review_accepts_exact_approve_prefix_and_commit() 
     )
 
 
+def test_bundle_epoch_table_discloses_void_epoch_one_before_used_epochs_two_and_three(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    implementation = importlib.import_module(IMPLEMENTATION_MODULE)
+    owner = implementation.AuthorityReference(
+        "docs/phase4/reports/synthetic-owner.json",
+        "1" * 64,
+        "2" * 40,
+    )
+    review = implementation.AuthorityReference(
+        "docs/phase4/reports/synthetic-review.json",
+        "3" * 64,
+        "4" * 40,
+    )
+    records = tuple(
+        SimpleNamespace(
+            ordinal=ordinal,
+            implementation_epoch=epoch,
+            previous_history_root_sha256=str(ordinal) * 64,
+            owner_action_time_authorization=owner,
+        )
+        for ordinal, epoch in ((1, 2), (2, 3))
+    )
+    history = SimpleNamespace(records=records, selected_attempt_ordinal=2)
+    binding = SimpleNamespace(project_root=tmp_path)
+    void = {
+        "epoch": 1,
+        "implementation_commit": implementation.VOID_EPOCH_ONE_IMPLEMENTATION_COMMIT,
+        "owner_exact_surface_authorization": owner.as_json(),
+        "independent_implementation_review": review.as_json(),
+        "control_merkle_root_sha256": "5" * 64,
+        "first_attempt_ordinal": 1,
+        "last_attempt_ordinal": 1,
+        "all_attempts_authorized": True,
+    }
+
+    def authorization(
+        _binding: Any,
+        _reference: Any,
+        *,
+        expected_ordinal: int,
+        expected_previous_history_root_sha256: str,
+        require_current_process: bool,
+    ) -> Any:
+        del _binding, _reference, expected_previous_history_root_sha256
+        assert require_current_process is False
+        epoch = expected_ordinal + 1
+        return SimpleNamespace(
+            implementation_epoch=epoch,
+            implementation_commit=str(epoch) * 40,
+            owner_surface_authorization=owner,
+            independent_implementation_review=review,
+            control_merkle_root_sha256=str(epoch + 5) * 64,
+            creating_commit=str(epoch + 7) * 40,
+        )
+
+    monkeypatch.setattr(implementation, "_current_execution_head", lambda _root: "9" * 40)
+    monkeypatch.setattr(implementation, "_void_epoch_one", lambda *_args, **_kwargs: void)
+    monkeypatch.setattr(implementation, "_validate_action_authorization", authorization)
+    monkeypatch.setattr(
+        implementation,
+        "build_control_surface",
+        lambda _root, commit, **_kwargs: SimpleNamespace(
+            merkle_root_sha256=str(int(commit[0]) + 5) * 64
+        ),
+    )
+    monkeypatch.setattr(implementation, "_git_is_ancestor", lambda *_args: True)
+    observed = implementation._implementation_epochs(binding, history)
+    assert [row["epoch"] for row in observed] == [1, 2, 3]
+    assert observed[0] == void
+    assert [(row["first_attempt_ordinal"], row["last_attempt_ordinal"]) for row in observed] == [
+        (1, 1),
+        (1, 1),
+        (2, 2),
+    ]
+
+    gap_history = SimpleNamespace(
+        records=(
+            records[0],
+            SimpleNamespace(
+                **{
+                    **vars(records[1]),
+                    "implementation_epoch": 4,
+                }
+            ),
+        ),
+        selected_attempt_ordinal=2,
+    )
+    with pytest.raises(
+        implementation.RehearsalV22Error,
+        match="epoch numbers are not contiguous",
+    ):
+        implementation._implementation_epochs(binding, gap_history)
+
+
+def test_void_epoch_one_is_schema_compatible_and_does_not_consume_ordinal_one() -> None:
+    validator = _validator_module()
+    void_epoch = {
+        "epoch": 1,
+        "implementation_commit": validator.VOID_EPOCH_ONE_IMPLEMENTATION_COMMIT,
+        "owner_exact_surface_authorization": {
+            "path": validator.INDEPENDENT_REVIEW_RELATIVE.as_posix(),
+            "sha256": validator.INDEPENDENT_REVIEW_SHA256,
+            "creating_commit": validator.INDEPENDENT_REVIEW_COMMIT,
+            "unique_a_history_verified": True,
+        },
+        "independent_implementation_review": {
+            "path": validator.VOID_EPOCH_ONE_ADJUDICATION_RELATIVE.as_posix(),
+            "sha256": validator.VOID_EPOCH_ONE_ADJUDICATION_SHA256,
+            "creating_commit": validator.VOID_EPOCH_ONE_ADJUDICATION_COMMIT,
+            "unique_a_history_verified": True,
+        },
+        "control_merkle_root_sha256": "1" * 64,
+        "first_attempt_ordinal": 1,
+        "last_attempt_ordinal": 1,
+        "all_attempts_authorized": True,
+    }
+    epoch_two = {
+        "epoch": 2,
+        "implementation_commit": "2" * 40,
+        "owner_exact_surface_authorization": {
+            "path": "docs/phase4/reports/epoch-2-owner.json",
+            "sha256": "3" * 64,
+            "creating_commit": "4" * 40,
+            "unique_a_history_verified": True,
+        },
+        "independent_implementation_review": {
+            "path": "docs/phase4/reports/epoch-2-review.json",
+            "sha256": "5" * 64,
+            "creating_commit": "6" * 40,
+            "unique_a_history_verified": True,
+        },
+        "control_merkle_root_sha256": "7" * 64,
+        "first_attempt_ordinal": 1,
+        "last_attempt_ordinal": 2,
+        "all_attempts_authorized": True,
+    }
+    observed = validator._epoch_map(
+        {"implementation_epochs": [void_epoch, epoch_two]}
+    )
+    assert list(observed) == [1, 2]
+    assert validator._is_void_epoch_one(observed[1]) is True
+    assert observed[2]["first_attempt_ordinal"] == 1
+
+    bundle_schema, release_schema = _schemas()
+    bundle_epoch_schema = {
+        "$schema": bundle_schema["$schema"],
+        "$defs": bundle_schema["$defs"],
+        "$ref": "#/$defs/implementationEpoch",
+    }
+    assert not list(Draft202012Validator(bundle_epoch_schema).iter_errors(void_epoch))
+    release_void = {
+        "epoch": void_epoch["epoch"],
+        "implementation_commit": void_epoch["implementation_commit"],
+        "owner_surface_authorization": void_epoch[
+            "owner_exact_surface_authorization"
+        ],
+        "independent_implementation_review": void_epoch[
+            "independent_implementation_review"
+        ],
+        "control_merkle_root_sha256": void_epoch["control_merkle_root_sha256"],
+        "first_attempt_ordinal": void_epoch["first_attempt_ordinal"],
+        "last_attempt_ordinal": void_epoch["last_attempt_ordinal"],
+    }
+    release_epoch_schema = {
+        "$schema": release_schema["$schema"],
+        "$defs": release_schema["$defs"],
+        "$ref": "#/$defs/implementationEpoch",
+    }
+    assert not list(Draft202012Validator(release_epoch_schema).iter_errors(release_void))
+
+    without_void = copy.deepcopy(epoch_two)
+    with pytest.raises(
+        validator.RehearsalV22ValidationError,
+        match="not contiguous",
+    ):
+        validator._epoch_map({"implementation_epochs": [without_void]})
+    with pytest.raises(
+        validator.RehearsalV22ValidationError,
+        match="lacks an executed epoch 2",
+    ):
+        validator._epoch_map({"implementation_epochs": [void_epoch]})
+    tampered = copy.deepcopy(void_epoch)
+    tampered["independent_implementation_review"]["sha256"] = "0" * 64
+    with pytest.raises(
+        validator.RehearsalV22ValidationError,
+        match="attempt intervals have a gap",
+    ):
+        validator._epoch_map({"implementation_epochs": [tampered, epoch_two]})
+
+
+def test_fixed_void_epoch_one_real_lineage_round_trips_without_heavy_control(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    implementation = importlib.import_module(IMPLEMENTATION_MODULE)
+    validator = _validator_module()
+    execution_head = validator._git_bytes(PROJECT_ROOT, "rev-parse", "HEAD").decode().strip()
+    calls: list[tuple[Path, str, bool]] = []
+
+    def control(root: Path, commit: str, *, require_current: bool) -> Any:
+        calls.append((root, commit, require_current))
+        return SimpleNamespace(
+            implementation_commit=commit,
+            merkle_root_sha256="c" * 64,
+            loaded_repository_sources=(),
+            ast_closure_paths=(),
+            records=(),
+        )
+
+    # The development checkout is a linked worktree.  Only the producer's
+    # standalone-.git guard is bypassed; every fixed Git object, parent, diff,
+    # unique-A authority, blob SHA, ruling, and landing relation is still read.
+    monkeypatch.setattr(implementation, "_validate_git_metadata_authority", lambda _root: None)
+    monkeypatch.setattr(implementation, "build_control_surface", control)
+    before = _all_real_path_fingerprints()
+    epoch = implementation._void_epoch_one(
+        SimpleNamespace(project_root=PROJECT_ROOT),
+        execution_head=execution_head,
+    )
+    validator._validate_void_epoch_one(
+        project_root=PROJECT_ROOT,
+        epoch=epoch,
+        execution_head=execution_head,
+    )
+    assert epoch == {
+        "epoch": 1,
+        "implementation_commit": validator.VOID_EPOCH_ONE_IMPLEMENTATION_COMMIT,
+        "owner_exact_surface_authorization": _initial_sibling_reference(),
+        "independent_implementation_review": {
+            "path": validator.VOID_EPOCH_ONE_ADJUDICATION_RELATIVE.as_posix(),
+            "sha256": validator.VOID_EPOCH_ONE_ADJUDICATION_SHA256,
+            "creating_commit": validator.VOID_EPOCH_ONE_ADJUDICATION_COMMIT,
+            "unique_a_history_verified": True,
+        },
+        "control_merkle_root_sha256": "c" * 64,
+        "first_attempt_ordinal": 1,
+        "last_attempt_ordinal": 1,
+        "all_attempts_authorized": True,
+    }
+    assert calls == [
+        (PROJECT_ROOT, validator.VOID_EPOCH_ONE_IMPLEMENTATION_COMMIT, False),
+        (PROJECT_ROOT, validator.VOID_EPOCH_ONE_IMPLEMENTATION_COMMIT, False),
+    ]
+    assert _all_real_path_fingerprints() == before
+
+
+def test_landed_epoch_two_review_projection_is_preserved_and_globally_double_seen() -> None:
+    validator = _validator_module()
+    implementation_commit = "1b4e05c6acd513bb1bc11245911da97b6a128ca1"
+    reference = {
+        "path": (
+            "docs/phase4/reports/"
+            "P4.2a-v2-2-epoch2-implementation-independent-review-20260813.json"
+        ),
+        "sha256": "3805054e3369eff725c4aa1ffe60f565a4571063aa7465b17be401879a19fa2b",
+        "creating_commit": "0364079d8d7660e26eb67665bd3afa82c17c334c",
+        "unique_a_history_verified": True,
+    }
+    execution_head = validator._git_bytes(PROJECT_ROOT, "rev-parse", "HEAD").decode().strip()
+    before = _all_real_path_fingerprints()
+    payload = validator._validate_implementation_review_authority(
+        PROJECT_ROOT,
+        reference,
+        implementation_commit=implementation_commit,
+        execution_head=execution_head,
+        require_worktree=True,
+    )
+    assert hashlib.sha256(payload).hexdigest() == reference["sha256"]
+    global_history = validator._git_bytes(
+        PROJECT_ROOT,
+        "log",
+        "--all",
+        "--diff-merges=first-parent",
+        "--format=@@%H",
+        "--name-status",
+        "--find-renames",
+        "--find-copies",
+        "--",
+        reference["path"],
+    ).decode("utf-8")
+    assert global_history.count(f"A\t{reference['path']}") == 2
+    assert f"@@{reference['creating_commit']}" in global_history
+    assert "@@d15bea522cfd892f6837772a2142b903e03a9436" in global_history
+    with pytest.raises(
+        validator.RehearsalV22ValidationError,
+        match="not one unique status-A Git touch",
+    ):
+        validator._unique_a_authority(
+            PROJECT_ROOT,
+            reference,
+            require_worktree=True,
+        )
+    drifted = copy.deepcopy(reference)
+    drifted["sha256"] = "0" * 64
+    with pytest.raises(
+        validator.RehearsalV22ValidationError,
+        match="bytes or SHA drifted",
+    ):
+        validator._validate_implementation_review_authority(
+            PROJECT_ROOT,
+            drifted,
+            implementation_commit=implementation_commit,
+            execution_head=execution_head,
+            require_worktree=True,
+        )
+    assert _all_real_path_fingerprints() == before
+
+
+def test_direct_implementation_review_requires_an_exact_one_file_creation(
+    tmp_path: Path,
+) -> None:
+    validator = _validator_module()
+    root = tmp_path / "direct-implementation-review"
+    root.mkdir(mode=0o700)
+    _fixture_git(validator, root, "init", "--quiet")
+    (root / "implementation.py").write_bytes(b"IMPLEMENTED = True\n")
+    _fixture_git(validator, root, "add", "--all")
+    _fixture_git(validator, root, "commit", "--quiet", "-m", "implementation")
+    implementation_commit = (
+        _fixture_git(validator, root, "rev-parse", "HEAD").strip().decode("ascii")
+    )
+
+    relative = Path("docs/phase4/reports/implementation-review.json")
+    review_path = root / relative
+    review_path.parent.mkdir(parents=True)
+    payload = b'{"blockers":[],"verdict":"APPROVE_IMPLEMENTATION"}\n'
+    review_path.write_bytes(payload)
+    _fixture_git(validator, root, "add", "--all")
+    _fixture_git(validator, root, "commit", "--quiet", "-m", "review")
+    creating_commit = (
+        _fixture_git(validator, root, "rev-parse", "HEAD").strip().decode("ascii")
+    )
+    reference = {
+        "path": relative.as_posix(),
+        "sha256": hashlib.sha256(payload).hexdigest(),
+        "creating_commit": creating_commit,
+        "unique_a_history_verified": True,
+    }
+    assert (
+        validator._validate_implementation_review_authority(
+            root,
+            reference,
+            implementation_commit=implementation_commit,
+            execution_head=creating_commit,
+            require_worktree=True,
+        )
+        == payload
+    )
+
+    (root / "unapproved-extra.txt").write_bytes(b"extra\n")
+    _fixture_git(validator, root, "add", "--all")
+    _fixture_git(validator, root, "commit", "--quiet", "--amend", "--no-edit")
+    amended_commit = (
+        _fixture_git(validator, root, "rev-parse", "HEAD").strip().decode("ascii")
+    )
+    drifted_reference = {**reference, "creating_commit": amended_commit}
+    with pytest.raises(
+        validator.RehearsalV22ValidationError,
+        match="direct implementation review creation surface drifted",
+    ):
+        validator._validate_implementation_review_authority(
+            root,
+            drifted_reference,
+            implementation_commit=implementation_commit,
+            execution_head=amended_commit,
+            require_worktree=True,
+        )
+
+
+@pytest.mark.parametrize("selected_epoch", (2, 3))
+def test_release_cross_validation_offsets_void_epoch_without_selecting_it(
+    selected_epoch: int,
+) -> None:
+    validator = _validator_module()
+    bundle, receipt = _minimal_cross_valid_bundle_receipt()
+    base_epoch = copy.deepcopy(bundle["implementation_epochs"][0])
+    void_epoch = {
+        "epoch": 1,
+        "implementation_commit": validator.VOID_EPOCH_ONE_IMPLEMENTATION_COMMIT,
+        "owner_exact_surface_authorization": _initial_sibling_reference(),
+        "independent_implementation_review": {
+            "path": validator.VOID_EPOCH_ONE_ADJUDICATION_RELATIVE.as_posix(),
+            "sha256": validator.VOID_EPOCH_ONE_ADJUDICATION_SHA256,
+            "creating_commit": validator.VOID_EPOCH_ONE_ADJUDICATION_COMMIT,
+            "unique_a_history_verified": True,
+        },
+        "control_merkle_root_sha256": "0" * 64,
+        "first_attempt_ordinal": 1,
+        "last_attempt_ordinal": 1,
+        "all_attempts_authorized": True,
+    }
+    epoch_two = {
+        **base_epoch,
+        "epoch": 2,
+        "first_attempt_ordinal": 1,
+        "last_attempt_ordinal": 3 if selected_epoch == 2 else 1,
+    }
+    bundle_epochs = [void_epoch, epoch_two]
+    if selected_epoch == 3:
+        bundle_epochs.append(
+            {
+                **copy.deepcopy(base_epoch),
+                "epoch": 3,
+                "implementation_commit": "a" * 40,
+                "first_attempt_ordinal": 2,
+                "last_attempt_ordinal": 3,
+            }
+        )
+    bundle["implementation_epochs"] = bundle_epochs
+    record_epochs = (2, 2, 2) if selected_epoch == 2 else (2, 3, 3)
+    for record, epoch_number in zip(
+        bundle["attempt_history"]["records"], record_epochs, strict=True
+    ):
+        record["implementation_epoch"] = epoch_number
+    for outcome, epoch_number in zip(
+        receipt["owner_authorization"]["acknowledged_outcomes"],
+        record_epochs,
+        strict=True,
+    ):
+        outcome["implementation_epoch"] = epoch_number
+    receipt["implementation_epochs"] = [
+        {
+            "epoch": epoch["epoch"],
+            "implementation_commit": epoch["implementation_commit"],
+            "owner_surface_authorization": epoch[
+                "owner_exact_surface_authorization"
+            ],
+            "independent_implementation_review": epoch[
+                "independent_implementation_review"
+            ],
+            "control_merkle_root_sha256": epoch["control_merkle_root_sha256"],
+            "first_attempt_ordinal": epoch["first_attempt_ordinal"],
+            "last_attempt_ordinal": epoch["last_attempt_ordinal"],
+        }
+        for epoch in bundle_epochs
+    ]
+    selected_commit = bundle_epochs[selected_epoch - 1]["implementation_commit"]
+    receipt["lineage"]["selected_implementation_commit"] = selected_commit
+    validator._cross_validate_release(bundle=bundle, receipt=receipt)
+    assert receipt["implementation_epochs"][selected_epoch - 1][
+        "implementation_commit"
+    ] == selected_commit
+    assert selected_commit != validator.VOID_EPOCH_ONE_IMPLEMENTATION_COMMIT
+
+    receipt["lineage"]["selected_implementation_commit"] = (
+        validator.VOID_EPOCH_ONE_IMPLEMENTATION_COMMIT
+    )
+    with pytest.raises(
+        validator.RehearsalV22ValidationError,
+        match="release lineage selected_implementation_commit drifted",
+    ):
+        validator._cross_validate_release(bundle=bundle, receipt=receipt)
+
+
 @pytest.mark.parametrize(
     "mutation",
     (
@@ -2371,7 +2827,8 @@ def test_initial_sibling_fixed_parent_diff_blob_and_callsite_partition_are_expli
     assert "if index == 1:" in epoch_source
     assert "owner_payload = _validate_initial_sibling_authority(" in epoch_source
     assert "else:\n            owner_payload = _unique_a_authority(" in epoch_source
-    assert "review_payload = _unique_a_authority(" in epoch_source
+    assert "_unique_a_authority(" in epoch_source
+    assert "_validate_implementation_review_authority(" in epoch_source
 
 
 def test_generic_authority_keeps_unique_a_semantics_for_non_sibling_paths(
