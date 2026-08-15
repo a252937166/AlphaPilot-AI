@@ -1,0 +1,57 @@
+{
+  "schema_version": "p4.2a-independent-adjudication-v1",
+  "adjudication_id": "p4.2a-preflight-control-surface-block-and-w5-20260815-r1",
+  "created_at_utc": "2026-08-15T10:24:20Z",
+  "created_at_shanghai": "2026-08-15T18:24:20+08:00",
+  "verdict": "PREFLIGHT_FAILURE_IS_CORRECT_BEHAVIOUR_OWNER_DECISION_REQUIRED",
+  "issued_by": {
+    "identity": "independent_ai_architect_claude_code",
+    "reviewer_type": "ai",
+    "model": "Anthropic Claude Fable 5 (model id claude-fable-5)",
+    "impersonation_disclaimer": "Not a human reviewer and not the owner."
+  },
+  "part_1_landing_confirmed": {
+    "merge": "0069270 with parents [5791041, bf9f610], merge-only, both epoch-3 commits preserved byte-exact",
+    "landing_report": "8e5727b, digest d0429fa569521fbee17e6a6cde45a4cc618115628f500ed0654d290135b49835",
+    "canonical_main": "8e5727b",
+    "discarded": "the pre-report local merge d74978c was never pushed and is absent from history, as adjudicated"
+  },
+  "part_2_preflight_failure_adjudicated": {
+    "ruling": "CORRECT_FAIL_CLOSED. The preflight did exactly what it exists to do.",
+    "mechanism": "the rehearsal implementation imports Settings from alphapilot.core.config at module scope, so src/alphapilot/core/config.py is a provable-local member of the AST control surface. The preflight validates that surface with require_current=True, comparing worktree bytes against the selected implementation commit. The worktree copy carries two uncommitted lines adding baostock_socket_timeout_seconds and baostock_lock_timeout_seconds, so the bytes differ and the run stopped before any authority, ledger or write.",
+    "zero_consumption_verified": "snapshots identical before and after; ledger still holds only the immutable ordinal-1 FAILED record; next ordinal 2; history root 076ae961fc149ae271bf5a3724c1677abccfea7139589909ea717a7f4a38083a; destination, heldout root, temporary authority, Q, R, B and attempt 2 all absent",
+    "scope_of_the_block": "this blocks attempt 2 as well, not merely the preflight: the attempt validates the same control surface with the same require_current rule. No rehearsal attempt can run while a control-surface file is dirty.",
+    "operator_conduct": "correct. The operator did not stash, reset or clean the owner's uncommitted work, and stopped with a precise diagnosis."
+  },
+  "part_3_owner_work_untouched": {
+    "observed": "the canonical worktree carries 28 modified tracked files plus untracked directories, a sector-flow and baostock workstream authored 2026-08-13 CST, none of it the reviewer's or the P4.2a chain's",
+    "reviewer_conduct": "the reviewer will not commit, stash, reset or otherwise alter any of it. Disposition is the owner's alone.",
+    "why_config_py_matters_and_the_others_do_not": "only control-surface members block the rehearsal. config.py is one; the remaining 27 files are not, so they may stay dirty indefinitely without affecting P4.2a"
+  },
+  "part_4_finding_W5": {
+    "id": "W-5",
+    "title": "The scheduler loads worktree bytes, so the P4.1 observation window ran partly on uncommitted code",
+    "facts": [
+      "the venv installs alphapilot as an editable package whose path file points at the repository src directory, so the scheduler executes worktree bytes, not an immutable installed copy",
+      "src/alphapilot/jobs/registry.py, the common execution wrapper for every job including news_poll, was modified in the worktree at 2026-08-13 14:51 CST and remains uncommitted",
+      "the scheduler process that has served the window since 2026-08-13 18:26 CST started after that edit, so it loaded the modified wrapper",
+      "the change replaces a finally-block baostock session close with a baostock_session_scope context manager around every job body"
+    ],
+    "correction_to_W3": "the reviewer's earlier W-3 note claimed the respawned scheduler was verified to be running post-merge code. That verification was insufficient: it confirmed the launchd program and working directory pointed at the repository, not that the worktree bytes equalled the merged commit. The claim is corrected here rather than restated.",
+    "impact_assessment": {
+      "misfire_remediation_intact": "the reviewed misfire_grace_time field and its positive-integer validation are present in the worktree registry.py, so the 600-second grace remained in force",
+      "runtime_effect_on_news_poll": "effectively nil. baostock_session_scope sets a ContextVar marker and, for a job that never touches baostock, does nothing on exit; its lock acquisition is non-blocking. news_poll pays one ContextVar set and reset per run, with no network, no blocking lock and no new failure mode",
+      "window_evidence_still_readable": "slot completeness and data integrity are behavioural observations and remain valid, but the window's code-provenance premise is no longer clean and must be disclosed in the 2026-08-18 verdict rather than quietly assumed",
+      "homogeneity": "day one changed wrapper mid-day at 18:26 CST; days two and three run entirely under the post-respawn code provided the scheduler is not restarted again"
+    },
+    "standing_rule_proposed": "for any future acceptance window, pin provenance explicitly: record at window start, and re-verify at any restart, that every worktree file the scheduler imports equals the intended commit. An editable install makes an uncommitted edit indistinguishable from deployed code unless this is checked."
+  },
+  "part_5_options_presented_to_owner": {
+    "note": "the reviewer recommends option A and will execute none of these without the owner's instruction",
+    "A_wait": "leave the workstream alone and run attempt 2 after it is committed normally. Costs time, touches nothing, keeps both workstreams honest",
+    "B_commit_config_only": "commit just the two config.py lines. Rejected by the reviewer: baostock_provider.py consumes those settings and is itself dirty, so committing one without the other lands an incoherent pair",
+    "C_commit_the_workstream": "commit the whole sector-flow workstream after its own review. Reasonable but out of the reviewer's scope and not to be bundled into P4.2a",
+    "D_stash": "stash the workstream to obtain a clean surface. Rejected: it mutates the owner's uncommitted work and would additionally make a future scheduler restart load different code than the running process, which is exactly the W-5 hazard"
+  },
+  "part_6_boundaries": {"ledger": "ordinal 1 FAILED only", "heldout_evaluation_one_shot": "unconsumed", "trading": "zero non-SIMULATE", "p4_1": "window day three 2026-08-17, verdict 2026-08-18, W-5 to be disclosed there", "phase_locks": {"p4_2a_done": false, "p4_2b_unlocked": false, "p4_3_unlocked": false}}
+}
