@@ -1,0 +1,2053 @@
+{
+  "adjudication_5791041": {
+    "bytes": 4838,
+    "creating_commit": "5791041e7eb48ffc6977752e381b10333bf53358",
+    "junit_summary": "both summaries PASS_JUNIT_EXACT with failures 0, errors 0, skipped 0, disabled 0 and testcase counts 152 and 109",
+    "part_1_six_digest_summary": {
+      "HARNESS_SHA256SUMS": "ce1ca73e7f4c2e0ce7493d08abbbbc5b69d2dff30f358c62eaf85a629d29650a",
+      "postcheck.json": "1ef03fde844fd976743eb7b8a4c541e1902458297204ba9e91abdca3ba3934b9",
+      "runner.junit.xml": "6f4b51a755c8b3acf3f729da0b7dd208d634dc028ffc3c3cd4a5d59ce8241523",
+      "runner.log": "c565537c6db812754ad3310f57ee8a7bc7a1314e9546a3700ee387e412404636",
+      "validator.junit.xml": "ee0ab107c8f07a4187b01aa6df865036aecdaaea9df9235908ed3419a74e4336",
+      "validator.log": "396aad47fa30e7dfe97e778e521f7e9f898aff7f26bb255b617e1eb98eeba683"
+    },
+    "path": "docs/phase4/reports/P4.2a-epoch3-r2-gate-pass-and-landing-authorization-20260815.json",
+    "role": "GATE_PASS_AND_LANDING_AUTHORIZATION",
+    "runner_summary": "152 passed, 0 failed, 6878.33 seconds",
+    "sha256": "afd1cba6d3c0c067d3cb58f2e61ed7bf0da5b3dbd88efd202cb418a57cdcb95d",
+    "validator_summary": "109 passed, 0 failed, 2094.82 seconds",
+    "verdict": "GATE_PASSED_LANDING_AUTHORIZED"
+  },
+  "boundaries": {
+    "heldout_evaluation_authorized": false,
+    "inference_authorized": false,
+    "materialization_authorized": false,
+    "next_permitted_steps": [
+      "merge-only landing with report-bound commit message",
+      "registered-root read-only preflight",
+      "create-only ordinal-2 review request Q",
+      "STOP_AT_OWNER_BEFORE_R"
+    ],
+    "official_ordinal_2_action_authorization_r_exists": false,
+    "official_ordinal_2_owner_binding_b_exists": false,
+    "ordinal_2_attempt_started": false,
+    "ordinal_2_is_new_disclosed_attempt_not_retry": true,
+    "p4_2b_authorized": false,
+    "p4_3_authorized": false,
+    "this_report_authorizes_attempt_execution": false,
+    "trading_authorized": false
+  },
+  "candidate_lineage": {
+    "implementation_commit": "d4fb0d8c763b9fa104949ea2ac58bc921d9e8889",
+    "implementation_is_direct_single_parent_child": true,
+    "implementation_parent": "d6c9c353217e00730457bf6b944ff26a32b8cf85",
+    "independent_review": {
+      "blockers": [],
+      "commit": "bf9f610bda54523d69ecda0a72bf8fe89eaef78c",
+      "parent": "d4fb0d8c763b9fa104949ea2ac58bc921d9e8889",
+      "path": "docs/phase4/reports/P4.2a-v2-2-epoch3-r2-implementation-independent-review-20260814.json",
+      "sha256": "590d6b6b24bb6672956ea320a21458aa10523514ec384586029f09ef2cf757ef",
+      "unique_status_a": true,
+      "verdict": "APPROVE_EPOCH3_IMPLEMENTATION"
+    },
+    "owner_surface_authority_commit": "d6c9c353217e00730457bf6b944ff26a32b8cf85",
+    "registered_blob_sha256": {
+      "scripts/p4_2a_v2_2_heldout_rehearsal.py": "75f798b442e3adbddda7db0a01745c2dfb16777b6f1a8c5170b57fe68d3766c8",
+      "scripts/rehearse_p4_2a_v2_2_heldout_full_path.py": "660d6b6e820581eae792e6c04f35b15b30bdb2427d93c3a934af9146f0e044c0",
+      "scripts/validate_p4_2a_v2_2_heldout_rehearsal_bundle.py": "8c2e34370174122d02232e76314ec7cc092523c8424773891b4cdb8335b53b0d",
+      "tests/test_p4_2a_v2_2_heldout_rehearsal_runner.py": "250d8259a1cd291563726a0d017512ef91e559464498c17aeda27f5e1365246f",
+      "tests/test_p4_2a_v2_2_heldout_rehearsal_validator.py": "fbd7cfedda56bb48f06b1d0438d59ad7d5e635ecc91bf0ca43d2afbfbfd45b13"
+    }
+  },
+  "created_at_shanghai": "2026-08-15T17:52:11+08:00",
+  "created_at_utc": "2026-08-15T09:52:11Z",
+  "full_registered_gate": {
+    "runner": {
+      "full_log_verbatim_utf8": "........................................................................ [ 47%]\n........................................................................ [ 94%]\n........                                                                 [100%]\n- generated xml file: /Users/ouyangduning/Documents/project/interesting/.alphapilot-p42a-epoch3-r2-gate-evidence-rerun2.2bUkMK/runner.junit.xml -\n152 passed in 6878.33s (1:54:38)\n\n--- P4.2A EPOCH3 GATE METADATA ---\n{\"cwd\":\"/Users/ouyangduning/Documents/project/interesting/.alphapilot-p42a-epoch3-gate.h1iJnS\",\"end_cst\":\"2026-08-15T16:07:35+0800\",\"end_head\":\"d4fb0d8c763b9fa104949ea2ac58bc921d9e8889\",\"end_utc\":\"2026-08-15T08:07:35Z\",\"exact_exec_argv\":[\"/usr/bin/env\",\"-u\",\"PYTEST_ADDOPTS\",\"PYTHONDONTWRITEBYTECODE=1\",\"/usr/bin/nice\",\"-n\",\"10\",\"/Users/ouyangduning/Documents/project/interesting/AlphaPilot-AI/.venv/bin/python\",\"-B\",\"-m\",\"pytest\",\"tests/test_p4_2a_v2_2_heldout_rehearsal_runner.py\",\"--junitxml=/Users/ouyangduning/Documents/project/interesting/.alphapilot-p42a-epoch3-r2-gate-evidence-rerun2.2bUkMK/runner.junit.xml\"],\"exit_code\":0,\"expected_tests\":152,\"inherited_nice\":10,\"label\":\"runner\",\"python_argv\":[\"/Users/ouyangduning/Documents/project/interesting/AlphaPilot-AI/.venv/bin/python\",\"-B\",\"-m\",\"pytest\",\"tests/test_p4_2a_v2_2_heldout_rehearsal_runner.py\",\"--junitxml=/Users/ouyangduning/Documents/project/interesting/.alphapilot-p42a-epoch3-r2-gate-evidence-rerun2.2bUkMK/runner.junit.xml\"],\"schema_version\":\"p4.2a-epoch3-r2-full-gate-module-metadata-v1\",\"start_cst\":\"2026-08-15T14:12:56+0800\",\"start_head\":\"d4fb0d8c763b9fa104949ea2ac58bc921d9e8889\",\"start_utc\":\"2026-08-15T06:12:56Z\",\"wall_seconds\":6879}\n",
+      "junit": {
+        "bytes": 26403,
+        "path": "/Users/ouyangduning/Documents/project/interesting/.alphapilot-p42a-epoch3-r2-gate-evidence-rerun2.2bUkMK/runner.junit.xml",
+        "sha256": "6f4b51a755c8b3acf3f729da0b7dd208d634dc028ffc3c3cd4a5d59ce8241523"
+      },
+      "junit_summary": {
+        "all_testcases_have_nonnegative_time": true,
+        "label": "runner",
+        "path": "/Users/ouyangduning/Documents/project/interesting/.alphapilot-p42a-epoch3-r2-gate-evidence-rerun2.2bUkMK/runner.junit.xml",
+        "schema_version": "p4.2a-epoch3-junit-summary-v1",
+        "status": "PASS_JUNIT_EXACT",
+        "testcase_count": 152,
+        "totals": {
+          "disabled": 0,
+          "errors": 0,
+          "failures": 0,
+          "skipped": 0,
+          "tests": 152
+        }
+      },
+      "log": {
+        "bytes": 1666,
+        "path": "/Users/ouyangduning/Documents/project/interesting/.alphapilot-p42a-epoch3-r2-gate-evidence-rerun2.2bUkMK/runner.log",
+        "sha256": "c565537c6db812754ad3310f57ee8a7bc7a1314e9546a3700ee387e412404636"
+      },
+      "metadata": {
+        "cwd": "/Users/ouyangduning/Documents/project/interesting/.alphapilot-p42a-epoch3-gate.h1iJnS",
+        "end_cst": "2026-08-15T16:07:35+0800",
+        "end_head": "d4fb0d8c763b9fa104949ea2ac58bc921d9e8889",
+        "end_utc": "2026-08-15T08:07:35Z",
+        "exact_exec_argv": [
+          "/usr/bin/env",
+          "-u",
+          "PYTEST_ADDOPTS",
+          "PYTHONDONTWRITEBYTECODE=1",
+          "/usr/bin/nice",
+          "-n",
+          "10",
+          "/Users/ouyangduning/Documents/project/interesting/AlphaPilot-AI/.venv/bin/python",
+          "-B",
+          "-m",
+          "pytest",
+          "tests/test_p4_2a_v2_2_heldout_rehearsal_runner.py",
+          "--junitxml=/Users/ouyangduning/Documents/project/interesting/.alphapilot-p42a-epoch3-r2-gate-evidence-rerun2.2bUkMK/runner.junit.xml"
+        ],
+        "exit_code": 0,
+        "expected_tests": 152,
+        "inherited_nice": 10,
+        "label": "runner",
+        "python_argv": [
+          "/Users/ouyangduning/Documents/project/interesting/AlphaPilot-AI/.venv/bin/python",
+          "-B",
+          "-m",
+          "pytest",
+          "tests/test_p4_2a_v2_2_heldout_rehearsal_runner.py",
+          "--junitxml=/Users/ouyangduning/Documents/project/interesting/.alphapilot-p42a-epoch3-r2-gate-evidence-rerun2.2bUkMK/runner.junit.xml"
+        ],
+        "schema_version": "p4.2a-epoch3-r2-full-gate-module-metadata-v1",
+        "start_cst": "2026-08-15T14:12:56+0800",
+        "start_head": "d4fb0d8c763b9fa104949ea2ac58bc921d9e8889",
+        "start_utc": "2026-08-15T06:12:56Z",
+        "wall_seconds": 6879
+      },
+      "pytest_reported_seconds": 6878.33,
+      "wrapper_wall_seconds": 6879
+    },
+    "totals": {
+      "all_testcase_times_finite_nonnegative": true,
+      "disabled": 0,
+      "errors": 0,
+      "failures": 0,
+      "module_wall_seconds_sum": 8979,
+      "process_envelope_seconds": 8998,
+      "pytest_reported_seconds_sum": 8973.15,
+      "skipped": 0,
+      "tests": 261
+    },
+    "validator": {
+      "full_log_verbatim_utf8": "........................................................................ [ 66%]\n.....................................                                    [100%]\n- generated xml file: /Users/ouyangduning/Documents/project/interesting/.alphapilot-p42a-epoch3-r2-gate-evidence-rerun2.2bUkMK/validator.junit.xml -\n109 passed in 2094.82s (0:34:54)\n\n--- P4.2A EPOCH3 GATE METADATA ---\n{\"cwd\":\"/Users/ouyangduning/Documents/project/interesting/.alphapilot-p42a-epoch3-gate.h1iJnS\",\"end_cst\":\"2026-08-15T16:42:54+0800\",\"end_head\":\"d4fb0d8c763b9fa104949ea2ac58bc921d9e8889\",\"end_utc\":\"2026-08-15T08:42:54Z\",\"exact_exec_argv\":[\"/usr/bin/env\",\"-u\",\"PYTEST_ADDOPTS\",\"PYTHONDONTWRITEBYTECODE=1\",\"/usr/bin/nice\",\"-n\",\"10\",\"/Users/ouyangduning/Documents/project/interesting/AlphaPilot-AI/.venv/bin/python\",\"-B\",\"-m\",\"pytest\",\"tests/test_p4_2a_v2_2_heldout_rehearsal_validator.py\",\"--junitxml=/Users/ouyangduning/Documents/project/interesting/.alphapilot-p42a-epoch3-r2-gate-evidence-rerun2.2bUkMK/validator.junit.xml\"],\"exit_code\":0,\"expected_tests\":109,\"inherited_nice\":10,\"label\":\"validator\",\"python_argv\":[\"/Users/ouyangduning/Documents/project/interesting/AlphaPilot-AI/.venv/bin/python\",\"-B\",\"-m\",\"pytest\",\"tests/test_p4_2a_v2_2_heldout_rehearsal_validator.py\",\"--junitxml=/Users/ouyangduning/Documents/project/interesting/.alphapilot-p42a-epoch3-r2-gate-evidence-rerun2.2bUkMK/validator.junit.xml\"],\"schema_version\":\"p4.2a-epoch3-r2-full-gate-module-metadata-v1\",\"start_cst\":\"2026-08-15T16:07:54+0800\",\"start_head\":\"d4fb0d8c763b9fa104949ea2ac58bc921d9e8889\",\"start_utc\":\"2026-08-15T08:07:54Z\",\"wall_seconds\":2100}\n",
+      "junit": {
+        "bytes": 20055,
+        "path": "/Users/ouyangduning/Documents/project/interesting/.alphapilot-p42a-epoch3-r2-gate-evidence-rerun2.2bUkMK/validator.junit.xml",
+        "sha256": "ee0ab107c8f07a4187b01aa6df865036aecdaaea9df9235908ed3419a74e4336"
+      },
+      "junit_summary": {
+        "all_testcases_have_nonnegative_time": true,
+        "label": "validator",
+        "path": "/Users/ouyangduning/Documents/project/interesting/.alphapilot-p42a-epoch3-r2-gate-evidence-rerun2.2bUkMK/validator.junit.xml",
+        "schema_version": "p4.2a-epoch3-junit-summary-v1",
+        "status": "PASS_JUNIT_EXACT",
+        "testcase_count": 109,
+        "totals": {
+          "disabled": 0,
+          "errors": 0,
+          "failures": 0,
+          "skipped": 0,
+          "tests": 109
+        }
+      },
+      "log": {
+        "bytes": 1604,
+        "path": "/Users/ouyangduning/Documents/project/interesting/.alphapilot-p42a-epoch3-r2-gate-evidence-rerun2.2bUkMK/validator.log",
+        "sha256": "396aad47fa30e7dfe97e778e521f7e9f898aff7f26bb255b617e1eb98eeba683"
+      },
+      "metadata": {
+        "cwd": "/Users/ouyangduning/Documents/project/interesting/.alphapilot-p42a-epoch3-gate.h1iJnS",
+        "end_cst": "2026-08-15T16:42:54+0800",
+        "end_head": "d4fb0d8c763b9fa104949ea2ac58bc921d9e8889",
+        "end_utc": "2026-08-15T08:42:54Z",
+        "exact_exec_argv": [
+          "/usr/bin/env",
+          "-u",
+          "PYTEST_ADDOPTS",
+          "PYTHONDONTWRITEBYTECODE=1",
+          "/usr/bin/nice",
+          "-n",
+          "10",
+          "/Users/ouyangduning/Documents/project/interesting/AlphaPilot-AI/.venv/bin/python",
+          "-B",
+          "-m",
+          "pytest",
+          "tests/test_p4_2a_v2_2_heldout_rehearsal_validator.py",
+          "--junitxml=/Users/ouyangduning/Documents/project/interesting/.alphapilot-p42a-epoch3-r2-gate-evidence-rerun2.2bUkMK/validator.junit.xml"
+        ],
+        "exit_code": 0,
+        "expected_tests": 109,
+        "inherited_nice": 10,
+        "label": "validator",
+        "python_argv": [
+          "/Users/ouyangduning/Documents/project/interesting/AlphaPilot-AI/.venv/bin/python",
+          "-B",
+          "-m",
+          "pytest",
+          "tests/test_p4_2a_v2_2_heldout_rehearsal_validator.py",
+          "--junitxml=/Users/ouyangduning/Documents/project/interesting/.alphapilot-p42a-epoch3-r2-gate-evidence-rerun2.2bUkMK/validator.junit.xml"
+        ],
+        "schema_version": "p4.2a-epoch3-r2-full-gate-module-metadata-v1",
+        "start_cst": "2026-08-15T16:07:54+0800",
+        "start_head": "d4fb0d8c763b9fa104949ea2ac58bc921d9e8889",
+        "start_utc": "2026-08-15T08:07:54Z",
+        "wall_seconds": 2100
+      },
+      "pytest_reported_seconds": 2094.82,
+      "wrapper_wall_seconds": 2100
+    }
+  },
+  "generator_correction": {
+    "actual_prearmed_listing": [
+      "harness_static_check.final-prearmed.log"
+    ],
+    "automation_heartbeat_prompt_byte_locked": true,
+    "c6_application": "FOURTH",
+    "classification": "OPERATOR_TOOL_PATH_ERROR_ZERO_CONSUMPTION",
+    "corrected_literal": "harness_static_check.final-prearmed.log",
+    "eleven_existing_py_sh_files_byte_locked": true,
+    "gate_time_harness_manifest": {
+      "bytes": 1044,
+      "path": "/Users/ouyangduning/Documents/project/interesting/.alphapilot-p42a-epoch3-r2-gate-evidence-rerun2.2bUkMK/HARNESS_SHA256SUMS.gate-time",
+      "sha256": "ce1ca73e7f4c2e0ce7493d08abbbbc5b69d2dff30f358c62eaf85a629d29650a",
+      "verbatim_utf8": "a9bb5e9da8bfa0c24d66f213ab4ea5e13b340ed52b570dec96b20520099ded0b  automation-heartbeat-prompt.txt\n10629e9a65406d4c2d53ceced102fdab5ed38a0b5c7ff53513557c0a31b4a115  backup_immutable_verify.py\n7974523cd1cbb0355db4c6573132b9dd7c2246b2faf1fe86700d59cd713cc712  collect_validate.py\nfbda1f120e3217ec303f51bdaf4fede7d095394493b0eb7e31dad8d48acdf1e2  gate_finalize.sh\n8c01e3ce7dd7aa45f3315cbef2e303e04b487a94f15713be3e527d26ec16486a  gate_module.sh\nae8e24a568206f23f22355dae20b0fab11175fd2a6d2a647e2fb900fbd27237c  harness_static_check.sh\na4363265385696786c435bb0ae3a742a1671705615ed085cb3ab4e398369f4c6  junit_validate.py\n59aa92e58d3ec4c8f49bd07c4fcb15fc6907b6602fe0008220aa5499becd0349  postcheck.py\n7b83a71e8d71f058c68a827bb57988b26029db594666e540d449f3d6b0478817  pre_registered_gate_readback.py\n1d7f628619e88f99566da60c4cfbd04e97184979bf6189bf4d58c9cb8cc9a2b2  precheck_audit.py\n04766225dac881da389dfa6995922119dbe73800c10ecc8a2162d83c68b39f57  precheck_run.sh\nae6459fcf810fc1790e7809e45c7c0b2005c4e82c9f6cdee90724234407c63c0  purpose_precheck.py\n"
+    },
+    "generator": {
+      "bytes": 26114,
+      "path": "/Users/ouyangduning/Documents/project/interesting/.alphapilot-p42a-epoch3-r2-gate-evidence-rerun2.2bUkMK/landing_report_generator.py",
+      "sha256": "ab71374dccc37ad781f4ddf500146b1a56b642540fbdb44d65ddaf94416eb4bc"
+    },
+    "post_adjudication_harness_manifest": {
+      "bytes": 1138,
+      "path": "/Users/ouyangduning/Documents/project/interesting/.alphapilot-p42a-epoch3-r2-gate-evidence-rerun2.2bUkMK/HARNESS_SHA256SUMS",
+      "sha256": "057cb81d7f57b5bf3e58d68514b1e095ed0e54a0b730f543a2d2c2b2baace310",
+      "verbatim_utf8": "a9bb5e9da8bfa0c24d66f213ab4ea5e13b340ed52b570dec96b20520099ded0b  automation-heartbeat-prompt.txt\n10629e9a65406d4c2d53ceced102fdab5ed38a0b5c7ff53513557c0a31b4a115  backup_immutable_verify.py\n7974523cd1cbb0355db4c6573132b9dd7c2246b2faf1fe86700d59cd713cc712  collect_validate.py\nfbda1f120e3217ec303f51bdaf4fede7d095394493b0eb7e31dad8d48acdf1e2  gate_finalize.sh\n8c01e3ce7dd7aa45f3315cbef2e303e04b487a94f15713be3e527d26ec16486a  gate_module.sh\nae8e24a568206f23f22355dae20b0fab11175fd2a6d2a647e2fb900fbd27237c  harness_static_check.sh\na4363265385696786c435bb0ae3a742a1671705615ed085cb3ab4e398369f4c6  junit_validate.py\nab71374dccc37ad781f4ddf500146b1a56b642540fbdb44d65ddaf94416eb4bc  landing_report_generator.py\n59aa92e58d3ec4c8f49bd07c4fcb15fc6907b6602fe0008220aa5499becd0349  postcheck.py\n7b83a71e8d71f058c68a827bb57988b26029db594666e540d449f3d6b0478817  pre_registered_gate_readback.py\n1d7f628619e88f99566da60c4cfbd04e97184979bf6189bf4d58c9cb8cc9a2b2  precheck_audit.py\n04766225dac881da389dfa6995922119dbe73800c10ecc8a2162d83c68b39f57  precheck_run.sh\nae6459fcf810fc1790e7809e45c7c0b2005c4e82c9f6cdee90724234407c63c0  purpose_precheck.py\n"
+    },
+    "prearmed_filename_from_PREARMED_SHA256": "harness_static_check.final-prearmed.log",
+    "prearmed_sha256": "cf7de0ce154b46b05abd665ade59f02f07bd5f34420e21495c8fe21b949e8086",
+    "stale_literal_rejected": "harness_static_check.final-prearmed-v4.log"
+  },
+  "governance": {
+    "final_release_review_obligation": "The final release review MUST cite the void-sentinel semantic and effective governance: epoch 1 is ASSIGNED_AND_STRUCTURALLY_UNCONSUMABLE; positive ordinal bounds are schema filler only; epoch 1 is excluded from interval accounting and cannot be selected or consumed; epoch 2 owns ordinal 1.",
+    "supersession_statement": "The 4d5d1664 candidate and the merge approval carried by 55dbe91 are void for merge purposes under adjudication 578a625; both objects remain immutable disclosed history. d4fb0d8c is a new direct child of d6c9c353 and therefore a sibling, not a rewrite, of 4d5d1664. bf9f610 is the current effective APPROVE_EPOCH3_IMPLEMENTATION review.",
+    "void_sentinel_statement": "The r2 production-script blobs carry the reviewed void-epoch implementation by byte identity. The old review's part_2_b is explanatory only and is not current landing authority."
+  },
+  "harness_evidence": {
+    "armed_static_log": {
+      "bytes": 7527,
+      "path": "/Users/ouyangduning/Documents/project/interesting/.alphapilot-p42a-epoch3-r2-gate-evidence-rerun2.2bUkMK/harness_static_check.armed.log",
+      "sha256": "cf7de0ce154b46b05abd665ade59f02f07bd5f34420e21495c8fe21b949e8086"
+    },
+    "four_file_sha256sums": {
+      "bytes": 326,
+      "path": "/Users/ouyangduning/Documents/project/interesting/.alphapilot-p42a-epoch3-r2-gate-evidence-rerun2.2bUkMK/SHA256SUMS",
+      "sha256": "2984e20719b6fa9f78912e011459115f9f28687df272693e2b07085aa803bdd1",
+      "verbatim_utf8": "c565537c6db812754ad3310f57ee8a7bc7a1314e9546a3700ee387e412404636  runner.log\n6f4b51a755c8b3acf3f729da0b7dd208d634dc028ffc3c3cd4a5d59ce8241523  runner.junit.xml\n396aad47fa30e7dfe97e778e521f7e9f898aff7f26bb255b617e1eb98eeba683  validator.log\nee0ab107c8f07a4187b01aa6df865036aecdaaea9df9235908ed3419a74e4336  validator.junit.xml\n"
+    },
+    "gate_time_harness_sha256sums": {
+      "bytes": 1044,
+      "path": "/Users/ouyangduning/Documents/project/interesting/.alphapilot-p42a-epoch3-r2-gate-evidence-rerun2.2bUkMK/HARNESS_SHA256SUMS.gate-time",
+      "sha256": "ce1ca73e7f4c2e0ce7493d08abbbbc5b69d2dff30f358c62eaf85a629d29650a",
+      "verbatim_utf8": "a9bb5e9da8bfa0c24d66f213ab4ea5e13b340ed52b570dec96b20520099ded0b  automation-heartbeat-prompt.txt\n10629e9a65406d4c2d53ceced102fdab5ed38a0b5c7ff53513557c0a31b4a115  backup_immutable_verify.py\n7974523cd1cbb0355db4c6573132b9dd7c2246b2faf1fe86700d59cd713cc712  collect_validate.py\nfbda1f120e3217ec303f51bdaf4fede7d095394493b0eb7e31dad8d48acdf1e2  gate_finalize.sh\n8c01e3ce7dd7aa45f3315cbef2e303e04b487a94f15713be3e527d26ec16486a  gate_module.sh\nae8e24a568206f23f22355dae20b0fab11175fd2a6d2a647e2fb900fbd27237c  harness_static_check.sh\na4363265385696786c435bb0ae3a742a1671705615ed085cb3ab4e398369f4c6  junit_validate.py\n59aa92e58d3ec4c8f49bd07c4fcb15fc6907b6602fe0008220aa5499becd0349  postcheck.py\n7b83a71e8d71f058c68a827bb57988b26029db594666e540d449f3d6b0478817  pre_registered_gate_readback.py\n1d7f628619e88f99566da60c4cfbd04e97184979bf6189bf4d58c9cb8cc9a2b2  precheck_audit.py\n04766225dac881da389dfa6995922119dbe73800c10ecc8a2162d83c68b39f57  precheck_run.sh\nae6459fcf810fc1790e7809e45c7c0b2005c4e82c9f6cdee90724234407c63c0  purpose_precheck.py\n"
+    },
+    "post_adjudication_harness_sha256sums": {
+      "bytes": 1138,
+      "path": "/Users/ouyangduning/Documents/project/interesting/.alphapilot-p42a-epoch3-r2-gate-evidence-rerun2.2bUkMK/HARNESS_SHA256SUMS",
+      "sha256": "057cb81d7f57b5bf3e58d68514b1e095ed0e54a0b730f543a2d2c2b2baace310",
+      "verbatim_utf8": "a9bb5e9da8bfa0c24d66f213ab4ea5e13b340ed52b570dec96b20520099ded0b  automation-heartbeat-prompt.txt\n10629e9a65406d4c2d53ceced102fdab5ed38a0b5c7ff53513557c0a31b4a115  backup_immutable_verify.py\n7974523cd1cbb0355db4c6573132b9dd7c2246b2faf1fe86700d59cd713cc712  collect_validate.py\nfbda1f120e3217ec303f51bdaf4fede7d095394493b0eb7e31dad8d48acdf1e2  gate_finalize.sh\n8c01e3ce7dd7aa45f3315cbef2e303e04b487a94f15713be3e527d26ec16486a  gate_module.sh\nae8e24a568206f23f22355dae20b0fab11175fd2a6d2a647e2fb900fbd27237c  harness_static_check.sh\na4363265385696786c435bb0ae3a742a1671705615ed085cb3ab4e398369f4c6  junit_validate.py\nab71374dccc37ad781f4ddf500146b1a56b642540fbdb44d65ddaf94416eb4bc  landing_report_generator.py\n59aa92e58d3ec4c8f49bd07c4fcb15fc6907b6602fe0008220aa5499becd0349  postcheck.py\n7b83a71e8d71f058c68a827bb57988b26029db594666e540d449f3d6b0478817  pre_registered_gate_readback.py\n1d7f628619e88f99566da60c4cfbd04e97184979bf6189bf4d58c9cb8cc9a2b2  precheck_audit.py\n04766225dac881da389dfa6995922119dbe73800c10ecc8a2162d83c68b39f57  precheck_run.sh\nae6459fcf810fc1790e7809e45c7c0b2005c4e82c9f6cdee90724234407c63c0  purpose_precheck.py\n"
+    },
+    "postgate_static_log": {
+      "bytes": 7612,
+      "path": "/Users/ouyangduning/Documents/project/interesting/.alphapilot-p42a-epoch3-r2-gate-evidence-rerun2.2bUkMK/harness_freeze.postgate.log",
+      "sha256": "c8c5e478913231ed80222a1d368ff6e4ad456339757f9eea4cca193b1322dcc3"
+    },
+    "prearmed_equals_armed": true,
+    "prearmed_sha256": {
+      "bytes": 106,
+      "path": "/Users/ouyangduning/Documents/project/interesting/.alphapilot-p42a-epoch3-r2-gate-evidence-rerun2.2bUkMK/PREARMED_SHA256",
+      "sha256": "bcbb930e44c569731240c044d3751c42f8258a2039f19a225755d54f6ac388e6",
+      "verbatim_utf8": "cf7de0ce154b46b05abd665ade59f02f07bd5f34420e21495c8fe21b949e8086  harness_static_check.final-prearmed.log\n"
+    },
+    "prearmed_static_log": {
+      "bytes": 7527,
+      "path": "/Users/ouyangduning/Documents/project/interesting/.alphapilot-p42a-epoch3-r2-gate-evidence-rerun2.2bUkMK/harness_static_check.final-prearmed.log",
+      "sha256": "cf7de0ce154b46b05abd665ade59f02f07bd5f34420e21495c8fe21b949e8086"
+    }
+  },
+  "operational_safety": {
+    "backup": {
+      "four_hour_gate_upper_bound_cst": "2026-08-15T18:12:12.626056+08:00",
+      "immutable_verification": {
+        "bytes": 3673,
+        "path": "/Users/ouyangduning/Documents/project/interesting/.alphapilot-p42a-epoch3-r2-gate-evidence-rerun2.2bUkMK/backup_immutable_verify.json",
+        "sha256": "e1fb4680b1890e2bb6f524f9ee8004400630561d3c80bd96b91743ef6f284a1e"
+      },
+      "inventory_after": [
+        {
+          "ctime_ns": 1786025119489369499,
+          "device": 16777229,
+          "inode": 288740024,
+          "kind": "file",
+          "mode": 384,
+          "mtime_ns": 1786025032867143666,
+          "name": ".alphapilot-full-20260806T140128258294Z.db.grdmrvzl.partial-shm",
+          "nlink": 1,
+          "size": 32768
+        },
+        {
+          "ctime_ns": 1786025031345248333,
+          "device": 16777229,
+          "inode": 288740023,
+          "kind": "file",
+          "mode": 384,
+          "mtime_ns": 1786025031345248333,
+          "name": ".alphapilot-full-20260806T140128258294Z.db.grdmrvzl.partial-wal",
+          "nlink": 1,
+          "size": 0
+        },
+        {
+          "ctime_ns": 1786113814358615833,
+          "device": 16777229,
+          "inode": 289387622,
+          "kind": "file",
+          "mode": 384,
+          "mtime_ns": 1786113715192191374,
+          "name": ".alphapilot-full-20260807T140839040989Z.db.x36_9ic8.partial-shm",
+          "nlink": 1,
+          "size": 32768
+        },
+        {
+          "ctime_ns": 1786113711901218583,
+          "device": 16777229,
+          "inode": 289387621,
+          "kind": "file",
+          "mode": 384,
+          "mtime_ns": 1786113711901218583,
+          "name": ".alphapilot-full-20260807T140839040989Z.db.x36_9ic8.partial-wal",
+          "nlink": 1,
+          "size": 0
+        },
+        {
+          "ctime_ns": 1786198369663786666,
+          "device": 16777229,
+          "inode": 290049273,
+          "kind": "file",
+          "mode": 384,
+          "mtime_ns": 1786198256763996791,
+          "name": ".alphapilot-full-20260808T140556670834Z.db.geyypzol.partial-shm",
+          "nlink": 1,
+          "size": 32768
+        },
+        {
+          "ctime_ns": 1786198252951236624,
+          "device": 16777229,
+          "inode": 290049272,
+          "kind": "file",
+          "mode": 384,
+          "mtime_ns": 1786198252951236624,
+          "name": ".alphapilot-full-20260808T140556670834Z.db.geyypzol.partial-wal",
+          "nlink": 1,
+          "size": 0
+        },
+        {
+          "ctime_ns": 1786275366886289499,
+          "device": 16777229,
+          "inode": 292141826,
+          "kind": "file",
+          "mode": 384,
+          "mtime_ns": 1786275299919639416,
+          "name": ".alphapilot-full-20260809T113428170070Z.db.j0p56ybp.partial-shm",
+          "nlink": 1,
+          "size": 32768
+        },
+        {
+          "ctime_ns": 1786275297797625833,
+          "device": 16777229,
+          "inode": 292141825,
+          "kind": "file",
+          "mode": 384,
+          "mtime_ns": 1786275297797583999,
+          "name": ".alphapilot-full-20260809T113428170070Z.db.j0p56ybp.partial-wal",
+          "nlink": 1,
+          "size": 0
+        },
+        {
+          "ctime_ns": 1786284380731843208,
+          "device": 16777229,
+          "inode": 292333499,
+          "kind": "file",
+          "mode": 384,
+          "mtime_ns": 1786284264340285208,
+          "name": ".alphapilot-full-20260809T140305129495Z.db.irnfvmc1.partial-shm",
+          "nlink": 1,
+          "size": 32768
+        },
+        {
+          "ctime_ns": 1786284258432011624,
+          "device": 16777229,
+          "inode": 292333498,
+          "kind": "file",
+          "mode": 384,
+          "mtime_ns": 1786284258432011624,
+          "name": ".alphapilot-full-20260809T140305129495Z.db.irnfvmc1.partial-wal",
+          "nlink": 1,
+          "size": 0
+        },
+        {
+          "ctime_ns": 1786370869437961333,
+          "device": 16777229,
+          "inode": 294625207,
+          "kind": "file",
+          "mode": 384,
+          "mtime_ns": 1786370785104265333,
+          "name": ".alphapilot-full-20260810T140605227286Z.db._fwekhvr.partial-shm",
+          "nlink": 1,
+          "size": 32768
+        },
+        {
+          "ctime_ns": 1786370782756270041,
+          "device": 16777229,
+          "inode": 294625206,
+          "kind": "file",
+          "mode": 384,
+          "mtime_ns": 1786370782756270041,
+          "name": ".alphapilot-full-20260810T140605227286Z.db._fwekhvr.partial-wal",
+          "nlink": 1,
+          "size": 0
+        },
+        {
+          "ctime_ns": 1786457303434522958,
+          "device": 16777229,
+          "inode": 298636214,
+          "kind": "file",
+          "mode": 384,
+          "mtime_ns": 1786457121839944374,
+          "name": ".alphapilot-full-20260811T140428778875Z.db.odzwh35n.partial-shm",
+          "nlink": 1,
+          "size": 32768
+        },
+        {
+          "ctime_ns": 1786457117416097374,
+          "device": 16777229,
+          "inode": 298636213,
+          "kind": "file",
+          "mode": 384,
+          "mtime_ns": 1786457117416097374,
+          "name": ".alphapilot-full-20260811T140428778875Z.db.odzwh35n.partial-wal",
+          "nlink": 1,
+          "size": 0
+        },
+        {
+          "ctime_ns": 1786543840205138708,
+          "device": 16777229,
+          "inode": 303729250,
+          "kind": "file",
+          "mode": 384,
+          "mtime_ns": 1786543580983152583,
+          "name": ".alphapilot-full-20260812T140415415325Z.db.ay31lfig.partial-shm",
+          "nlink": 1,
+          "size": 32768
+        },
+        {
+          "ctime_ns": 1786543576000904083,
+          "device": 16777229,
+          "inode": 303729249,
+          "kind": "file",
+          "mode": 384,
+          "mtime_ns": 1786543576000904083,
+          "name": ".alphapilot-full-20260812T140415415325Z.db.ay31lfig.partial-wal",
+          "nlink": 1,
+          "size": 0
+        },
+        {
+          "ctime_ns": 1786616230274283333,
+          "device": 16777229,
+          "inode": 306507919,
+          "kind": "file",
+          "mode": 384,
+          "mtime_ns": 1786616155276348416,
+          "name": ".alphapilot-full-20260813T101514039763Z.db._w9081x9.partial-shm",
+          "nlink": 1,
+          "size": 32768
+        },
+        {
+          "ctime_ns": 1786616134966828333,
+          "device": 16777229,
+          "inode": 306507918,
+          "kind": "file",
+          "mode": 384,
+          "mtime_ns": 1786616134966788541,
+          "name": ".alphapilot-full-20260813T101514039763Z.db._w9081x9.partial-wal",
+          "nlink": 1,
+          "size": 0
+        },
+        {
+          "ctime_ns": 1786716403186232208,
+          "device": 16777229,
+          "inode": 309174733,
+          "kind": "file",
+          "mode": 384,
+          "mtime_ns": 1786716265893605958,
+          "name": ".alphapilot-full-20260814T140354997795Z.db.u99elvzl.partial-shm",
+          "nlink": 1,
+          "size": 32768
+        },
+        {
+          "ctime_ns": 1786716262164228708,
+          "device": 16777229,
+          "inode": 309174732,
+          "kind": "file",
+          "mode": 384,
+          "mtime_ns": 1786716262164228708,
+          "name": ".alphapilot-full-20260814T140354997795Z.db.u99elvzl.partial-wal",
+          "nlink": 1,
+          "size": 0
+        },
+        {
+          "ctime_ns": 1786716235026423291,
+          "device": 16777229,
+          "inode": 273903839,
+          "kind": "file",
+          "mode": 384,
+          "mtime_ns": 1785429453277276791,
+          "name": ".alphapilot-full-backup.lock",
+          "nlink": 1,
+          "size": 0
+        },
+        {
+          "ctime_ns": 1785429434872832208,
+          "device": 16777229,
+          "inode": 273197747,
+          "kind": "file",
+          "mode": 384,
+          "mtime_ns": 1785419688906050458,
+          "name": "alphapilot-before-daily-screening-20260730T215331CST.db",
+          "nlink": 1,
+          "size": 5322227712
+        },
+        {
+          "ctime_ns": 1785429434872564874,
+          "device": 16777229,
+          "inode": 264312163,
+          "kind": "file",
+          "mode": 384,
+          "mtime_ns": 1785012642221167874,
+          "name": "alphapilot-before-orphan-sina-adj-cleanup-20260725T205024Z.db",
+          "nlink": 1,
+          "size": 4749484032
+        },
+        {
+          "ctime_ns": 1786198379960170708,
+          "device": 16777229,
+          "inode": 290047935,
+          "kind": "file",
+          "mode": 384,
+          "mtime_ns": 1786198252929106124,
+          "name": "alphapilot-full-20260808T140556670834Z.db",
+          "nlink": 1,
+          "size": 5373038592
+        },
+        {
+          "ctime_ns": 1786198379976304583,
+          "device": 16777229,
+          "inode": 290049756,
+          "kind": "file",
+          "mode": 384,
+          "mtime_ns": 1786198379975041958,
+          "name": "alphapilot-full-20260808T140556670834Z.manifest.json",
+          "nlink": 1,
+          "size": 1284
+        },
+        {
+          "ctime_ns": 1786275369695568791,
+          "device": 16777229,
+          "inode": 292141469,
+          "kind": "file",
+          "mode": 384,
+          "mtime_ns": 1786275297786086291,
+          "name": "alphapilot-full-20260809T113428170070Z.db",
+          "nlink": 1,
+          "size": 5373038592
+        },
+        {
+          "ctime_ns": 1786277910929409874,
+          "device": 16777229,
+          "inode": 292143376,
+          "kind": "file",
+          "mode": 384,
+          "mtime_ns": 1786277910338392708,
+          "name": "alphapilot-full-20260809T113428170070Z.db-shm",
+          "nlink": 1,
+          "size": 32768
+        },
+        {
+          "ctime_ns": 1786275419041694374,
+          "device": 16777229,
+          "inode": 292143375,
+          "kind": "file",
+          "mode": 384,
+          "mtime_ns": 1786275419041663041,
+          "name": "alphapilot-full-20260809T113428170070Z.db-wal",
+          "nlink": 1,
+          "size": 0
+        },
+        {
+          "ctime_ns": 1786275369696700624,
+          "device": 16777229,
+          "inode": 292142688,
+          "kind": "file",
+          "mode": 384,
+          "mtime_ns": 1786275369696494291,
+          "name": "alphapilot-full-20260809T113428170070Z.manifest.json",
+          "nlink": 1,
+          "size": 1284
+        },
+        {
+          "ctime_ns": 1786284386130602374,
+          "device": 16777229,
+          "inode": 292332974,
+          "kind": "file",
+          "mode": 384,
+          "mtime_ns": 1786284258370676541,
+          "name": "alphapilot-full-20260809T140305129495Z.db",
+          "nlink": 1,
+          "size": 5373038592
+        },
+        {
+          "ctime_ns": 1786284386132710916,
+          "device": 16777229,
+          "inode": 292334109,
+          "kind": "file",
+          "mode": 384,
+          "mtime_ns": 1786284386132234624,
+          "name": "alphapilot-full-20260809T140305129495Z.manifest.json",
+          "nlink": 1,
+          "size": 1284
+        },
+        {
+          "ctime_ns": 1786370877392408708,
+          "device": 16777229,
+          "inode": 294625111,
+          "kind": "file",
+          "mode": 384,
+          "mtime_ns": 1786370782753870874,
+          "name": "alphapilot-full-20260810T140605227286Z.db",
+          "nlink": 1,
+          "size": 5373038592
+        },
+        {
+          "ctime_ns": 1786370877395243624,
+          "device": 16777229,
+          "inode": 294625862,
+          "kind": "file",
+          "mode": 384,
+          "mtime_ns": 1786370877394479666,
+          "name": "alphapilot-full-20260810T140605227286Z.manifest.json",
+          "nlink": 1,
+          "size": 1284
+        },
+        {
+          "ctime_ns": 1786457309994494458,
+          "device": 16777229,
+          "inode": 298635324,
+          "kind": "file",
+          "mode": 384,
+          "mtime_ns": 1786457117368810041,
+          "name": "alphapilot-full-20260811T140428778875Z.db",
+          "nlink": 1,
+          "size": 5373038592
+        },
+        {
+          "ctime_ns": 1786457309996388083,
+          "device": 16777229,
+          "inode": 298665286,
+          "kind": "file",
+          "mode": 384,
+          "mtime_ns": 1786457309995972958,
+          "name": "alphapilot-full-20260811T140428778875Z.manifest.json",
+          "nlink": 1,
+          "size": 1284
+        },
+        {
+          "ctime_ns": 1786543848003052541,
+          "device": 16777229,
+          "inode": 303728623,
+          "kind": "file",
+          "mode": 384,
+          "mtime_ns": 1786543575834559999,
+          "name": "alphapilot-full-20260812T140415415325Z.db",
+          "nlink": 1,
+          "size": 5373038592
+        },
+        {
+          "ctime_ns": 1786543848005282499,
+          "device": 16777229,
+          "inode": 303731948,
+          "kind": "file",
+          "mode": 384,
+          "mtime_ns": 1786543848004759999,
+          "name": "alphapilot-full-20260812T140415415325Z.manifest.json",
+          "nlink": 1,
+          "size": 1284
+        },
+        {
+          "ctime_ns": 1786616233739422541,
+          "device": 16777229,
+          "inode": 306507674,
+          "kind": "file",
+          "mode": 384,
+          "mtime_ns": 1786616134926260499,
+          "name": "alphapilot-full-20260813T101514039763Z.db",
+          "nlink": 1,
+          "size": 5373038592
+        },
+        {
+          "ctime_ns": 1786616233749463333,
+          "device": 16777229,
+          "inode": 306509731,
+          "kind": "file",
+          "mode": 384,
+          "mtime_ns": 1786616233746319374,
+          "name": "alphapilot-full-20260813T101514039763Z.manifest.json",
+          "nlink": 1,
+          "size": 1284
+        },
+        {
+          "ctime_ns": 1786716412876024041,
+          "device": 16777229,
+          "inode": 309174346,
+          "kind": "file",
+          "mode": 384,
+          "mtime_ns": 1786716262155706666,
+          "name": "alphapilot-full-20260814T140354997795Z.db",
+          "nlink": 1,
+          "size": 5373038592
+        },
+        {
+          "ctime_ns": 1786716412880282583,
+          "device": 16777229,
+          "inode": 309175433,
+          "kind": "file",
+          "mode": 384,
+          "mtime_ns": 1786716412879076374,
+          "name": "alphapilot-full-20260814T140354997795Z.manifest.json",
+          "nlink": 1,
+          "size": 1284
+        },
+        {
+          "ctime_ns": 1785613233131017458,
+          "device": 16777229,
+          "inode": 280692376,
+          "kind": "file",
+          "mode": 420,
+          "mtime_ns": 1785613233131017458,
+          "name": "alphapilot-pre-p4.1-20260802T034014-CST.db",
+          "nlink": 1,
+          "size": 5373038592
+        }
+      ],
+      "inventory_before": [
+        {
+          "ctime_ns": 1786025119489369499,
+          "device": 16777229,
+          "inode": 288740024,
+          "kind": "file",
+          "mode": 384,
+          "mtime_ns": 1786025032867143666,
+          "name": ".alphapilot-full-20260806T140128258294Z.db.grdmrvzl.partial-shm",
+          "nlink": 1,
+          "size": 32768
+        },
+        {
+          "ctime_ns": 1786025031345248333,
+          "device": 16777229,
+          "inode": 288740023,
+          "kind": "file",
+          "mode": 384,
+          "mtime_ns": 1786025031345248333,
+          "name": ".alphapilot-full-20260806T140128258294Z.db.grdmrvzl.partial-wal",
+          "nlink": 1,
+          "size": 0
+        },
+        {
+          "ctime_ns": 1786113814358615833,
+          "device": 16777229,
+          "inode": 289387622,
+          "kind": "file",
+          "mode": 384,
+          "mtime_ns": 1786113715192191374,
+          "name": ".alphapilot-full-20260807T140839040989Z.db.x36_9ic8.partial-shm",
+          "nlink": 1,
+          "size": 32768
+        },
+        {
+          "ctime_ns": 1786113711901218583,
+          "device": 16777229,
+          "inode": 289387621,
+          "kind": "file",
+          "mode": 384,
+          "mtime_ns": 1786113711901218583,
+          "name": ".alphapilot-full-20260807T140839040989Z.db.x36_9ic8.partial-wal",
+          "nlink": 1,
+          "size": 0
+        },
+        {
+          "ctime_ns": 1786198369663786666,
+          "device": 16777229,
+          "inode": 290049273,
+          "kind": "file",
+          "mode": 384,
+          "mtime_ns": 1786198256763996791,
+          "name": ".alphapilot-full-20260808T140556670834Z.db.geyypzol.partial-shm",
+          "nlink": 1,
+          "size": 32768
+        },
+        {
+          "ctime_ns": 1786198252951236624,
+          "device": 16777229,
+          "inode": 290049272,
+          "kind": "file",
+          "mode": 384,
+          "mtime_ns": 1786198252951236624,
+          "name": ".alphapilot-full-20260808T140556670834Z.db.geyypzol.partial-wal",
+          "nlink": 1,
+          "size": 0
+        },
+        {
+          "ctime_ns": 1786275366886289499,
+          "device": 16777229,
+          "inode": 292141826,
+          "kind": "file",
+          "mode": 384,
+          "mtime_ns": 1786275299919639416,
+          "name": ".alphapilot-full-20260809T113428170070Z.db.j0p56ybp.partial-shm",
+          "nlink": 1,
+          "size": 32768
+        },
+        {
+          "ctime_ns": 1786275297797625833,
+          "device": 16777229,
+          "inode": 292141825,
+          "kind": "file",
+          "mode": 384,
+          "mtime_ns": 1786275297797583999,
+          "name": ".alphapilot-full-20260809T113428170070Z.db.j0p56ybp.partial-wal",
+          "nlink": 1,
+          "size": 0
+        },
+        {
+          "ctime_ns": 1786284380731843208,
+          "device": 16777229,
+          "inode": 292333499,
+          "kind": "file",
+          "mode": 384,
+          "mtime_ns": 1786284264340285208,
+          "name": ".alphapilot-full-20260809T140305129495Z.db.irnfvmc1.partial-shm",
+          "nlink": 1,
+          "size": 32768
+        },
+        {
+          "ctime_ns": 1786284258432011624,
+          "device": 16777229,
+          "inode": 292333498,
+          "kind": "file",
+          "mode": 384,
+          "mtime_ns": 1786284258432011624,
+          "name": ".alphapilot-full-20260809T140305129495Z.db.irnfvmc1.partial-wal",
+          "nlink": 1,
+          "size": 0
+        },
+        {
+          "ctime_ns": 1786370869437961333,
+          "device": 16777229,
+          "inode": 294625207,
+          "kind": "file",
+          "mode": 384,
+          "mtime_ns": 1786370785104265333,
+          "name": ".alphapilot-full-20260810T140605227286Z.db._fwekhvr.partial-shm",
+          "nlink": 1,
+          "size": 32768
+        },
+        {
+          "ctime_ns": 1786370782756270041,
+          "device": 16777229,
+          "inode": 294625206,
+          "kind": "file",
+          "mode": 384,
+          "mtime_ns": 1786370782756270041,
+          "name": ".alphapilot-full-20260810T140605227286Z.db._fwekhvr.partial-wal",
+          "nlink": 1,
+          "size": 0
+        },
+        {
+          "ctime_ns": 1786457303434522958,
+          "device": 16777229,
+          "inode": 298636214,
+          "kind": "file",
+          "mode": 384,
+          "mtime_ns": 1786457121839944374,
+          "name": ".alphapilot-full-20260811T140428778875Z.db.odzwh35n.partial-shm",
+          "nlink": 1,
+          "size": 32768
+        },
+        {
+          "ctime_ns": 1786457117416097374,
+          "device": 16777229,
+          "inode": 298636213,
+          "kind": "file",
+          "mode": 384,
+          "mtime_ns": 1786457117416097374,
+          "name": ".alphapilot-full-20260811T140428778875Z.db.odzwh35n.partial-wal",
+          "nlink": 1,
+          "size": 0
+        },
+        {
+          "ctime_ns": 1786543840205138708,
+          "device": 16777229,
+          "inode": 303729250,
+          "kind": "file",
+          "mode": 384,
+          "mtime_ns": 1786543580983152583,
+          "name": ".alphapilot-full-20260812T140415415325Z.db.ay31lfig.partial-shm",
+          "nlink": 1,
+          "size": 32768
+        },
+        {
+          "ctime_ns": 1786543576000904083,
+          "device": 16777229,
+          "inode": 303729249,
+          "kind": "file",
+          "mode": 384,
+          "mtime_ns": 1786543576000904083,
+          "name": ".alphapilot-full-20260812T140415415325Z.db.ay31lfig.partial-wal",
+          "nlink": 1,
+          "size": 0
+        },
+        {
+          "ctime_ns": 1786616230274283333,
+          "device": 16777229,
+          "inode": 306507919,
+          "kind": "file",
+          "mode": 384,
+          "mtime_ns": 1786616155276348416,
+          "name": ".alphapilot-full-20260813T101514039763Z.db._w9081x9.partial-shm",
+          "nlink": 1,
+          "size": 32768
+        },
+        {
+          "ctime_ns": 1786616134966828333,
+          "device": 16777229,
+          "inode": 306507918,
+          "kind": "file",
+          "mode": 384,
+          "mtime_ns": 1786616134966788541,
+          "name": ".alphapilot-full-20260813T101514039763Z.db._w9081x9.partial-wal",
+          "nlink": 1,
+          "size": 0
+        },
+        {
+          "ctime_ns": 1786716403186232208,
+          "device": 16777229,
+          "inode": 309174733,
+          "kind": "file",
+          "mode": 384,
+          "mtime_ns": 1786716265893605958,
+          "name": ".alphapilot-full-20260814T140354997795Z.db.u99elvzl.partial-shm",
+          "nlink": 1,
+          "size": 32768
+        },
+        {
+          "ctime_ns": 1786716262164228708,
+          "device": 16777229,
+          "inode": 309174732,
+          "kind": "file",
+          "mode": 384,
+          "mtime_ns": 1786716262164228708,
+          "name": ".alphapilot-full-20260814T140354997795Z.db.u99elvzl.partial-wal",
+          "nlink": 1,
+          "size": 0
+        },
+        {
+          "ctime_ns": 1786716235026423291,
+          "device": 16777229,
+          "inode": 273903839,
+          "kind": "file",
+          "mode": 384,
+          "mtime_ns": 1785429453277276791,
+          "name": ".alphapilot-full-backup.lock",
+          "nlink": 1,
+          "size": 0
+        },
+        {
+          "ctime_ns": 1785429434872832208,
+          "device": 16777229,
+          "inode": 273197747,
+          "kind": "file",
+          "mode": 384,
+          "mtime_ns": 1785419688906050458,
+          "name": "alphapilot-before-daily-screening-20260730T215331CST.db",
+          "nlink": 1,
+          "size": 5322227712
+        },
+        {
+          "ctime_ns": 1785429434872564874,
+          "device": 16777229,
+          "inode": 264312163,
+          "kind": "file",
+          "mode": 384,
+          "mtime_ns": 1785012642221167874,
+          "name": "alphapilot-before-orphan-sina-adj-cleanup-20260725T205024Z.db",
+          "nlink": 1,
+          "size": 4749484032
+        },
+        {
+          "ctime_ns": 1786198379960170708,
+          "device": 16777229,
+          "inode": 290047935,
+          "kind": "file",
+          "mode": 384,
+          "mtime_ns": 1786198252929106124,
+          "name": "alphapilot-full-20260808T140556670834Z.db",
+          "nlink": 1,
+          "size": 5373038592
+        },
+        {
+          "ctime_ns": 1786198379976304583,
+          "device": 16777229,
+          "inode": 290049756,
+          "kind": "file",
+          "mode": 384,
+          "mtime_ns": 1786198379975041958,
+          "name": "alphapilot-full-20260808T140556670834Z.manifest.json",
+          "nlink": 1,
+          "size": 1284
+        },
+        {
+          "ctime_ns": 1786275369695568791,
+          "device": 16777229,
+          "inode": 292141469,
+          "kind": "file",
+          "mode": 384,
+          "mtime_ns": 1786275297786086291,
+          "name": "alphapilot-full-20260809T113428170070Z.db",
+          "nlink": 1,
+          "size": 5373038592
+        },
+        {
+          "ctime_ns": 1786277910929409874,
+          "device": 16777229,
+          "inode": 292143376,
+          "kind": "file",
+          "mode": 384,
+          "mtime_ns": 1786277910338392708,
+          "name": "alphapilot-full-20260809T113428170070Z.db-shm",
+          "nlink": 1,
+          "size": 32768
+        },
+        {
+          "ctime_ns": 1786275419041694374,
+          "device": 16777229,
+          "inode": 292143375,
+          "kind": "file",
+          "mode": 384,
+          "mtime_ns": 1786275419041663041,
+          "name": "alphapilot-full-20260809T113428170070Z.db-wal",
+          "nlink": 1,
+          "size": 0
+        },
+        {
+          "ctime_ns": 1786275369696700624,
+          "device": 16777229,
+          "inode": 292142688,
+          "kind": "file",
+          "mode": 384,
+          "mtime_ns": 1786275369696494291,
+          "name": "alphapilot-full-20260809T113428170070Z.manifest.json",
+          "nlink": 1,
+          "size": 1284
+        },
+        {
+          "ctime_ns": 1786284386130602374,
+          "device": 16777229,
+          "inode": 292332974,
+          "kind": "file",
+          "mode": 384,
+          "mtime_ns": 1786284258370676541,
+          "name": "alphapilot-full-20260809T140305129495Z.db",
+          "nlink": 1,
+          "size": 5373038592
+        },
+        {
+          "ctime_ns": 1786284386132710916,
+          "device": 16777229,
+          "inode": 292334109,
+          "kind": "file",
+          "mode": 384,
+          "mtime_ns": 1786284386132234624,
+          "name": "alphapilot-full-20260809T140305129495Z.manifest.json",
+          "nlink": 1,
+          "size": 1284
+        },
+        {
+          "ctime_ns": 1786370877392408708,
+          "device": 16777229,
+          "inode": 294625111,
+          "kind": "file",
+          "mode": 384,
+          "mtime_ns": 1786370782753870874,
+          "name": "alphapilot-full-20260810T140605227286Z.db",
+          "nlink": 1,
+          "size": 5373038592
+        },
+        {
+          "ctime_ns": 1786370877395243624,
+          "device": 16777229,
+          "inode": 294625862,
+          "kind": "file",
+          "mode": 384,
+          "mtime_ns": 1786370877394479666,
+          "name": "alphapilot-full-20260810T140605227286Z.manifest.json",
+          "nlink": 1,
+          "size": 1284
+        },
+        {
+          "ctime_ns": 1786457309994494458,
+          "device": 16777229,
+          "inode": 298635324,
+          "kind": "file",
+          "mode": 384,
+          "mtime_ns": 1786457117368810041,
+          "name": "alphapilot-full-20260811T140428778875Z.db",
+          "nlink": 1,
+          "size": 5373038592
+        },
+        {
+          "ctime_ns": 1786457309996388083,
+          "device": 16777229,
+          "inode": 298665286,
+          "kind": "file",
+          "mode": 384,
+          "mtime_ns": 1786457309995972958,
+          "name": "alphapilot-full-20260811T140428778875Z.manifest.json",
+          "nlink": 1,
+          "size": 1284
+        },
+        {
+          "ctime_ns": 1786543848003052541,
+          "device": 16777229,
+          "inode": 303728623,
+          "kind": "file",
+          "mode": 384,
+          "mtime_ns": 1786543575834559999,
+          "name": "alphapilot-full-20260812T140415415325Z.db",
+          "nlink": 1,
+          "size": 5373038592
+        },
+        {
+          "ctime_ns": 1786543848005282499,
+          "device": 16777229,
+          "inode": 303731948,
+          "kind": "file",
+          "mode": 384,
+          "mtime_ns": 1786543848004759999,
+          "name": "alphapilot-full-20260812T140415415325Z.manifest.json",
+          "nlink": 1,
+          "size": 1284
+        },
+        {
+          "ctime_ns": 1786616233739422541,
+          "device": 16777229,
+          "inode": 306507674,
+          "kind": "file",
+          "mode": 384,
+          "mtime_ns": 1786616134926260499,
+          "name": "alphapilot-full-20260813T101514039763Z.db",
+          "nlink": 1,
+          "size": 5373038592
+        },
+        {
+          "ctime_ns": 1786616233749463333,
+          "device": 16777229,
+          "inode": 306509731,
+          "kind": "file",
+          "mode": 384,
+          "mtime_ns": 1786616233746319374,
+          "name": "alphapilot-full-20260813T101514039763Z.manifest.json",
+          "nlink": 1,
+          "size": 1284
+        },
+        {
+          "ctime_ns": 1786716412876024041,
+          "device": 16777229,
+          "inode": 309174346,
+          "kind": "file",
+          "mode": 384,
+          "mtime_ns": 1786716262155706666,
+          "name": "alphapilot-full-20260814T140354997795Z.db",
+          "nlink": 1,
+          "size": 5373038592
+        },
+        {
+          "ctime_ns": 1786716412880282583,
+          "device": 16777229,
+          "inode": 309175433,
+          "kind": "file",
+          "mode": 384,
+          "mtime_ns": 1786716412879076374,
+          "name": "alphapilot-full-20260814T140354997795Z.manifest.json",
+          "nlink": 1,
+          "size": 1284
+        },
+        {
+          "ctime_ns": 1785613233131017458,
+          "device": 16777229,
+          "inode": 280692376,
+          "kind": "file",
+          "mode": 420,
+          "mtime_ns": 1785613233131017458,
+          "name": "alphapilot-pre-p4.1-20260802T034014-CST.db",
+          "nlink": 1,
+          "size": 5373038592
+        }
+      ],
+      "inventory_canonical": {
+        "bytes": 8916,
+        "serialization": "UTF-8 sort_keys compact no trailing LF",
+        "sha256": "ecd3fd6af196ea462a817ddc4d19fb5e1646333adff65a13e572beb8c18eef34"
+      },
+      "launchagent_process_state_used_as_gate": false,
+      "manifest_created_at_cst": "2026-08-14T22:03:54.997795+08:00",
+      "manifest_path": "/Users/ouyangduning/Documents/project/interesting/AlphaPilot-AI/data/backups/alphapilot-full-20260814T140354997795Z.manifest.json",
+      "manifest_sha256": "9e03f0f76c483c03b48ced4545fe426e369612bcb7827e6c828f59c4f6cf1796",
+      "next_real_backup_window_cst": "2026-08-15T22:00:00+08:00",
+      "no_new_backup_artifacts": true,
+      "sidecars_absent_before_and_after": true,
+      "stamp_after": {
+        "bytes": 11,
+        "hex": "323032362d30382d31340a",
+        "identity": {
+          "ctime_ns": 1786716413129938166,
+          "device": 16777229,
+          "inode": 309175435,
+          "mode": 33152,
+          "mtime_ns": 1786716413128263333,
+          "nlink": 1,
+          "path": "/Users/ouyangduning/Library/Application Support/AlphaPilot-AI/database-backup/last-success-shanghai-date",
+          "size": 11
+        },
+        "sha256": "d1dc97175106befed746b6d8aeb979a87a912e0d94d6139939530e6226d62193",
+        "utf8": "2026-08-14\n"
+      },
+      "stamp_before": {
+        "bytes": 11,
+        "hex": "323032362d30382d31340a",
+        "identity": {
+          "ctime_ns": 1786716413129938166,
+          "device": 16777229,
+          "inode": 309175435,
+          "mode": 33152,
+          "mtime_ns": 1786716413128263333,
+          "nlink": 1,
+          "path": "/Users/ouyangduning/Library/Application Support/AlphaPilot-AI/database-backup/last-success-shanghai-date",
+          "size": 11
+        },
+        "sha256": "d1dc97175106befed746b6d8aeb979a87a912e0d94d6139939530e6226d62193",
+        "utf8": "2026-08-14\n"
+      },
+      "stamp_unchanged": true,
+      "window_overlap": false
+    },
+    "latest_news_poll_slot": {
+      "config_sha256": "9d56e137baf10bd0858723a93aff02c57bf7b35f8705f1817b16a89ec615183f",
+      "finished_at_utc": "2026-08-15T06:01:17.946771+00:00",
+      "job_run_id": 86084,
+      "slot_cst": "2026-08-15T14:00:00+08:00",
+      "started_at_utc": "2026-08-15T06:00:00.195864+00:00",
+      "status": "ok"
+    },
+    "purpose_form_source": {
+      "bytes": 28133,
+      "json_pointers": [
+        "/latest_news_poll_slot",
+        "/scheduler",
+        "/backup_purpose_form",
+        "/w3",
+        "/w4"
+      ],
+      "path": "/Users/ouyangduning/Documents/project/interesting/.alphapilot-p42a-epoch3-r2-gate-evidence-rerun2.2bUkMK/purpose_precheck.json",
+      "sha256": "13dc28d2f31c683aadad5e3aadfee417970869fed322779512d38137c32012c3"
+    },
+    "scheduler": {
+      "label": "com.alphapilot.scheduler",
+      "pid": 9978,
+      "process_start_observation": "Thu Aug 13 06:26:31 2026",
+      "state": "running"
+    },
+    "slot_report_created_by_this_landing": false,
+    "w3": {
+      "current_pid": 9978,
+      "future_death_crossing_slot_makes_day_fail": true,
+      "initial_respawn_pid": 9978,
+      "keepalive_restart_at_cst": "2026-08-13T18:26:31+08:00",
+      "must_be_persisted_in_next_slot_report": true,
+      "old_pid": 11456,
+      "status": "OPEN_OBSERVATION_ZERO_SLOT_LOSS",
+      "verified_slots": [
+        {
+          "job_run_id": 83149,
+          "slot_cst": "2026-08-13T18:00:00+08:00"
+        },
+        {
+          "job_run_id": 83177,
+          "slot_cst": "2026-08-13T18:30:00+08:00"
+        },
+        {
+          "job_run_id": 83211,
+          "slot_cst": "2026-08-13T19:00:00+08:00"
+        },
+        {
+          "job_run_id": 83257,
+          "slot_cst": "2026-08-13T19:30:00+08:00"
+        },
+        {
+          "job_run_id": 83296,
+          "slot_cst": "2026-08-13T20:00:00+08:00"
+        },
+        {
+          "job_run_id": 83331,
+          "slot_cst": "2026-08-13T20:30:00+08:00"
+        },
+        {
+          "job_run_id": 83367,
+          "slot_cst": "2026-08-13T21:00:00+08:00"
+        },
+        {
+          "job_run_id": 83403,
+          "slot_cst": "2026-08-13T21:30:00+08:00"
+        },
+        {
+          "job_run_id": 83438,
+          "slot_cst": "2026-08-13T22:00:00+08:00"
+        },
+        {
+          "job_run_id": 83473,
+          "slot_cst": "2026-08-13T22:30:00+08:00"
+        },
+        {
+          "job_run_id": 83508,
+          "slot_cst": "2026-08-13T23:00:00+08:00"
+        },
+        {
+          "job_run_id": 83543,
+          "slot_cst": "2026-08-13T23:30:00+08:00"
+        },
+        {
+          "job_run_id": 83578,
+          "slot_cst": "2026-08-14T00:00:00+08:00"
+        },
+        {
+          "job_run_id": 83613,
+          "slot_cst": "2026-08-14T00:30:00+08:00"
+        },
+        {
+          "job_run_id": 83648,
+          "slot_cst": "2026-08-14T01:00:00+08:00"
+        },
+        {
+          "job_run_id": 83683,
+          "slot_cst": "2026-08-14T01:30:00+08:00"
+        },
+        {
+          "job_run_id": 83718,
+          "slot_cst": "2026-08-14T02:00:00+08:00"
+        },
+        {
+          "job_run_id": 83749,
+          "slot_cst": "2026-08-14T02:30:00+08:00"
+        },
+        {
+          "job_run_id": 83780,
+          "slot_cst": "2026-08-14T03:00:00+08:00"
+        },
+        {
+          "job_run_id": 83811,
+          "slot_cst": "2026-08-14T03:30:00+08:00"
+        },
+        {
+          "job_run_id": 83842,
+          "slot_cst": "2026-08-14T04:00:00+08:00"
+        },
+        {
+          "job_run_id": 83873,
+          "slot_cst": "2026-08-14T04:30:00+08:00"
+        },
+        {
+          "job_run_id": 83904,
+          "slot_cst": "2026-08-14T05:00:00+08:00"
+        },
+        {
+          "job_run_id": 83935,
+          "slot_cst": "2026-08-14T05:30:00+08:00"
+        },
+        {
+          "job_run_id": 83966,
+          "slot_cst": "2026-08-14T06:00:00+08:00"
+        },
+        {
+          "job_run_id": 83997,
+          "slot_cst": "2026-08-14T06:30:00+08:00"
+        },
+        {
+          "job_run_id": 84028,
+          "slot_cst": "2026-08-14T07:00:00+08:00"
+        },
+        {
+          "job_run_id": 84063,
+          "slot_cst": "2026-08-14T07:30:00+08:00"
+        },
+        {
+          "job_run_id": 84099,
+          "slot_cst": "2026-08-14T08:00:00+08:00"
+        },
+        {
+          "job_run_id": 84135,
+          "slot_cst": "2026-08-14T08:30:00+08:00"
+        },
+        {
+          "job_run_id": 84170,
+          "slot_cst": "2026-08-14T09:00:00+08:00"
+        },
+        {
+          "job_run_id": 84205,
+          "slot_cst": "2026-08-14T09:30:00+08:00"
+        },
+        {
+          "job_run_id": 84242,
+          "slot_cst": "2026-08-14T10:00:00+08:00"
+        },
+        {
+          "job_run_id": 84275,
+          "slot_cst": "2026-08-14T10:30:00+08:00"
+        },
+        {
+          "job_run_id": 84308,
+          "slot_cst": "2026-08-14T11:00:00+08:00"
+        },
+        {
+          "job_run_id": 84341,
+          "slot_cst": "2026-08-14T11:30:00+08:00"
+        },
+        {
+          "job_run_id": 84372,
+          "slot_cst": "2026-08-14T12:00:00+08:00"
+        },
+        {
+          "job_run_id": 84403,
+          "slot_cst": "2026-08-14T12:30:00+08:00"
+        },
+        {
+          "job_run_id": 84434,
+          "slot_cst": "2026-08-14T13:00:00+08:00"
+        },
+        {
+          "job_run_id": 84467,
+          "slot_cst": "2026-08-14T13:30:00+08:00"
+        },
+        {
+          "job_run_id": 84500,
+          "slot_cst": "2026-08-14T14:00:00+08:00"
+        },
+        {
+          "job_run_id": 84533,
+          "slot_cst": "2026-08-14T14:30:00+08:00"
+        },
+        {
+          "job_run_id": 84566,
+          "slot_cst": "2026-08-14T15:00:00+08:00"
+        },
+        {
+          "job_run_id": 84599,
+          "slot_cst": "2026-08-14T15:30:00+08:00"
+        },
+        {
+          "job_run_id": 84630,
+          "slot_cst": "2026-08-14T16:00:00+08:00"
+        },
+        {
+          "job_run_id": 84661,
+          "slot_cst": "2026-08-14T16:30:00+08:00"
+        },
+        {
+          "job_run_id": 84692,
+          "slot_cst": "2026-08-14T17:00:00+08:00"
+        },
+        {
+          "job_run_id": 84723,
+          "slot_cst": "2026-08-14T17:30:00+08:00"
+        },
+        {
+          "job_run_id": 84755,
+          "slot_cst": "2026-08-14T18:00:00+08:00"
+        },
+        {
+          "job_run_id": 84786,
+          "slot_cst": "2026-08-14T18:30:00+08:00"
+        },
+        {
+          "job_run_id": 84820,
+          "slot_cst": "2026-08-14T19:00:00+08:00"
+        },
+        {
+          "job_run_id": 84855,
+          "slot_cst": "2026-08-14T19:30:00+08:00"
+        },
+        {
+          "job_run_id": 84893,
+          "slot_cst": "2026-08-14T20:00:00+08:00"
+        },
+        {
+          "job_run_id": 84929,
+          "slot_cst": "2026-08-14T20:30:00+08:00"
+        },
+        {
+          "job_run_id": 84964,
+          "slot_cst": "2026-08-14T21:00:00+08:00"
+        },
+        {
+          "job_run_id": 84999,
+          "slot_cst": "2026-08-14T21:30:00+08:00"
+        },
+        {
+          "job_run_id": 85034,
+          "slot_cst": "2026-08-14T22:00:00+08:00"
+        },
+        {
+          "job_run_id": 85069,
+          "slot_cst": "2026-08-14T22:30:00+08:00"
+        },
+        {
+          "job_run_id": 85104,
+          "slot_cst": "2026-08-14T23:00:00+08:00"
+        },
+        {
+          "job_run_id": 85139,
+          "slot_cst": "2026-08-14T23:30:00+08:00"
+        },
+        {
+          "job_run_id": 85174,
+          "slot_cst": "2026-08-15T00:00:00+08:00"
+        },
+        {
+          "job_run_id": 85209,
+          "slot_cst": "2026-08-15T00:30:00+08:00"
+        },
+        {
+          "job_run_id": 85244,
+          "slot_cst": "2026-08-15T01:00:00+08:00"
+        },
+        {
+          "job_run_id": 85279,
+          "slot_cst": "2026-08-15T01:30:00+08:00"
+        },
+        {
+          "job_run_id": 85314,
+          "slot_cst": "2026-08-15T02:00:00+08:00"
+        },
+        {
+          "job_run_id": 85345,
+          "slot_cst": "2026-08-15T02:30:00+08:00"
+        },
+        {
+          "job_run_id": 85376,
+          "slot_cst": "2026-08-15T03:00:00+08:00"
+        },
+        {
+          "job_run_id": 85407,
+          "slot_cst": "2026-08-15T03:30:00+08:00"
+        },
+        {
+          "job_run_id": 85438,
+          "slot_cst": "2026-08-15T04:00:00+08:00"
+        },
+        {
+          "job_run_id": 85469,
+          "slot_cst": "2026-08-15T04:30:00+08:00"
+        },
+        {
+          "job_run_id": 85500,
+          "slot_cst": "2026-08-15T05:00:00+08:00"
+        },
+        {
+          "job_run_id": 85531,
+          "slot_cst": "2026-08-15T05:30:00+08:00"
+        },
+        {
+          "job_run_id": 85562,
+          "slot_cst": "2026-08-15T06:00:00+08:00"
+        },
+        {
+          "job_run_id": 85593,
+          "slot_cst": "2026-08-15T06:30:00+08:00"
+        },
+        {
+          "job_run_id": 85624,
+          "slot_cst": "2026-08-15T07:00:00+08:00"
+        },
+        {
+          "job_run_id": 85659,
+          "slot_cst": "2026-08-15T07:30:00+08:00"
+        },
+        {
+          "job_run_id": 85695,
+          "slot_cst": "2026-08-15T08:00:00+08:00"
+        },
+        {
+          "job_run_id": 85731,
+          "slot_cst": "2026-08-15T08:30:00+08:00"
+        },
+        {
+          "job_run_id": 85766,
+          "slot_cst": "2026-08-15T09:00:00+08:00"
+        },
+        {
+          "job_run_id": 85801,
+          "slot_cst": "2026-08-15T09:30:00+08:00"
+        },
+        {
+          "job_run_id": 85836,
+          "slot_cst": "2026-08-15T10:00:00+08:00"
+        },
+        {
+          "job_run_id": 85867,
+          "slot_cst": "2026-08-15T10:30:00+08:00"
+        },
+        {
+          "job_run_id": 85898,
+          "slot_cst": "2026-08-15T11:00:00+08:00"
+        },
+        {
+          "job_run_id": 85929,
+          "slot_cst": "2026-08-15T11:30:00+08:00"
+        },
+        {
+          "job_run_id": 85960,
+          "slot_cst": "2026-08-15T12:00:00+08:00"
+        },
+        {
+          "job_run_id": 85991,
+          "slot_cst": "2026-08-15T12:30:00+08:00"
+        },
+        {
+          "job_run_id": 86022,
+          "slot_cst": "2026-08-15T13:00:00+08:00"
+        },
+        {
+          "job_run_id": 86053,
+          "slot_cst": "2026-08-15T13:30:00+08:00"
+        },
+        {
+          "job_run_id": 86084,
+          "slot_cst": "2026-08-15T14:00:00+08:00"
+        }
+      ]
+    },
+    "w4": {
+      "baseline_incident": "2026-08-13 backup ran at 18:15 CST despite module default 22:00 window",
+      "baseline_manifest": "/Users/ouyangduning/Documents/project/interesting/AlphaPilot-AI/data/backups/alphapilot-full-20260813T101514039763Z.manifest.json",
+      "if_repeated_distance_to_news_poll_slots_recorded": true,
+      "later_manifests": [
+        {
+          "created_at_cst": "2026-08-14T22:03:54.997795+08:00",
+          "distance_to_nearest_news_poll_slot_seconds": 234,
+          "early_before_22": false,
+          "path": "/Users/ouyangduning/Documents/project/interesting/AlphaPilot-AI/data/backups/alphapilot-full-20260814T140354997795Z.manifest.json"
+        }
+      ],
+      "must_be_persisted_with_w3_in_next_slot_report": true,
+      "repeated_early_execution": false,
+      "status": "OPEN_OPERATIONAL_INVESTIGATION_NONBLOCKING_FOR_THIS_GATE"
+    }
+  },
+  "planned_landing": {
+    "base_commit": "5791041e7eb48ffc6977752e381b10333bf53358",
+    "discarded_unpushed_merge": {
+      "authorized_for_push": false,
+      "commit": "d74978cd64ab1c790804cea51d9aef1a81cef9ca",
+      "referenced_by_authority_or_ledger": false
+    },
+    "expected_projection_tree_without_report": "50280bded3436c5d1883f9148d3067852bdc6647",
+    "merge_base": "d6c9c353217e00730457bf6b944ff26a32b8cf85",
+    "merge_commit_sha": null,
+    "merge_message_must_bind_report_path_and_sha256": true,
+    "merge_must_not_stage_report": true,
+    "merge_only": true,
+    "no_ff": true,
+    "report_commit_contract": "after the merge, commit this exact report as the merge commit's single-parent child and unique status-A path",
+    "report_written_before_merge": true,
+    "second_parent": "bf9f610bda54523d69ecda0a72bf8fe89eaef78c"
+  },
+  "pre_registered_gate": {
+    "backup_immutable_verify": {
+      "bytes": 3673,
+      "path": "/Users/ouyangduning/Documents/project/interesting/.alphapilot-p42a-epoch3-r2-gate-evidence-rerun2.2bUkMK/backup_immutable_verify.json",
+      "sha256": "e1fb4680b1890e2bb6f524f9ee8004400630561d3c80bd96b91743ef6f284a1e",
+      "status": "PASS_IMMUTABLE_BACKUP_VERIFY"
+    },
+    "foreground_signal_probe": {
+      "bytes": 88,
+      "path": "/Users/ouyangduning/Documents/project/interesting/.alphapilot-p42a-epoch3-r2-gate-evidence-rerun2.2bUkMK/signal_probe.json",
+      "sha256": "f85dc02178497623f5afcda5bbe1ee54244b134c21ba53e68d8e5f68708d0adf"
+    },
+    "precheck_audit": {
+      "bytes": 7314,
+      "path": "/Users/ouyangduning/Documents/project/interesting/.alphapilot-p42a-epoch3-r2-gate-evidence-rerun2.2bUkMK/precheck_audit.json",
+      "sha256": "e67e754508466abcf858430c4f2d160b4f162707d7e126763c74920f906eb9a6",
+      "status": "PASS_PRECHECK_AUDIT"
+    },
+    "producer_bound_readback": {
+      "bytes": 1916,
+      "path": "/Users/ouyangduning/Documents/project/interesting/.alphapilot-p42a-epoch3-r2-gate-evidence-rerun2.2bUkMK/pre_registered_gate_readback.json",
+      "producer_bindings": {
+        "collect_count_field": "tests",
+        "collect_status": "PASS_COLLECT_ONLY",
+        "precheck_audit_status": "PASS_PRECHECK_AUDIT",
+        "precheck_run_terminal_line": "status=PASS_ALL_PRECHECKS"
+      },
+      "sha256": "fd202bb100d084a5cc641fd9e72e1d41b7cb51a6e4c451cbdeb8987bf5ecd791",
+      "status": "PASS_PRE_REGISTERED_GATE_READBACK"
+    },
+    "purpose_form": {
+      "bytes": 28133,
+      "path": "/Users/ouyangduning/Documents/project/interesting/.alphapilot-p42a-epoch3-r2-gate-evidence-rerun2.2bUkMK/purpose_precheck.json",
+      "sha256": "13dc28d2f31c683aadad5e3aadfee417970869fed322779512d38137c32012c3",
+      "status": "PASS_PURPOSE_FORM_RUNTIME_PRECHECK"
+    },
+    "runner_collect": {
+      "bytes": 176,
+      "path": "/Users/ouyangduning/Documents/project/interesting/.alphapilot-p42a-epoch3-r2-gate-evidence-rerun2.2bUkMK/runner.collect-summary.json",
+      "sha256": "80099f4fcce6f56137897c63f27811abc074fb53a0a048b9538c40f8a2d21b2b",
+      "tests": 152
+    },
+    "terminal_status": "PASS_ALL_PRECHECKS",
+    "validator_collect": {
+      "bytes": 179,
+      "path": "/Users/ouyangduning/Documents/project/interesting/.alphapilot-p42a-epoch3-r2-gate-evidence-rerun2.2bUkMK/validator.collect-summary.json",
+      "sha256": "67fde2ed2ef5a2ddeced7931516e7ee57539aec6cc87c4f6a073679b9ec386de",
+      "tests": 109
+    }
+  },
+  "prior_disclosed_stops": {
+    "appendices_verbatim": [
+      {
+        "bytes": 777,
+        "classification": "BLOCKED_PURPOSE_FORM_PROCESS_STATE_RACE_ZERO_REGISTERED_EFFECT",
+        "path": "/Users/ouyangduning/Documents/project/interesting/.alphapilot-p42a-epoch3-r2-gate-evidence.7ZgHZ5/precheck_run.log",
+        "sha256": "5699d0bf35d969a970038ed13983f1749b6fc1a575b13f8d03ab0437f56f4a8b",
+        "verbatim_utf8": "precheck_step=backup_immutable_verify\nprecheck_step=purpose_form_runtime\nTraceback (most recent call last):\n  File \"/Users/ouyangduning/Documents/project/interesting/.alphapilot-p42a-epoch3-r2-gate-evidence.7ZgHZ5/purpose_precheck.py\", line 365, in <module>\n    main()\n  File \"/Users/ouyangduning/Documents/project/interesting/.alphapilot-p42a-epoch3-r2-gate-evidence.7ZgHZ5/purpose_precheck.py\", line 179, in main\n    require(launch_value(backup_launch, \"state\") == \"not running\", \"backup agent is running\")\n  File \"/Users/ouyangduning/Documents/project/interesting/.alphapilot-p42a-epoch3-r2-gate-evidence.7ZgHZ5/purpose_precheck.py\", line 53, in require\n    raise AssertionError(message)\nAssertionError: backup agent is running\nFAIL_PRECHECK_RUN: purpose-form precheck rc=1\n"
+      },
+      {
+        "bytes": 3266,
+        "classification": "BLOCKED_PURPOSE_FORM_PROCESS_STATE_RACE_ZERO_REGISTERED_EFFECT",
+        "path": "/Users/ouyangduning/Documents/project/interesting/.alphapilot-p42a-epoch3-r2-gate-evidence.7ZgHZ5/precheck-failure-summary.json",
+        "sha256": "5a6f86c652ffd9816ac6899b50324223b51d9ef5b240374c20ec099b7820f6ab",
+        "verbatim_utf8": "{\n  \"schema_version\": \"p4.2a-epoch3-r2-registered-gate-precheck-failure-v1\",\n  \"status\": \"STOPPED_FAIL_CLOSED_BEFORE_REGISTERED_TESTS\",\n  \"classification\": \"PRECHECK_BACKUP_LAUNCHAGENT_BECAME_RUNNING\",\n  \"implementation_commit\": \"d4fb0d8c763b9fa104949ea2ac58bc921d9e8889\",\n  \"review_commit\": \"bf9f610bda54523d69ecda0a72bf8fe89eaef78c\",\n  \"precheck_started_at_shanghai\": \"2026-08-14T23:36:28.220266+08:00\",\n  \"failure_observed_at_shanghai\": \"2026-08-14T23:37:13.867355+08:00\",\n  \"failed_step\": \"purpose_form_runtime\",\n  \"exception_type\": \"AssertionError\",\n  \"exception_message\": \"backup agent is running\",\n  \"evidence\": {\n    \"armed_static_log_sha256\": \"0881d6748b2996307ee8957b83905aa113b3baa1b4bf1bf0ce6e8c7a335c784e\",\n    \"precheck_run_log_sha256\": \"5699d0bf35d969a970038ed13983f1749b6fc1a575b13f8d03ab0437f56f4a8b\",\n    \"backup_immutable_verify_sha256\": \"e1fb4680b1890e2bb6f524f9ee8004400630561d3c80bd96b91743ef6f284a1e\",\n    \"purpose_precheck_sha256\": \"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855\",\n    \"backup_manifest_sha256\": \"9e03f0f76c483c03b48ced4545fe426e369612bcb7827e6c828f59c4f6cf1796\",\n    \"backup_manifest_created_at_shanghai\": \"2026-08-14T22:03:54.997795+08:00\",\n    \"backup_verification_status\": \"PASS_IMMUTABLE_BACKUP_VERIFY\",\n    \"backup_sidecars_absent_before_and_after\": true\n  },\n  \"launchagent_observations\": {\n    \"readiness_snapshot_runs\": 308,\n    \"readiness_snapshot_state\": \"not running\",\n    \"purpose_check_state\": \"running\",\n    \"post_failure_runs\": 309,\n    \"post_failure_state\": \"not running\",\n    \"post_failure_last_exit_code\": 0,\n    \"interpretation\": \"a later 15-minute LaunchAgent wake overlapped the purpose check after the readiness snapshot; no second backup artifact was created\"\n  },\n  \"registered_gate_effects\": {\n    \"runner_started\": false,\n    \"validator_started\": false,\n    \"collect_only_started\": false,\n    \"merge_started\": false,\n    \"registered_preflight_started\": false,\n    \"q_created\": false,\n    \"r_created\": false,\n    \"b_created\": false,\n    \"ordinal_2_created\": false,\n    \"pipeline_starts\": 0,\n    \"automatic_retries\": 0,\n    \"heldout_evaluation_attempts_consumed\": 0\n  },\n  \"official_state_after_stop\": {\n    \"registered_fingerprints_canonical_sha256\": \"1241fea3d9efb9389d1d92a32c2a2925313ca6aa80283c32f0b92181efeffa36\",\n    \"registered_fingerprints_canonical_bytes\": 1507,\n    \"history_started_count\": 1,\n    \"history_failed_count\": 1,\n    \"history_incomplete_count\": 0,\n    \"history_candidate_count\": 0,\n    \"series_closed\": false,\n    \"previous_history_root_sha256\": \"076ae961fc149ae271bf5a3724c1677abccfea7139589909ea717a7f4a38083a\",\n    \"ordinal_1_outcome\": \"FAILED\",\n    \"ordinal_1_reached_stage\": \"started_persisted\",\n    \"ordinal_1_implementation_epoch\": 2,\n    \"ordinal_2_exists\": false,\n    \"temporary_authorities\": [],\n    \"destination_absent\": true,\n    \"heldout_root_absent\": true,\n    \"v2_1_claim_empty_0700\": true\n  },\n  \"gate_after_stop\": {\n    \"head\": \"d4fb0d8c763b9fa104949ea2ac58bc921d9e8889\",\n    \"clean\": true,\n    \"detached\": true\n  },\n  \"self_correction\": {\n    \"classified_as_operator_tool_defect\": false,\n    \"standing_authorization_used\": false,\n    \"remaining_operator_self_corrections\": 1\n  },\n  \"disposition\": \"STOP_NO_RETRY_NO_MERGE_NO_PREFLIGHT_NO_Q\"\n}\n"
+      },
+      {
+        "bytes": 2860,
+        "classification": "OPERATOR_READBACK_SCHEMA_LITERAL_ERROR_ZERO_REGISTERED_EFFECT",
+        "path": "/Users/ouyangduning/Documents/project/interesting/.alphapilot-p42a-epoch3-r2-gate-evidence-rerun.YFDGXa/pre-registered-gate-readback-failure-summary.json",
+        "sha256": "29c73979a59a608e9259c4db097bff2039d541febaba07943a9ee5dc341987cf",
+        "verbatim_utf8": "{\n  \"schema_version\": \"p4.2a-epoch3-r2-pre-registered-gate-readback-failure-v1\",\n  \"status\": \"STOPPED_FAIL_CLOSED_BEFORE_REGISTERED_TESTS\",\n  \"classification\": \"OPERATOR_READBACK_SCHEMA_LITERAL_ERROR_AFTER_SELF_CORRECTION_BUDGET_EXHAUSTED\",\n  \"failure_observed_at_utc\": \"2026-08-15T04:43:26Z\",\n  \"failure_observed_at_shanghai\": \"2026-08-15T12:43:26+08:00\",\n  \"implementation_commit\": \"d4fb0d8c763b9fa104949ea2ac58bc921d9e8889\",\n  \"failed_operation\": \"ad-hoc read-only JSON summary assertion after PASS_ALL_PRECHECKS and before gate_module.sh runner\",\n  \"exception_type\": \"AssertionError\",\n  \"exit_code\": 1,\n  \"operator_error\": {\n    \"incorrect_expected_precheck_status\": \"PASS_REGISTERED_GATE_PRECHECK\",\n    \"observed_precheck_status\": \"PASS_PRECHECK_AUDIT\",\n    \"incorrect_expected_collect_status\": \"PASS_COLLECT_EXACT\",\n    \"observed_collect_status\": \"PASS_COLLECT_ONLY\",\n    \"incorrect_expected_collect_field\": \"collected\",\n    \"observed_collect_field\": \"tests\",\n    \"runner_tests_observed\": 152,\n    \"validator_tests_observed\": 109\n  },\n  \"precheck_evidence\": {\n    \"armed_static_log_sha256\": \"b738a9c198b72c7ef749f6f9ef602e4a33307da2cc451a27d7454484208f2ffc\",\n    \"backup_immutable_verify_sha256\": \"e1fb4680b1890e2bb6f524f9ee8004400630561d3c80bd96b91743ef6f284a1e\",\n    \"purpose_precheck_sha256\": \"f2077ce4964cce7fa2f3e165346c578ac09c7c97238f63adb8e2bf2a776aeffb\",\n    \"precheck_audit_sha256\": \"752398da7ff5a6393163d7c94c6d5cee9873246d09be50d9c6ca41b7489b5e9f\",\n    \"signal_probe_sha256\": \"f85dc02178497623f5afcda5bbe1ee54244b134c21ba53e68d8e5f68708d0adf\",\n    \"runner_collect_summary_sha256\": \"ea3e0da7da9c253d35057a1b69f03b118c691fb9c6e0efa175af2de9f733a50b\",\n    \"validator_collect_summary_sha256\": \"0dbaa4015f482270b18aa123fbb09112227350647996c93a527b8f0d8d2ea647\",\n    \"precheck_harness_status\": \"PASS_ALL_PRECHECKS\",\n    \"official_fingerprints_unchanged\": true,\n    \"history_next_ordinal\": 2,\n    \"previous_history_root_sha256\": \"076ae961fc149ae271bf5a3724c1677abccfea7139589909ea717a7f4a38083a\"\n  },\n  \"stop_boundary\": {\n    \"runner_started\": false,\n    \"validator_started\": false,\n    \"runner_log_exists\": false,\n    \"runner_junit_exists\": false,\n    \"validator_log_exists\": false,\n    \"validator_junit_exists\": false,\n    \"gate_processes_present\": false,\n    \"gate_head\": \"d4fb0d8c763b9fa104949ea2ac58bc921d9e8889\",\n    \"gate_clean\": true,\n    \"merge_started\": false,\n    \"registered_preflight_started\": false,\n    \"q_created\": false,\n    \"r_created\": false,\n    \"b_created\": false,\n    \"ordinal_2_created\": false,\n    \"pipeline_starts\": 0,\n    \"automatic_retries\": 0,\n    \"heldout_evaluation_attempts_consumed\": 0\n  },\n  \"self_correction\": {\n    \"used_before_failure\": 3,\n    \"maximum\": 3,\n    \"remaining\": 0,\n    \"this_error_corrected_or_retried\": false\n  },\n  \"disposition\": \"STOP_NO_RUNNER_NO_VALIDATOR_NO_MERGE_NO_PREFLIGHT_NO_Q_NO_RETRY\"\n}\n"
+      }
+    ],
+    "process_state_race_lineage": {
+      "bytes": 2185,
+      "document": {
+        "artifacts": [
+          {
+            "bytes": 777,
+            "landing_report_requirement": "embed verbatim",
+            "path": "/Users/ouyangduning/Documents/project/interesting/.alphapilot-p42a-epoch3-r2-gate-evidence.7ZgHZ5/precheck_run.log",
+            "sha256": "5699d0bf35d969a970038ed13983f1749b6fc1a575b13f8d03ab0437f56f4a8b"
+          },
+          {
+            "bytes": 3266,
+            "landing_report_requirement": "embed verbatim",
+            "path": "/Users/ouyangduning/Documents/project/interesting/.alphapilot-p42a-epoch3-r2-gate-evidence.7ZgHZ5/precheck-failure-summary.json",
+            "sha256": "5a6f86c652ffd9816ac6899b50324223b51d9ef5b240374c20ec099b7820f6ab"
+          },
+          {
+            "path": "/Users/ouyangduning/Documents/project/interesting/.alphapilot-p42a-epoch3-r2-gate-evidence.7ZgHZ5/backup_immutable_verify.json",
+            "sha256": "e1fb4680b1890e2bb6f524f9ee8004400630561d3c80bd96b91743ef6f284a1e"
+          },
+          {
+            "bytes": 0,
+            "path": "/Users/ouyangduning/Documents/project/interesting/.alphapilot-p42a-epoch3-r2-gate-evidence.7ZgHZ5/purpose_precheck.json",
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          }
+        ],
+        "classification": "REVIEWER_PURPOSE_FORM_PROCESS_STATE_RACE",
+        "disposition": "PRIOR_RUN_REMAINS_STOPPED_BEFORE_REGISTERED_TESTS_AND_IS_APPENDIX_ONLY",
+        "owner_adjudication": {
+          "backup_process_state_predicate_retired": true,
+          "new_disclosed_run_authorized": true,
+          "replacement_gate": "verified completed backup filesystem facts plus gate-end artifact inventory and stamp equality",
+          "self_correction_consumed": false
+        },
+        "prior_evidence_directory": "/Users/ouyangduning/Documents/project/interesting/.alphapilot-p42a-epoch3-r2-gate-evidence.7ZgHZ5",
+        "registered_effects": {
+          "automatic_retries": 0,
+          "b_created": false,
+          "collect_only_started": false,
+          "heldout_evaluation_attempts_consumed": 0,
+          "merge_started": false,
+          "ordinal_2_created": false,
+          "pipeline_starts": 0,
+          "q_created": false,
+          "r_created": false,
+          "registered_preflight_started": false,
+          "runner_started": false,
+          "validator_started": false
+        },
+        "schema_version": "p4.2a-epoch3-r2-prior-disclosed-run-appendix-lineage-v1"
+      },
+      "path": "/Users/ouyangduning/Documents/project/interesting/.alphapilot-p42a-epoch3-r2-gate-evidence-rerun2.2bUkMK/prior-disclosed-run-appendix-lineage.json",
+      "sha256": "ed65e8af2c71ee40536ea3683724dc4230fcdecad065fe3fdde21faad2399634"
+    },
+    "readback_literal_lineage": {
+      "bytes": 4301,
+      "document": {
+        "artifacts": [
+          {
+            "bytes": 6464,
+            "path": "/Users/ouyangduning/Documents/project/interesting/.alphapilot-p42a-epoch3-r2-gate-evidence-rerun.YFDGXa/harness_static_check.armed.log",
+            "role": "accepted_armed_static_check",
+            "sha256": "b738a9c198b72c7ef749f6f9ef602e4a33307da2cc451a27d7454484208f2ffc"
+          },
+          {
+            "bytes": 3673,
+            "path": "/Users/ouyangduning/Documents/project/interesting/.alphapilot-p42a-epoch3-r2-gate-evidence-rerun.YFDGXa/backup_immutable_verify.json",
+            "role": "accepted_precheck_evidence_1",
+            "sha256": "e1fb4680b1890e2bb6f524f9ee8004400630561d3c80bd96b91743ef6f284a1e"
+          },
+          {
+            "bytes": 27953,
+            "path": "/Users/ouyangduning/Documents/project/interesting/.alphapilot-p42a-epoch3-r2-gate-evidence-rerun.YFDGXa/purpose_precheck.json",
+            "role": "accepted_precheck_evidence_2",
+            "sha256": "f2077ce4964cce7fa2f3e165346c578ac09c7c97238f63adb8e2bf2a776aeffb"
+          },
+          {
+            "bytes": 7312,
+            "path": "/Users/ouyangduning/Documents/project/interesting/.alphapilot-p42a-epoch3-r2-gate-evidence-rerun.YFDGXa/precheck_audit.json",
+            "role": "accepted_precheck_evidence_3",
+            "sha256": "752398da7ff5a6393163d7c94c6d5cee9873246d09be50d9c6ca41b7489b5e9f"
+          },
+          {
+            "bytes": 88,
+            "path": "/Users/ouyangduning/Documents/project/interesting/.alphapilot-p42a-epoch3-r2-gate-evidence-rerun.YFDGXa/signal_probe.json",
+            "role": "accepted_precheck_evidence_4",
+            "sha256": "f85dc02178497623f5afcda5bbe1ee54244b134c21ba53e68d8e5f68708d0adf"
+          },
+          {
+            "bytes": 175,
+            "path": "/Users/ouyangduning/Documents/project/interesting/.alphapilot-p42a-epoch3-r2-gate-evidence-rerun.YFDGXa/runner.collect-summary.json",
+            "role": "accepted_precheck_evidence_5",
+            "sha256": "ea3e0da7da9c253d35057a1b69f03b118c691fb9c6e0efa175af2de9f733a50b"
+          },
+          {
+            "bytes": 178,
+            "path": "/Users/ouyangduning/Documents/project/interesting/.alphapilot-p42a-epoch3-r2-gate-evidence-rerun.YFDGXa/validator.collect-summary.json",
+            "role": "accepted_precheck_evidence_6",
+            "sha256": "0dbaa4015f482270b18aa123fbb09112227350647996c93a527b8f0d8d2ea647"
+          },
+          {
+            "bytes": 56,
+            "path": "/Users/ouyangduning/Documents/project/interesting/.alphapilot-p42a-epoch3-r2-gate-evidence-rerun.YFDGXa/runner.collect.log",
+            "role": "accepted_precheck_evidence_7_runner_source",
+            "sha256": "a5ef6d9a226ce3e3cc8cf75fb7d2a34035121a2551ca276b37883c4b6f9371ee"
+          },
+          {
+            "bytes": 59,
+            "path": "/Users/ouyangduning/Documents/project/interesting/.alphapilot-p42a-epoch3-r2-gate-evidence-rerun.YFDGXa/validator.collect.log",
+            "role": "accepted_precheck_evidence_7_validator_source",
+            "sha256": "3d92c49dca318de749dfe0355e7f169d2e97694371ee7a03bec72b1600ce48be"
+          },
+          {
+            "bytes": 2860,
+            "path": "/Users/ouyangduning/Documents/project/interesting/.alphapilot-p42a-epoch3-r2-gate-evidence-rerun.YFDGXa/pre-registered-gate-readback-failure-summary.json",
+            "role": "landing_report_verbatim_appendix_required",
+            "sha256": "29c73979a59a608e9259c4db097bff2039d541febaba07943a9ee5dc341987cf"
+          },
+          {
+            "bytes": 9732,
+            "path": "/Users/ouyangduning/Documents/project/interesting/.alphapilot-p42a-epoch3-r2-gate-evidence-rerun.YFDGXa/automation-heartbeat-prompt.txt",
+            "role": "prior_run_instruction_binding",
+            "sha256": "e492951e3dae1ffbd6e3d82e252b973127f8bee20bbe0bedbe7c4f0b8ae16dda"
+          }
+        ],
+        "owner_adjudication": {
+          "accepted_precheck_evidence_count": 7,
+          "accepted_precheck_terminal": "status=PASS_ALL_PRECHECKS",
+          "harness_freeze_replaces_self_correction_budget": true,
+          "merge_started": false,
+          "ordinal_2_review_request_created": false,
+          "ordinal_2_state_consumed": false,
+          "registered_root_preflight_started": false,
+          "registered_runner_started": false,
+          "registered_validator_started": false,
+          "rerun_authorized": true,
+          "verdict": "OPERATOR_READBACK_SCHEMA_LITERAL_ERROR"
+        },
+        "schema_version": "p4.2a-epoch3-r2-prior-readback-stop-appendix-lineage-v1",
+        "source_evidence_directory": "/Users/ouyangduning/Documents/project/interesting/.alphapilot-p42a-epoch3-r2-gate-evidence-rerun.YFDGXa",
+        "status": "CARRY_FORWARD_ACCEPTED_ZERO_CONSUMPTION_PRECHECK_STOP"
+      },
+      "path": "/Users/ouyangduning/Documents/project/interesting/.alphapilot-p42a-epoch3-r2-gate-evidence-rerun2.2bUkMK/prior-readback-stop-appendix-lineage.json",
+      "sha256": "a029ee58105d35c0ed624781ff5791e06f343291cbaa7d6913a74d77e067e062"
+    },
+    "zero_registered_or_attempt_effect": true
+  },
+  "registered_state_integrity": {
+    "consumed_v2_1_claim_empty_mode_0700": true,
+    "gate_clean": true,
+    "gate_head": "d4fb0d8c763b9fa104949ea2ac58bc921d9e8889",
+    "ledger_disclosure": {
+      "next_ordinal": 2,
+      "only_ordinal_1_present": true,
+      "ordinal_1_terminal": "FAILED",
+      "ordinal_2_present": false,
+      "previous_history_root_sha256": "076ae961fc149ae271bf5a3724c1677abccfea7139589909ea717a7f4a38083a"
+    },
+    "official_after_gate_fingerprints": {
+      "consumed_v2_1_claim": {
+        ".": "directory:0700"
+      },
+      "real_heldout_root": {
+        ".": "absent"
+      },
+      "registered_v2_2_destination": {
+        ".": "absent"
+      },
+      "registered_v2_2_ledger": {
+        ".": "directory:0700",
+        ".series.lock": "file:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855:0600:1",
+        "attempts": "directory:0700",
+        "attempts/000001": "directory:0700",
+        "attempts/000001/evidence": "directory:0700",
+        "attempts/000001/evidence/failure": "directory:0700",
+        "attempts/000001/evidence/failure/exception.json": "file:0eae027f49a870b726c8da6abe947be0cf1a9d280e0b485ec553a053b9fdf826:0600:1",
+        "attempts/000001/evidence/probes": "directory:0700",
+        "attempts/000001/evidence/probes/atomic-publication.json": "file:f56962a03e49ba2d36ab5c2344e8991da0dc63681555712e15f2cb0242645974:0600:1",
+        "attempts/000001/evidence/probes/authority-forgery.json": "file:bb86300d7459d18fd6db6b1d41b01c8c878924d48c98f99d08bc2eef756742fb:0600:1",
+        "attempts/000001/evidence/probes/same-parent-first.txt": "file:b640e840b19d378660b32fb51ae18d67dccb4a8596a29e7bd72c1b2ae5928f41:0600:1",
+        "attempts/000001/evidence/probes/same-parent-second.txt": "file:480c2336b410f1ad5f8bf1b28944490255804b65350c527787e74ebdd511e3a4:0600:1",
+        "attempts/000001/started.json": "file:a6a475abb6df4169d5b117283e2d313ee8088b527e9e8e57e9e127e7b56641be:0600:1",
+        "attempts/000001/terminal.json": "file:d922fb19dd55451ddf27bbf7749fa2fcc716b717a08d21b43d8d54cc9d03ede2:0600:1",
+        "series.json": "file:7b3e00f5390d3eec19eb0fbbce0cb1789b2219a768731153906fc38cb5b485c3:0600:1"
+      },
+      "retired_v2_1_destination": {
+        ".": "absent"
+      }
+    },
+    "official_after_precheck_fingerprints": {
+      "consumed_v2_1_claim": {
+        ".": "directory:0700"
+      },
+      "real_heldout_root": {
+        ".": "absent"
+      },
+      "registered_v2_2_destination": {
+        ".": "absent"
+      },
+      "registered_v2_2_ledger": {
+        ".": "directory:0700",
+        ".series.lock": "file:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855:0600:1",
+        "attempts": "directory:0700",
+        "attempts/000001": "directory:0700",
+        "attempts/000001/evidence": "directory:0700",
+        "attempts/000001/evidence/failure": "directory:0700",
+        "attempts/000001/evidence/failure/exception.json": "file:0eae027f49a870b726c8da6abe947be0cf1a9d280e0b485ec553a053b9fdf826:0600:1",
+        "attempts/000001/evidence/probes": "directory:0700",
+        "attempts/000001/evidence/probes/atomic-publication.json": "file:f56962a03e49ba2d36ab5c2344e8991da0dc63681555712e15f2cb0242645974:0600:1",
+        "attempts/000001/evidence/probes/authority-forgery.json": "file:bb86300d7459d18fd6db6b1d41b01c8c878924d48c98f99d08bc2eef756742fb:0600:1",
+        "attempts/000001/evidence/probes/same-parent-first.txt": "file:b640e840b19d378660b32fb51ae18d67dccb4a8596a29e7bd72c1b2ae5928f41:0600:1",
+        "attempts/000001/evidence/probes/same-parent-second.txt": "file:480c2336b410f1ad5f8bf1b28944490255804b65350c527787e74ebdd511e3a4:0600:1",
+        "attempts/000001/started.json": "file:a6a475abb6df4169d5b117283e2d313ee8088b527e9e8e57e9e127e7b56641be:0600:1",
+        "attempts/000001/terminal.json": "file:d922fb19dd55451ddf27bbf7749fa2fcc716b717a08d21b43d8d54cc9d03ede2:0600:1",
+        "series.json": "file:7b3e00f5390d3eec19eb0fbbce0cb1789b2219a768731153906fc38cb5b485c3:0600:1"
+      },
+      "retired_v2_1_destination": {
+        ".": "absent"
+      }
+    },
+    "official_before_fingerprints": {
+      "consumed_v2_1_claim": {
+        ".": "directory:0700"
+      },
+      "real_heldout_root": {
+        ".": "absent"
+      },
+      "registered_v2_2_destination": {
+        ".": "absent"
+      },
+      "registered_v2_2_ledger": {
+        ".": "directory:0700",
+        ".series.lock": "file:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855:0600:1",
+        "attempts": "directory:0700",
+        "attempts/000001": "directory:0700",
+        "attempts/000001/evidence": "directory:0700",
+        "attempts/000001/evidence/failure": "directory:0700",
+        "attempts/000001/evidence/failure/exception.json": "file:0eae027f49a870b726c8da6abe947be0cf1a9d280e0b485ec553a053b9fdf826:0600:1",
+        "attempts/000001/evidence/probes": "directory:0700",
+        "attempts/000001/evidence/probes/atomic-publication.json": "file:f56962a03e49ba2d36ab5c2344e8991da0dc63681555712e15f2cb0242645974:0600:1",
+        "attempts/000001/evidence/probes/authority-forgery.json": "file:bb86300d7459d18fd6db6b1d41b01c8c878924d48c98f99d08bc2eef756742fb:0600:1",
+        "attempts/000001/evidence/probes/same-parent-first.txt": "file:b640e840b19d378660b32fb51ae18d67dccb4a8596a29e7bd72c1b2ae5928f41:0600:1",
+        "attempts/000001/evidence/probes/same-parent-second.txt": "file:480c2336b410f1ad5f8bf1b28944490255804b65350c527787e74ebdd511e3a4:0600:1",
+        "attempts/000001/started.json": "file:a6a475abb6df4169d5b117283e2d313ee8088b527e9e8e57e9e127e7b56641be:0600:1",
+        "attempts/000001/terminal.json": "file:d922fb19dd55451ddf27bbf7749fa2fcc716b717a08d21b43d8d54cc9d03ede2:0600:1",
+        "series.json": "file:7b3e00f5390d3eec19eb0fbbce0cb1789b2219a768731153906fc38cb5b485c3:0600:1"
+      },
+      "retired_v2_1_destination": {
+        ".": "absent"
+      }
+    },
+    "official_fingerprints_canonical": {
+      "bytes": 1507,
+      "serialization": "UTF-8 sort_keys compact no trailing LF",
+      "sha256": "1241fea3d9efb9389d1d92a32c2a2925313ca6aa80283c32f0b92181efeffa36"
+    },
+    "official_fingerprints_unchanged": true,
+    "postcheck": {
+      "bytes": 20700,
+      "path": "/Users/ouyangduning/Documents/project/interesting/.alphapilot-p42a-epoch3-r2-gate-evidence-rerun2.2bUkMK/postcheck.json",
+      "sha256": "1ef03fde844fd976743eb7b8a4c541e1902458297204ba9e91abdca3ba3934b9",
+      "status": "PASS_GATE_POSTCHECK"
+    },
+    "real_heldout_root_absent": true,
+    "registered_v2_2_destination_absent": true,
+    "temporary_authorities": []
+  },
+  "report_id": "P4.2A-V2-2-EPOCH3-R2-REGISTERED-GATE-LANDING-20260815-R2",
+  "schema_version": "p4.2a-v2-2-epoch3-r2-registered-gate-landing-report-v2",
+  "scope": {
+    "implementation_commit": "d4fb0d8c763b9fa104949ea2ac58bc921d9e8889",
+    "implementation_epoch": 3,
+    "ordinal_2_disposition": "NEW_DISCLOSED_ATTEMPT_NOT_A_RETRY",
+    "report_is_attempt_execution_authority": false,
+    "report_path": "docs/phase4/reports/P4.2a-v2-2-epoch3-r2-registered-gate-landing-report-20260815.json"
+  },
+  "status": "PASS_REGISTERED_GATE_LANDING_REPORT_READY_BEFORE_MERGE"
+}
