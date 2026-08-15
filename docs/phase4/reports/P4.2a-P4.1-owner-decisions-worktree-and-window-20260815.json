@@ -1,0 +1,48 @@
+{
+  "schema_version": "p4.2a-owner-decision-record-v1",
+  "record_id": "p4.2a-p4.1-owner-decisions-worktree-and-window-20260815-r1",
+  "created_at_utc": "2026-08-15T10:46:14Z",
+  "created_at_shanghai": "2026-08-15T18:46:14+08:00",
+  "recorded_by": {
+    "identity": "independent_ai_architect_claude_code",
+    "reviewer_type": "ai",
+    "impersonation_disclaimer": "Not the owner. The decisions below were given by the owner in person and are recorded here because the machine artifacts they govern have no field for them, mirroring the F-10 pattern."
+  },
+  "cites": {
+    "adjudication": "docs/phase4/reports/P4.2a-preflight-control-surface-block-and-W5-20260815.json",
+    "commit": "89f118e"
+  },
+  "decision_1_worktree_disposition": {
+    "question_put_to_owner": "how to clear the control-surface block created by the uncommitted sector-flow and baostock workstream, given attempt 2 cannot run while config.py is dirty",
+    "owner_answer": "handle it after the P4.1 window closes on 2026-08-17",
+    "binding": "transcript-bound, owner in person, 2026-08-15 CST evening",
+    "consequences": [
+      "attempt 2 waits; no ordinal is consumed and no authorization expires",
+      "the owner may commit the workstream personally or route it through review first; either way the reviewer touches none of it",
+      "P4.2a resumes at the real-root preflight once the control surface is clean, then ordinal-2 Q, R, B and attempt 2"
+    ]
+  },
+  "decision_2_window_validity": {
+    "question_put_to_owner": "whether W-5, the observation window running partly on uncommitted worktree code, invalidates the window",
+    "owner_answer": "the window continues; disclose W-5 honestly in the verdict",
+    "binding": "transcript-bound, owner in person, same exchange",
+    "consequences": [
+      "day three runs 2026-08-17 and the verdict issues 2026-08-18 as scheduled, gates unchanged and not renegotiated",
+      "the verdict must state that the scheduler executed worktree bytes, that jobs/registry.py carried an uncommitted change from 2026-08-13 14:51 CST, that the process serving the window since 18:26 CST loaded it, and that the measured runtime effect on news_poll is nil with the misfire grace intact",
+      "the reviewer's earlier W-3 claim of verified post-merge code stands corrected in the cited adjudication and must not be restated"
+    ]
+  },
+  "part_3_hard_constraint_until_window_close": {
+    "constraint": "between now and the close of 2026-08-17 CST, do not restart the scheduler and do not modify any worktree file the scheduler imports",
+    "why": "the running process holds a fixed code snapshot taken at the 18:26 CST respawn. Days two and three are homogeneous only while that process lives. A restart would load whatever the worktree contains at that moment, adding a second provenance discontinuity mid-window and turning a disclosable footnote into a genuine confound",
+    "if_the_scheduler_dies_anyway": "launchd will respawn it; record the exact time and the worktree state of every scheduler-imported file at that moment, and report it immediately rather than absorbing it silently"
+  },
+  "part_4_state_at_this_record": {
+    "canonical_main": "89f118e",
+    "epoch_3_landed": "merge 0069270 preserving d4fb0d8c and bf9f610; landing report 8e5727b",
+    "ledger": "ordinal 1 FAILED only; next ordinal 2; history root 076ae961fc149ae271bf5a3724c1677abccfea7139589909ea717a7f4a38083a",
+    "absent": ["real-root preflight pass", "ordinal-2 Q", "R", "B", "attempt 2", "destination", "heldout root", "temporary authority"],
+    "heldout_evaluation_one_shot": "unconsumed",
+    "trading": "zero non-SIMULATE"
+  }
+}
