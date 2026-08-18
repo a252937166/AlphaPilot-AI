@@ -1,0 +1,63 @@
+{
+  "schema_version": "p4.2a-independent-review-v1",
+  "review_id": "p4.2a-v2-2-epoch4-implementation-review-20260818-r1",
+  "created_at_utc": "2026-08-18T06:08:33Z",
+  "created_at_shanghai": "2026-08-18T14:08:33+08:00",
+  "verdict": "APPROVE_EPOCH4_IMPLEMENTATION",
+  "blockers": [],
+  "reviewed_commit": "890e9002116c625d41f6aa037975df15d1546c56",
+  "reviewer": {
+    "identity": "independent_ai_architect_claude_code",
+    "reviewer_type": "ai",
+    "model": "Anthropic Claude Fable 5 (model id claude-fable-5)",
+    "impersonation_disclaimer": "Not a human reviewer. Issued under the owner governance amendment with requires_release_gate_amendment=true.",
+    "method": "full two-file diff read plus, per F-12, both complete registered test modules run by the reviewer at the reviewed commit before this verdict",
+    "lineage_note": "committed as a single-parent child of 890e9002 adding exactly this one file, satisfying the runtime lineage rule and the first-parent single-A projection rule at landing"
+  },
+  "part_1_commit_shape": {
+    "parent": "2c3171e68ce0146c158a294d0e494ae4b618310b",
+    "parent_is_the_owner_surface_authority": true,
+    "single_parent": true,
+    "surface": "exactly the two authorized M paths of the epoch-4 six-field authority, byte-ordered",
+    "descends_from_preregistration_be64235": true,
+    "file_digests": {
+      "scripts/p4_2a_v2_2_heldout_rehearsal.py": "9318e46e86f9a9a6aa5676a99f000eae4446f000520db261ecef391c30e88d77",
+      "tests/test_p4_2a_v2_2_heldout_rehearsal_runner.py": "7209349831a0f1c14d796adf6238ad0b9905b81d5a94b5e273ec4715f417a85a"
+    },
+    "diff_size": "136 insertions, 2 deletions across the two files; nothing else touched",
+    "no_merge_rebase_or_squash": true
+  },
+  "part_2_change_reviewed": {
+    "re_anchor": "the substantive purpose is achieved by construction: this implementation commit descends from 851a4bf, so its tree carries the owner's current src/alphapilot/core/config.py at 6bdc24ab..., which is what the worktree holds. Selecting this commit makes the control surface's current-byte check satisfiable again without touching the owner's code or rewriting history.",
+    "drift_diagnostic": {
+      "before": "the current-byte loop raised on the first drifted control member, so an operator learned one path per round trip",
+      "after": "drifted members are collected while the loop completes all 73 members, and a single RehearsalV22Error is raised immediately after the loop carrying canonical JSON with repository_path, selected_commit_sha256 and worktree_sha256 for every drifted member",
+      "fail_closed_unchanged": "verified by reading the control flow, not assumed. The raise sits after the loop and before _runtime_inventory and every subsequent step, so no work proceeds on a drifted surface. The stricter frozen-SHA check still raises inside the loop, which is correct because it guards a byte-pinned invariant rather than a comparison against the selected tree. Drifted members are still appended to payloads and records before the raise, which is harmless because the exception discards them and no caller can observe a partially built surface.",
+      "no_relaxation": "require_current is untouched, membership rules are untouched, the governance-authority branch is untouched, and no comparison is skipped. Only the report changes."
+    },
+    "test_coverage": {
+      "new_node": "test_exact_os_read_only_preflight_reports_every_current_control_drift",
+      "quality": "an exact-OS test, not a stub: it dirties TWO control members, src/alphapilot/core/config.py and src/alphapilot/db/models.py, runs the real read-only preflight in a subprocess under the locked environment, and asserts the message equals the canonical JSON of both drift rows with both digests each. It also asserts the project-tree fingerprint and the absence of temporary-authority directories afterwards, so the completeness improvement cannot come at the cost of a write.",
+      "topology_test_extended": "the registered topology test gains the epoch-4 branch in the same shape as the epoch-2 and epoch-3 branches, covering both the authority-HEAD dirty state and the implementation-commit state"
+    },
+    "out_of_scope_untouched": "gates, thresholds, samples, seeds, models, prompts, contracts, gold, the shim, the validator and its tests, the 24-field attempt schema and the ledger are all untouched"
+  },
+  "part_3_reviewer_run_evidence": {
+    "f12_compliance": "both complete registered modules run at 890e9002 before this verdict, in a detached session to avoid the signal-propagation terminations seen earlier",
+    "runner_module": "153 passed, 0 failed, 6893.31 seconds; JUnit totals independently parsed as tests 153, failures 0, errors 0, skipped 0",
+    "validator_module": "109 passed, 0 failed, 2074.96 seconds; JUnit totals tests 109, failures 0, errors 0, skipped 0",
+    "static": "ruff clean on both changed files; strict mypy clean on the implementation module",
+    "artifacts": "runner.junit.xml, validator.junit.xml and the run log preserved under .alphapilot-p42a-epoch4-reviewer-evidence.claude",
+    "operator_evidence_accepted": "targeted tests, static checks, post-commit topology test, and collect counts 153 and 109 totalling 262"
+  },
+  "part_4_merge_condition": {
+    "full_registered_gate": "unchanged as the merge condition: the complete registered gate must run to completion in the persistent gate clone at 890e9002 detached, output attached to the merge report, scheduled to avoid the CST midday and evening stall clusters",
+    "landing_rule": "merge only, preserving 890e9002 and this review commit byte-exact"
+  },
+  "part_5_f14_operating_constraint": {
+    "statement": "from the moment epoch 4 lands until attempt 2 has terminated, no commit may touch any of the 73 control-surface members. A single unrelated edit to any of them invalidates the anchor and costs another full epoch cycle.",
+    "reason": "this epoch exists solely because one such member, config.py, moved between the epoch-3 landing and the attempt. The drift diagnostic makes a recurrence cheaper to diagnose but not cheaper to fix.",
+    "practical_reading": "run the preflight, Q, R, B and attempt 2 promptly and consecutively. Treat the window between landing and attempt as a freeze on application code that the rehearsal imports."
+  },
+  "part_6_boundaries": {"ledger": "ordinal 1 FAILED only; next ordinal 2; history root 076ae961fc149ae271bf5a3724c1677abccfea7139589909ea717a7f4a38083a", "destination_and_heldout_root": "do not exist", "heldout_evaluation_one_shot": "unconsumed", "trading": "zero non-SIMULATE", "p4_1": "third window PASS at 189 of 189, verdict 84a07a3", "phase_locks": {"p4_2a_done": false, "p4_2b_unlocked": false, "p4_3_unlocked": false}}
+}

@@ -4749,6 +4749,7 @@ def build_control_surface(
             )
     records: list[JsonObject] = []
     payloads: dict[str, bytes] = {}
+    drifted_controls: list[JsonObject] = []
     frozen = {
         PREREGISTRATION_RELATIVE.as_posix(): PREREGISTRATION_SHA256,
         BUNDLE_SCHEMA_RELATIVE.as_posix(): BUNDLE_SCHEMA_SHA256,
@@ -4775,7 +4776,13 @@ def build_control_surface(
                 f"current control {relative}",
             )
             if current != payload:
-                raise RehearsalV22Error(f"control differs from selected commit: {relative}")
+                drifted_controls.append(
+                    {
+                        "repository_path": relative,
+                        "selected_commit_sha256": _sha256(payload),
+                        "worktree_sha256": _sha256(current),
+                    }
+                )
         if relative in frozen and _sha256(payload) != frozen[relative]:
             raise RehearsalV22Error(f"frozen control SHA drifted: {relative}")
         archive_path = f"archive/control-surface/root/repo/{relative}"
@@ -4799,6 +4806,13 @@ def build_control_surface(
                 "bytes": len(payload),
                 "sha256": _sha256(payload),
             }
+        )
+    if drifted_controls:
+        raise RehearsalV22Error(
+            "control differs from selected commit: "
+            + _canonical_json_bytes(drifted_controls)
+            .decode("utf-8", errors="strict")
+            .removesuffix("\n")
         )
     python_payload, package_payload = _runtime_inventory(root)
     for name, payload, kind in (
