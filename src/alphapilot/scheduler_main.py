@@ -9,6 +9,7 @@ from sqlalchemy import text
 
 from alphapilot.core.config import Settings, get_settings
 from alphapilot.core.logging import configure_logging
+from alphapilot.data.baostock_provider import close_baostock_session
 from alphapilot.db.engine import get_session
 from alphapilot.futu.client import get_futu_client
 from alphapilot.jobs import register_builtin_jobs
@@ -81,6 +82,7 @@ def run_scheduler_daemon(
         finally:
             logger.info("dedicated scheduler stopping gracefully")
             shutdown_scheduler(wait=True)
+            close_baostock_session()
             get_futu_client().close()
 
 

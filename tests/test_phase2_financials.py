@@ -494,14 +494,14 @@ def test_sync_financials_propagates_login_transport_failure_after_one_symbol(
         ) -> dict[str, pd.DataFrame]:
             calls.append(symbol)
             raise DataProviderError(
-                "BaoStock login failed after 3 attempts (10002007): 网络接收错误。"
+                "BaoStock login failed after 2 attempts (10002007): 网络接收错误。"
             )
 
     monkeypatch.setattr(financials, "get_session", local_session)
     monkeypatch.setattr(financials, "BaoStockMarketDataProvider", OfflineBaoStock)
     monkeypatch.setattr(financials, "_completed_quarters", lambda _count: [(2026, 1)])
 
-    with pytest.raises(DataProviderError, match="login failed after 3 attempts"):
+    with pytest.raises(DataProviderError, match="login failed after 2 attempts"):
         financials.sync_financials(quarters=1, batch_size=5)
 
     assert calls == ["600000"]

@@ -26,7 +26,7 @@ from alphapilot.db.models import (
 from alphapilot.engines.factors import FACTOR_SET
 from alphapilot.jobs import prediction_reconcile
 from alphapilot.jobs.prediction_reconcile import _PredictionState
-from alphapilot.jobs.registry import JOBS
+from alphapilot.jobs.registry import JOBS, JobOutcome
 
 TARGET_DATE = date(2026, 7, 30)
 
@@ -36,7 +36,14 @@ def _unused_session() -> Iterator[Any]:
     yield object()
 
 
-def _state(*, factor_current: bool, style_current: bool) -> _PredictionState:
+def _state(
+    *,
+    factor_current: bool,
+    style_current: bool,
+    upstream_contract_ok: bool = True,
+    live_input_reason: str | None = None,
+    factor_input_reason: str | None = None,
+) -> _PredictionState:
     return _PredictionState(
         target_date=TARGET_DATE,
         factor_current=factor_current,
@@ -45,6 +52,9 @@ def _state(*, factor_current: bool, style_current: bool) -> _PredictionState:
             "date": TARGET_DATE.isoformat(),
             "factor_current": factor_current,
             "style_current": style_current,
+            "upstream_contract_ok": upstream_contract_ok,
+            "live_input_reason": live_input_reason,
+            "factor_input_reason": factor_input_reason or live_input_reason,
         },
     )
 
@@ -126,6 +136,149 @@ def test_reconcile_waits_without_running_style_when_factor_is_deferred(
     assert calls == ["compute_factors"]
     assert stats["skipped"] == "valuation_sync_running"
     assert stats["factor_job_run_id"] == 201
+
+
+def test_reconcile_defers_before_factor_when_upstream_is_not_final(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(prediction_reconcile, "get_session", _unused_session)
+    monkeypatch.setattr(
+        prediction_reconcile,
+        "_prediction_state",
+        lambda _session: _state(
+            factor_current=False,
+            style_current=False,
+            upstream_contract_ok=False,
+            live_input_reason="daily_bars_not_final",
+        ),
+    )
+    monkeypatch.setattr(
+        prediction_reconcile,
+        "run_job",
+        lambda *_args, **_kwargs: pytest.fail(
+            "upstream-not-final reconciliation must not spawn a child job"
+        ),
+    )
+
+    result = prediction_reconcile.reconcile_prediction_outputs()
+
+    assert isinstance(result, dict)
+    assert result["skipped"] == "upstream_inputs_not_final"
+    assert result["upstream_reason"] == "daily_bars_not_final"
+    assert "等待上游恢复" in result["message"]
+
+
+def test_reconcile_degrades_without_duplicating_factor_child_failure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[tuple[str, dict[str, Any]]] = []
+
+    def fake_run_job(name: str, **kwargs: Any) -> SimpleNamespace:
+        calls.append((name, kwargs))
+        return SimpleNamespace(
+            id=301,
+            status="failed",
+            error="JobExecutionError: 因子输入覆盖率低于 90% 安全阈值。",
+            stats={"reason": "input_coverage_below_floor", "input_coverage": 0.8},
+        )
+
+    monkeypatch.setattr(prediction_reconcile, "get_session", _unused_session)
+    monkeypatch.setattr(
+        prediction_reconcile,
+        "_prediction_state",
+        lambda _session: _state(factor_current=False, style_current=False),
+    )
+    monkeypatch.setattr(prediction_reconcile, "run_job", fake_run_job)
+
+    result = prediction_reconcile.reconcile_prediction_outputs()
+
+    assert calls == [("compute_factors", {"allow_catchup": True})]
+    assert isinstance(result, JobOutcome)
+    assert result.status == "degraded"
+    assert result.stats["skipped"] == "compute_factors_failed"
+    assert result.stats["child_job_run_id"] == 301
+    assert result.stats["child_status"] == "failed"
+    assert result.stats["child_stats"] == {
+        "reason": "input_coverage_below_floor",
+        "input_coverage": 0.8,
+    }
+
+
+def test_reconcile_degrades_without_duplicating_style_child_failure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    states = iter(
+        (
+            _state(factor_current=True, style_current=False),
+            _state(factor_current=True, style_current=False),
+        )
+    )
+    calls: list[tuple[str, dict[str, Any]]] = []
+
+    def fake_run_job(name: str, **kwargs: Any) -> SimpleNamespace:
+        calls.append((name, kwargs))
+        return SimpleNamespace(
+            id=302,
+            status="failed",
+            error="RuntimeError: style engine unavailable",
+            stats={"reason": "style_engine_unavailable"},
+        )
+
+    monkeypatch.setattr(prediction_reconcile, "get_session", _unused_session)
+    monkeypatch.setattr(
+        prediction_reconcile,
+        "_prediction_state",
+        lambda _session: next(states),
+    )
+    monkeypatch.setattr(prediction_reconcile, "run_job", fake_run_job)
+
+    result = prediction_reconcile.reconcile_prediction_outputs()
+
+    assert calls == [("compute_style_daily", {"trade_date": TARGET_DATE})]
+    assert isinstance(result, JobOutcome)
+    assert result.status == "degraded"
+    assert result.stats["skipped"] == "compute_style_daily_failed"
+    assert result.stats["child_job_run_id"] == 302
+    assert result.stats["child_status"] == "failed"
+    assert result.stats["child_stats"] == {"reason": "style_engine_unavailable"}
+
+
+def test_reconcile_defers_when_style_child_is_skipped(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    states = iter(
+        (
+            _state(factor_current=True, style_current=False),
+            _state(factor_current=True, style_current=False),
+        )
+    )
+
+    monkeypatch.setattr(prediction_reconcile, "get_session", _unused_session)
+    monkeypatch.setattr(
+        prediction_reconcile,
+        "_prediction_state",
+        lambda _session: next(states),
+    )
+    monkeypatch.setattr(
+        prediction_reconcile,
+        "run_job",
+        lambda name, **_kwargs: SimpleNamespace(
+            id=303,
+            status="ok",
+            error=None,
+            stats={"skipped": "compute_factors_running", "child": name},
+        ),
+    )
+
+    result = prediction_reconcile.reconcile_prediction_outputs()
+
+    assert isinstance(result, dict)
+    assert result["skipped"] == "compute_factors_running"
+    assert result["style_job_run_id"] == 303
+    assert result["style_stats"] == {
+        "skipped": "compute_factors_running",
+        "child": "compute_style_daily",
+    }
 
 
 def test_reconcile_is_a_noop_when_both_outputs_are_current(
@@ -313,8 +466,7 @@ weights:
             },
         ).all()
         assert any(
-            "ix_factor_date" in str(row[-1]) and "SEARCH" in str(row[-1])
-            for row in factor_plan
+            "ix_factor_date" in str(row[-1]) and "SEARCH" in str(row[-1]) for row in factor_plan
         )
 
         session.add(
@@ -338,6 +490,85 @@ weights:
         stale_after_upstream_refresh = prediction_reconcile._prediction_state(session)
         assert stale_after_upstream_refresh.factor_current is False
         assert stale_after_upstream_refresh.style_current is False
+
+
+def test_prediction_state_includes_market_coverage_in_upstream_contract(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    base_time = datetime(2026, 7, 30, 11, 0, tzinfo=UTC)
+    runs = {
+        "sync_daily_bars": SimpleNamespace(
+            id=401,
+            status="ok",
+            finished_at=base_time,
+            stats={"latest_trade_date": TARGET_DATE.isoformat()},
+        ),
+        "sync_adj_factors": SimpleNamespace(
+            id=402,
+            status="ok",
+            finished_at=base_time,
+            stats={"coverage": 1.0},
+        ),
+        "sync_valuation_daily": SimpleNamespace(
+            id=403,
+            status="ok",
+            finished_at=base_time,
+            stats={"is_complete": True},
+        ),
+    }
+    monkeypatch.setattr(prediction_reconcile, "_target_date", lambda _session: TARGET_DATE)
+    monkeypatch.setattr(
+        prediction_reconcile,
+        "_market_coverage",
+        lambda _session, _target: {
+            "date": TARGET_DATE.isoformat(),
+            "universe": 10,
+            "eligible": 8,
+            "input_coverage": 0.8,
+        },
+    )
+    monkeypatch.setattr(
+        prediction_reconcile,
+        "_completed_run_for_date",
+        lambda _session, _name, _target: None,
+    )
+    monkeypatch.setattr(
+        prediction_reconcile,
+        "_latest_run",
+        lambda _session, name: runs[name],
+    )
+    monkeypatch.setattr(
+        prediction_reconcile,
+        "_live_input_contract",
+        lambda _session, *, target_date, universe: (
+            {
+                "checked_target_date": target_date.isoformat(),
+                "checked_universe": universe,
+            },
+            None,
+        ),
+    )
+    monkeypatch.setattr(
+        prediction_reconcile,
+        "get_settings",
+        lambda: SimpleNamespace(factor_weights_file="unused.yaml"),
+    )
+    monkeypatch.setattr(
+        prediction_reconcile,
+        "load_weights",
+        lambda _path: SimpleNamespace(version="v1.0.0"),
+    )
+
+    with Session(create_engine("sqlite://")) as session:
+        state = prediction_reconcile._prediction_state(session)
+
+    assert state.factor_current is False
+    assert state.style_current is False
+    assert state.details["eligible"] == 8
+    assert state.details["input_coverage"] == 0.8
+    assert state.details["live_input_reason"] is None
+    assert state.details["factor_input_reason"] == "input_coverage_below_floor"
+    assert state.details["upstream_contract_ok"] is False
 
 
 def test_reconcile_cron_retries_every_fifteen_minutes_with_safe_offset() -> None:

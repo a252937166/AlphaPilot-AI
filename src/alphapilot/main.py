@@ -1,10 +1,11 @@
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from alphapilot import __version__
+from alphapilot.api.dependencies import baostock_session_dependency
 from alphapilot.api.routes import (
     alerts,
     backtest,
@@ -30,6 +31,7 @@ from alphapilot.api.routes import (
 )
 from alphapilot.core.config import get_settings
 from alphapilot.core.logging import configure_logging
+from alphapilot.data.baostock_provider import close_baostock_session
 from alphapilot.db.engine import get_session, init_db
 from alphapilot.futu.client import get_futu_client
 from alphapilot.jobs import register_builtin_jobs
@@ -50,7 +52,8 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     try:
         yield
     finally:
-        shutdown_scheduler()
+        shutdown_scheduler(wait=True)
+        close_baostock_session()
         get_futu_client().close()
 
 
@@ -64,6 +67,7 @@ app = FastAPI(
         "trading-assistance platform. Live order execution remains disabled."
     ),
     lifespan=lifespan,
+    dependencies=[Depends(baostock_session_dependency)],
 )
 app.add_middleware(
     CORSMiddleware,

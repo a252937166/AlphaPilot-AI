@@ -11,6 +11,11 @@ from alphapilot.data.base import DataProviderError
 class AKShareMarketDataProvider:
     name = "akshare"
 
+    def __init__(self, *, http_timeout_seconds: float = 3.0) -> None:
+        if not 0 < http_timeout_seconds <= 120:
+            raise ValueError("AKShare HTTP timeout must be between 0 and 120 seconds")
+        self._http_timeout_seconds = http_timeout_seconds
+
     @staticmethod
     def _module() -> Any:
         try:
@@ -37,6 +42,7 @@ class AKShareMarketDataProvider:
                 start_date=start.strftime("%Y%m%d"),
                 end_date=end.strftime("%Y%m%d"),
                 adjust="",
+                timeout=self._http_timeout_seconds,
             )
         except Exception as exc:  # provider errors vary by upstream website
             raise DataProviderError(f"AKShare daily bars failed for {symbol}: {exc}") from exc

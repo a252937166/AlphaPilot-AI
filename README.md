@@ -98,10 +98,13 @@ docker compose up --build
 
 ```env
 ALPHAPILOT_DEFAULT_DATA_PROVIDER=auto
+ALPHAPILOT_BAOSTOCK_SOCKET_TIMEOUT_SECONDS=2
+ALPHAPILOT_BAOSTOCK_LOCK_TIMEOUT_SECONDS=1
 ```
 
 > 注意：东方财富（AKShare 历史行情上游）会按出口 IP/TLS 指纹间歇性封锁请求，
-> 因此日线主源是 BaoStock；AKShare 作为备源保留。
+> 因此日线主源是 BaoStock；AKShare 作为备源保留。BaoStock 的连接、接收与进程内锁等待
+> 均有硬超时；连接失效后会丢弃会话并继续走故障转移链，避免阻塞 API 工作线程。
 
 严格回测的复权因子可配置 Tushare token：
 

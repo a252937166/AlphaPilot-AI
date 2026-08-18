@@ -101,6 +101,11 @@ def test_scheduler_daemon_owns_lifecycle_and_graceful_shutdown(
         "get_futu_client",
         lambda: fake_client,
     )
+    monkeypatch.setattr(
+        scheduler_main,
+        "close_baostock_session",
+        lambda: calls.append(("baostock_close", True)),
+    )
 
     scheduler_main.run_scheduler_daemon(
         settings=_safe_settings(),
@@ -112,3 +117,4 @@ def test_scheduler_daemon_owns_lifecycle_and_graceful_shutdown(
     assert ("register", True) in calls
     assert ("lock", "nonblocking") in calls
     assert ("shutdown_wait", True) in calls
+    assert ("baostock_close", True) in calls

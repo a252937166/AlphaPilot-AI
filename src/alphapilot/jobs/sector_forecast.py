@@ -28,10 +28,17 @@ from alphapilot.engines.sector_forecast import BAR_SESSIONS, compute_sector_fore
 from alphapilot.jobs.registry import JobExecutionError, JobSpec, register
 
 MARKET_TIMEZONE = ZoneInfo("Asia/Shanghai")
-UPSTREAM_JOBS = ("sync_daily_bars", "sync_sector_flows")
+UPSTREAM_JOBS = (
+    "sync_daily_bars",
+    "sync_sector_flows",
+    "repair_recent_sector_flow_gaps",
+    "backfill_sector_flows",
+)
 UPSTREAM_LEASES = {
     "sync_daily_bars": timedelta(hours=2),
     "sync_sector_flows": timedelta(minutes=45),
+    "repair_recent_sector_flow_gaps": timedelta(minutes=30),
+    "backfill_sector_flows": timedelta(hours=2),
 }
 
 
