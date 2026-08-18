@@ -1,0 +1,73 @@
+{
+  "schema_version": "p4.1-news-v2.1-acceptance-verdict-v1",
+  "verdict_id": "p4.1-v2.1-third-window-acceptance-verdict-20260818-r1",
+  "created_at_utc": "2026-08-18T01:58:27Z",
+  "created_at_shanghai": "2026-08-18T09:58:27+08:00",
+  "verdict": "PASS",
+  "window": ["2026-08-13", "2026-08-14", "2026-08-17"],
+  "evidence": {
+    "path": "docs/phase4/reports/P4.1-v2.1-misfire-remediation-window-close-evidence-20260818.json",
+    "sha256": "787800bc9d02e69aecd4a2a9fef4a4194bebd9760f7d353089a410e34c024ee1",
+    "bytes": 468312,
+    "reviewer_recomputed_the_digest": true
+  },
+  "reviewer": {
+    "identity": "independent_ai_architect_claude_code",
+    "reviewer_type": "ai",
+    "model": "Anthropic Claude Fable 5 (model id claude-fable-5)",
+    "impersonation_disclaimer": "Not a human reviewer. Issued under the owner governance amendment with requires_release_gate_amendment=true; the owner may override.",
+    "method": "read-only. Slot counts, per-day totals, start offsets, stall signatures, checkpoint lineage and news row dating were re-derived independently from the production database before the report's own numbers were read, then compared."
+  },
+  "part_1_ruling": {
+    "ruling": "The pre-registered gate expected_slots_complete is met at 189 of 189 and every safety and data-integrity gate that guards a real invariant passes. The verdict is PASS.",
+    "independently_reproduced": {
+      "slots_by_day": {"2026-08-13": "64 of 64", "2026-08-14": "64 of 64", "2026-08-17": "61 of 61"},
+      "non_ok_slots": 0,
+      "monday_61_explained": "the three absent Monday slots are 09:00, 09:30 and 09:40 CST, suppressed by the pre-existing host-gap policy with the 09:50 recovery slot firing normally, exactly as in the first window",
+      "frozen_config": "config/p4_news_poll_v2_1.yaml still 9d56e137baf10bd0858723a93aff02c57bf7b35f8705f1817b16a89ec615183f on every one of the 189 rows",
+      "safety": "zero broker orders, zero trade proposals, zero non-SIMULATE, retry count zero across all 189"
+    },
+    "contrast_with_the_two_prior_windows": "the first failed with 127 failed runs and a deadlocked watermark; the second lost three fire events to scheduler stalls; this one lost nothing."
+  },
+  "part_2_the_remediation_was_not_actually_exercised": {
+    "finding": "This window passed WITHOUT the misfire grace ever being needed. That must be stated plainly rather than left for a reader to assume otherwise.",
+    "evidence": [
+      "every one of the 189 slots fired on its 10-minute boundary; the largest start offset in the whole window is 13 seconds",
+      "the stall signature that killed window two is present again: 18 gaps of 1 to 3 minutes in the per-minute snapshot job, clustered around CST midday and evening, including a 6-minute compound stall on 2026-08-17 from 11:50 to 11:56 CST",
+      "not one of those stalls crossed a news_poll slot boundary. The 11:50 to 11:56 stall fell in the empty span between the 11:30 and 12:00 slots; the 18:18 to 18:26 stall on 2026-08-13 fell between the 18:00 and 18:30 slots"
+    ],
+    "what_this_means": "the 600-second grace is in force and correct by review and by test, but this window provides no field evidence that it rescues a slot, because no stall landed on one. The window passed on a favourable stall distribution as much as on the fix. The fix remains the right change; its production proof is still outstanding and will come the first time a stall crosses a slot start.",
+    "not_a_reason_to_fail": "the gate is slot completeness, not fix exercise. Demanding a demonstrated rescue would be inventing a new gate after the fact, which this regime does not do."
+  },
+  "part_3_three_raw_gate_falses_adjudicated": {
+    "observed": "under the selected-only raw view, four flags read false: all_pass, cninfo_checkpoint_contract_ok, cninfo_daily_slice_checkpoint_contract_ok and source_accounting_ok, all traceable to JobRun 88234",
+    "what_88234_is": "the 2026-08-17 00:00 CST slot, the first slot of window day three, which follows a weekend the window deliberately skips",
+    "reviewer_verified_root_cause": [
+      "88234's checkpoint before is verified_checkpoint_date_shanghai 2026-08-15, which equals the after of JobRun 88203, the 2026-08-16 23:30 CST slot that ran normally outside the window. The chain is unbroken in real time; it only looks broken when the immediately preceding slot is excluded from the selected set",
+      "newest_observed_at_utc advances from 2026-08-14T16:00Z to 2026-08-16T16:00Z, so nothing is retrograde",
+      "88234 inserted 159 rows carrying weekend availability; the database holds 2,083 rows dated 2026-08-15 CST and 141 dated 2026-08-16 CST, none of which belongs to any window day. Accounting that sums only the three window dates therefore cannot balance against slots that legitimately carry weekend rows"
+    ],
+    "ruling": "ACCEPTED AS A BOUNDARY ARTEFACT, NOT A DATA DEFECT. The checkpoint and accounting contracts are defined over continuous time; the window is deliberately non-contiguous. Slicing a continuous stream by three chosen dates necessarily breaks the join at the first slot of any day that follows an excluded day.",
+    "purpose_form_view_approved": "the report's full-calendar lineage bridge, 285 chain nodes with zero issues, restores the real predecessor and is approved as a correction to a defective gate boundary, not as a relaxation. It changes no threshold, admits no failing slot and repairs no data; it only stops treating an excluded neighbour as if it did not exist.",
+    "C-8_reviewer_error_recorded": "the boundary defect is the reviewer's. The verdict at d37395d prescribed a non-contiguous window without amending the checkpoint and accounting contracts, which assume contiguity. Any future window must declare its boundary-predecessor rule in advance rather than have one supplied after the numbers are in.",
+    "preservation_order": "the four raw false flags stay in the record permanently. No future report may present only the purpose-form view; both must appear together with this adjudication cited."
+  },
+  "part_4_provenance_W5_closed": {
+    "constraint_held": "the scheduler ran the entire window on one process, PID 9978, started 2026-08-13 18:26 CST, with zero additional restarts. The reviewer confirmed the PID, its start time and the byte digests of all five scheduler-imported files against the baseline captured on 2026-08-15; every digest is unchanged.",
+    "disclosure_required_by_the_owner_decision": "the scheduler executes worktree bytes through an editable install. jobs/registry.py, the common job wrapper, carried an uncommitted change made 2026-08-13 14:51 CST, and the process serving this window loaded it at 18:26 CST. Every dirty imported file's mtime precedes the process start, so days two and three are homogeneous and only day one contains a mid-day provenance change at 18:26 CST.",
+    "measured_effect": "nil for news_poll. The change wraps each job body in a baostock session scope that, for a job never touching baostock, sets and resets a ContextVar and does nothing on exit; its lock acquisition is non-blocking. The reviewed misfire_grace_time field and its validation are intact in the running bytes.",
+    "W3_correction_stands": "the earlier claim that the respawned scheduler was verified to be running post-merge code was insufficient and was corrected on 2026-08-15; it is not restated here as fact.",
+    "standing_rule": "for any future acceptance window, capture and re-verify the byte digests of every scheduler-imported file at window start and after any restart. Under an editable install, a path check is not a provenance check."
+  },
+  "part_5_other_window_observations": {
+    "W-4_backup_early_run": "the 2026-08-13 backup executed at 18:15 CST against a module window that opens at 22:00. Mechanism unresolved, operations-side, outside the P4.1 gates. The 2026-08-14 backup completed normally at 22:03:54 CST.",
+    "other_jobs_failing_inside_the_window": "compute_factors and reconcile_prediction_outputs failed 20 times each between 2026-08-13 00:00 and 09:52 CST, plus one evaluate_alerts and one sync_adj_factors on 2026-08-14. All four are designed fail-closed refusals: factor input coverage below the 90 percent safety threshold, a downstream job declining to run without upstream factors, and two waits that timed out rather than computing on incomplete inputs. None is a news_poll slot, none writes bad data, none is inside the P4.1 gates. Recorded for system health, not for this verdict.",
+    "coverage_recovered": "the factor coverage shortfall cleared by itself at 09:52 CST on 2026-08-13 and both jobs have run normally since."
+  },
+  "part_6_disposition": {
+    "p4_1_v2_1_acceptance": "PASS",
+    "p4_1_done": "the reviewer declares the acceptance criterion met. The milestone flag is the owner's to set; nothing downstream is unlocked by it, since P4.2b depends on P4.2a which is unfinished.",
+    "what_does_not_change": ["P4.2a stays frozen at the control-surface block until the owner clears the worktree", "P4.2b and P4.3 stay locked", "trading stays SIMULATE with all three gates false"],
+    "evidence_artifact_handling": "the window-close evidence artifact is create-only and must be committed unchanged; this verdict cites it by digest and does not restate its contents as its own."
+  }
+}
