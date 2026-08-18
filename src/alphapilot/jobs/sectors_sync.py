@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 import math
 from collections.abc import Mapping
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, time
 from time import monotonic, sleep
 from typing import Any
 from zoneinfo import ZoneInfo
@@ -20,14 +20,22 @@ from alphapilot.db.models import (
     SectorConstituentSnapshot,
     SectorFlowDaily,
 )
-from alphapilot.futu.client import FutuClient, get_futu_client
-from alphapilot.jobs.registry import JobSpec, register
+from alphapilot.futu.client import (
+    FutuClient,
+    FutuSDKError,
+    FutuUnavailableError,
+    get_futu_client,
+)
+from alphapilot.jobs.registry import JobOutcome, JobSpec, register
 
 logger = logging.getLogger(__name__)
 MARKET_TIMEZONE = ZoneInfo("Asia/Shanghai")
 PLATE_REQUEST_PAUSE_SECONDS = 3.2
 CAPITAL_FLOW_PAUSE_SECONDS = 1.05
 SNAPSHOT_BATCH_SIZE = 400
+MAX_SNAPSHOT_SINGLETON_FAILURES = 20
+MAX_SNAPSHOT_CALLS = 64
+SNAPSHOT_FETCH_DEADLINE_SECONDS = 30.0
 TOP_FLOW_MEMBERS = 5
 SNAPSHOT_NET_FLOW_FIELDS = (
     "net_inflow",
@@ -42,6 +50,19 @@ SNAPSHOT_MAIN_FLOW_FIELDS = (
 )
 CONSTITUENT_SNAPSHOT_HOUR = 15
 CONSTITUENT_SNAPSHOT_MINUTE = 10
+SECTOR_FLOW_READY_TIME = time(hour=15, minute=20)
+ISOLATABLE_SNAPSHOT_ERROR_MARKERS = (
+    "not entitled",
+    "no entitlement",
+    "no quote right",
+    "permission denied",
+    "invalid stock code",
+    "invalid code",
+    "行情权限",
+    "权限不足",
+    "无权限",
+    "股票代码",
+)
 
 
 def _finite(value: object) -> float | None:
@@ -54,6 +75,10 @@ def _finite(value: object) -> float | None:
 
 def _market_today() -> date:
     return datetime.now(MARKET_TIMEZONE).date()
+
+
+def _market_now() -> datetime:
+    return datetime.now(MARKET_TIMEZONE)
 
 
 def _utc_now() -> datetime:
@@ -93,20 +118,104 @@ def _is_a_share_code(code: str) -> bool:
     )
 
 
-def _snapshot_batches(client: FutuClient, codes: list[str]) -> pd.DataFrame:
+def _snapshot_batches(
+    client: FutuClient,
+    codes: list[str],
+    *,
+    failures: list[dict[str, str]] | None = None,
+) -> pd.DataFrame:
+    """Fetch snapshots while isolating a bad/unentitled symbol.
+
+    OpenD may reject a whole batch because one symbol is unavailable.  Split a
+    failed or incomplete batch until the offending singleton is identified so
+    the remaining symbols can still be used.  Missing symbols are never filled
+    with copied or zero-valued quotes.
+    """
+
     frames: list[pd.DataFrame] = []
     unique_codes = list(dict.fromkeys(codes))
-    for offset in range(0, len(unique_codes), SNAPSHOT_BATCH_SIZE):
-        payload = client.quote_call_raw(
-            "get_market_snapshot",
-            args=[unique_codes[offset : offset + SNAPSHOT_BATCH_SIZE]],
-        )
-        if not isinstance(payload, pd.DataFrame) or payload.empty:
-            raise DataProviderError("Futu returned an empty sector snapshot batch")
+    singleton_failure_count = 0
+    snapshot_call_count = 0
+    deadline = monotonic() + SNAPSHOT_FETCH_DEADLINE_SECONDS
+
+    def is_isolatable_sdk_error(exc: FutuSDKError) -> bool:
+        message = str(exc).casefold()
+        return any(marker in message for marker in ISOLATABLE_SNAPSHOT_ERROR_MARKERS)
+
+    def record_singleton_failure(code: str, exc: Exception) -> None:
+        nonlocal singleton_failure_count
+        if failures is not None:
+            failures.append(
+                {
+                    "symbol": code,
+                    "stage": "snapshot",
+                    "error": f"{type(exc).__name__}: {exc}"[:500],
+                }
+            )
+        singleton_failure_count += 1
+        if singleton_failure_count >= MAX_SNAPSHOT_SINGLETON_FAILURES:
+            raise DataProviderError(
+                "Futu sector snapshot isolation stopped after "
+                f"{singleton_failure_count} singleton failures"
+            ) from exc
+
+    def fetch_batch(batch: list[str]) -> None:
+        nonlocal snapshot_call_count
+        if snapshot_call_count >= MAX_SNAPSHOT_CALLS or monotonic() > deadline:
+            raise DataProviderError(
+                "Futu sector snapshot isolation exceeded its global call/time budget: "
+                f"calls={snapshot_call_count}, max_calls={MAX_SNAPSHOT_CALLS}"
+            )
+        snapshot_call_count += 1
+        try:
+            payload = client.quote_call_raw("get_market_snapshot", args=[batch])
+            if not isinstance(payload, pd.DataFrame) or payload.empty:
+                raise DataProviderError("Futu returned an empty sector snapshot batch")
+            if "code" not in payload.columns:
+                raise DataProviderError("Futu sector snapshot batch has no code column")
+        except FutuUnavailableError:
+            raise
+        except FutuSDKError as exc:
+            if not is_isolatable_sdk_error(exc):
+                raise
+            if len(batch) > 1:
+                midpoint = len(batch) // 2
+                fetch_batch(batch[:midpoint])
+                fetch_batch(batch[midpoint:])
+                return
+            record_singleton_failure(batch[0], exc)
+            return
+        except Exception as exc:
+            if len(batch) > 1:
+                midpoint = len(batch) // 2
+                fetch_batch(batch[:midpoint])
+                fetch_batch(batch[midpoint:])
+                return
+            record_singleton_failure(batch[0], exc)
+            return
+
+        returned = {str(value).strip() for value in payload["code"].tolist() if str(value).strip()}
         frames.append(payload.copy())
+        missing = [code for code in batch if code not in returned]
+        if missing:
+            if len(batch) == 1:
+                record_singleton_failure(
+                    batch[0],
+                    DataProviderError("Futu sector snapshot omitted requested symbol"),
+                )
+            elif len(missing) == len(batch):
+                midpoint = len(batch) // 2
+                fetch_batch(batch[:midpoint])
+                fetch_batch(batch[midpoint:])
+            else:
+                for code in missing:
+                    fetch_batch([code])
+
+    for offset in range(0, len(unique_codes), SNAPSHOT_BATCH_SIZE):
+        fetch_batch(unique_codes[offset : offset + SNAPSHOT_BATCH_SIZE])
     if not frames:
         raise DataProviderError("sector snapshot requires cached constituents")
-    return pd.concat(frames, ignore_index=True)
+    return pd.concat(frames, ignore_index=True).drop_duplicates(subset=["code"], keep="last")
 
 
 def sync_sector_constituents(
@@ -212,11 +321,7 @@ def snapshot_sector_constituents() -> dict[str, Any]:
                 )
             )
         )
-        visible_rows = [
-            row
-            for row in source_rows
-            if _as_utc(row.refreshed_at) <= available_time
-        ]
+        visible_rows = [row for row in source_rows if _as_utc(row.refreshed_at) <= available_time]
         if not visible_rows:
             raise DataProviderError(
                 "sector constituent PIT snapshot requires a visible current cache"
@@ -280,8 +385,38 @@ def _cached_plates() -> dict[str, dict[str, Any]]:
     return plates
 
 
-def _eastmoney_sector_flows() -> dict[str, float]:
-    """Try Eastmoney once, with a bounded timeout unlike the AKShare wrapper."""
+def _eastmoney_timestamp_date(value: object) -> date | None:
+    number = _finite(value)
+    if number is None or number <= 0:
+        return None
+    if number > 10_000_000_000:
+        number /= 1000
+    try:
+        return datetime.fromtimestamp(number, tz=MARKET_TIMEZONE).date()
+    except (OverflowError, OSError, ValueError):
+        return None
+
+
+def _eastmoney_sector_flows(
+    *,
+    expected_trade_date: date,
+    observed_at: datetime,
+) -> dict[str, float]:
+    """Fetch a close snapshot without silently assigning an unverifiable day."""
+
+    market_observed_at = (
+        observed_at.replace(tzinfo=MARKET_TIMEZONE)
+        if observed_at.tzinfo is None
+        else observed_at.astimezone(MARKET_TIMEZONE)
+    )
+    if market_observed_at.date() != expected_trade_date:
+        raise DataProviderError(
+            "Eastmoney sector flow observation date does not match the requested trade day"
+        )
+    if market_observed_at.time().replace(tzinfo=None) < SECTOR_FLOW_READY_TIME:
+        raise DataProviderError(
+            "Eastmoney sector flow has no guaranteed trade-date field before the 15:20 close job"
+        )
 
     response = httpx.get(
         "https://push2.eastmoney.com/api/qt/clist/get",
@@ -296,7 +431,7 @@ def _eastmoney_sector_flows() -> dict[str, float]:
             "fid0": "f62",
             "fs": "m:90 t:2",
             "stat": "1",
-            "fields": "f12,f14,f62",
+            "fields": "f12,f14,f62,f124",
             "rt": "52975239",
         },
         headers={"User-Agent": "Mozilla/5.0 (compatible; AlphaPilot-AI/0.2)"},
@@ -317,15 +452,28 @@ def _eastmoney_sector_flows() -> dict[str, float]:
     else:
         raise DataProviderError("Eastmoney sector flow response has no rows")
     flows: dict[str, float] = {}
+    timestamp_dates: list[date | None] = []
+    timestamp_declared = False
     for item in rows:
         if not isinstance(item, Mapping):
             continue
         name = str(item.get("f14") or "").strip()
         value = _finite(item.get("f62"))
         if name and value is not None:
+            raw_timestamp = item.get("f124")
+            if raw_timestamp not in (None, "", "-"):
+                timestamp_declared = True
+            timestamp_dates.append(_eastmoney_timestamp_date(raw_timestamp))
             flows[name] = value
     if not flows:
         raise DataProviderError("Eastmoney returned no usable sector flows")
+    if timestamp_declared and (
+        any(item is None for item in timestamp_dates)
+        or any(item != expected_trade_date for item in timestamp_dates)
+    ):
+        raise DataProviderError(
+            "Eastmoney sector flow timestamp does not match the requested trade day"
+        )
     return flows
 
 
@@ -367,12 +515,14 @@ def _snapshot_flow_rows(
                 main = _finite(quote.get(main_field))
                 if main is not None:
                     main_values.append(main)
-        if net_values:
+        if net_values and len(net_values) == len(info["constituents"]):
             rows.append(
                 {
                     "plate_code": plate_code,
                     "net_inflow": sum(net_values),
-                    "main_inflow": sum(main_values) if main_values else None,
+                    "main_inflow": (
+                        sum(main_values) if len(main_values) == len(info["constituents"]) else None
+                    ),
                     "source": "futu-snapshot",
                 }
             )
@@ -417,19 +567,31 @@ def _futu_top5_flow_rows(
     pause_seconds: float,
 ) -> tuple[list[dict[str, Any]], list[dict[str, str]], int]:
     selected_by_plate: dict[str, list[str]] = {}
+    plate_failures: list[dict[str, str]] = []
     for plate_code, info in plates.items():
         candidates = [str(code) for code in info["constituents"] if str(code) in quote_map]
         candidates.sort(
             key=lambda code: _finite(quote_map[code].get("total_market_val")) or 0.0,
             reverse=True,
         )
-        selected_by_plate[plate_code] = candidates[:TOP_FLOW_MEMBERS]
+        required_ranked_members = len(set(info["constituents"]))
+        selected = candidates[:TOP_FLOW_MEMBERS]
+        if len(candidates) < required_ranked_members:
+            plate_failures.append(
+                {
+                    "plate_code": plate_code,
+                    "error": "incomplete ranking universe: "
+                    f"available={len(candidates)}, required={required_ranked_members}",
+                }
+            )
+            selected = []
+        selected_by_plate[plate_code] = selected
     selected_codes = list(
         dict.fromkeys(code for codes in selected_by_plate.values() for code in codes)
     )
 
     values: dict[str, tuple[float, float | None]] = {}
-    failures: list[dict[str, str]] = []
+    failures: list[dict[str, str]] = plate_failures
     for index, code in enumerate(selected_codes, start=1):
         try:
             frame = client.quote_call_raw("get_capital_flow", args=[code])
@@ -451,18 +613,15 @@ def _futu_top5_flow_rows(
 
     rows: list[dict[str, Any]] = []
     for plate_code, codes in selected_by_plate.items():
-        available = [values[code] for code in codes if code in values]
-        if not available:
+        if not codes or any(code not in values for code in codes):
             continue
+        available = [values[code] for code in codes if code in values]
+        main_values = [value for _, value in available if value is not None]
         rows.append(
             {
                 "plate_code": plate_code,
                 "net_inflow": sum(value[0] for value in available),
-                "main_inflow": (
-                    sum(value for _, value in available if value is not None)
-                    if any(value is not None for _, value in available)
-                    else None
-                ),
+                "main_inflow": sum(main_values) if len(main_values) == len(codes) else None,
                 "source": "futu-top5",
             }
         )
@@ -496,12 +655,13 @@ def _persist_flow_rows(rows: list[dict[str, Any]], trade_day: date) -> tuple[int
 
 def sync_sector_flows(
     pause_seconds: float = CAPITAL_FLOW_PAUSE_SECONDS,
-) -> dict[str, Any]:
+) -> dict[str, Any] | JobOutcome:
     """Persist daily plate flows using the best currently available source."""
 
     started = monotonic()
     client = get_futu_client()
-    requested_date = _market_today()
+    market_now = _market_now()
+    requested_date = market_now.date()
     trade_day = _cn_trade_day(client, requested_date)
     if trade_day is None:
         return {
@@ -518,7 +678,8 @@ def sync_sector_flows(
     all_codes = list(
         dict.fromkeys(str(code) for info in plates.values() for code in info["constituents"])
     )
-    snapshot = _snapshot_batches(client, all_codes)
+    snapshot_failures: list[dict[str, str]] = []
+    snapshot = _snapshot_batches(client, all_codes, failures=snapshot_failures)
     columns = {str(column) for column in snapshot.columns}
     quote_map = {
         str(record.get("code")): {str(key): value for key, value in record.items()}
@@ -529,66 +690,76 @@ def sync_sector_flows(
     warnings: list[str] = []
     failures: list[dict[str, str]] = []
     selected_codes = 0
-    rows: list[dict[str, Any]] = []
-    source = ""
+    rows_by_plate: dict[str, dict[str, Any]] = {}
 
     if net_field is not None:
-        rows = _snapshot_flow_rows(plates, quote_map, net_field, main_field, trade_day)
-        if rows:
-            source = "futu-snapshot"
-        else:
+        snapshot_rows = _snapshot_flow_rows(plates, quote_map, net_field, main_field, trade_day)
+        rows_by_plate.update({str(item["plate_code"]): item for item in snapshot_rows})
+        if not snapshot_rows:
             warnings.append(f"snapshot flow field {net_field} contained no usable numeric values")
 
-    if not rows:
+    missing_plates = {
+        plate_code: info for plate_code, info in plates.items() if plate_code not in rows_by_plate
+    }
+    if missing_plates:
         try:
-            em_flows = _eastmoney_sector_flows()
-            for plate_code, info in plates.items():
+            em_flows = _eastmoney_sector_flows(
+                expected_trade_date=trade_day,
+                observed_at=market_now,
+            )
+            for plate_code, info in missing_plates.items():
                 value = em_flows.get(str(info["plate_name"]).strip())
                 if value is not None:
-                    rows.append(
-                        {
-                            "plate_code": plate_code,
-                            "net_inflow": value,
-                            "main_inflow": value,
-                            "source": "em",
-                        }
-                    )
-            minimum_em_rows = max(1, math.floor(len(plates) * 0.5))
-            if len(rows) < minimum_em_rows:
-                warnings.append(
-                    "Eastmoney sector names matched too few Futu plates: "
-                    f"matched={len(rows)}, required={minimum_em_rows}"
-                )
-                rows = []
+                    rows_by_plate[plate_code] = {
+                        "plate_code": plate_code,
+                        "net_inflow": value,
+                        "main_inflow": value,
+                        "source": "em",
+                    }
         except Exception as exc:
             warnings.append(f"Eastmoney sector flow unavailable: {type(exc).__name__}: {exc}")
 
-        if not rows:
-            rows, failures, selected_codes = _futu_top5_flow_rows(
-                client,
-                plates,
-                quote_map,
-                trade_day=trade_day,
-                pause_seconds=pause_seconds,
-            )
-            source = "futu-top5"
-        else:
-            source = "em"
+    missing_plates = {
+        plate_code: info for plate_code, info in plates.items() if plate_code not in rows_by_plate
+    }
+    if missing_plates:
+        futu_rows, failures, selected_codes = _futu_top5_flow_rows(
+            client,
+            missing_plates,
+            quote_map,
+            trade_day=trade_day,
+            pause_seconds=pause_seconds,
+        )
+        rows_by_plate.update({str(item["plate_code"]): item for item in futu_rows})
 
+    rows = list(rows_by_plate.values())
     if not rows:
         raise DataProviderError("no sector flow rows could be produced")
     inserted, updated = _persist_flow_rows(rows, trade_day)
-    return {
+    missing_plate_codes = sorted(set(plates).difference(rows_by_plate))
+    source_counts: dict[str, int] = {}
+    for row in rows:
+        row_source = str(row["source"])
+        source_counts[row_source] = source_counts.get(row_source, 0) + 1
+    source = next(iter(source_counts)) if len(source_counts) == 1 else "mixed"
+    stats = {
         "trade_date": trade_day.isoformat(),
         "requested_date": requested_date.isoformat(),
         "source": source,
+        "source_counts": source_counts,
         "rows": len(rows),
         "inserted": inserted,
         "updated": updated,
         "plates_total": len(plates),
+        "coverage": round(len(rows) / len(plates), 6),
+        "is_complete": not missing_plate_codes,
+        "missing_plate_codes": missing_plate_codes[:50],
+        "missing_plate_count": len(missing_plate_codes),
         "snapshot_symbols": len(quote_map),
         "snapshot_flow_field": net_field,
         "snapshot_main_flow_field": main_field,
+        "snapshot_failure_count": len(snapshot_failures),
+        "snapshot_failures": snapshot_failures[:20],
         "capital_flow_symbols": selected_codes,
         "failure_count": len(failures),
         "failures": failures[:20],
@@ -596,6 +767,9 @@ def sync_sector_flows(
         "skipped": None,
         "duration_seconds": round(monotonic() - started, 2),
     }
+    if missing_plate_codes:
+        return JobOutcome(status="degraded", stats=stats)
+    return stats
 
 
 def register_sector_jobs() -> None:

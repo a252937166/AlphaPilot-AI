@@ -27,8 +27,15 @@ from alphapilot.jobs.factors import (
     MARKET_TIMEZONE,
     MIN_INPUT_COVERAGE,
     _live_input_contract,
+    _market_coverage,
 )
-from alphapilot.jobs.registry import JobExecutionError, JobSpec, register, run_job
+from alphapilot.jobs.registry import (
+    JobExecutionError,
+    JobOutcome,
+    JobSpec,
+    register,
+    run_job,
+)
 from alphapilot.jobs.style import MODEL_VERSION as STYLE_MODEL_VERSION
 
 
@@ -42,10 +49,7 @@ class _PredictionState:
 
 def _latest_run(session: Session, job_name: str) -> JobRun | None:
     return session.scalar(
-        select(JobRun)
-        .where(JobRun.job_name == job_name)
-        .order_by(JobRun.id.desc())
-        .limit(1)
+        select(JobRun).where(JobRun.job_name == job_name).order_by(JobRun.id.desc()).limit(1)
     )
 
 
@@ -101,14 +105,8 @@ def _prediction_state(session: Session) -> _PredictionState:
     weights = load_weights(settings.factor_weights_file)
     factor_model_version = f"factor-{weights.version}"
     score_model_version = f"factor-score-{weights.version}"
-    universe = int(
-        session.scalar(
-            select(func.count())
-            .select_from(Security)
-            .where(Security.market == "CN", Security.list_status == "listed")
-        )
-        or 0
-    )
+    market_coverage = _market_coverage(session, target)
+    universe = int(market_coverage["universe"])
     factor_run = _completed_run_for_date(session, "compute_factors", target)
     daily_run = _latest_run(session, "sync_daily_bars")
     adj_run = _latest_run(session, "sync_adj_factors")
@@ -119,6 +117,12 @@ def _prediction_state(session: Session) -> _PredictionState:
         target_date=target,
         universe=universe,
     )
+    factor_input_reason = live_input_reason
+    if (
+        factor_input_reason is None
+        and float(market_coverage["input_coverage"]) < MIN_INPUT_COVERAGE
+    ):
+        factor_input_reason = "input_coverage_below_floor"
 
     upstream_runs = (daily_run, adj_run, valuation_run)
     upstream_contract_ok = (
@@ -127,7 +131,7 @@ def _prediction_state(session: Session) -> _PredictionState:
             for run in upstream_runs
         )
         and daily_stats.get("latest_trade_date") == target.isoformat()
-        and live_input_reason is None
+        and factor_input_reason is None
     )
     latest_upstream_finish: datetime | None = None
     if upstream_contract_ok:
@@ -194,9 +198,7 @@ def _prediction_state(session: Session) -> _PredictionState:
         )
     factor_current = factor_audit_fresh and output_contract_ok
     style_run = (
-        _completed_run_for_date(session, "compute_style_daily", target)
-        if factor_current
-        else None
+        _completed_run_for_date(session, "compute_style_daily", target) if factor_current else None
     )
     style_row = session.get(StyleDaily, target) if factor_current else None
     style_current = (
@@ -216,6 +218,8 @@ def _prediction_state(session: Session) -> _PredictionState:
         details={
             "date": target.isoformat(),
             "universe": universe,
+            "eligible": int(market_coverage["eligible"]),
+            "input_coverage": float(market_coverage["input_coverage"]),
             "factor_rows": factor_rows,
             "factor_counts": factor_counts,
             "composite_rows": composite_rows,
@@ -230,6 +234,7 @@ def _prediction_state(session: Session) -> _PredictionState:
             "output_counts_checked": factor_audit_fresh,
             "output_contract_ok": output_contract_ok,
             "live_input_reason": live_input_reason,
+            "factor_input_reason": factor_input_reason,
             "live_input_stats": live_input_stats,
         },
     )
@@ -258,12 +263,13 @@ def _failed_child_stats(
         **state.details,
         "reason": f"{child_name}_failed",
         "child_job_run_id": child_run.id,
+        "child_status": child_run.status,
         "child_error": child_run.error,
         "child_stats": _run_stats(child_run),
     }
 
 
-def reconcile_prediction_outputs() -> dict[str, Any]:
+def reconcile_prediction_outputs() -> dict[str, Any] | JobOutcome:
     """Converge the latest complete EOD inputs to factors and style outputs."""
 
     started = monotonic()
@@ -281,19 +287,34 @@ def reconcile_prediction_outputs() -> dict[str, Any]:
             "skipped": "already_current",
             "duration_seconds": round(monotonic() - started, 2),
         }
+    if not initial.factor_current and initial.details.get("upstream_contract_ok") is not True:
+        return {
+            **initial.details,
+            "skipped": "upstream_inputs_not_final",
+            "upstream_reason": initial.details.get("factor_input_reason")
+            or initial.details.get("live_input_reason")
+            or "upstream_audit_not_final",
+            "message": "盘后输入尚未形成完整终态，等待上游恢复后自动补算。",
+            "duration_seconds": round(monotonic() - started, 2),
+        }
 
     factor_run_id: int | None = None
     if not initial.factor_current:
         factor_run = run_job("compute_factors", allow_catchup=True)
         factor_run_id = factor_run.id
         if factor_run.status != "ok":
-            raise JobExecutionError(
-                "自动补算因子失败，风格计算未启动。",
-                stats=_failed_child_stats(
-                    child_name="compute_factors",
-                    child_run=factor_run,
-                    state=initial,
-                ),
+            return JobOutcome(
+                status="degraded",
+                stats={
+                    **_failed_child_stats(
+                        child_name="compute_factors",
+                        child_run=factor_run,
+                        state=initial,
+                    ),
+                    "skipped": "compute_factors_failed",
+                    "message": "自动补算因子失败，风格计算未启动。",
+                    "duration_seconds": round(monotonic() - started, 2),
+                },
             )
         factor_stats = _run_stats(factor_run)
         if factor_stats.get("skipped") is not None:
@@ -336,22 +357,28 @@ def reconcile_prediction_outputs() -> dict[str, Any]:
         )
         style_run_id = style_run.id
         style_stats = _run_stats(style_run)
-        if style_run.status != "ok" or style_stats.get("skipped") is not None:
-            raise JobExecutionError(
-                "自动补算风格失败。",
+        if style_run.status != "ok":
+            return JobOutcome(
+                status="degraded",
                 stats={
                     **_failed_child_stats(
                         child_name="compute_style_daily",
                         child_run=style_run,
                         state=after_factor,
                     ),
-                    "reason": (
-                        "compute_style_daily_failed"
-                        if style_run.status != "ok"
-                        else "compute_style_daily_skipped"
-                    ),
+                    "skipped": "compute_style_daily_failed",
+                    "message": "自动补算风格失败。",
+                    "duration_seconds": round(monotonic() - started, 2),
                 },
             )
+        if style_stats.get("skipped") is not None:
+            return {
+                **after_factor.details,
+                "style_job_run_id": style_run.id,
+                "skipped": style_stats["skipped"],
+                "style_stats": style_stats,
+                "duration_seconds": round(monotonic() - started, 2),
+            }
 
     with get_session() as session:
         completed = _prediction_state(session)

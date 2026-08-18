@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import UTC, date, datetime, timedelta
+from datetime import UTC, date, datetime, time, timedelta
 from math import isfinite
 from threading import Lock
 from typing import Any
@@ -25,6 +25,7 @@ from alphapilot.db.market_audit import (
 from alphapilot.db.models import (
     DailyBar,
     SectorConstituent,
+    SectorConstituentSnapshot,
     SectorFlowDaily,
     SectorForecast,
     SectorSnapshot,
@@ -53,6 +54,7 @@ SECTOR_LIFECYCLES = ("boom", "rising", "decline", "bottoming", "recovery")
 MARKET_TIMEZONE = ZoneInfo("Asia/Shanghai")
 FORECAST_INPUT_COVERAGE_FLOOR = MIN_AUDITED_DAILY_BAR_COVERAGE
 FLOW_WINDOW_DAYS = 5
+LEADER_DAILY_BAR_COVERAGE_FLOOR = 0.80
 LEADER_LOOKBACK_SESSIONS = 20
 LEADER_LINK_LIMIT = 5
 
@@ -83,6 +85,7 @@ def _forecast_row(row: SectorForecast, rank: int) -> dict[str, Any]:
         "plate_code": row.plate_code,
         "plate_name": row.plate_name,
         "trade_date": row.trade_date.isoformat(),
+        "strength_as_of": row.trade_date.isoformat(),
         "horizon": row.horizon,
         "score": row.score,
         "expected_excess": row.expected_excess,
@@ -258,7 +261,7 @@ def _forecast_flow_enrichment(
     *,
     plate_codes: set[str],
     forecast_date: date,
-) -> tuple[dict[str, dict[str, Any]], str | None]:
+) -> tuple[dict[str, dict[str, Any]], str | None, list[str]]:
     window_dates = _trusted_benchmark_dates(
         session,
         end_date=forecast_date,
@@ -291,7 +294,14 @@ def _forecast_flow_enrichment(
         ]
         latest = plate_rows.get(window_dates[-1]) if window_dates else None
         latest_flow = _optional_number(latest.net_inflow) if latest is not None else None
-        complete_window = len(window_dates) == FLOW_WINDOW_DAYS and len(usable) == FLOW_WINDOW_DAYS
+        available_dates = [row.trade_date for row in usable]
+        missing_dates = [
+            trade_day for trade_day in window_dates if trade_day not in available_dates
+        ]
+        complete_window = (
+            len(window_dates) == FLOW_WINDOW_DAYS
+            and len(usable) == FLOW_WINDOW_DAYS
+        )
         sources = sorted({row.source for row in usable if row.source})
         enrichment[plate_code] = {
             "net_inflow": latest_flow,
@@ -301,51 +311,208 @@ def _forecast_flow_enrichment(
                 else None
             ),
             "flow_coverage_days": len(usable),
+            "flow_trade_date": (
+                latest.trade_date.isoformat()
+                if latest is not None and latest_flow is not None
+                else None
+            ),
+            "flow_available_dates": [value.isoformat() for value in available_dates],
+            "flow_missing_dates": [value.isoformat() for value in missing_dates],
             "flow_source": sources[0] if len(sources) == 1 else "mixed" if sources else None,
         }
     actual_dates = [row.trade_date for row in rows if row.net_inflow is not None]
-    return enrichment, max(actual_dates).isoformat() if actual_dates else None
+    return (
+        enrichment,
+        max(actual_dates).isoformat() if actual_dates else None,
+        [value.isoformat() for value in window_dates],
+    )
 
 
-def _forecast_strength_enrichment(
+def _forecast_leader_memberships(
     session: Session,
     *,
     plate_codes: set[str],
     forecast_date: date,
-) -> tuple[dict[str, dict[str, Any]], str | None]:
-    snapshots = session.scalars(
-        select(SectorSnapshot).order_by(SectorSnapshot.as_of.desc()).limit(200)
+) -> tuple[dict[str, set[str]], dict[str, str | None], dict[str, str]]:
+    """Return membership that was demonstrably visible by the forecast cutoff."""
+
+    cutoff = datetime.combine(
+        forecast_date,
+        time.max,
+        tzinfo=MARKET_TIMEZONE,
+    ).astimezone(UTC)
+    pit_rows = session.scalars(
+        select(SectorConstituentSnapshot).where(
+            SectorConstituentSnapshot.plate_code.in_(plate_codes),
+            SectorConstituentSnapshot.as_of_date == forecast_date,
+        )
     ).all()
-    snapshot = next(
-        (
-            row
-            for row in snapshots
-            if _utc(row.as_of).astimezone(MARKET_TIMEZONE).date() <= forecast_date
-        ),
-        None,
-    )
+    pit_by_plate: dict[str, set[str]] = {}
+    for pit_row in pit_rows:
+        if _utc(pit_row.available_time) > cutoff:
+            continue
+        symbol = normalize_constituent_symbol(pit_row.symbol)
+        if symbol is not None:
+            pit_by_plate.setdefault(pit_row.plate_code, set()).add(symbol)
+
+    current_rows = session.scalars(
+        select(SectorConstituent).where(SectorConstituent.plate_code.in_(plate_codes))
+    ).all()
+    visible_current: dict[str, set[str]] = {}
+    names: dict[str, str | None] = {}
+    for current_row in current_rows:
+        symbol = normalize_constituent_symbol(current_row.symbol)
+        if symbol is None:
+            continue
+        if current_row.name and symbol not in names:
+            names[symbol] = current_row.name
+        if _utc(current_row.refreshed_at) <= cutoff:
+            visible_current.setdefault(current_row.plate_code, set()).add(symbol)
+
+    memberships: dict[str, set[str]] = {}
+    membership_sources: dict[str, str] = {}
+    for plate_code in plate_codes:
+        if pit_by_plate.get(plate_code):
+            memberships[plate_code] = pit_by_plate[plate_code]
+            membership_sources[plate_code] = "sector_constituent_snapshots"
+        elif visible_current.get(plate_code):
+            memberships[plate_code] = visible_current[plate_code]
+            membership_sources[plate_code] = "sector_constituents-visible-before-cutoff"
+        else:
+            memberships[plate_code] = set()
+            membership_sources[plate_code] = "unavailable"
+    return memberships, names, membership_sources
+
+
+def _forecast_leader_enrichment(
+    session: Session,
+    *,
+    plate_codes: set[str],
+    forecast_date: date,
+) -> tuple[dict[str, dict[str, Any]], str | None, str | None]:
+    """Build forecast-day leaders only from exact audited daily closes.
+
+    SectorSnapshot is intentionally excluded: it is an intraday/current quote cache and
+    cannot establish a historical forecast-day move.
+    """
+
     enrichment: dict[str, dict[str, Any]] = {
         plate_code: {
             "leader_code": None,
             "leader_name": None,
             "leader_change_pct": None,
+            "leader_as_of": None,
+            "leader_previous_trade_date": None,
+            "leader_source": None,
+            "leader_sources": [],
+            "leader_membership_source": None,
+            "leader_constituent_count": 0,
+            "leader_eligible_members": 0,
+            "leader_coverage_ratio": 0.0,
+            "leader_change_method": "daily-close-vs-previous-trading-close",
+            "leader_unavailable_reason": None,
         }
         for plate_code in plate_codes
     }
-    if snapshot is None:
-        return enrichment, None
-    for raw in snapshot.payload:
-        if not isinstance(raw, dict):
+    benchmark_dates = _trusted_benchmark_dates(
+        session,
+        end_date=forecast_date,
+        limit=2,
+    )
+    if len(benchmark_dates) != 2 or benchmark_dates[-1] != forecast_date:
+        for item in enrichment.values():
+            item["leader_unavailable_reason"] = (
+                "预测日缺少连续两个可信基准交易日，无法计算收盘涨幅。"
+            )
+        return enrichment, None, None
+    previous_date, leader_date = benchmark_dates
+    memberships, names, membership_sources = _forecast_leader_memberships(
+        session,
+        plate_codes=plate_codes,
+        forecast_date=forecast_date,
+    )
+    symbols = set().union(*memberships.values()) if memberships else set()
+    bar_rows = session.execute(
+        select(
+            DailyBar.symbol,
+            DailyBar.trade_date,
+            DailyBar.close,
+            DailyBar.source,
+        ).where(
+            DailyBar.symbol.in_(symbols),
+            DailyBar.trade_date.in_(benchmark_dates),
+            DailyBar.source.in_(AUDITED_DAILY_BAR_SOURCES),
+            DailyBar.close > 0,
+        )
+    ).all()
+    bars: dict[str, dict[date, tuple[float, str]]] = {}
+    for raw_symbol, trade_day, close, source in bar_rows:
+        symbol = normalize_constituent_symbol(raw_symbol)
+        value = _optional_number(close)
+        if symbol is None or value is None or value <= 0:
             continue
-        plate_code = str(raw.get("plate_code") or "")
-        if plate_code not in enrichment:
+        bars.setdefault(symbol, {})[trade_day] = (value, str(source))
+
+    any_available = False
+    for plate_code in plate_codes:
+        members = memberships[plate_code]
+        membership_source = membership_sources[plate_code]
+        candidates: list[tuple[str, float, set[str]]] = []
+        for symbol in sorted(members):
+            symbol_bars = bars.get(symbol, {})
+            previous = symbol_bars.get(previous_date)
+            current = symbol_bars.get(leader_date)
+            if previous is None or current is None or previous[0] <= 0:
+                continue
+            change_pct = (current[0] / previous[0] - 1.0) * 100.0
+            if not isfinite(change_pct):
+                continue
+            candidates.append((symbol, change_pct, {previous[1], current[1]}))
+        member_count = len(members)
+        eligible_count = len(candidates)
+        coverage_ratio = eligible_count / member_count if member_count else 0.0
+        item = enrichment[plate_code]
+        item.update(
+            {
+                "leader_membership_source": membership_source,
+                "leader_constituent_count": member_count,
+                "leader_eligible_members": eligible_count,
+                "leader_coverage_ratio": round(coverage_ratio, 6),
+            }
+        )
+        if not members:
+            item["leader_unavailable_reason"] = (
+                "预测截止时没有可审计的板块成分记录。"
+            )
             continue
-        enrichment[plate_code] = {
-            "leader_code": normalize_constituent_symbol(raw.get("leader_code")),
-            "leader_name": str(raw.get("leader_name") or "").strip() or None,
-            "leader_change_pct": _optional_number(raw.get("leader_change_pct")),
-        }
-    return enrichment, iso_utc(snapshot.as_of)
+        if not candidates or coverage_ratio < LEADER_DAILY_BAR_COVERAGE_FLOOR:
+            item["leader_unavailable_reason"] = (
+                f"预测日与前一交易日的可信日线覆盖仅 {eligible_count}/{member_count} "
+                f"({coverage_ratio:.1%})，低于 {LEADER_DAILY_BAR_COVERAGE_FLOOR:.0%} 门槛。"
+            )
+            continue
+        leader_symbol, leader_change, sources = sorted(
+            candidates,
+            key=lambda value: (-round(value[1], 12), value[0]),
+        )[0]
+        item.update(
+            {
+                "leader_code": leader_symbol,
+                "leader_name": names.get(leader_symbol),
+                "leader_change_pct": round(leader_change, 6),
+                "leader_as_of": leader_date.isoformat(),
+                "leader_previous_trade_date": previous_date.isoformat(),
+                "leader_source": "daily_bars",
+                "leader_sources": sorted(sources),
+                "leader_unavailable_reason": None,
+            }
+        )
+        any_available = True
+    return (
+        enrichment,
+        leader_date.isoformat() if any_available else None,
+        "daily_bars" if any_available else None,
+    )
 
 
 def get_sector_forecast_view(
@@ -393,16 +560,26 @@ def get_sector_forecast_view(
         raise SectorServiceError("板块预测截面混入多个模型版本，已拒绝展示。")
     model_version = next(iter(model_versions))
     plate_codes = {row.plate_code for row in rows}
-    flow_by_plate, flow_as_of = _forecast_flow_enrichment(
+    flow_by_plate, flow_as_of, flow_window_dates = _forecast_flow_enrichment(
         session,
         plate_codes=plate_codes,
         forecast_date=latest_forecast,
     )
-    strength_by_plate, strength_as_of = _forecast_strength_enrichment(
+    leader_by_plate, leader_as_of, leader_source = _forecast_leader_enrichment(
         session,
         plate_codes=plate_codes,
         forecast_date=latest_forecast,
     )
+    expected_excess_values = {
+        round(value, 12)
+        for row in rows
+        if (value := _optional_number(row.expected_excess)) is not None
+    }
+    if len(expected_excess_values) > 1:
+        raise SectorServiceError(
+            "同一模型截面的组合级历史预期超额不一致，已拒绝展示。"
+        )
+    model_expected_excess = next(iter(expected_excess_values), None)
     no_flow = model_version.endswith("-no-flow")
     fixed_universe_reason = (
         "历史成分有效期尚未落库，胜率为固定当前成分股宇宙回测，不代表无前视偏差的 PIT 结果。"
@@ -432,13 +609,15 @@ def get_sector_forecast_view(
     for rank, row in enumerate(selected, 1):
         serialized = _forecast_row(row, rank)
         serialized.update(flow_by_plate[row.plate_code])
-        serialized.update(strength_by_plate[row.plate_code])
+        serialized.update(leader_by_plate[row.plate_code])
         serialized_rows.append(serialized)
 
     payload: dict[str, Any] = {
         "as_of": latest_forecast.isoformat(),
         "horizon": horizon,
         "model_version": model_version,
+        "model_expected_excess": model_expected_excess,
+        "model_expected_excess_scope": "top-20pct-portfolio-historical-mean",
         "flow_mode": "no-flow" if no_flow else "full",
         "backtest_scope": "fixed-current-membership",
         "degraded_reason": degraded_reason,
@@ -447,7 +626,11 @@ def get_sector_forecast_view(
         "rows": serialized_rows,
         "flow_as_of": flow_as_of,
         "flow_window_days": FLOW_WINDOW_DAYS,
-        "strength_as_of": strength_as_of,
+        "flow_window_dates": flow_window_dates,
+        "strength_as_of": latest_forecast.isoformat(),
+        "strength_source": "sector_forecasts",
+        "leader_as_of": leader_as_of,
+        "leader_source": leader_source,
         **input_state,
     }
     if reason is not None:

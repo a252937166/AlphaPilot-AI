@@ -7,7 +7,10 @@ import pandas as pd
 import pytest
 from fastapi.testclient import TestClient
 
-from alphapilot.api.dependencies import futu_client_dependency
+from alphapilot.api.dependencies import (
+    baostock_session_dependency,
+    futu_client_dependency,
+)
 from alphapilot.futu.client import FutuUnavailableError
 from alphapilot.main import app
 
@@ -50,6 +53,13 @@ def test_health() -> None:
     assert body["trading"]["unlock_trade_endpoint_exposed"] is False
     assert body["trading"]["paper_auto_trading_enabled"] is False
     assert body["trading"]["trading_mode"] == "research"
+
+
+def test_api_globally_scopes_baostock_sessions() -> None:
+    assert any(
+        dependency.dependency is baostock_session_dependency
+        for dependency in app.router.dependencies
+    )
 
 
 def test_mock_screen_api_persists_run() -> None:

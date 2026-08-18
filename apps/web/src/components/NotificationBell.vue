@@ -34,6 +34,7 @@ const KIND_META = {
 const router = useRouter()
 const trigger = ref<HTMLButtonElement | null>(null)
 const drawer = ref<HTMLElement | null>(null)
+const notificationList = ref<HTMLElement | null>(null)
 const closeButton = ref<HTMLButtonElement | null>(null)
 const open = ref(false)
 const loading = ref(false)
@@ -49,7 +50,9 @@ const notifications = ref<NotificationItem[]>([])
 const activeFilter = ref<FilterKind>('all')
 let pollTimer: ReturnType<typeof setInterval> | null = null
 let previousBodyOverflow = ''
+let previousBackgroundOverflow = ''
 let backgroundShell: HTMLElement | null = null
+let backgroundScroller: HTMLElement | null = null
 let countRequestVersion = 0
 let listRequestVersion = 0
 let readQueue: Promise<void> = Promise.resolve()
@@ -156,6 +159,11 @@ async function showDrawer() {
   previousBodyOverflow = document.body.style.overflow
   document.body.style.overflow = 'hidden'
   backgroundShell = document.querySelector<HTMLElement>('#app > .app-shell')
+  backgroundScroller = backgroundShell?.querySelector<HTMLElement>('.page') ?? null
+  if (backgroundScroller) {
+    previousBackgroundOverflow = backgroundScroller.style.overflow
+    backgroundScroller.style.overflow = 'hidden'
+  }
   backgroundShell?.setAttribute('inert', '')
   await nextTick()
   closeButton.value?.focus()
@@ -167,7 +175,9 @@ function hideDrawer({ restoreFocus = true } = {}) {
   if (!open.value) return
   open.value = false
   document.body.style.overflow = previousBodyOverflow
+  if (backgroundScroller) backgroundScroller.style.overflow = previousBackgroundOverflow
   backgroundShell?.removeAttribute('inert')
+  backgroundScroller = null
   backgroundShell = null
   if (restoreFocus) nextTick(() => trigger.value?.focus())
 }
@@ -287,6 +297,33 @@ function onDrawerKeydown(event: KeyboardEvent) {
   }
 }
 
+function onDrawerWheel(event: WheelEvent) {
+  const list = notificationList.value
+  const target = event.target
+  if (
+    !list ||
+    !(target instanceof Node) ||
+    list.contains(target) ||
+    event.ctrlKey ||
+    event.shiftKey ||
+    Math.abs(event.deltaY) <= Math.abs(event.deltaX)
+  ) {
+    return
+  }
+
+  const lineHeight = Number.parseFloat(getComputedStyle(list).lineHeight) || 16
+  const deltaY =
+    event.deltaMode === WheelEvent.DOM_DELTA_LINE
+      ? event.deltaY * lineHeight
+      : event.deltaMode === WheelEvent.DOM_DELTA_PAGE
+        ? event.deltaY * list.clientHeight
+        : event.deltaY
+
+  if (!Number.isFinite(deltaY) || deltaY === 0) return
+  event.preventDefault()
+  list.scrollTop += deltaY
+}
+
 function onVisibilityChange() {
   if (document.visibilityState === 'visible') void refreshCount()
 }
@@ -302,6 +339,7 @@ onBeforeUnmount(() => {
   document.removeEventListener('visibilitychange', onVisibilityChange)
   if (open.value) {
     document.body.style.overflow = previousBodyOverflow
+    if (backgroundScroller) backgroundScroller.style.overflow = previousBackgroundOverflow
     backgroundShell?.removeAttribute('inert')
   }
 })
@@ -339,6 +377,7 @@ onBeforeUnmount(() => {
             aria-modal="true"
             aria-labelledby="notification-title"
             @keydown="onDrawerKeydown"
+            @wheel="onDrawerWheel"
           >
             <header class="drawer-head">
               <div>
@@ -394,7 +433,12 @@ onBeforeUnmount(() => {
               </button>
             </div>
 
-            <div class="notification-list" :aria-busy="loading" aria-live="polite">
+            <div
+              ref="notificationList"
+              class="notification-list"
+              :aria-busy="loading"
+              aria-live="polite"
+            >
               <template v-if="loading">
                 <div v-for="item in 5" :key="item" class="notification-skeleton">
                   <span class="skeleton" />
@@ -662,6 +706,7 @@ onBeforeUnmount(() => {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
+  overscroll-behavior-y: contain;
   padding: 8px 10px 12px;
 }
 

@@ -25,6 +25,11 @@ def _arguments() -> argparse.Namespace:
     parser.add_argument("--start-date", type=_iso_date, default=today - timedelta(days=364))
     parser.add_argument("--end-date", type=_iso_date, default=today)
     parser.add_argument("--pause-seconds", type=float, default=1.05)
+    parser.add_argument(
+        "--missing-only",
+        action="store_true",
+        help="fill only missing or unaudited/null rows without replacing valid audited data",
+    )
     return parser.parse_args()
 
 
@@ -48,6 +53,7 @@ def main() -> int:
             start_date=args.start_date,
             end_date=args.end_date,
             pause_seconds=args.pause_seconds,
+            missing_only=args.missing_only,
         )
     finally:
         get_futu_client().close()

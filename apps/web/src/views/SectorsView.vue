@@ -12,6 +12,9 @@ import {
 } from 'lucide-vue-next'
 import {
   api,
+  sectorFlowAuditStatus,
+  sectorLeaderChangeAuditStatus,
+  sectorModelExpectedExcess,
   type SectorForecastResponse,
   type SectorForecastRow,
   type SectorHorizon,
@@ -75,10 +78,41 @@ const modelWinRate = computed(() => {
   const first = values[0]
   return values.every((value) => Math.abs(value - first) <= 1e-9) ? first : null
 })
+const modelExpectedExcess = computed(() =>
+  forecast.value ? sectorModelExpectedExcess(forecast.value) : null,
+)
+const flowWindowDates = computed(() =>
+  Array.from(
+    new Set(
+      (forecast.value?.flow_window_dates ?? [])
+        .map(dateOnly)
+        .filter((value): value is string => value !== null),
+    ),
+  ).sort(),
+)
+const flowWindowLabel = computed(() => {
+  if (flowWindowDates.value.length) {
+    return flowWindowDates.value.map(shortDate).join('、')
+  }
+  if (forecast.value?.flow_as_of) {
+    return `截至 ${fmtDate(forecast.value.flow_as_of)}（目标日未提供）`
+  }
+  return '未提供'
+})
+const forecastLeaderDate = computed(() => dateOnly(forecast.value?.leader_as_of))
+const legacyStrengthDate = computed(() =>
+  forecast.value?.strength_source ? null : dateOnly(forecast.value?.strength_as_of),
+)
 
 const maxFlowMagnitude = computed(() => {
+  const currentForecast = forecast.value
+  if (!currentForecast) return 0
   const values = forecastRows.value
-    .map((row) => finiteNumber(row.net_inflow))
+    .map((row) =>
+      sectorFlowAuditStatus(row, currentForecast).availableForForecast
+        ? finiteNumber(row.net_inflow)
+        : null,
+    )
     .filter((value): value is number => value !== null)
     .map(Math.abs)
   return Math.max(...values, 0)
@@ -220,6 +254,17 @@ function finiteNumber(value: unknown): number | null {
   return value === null || value === undefined || !Number.isFinite(parsed) ? null : parsed
 }
 
+function dateOnly(value: unknown): string | null {
+  const text = String(value ?? '').trim()
+  const match = /^(\d{4}-\d{2}-\d{2})/.exec(text)
+  return match?.[1] ?? null
+}
+
+function shortDate(value: unknown): string {
+  const date = dateOnly(value)
+  return date ? date.slice(5) : '—'
+}
+
 function errorMessage(reason: unknown): string {
   return reason instanceof Error ? reason.message : String(reason)
 }
@@ -250,9 +295,87 @@ function flowHeatWidth(row: SectorForecastRow): string {
 }
 
 function flowHeatLabel(row: SectorForecastRow): string {
+  if (!forecast.value) return `${row.plate_name}资金流日期不可用`
+  const audit = sectorFlowAuditStatus(row, forecast.value)
   const flow = finiteNumber(row.net_inflow)
-  if (flow === null) return `${row.plate_name}最近交易日资金热度数据不足`
-  return `${row.plate_name}最近交易日资金${flow >= 0 ? '净流入' : '净流出'}${fmtAmount(flow)}`
+  if (!audit.availableForForecast || flow === null) {
+    return `${row.plate_name}缺少预测日${fmtDate(audit.expectedDate)}的单日资金流，已有${audit.coverageDays}/${audit.windowDays}日`
+  }
+  return `${row.plate_name}${fmtDate(audit.tradeDate)}资金${flow >= 0 ? '净流入' : '净流出'}${fmtAmount(flow)}`
+}
+
+function hasForecastDayFlow(row: SectorForecastRow): boolean {
+  return forecast.value
+    ? sectorFlowAuditStatus(row, forecast.value).availableForForecast
+    : false
+}
+
+function missingForecastFlowLabel(row: SectorForecastRow): string {
+  if (!forecast.value) return '缺预测日'
+  const audit = sectorFlowAuditStatus(row, forecast.value)
+  return `缺 ${shortDate(audit.expectedDate)}`
+}
+
+function flowCoverageLabelForRow(row: SectorForecastRow): string {
+  if (!forecast.value) return '已有 0/0日'
+  const audit = sectorFlowAuditStatus(row, forecast.value)
+  return `已有 ${audit.coverageDays}/${audit.windowDays}日`
+}
+
+function flowMissingDatesTitle(row: SectorForecastRow): string {
+  if (!forecast.value) return ''
+  const audit = sectorFlowAuditStatus(row, forecast.value)
+  return audit.missingDates.length
+    ? `缺失交易日：${audit.missingDates.map((value) => fmtDate(value)).join('、')}`
+    : `完整覆盖 ${audit.coverageDays}/${audit.windowDays} 个目标交易日`
+}
+
+function leaderChangeLabel(row: SectorForecastRow): string {
+  if (!forecast.value) return '涨幅不可用'
+  const audit = sectorLeaderChangeAuditStatus(row, forecast.value)
+  return audit.available ? fmtPct(audit.value) : '涨幅不可用'
+}
+
+function leaderChangeTitle(row: SectorForecastRow): string {
+  if (!forecast.value) return '没有可核验的龙头涨幅'
+  const audit = sectorLeaderChangeAuditStatus(row, forecast.value)
+  if (audit.available) {
+    return `${fmtDate(audit.previousTradeDate)} 至 ${fmtDate(audit.asOf)} 的可信日线收盘涨幅`
+  }
+  if (audit.asOf) {
+    return `涨幅数据日为 ${fmtDate(audit.asOf)}，与预测日 ${fmtDate(row.trade_date)} 口径不一致，已隐藏数值`
+  }
+  return `缺少预测日 ${fmtDate(row.trade_date)} 的可信日线涨幅，已隐藏数值`
+}
+
+function leaderChangeAvailable(row: SectorForecastRow): boolean {
+  return forecast.value
+    ? sectorLeaderChangeAuditStatus(row, forecast.value).available
+    : false
+}
+
+function leaderUnavailableLabel(row: SectorForecastRow): string {
+  if (!forecast.value) return '缺预测日可信龙头'
+  const audit = sectorLeaderChangeAuditStatus(row, forecast.value)
+  if (audit.reason === 'date-mismatch') return '异日龙头已隐藏'
+  if (audit.reason === 'unverified-source') return '未审计龙头已隐藏'
+  return '缺预测日可信龙头'
+}
+
+function leaderUnavailableTitle(row: SectorForecastRow): string {
+  if (!forecast.value) return '没有可核验的预测日龙头数据'
+  const audit = sectorLeaderChangeAuditStatus(row, forecast.value)
+  if (audit.reason === 'date-mismatch' && audit.asOf) {
+    return `龙头数据日为 ${fmtDate(audit.asOf)}，与预测日 ${fmtDate(row.trade_date)} 不一致；名称、涨幅和链接均已隐藏`
+  }
+  if (audit.reason === 'unverified-source') {
+    return `龙头数据没有通过预测日可信日线审计；名称、涨幅和链接均已隐藏`
+  }
+  if (audit.available && !stockSymbol(row.leader_code)) {
+    return '预测日龙头证券代码无效；名称、涨幅和链接均已隐藏'
+  }
+  return row.leader_unavailable_reason
+    || `缺少预测日 ${fmtDate(row.trade_date)} 的可信日线龙头数据；名称、涨幅和链接均已隐藏`
 }
 
 function stockSymbol(value: string | null | undefined): string | null {
@@ -443,10 +566,26 @@ onBeforeUnmount(() => {
       </div>
 
       <div class="coverage-strip" :class="{ stale: forecast.stale }" role="status">
-        <div>
+        <div class="coverage-date-group">
           <span>预测数据日期</span>
           <strong class="num">{{ fmtDate(forecast.as_of) }}</strong>
           <span v-if="forecast.stale" class="badge yellow">最近完整截面</span>
+        </div>
+        <div class="coverage-date-group">
+          <span>资金流目标日</span>
+          <strong class="num coverage-date-list">{{ flowWindowLabel }}</strong>
+        </div>
+        <div class="coverage-date-group">
+          <span>龙头涨幅日</span>
+          <strong v-if="forecastLeaderDate" class="num">{{ fmtDate(forecastLeaderDate) }}</strong>
+          <strong v-else>无预测日数据</strong>
+          <span
+            v-if="!forecastLeaderDate && legacyStrengthDate"
+            class="badge yellow"
+            :title="`旧快照日期 ${fmtDate(legacyStrengthDate)}，因口径不一致已停用涨幅`"
+          >
+            历史快照已停用
+          </span>
         </div>
         <div v-if="forecast.input_coverage">
           <span>最新日线 {{ fmtDate(forecast.input_trade_date) }}</span>
@@ -478,6 +617,12 @@ onBeforeUnmount(() => {
                 统一滚动胜率
                 <strong class="num">{{ fmtRatio(modelWinRate, 1) }}</strong>
               </span>
+              <span class="model-win-rate model-excess">
+                模型 Top 20% 组合历史平均超额
+                <strong class="num" :class="pctClass(modelExpectedExcess)">
+                  {{ fmtPct(modelExpectedExcess, 2, false) }}
+                </strong>
+              </span>
               <span class="as-of num">截面 {{ fmtDate(forecast.as_of) }}</span>
             </div>
           </div>
@@ -489,11 +634,16 @@ onBeforeUnmount(() => {
                 <tr>
                   <th scope="col">排名</th>
                   <th scope="col">板块</th>
-                  <th scope="col">热度 · 单日</th>
-                  <th scope="col" class="r">资金流 5日</th>
+                  <th scope="col">
+                    <span class="column-heading">单日资金流 <small class="num">{{ shortDate(forecast.as_of) }}</small></span>
+                  </th>
+                  <th scope="col" class="r">
+                    <span class="column-heading column-heading-right">资金流 5日 <small>审计覆盖</small></span>
+                  </th>
                   <th scope="col">强度</th>
-                  <th scope="col" class="r">预期超额</th>
-                  <th scope="col">龙头股</th>
+                  <th scope="col">
+                    <span class="column-heading">龙头股 <small>预测日涨幅</small></span>
+                  </th>
                 </tr>
               </thead>
               <tbody>
@@ -516,7 +666,7 @@ onBeforeUnmount(() => {
                   </th>
                   <td>
                     <div
-                      v-if="finiteNumber(row.net_inflow) !== null"
+                      v-if="hasForecastDayFlow(row)"
                       class="flow-heat"
                       role="img"
                       :aria-label="flowHeatLabel(row)"
@@ -526,12 +676,15 @@ onBeforeUnmount(() => {
                         :style="{ width: flowHeatWidth(row) }"
                       />
                     </div>
-                    <span v-else class="cell-note">待数据</span>
+                    <span v-else class="missing-flow" :title="flowMissingDatesTitle(row)">
+                      <strong class="num">{{ missingForecastFlowLabel(row) }}</strong>
+                      <small class="num">{{ flowCoverageLabelForRow(row) }}</small>
+                    </span>
                   </td>
-                  <td class="r">
-                    <div class="flow-value">
+                  <td class="r" :title="flowMissingDatesTitle(row)">
+                    <div class="flow-value" :class="{ incomplete: finiteNumber(row.net_inflow_5d) === null }">
                       <span class="num" :class="pctClass(row.net_inflow_5d)">{{ fmtAmount(row.net_inflow_5d) }}</span>
-                      <small class="num">{{ row.flow_coverage_days }}/{{ forecast.flow_window_days }}日</small>
+                      <small class="num">{{ flowCoverageLabelForRow(row) }}</small>
                     </div>
                   </td>
                   <td>
@@ -540,24 +693,31 @@ onBeforeUnmount(() => {
                       <span class="score-bar" aria-hidden="true"><i :style="{ width: scoreWidth(row.score) }" /></span>
                     </div>
                   </td>
-                  <td class="r num" :class="pctClass(row.expected_excess)">
-                    {{ fmtPct(row.expected_excess, 2, false) }}
-                  </td>
                   <td>
                     <button
-                      v-if="stockSymbol(row.leader_code)"
+                      v-if="leaderChangeAvailable(row) && stockSymbol(row.leader_code)"
                       type="button"
                       class="stock-link"
-                      :aria-label="`查看龙头股${row.leader_name || stockSymbol(row.leader_code)}`"
+                      :aria-label="`查看龙头股${row.leader_name || stockSymbol(row.leader_code)}；${leaderChangeLabel(row)}`"
                       @click="openStock(row.leader_code)"
                     >
                       <span>{{ row.leader_name || stockSymbol(row.leader_code) }}</span>
-                      <small class="num" :class="pctClass(row.leader_change_pct)">
-                        {{ fmtPct(row.leader_change_pct) }}
+                      <small
+                        class="num leader-change"
+                        :class="pctClass(row.leader_change_pct)"
+                        :title="leaderChangeTitle(row)"
+                      >
+                        {{ leaderChangeLabel(row) }}
                       </small>
                       <ArrowUpRight :size="12" />
                     </button>
-                    <span v-else class="cell-note">暂无审计快照</span>
+                    <span
+                      v-else
+                      class="cell-note leader-unavailable"
+                      :title="leaderUnavailableTitle(row)"
+                    >
+                      {{ leaderUnavailableLabel(row) }}
+                    </span>
                   </td>
                 </tr>
               </tbody>
@@ -566,8 +726,8 @@ onBeforeUnmount(() => {
           <div v-else class="empty-hint">该周期没有可展示的预测行。</div>
 
           <footer class="data-footnote">
-            <span>统一滚动胜率：过去验证中 Top 20% 组合跑赢截面中位数的比例；这是模型整体口径，不是分板块指标</span>
-            <span v-if="forecast.flow_as_of">资金流截至 {{ fmtDate(forecast.flow_as_of) }}</span>
+            <span>滚动胜率和历史平均超额均为模型 Top 20% 组合口径，不是逐板块预测值</span>
+            <span>资金流目标窗口：{{ flowWindowLabel }}</span>
           </footer>
         </div>
 
@@ -667,9 +827,6 @@ onBeforeUnmount(() => {
               <span class="num signal-rank">{{ row.rank }}</span>
               <span class="signal-name">{{ row.plate_name }}</span>
               <strong class="num">{{ fmtNum(row.score, 1) }}</strong>
-              <span class="num" :class="pctClass(row.expected_excess)">
-                {{ fmtPct(row.expected_excess, 1, false) }}
-              </span>
             </button>
           </div>
           <div v-else class="local-state">暂无有效预测行。</div>
@@ -693,7 +850,7 @@ onBeforeUnmount(() => {
               <span class="num signal-rank">{{ row.rank }}</span>
               <span class="signal-copy">
                 <span class="signal-name">{{ row.plate_name }}</span>
-                <span v-if="finiteNumber(row.net_inflow) !== null" class="signal-flow">
+                <span v-if="hasForecastDayFlow(row)" class="signal-flow">
                   <span class="signal-flow-track" aria-hidden="true">
                     <i
                       :class="Number(row.net_inflow) >= 0 ? 'positive' : 'negative'"
@@ -702,7 +859,9 @@ onBeforeUnmount(() => {
                   </span>
                   <small class="num">热度 {{ fmtAmount(row.net_inflow) }}</small>
                 </span>
-                <small v-else class="cell-note">热度待数据</small>
+                <small v-else class="cell-note" :title="flowMissingDatesTitle(row)">
+                  {{ missingForecastFlowLabel(row) }} · {{ flowCoverageLabelForRow(row) }}
+                </small>
               </span>
               <span class="badge yellow">超买</span>
               <strong class="num">RSI {{ fmtNum(row.rsi14, 1) }}</strong>
@@ -817,9 +976,10 @@ onBeforeUnmount(() => {
             </span>
           </div>
           <div class="method-note">
-            <span v-if="forecast.flow_as_of">截至 {{ fmtDate(forecast.flow_as_of) }}</span>
+            <span>目标 {{ flowWindowLabel }}</span>
+            <span v-if="forecast.flow_as_of"> · 最新可用日 {{ fmtDate(forecast.flow_as_of) }}</span>
             <span v-if="flowSources"> · 来源 {{ flowSources }}</span>
-            <span v-if="!forecast.flow_as_of">暂无完整资金流日期</span>
+            <span v-if="!forecast.flow_as_of"> · 暂无可用资金流日期</span>
           </div>
         </div>
       </section>
@@ -922,6 +1082,18 @@ onBeforeUnmount(() => {
   gap: 6px;
 }
 
+.coverage-date-group {
+  padding-right: var(--s3);
+  border-right: 1px solid var(--line-1);
+}
+
+.coverage-date-list {
+  max-width: min(440px, 48vw);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .coverage-strip strong {
   color: var(--text-1);
   font-size: 11px;
@@ -1013,6 +1185,8 @@ onBeforeUnmount(() => {
 .ranking-meta {
   display: flex;
   align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
   gap: var(--s3);
   margin-left: auto;
 }
@@ -1031,6 +1205,19 @@ onBeforeUnmount(() => {
   font-size: 12px;
 }
 
+.model-excess {
+  padding-left: var(--s3);
+  border-left: 1px solid var(--line-1);
+}
+
+.model-excess strong.up {
+  color: var(--up);
+}
+
+.model-excess strong.down {
+  color: var(--down);
+}
+
 .table-shell {
   max-width: 100%;
   max-height: 506px;
@@ -1039,7 +1226,22 @@ onBeforeUnmount(() => {
 }
 
 .sector-table {
-  min-width: 860px;
+  min-width: 820px;
+}
+
+.column-heading {
+  display: inline-grid;
+  gap: 1px;
+}
+
+.column-heading small {
+  color: var(--text-2);
+  font-size: 9.5px;
+  font-weight: 400;
+}
+
+.column-heading-right {
+  justify-items: end;
 }
 
 .sector-table th,
@@ -1143,6 +1345,27 @@ onBeforeUnmount(() => {
   font-size: 10px;
 }
 
+.flow-value.incomplete > span {
+  color: var(--text-2);
+}
+
+.missing-flow {
+  display: inline-grid;
+  gap: 1px;
+  color: var(--warn);
+  line-height: 1.25;
+}
+
+.missing-flow strong {
+  font-size: 10.5px;
+  font-weight: 600;
+}
+
+.missing-flow small {
+  color: var(--text-2);
+  font-size: 9.5px;
+}
+
 .score-cell > .num {
   width: 34px;
   color: var(--cyan);
@@ -1171,6 +1394,14 @@ onBeforeUnmount(() => {
 
 .stock-link small {
   font-size: 10px;
+}
+
+.leader-unavailable {
+  display: inline-block;
+  max-width: 116px;
+  color: var(--text-2);
+  font-size: 9.5px;
+  line-height: 1.35;
 }
 
 .stock-link svg {
@@ -1374,6 +1605,10 @@ onBeforeUnmount(() => {
 
 .bullish-panel .signal-title {
   color: var(--up);
+}
+
+.bullish-panel .signal-list button {
+  grid-template-columns: 20px minmax(0, 1fr) auto;
 }
 
 .overbought-panel .signal-title {
@@ -1645,6 +1880,19 @@ onBeforeUnmount(() => {
     flex-direction: column;
     gap: 3px;
   }
+
+  .coverage-date-group {
+    width: 100%;
+    padding-right: 0;
+    padding-bottom: 6px;
+    border-right: 0;
+    border-bottom: 1px solid var(--line-1);
+  }
+
+  .coverage-date-list {
+    max-width: 100%;
+    white-space: normal;
+  }
 }
 
 @media (max-width: 520px) {
@@ -1665,6 +1913,20 @@ onBeforeUnmount(() => {
   .flow-title {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  .ranking-meta {
+    width: 100%;
+    justify-content: flex-start;
+    margin-left: 0;
+  }
+
+  .model-excess {
+    width: 100%;
+    padding-top: 5px;
+    padding-left: 0;
+    border-top: 1px solid var(--line-1);
+    border-left: 0;
   }
 
   .as-of {

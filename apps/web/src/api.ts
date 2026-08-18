@@ -796,10 +796,26 @@ export interface SectorForecastRow {
   net_inflow: number | null
   net_inflow_5d: number | null
   flow_coverage_days: number
+  /** Trading day represented by net_inflow. Omitted by pre-audit API versions. */
+  flow_trade_date?: string | null
+  flow_available_dates?: string[]
+  flow_missing_dates?: string[]
   flow_source: string | null
+  strength_as_of?: string | null
   leader_code: string | null
   leader_name: string | null
   leader_change_pct: number | null
+  /** Audited close-to-close return end date. Never treat strength_as_of as this date. */
+  leader_as_of?: string | null
+  leader_previous_trade_date?: string | null
+  leader_source?: 'daily_bars' | null
+  leader_sources?: string[]
+  leader_membership_source?: string | null
+  leader_constituent_count?: number
+  leader_eligible_members?: number
+  leader_coverage_ratio?: number
+  leader_change_method?: string | null
+  leader_unavailable_reason?: string | null
 }
 
 export interface SectorForecastResponse {
@@ -814,7 +830,13 @@ export interface SectorForecastResponse {
   rows: SectorForecastRow[]
   flow_as_of: string | null
   flow_window_days: number
+  flow_window_dates?: string[]
+  model_expected_excess?: number | null
+  model_expected_excess_scope?: 'top-20pct-portfolio-historical-mean'
+  leader_as_of?: string | null
+  leader_source?: 'daily_bars' | null
   strength_as_of: string | null
+  strength_source?: string | null
   input_trade_date: string | null
   input_coverage: {
     latest_symbol_count: number
@@ -829,6 +851,120 @@ export interface SectorForecastResponse {
   warning: string | null
   reason?: string
   counts?: Record<SectorLifecycle | 'unclassified', number>
+}
+
+export interface SectorFlowAuditStatus {
+  availableForForecast: boolean
+  tradeDate: string | null
+  expectedDate: string | null
+  availableDates: string[]
+  missingDates: string[]
+  coverageDays: number
+  windowDays: number
+}
+
+export interface SectorLeaderChangeAuditStatus {
+  available: boolean
+  value: number | null
+  asOf: string | null
+  previousTradeDate: string | null
+  reason: 'available' | 'missing-value' | 'missing-date' | 'date-mismatch' | 'unverified-source'
+}
+
+function apiDate(value: unknown): string | null {
+  const text = String(value ?? '').trim()
+  const match = /^(\d{4}-\d{2}-\d{2})/.exec(text)
+  return match?.[1] ?? null
+}
+
+function apiFiniteNumber(value: unknown): number | null {
+  const number = Number(value)
+  return value === null || value === undefined || !Number.isFinite(number) ? null : number
+}
+
+function uniqueApiDates(values: unknown): string[] {
+  if (!Array.isArray(values)) return []
+  return Array.from(
+    new Set(values.map(apiDate).filter((value): value is string => value !== null)),
+  ).sort()
+}
+
+/**
+ * Resolve one row's flow freshness. New API fields take precedence; the response-level
+ * date is used only for old responses that do not contain flow_trade_date at all.
+ */
+export function sectorFlowAuditStatus(
+  row: SectorForecastRow,
+  response: SectorForecastResponse,
+): SectorFlowAuditStatus {
+  const expectedDate = apiDate(row.trade_date) ?? apiDate(response.as_of)
+  const hasRowTradeDate = Object.prototype.hasOwnProperty.call(row, 'flow_trade_date')
+  const tradeDate = hasRowTradeDate
+    ? apiDate(row.flow_trade_date)
+    : apiDate(response.flow_as_of)
+  const availableDates = uniqueApiDates(row.flow_available_dates)
+  const explicitMissingDates = uniqueApiDates(row.flow_missing_dates)
+  const valueAvailable = apiFiniteNumber(row.net_inflow) !== null
+  const availableForForecast = Boolean(
+    valueAvailable && expectedDate && tradeDate === expectedDate,
+  )
+  const missingDates = explicitMissingDates.length
+    ? explicitMissingDates
+    : (!availableForForecast && expectedDate ? [expectedDate] : [])
+  const configuredWindow = Math.max(0, Math.trunc(apiFiniteNumber(response.flow_window_days) ?? 0))
+  const windowDays = uniqueApiDates(response.flow_window_dates).length || configuredWindow
+  const rawCoverage = Math.max(0, Math.trunc(apiFiniteNumber(row.flow_coverage_days) ?? 0))
+
+  return {
+    availableForForecast,
+    tradeDate,
+    expectedDate,
+    availableDates,
+    missingDates,
+    coverageDays: windowDays ? Math.min(rawCoverage, windowDays) : rawCoverage,
+    windowDays,
+  }
+}
+
+/** Only expose a leader return when its audited daily-bar end date is the forecast date. */
+export function sectorLeaderChangeAuditStatus(
+  row: SectorForecastRow,
+  response: SectorForecastResponse,
+): SectorLeaderChangeAuditStatus {
+  const value = apiFiniteNumber(row.leader_change_pct)
+  const expectedDate = apiDate(row.trade_date) ?? apiDate(response.as_of)
+  const hasRowAsOf = Object.prototype.hasOwnProperty.call(row, 'leader_as_of')
+  const hasRowSource = Object.prototype.hasOwnProperty.call(row, 'leader_source')
+  const asOf = hasRowAsOf ? apiDate(row.leader_as_of) : apiDate(response.leader_as_of)
+  const previousTradeDate = apiDate(row.leader_previous_trade_date)
+  const source = hasRowSource ? (row.leader_source ?? null) : (response.leader_source ?? null)
+
+  if (value === null) {
+    return { available: false, value: null, asOf, previousTradeDate, reason: 'missing-value' }
+  }
+  if (asOf === null) {
+    return { available: false, value: null, asOf, previousTradeDate, reason: 'missing-date' }
+  }
+  if (expectedDate === null || asOf !== expectedDate) {
+    return { available: false, value: null, asOf, previousTradeDate, reason: 'date-mismatch' }
+  }
+  if (source !== 'daily_bars') {
+    return { available: false, value: null, asOf, previousTradeDate, reason: 'unverified-source' }
+  }
+  return { available: true, value, asOf, previousTradeDate, reason: 'available' }
+}
+
+/** Resolve the response-level metric, with a conservative uniform-row legacy fallback. */
+export function sectorModelExpectedExcess(response: SectorForecastResponse): number | null {
+  if (Object.prototype.hasOwnProperty.call(response, 'model_expected_excess')) {
+    return apiFiniteNumber(response.model_expected_excess)
+  }
+  const values = response.rows
+    .map((row) => apiFiniteNumber(row.expected_excess))
+    .filter((value): value is number => value !== null)
+  if (!values.length) return null
+  const first = values[0]
+  return values.every((value) => Math.abs(value - first) <= 1e-9) ? first : null
 }
 
 export interface SectorLeaderItem {
@@ -1445,31 +1581,99 @@ export interface BacktestComparisonResponse {
 }
 
 export class ApiError extends Error {
+  readonly status: number
+  readonly kind: 'http' | 'timeout' | 'cancelled'
+
   constructor(
-    readonly status: number,
+    status: number,
     message: string,
+    kind: 'http' | 'timeout' | 'cancelled' = 'http',
   ) {
     super(message)
     this.name = 'ApiError'
+    this.status = status
+    this.kind = kind
   }
 }
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(BASE + path, {
-    headers: { 'Content-Type': 'application/json' },
-    ...init,
-  })
-  if (!response.ok) {
-    let detail = `${response.status}`
-    try {
-      const body = await response.json()
-      detail = typeof body.detail === 'string' ? body.detail : JSON.stringify(body.detail ?? body)
-    } catch {
-      /* keep status text */
-    }
-    throw new ApiError(response.status, detail)
+export const DEFAULT_REQUEST_TIMEOUT_MS = 15_000
+export const DEFAULT_MUTATION_REQUEST_TIMEOUT_MS = 120_000
+
+export interface ApiRequestInit extends RequestInit {
+  timeoutMs?: number
+}
+
+export async function request<T>(path: string, init: ApiRequestInit = {}): Promise<T> {
+  const {
+    signal: callerSignal,
+    timeoutMs: requestedTimeoutMs,
+    ...fetchInit
+  } = init
+  const method = String(fetchInit.method || 'GET').toUpperCase()
+  const isReadRequest = ['GET', 'HEAD', 'OPTIONS'].includes(method)
+  const defaultTimeoutMs = isReadRequest
+    ? DEFAULT_REQUEST_TIMEOUT_MS
+    : DEFAULT_MUTATION_REQUEST_TIMEOUT_MS
+  const timeoutMs = requestedTimeoutMs !== undefined
+    && Number.isFinite(requestedTimeoutMs)
+    && requestedTimeoutMs > 0
+    ? requestedTimeoutMs
+    : defaultTimeoutMs
+
+  if (callerSignal?.aborted) {
+    throw new ApiError(0, '请求已取消。', 'cancelled')
   }
-  return response.json() as Promise<T>
+
+  const controller = new AbortController()
+  let abortKind: 'timeout' | 'cancelled' | null = null
+  const abort = (kind: 'timeout' | 'cancelled') => {
+    if (abortKind !== null) return
+    abortKind = kind
+    controller.abort()
+  }
+  const cancelFromCaller = () => {
+    abort('cancelled')
+  }
+  callerSignal?.addEventListener('abort', cancelFromCaller, { once: true })
+  const timeout = setTimeout(() => {
+    abort('timeout')
+  }, timeoutMs)
+
+  try {
+    const response = await fetch(BASE + path, {
+      headers: { 'Content-Type': 'application/json' },
+      ...fetchInit,
+      signal: controller.signal,
+    })
+    if (!response.ok) {
+      let detail = `${response.status}`
+      try {
+        const body = await response.json()
+        detail = typeof body.detail === 'string' ? body.detail : JSON.stringify(body.detail ?? body)
+      } catch {
+        /* keep status text */
+      }
+      throw new ApiError(response.status, detail)
+    }
+    return await response.json() as T
+  } catch (error) {
+    if (abortKind === 'timeout') {
+      throw new ApiError(
+        0,
+        isReadRequest
+          ? `请求超时：服务器在 ${timeoutMs / 1000} 秒内未响应，请稍后重试。`
+          : `请求超时：操作结果可能已提交，请先刷新状态确认，勿直接重试。`,
+        'timeout',
+      )
+    }
+    if (abortKind === 'cancelled') {
+      throw new ApiError(0, '请求已取消。', 'cancelled')
+    }
+    throw error
+  } finally {
+    clearTimeout(timeout)
+    callerSignal?.removeEventListener('abort', cancelFromCaller)
+  }
 }
 
 export const api = {

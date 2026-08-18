@@ -29,6 +29,8 @@ class Settings(BaseSettings):
     scheduler_enabled: bool = False
     market_poll_enabled: bool = False
     baostock_financial_sync_enabled: bool = True
+    baostock_socket_timeout_seconds: float = Field(default=2.0, ge=1.0, le=120.0)
+    baostock_lock_timeout_seconds: float = Field(default=1.0, ge=0.05, le=120.0)
     valuation_sync_enabled: bool = True
 
     # Failover order used by the "auto" composite provider.

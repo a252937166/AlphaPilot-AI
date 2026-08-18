@@ -19,6 +19,7 @@ from alphapilot.db.models import (
     DailyBar,
     JobRun,
     SectorConstituent,
+    SectorConstituentSnapshot,
     SectorFlowDaily,
     SectorForecast,
     SectorSnapshot,
@@ -355,7 +356,7 @@ def test_forecast_api_exposes_complete_flow_window_and_audited_leader(
     monkeypatch.setattr(sector_job, "get_session", local_session)
     monkeypatch.setattr(sector_job, "_market_today", lambda: target)
     sector_job.compute_sector_forecast()
-    snapshot_time = datetime(2026, 7, 21, 8, 0, tzinfo=UTC)
+    snapshot_time = datetime(2026, 7, 10, 8, 0, tzinfo=UTC)
     with Session(engine) as session:
         session.add(
             SectorSnapshot(
@@ -387,14 +388,202 @@ def test_forecast_api_exposes_complete_flow_window_and_audited_leader(
     payload = response.json()
     assert payload["flow_as_of"] == target.isoformat()
     assert payload["flow_window_days"] == 5
-    assert payload["strength_as_of"] == snapshot_time.isoformat()
+    assert len(payload["flow_window_dates"]) == 5
+    assert payload["flow_window_dates"][-1] == target.isoformat()
+    assert payload["strength_as_of"] == target.isoformat()
+    assert payload["strength_source"] == "sector_forecasts"
+    assert payload["leader_as_of"] == target.isoformat()
+    assert payload["leader_source"] == "daily_bars"
+    assert payload["model_expected_excess"] == pytest.approx(
+        payload["rows"][0]["expected_excess"]
+    )
+    assert payload["model_expected_excess_scope"] == (
+        "top-20pct-portfolio-historical-mean"
+    )
     assert all(row["flow_coverage_days"] == 5 for row in payload["rows"])
     assert all(row["net_inflow_5d"] is not None for row in payload["rows"])
+    assert all(row["flow_trade_date"] == target.isoformat() for row in payload["rows"])
+    assert all(row["flow_missing_dates"] == [] for row in payload["rows"])
     assert {row["flow_source"] for row in payload["rows"]} == {"futu-top5"}
     enriched = next(row for row in payload["rows"] if row["plate_code"] == "SH.LISTA")
     assert enriched["leader_code"] == "600001"
-    assert enriched["leader_name"] == "上行龙头"
-    assert enriched["leader_change_pct"] == pytest.approx(2.5)
+    assert enriched["leader_name"] is None
+    assert enriched["leader_change_pct"] == pytest.approx(0.6)
+    assert enriched["leader_as_of"] == target.isoformat()
+    assert enriched["leader_previous_trade_date"] == payload["flow_window_dates"][-2]
+    assert enriched["leader_source"] == "daily_bars"
+    assert enriched["leader_sources"] == ["baostock"]
+    assert enriched["leader_membership_source"] == (
+        "sector_constituents-visible-before-cutoff"
+    )
+    assert enriched["leader_coverage_ratio"] == pytest.approx(1.0)
+    # The stale quote snapshot is deliberately contradictory and must be ignored.
+    assert enriched["leader_change_pct"] != pytest.approx(2.5)
+
+
+def test_forecast_leader_prefers_exact_pit_membership_for_forecast_date(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    engine = create_engine(f"sqlite:///{tmp_path / 'sector-pit-leader.db'}")
+    target = _seed_toy_market(engine)
+    local_session = _session_factory(engine)
+    clear_sector_index_cache()
+    monkeypatch.setattr(sector_job, "get_session", local_session)
+    monkeypatch.setattr(sector_job, "_market_today", lambda: target)
+    sector_job.compute_sector_forecast()
+    with Session(engine) as session:
+        session.add(
+            SectorConstituentSnapshot(
+                plate_code="SH.LISTA",
+                symbol="SH.600002",
+                as_of_date=target,
+                available_time=datetime(2026, 7, 21, 7, 0, tzinfo=UTC),
+            )
+        )
+        session.commit()
+
+    def override_session() -> Iterator[Session]:
+        with Session(engine, expire_on_commit=False) as session:
+            yield session
+
+    app.dependency_overrides[db_session_dependency] = override_session
+    try:
+        response = TestClient(app).get("/v1/sectors/forecast?horizon=5")
+    finally:
+        app.dependency_overrides.pop(db_session_dependency, None)
+
+    assert response.status_code == 200
+    row = next(
+        item for item in response.json()["rows"] if item["plate_code"] == "SH.LISTA"
+    )
+    assert row["leader_code"] == "600002"
+    assert row["leader_as_of"] == target.isoformat()
+    assert row["leader_membership_source"] == "sector_constituent_snapshots"
+    assert row["leader_constituent_count"] == 1
+    assert row["leader_eligible_members"] == 1
+
+
+def test_forecast_leader_is_null_when_exact_daily_bar_coverage_is_insufficient(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    engine = create_engine(f"sqlite:///{tmp_path / 'sector-leader-gap.db'}")
+    target = _seed_toy_market(engine)
+    local_session = _session_factory(engine)
+    clear_sector_index_cache()
+    monkeypatch.setattr(sector_job, "get_session", local_session)
+    monkeypatch.setattr(sector_job, "_market_today", lambda: target)
+    sector_job.compute_sector_forecast()
+    with Session(engine) as session:
+        session.add_all(
+            SectorConstituentSnapshot(
+                plate_code="SH.LISTA",
+                symbol=symbol,
+                as_of_date=target,
+                available_time=datetime(2026, 7, 21, 7, 0, tzinfo=UTC),
+            )
+            for symbol in ("SH.600001", "SH.600002")
+        )
+        session.execute(
+            delete(DailyBar).where(
+                DailyBar.symbol == "600002",
+                DailyBar.trade_date == target,
+            )
+        )
+        session.add(
+            SectorSnapshot(
+                as_of=datetime(2026, 7, 21, 8, 0, tzinfo=UTC),
+                source="futu",
+                payload=[
+                    {
+                        "plate_code": "SH.LISTA",
+                        "leader_code": "SH.600002",
+                        "leader_name": "不可采用的实时快照",
+                        "leader_change_pct": 10.0,
+                    }
+                ],
+            )
+        )
+        session.commit()
+
+    def override_session() -> Iterator[Session]:
+        with Session(engine, expire_on_commit=False) as session:
+            yield session
+
+    app.dependency_overrides[db_session_dependency] = override_session
+    try:
+        response = TestClient(app).get("/v1/sectors/forecast?horizon=5")
+    finally:
+        app.dependency_overrides.pop(db_session_dependency, None)
+
+    assert response.status_code == 200
+    row = next(
+        item for item in response.json()["rows"] if item["plate_code"] == "SH.LISTA"
+    )
+    assert row["leader_code"] is None
+    assert row["leader_change_pct"] is None
+    assert row["leader_as_of"] is None
+    assert row["leader_source"] is None
+    assert row["leader_eligible_members"] == 1
+    assert row["leader_constituent_count"] == 2
+    assert row["leader_coverage_ratio"] == pytest.approx(0.5)
+    assert "低于 80% 门槛" in row["leader_unavailable_reason"]
+
+
+def test_forecast_leader_does_not_backdate_future_constituent_refresh(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    engine = create_engine(f"sqlite:///{tmp_path / 'sector-future-membership.db'}")
+    target = _seed_toy_market(engine)
+    local_session = _session_factory(engine)
+    clear_sector_index_cache()
+    monkeypatch.setattr(sector_job, "get_session", local_session)
+    monkeypatch.setattr(sector_job, "_market_today", lambda: target)
+    sector_job.compute_sector_forecast()
+    with Session(engine) as session:
+        members = session.scalars(
+            select(SectorConstituent).where(
+                SectorConstituent.plate_code == "SH.LISTA"
+            )
+        ).all()
+        for member in members:
+            member.refreshed_at = datetime(2026, 7, 22, 8, 0, tzinfo=UTC)
+        session.add(
+            SectorSnapshot(
+                as_of=datetime(2026, 7, 21, 8, 0, tzinfo=UTC),
+                source="futu",
+                payload=[
+                    {
+                        "plate_code": "SH.LISTA",
+                        "leader_code": "SH.600001",
+                        "leader_name": "不可回填的快照龙头",
+                        "leader_change_pct": 10.0,
+                    }
+                ],
+            )
+        )
+        session.commit()
+
+    def override_session() -> Iterator[Session]:
+        with Session(engine, expire_on_commit=False) as session:
+            yield session
+
+    app.dependency_overrides[db_session_dependency] = override_session
+    try:
+        response = TestClient(app).get("/v1/sectors/forecast?horizon=5")
+    finally:
+        app.dependency_overrides.pop(db_session_dependency, None)
+
+    assert response.status_code == 200
+    row = next(
+        item for item in response.json()["rows"] if item["plate_code"] == "SH.LISTA"
+    )
+    assert row["leader_code"] is None
+    assert row["leader_change_pct"] is None
+    assert row["leader_membership_source"] == "unavailable"
+    assert "没有可审计的板块成分" in row["leader_unavailable_reason"]
 
 
 def test_forecast_api_serves_explicit_stale_snapshot_only_for_partial_latest_day(
@@ -726,14 +915,21 @@ def test_sector_flow_window_uses_exact_recent_benchmark_sessions(
         app.dependency_overrides.pop(db_session_dependency, None)
 
     assert response.status_code == 200
-    row = next(item for item in response.json()["rows"] if item["plate_code"] == "SH.LISTA")
+    payload = response.json()
+    row = next(item for item in payload["rows"] if item["plate_code"] == "SH.LISTA")
     assert row["flow_coverage_days"] == 2
     assert row["net_inflow_5d"] is None
+    assert row["flow_trade_date"] == target.isoformat()
+    assert row["flow_available_dates"] == payload["flow_window_dates"][-2:]
+    assert row["flow_missing_dates"] == payload["flow_window_dates"][:3]
     rejected = next(
-        item for item in response.json()["rows"] if item["plate_code"] == "SH.LISTB"
+        item for item in payload["rows"] if item["plate_code"] == "SH.LISTB"
     )
     assert rejected["flow_coverage_days"] == 0
     assert rejected["net_inflow_5d"] is None
+    assert rejected["flow_trade_date"] is None
+    assert rejected["flow_available_dates"] == []
+    assert rejected["flow_missing_dates"] == payload["flow_window_dates"]
 
 
 def test_sector_leaders_use_forecast_cutoff_and_exclude_invalid_correlations(
@@ -994,7 +1190,11 @@ def test_sector_flow_uses_futu_calendar_and_skips_non_trading_day(
 
     client = CalendarClient()
     monkeypatch.setattr(sectors_sync, "get_futu_client", lambda: client)
-    monkeypatch.setattr(sectors_sync, "_market_today", lambda: target)
+    monkeypatch.setattr(
+        sectors_sync,
+        "_market_now",
+        lambda: datetime(2026, 7, 19, 15, 21, tzinfo=sectors_sync.MARKET_TIMEZONE),
+    )
 
     result = sectors_sync.sync_sector_flows(pause_seconds=0)
 
@@ -1011,3 +1211,13 @@ def test_sector_forecast_job_runs_after_daily_inputs() -> None:
     assert "day_of_week='mon-fri'" in str(job.trigger)
     assert "hour='19'" in str(job.trigger)
     assert "minute='50'" in str(job.trigger)
+
+
+def test_sector_forecast_guards_all_sector_flow_writers() -> None:
+    expected_leases = {
+        "sync_daily_bars": timedelta(hours=2),
+        "sync_sector_flows": timedelta(minutes=45),
+        "repair_recent_sector_flow_gaps": timedelta(minutes=30),
+        "backfill_sector_flows": timedelta(hours=2),
+    }
+    assert expected_leases == sector_job.UPSTREAM_LEASES

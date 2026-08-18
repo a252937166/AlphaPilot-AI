@@ -19,8 +19,9 @@ from alphapilot.db.models import (
     SectorFlowDaily,
     SectorSnapshot,
 )
+from alphapilot.futu.client import FutuSDKError
 from alphapilot.jobs import sectors_sync
-from alphapilot.jobs.registry import JOBS
+from alphapilot.jobs.registry import JOBS, JobOutcome
 from alphapilot.services import sectors as sector_service
 from alphapilot.services.sectors import compute_sector_strength, get_sector_strength
 
@@ -147,12 +148,18 @@ def test_sync_sector_flows_uses_snapshot_field_when_available(
 
     monkeypatch.setattr(sectors_sync, "get_session", local_session)
     monkeypatch.setattr(sectors_sync, "get_futu_client", SnapshotFlowClient)
-    monkeypatch.setattr(sectors_sync, "_market_today", lambda: date(2026, 7, 21))
+    monkeypatch.setattr(
+        sectors_sync,
+        "_market_now",
+        lambda: datetime(2026, 7, 21, 15, 21, tzinfo=sectors_sync.MARKET_TIMEZONE),
+    )
     monkeypatch.setattr(sectors_sync, "_cn_trade_day", lambda _client, target: target)
     monkeypatch.setattr(
         sectors_sync,
         "_eastmoney_sector_flows",
-        lambda: (_ for _ in ()).throw(AssertionError("Eastmoney must not be called")),
+        lambda **_kwargs: (_ for _ in ()).throw(
+            AssertionError("Eastmoney must not be called")
+        ),
     )
 
     first = sectors_sync.sync_sector_flows(pause_seconds=0)
@@ -227,12 +234,16 @@ def test_sync_sector_flows_falls_back_to_deduplicated_futu_top5(
     client = CapitalFlowClient()
     monkeypatch.setattr(sectors_sync, "get_session", local_session)
     monkeypatch.setattr(sectors_sync, "get_futu_client", lambda: client)
-    monkeypatch.setattr(sectors_sync, "_market_today", lambda: date(2026, 7, 21))
+    monkeypatch.setattr(
+        sectors_sync,
+        "_market_now",
+        lambda: datetime(2026, 7, 21, 15, 21, tzinfo=sectors_sync.MARKET_TIMEZONE),
+    )
     monkeypatch.setattr(sectors_sync, "_cn_trade_day", lambda _client, target: target)
     monkeypatch.setattr(
         sectors_sync,
         "_eastmoney_sector_flows",
-        lambda: (_ for _ in ()).throw(DataProviderError("offline")),
+        lambda **_kwargs: (_ for _ in ()).throw(DataProviderError("offline")),
     )
 
     stats = sectors_sync.sync_sector_flows(pause_seconds=0)
@@ -246,6 +257,311 @@ def test_sync_sector_flows_falls_back_to_deduplicated_futu_top5(
         assert flow.net_inflow == 50.0
         assert flow.main_inflow == 25.0
         assert flow.source == "futu-top5"
+
+
+def test_sync_sector_flows_uses_futu_only_for_eastmoney_gaps(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    engine = create_engine(f"sqlite:///{tmp_path / 'sector-partial-em.db'}")
+    Base.metadata.create_all(engine)
+    local_session = _local_session(engine)
+    now = datetime.now(UTC)
+    plate_rows = [
+        ("SH.LIST0001", "板块一", "SH.600001"),
+        ("SH.LIST0002", "板块二", "SH.600002"),
+        ("SH.LIST0003", "板块三", "SH.600003"),
+    ]
+    with local_session() as session:
+        session.add_all(
+            SectorConstituent(
+                plate_code=plate_code,
+                plate_name=plate_name,
+                symbol=symbol,
+                refreshed_at=now,
+            )
+            for plate_code, plate_name, symbol in plate_rows
+        )
+
+    class PartialFlowClient:
+        def __init__(self) -> None:
+            self.flow_calls: list[str] = []
+
+        def quote_call_raw(
+            self, method: str, args: list[Any] | None = None, kwargs: Any = None
+        ) -> pd.DataFrame:
+            del kwargs
+            if method == "get_market_snapshot":
+                return pd.DataFrame(
+                    [
+                        {"code": code, "total_market_val": 1_000.0}
+                        for code in (args[0] if args else [])
+                    ]
+                )
+            assert method == "get_capital_flow"
+            code = str(args[0]) if args else ""
+            self.flow_calls.append(code)
+            return pd.DataFrame(
+                [
+                    {
+                        "in_flow": 20.0,
+                        "main_in_flow": 10.0,
+                        "capital_flow_item_time": "2026-07-21 15:00:00",
+                    }
+                ]
+            )
+
+    client = PartialFlowClient()
+    monkeypatch.setattr(sectors_sync, "get_session", local_session)
+    monkeypatch.setattr(sectors_sync, "get_futu_client", lambda: client)
+    monkeypatch.setattr(
+        sectors_sync,
+        "_market_now",
+        lambda: datetime(2026, 7, 21, 15, 21, tzinfo=sectors_sync.MARKET_TIMEZONE),
+    )
+    monkeypatch.setattr(sectors_sync, "_cn_trade_day", lambda _client, target: target)
+    monkeypatch.setattr(
+        sectors_sync,
+        "_eastmoney_sector_flows",
+        lambda **_kwargs: {"板块一": 100.0},
+    )
+
+    stats = sectors_sync.sync_sector_flows(pause_seconds=0)
+
+    assert not isinstance(stats, JobOutcome)
+    assert stats["source"] == "mixed"
+    assert stats["source_counts"] == {"em": 1, "futu-top5": 2}
+    assert stats["coverage"] == 1.0
+    assert stats["is_complete"] is True
+    assert set(client.flow_calls) == {"SH.600002", "SH.600003"}
+
+
+def test_sync_sector_flows_degrades_without_partial_top5_plate(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    engine = create_engine(f"sqlite:///{tmp_path / 'sector-degraded-flow.db'}")
+    Base.metadata.create_all(engine)
+    local_session = _local_session(engine)
+    now = datetime.now(UTC)
+    with local_session() as session:
+        session.add_all(
+            [
+                SectorConstituent(
+                    plate_code="SH.LIST0001",
+                    plate_name="板块一",
+                    symbol="SH.600001",
+                    refreshed_at=now,
+                )
+            ]
+            + [
+                SectorConstituent(
+                    plate_code="SH.LIST0002",
+                    plate_name="板块二",
+                    symbol=symbol,
+                    refreshed_at=now,
+                )
+                for symbol in ("SH.600002", "SH.600003")
+            ]
+        )
+
+    class FailingMemberClient:
+        def quote_call_raw(
+            self, method: str, args: list[Any] | None = None, kwargs: Any = None
+        ) -> pd.DataFrame:
+            del kwargs
+            if method == "get_market_snapshot":
+                return pd.DataFrame(
+                    [
+                        {"code": code, "total_market_val": 1_000.0}
+                        for code in (args[0] if args else [])
+                    ]
+                )
+            code = str(args[0]) if args else ""
+            if code == "SH.600003":
+                raise RuntimeError("not entitled")
+            return pd.DataFrame(
+                [
+                    {
+                        "in_flow": 20.0,
+                        "capital_flow_item_time": "2026-07-21 15:00:00",
+                    }
+                ]
+            )
+
+    monkeypatch.setattr(sectors_sync, "get_session", local_session)
+    monkeypatch.setattr(sectors_sync, "get_futu_client", FailingMemberClient)
+    monkeypatch.setattr(
+        sectors_sync,
+        "_market_now",
+        lambda: datetime(2026, 7, 21, 15, 21, tzinfo=sectors_sync.MARKET_TIMEZONE),
+    )
+    monkeypatch.setattr(sectors_sync, "_cn_trade_day", lambda _client, target: target)
+    monkeypatch.setattr(
+        sectors_sync,
+        "_eastmoney_sector_flows",
+        lambda **_kwargs: {"板块一": 10.0},
+    )
+
+    result = sectors_sync.sync_sector_flows(pause_seconds=0)
+
+    assert isinstance(result, JobOutcome)
+    assert result.status == "degraded"
+    assert result.stats["rows"] == 1
+    assert result.stats["missing_plate_codes"] == ["SH.LIST0002"]
+    with local_session() as session:
+        rows = session.scalars(select(SectorFlowDaily)).all()
+        assert [(row.plate_code, row.source) for row in rows] == [("SH.LIST0001", "em")]
+
+
+def test_snapshot_batches_recursively_isolates_bad_symbol() -> None:
+    failures: list[dict[str, str]] = []
+
+    class SnapshotClient:
+        def quote_call_raw(
+            self, method: str, args: list[Any] | None = None, kwargs: Any = None
+        ) -> pd.DataFrame:
+            del method, kwargs
+            codes = list(args[0] if args else [])
+            if "SH.600002" in codes:
+                raise RuntimeError("not entitled")
+            return pd.DataFrame([{"code": code} for code in codes])
+
+    result = sectors_sync._snapshot_batches(
+        SnapshotClient(),  # type: ignore[arg-type]
+        ["SH.600001", "SH.600002", "SH.600003"],
+        failures=failures,
+    )
+
+    assert set(result["code"]) == {"SH.600001", "SH.600003"}
+    assert failures == [
+        {
+            "symbol": "SH.600002",
+            "stage": "snapshot",
+            "error": "RuntimeError: not entitled",
+        }
+    ]
+
+
+def test_snapshot_batches_does_not_split_systemic_sdk_error() -> None:
+    class SnapshotClient:
+        def __init__(self) -> None:
+            self.calls = 0
+
+        def quote_call_raw(
+            self, method: str, args: list[Any] | None = None, kwargs: Any = None
+        ) -> pd.DataFrame:
+            del method, args, kwargs
+            self.calls += 1
+            raise FutuSDKError("quote.get_market_snapshot failed: OpenD internal error")
+
+    client = SnapshotClient()
+    with pytest.raises(FutuSDKError, match="OpenD internal error"):
+        sectors_sync._snapshot_batches(  # type: ignore[arg-type]
+            client,
+            ["SH.600001", "SH.600002", "SH.600003"],
+        )
+
+    assert client.calls == 1
+
+
+def test_snapshot_batches_isolates_explicit_sdk_entitlement_error() -> None:
+    failures: list[dict[str, str]] = []
+
+    class SnapshotClient:
+        def quote_call_raw(
+            self, method: str, args: list[Any] | None = None, kwargs: Any = None
+        ) -> pd.DataFrame:
+            del method, kwargs
+            codes = list(args[0] if args else [])
+            if "SH.600002" in codes:
+                raise FutuSDKError("permission denied for SH.600002")
+            return pd.DataFrame([{"code": code} for code in codes])
+
+    result = sectors_sync._snapshot_batches(
+        SnapshotClient(),  # type: ignore[arg-type]
+        ["SH.600001", "SH.600002", "SH.600003"],
+        failures=failures,
+    )
+
+    assert set(result["code"]) == {"SH.600001", "SH.600003"}
+    assert [item["symbol"] for item in failures] == ["SH.600002"]
+
+
+def test_eastmoney_sector_flow_requires_close_time_and_matching_timestamp(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    target = date(2026, 7, 21)
+    provider_timestamp = int(
+        datetime(2026, 7, 21, 15, 20, tzinfo=sectors_sync.MARKET_TIMEZONE).timestamp()
+    )
+
+    class Response:
+        def raise_for_status(self) -> None:
+            return None
+
+        def json(self) -> dict[str, Any]:
+            return {
+                "data": {
+                    "diff": [
+                        {
+                            "f12": "BK0001",
+                            "f14": "板块一",
+                            "f62": 123.0,
+                            "f124": provider_timestamp,
+                        }
+                    ]
+                }
+            }
+
+    calls = 0
+
+    def fake_get(*_args: Any, **_kwargs: Any) -> Response:
+        nonlocal calls
+        calls += 1
+        return Response()
+
+    monkeypatch.setattr(sectors_sync.httpx, "get", fake_get)
+
+    with pytest.raises(DataProviderError, match="before the 15:20 close job"):
+        sectors_sync._eastmoney_sector_flows(
+            expected_trade_date=target,
+            observed_at=datetime(
+                2026,
+                7,
+                21,
+                14,
+                59,
+                tzinfo=sectors_sync.MARKET_TIMEZONE,
+            ),
+        )
+    assert calls == 0
+
+    flows = sectors_sync._eastmoney_sector_flows(
+        expected_trade_date=target,
+        observed_at=datetime(
+            2026,
+            7,
+            21,
+            15,
+            21,
+            tzinfo=sectors_sync.MARKET_TIMEZONE,
+        ),
+    )
+    assert flows == {"板块一": 123.0}
+
+    with pytest.raises(DataProviderError, match="timestamp does not match"):
+        sectors_sync._eastmoney_sector_flows(
+            expected_trade_date=target + timedelta(days=1),
+            observed_at=datetime(
+                2026,
+                7,
+                22,
+                15,
+                21,
+                tzinfo=sectors_sync.MARKET_TIMEZONE,
+            ),
+        )
 
 
 def test_sector_flow_rejects_stale_provider_rows_and_sorts_latest() -> None:
@@ -414,9 +730,7 @@ def test_sector_strength_enriches_stale_fallback_without_mutating_cache(
 ) -> None:
     engine = create_engine(f"sqlite:///{tmp_path / 'sector-strength-stale.db'}")
     Base.metadata.create_all(engine)
-    cached_payload = [
-        {"plate_code": "SH.LIST0001", "plate_name": "板块一", "strength": 7.0}
-    ]
+    cached_payload = [{"plate_code": "SH.LIST0001", "plate_name": "板块一", "strength": 7.0}]
     with Session(engine) as session:
         session.add(
             SectorSnapshot(
@@ -438,9 +752,7 @@ def test_sector_strength_enriches_stale_fallback_without_mutating_cache(
         monkeypatch.setattr(
             sector_service,
             "compute_sector_strength",
-            lambda *_args: (_ for _ in ()).throw(
-                sector_service.SectorServiceError("offline")
-            ),
+            lambda *_args: (_ for _ in ()).throw(sector_service.SectorServiceError("offline")),
         )
 
         payload = get_sector_strength(session, object())  # type: ignore[arg-type]
@@ -459,9 +771,7 @@ def test_sector_strength_enriches_new_compute_but_persists_raw_snapshot(
 ) -> None:
     engine = create_engine(f"sqlite:///{tmp_path / 'sector-strength-new.db'}")
     Base.metadata.create_all(engine)
-    computed_payload = [
-        {"plate_code": "SH.LIST0001", "plate_name": "板块一", "strength": 9.0}
-    ]
+    computed_payload = [{"plate_code": "SH.LIST0001", "plate_name": "板块一", "strength": 9.0}]
     with Session(engine) as session:
         session.add(
             SectorFlowDaily(
