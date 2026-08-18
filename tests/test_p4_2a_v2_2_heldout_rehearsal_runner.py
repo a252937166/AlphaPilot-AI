@@ -45,6 +45,7 @@ PREREGISTRATION_PARENT = "5fe756401f20e67ff5c868bf29f099c1bfe5b4d3"
 INITIAL_IMPLEMENTATION_COMMIT = "cf10ef8d636049b0fc206c8698a809be3090e1d7"
 EPOCH_TWO_SURFACE_AUTHORITY_COMMIT = "fa4f9e0233de20d5edef201e3a93aed10a67b8be"
 EPOCH_THREE_SURFACE_AUTHORITY_COMMIT = "d6c9c353217e00730457bf6b944ff26a32b8cf85"
+EPOCH_FOUR_SURFACE_AUTHORITY_COMMIT = "2c3171e68ce0146c158a294d0e494ae4b618310b"
 INDEPENDENT_REVIEW_COMMIT = "b21e1bdbf865dfd9c7605ecc7794fc3f8701ed1f"
 INDEPENDENT_REVIEW_RELATIVE = Path(
     "docs/phase4/reports/P4.2a-v2-2-preregistration-independent-review-20260811.json"
@@ -1739,7 +1740,7 @@ def test_preregistration_commit_shape_and_current_implementation_topology() -> N
             path.as_posix() for path in epoch_three_paths
         ]
         assert all(line[:2] in {" M", "M "} for line in status)
-    else:
+    elif parents == [head, EPOCH_THREE_SURFACE_AUTHORITY_COMMIT]:
         assert parents == [head, EPOCH_THREE_SURFACE_AUTHORITY_COMMIT]
         epoch_three_surface = (
             _git("diff-tree", "--no-commit-id", "--name-status", "-r", head)
@@ -1755,6 +1756,51 @@ def test_preregistration_commit_shape_and_current_implementation_topology() -> N
                     RUNNER_TEST_RELATIVE,
                     VALIDATOR_TEST_RELATIVE,
                 ),
+                key=lambda path: os.fsencode(path.as_posix()),
+            )
+        ]
+        cumulative_surface = (
+            _git(
+                "diff",
+                "--name-status",
+                PREREGISTRATION_COMMIT,
+                head,
+                "--",
+                *(path.as_posix() for path in REGISTERED_SURFACE),
+            )
+            .decode()
+            .splitlines()
+        )
+        assert cumulative_surface == [f"A\t{path.as_posix()}" for path in git_order]
+    elif head == EPOCH_FOUR_SURFACE_AUTHORITY_COMMIT:
+        epoch_four_paths = sorted(
+            (IMPLEMENTATION_RELATIVE, RUNNER_TEST_RELATIVE),
+            key=lambda path: os.fsencode(path.as_posix()),
+        )
+        status = (
+            _git(
+                "status",
+                "--porcelain=v1",
+                "--untracked-files=all",
+            )
+            .decode()
+            .splitlines()
+        )
+        assert [line[3:] for line in status] == [
+            path.as_posix() for path in epoch_four_paths
+        ]
+        assert all(line[:2] in {" M", "M "} for line in status)
+    else:
+        assert parents == [head, EPOCH_FOUR_SURFACE_AUTHORITY_COMMIT]
+        epoch_four_surface = (
+            _git("diff-tree", "--no-commit-id", "--name-status", "-r", head)
+            .decode()
+            .splitlines()
+        )
+        assert epoch_four_surface == [
+            f"M\t{path.as_posix()}"
+            for path in sorted(
+                (IMPLEMENTATION_RELATIVE, RUNNER_TEST_RELATIVE),
                 key=lambda path: os.fsencode(path.as_posix()),
             )
         ]
@@ -2598,6 +2644,80 @@ def test_exact_os_read_only_preflight_validates_epoch_control_and_registered_byt
         "status": "FAILED_NO_AUTOMATIC_RETRY",
         "exception_type": "RehearsalV22Error",
         "message_sha256": _sha256(b"v2.2 read-only preflight arguments are not exact"),
+    }
+    assert _tree_fingerprint(binding.project_root) == before_project
+    assert _tree_fingerprint(binding.ledger_root) is None
+    assert _tree_fingerprint(binding.destination) is None
+    assert tuple(
+        sorted(binding.project_root.parent.glob(".alphapilot-p4-2a-v2-2-temp-*"))
+    ) == before_temp
+    assert _all_real_path_fingerprints() == before_real
+
+
+def test_exact_os_read_only_preflight_reports_every_current_control_drift(
+    tmp_path: Path,
+) -> None:
+    implementation = importlib.import_module(IMPLEMENTATION_MODULE)
+    before_real = _all_real_path_fingerprints()
+    binding = _synthetic_binding(tmp_path.resolve(), label="read-only-preflight-control-drift")
+    implementation_commit, owner_surface, independent_review, _execution_head = (
+        _initialize_synthetic_epoch_two(binding)
+    )
+    drifted_controls: list[dict[str, str]] = []
+    for relative, suffix in (
+        (Path("src/alphapilot/core/config.py"), b"\n# synthetic epoch-4 config drift\n"),
+        (Path("src/alphapilot/db/models.py"), b"\n# synthetic epoch-4 model drift\n"),
+    ):
+        selected = _fixture_git(
+            binding.project_root,
+            "show",
+            f"{implementation_commit}:{relative.as_posix()}",
+        )
+        current = selected + suffix
+        (binding.project_root / relative).write_bytes(current)
+        drifted_controls.append(
+            {
+                "repository_path": relative.as_posix(),
+                "selected_commit_sha256": _sha256(selected),
+                "worktree_sha256": _sha256(current),
+            }
+        )
+    expected_message = (
+        "control differs from selected commit: "
+        + implementation._canonical_json_bytes(drifted_controls)
+        .decode("utf-8")
+        .removesuffix("\n")
+    )
+    command = _exact_read_only_preflight_command(
+        binding,
+        implementation_epoch=2,
+        implementation_commit=implementation_commit,
+        owner_surface_authorization=owner_surface,
+        independent_review=independent_review,
+    )
+    before_project = _tree_fingerprint(binding.project_root)
+    before_temp = tuple(
+        sorted(binding.project_root.parent.glob(".alphapilot-p4-2a-v2-2-temp-*"))
+    )
+    completed = subprocess.run(
+        command,
+        check=False,
+        capture_output=True,
+        text=True,
+        env=_locked_environment(),
+        timeout=300,
+    )
+    assert completed.returncode == 1
+    assert completed.stdout == ""
+    error = implementation.strict_json_loads(
+        completed.stderr,
+        source="multi-member control drift preflight rejection",
+    )
+    assert error == {
+        "schema_version": "p4.2a-v2-2-rehearsal-execution-error-v1",
+        "status": "FAILED_NO_AUTOMATIC_RETRY",
+        "exception_type": "RehearsalV22Error",
+        "message_sha256": _sha256(expected_message.encode("utf-8")),
     }
     assert _tree_fingerprint(binding.project_root) == before_project
     assert _tree_fingerprint(binding.ledger_root) is None
