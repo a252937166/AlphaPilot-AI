@@ -1,0 +1,2373 @@
+{
+  "boundaries": {
+    "heldout_evaluation_authorized": false,
+    "inference_authorized": false,
+    "materialization_authorized": false,
+    "next_permitted_steps": [
+      "merge-only landing preserving 890e9002 and 858f372",
+      "registered-root read-only preflight for epoch 4",
+      "create-only ordinal-2 review request Q bound to epoch 4 and 890e9002",
+      "STOP_AT_OWNER_BEFORE_R"
+    ],
+    "official_ordinal_2_action_authorization_r_exists": false,
+    "official_ordinal_2_owner_binding_b_exists": false,
+    "ordinal_2_attempt_started": false,
+    "ordinal_2_is_new_disclosed_attempt_not_retry": true,
+    "p4_2b_authorized": false,
+    "p4_3_authorized": false,
+    "this_report_authorizes_attempt_execution": false,
+    "trading_authorized": false
+  },
+  "candidate_lineage": {
+    "companion": {
+      "bytes": 6121,
+      "creating_commit": "8b25d36033791efb4e800182150f4e7cae9ff597",
+      "owner_approval_binding": {
+        "approved_by": "owner (ouyang), in person",
+        "approved_content_scope": "re-anchor the implementation epoch onto the current main, and change the control-surface current-byte check from raising on the first drifted member to collecting every drifted member and reporting each with its selected-commit digest and its worktree digest before failing closed; add the registered test coverage for that behaviour; nothing else",
+        "approved_surface": [
+          {
+            "path": "scripts/p4_2a_v2_2_heldout_rehearsal.py",
+            "status": "M"
+          },
+          {
+            "path": "tests/test_p4_2a_v2_2_heldout_rehearsal_runner.py",
+            "status": "M"
+          }
+        ],
+        "binding": "transcript-bound: the owner was shown the block, the single-file drift, the epoch-4 requirement and the proposed content, and chose the re-anchor with the drift-diagnostic improvement on 2026-08-18 CST morning",
+        "explicitly_out_of_scope": [
+          "any relaxation of require_current or of the control-surface membership rules",
+          "any change to gates, thresholds, samples, seeds, models, prompts, contracts or gold",
+          "the shim, the validator, the validator tests, the 24-field attempt schema",
+          "any ledger mutation or history rewrite"
+        ]
+      },
+      "path": "docs/phase4/reports/P4.2a-epoch4-reanchor-companion-20260818.json",
+      "role": "CURRENT_EPOCH4_COMPANION",
+      "sha256": "14a4eb277b3e3fb8ac181d432bdf4ee7821c339a25990991408b1759711fc546"
+    },
+    "implementation_commit": "890e9002116c625d41f6aa037975df15d1546c56",
+    "implementation_is_direct_single_parent_child": true,
+    "implementation_parent": "2c3171e68ce0146c158a294d0e494ae4b618310b",
+    "implementation_surface": [
+      {
+        "path": "scripts/p4_2a_v2_2_heldout_rehearsal.py",
+        "status": "M"
+      },
+      {
+        "path": "tests/test_p4_2a_v2_2_heldout_rehearsal_runner.py",
+        "status": "M"
+      }
+    ],
+    "independent_review": {
+      "blockers": [],
+      "bytes": 6762,
+      "creating_commit": "858f372a8ce56f2556d02d03c46c6fb078b5b476",
+      "parent": "890e9002116c625d41f6aa037975df15d1546c56",
+      "path": "docs/phase4/reports/P4.2a-v2-2-epoch4-implementation-independent-review-20260818.json",
+      "reviewer_full_module_evidence": {
+        "artifacts": "runner.junit.xml, validator.junit.xml and the run log preserved under .alphapilot-p42a-epoch4-reviewer-evidence.claude",
+        "f12_compliance": "both complete registered modules run at 890e9002 before this verdict, in a detached session to avoid the signal-propagation terminations seen earlier",
+        "operator_evidence_accepted": "targeted tests, static checks, post-commit topology test, and collect counts 153 and 109 totalling 262",
+        "runner_module": "153 passed, 0 failed, 6893.31 seconds; JUnit totals independently parsed as tests 153, failures 0, errors 0, skipped 0",
+        "static": "ruff clean on both changed files; strict mypy clean on the implementation module",
+        "validator_module": "109 passed, 0 failed, 2074.96 seconds; JUnit totals tests 109, failures 0, errors 0, skipped 0"
+      },
+      "role": "CURRENT_EPOCH4_IMPLEMENTATION_REVIEW",
+      "sha256": "f2fb33db25591662b28aedde0b9bfd0f9151d92186bdd11914010893159c4591",
+      "unique_status_a": true,
+      "verdict": "APPROVE_EPOCH4_IMPLEMENTATION"
+    },
+    "machine_surface_authority": {
+      "bytes": 485,
+      "creating_commit": "2c3171e68ce0146c158a294d0e494ae4b618310b",
+      "document": {
+        "base_commit": "8b25d36033791efb4e800182150f4e7cae9ff597",
+        "exact_surface": [
+          {
+            "path": "scripts/p4_2a_v2_2_heldout_rehearsal.py",
+            "status": "M"
+          },
+          {
+            "path": "tests/test_p4_2a_v2_2_heldout_rehearsal_runner.py",
+            "status": "M"
+          }
+        ],
+        "implementation_epoch": 4,
+        "owner": {
+          "approved": true,
+          "identity": "ouyang"
+        },
+        "schema_version": "p4.2a-v2-2-implementation-epoch-surface-authorization-v1",
+        "verdict": "APPROVE_EXACT_V2_2_IMPLEMENTATION_EPOCH_SURFACE"
+      },
+      "path": "docs/phase4/reports/P4.2a-v2-2-epoch4-surface-authority-20260818.json",
+      "role": "CURRENT_EPOCH4_MACHINE_AUTHORITY",
+      "sha256": "a7ae5730b804fb0d4124c50d38c080673fdaf6c6caae8c530b343943889a083d"
+    },
+    "registered_blob_sha256": {
+      "scripts/p4_2a_v2_2_heldout_rehearsal.py": "9318e46e86f9a9a6aa5676a99f000eae4446f000520db261ecef391c30e88d77",
+      "scripts/rehearse_p4_2a_v2_2_heldout_full_path.py": "660d6b6e820581eae792e6c04f35b15b30bdb2427d93c3a934af9146f0e044c0",
+      "scripts/validate_p4_2a_v2_2_heldout_rehearsal_bundle.py": "8c2e34370174122d02232e76314ec7cc092523c8424773891b4cdb8335b53b0d",
+      "tests/test_p4_2a_v2_2_heldout_rehearsal_runner.py": "7209349831a0f1c14d796adf6238ad0b9905b81d5a94b5e273ec4715f417a85a",
+      "tests/test_p4_2a_v2_2_heldout_rehearsal_validator.py": "fbd7cfedda56bb48f06b1d0438d59ad7d5e635ecc91bf0ca43d2afbfbfd45b13"
+    }
+  },
+  "created_at_shanghai": "2026-08-19T01:03:00+08:00",
+  "created_at_utc": "2026-08-18T17:03:00Z",
+  "full_registered_gate": {
+    "derived_summary_digests_recomputed_from_current_files": {
+      "pre_registered_gate_readback.json": "b484f3b1f4a6d9e89e8ae41a7b2ca131f673d16878cf916f256859a35bb813da",
+      "runner.collect-summary.json": "0e7dc867f48037bf3a96d95a408306ab903e8ce0eb00020623c5ae0476a5340f",
+      "runner.junit-summary.json": "15394b157d98682717acb12b69abf2fb22d3f721e683fd29cd4ab81924389623",
+      "validator.collect-summary.json": "ae70029c58e01ee5a884ce63e5b00780db7fd701372bacf6963a0bd5b5462062",
+      "validator.junit-summary.json": "043828a02d6d037e4b98310abf30e9e6e1272309b43f5b2d23221cec4e415699"
+    },
+    "gate_digest_summary_recomputed_from_current_files": {
+      "HARNESS_SHA256SUMS.gate-time": "06b057d6b6a3f3210f47d7abda18542ae02c91114350abefc91d7047fd99785a",
+      "postcheck.json": "bde885208168024f13ed2db3a57ec0f52074bb39aa54f45deb93e59ed8460bbd",
+      "runner.junit.xml": "a8d3acb5c8ff6784a8afb0453e32cc64190dd8ba3ff8840dedf74e5caa213d7b",
+      "runner.log": "4e18dc554c1db7b55e45f7e1517d4c91d95b4062ab090719c52cb64c7eb12d43",
+      "validator.junit.xml": "6656c28cd8f74da820e9c28a0b0d2284c8d243b9b4b3c7b9ed73daa29b8774b0",
+      "validator.log": "0b8ba1de138e2e1623fa78712297a3a092ae6ee4ea28e06056f34718d7b058a4"
+    },
+    "runner": {
+      "full_log_verbatim_utf8": "........................................................................ [ 47%]\n........................................................................ [ 94%]\n.........                                                                [100%]\n- generated xml file: /Users/ouyangduning/Documents/project/interesting/.alphapilot-p42a-epoch4-gate-evidence.9nyuYx/runner.junit.xml -\n153 passed in 7280.65s (2:01:20)\n\n--- P4.2A EPOCH4 GATE METADATA ---\n{\"cwd\":\"/Users/ouyangduning/Documents/project/interesting/.alphapilot-p42a-epoch3-gate.h1iJnS\",\"end_cst\":\"2026-08-19T00:23:52+0800\",\"end_head\":\"890e9002116c625d41f6aa037975df15d1546c56\",\"end_utc\":\"2026-08-18T16:23:52Z\",\"exact_exec_argv\":[\"/usr/bin/env\",\"-u\",\"PYTEST_ADDOPTS\",\"PYTHONDONTWRITEBYTECODE=1\",\"/usr/bin/nice\",\"-n\",\"10\",\"/Users/ouyangduning/Documents/project/interesting/AlphaPilot-AI/.venv/bin/python\",\"-B\",\"-m\",\"pytest\",\"tests/test_p4_2a_v2_2_heldout_rehearsal_runner.py\",\"--junitxml=/Users/ouyangduning/Documents/project/interesting/.alphapilot-p42a-epoch4-gate-evidence.9nyuYx/runner.junit.xml\"],\"exit_code\":0,\"expected_tests\":153,\"inherited_nice\":10,\"label\":\"runner\",\"python_argv\":[\"/Users/ouyangduning/Documents/project/interesting/AlphaPilot-AI/.venv/bin/python\",\"-B\",\"-m\",\"pytest\",\"tests/test_p4_2a_v2_2_heldout_rehearsal_runner.py\",\"--junitxml=/Users/ouyangduning/Documents/project/interesting/.alphapilot-p42a-epoch4-gate-evidence.9nyuYx/runner.junit.xml\"],\"schema_version\":\"p4.2a-epoch4-full-gate-module-metadata-v1\",\"start_cst\":\"2026-08-18T22:22:31+0800\",\"start_head\":\"890e9002116c625d41f6aa037975df15d1546c56\",\"start_utc\":\"2026-08-18T14:22:31Z\",\"wall_seconds\":7281}\n",
+      "junit": {
+        "bytes": 26566,
+        "path": "/Users/ouyangduning/Documents/project/interesting/.alphapilot-p42a-epoch4-gate-evidence.9nyuYx/runner.junit.xml",
+        "sha256": "a8d3acb5c8ff6784a8afb0453e32cc64190dd8ba3ff8840dedf74e5caa213d7b"
+      },
+      "junit_independent_parse": {
+        "all_testcase_times_finite_nonnegative": true,
+        "testcase_count": 153,
+        "testcase_time_seconds_sum": 7280.307,
+        "totals": {
+          "disabled": 0,
+          "errors": 0,
+          "failures": 0,
+          "skipped": 0,
+          "tests": 153
+        }
+      },
+      "junit_summary": {
+        "all_testcases_have_nonnegative_time": true,
+        "label": "runner",
+        "path": "/Users/ouyangduning/Documents/project/interesting/.alphapilot-p42a-epoch4-gate-evidence.9nyuYx/runner.junit.xml",
+        "schema_version": "p4.2a-epoch4-junit-summary-v1",
+        "status": "PASS_JUNIT_EXACT",
+        "testcase_count": 153,
+        "totals": {
+          "disabled": 0,
+          "errors": 0,
+          "failures": 0,
+          "skipped": 0,
+          "tests": 153
+        }
+      },
+      "junit_summary_artifact": {
+        "bytes": 353,
+        "path": "/Users/ouyangduning/Documents/project/interesting/.alphapilot-p42a-epoch4-gate-evidence.9nyuYx/runner.junit-summary.json",
+        "sha256": "15394b157d98682717acb12b69abf2fb22d3f721e683fd29cd4ab81924389623"
+      },
+      "log": {
+        "bytes": 1633,
+        "path": "/Users/ouyangduning/Documents/project/interesting/.alphapilot-p42a-epoch4-gate-evidence.9nyuYx/runner.log",
+        "sha256": "4e18dc554c1db7b55e45f7e1517d4c91d95b4062ab090719c52cb64c7eb12d43"
+      },
+      "metadata": {
+        "cwd": "/Users/ouyangduning/Documents/project/interesting/.alphapilot-p42a-epoch3-gate.h1iJnS",
+        "end_cst": "2026-08-19T00:23:52+0800",
+        "end_head": "890e9002116c625d41f6aa037975df15d1546c56",
+        "end_utc": "2026-08-18T16:23:52Z",
+        "exact_exec_argv": [
+          "/usr/bin/env",
+          "-u",
+          "PYTEST_ADDOPTS",
+          "PYTHONDONTWRITEBYTECODE=1",
+          "/usr/bin/nice",
+          "-n",
+          "10",
+          "/Users/ouyangduning/Documents/project/interesting/AlphaPilot-AI/.venv/bin/python",
+          "-B",
+          "-m",
+          "pytest",
+          "tests/test_p4_2a_v2_2_heldout_rehearsal_runner.py",
+          "--junitxml=/Users/ouyangduning/Documents/project/interesting/.alphapilot-p42a-epoch4-gate-evidence.9nyuYx/runner.junit.xml"
+        ],
+        "exit_code": 0,
+        "expected_tests": 153,
+        "inherited_nice": 10,
+        "label": "runner",
+        "python_argv": [
+          "/Users/ouyangduning/Documents/project/interesting/AlphaPilot-AI/.venv/bin/python",
+          "-B",
+          "-m",
+          "pytest",
+          "tests/test_p4_2a_v2_2_heldout_rehearsal_runner.py",
+          "--junitxml=/Users/ouyangduning/Documents/project/interesting/.alphapilot-p42a-epoch4-gate-evidence.9nyuYx/runner.junit.xml"
+        ],
+        "schema_version": "p4.2a-epoch4-full-gate-module-metadata-v1",
+        "start_cst": "2026-08-18T22:22:31+0800",
+        "start_head": "890e9002116c625d41f6aa037975df15d1546c56",
+        "start_utc": "2026-08-18T14:22:31Z",
+        "wall_seconds": 7281
+      },
+      "pytest_reported_seconds": 7280.65,
+      "wrapper_wall_seconds": 7281
+    },
+    "totals": {
+      "all_testcase_times_finite_nonnegative": true,
+      "disabled": 0,
+      "errors": 0,
+      "failures": 0,
+      "junit_testcase_time_seconds_sum": 9487.879,
+      "module_wall_seconds_sum": 9494,
+      "modules_ran_sequentially": true,
+      "process_envelope_seconds": 9519,
+      "pytest_reported_seconds_sum": 9488.43,
+      "skipped": 0,
+      "tests": 262
+    },
+    "validator": {
+      "full_log_verbatim_utf8": "........................................................................ [ 66%]\n.....................................                                    [100%]\n- generated xml file: /Users/ouyangduning/Documents/project/interesting/.alphapilot-p42a-epoch4-gate-evidence.9nyuYx/validator.junit.xml -\n109 passed in 2207.78s (0:36:47)\n\n--- P4.2A EPOCH4 GATE METADATA ---\n{\"cwd\":\"/Users/ouyangduning/Documents/project/interesting/.alphapilot-p42a-epoch3-gate.h1iJnS\",\"end_cst\":\"2026-08-19T01:01:10+0800\",\"end_head\":\"890e9002116c625d41f6aa037975df15d1546c56\",\"end_utc\":\"2026-08-18T17:01:10Z\",\"exact_exec_argv\":[\"/usr/bin/env\",\"-u\",\"PYTEST_ADDOPTS\",\"PYTHONDONTWRITEBYTECODE=1\",\"/usr/bin/nice\",\"-n\",\"10\",\"/Users/ouyangduning/Documents/project/interesting/AlphaPilot-AI/.venv/bin/python\",\"-B\",\"-m\",\"pytest\",\"tests/test_p4_2a_v2_2_heldout_rehearsal_validator.py\",\"--junitxml=/Users/ouyangduning/Documents/project/interesting/.alphapilot-p42a-epoch4-gate-evidence.9nyuYx/validator.junit.xml\"],\"exit_code\":0,\"expected_tests\":109,\"inherited_nice\":10,\"label\":\"validator\",\"python_argv\":[\"/Users/ouyangduning/Documents/project/interesting/AlphaPilot-AI/.venv/bin/python\",\"-B\",\"-m\",\"pytest\",\"tests/test_p4_2a_v2_2_heldout_rehearsal_validator.py\",\"--junitxml=/Users/ouyangduning/Documents/project/interesting/.alphapilot-p42a-epoch4-gate-evidence.9nyuYx/validator.junit.xml\"],\"schema_version\":\"p4.2a-epoch4-full-gate-module-metadata-v1\",\"start_cst\":\"2026-08-19T00:24:17+0800\",\"start_head\":\"890e9002116c625d41f6aa037975df15d1546c56\",\"start_utc\":\"2026-08-18T16:24:17Z\",\"wall_seconds\":2213}\n",
+      "junit": {
+        "bytes": 20055,
+        "path": "/Users/ouyangduning/Documents/project/interesting/.alphapilot-p42a-epoch4-gate-evidence.9nyuYx/validator.junit.xml",
+        "sha256": "6656c28cd8f74da820e9c28a0b0d2284c8d243b9b4b3c7b9ed73daa29b8774b0"
+      },
+      "junit_independent_parse": {
+        "all_testcase_times_finite_nonnegative": true,
+        "testcase_count": 109,
+        "testcase_time_seconds_sum": 2207.572,
+        "totals": {
+          "disabled": 0,
+          "errors": 0,
+          "failures": 0,
+          "skipped": 0,
+          "tests": 109
+        }
+      },
+      "junit_summary": {
+        "all_testcases_have_nonnegative_time": true,
+        "label": "validator",
+        "path": "/Users/ouyangduning/Documents/project/interesting/.alphapilot-p42a-epoch4-gate-evidence.9nyuYx/validator.junit.xml",
+        "schema_version": "p4.2a-epoch4-junit-summary-v1",
+        "status": "PASS_JUNIT_EXACT",
+        "testcase_count": 109,
+        "totals": {
+          "disabled": 0,
+          "errors": 0,
+          "failures": 0,
+          "skipped": 0,
+          "tests": 109
+        }
+      },
+      "junit_summary_artifact": {
+        "bytes": 359,
+        "path": "/Users/ouyangduning/Documents/project/interesting/.alphapilot-p42a-epoch4-gate-evidence.9nyuYx/validator.junit-summary.json",
+        "sha256": "043828a02d6d037e4b98310abf30e9e6e1272309b43f5b2d23221cec4e415699"
+      },
+      "log": {
+        "bytes": 1571,
+        "path": "/Users/ouyangduning/Documents/project/interesting/.alphapilot-p42a-epoch4-gate-evidence.9nyuYx/validator.log",
+        "sha256": "0b8ba1de138e2e1623fa78712297a3a092ae6ee4ea28e06056f34718d7b058a4"
+      },
+      "metadata": {
+        "cwd": "/Users/ouyangduning/Documents/project/interesting/.alphapilot-p42a-epoch3-gate.h1iJnS",
+        "end_cst": "2026-08-19T01:01:10+0800",
+        "end_head": "890e9002116c625d41f6aa037975df15d1546c56",
+        "end_utc": "2026-08-18T17:01:10Z",
+        "exact_exec_argv": [
+          "/usr/bin/env",
+          "-u",
+          "PYTEST_ADDOPTS",
+          "PYTHONDONTWRITEBYTECODE=1",
+          "/usr/bin/nice",
+          "-n",
+          "10",
+          "/Users/ouyangduning/Documents/project/interesting/AlphaPilot-AI/.venv/bin/python",
+          "-B",
+          "-m",
+          "pytest",
+          "tests/test_p4_2a_v2_2_heldout_rehearsal_validator.py",
+          "--junitxml=/Users/ouyangduning/Documents/project/interesting/.alphapilot-p42a-epoch4-gate-evidence.9nyuYx/validator.junit.xml"
+        ],
+        "exit_code": 0,
+        "expected_tests": 109,
+        "inherited_nice": 10,
+        "label": "validator",
+        "python_argv": [
+          "/Users/ouyangduning/Documents/project/interesting/AlphaPilot-AI/.venv/bin/python",
+          "-B",
+          "-m",
+          "pytest",
+          "tests/test_p4_2a_v2_2_heldout_rehearsal_validator.py",
+          "--junitxml=/Users/ouyangduning/Documents/project/interesting/.alphapilot-p42a-epoch4-gate-evidence.9nyuYx/validator.junit.xml"
+        ],
+        "schema_version": "p4.2a-epoch4-full-gate-module-metadata-v1",
+        "start_cst": "2026-08-19T00:24:17+0800",
+        "start_head": "890e9002116c625d41f6aa037975df15d1546c56",
+        "start_utc": "2026-08-18T16:24:17Z",
+        "wall_seconds": 2213
+      },
+      "pytest_reported_seconds": 2207.78,
+      "wrapper_wall_seconds": 2213
+    }
+  },
+  "governance": {
+    "current_epoch4_authority": {
+      "companion_commit": "8b25d36033791efb4e800182150f4e7cae9ff597",
+      "implementation_commit": "890e9002116c625d41f6aa037975df15d1546c56",
+      "independent_review_commit": "858f372a8ce56f2556d02d03c46c6fb078b5b476",
+      "independent_review_verdict": "APPROVE_EPOCH4_IMPLEMENTATION",
+      "machine_authority_commit": "2c3171e68ce0146c158a294d0e494ae4b618310b"
+    },
+    "f14_operating_constraint": "From epoch-4 landing until attempt 2 terminates, no commit may touch any of the 73 control-surface members. Preflight, Q, R, owner binding B, and attempt 2 should proceed promptly.",
+    "final_release_review_obligation": "The final release review MUST cite the void-sentinel semantic and effective governance: epoch 1 is ASSIGNED_AND_STRUCTURALLY_UNCONSUMABLE; positive ordinal bounds are schema filler only; epoch 1 is excluded from interval accounting and cannot be selected or consumed; epoch 2 owns ordinal 1.",
+    "historical_epoch3_context_not_current_authority": "Epoch-3 candidate and review records remain immutable historical governance context only. They are not authority for this epoch-4 landing; current authority is 8b25d36/2c3171e and current review is 858f372."
+  },
+  "harness_evidence": {
+    "armed_static_log": {
+      "bytes": 7440,
+      "path": "/Users/ouyangduning/Documents/project/interesting/.alphapilot-p42a-epoch4-gate-evidence.9nyuYx/harness_static_check.armed.log",
+      "sha256": "3300e0a08f5c97803ca6caa967f476d1e2755e90d8754cdb1d2d2ea60fdbe05a"
+    },
+    "authorized_before_after_diff_archive": {
+      "authorized_script_count": 10,
+      "change_record": {
+        "bytes": 1858,
+        "document": {
+          "freeze_resumes_after_final_harness_manifest": true,
+          "further_harness_changes_require_owner_adjudication": true,
+          "landing_generator_authorization": {
+            "dynamic_values_must_come_only_from_current_gate_files": true,
+            "generator_excluded_from_gate_time_manifest": true,
+            "generator_preflight_sha256_must_equal_final_manifest_sha256": true,
+            "hardcoded_fallbacks_for_dynamic_values_forbidden": true,
+            "missing_or_unparseable_current_gate_file_is_fail_closed": true,
+            "post_gate_adjudication_dependency_removed": true,
+            "report_must_be_generated_successfully_before_merge": true
+          },
+          "owner_w3_scope_rationale_verbatim": "purpose_precheck.py 的 W-3 起点，选你的第一个方案：常量移到 2026-08-17 10:00 CST，逻辑不动。但理由不是\"避开会失败的槽\"，而是这个检查的职责边界已经缩小——它当初存在是为了保证门不干扰进行中的观察窗、且窗内证据完整；观察窗已于 8/17 收官，我的裁定 84a07a3 判 PASS 189/189，8/17 那两个槽的合法缺席由 Monday host-gap policy 解释并已在裁定里记录在案。所以从收官恢复后起算，检查的真实目的变成\"确认 scheduler 此刻连续健康、门与它无冲突\"，移起点正好对应这个目的。这段话请原样写进 evidence 的变更说明，别只写\"移常量避免误判\"——将来读记录的人要能看出边界为什么缩小。第二个方案（引用收官报告）我否掉：那要解析 468KB 的 JSON，是逻辑变化、新增失败点，今晚不值得冒这个险。",
+          "schema_version": "p4.2a-epoch4-harness-unfreeze-change-record-v1",
+          "status": "AUTHORIZED_CONSTANT_AND_GENERATOR_PARAMETERIZATION_ONLY",
+          "w3_control_flow_changed": false,
+          "w3_start_after_cst": "2026-08-17T10:00:00+08:00",
+          "w3_start_before_cst": "2026-08-13T18:00:00+08:00"
+        },
+        "path": "/Users/ouyangduning/Documents/project/interesting/.alphapilot-p42a-epoch4-gate-evidence.9nyuYx/epoch4-harness-unfreeze-change-record.json",
+        "sha256": "ba72fa25638e9bbaf8319c5d125986b5016b26fe9350feff337454cd81fd83c7"
+      },
+      "scripts": {
+        "gate_finalize.sh": {
+          "after": {
+            "bytes": 1225,
+            "path": "/Users/ouyangduning/Documents/project/interesting/.alphapilot-p42a-epoch4-gate-evidence.9nyuYx/before-after-diffs/gate_finalize.sh.after.txt",
+            "sha256": "c6d7c8c390b1c03431f19606c355dd9020d189428d9255ca5b36be5908b18820"
+          },
+          "before": {
+            "bytes": 1235,
+            "path": "/Users/ouyangduning/Documents/project/interesting/.alphapilot-p42a-epoch4-gate-evidence.9nyuYx/before-after-diffs/gate_finalize.sh.before.txt",
+            "sha256": "fbda1f120e3217ec303f51bdaf4fede7d095394493b0eb7e31dad8d48acdf1e2"
+          },
+          "diff": {
+            "bytes": 463,
+            "path": "/Users/ouyangduning/Documents/project/interesting/.alphapilot-p42a-epoch4-gate-evidence.9nyuYx/before-after-diffs/gate_finalize.sh.diff",
+            "sha256": "6e764823d85f2aef09fc444c9e90dc7d07919f04a100b9d74a0ac6fc26af66e8",
+            "verbatim_utf8": "--- before/gate_finalize.sh\n+++ after/gate_finalize.sh\n@@ -1,6 +1,6 @@\n #!/bin/bash\n \n-evidence='/Users/ouyangduning/Documents/project/interesting/.alphapilot-p42a-epoch3-r2-gate-evidence-rerun2.2bUkMK'\n+evidence='/Users/ouyangduning/Documents/project/interesting/.alphapilot-p42a-epoch4-gate-evidence.9nyuYx'\n python='/Users/ouyangduning/Documents/project/interesting/AlphaPilot-AI/.venv/bin/python'\n sums=\"$evidence/SHA256SUMS\"\n post=\"$evidence/postcheck.json\"\n"
+          }
+        },
+        "gate_module.sh": {
+          "after": {
+            "bytes": 4719,
+            "path": "/Users/ouyangduning/Documents/project/interesting/.alphapilot-p42a-epoch4-gate-evidence.9nyuYx/before-after-diffs/gate_module.sh.after.txt",
+            "sha256": "ff96580267968f24876ba5f164d996d2606932e90687dea9dc7d759205662801"
+          },
+          "before": {
+            "bytes": 4752,
+            "path": "/Users/ouyangduning/Documents/project/interesting/.alphapilot-p42a-epoch4-gate-evidence.9nyuYx/before-after-diffs/gate_module.sh.before.txt",
+            "sha256": "8c01e3ce7dd7aa45f3315cbef2e303e04b487a94f15713be3e527d26ec16486a"
+          },
+          "diff": {
+            "bytes": 2740,
+            "path": "/Users/ouyangduning/Documents/project/interesting/.alphapilot-p42a-epoch4-gate-evidence.9nyuYx/before-after-diffs/gate_module.sh.diff",
+            "sha256": "64094f18e83c68dbb12917f97d9b09d799a038005b81b6c04a81e0118aa5a777",
+            "verbatim_utf8": "--- before/gate_module.sh\n+++ after/gate_module.sh\n@@ -2,14 +2,14 @@\n \n label=$1\n gate='/Users/ouyangduning/Documents/project/interesting/.alphapilot-p42a-epoch3-gate.h1iJnS'\n-evidence='/Users/ouyangduning/Documents/project/interesting/.alphapilot-p42a-epoch3-r2-gate-evidence-rerun2.2bUkMK'\n+evidence='/Users/ouyangduning/Documents/project/interesting/.alphapilot-p42a-epoch4-gate-evidence.9nyuYx'\n python='/Users/ouyangduning/Documents/project/interesting/AlphaPilot-AI/.venv/bin/python'\n-implementation='d4fb0d8c763b9fa104949ea2ac58bc921d9e8889'\n+implementation='890e9002116c625d41f6aa037975df15d1546c56'\n \n case \"$label\" in\n   runner)\n     module='tests/test_p4_2a_v2_2_heldout_rehearsal_runner.py'\n-    expected='152'\n+    expected='153'\n     ;;\n   validator)\n     module='tests/test_p4_2a_v2_2_heldout_rehearsal_validator.py'\n@@ -28,9 +28,9 @@\n if (\n     value.get(\"status\") != \"PASS_JUNIT_EXACT\"\n     or value.get(\"label\") != \"runner\"\n-    or value.get(\"testcase_count\") != 152\n+    or value.get(\"testcase_count\") != 153\n     or value.get(\"totals\")\n-    != {\"tests\": 152, \"failures\": 0, \"errors\": 0, \"skipped\": 0, \"disabled\": 0}\n+    != {\"tests\": 153, \"failures\": 0, \"errors\": 0, \"skipped\": 0, \"disabled\": 0}\n ):\n     raise SystemExit(\"runner PASS summary is absent or drifted\")\n PY\n@@ -89,7 +89,7 @@\n     exit_code,\n ) = sys.argv\n metadata = {\n-    \"schema_version\": \"p4.2a-epoch3-r2-full-gate-module-metadata-v1\",\n+    \"schema_version\": \"p4.2a-epoch4-full-gate-module-metadata-v1\",\n     \"label\": label,\n     \"cwd\": cwd,\n     \"exact_exec_argv\": [\n@@ -105,7 +105,7 @@\n         \"-m\",\n         \"pytest\",\n         module,\n-        f\"--junitxml=/Users/ouyangduning/Documents/project/interesting/.alphapilot-p42a-epoch3-r2-gate-evidence-rerun2.2bUkMK/{label}.junit.xml\",\n+        f\"--junitxml=/Users/ouyangduning/Documents/project/interesting/.alphapilot-p42a-epoch4-gate-evidence.9nyuYx/{label}.junit.xml\",\n     ],\n     \"python_argv\": [\n         \"/Users/ouyangduning/Documents/project/interesting/AlphaPilot-AI/.venv/bin/python\",\n@@ -113,7 +113,7 @@\n         \"-m\",\n         \"pytest\",\n         module,\n-        f\"--junitxml=/Users/ouyangduning/Documents/project/interesting/.alphapilot-p42a-epoch3-r2-gate-evidence-rerun2.2bUkMK/{label}.junit.xml\",\n+        f\"--junitxml=/Users/ouyangduning/Documents/project/interesting/.alphapilot-p42a-epoch4-gate-evidence.9nyuYx/{label}.junit.xml\",\n     ],\n     \"expected_tests\": int(expected),\n     \"inherited_nice\": 10,\n@@ -126,7 +126,7 @@\n     \"wall_seconds\": int(wall_seconds),\n     \"exit_code\": int(exit_code),\n }\n-print(\"\\n--- P4.2A EPOCH3 GATE METADATA ---\")\n+print(\"\\n--- P4.2A EPOCH4 GATE METADATA ---\")\n print(json.dumps(metadata, sort_keys=True, separators=(\",\", \":\")))\n PY\n metadata_rc=$?\n"
+          }
+        },
+        "harness_static_check.sh": {
+          "after": {
+            "bytes": 12225,
+            "path": "/Users/ouyangduning/Documents/project/interesting/.alphapilot-p42a-epoch4-gate-evidence.9nyuYx/before-after-diffs/harness_static_check.sh.after.txt",
+            "sha256": "72c3bd42a012877772ba12f17e76ba1cb82407868499f49dc36940da5b590cbf"
+          },
+          "before": {
+            "bytes": 11961,
+            "path": "/Users/ouyangduning/Documents/project/interesting/.alphapilot-p42a-epoch4-gate-evidence.9nyuYx/before-after-diffs/harness_static_check.sh.before.txt",
+            "sha256": "ae8e24a568206f23f22355dae20b0fab11175fd2a6d2a647e2fb900fbd27237c"
+          },
+          "diff": {
+            "bytes": 2560,
+            "path": "/Users/ouyangduning/Documents/project/interesting/.alphapilot-p42a-epoch4-gate-evidence.9nyuYx/before-after-diffs/harness_static_check.sh.diff",
+            "sha256": "ba1ee38f79912355c556185a6b43fac769a9c32348611e01ce94dbb3a93e04b0",
+            "verbatim_utf8": "--- before/harness_static_check.sh\n+++ after/harness_static_check.sh\n@@ -1,6 +1,6 @@\n #!/bin/bash\n \n-evidence='/Users/ouyangduning/Documents/project/interesting/.alphapilot-p42a-epoch3-r2-gate-evidence-rerun2.2bUkMK'\n+evidence='/Users/ouyangduning/Documents/project/interesting/.alphapilot-p42a-epoch4-gate-evidence.9nyuYx'\n prior_evidence='/Users/ouyangduning/Documents/project/interesting/.alphapilot-p42a-epoch3-gate-evidence.whw6Vy'\n prior_failed_evidence='/Users/ouyangduning/Documents/project/interesting/.alphapilot-p42a-epoch3-r2-gate-evidence.7ZgHZ5'\n gate='/Users/ouyangduning/Documents/project/interesting/.alphapilot-p42a-epoch3-gate.h1iJnS'\n@@ -12,7 +12,7 @@\n   exit 1\n }\n \n-echo 'schema_version=p4.2a-epoch3-r2-operator-harness-static-check-v1'\n+echo 'schema_version=p4.2a-epoch4-operator-harness-static-check-v1'\n PYTHONDONTWRITEBYTECODE=1 \"$python\" -S -P -B - \"$evidence\" \"$manifest\" <<'PY'\n import hashlib\n import os\n@@ -31,6 +31,7 @@\n     \"gate_module.sh\",\n     \"harness_static_check.sh\",\n     \"junit_validate.py\",\n+    \"landing_report_generator.py\",\n     \"postcheck.py\",\n     \"pre_registered_gate_readback.py\",\n     \"precheck_audit.py\",\n@@ -104,6 +105,7 @@\n   \"$evidence/purpose_precheck.py\" \\\n   \"$evidence/collect_validate.py\" \\\n   \"$evidence/junit_validate.py\" \\\n+  \"$evidence/landing_report_generator.py\" \\\n   \"$evidence/pre_registered_gate_readback.py\" \\\n   \"$evidence/postcheck.py\" <<'PY'\n import ast\n@@ -149,7 +151,7 @@\n echo 'producer_bound_readback_scan=PASS'\n \n if /usr/bin/grep -n -E \\\n-  '4d5d16643bb3618191e4510b7ee3889ae7678cea|55dbe91e92c3816e3af11a99ee1959cb991c1047|alphapilot-p42a-epoch3-gate-evidence\\.whw6Vy|gate-evidence-rerun\\.YFDGXa|expected=.153.|expected=.108.' \\\n+  '4d5d16643bb3618191e4510b7ee3889ae7678cea|55dbe91e92c3816e3af11a99ee1959cb991c1047|d4fb0d8c763b9fa104949ea2ac58bc921d9e8889|bf9f610bda54523d69ecda0a72bf8fe89eaef78c|alphapilot-p42a-epoch3-gate-evidence\\.whw6Vy|gate-evidence-rerun\\.YFDGXa|gate-evidence-rerun2\\.2bUkMK|(^|[^0-9A-Fa-f])152([^0-9A-Fa-f]|$)|(^|[^0-9A-Fa-f])108([^0-9A-Fa-f]|$)' \\\n   \"$evidence/precheck_audit.py\" \\\n   \"$evidence/backup_immutable_verify.py\" \\\n   \"$evidence/purpose_precheck.py\" \\\n@@ -157,8 +159,9 @@\n   \"$evidence/gate_module.sh\" \\\n   \"$evidence/pre_registered_gate_readback.py\" \\\n   \"$evidence/postcheck.py\" \\\n-  \"$evidence/gate_finalize.sh\"; then\n-  fail 'stale epoch3-r1 harness binding remains'\n+  \"$evidence/gate_finalize.sh\" \\\n+  \"$evidence/landing_report_generator.py\"; then\n+  fail 'stale pre-epoch4 harness binding remains'\n fi\n echo 'stale_binding_scan=PASS'\n \n"
+          }
+        },
+        "junit_validate.py": {
+          "after": {
+            "bytes": 2093,
+            "path": "/Users/ouyangduning/Documents/project/interesting/.alphapilot-p42a-epoch4-gate-evidence.9nyuYx/before-after-diffs/junit_validate.py.after.txt",
+            "sha256": "564b75fdbc9b05af79184e74549d352422374111ecf7a3599cc501f1b8d14b7b"
+          },
+          "before": {
+            "bytes": 2093,
+            "path": "/Users/ouyangduning/Documents/project/interesting/.alphapilot-p42a-epoch4-gate-evidence.9nyuYx/before-after-diffs/junit_validate.py.before.txt",
+            "sha256": "a4363265385696786c435bb0ae3a742a1671705615ed085cb3ab4e398369f4c6"
+          },
+          "diff": {
+            "bytes": 375,
+            "path": "/Users/ouyangduning/Documents/project/interesting/.alphapilot-p42a-epoch4-gate-evidence.9nyuYx/before-after-diffs/junit_validate.py.diff",
+            "sha256": "483ffe0e433ad5b3bf394462b2b4beeffc8cfe32fa1bd77fdda7068ea8d78c68",
+            "verbatim_utf8": "--- before/junit_validate.py\n+++ after/junit_validate.py\n@@ -41,7 +41,7 @@\n     print(\n         json.dumps(\n             {\n-                \"schema_version\": \"p4.2a-epoch3-junit-summary-v1\",\n+                \"schema_version\": \"p4.2a-epoch4-junit-summary-v1\",\n                 \"status\": \"PASS_JUNIT_EXACT\",\n                 \"label\": label,\n                 \"path\": str(path),\n"
+          }
+        },
+        "landing_report_generator.py": {
+          "after": {
+            "bytes": 40226,
+            "path": "/Users/ouyangduning/Documents/project/interesting/.alphapilot-p42a-epoch4-gate-evidence.9nyuYx/before-after-diffs/landing_report_generator.py.after.txt",
+            "sha256": "a257834040bddbfa7927e9e6c9741a362167a0deb8ce8cac313ffa54b42720c6"
+          },
+          "before": {
+            "bytes": 26114,
+            "path": "/Users/ouyangduning/Documents/project/interesting/.alphapilot-p42a-epoch4-gate-evidence.9nyuYx/before-after-diffs/landing_report_generator.py.before.txt",
+            "sha256": "ab71374dccc37ad781f4ddf500146b1a56b642540fbdb44d65ddaf94416eb4bc"
+          },
+          "diff": {
+            "bytes": 54917,
+            "path": "/Users/ouyangduning/Documents/project/interesting/.alphapilot-p42a-epoch4-gate-evidence.9nyuYx/before-after-diffs/landing_report_generator.py.diff",
+            "sha256": "ccc97af4e4fda87e82f10e82e1dda784fa0715067408e6e8622626dd31274e4a",
+            "verbatim_utf8": "--- before/landing_report_generator.py\n+++ after/landing_report_generator.py\n@@ -1,79 +1,111 @@\n #!/usr/bin/env python3\n-\"\"\"Generate the post-5791041 epoch-3 r2 landing report on stdout only.\"\"\"\n+\"\"\"Generate the epoch-4 registered-gate landing report on stdout only.\n \n+All gate digests, counts, and durations in the report are derived from the\n+current evidence files. Missing, malformed, inconsistent, or stale evidence\n+is fatal; this generator has no fallback values and writes no file.\n+\"\"\"\n+\n from __future__ import annotations\n \n import argparse\n import hashlib\n import json\n+import math\n+import os\n+import re\n+import stat\n import subprocess\n+import xml.etree.ElementTree as ET\n from datetime import datetime, timezone\n from pathlib import Path\n from typing import Any\n from zoneinfo import ZoneInfo\n \n-# C-6 fourth application: the prearmed filename is derived from the actual\n-# evidence-directory listing and PREARMED_SHA256 bytes below.  It must never be\n-# supplied from memory or copied from the failed inline generator.\n \n EVIDENCE = Path(\n     \"/Users/ouyangduning/Documents/project/interesting/\"\n-    \".alphapilot-p42a-epoch3-r2-gate-evidence-rerun2.2bUkMK\"\n+    \".alphapilot-p42a-epoch4-gate-evidence.9nyuYx\"\n )\n-PRIOR_FAILED = Path(\n+GATE = Path(\n     \"/Users/ouyangduning/Documents/project/interesting/\"\n-    \".alphapilot-p42a-epoch3-r2-gate-evidence.7ZgHZ5\"\n+    \".alphapilot-p42a-epoch3-gate.h1iJnS\"\n )\n-PRIOR_READBACK = Path(\n-    \"/Users/ouyangduning/Documents/project/interesting/\"\n-    \".alphapilot-p42a-epoch3-r2-gate-evidence-rerun.YFDGXa\"\n-)\n REPORT_RELATIVE = (\n     \"docs/phase4/reports/\"\n-    \"P4.2a-v2-2-epoch3-r2-registered-gate-landing-report-20260815.json\"\n+    \"P4.2a-v2-2-epoch4-registered-gate-landing-report-20260819.json\"\n )\n-BASE_COMMIT = \"5791041e7eb48ffc6977752e381b10333bf53358\"\n-REVIEW_COMMIT = \"bf9f610bda54523d69ecda0a72bf8fe89eaef78c\"\n-IMPLEMENTATION_COMMIT = \"d4fb0d8c763b9fa104949ea2ac58bc921d9e8889\"\n-IMPLEMENTATION_PARENT = \"d6c9c353217e00730457bf6b944ff26a32b8cf85\"\n-DISCARDED_MERGE = \"d74978cd64ab1c790804cea51d9aef1a81cef9ca\"\n+REPORT_DATE = \"2026-08-19\"\n+COMPANION_COMMIT = \"8b25d36033791efb4e800182150f4e7cae9ff597\"\n+BASE_COMMIT = \"2c3171e68ce0146c158a294d0e494ae4b618310b\"\n+IMPLEMENTATION_COMMIT = \"890e9002116c625d41f6aa037975df15d1546c56\"\n+REVIEW_COMMIT = \"858f372a8ce56f2556d02d03c46c6fb078b5b476\"\n+REVIEW_SHA256 = (\n+    \"f2fb33db25591662b28aedde0b9bfd0f9151d92186bdd11914010893159c4591\"\n+)\n PREVIOUS_HISTORY_ROOT = (\n     \"076ae961fc149ae271bf5a3724c1677abccfea7139589909ea717a7f4a38083a\"\n )\n-ADJUDICATION_PATH = (\n-    \"docs/phase4/reports/\"\n-    \"P4.2a-epoch3-r2-gate-pass-and-landing-authorization-20260815.json\"\n+COMPANION_PATH = (\n+    \"docs/phase4/reports/P4.2a-epoch4-reanchor-companion-20260818.json\"\n )\n+AUTHORITY_PATH = (\n+    \"docs/phase4/reports/P4.2a-v2-2-epoch4-surface-authority-20260818.json\"\n+)\n REVIEW_PATH = (\n     \"docs/phase4/reports/\"\n-    \"P4.2a-v2-2-epoch3-r2-implementation-independent-review-20260814.json\"\n+    \"P4.2a-v2-2-epoch4-implementation-independent-review-20260818.json\"\n )\n-STALE_PREARMED_NAME = \"harness_static_check.final-prearmed-v4.log\"\n-CORRECT_PREARMED_NAME = \"harness_static_check.final-prearmed.log\"\n-\n-PART_1_DIGESTS = {\n-    \"runner.log\": \"c565537c6db812754ad3310f57ee8a7bc7a1314e9546a3700ee387e412404636\",\n-    \"validator.log\": \"396aad47fa30e7dfe97e778e521f7e9f898aff7f26bb255b617e1eb98eeba683\",\n-    \"runner.junit.xml\": \"6f4b51a755c8b3acf3f729da0b7dd208d634dc028ffc3c3cd4a5d59ce8241523\",\n-    \"validator.junit.xml\": \"ee0ab107c8f07a4187b01aa6df865036aecdaaea9df9235908ed3419a74e4336\",\n-    \"postcheck.json\": \"1ef03fde844fd976743eb7b8a4c541e1902458297204ba9e91abdca3ba3934b9\",\n-    \"HARNESS_SHA256SUMS\": \"ce1ca73e7f4c2e0ce7493d08abbbbc5b69d2dff30f358c62eaf85a629d29650a\",\n-}\n+IMPLEMENTATION_SURFACE = (\n+    (\"scripts/p4_2a_v2_2_heldout_rehearsal.py\", \"M\"),\n+    (\"tests/test_p4_2a_v2_2_heldout_rehearsal_runner.py\", \"M\"),\n+)\n REGISTERED_BLOBS = {\n-    \"scripts/rehearse_p4_2a_v2_2_heldout_full_path.py\":\n-        \"660d6b6e820581eae792e6c04f35b15b30bdb2427d93c3a934af9146f0e044c0\",\n-    \"scripts/p4_2a_v2_2_heldout_rehearsal.py\":\n-        \"75f798b442e3adbddda7db0a01745c2dfb16777b6f1a8c5170b57fe68d3766c8\",\n-    \"scripts/validate_p4_2a_v2_2_heldout_rehearsal_bundle.py\":\n-        \"8c2e34370174122d02232e76314ec7cc092523c8424773891b4cdb8335b53b0d\",\n-    \"tests/test_p4_2a_v2_2_heldout_rehearsal_runner.py\":\n-        \"250d8259a1cd291563726a0d017512ef91e559464498c17aeda27f5e1365246f\",\n-    \"tests/test_p4_2a_v2_2_heldout_rehearsal_validator.py\":\n-        \"fbd7cfedda56bb48f06b1d0438d59ad7d5e635ecc91bf0ca43d2afbfbfd45b13\",\n+    \"scripts/rehearse_p4_2a_v2_2_heldout_full_path.py\": (\n+        \"660d6b6e820581eae792e6c04f35b15b30bdb2427d93c3a934af9146f0e044c0\"\n+    ),\n+    \"scripts/p4_2a_v2_2_heldout_rehearsal.py\": (\n+        \"9318e46e86f9a9a6aa5676a99f000eae4446f000520db261ecef391c30e88d77\"\n+    ),\n+    \"scripts/validate_p4_2a_v2_2_heldout_rehearsal_bundle.py\": (\n+        \"8c2e34370174122d02232e76314ec7cc092523c8424773891b4cdb8335b53b0d\"\n+    ),\n+    \"tests/test_p4_2a_v2_2_heldout_rehearsal_runner.py\": (\n+        \"7209349831a0f1c14d796adf6238ad0b9905b81d5a94b5e273ec4715f417a85a\"\n+    ),\n+    \"tests/test_p4_2a_v2_2_heldout_rehearsal_validator.py\": (\n+        \"fbd7cfedda56bb48f06b1d0438d59ad7d5e635ecc91bf0ca43d2afbfbfd45b13\"\n+    ),\n }\n+EXPECTED_TESTS = {\"runner\": 153, \"validator\": 109}\n+EXPECTED_TOTAL_TESTS = 262\n+GENERATOR_BINDING_NAME = \"landing_report_generator.preflight.sha256\"\n+GATE_MANIFEST_NAME = \"HARNESS_SHA256SUMS.gate-time\"\n+FINAL_MANIFEST_NAME = \"HARNESS_SHA256SUMS\"\n+EXPECTED_CHANGED_HARNESS = (\n+    \"gate_finalize.sh\",\n+    \"gate_module.sh\",\n+    \"harness_static_check.sh\",\n+    \"junit_validate.py\",\n+    \"landing_report_generator.py\",\n+    \"postcheck.py\",\n+    \"pre_registered_gate_readback.py\",\n+    \"precheck_audit.py\",\n+    \"precheck_run.sh\",\n+    \"purpose_precheck.py\",\n+)\n \n \n+def _require(condition: bool, message: str) -> None:\n+    if not condition:\n+        raise AssertionError(message)\n+\n+\n def _bytes(path: Path) -> bytes:\n+    metadata = path.lstat()\n+    _require(not path.is_symlink(), f\"artifact is a symlink: {path}\")\n+    _require(stat.S_ISREG(metadata.st_mode), f\"artifact is not regular: {path}\")\n+    _require(metadata.st_nlink == 1, f\"artifact is hardlinked: {path}\")\n     return path.read_bytes()\n \n \n@@ -82,9 +114,12 @@\n \n \n def _load(path: Path) -> dict[str, Any]:\n-    value = json.loads(_bytes(path))\n-    if not isinstance(value, dict):\n-        raise AssertionError(f\"{path} is not a JSON object\")\n+    payload = _bytes(path)\n+    try:\n+        value = json.loads(payload)\n+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:\n+        raise AssertionError(f\"invalid JSON artifact: {path}\") from exc\n+    _require(isinstance(value, dict), f\"JSON artifact is not an object: {path}\")\n     return value\n \n \n@@ -96,7 +131,10 @@\n         \"bytes\": len(payload),\n     }\n     if verbatim:\n-        result[\"verbatim_utf8\"] = payload.decode(\"utf-8\")\n+        try:\n+            result[\"verbatim_utf8\"] = payload.decode(\"utf-8\")\n+        except UnicodeDecodeError as exc:\n+            raise AssertionError(f\"artifact is not UTF-8: {path}\") from exc\n     return result\n \n \n@@ -115,15 +153,60 @@\n     }\n \n \n-def _git_bytes(root: Path, commit: str, path: str) -> bytes:\n-    return subprocess.check_output(\n-        [\"/usr/bin/git\", \"-C\", str(root), \"show\", f\"{commit}:{path}\"]\n+def _git_environment() -> dict[str, str]:\n+    environment = dict(os.environ)\n+    environment.update(\n+        {\n+            \"GIT_CONFIG_GLOBAL\": \"/dev/null\",\n+            \"GIT_CONFIG_SYSTEM\": \"/dev/null\",\n+            \"GIT_CONFIG_NOSYSTEM\": \"1\",\n+            \"GIT_ATTR_NOSYSTEM\": \"1\",\n+            \"GIT_NO_REPLACE_OBJECTS\": \"1\",\n+            \"GIT_OPTIONAL_LOCKS\": \"0\",\n+        }\n     )\n+    return environment\n \n \n-def _git_artifact(\n-    root: Path, commit: str, path: str, role: str\n-) -> dict[str, Any]:\n+def _git(root: Path, *args: str) -> str:\n+    result = subprocess.run(\n+        [\n+            \"/usr/bin/git\",\n+            \"-c\", \"core.hooksPath=/dev/null\",\n+            \"-c\", \"core.fsmonitor=false\",\n+            \"-c\", \"core.commitGraph=false\",\n+            \"-c\", \"gc.auto=0\",\n+            \"-C\", str(root),\n+            *args,\n+        ],\n+        check=True,\n+        stdout=subprocess.PIPE,\n+        stderr=subprocess.PIPE,\n+        text=True,\n+        env=_git_environment(),\n+    )\n+    return result.stdout\n+\n+\n+def _git_bytes(root: Path, commit: str, path: str) -> bytes:\n+    return subprocess.run(\n+        [\n+            \"/usr/bin/git\",\n+            \"-c\", \"core.hooksPath=/dev/null\",\n+            \"-c\", \"core.fsmonitor=false\",\n+            \"-c\", \"core.commitGraph=false\",\n+            \"-c\", \"gc.auto=0\",\n+            \"-C\", str(root),\n+            \"show\", f\"{commit}:{path}\",\n+        ],\n+        check=True,\n+        stdout=subprocess.PIPE,\n+        stderr=subprocess.PIPE,\n+        env=_git_environment(),\n+    ).stdout\n+\n+\n+def _git_artifact(root: Path, commit: str, path: str, role: str) -> dict[str, Any]:\n     payload = _git_bytes(root, commit, path)\n     return {\n         \"path\": path,\n@@ -134,199 +217,570 @@\n     }\n \n \n-def _log_metadata(path: Path) -> dict[str, Any]:\n-    lines = _bytes(path).decode(\"utf-8\").splitlines()\n-    marker = lines.index(\"--- P4.2A EPOCH3 GATE METADATA ---\")\n-    value = json.loads(lines[marker + 1])\n-    if not isinstance(value, dict):\n-        raise AssertionError(\"gate metadata is not an object\")\n-    return value\n+def _parse_manifest(path: Path) -> tuple[dict[str, str], bytes]:\n+    payload = _bytes(path)\n+    _require(payload.endswith(b\"\\n\"), f\"manifest lacks terminal LF: {path}\")\n+    try:\n+        lines = payload.decode(\"ascii\").splitlines()\n+    except UnicodeDecodeError as exc:\n+        raise AssertionError(f\"manifest is not ASCII: {path}\") from exc\n+    _require(bool(lines), f\"manifest is empty: {path}\")\n+    values: dict[str, str] = {}\n+    for line in lines:\n+        match = re.fullmatch(r\"([0-9a-f]{64})  ([A-Za-z0-9_.-]+)\", line)\n+        _require(match is not None, f\"manifest line is malformed: {line!r}\")\n+        expected, name = match.groups()\n+        _require(name not in values, f\"manifest name is duplicated: {name}\")\n+        values[name] = expected\n+        _require(\n+            _sha256(_bytes(EVIDENCE / name)) == expected,\n+            f\"manifest digest drifted: {name}\",\n+        )\n+    return values, payload\n \n \n-def _prearmed_binding() -> tuple[str, list[str], str]:\n-    listing = sorted(\n-        path.name\n-        for path in EVIDENCE.iterdir()\n-        if path.is_file() and \"prearmed\" in path.name\n+def _harness_bindings() -> dict[str, Any]:\n+    generator_path = Path(__file__).resolve(strict=True)\n+    _require(\n+        generator_path == EVIDENCE / \"landing_report_generator.py\",\n+        \"generator is not running from the registered evidence directory\",\n     )\n-    lines = _bytes(EVIDENCE / \"PREARMED_SHA256\").decode(\"utf-8\").splitlines()\n-    if len(lines) != 1 or \"  \" not in lines[0]:\n-        raise AssertionError(\"PREARMED_SHA256 must contain exactly one binding\")\n-    expected, filename = lines[0].split(\"  \", 1)\n-    if filename not in listing:\n-        raise AssertionError(\"PREARMED_SHA256 filename is not in the actual listing\")\n-    if filename != CORRECT_PREARMED_NAME:\n-        raise AssertionError(f\"unexpected actual prearmed filename: {filename}\")\n-    if STALE_PREARMED_NAME in listing or (EVIDENCE / STALE_PREARMED_NAME).exists():\n-        raise AssertionError(\"stale -v4 prearmed filename unexpectedly exists\")\n-    if _sha256(_bytes(EVIDENCE / filename)) != expected:\n-        raise AssertionError(\"prearmed binding digest drifted\")\n-    return filename, listing, expected\n+    generator_sha = _sha256(_bytes(generator_path))\n+    binding_payload = _bytes(EVIDENCE / GENERATOR_BINDING_NAME)\n+    try:\n+        binding_text = binding_payload.decode(\"ascii\")\n+    except UnicodeDecodeError as exc:\n+        raise AssertionError(\"generator preflight binding is not ASCII\") from exc\n+    binding_match = re.fullmatch(\n+        r\"([0-9a-f]{64})  landing_report_generator\\.py\\n\", binding_text\n+    )\n+    _require(binding_match is not None, \"generator preflight binding shape drifted\")\n+    _require(\n+        binding_match.group(1) == generator_sha,\n+        \"generator bytes differ from the preflight binding\",\n+    )\n+    gate_values, gate_payload = _parse_manifest(EVIDENCE / GATE_MANIFEST_NAME)\n+    final_values, final_payload = _parse_manifest(EVIDENCE / FINAL_MANIFEST_NAME)\n+    _require(\n+        \"landing_report_generator.py\" not in gate_values,\n+        \"gate-time manifest must exclude the report generator\",\n+    )\n+    _require(\n+        final_values.get(\"landing_report_generator.py\") == generator_sha,\n+        \"final harness manifest does not bind the preflighted generator bytes\",\n+    )\n+    _require(\n+        set(final_values) == set(gate_values) | {\"landing_report_generator.py\"},\n+        \"final and gate-time harness manifest member sets drifted\",\n+    )\n+    _require(\n+        all(final_values[name] == digest for name, digest in gate_values.items()),\n+        \"common harness bytes differ between gate-time and final manifests\",\n+    )\n+    return {\n+        \"generator\": _artifact(generator_path),\n+        \"generator_preflight_binding\": _artifact(\n+            EVIDENCE / GENERATOR_BINDING_NAME, verbatim=True\n+        ),\n+        \"gate_time_manifest\": {\n+            **_artifact(EVIDENCE / GATE_MANIFEST_NAME, verbatim=True),\n+            \"entry_count\": len(gate_values),\n+            \"entries\": gate_values,\n+        },\n+        \"final_manifest\": {\n+            **_artifact(EVIDENCE / FINAL_MANIFEST_NAME, verbatim=True),\n+            \"entry_count\": len(final_values),\n+            \"entries\": final_values,\n+        },\n+        \"generator_sha256_equal_preflight_and_final_manifest\": True,\n+        \"common_gate_time_and_final_entries_byte_identical\": True,\n+        \"gate_time_manifest_payload_sha256\": _sha256(gate_payload),\n+        \"final_manifest_payload_sha256\": _sha256(final_payload),\n+    }\n \n \n-def _assert_lineage(root: Path) -> None:\n-    head = subprocess.check_output(\n-        [\"/usr/bin/git\", \"-C\", str(root), \"rev-parse\", \"HEAD\"], text=True\n-    ).strip()\n-    if head != BASE_COMMIT:\n-        raise AssertionError(f\"integration HEAD drifted: {head}\")\n-    for commit, parent in (\n-        (BASE_COMMIT, \"578a62551729e3bdc37ef6f2d2a9851fdf785dbd\"),\n-        (REVIEW_COMMIT, IMPLEMENTATION_COMMIT),\n-        (IMPLEMENTATION_COMMIT, IMPLEMENTATION_PARENT),\n-    ):\n-        row = subprocess.check_output(\n-            [\"/usr/bin/git\", \"-C\", str(root), \"rev-list\", \"--parents\", \"-n\", \"1\", commit],\n-            text=True,\n-        ).strip()\n-        if row != f\"{commit} {parent}\":\n-            raise AssertionError(f\"lineage drifted for {commit}: {row}\")\n-    if (root / REPORT_RELATIVE).exists():\n-        raise AssertionError(\"landing report path already exists\")\n-    for path, expected in REGISTERED_BLOBS.items():\n-        if _sha256(_git_bytes(root, IMPLEMENTATION_COMMIT, path)) != expected:\n-            raise AssertionError(f\"registered blob drifted: {path}\")\n+def _four_file_sha256sums() -> dict[str, Any]:\n+    path = EVIDENCE / \"SHA256SUMS\"\n+    values, _payload = _parse_manifest(path)\n+    expected = {\n+        \"runner.log\",\n+        \"runner.junit.xml\",\n+        \"validator.log\",\n+        \"validator.junit.xml\",\n+    }\n+    _require(set(values) == expected, \"four-file SHA256SUMS member set drifted\")\n+    return {**_artifact(path, verbatim=True), \"entries\": values}\n \n \n-def build_report(root: Path) -> dict[str, Any]:\n-    _assert_lineage(root)\n-    prearmed_name, prearmed_listing, prearmed_sha = _prearmed_binding()\n+def _prearmed_evidence() -> dict[str, Any]:\n+    binding_path = EVIDENCE / \"PREARMED_SHA256\"\n+    payload = _bytes(binding_path)\n+    try:\n+        text = payload.decode(\"ascii\")\n+    except UnicodeDecodeError as exc:\n+        raise AssertionError(\"PREARMED_SHA256 is not ASCII\") from exc\n+    match = re.fullmatch(\n+        r\"([0-9a-f]{64})  ([A-Za-z0-9_.-]*prearmed[A-Za-z0-9_.-]*)\\n\",\n+        text,\n+    )\n+    _require(match is not None, \"PREARMED_SHA256 binding shape drifted\")\n+    expected, name = match.groups()\n+    log_path = EVIDENCE / name\n+    _require(_sha256(_bytes(log_path)) == expected, \"prearmed static log digest drifted\")\n+    return {\n+        \"binding\": _artifact(binding_path, verbatim=True),\n+        \"static_log\": _artifact(log_path),\n+    }\n \n-    purpose = _load(EVIDENCE / \"purpose_precheck.json\")\n-    precheck = _load(EVIDENCE / \"precheck_audit.json\")\n-    postcheck = _load(EVIDENCE / \"postcheck.json\")\n-    backup = _load(EVIDENCE / \"backup_immutable_verify.json\")\n-    runner_summary = _load(EVIDENCE / \"runner.junit-summary.json\")\n-    validator_summary = _load(EVIDENCE / \"validator.junit-summary.json\")\n-    readback = _load(EVIDENCE / \"pre_registered_gate_readback.json\")\n-    runner_meta = _log_metadata(EVIDENCE / \"runner.log\")\n-    validator_meta = _log_metadata(EVIDENCE / \"validator.log\")\n \n-    if runner_summary[\"status\"] != \"PASS_JUNIT_EXACT\":\n-        raise AssertionError(\"runner summary did not pass\")\n-    if runner_summary[\"testcase_count\"] != 152:\n-        raise AssertionError(\"runner testcase count drifted\")\n-    if validator_summary[\"status\"] != \"PASS_JUNIT_EXACT\":\n-        raise AssertionError(\"validator summary did not pass\")\n-    if validator_summary[\"testcase_count\"] != 109:\n-        raise AssertionError(\"validator testcase count drifted\")\n-    if postcheck[\"status\"] != \"PASS_GATE_POSTCHECK\":\n-        raise AssertionError(\"postcheck did not pass\")\n-    if precheck[\"status\"] != \"PASS_PRECHECK_AUDIT\":\n-        raise AssertionError(\"precheck audit did not pass\")\n-    if readback[\"status\"] != \"PASS_PRE_REGISTERED_GATE_READBACK\":\n-        raise AssertionError(\"producer-bound readback did not pass\")\n-    if not (\n-        precheck[\"official_before_fingerprints\"]\n-        == precheck[\"official_after_fingerprints\"]\n-        == postcheck[\"official_fingerprints\"]\n+def _assert_lineage(root: Path) -> dict[str, Any]:\n+    head = _git(root, \"rev-parse\", \"HEAD\").strip()\n+    _require(head == BASE_COMMIT, f\"integration HEAD drifted: {head}\")\n+    _require(\n+        _git(root, \"status\", \"--porcelain=v1\", \"--untracked-files=all\") == \"\",\n+        \"integration worktree is not clean before report generation\",\n+    )\n+    for commit, parent in (\n+        (BASE_COMMIT, COMPANION_COMMIT),\n+        (IMPLEMENTATION_COMMIT, BASE_COMMIT),\n+        (REVIEW_COMMIT, IMPLEMENTATION_COMMIT),\n     ):\n-        raise AssertionError(\"official fingerprints drifted\")\n-    if (\n-        postcheck[\"backup_artifact_inventory_before\"]\n-        != postcheck[\"backup_artifact_inventory_after\"]\n-    ):\n-        raise AssertionError(\"backup inventory drifted\")\n-    if postcheck[\"backup_stamp_before\"] != postcheck[\"backup_stamp_after\"]:\n-        raise AssertionError(\"backup stamp drifted\")\n+        row = _git(root, \"rev-list\", \"--parents\", \"-n\", \"1\", commit).strip()\n+        _require(row == f\"{commit} {parent}\", f\"lineage drifted for {commit}: {row}\")\n+    _require(\n+        _git(root, \"diff\", \"--name-status\", COMPANION_COMMIT, BASE_COMMIT)\n+        == f\"A\\t{AUTHORITY_PATH}\\n\",\n+        \"epoch-4 authority is not the companion's unique status-A child\",\n+    )\n+    expected_surface = \"\".join(\n+        f\"{status}\\t{path}\\n\" for path, status in IMPLEMENTATION_SURFACE\n+    )\n+    _require(\n+        _git(root, \"diff\", \"--name-status\", BASE_COMMIT, IMPLEMENTATION_COMMIT)\n+        == expected_surface,\n+        \"epoch-4 implementation surface is not the exact authorized two M paths\",\n+    )\n+    _require(\n+        _git(root, \"diff\", \"--name-status\", IMPLEMENTATION_COMMIT, REVIEW_COMMIT)\n+        == f\"A\\t{REVIEW_PATH}\\n\",\n+        \"epoch-4 review is not the implementation's unique status-A child\",\n+    )\n+    _require(\n+        _git(root, \"merge-base\", BASE_COMMIT, REVIEW_COMMIT).strip() == BASE_COMMIT,\n+        \"planned landing parents do not have the authority commit as merge base\",\n+    )\n+    _require(not (root / REPORT_RELATIVE).exists(), \"landing report path already exists\")\n \n-    for name, expected in PART_1_DIGESTS.items():\n-        path = (\n-            EVIDENCE / \"HARNESS_SHA256SUMS.gate-time\"\n-            if name == \"HARNESS_SHA256SUMS\"\n-            else EVIDENCE / name\n+    authority_payload = _git_bytes(root, BASE_COMMIT, AUTHORITY_PATH)\n+    authority = json.loads(authority_payload)\n+    _require(\n+        authority == {\n+            \"schema_version\": \"p4.2a-v2-2-implementation-epoch-surface-authorization-v1\",\n+            \"verdict\": \"APPROVE_EXACT_V2_2_IMPLEMENTATION_EPOCH_SURFACE\",\n+            \"owner\": {\"identity\": \"ouyang\", \"approved\": True},\n+            \"implementation_epoch\": 4,\n+            \"base_commit\": COMPANION_COMMIT,\n+            \"exact_surface\": [\n+                {\"path\": path, \"status\": status}\n+                for path, status in IMPLEMENTATION_SURFACE\n+            ],\n+        },\n+        \"epoch-4 six-field authority semantics drifted\",\n+    )\n+    companion = json.loads(_git_bytes(root, COMPANION_COMMIT, COMPANION_PATH))\n+    _require(\n+        companion.get(\"part_2_owner_approval\", {}).get(\"approved_by\")\n+        == \"owner (ouyang), in person\",\n+        \"epoch-4 companion owner approval binding drifted\",\n+    )\n+    review_payload = _git_bytes(root, REVIEW_COMMIT, REVIEW_PATH)\n+    _require(_sha256(review_payload) == REVIEW_SHA256, \"epoch-4 review bytes drifted\")\n+    review = json.loads(review_payload)\n+    _require(\n+        review.get(\"verdict\") == \"APPROVE_EPOCH4_IMPLEMENTATION\"\n+        and review.get(\"blockers\") == []\n+        and review.get(\"reviewed_commit\") == IMPLEMENTATION_COMMIT,\n+        \"epoch-4 independent review semantics drifted\",\n+    )\n+    observed_blobs = {\n+        path: _sha256(_git_bytes(root, IMPLEMENTATION_COMMIT, path))\n+        for path in REGISTERED_BLOBS\n+    }\n+    _require(observed_blobs == REGISTERED_BLOBS, \"registered blob surface drifted\")\n+    return {\n+        \"companion\": {\n+            **_git_artifact(root, COMPANION_COMMIT, COMPANION_PATH, \"CURRENT_EPOCH4_COMPANION\"),\n+            \"owner_approval_binding\": companion[\"part_2_owner_approval\"],\n+        },\n+        \"machine_surface_authority\": {\n+            **_git_artifact(root, BASE_COMMIT, AUTHORITY_PATH, \"CURRENT_EPOCH4_MACHINE_AUTHORITY\"),\n+            \"document\": authority,\n+        },\n+        \"implementation_commit\": IMPLEMENTATION_COMMIT,\n+        \"implementation_parent\": BASE_COMMIT,\n+        \"implementation_surface\": [\n+            {\"path\": path, \"status\": status} for path, status in IMPLEMENTATION_SURFACE\n+        ],\n+        \"implementation_is_direct_single_parent_child\": True,\n+        \"registered_blob_sha256\": observed_blobs,\n+        \"independent_review\": {\n+            **_git_artifact(root, REVIEW_COMMIT, REVIEW_PATH, \"CURRENT_EPOCH4_IMPLEMENTATION_REVIEW\"),\n+            \"parent\": IMPLEMENTATION_COMMIT,\n+            \"unique_status_a\": True,\n+            \"verdict\": review[\"verdict\"],\n+            \"blockers\": review[\"blockers\"],\n+            \"reviewer_full_module_evidence\": review[\"part_3_reviewer_run_evidence\"],\n+        },\n+    }\n+\n+\n+def _parse_utc(value: Any, field: str) -> datetime:\n+    _require(isinstance(value, str), f\"{field} is not a string\")\n+    try:\n+        return datetime.strptime(value, \"%Y-%m-%dT%H:%M:%SZ\").replace(\n+            tzinfo=timezone.utc\n         )\n-        if _sha256(_bytes(path)) != expected:\n-            raise AssertionError(f\"5791041 part_1 digest drifted: {name}\")\n+    except ValueError as exc:\n+        raise AssertionError(f\"{field} is not canonical UTC\") from exc\n \n-    adjudication = _load(\n-        root / ADJUDICATION_PATH\n+\n+def _log_metadata(path: Path, label: str) -> tuple[dict[str, Any], float]:\n+    try:\n+        text = _bytes(path).decode(\"utf-8\")\n+    except UnicodeDecodeError as exc:\n+        raise AssertionError(f\"gate log is not UTF-8: {path}\") from exc\n+    marker = \"--- P4.2A EPOCH4 GATE METADATA ---\"\n+    _require(text.count(marker) == 1, f\"{label} gate metadata marker count drifted\")\n+    before, after = text.split(marker)\n+    metadata_lines = after.strip().splitlines()\n+    _require(len(metadata_lines) == 1, f\"{label} gate metadata tail is malformed\")\n+    try:\n+        metadata = json.loads(metadata_lines[0])\n+    except json.JSONDecodeError as exc:\n+        raise AssertionError(f\"{label} gate metadata JSON is invalid\") from exc\n+    _require(isinstance(metadata, dict), f\"{label} gate metadata is not an object\")\n+    expected = EXPECTED_TESTS[label]\n+    _require(\n+        metadata.get(\"schema_version\") == \"p4.2a-epoch4-full-gate-module-metadata-v1\"\n+        and metadata.get(\"label\") == label\n+        and metadata.get(\"expected_tests\") == expected\n+        and metadata.get(\"start_head\") == IMPLEMENTATION_COMMIT\n+        and metadata.get(\"end_head\") == IMPLEMENTATION_COMMIT\n+        and metadata.get(\"cwd\") == str(GATE)\n+        and metadata.get(\"inherited_nice\") == 10\n+        and metadata.get(\"exit_code\") == 0,\n+        f\"{label} gate metadata semantics drifted\",\n     )\n-    if adjudication[\"verdict\"] != \"GATE_PASSED_LANDING_AUTHORIZED\":\n-        raise AssertionError(\"5791041 adjudication verdict drifted\")\n-    recorded = adjudication[\"part_1_gate_result\"][\n-        \"evidence_digests_recomputed_by_reviewer\"\n+    module = (\n+        \"tests/test_p4_2a_v2_2_heldout_rehearsal_runner.py\"\n+        if label == \"runner\"\n+        else \"tests/test_p4_2a_v2_2_heldout_rehearsal_validator.py\"\n+    )\n+    junit_path = EVIDENCE / f\"{label}.junit.xml\"\n+    expected_python_argv = [\n+        \"/Users/ouyangduning/Documents/project/interesting/AlphaPilot-AI/.venv/bin/python\",\n+        \"-B\",\n+        \"-m\",\n+        \"pytest\",\n+        module,\n+        f\"--junitxml={junit_path}\",\n     ]\n-    if recorded != PART_1_DIGESTS:\n-        raise AssertionError(\"5791041 part_1 six-digest summary drifted\")\n+    _require(\n+        metadata.get(\"python_argv\") == expected_python_argv\n+        and metadata.get(\"exact_exec_argv\")\n+        == [\n+            \"/usr/bin/env\",\n+            \"-u\",\n+            \"PYTEST_ADDOPTS\",\n+            \"PYTHONDONTWRITEBYTECODE=1\",\n+            \"/usr/bin/nice\",\n+            \"-n\",\n+            \"10\",\n+            *expected_python_argv,\n+        ],\n+        f\"{label} exact invocation drifted\",\n+    )\n+    wall = metadata.get(\"wall_seconds\")\n+    _require(\n+        isinstance(wall, int) and not isinstance(wall, bool) and wall >= 0,\n+        f\"{label} wall is invalid\",\n+    )\n+    started = _parse_utc(metadata.get(\"start_utc\"), f\"{label}.start_utc\")\n+    ended = _parse_utc(metadata.get(\"end_utc\"), f\"{label}.end_utc\")\n+    _require(\n+        int((ended - started).total_seconds()) == wall,\n+        f\"{label} wall does not match timestamps\",\n+    )\n+    duration_matches = re.findall(\n+        rf\"(?m)^(?:=+\\s+)?{expected} passed in \"\n+        rf\"([0-9]+(?:\\.[0-9]+)?)s(?: \\([^)]+\\))?(?:\\s+=+)?\\s*$\",\n+        before,\n+    )\n+    _require(\n+        len(duration_matches) == 1,\n+        f\"{label} pytest duration is absent or ambiguous\",\n+    )\n+    pytest_seconds = float(duration_matches[0])\n+    _require(\n+        math.isfinite(pytest_seconds) and pytest_seconds >= 0,\n+        f\"{label} pytest duration is invalid\",\n+    )\n+    return metadata, pytest_seconds\n \n+\n+def _junit_metrics(path: Path, label: str) -> dict[str, Any]:\n+    try:\n+        root = ET.fromstring(_bytes(path))\n+    except ET.ParseError as exc:\n+        raise AssertionError(f\"{label} JUnit XML is invalid\") from exc\n+    suites = [root] if root.tag == \"testsuite\" else list(root.findall(\"testsuite\"))\n+    _require(bool(suites), f\"{label} JUnit has no testsuite\")\n+    try:\n+        totals = {\n+            key: sum(int(suite.attrib.get(key, \"0\")) for suite in suites)\n+            for key in (\"tests\", \"failures\", \"errors\", \"skipped\", \"disabled\")\n+        }\n+    except ValueError as exc:\n+        raise AssertionError(f\"{label} JUnit totals are malformed\") from exc\n+    expected = EXPECTED_TESTS[label]\n+    cases = list(root.iter(\"testcase\"))\n+    _require(\n+        totals[\"tests\"] == expected and len(cases) == expected,\n+        f\"{label} JUnit count drifted\",\n+    )\n+    _require(\n+        all(totals[key] == 0 for key in (\"failures\", \"errors\", \"skipped\", \"disabled\")),\n+        f\"{label} JUnit is not all-pass\",\n+    )\n+    testcase_seconds: list[float] = []\n+    for index, case in enumerate(cases):\n+        raw = case.attrib.get(\"time\")\n+        _require(raw is not None, f\"{label} JUnit testcase {index} lacks time\")\n+        try:\n+            value = float(raw)\n+        except ValueError as exc:\n+            raise AssertionError(\n+                f\"{label} JUnit testcase {index} time is invalid\"\n+            ) from exc\n+        _require(\n+            math.isfinite(value) and value >= 0,\n+            f\"{label} JUnit testcase {index} time is invalid\",\n+        )\n+        testcase_seconds.append(value)\n+    return {\n+        \"totals\": totals,\n+        \"testcase_count\": len(cases),\n+        \"all_testcase_times_finite_nonnegative\": True,\n+        \"testcase_time_seconds_sum\": math.fsum(testcase_seconds),\n+    }\n+\n+\n+def _module_evidence(label: str) -> dict[str, Any]:\n+    expected = EXPECTED_TESTS[label]\n+    log_path = EVIDENCE / f\"{label}.log\"\n+    junit_path = EVIDENCE / f\"{label}.junit.xml\"\n+    summary_path = EVIDENCE / f\"{label}.junit-summary.json\"\n+    summary = _load(summary_path)\n+    junit = _junit_metrics(junit_path, label)\n+    metadata, pytest_seconds = _log_metadata(log_path, label)\n+    _require(\n+        summary.get(\"schema_version\") == \"p4.2a-epoch4-junit-summary-v1\"\n+        and summary.get(\"status\") == \"PASS_JUNIT_EXACT\"\n+        and summary.get(\"label\") == label\n+        and summary.get(\"testcase_count\") == expected\n+        and summary.get(\"totals\") == junit[\"totals\"]\n+        and summary.get(\"all_testcases_have_nonnegative_time\") is True,\n+        f\"{label} JUnit summary does not match the actual XML\",\n+    )\n+    summary_xml_path = summary.get(\"path\")\n+    _require(isinstance(summary_xml_path, str), f\"{label} summary path is invalid\")\n+    _require(\n+        Path(summary_xml_path).resolve(strict=True) == junit_path.resolve(strict=True),\n+        f\"{label} summary is bound to a different JUnit file\",\n+    )\n+    return {\n+        \"full_log_verbatim_utf8\": _bytes(log_path).decode(\"utf-8\"),\n+        \"log\": _artifact(log_path),\n+        \"junit\": _artifact(junit_path),\n+        \"junit_summary_artifact\": _artifact(summary_path),\n+        \"junit_summary\": summary,\n+        \"junit_independent_parse\": junit,\n+        \"metadata\": metadata,\n+        \"pytest_reported_seconds\": pytest_seconds,\n+        \"wrapper_wall_seconds\": metadata[\"wall_seconds\"],\n+    }\n+\n+\n+def _change_archive() -> dict[str, Any]:\n+    archive = EVIDENCE / \"before-after-diffs\"\n+    _require(\n+        archive.is_dir() and not archive.is_symlink(),\n+        \"change archive is absent or aliased\",\n+    )\n+    expected_names = {\n+        f\"{script}.{suffix}\"\n+        for script in EXPECTED_CHANGED_HARNESS\n+        for suffix in (\"before.txt\", \"after.txt\", \"diff\")\n+    }\n+    actual_names = {path.name for path in archive.iterdir() if path.is_file()}\n+    _require(actual_names == expected_names, \"change archive member set drifted\")\n+    scripts: dict[str, Any] = {}\n+    for script in EXPECTED_CHANGED_HARNESS:\n+        before = archive / f\"{script}.before.txt\"\n+        after = archive / f\"{script}.after.txt\"\n+        diff = archive / f\"{script}.diff\"\n+        _require(\n+            _bytes(after) == _bytes(EVIDENCE / script),\n+            f\"archived after bytes drifted: {script}\",\n+        )\n+        _require(len(_bytes(diff)) > 0, f\"archived diff is empty: {script}\")\n+        scripts[script] = {\n+            \"before\": _artifact(before),\n+            \"after\": _artifact(after),\n+            \"diff\": _artifact(diff, verbatim=True),\n+        }\n+    record_path = EVIDENCE / \"epoch4-harness-unfreeze-change-record.json\"\n+    return {\n+        \"authorized_script_count\": len(EXPECTED_CHANGED_HARNESS),\n+        \"scripts\": scripts,\n+        \"change_record\": {\n+            **_artifact(record_path),\n+            \"document\": _load(record_path),\n+        },\n+    }\n+\n+\n+def build_report(root: Path) -> dict[str, Any]:\n+    lineage = _assert_lineage(root)\n+    harness = _harness_bindings()\n+    purpose = _load(EVIDENCE / \"purpose_precheck.json\")\n+    precheck = _load(EVIDENCE / \"precheck_audit.json\")\n+    postcheck = _load(EVIDENCE / \"postcheck.json\")\n+    backup = _load(EVIDENCE / \"backup_immutable_verify.json\")\n+    readback = _load(EVIDENCE / \"pre_registered_gate_readback.json\")\n+    signal_probe = _load(EVIDENCE / \"signal_probe.json\")\n+    runner_collect = _load(EVIDENCE / \"runner.collect-summary.json\")\n+    validator_collect = _load(EVIDENCE / \"validator.collect-summary.json\")\n+    runner = _module_evidence(\"runner\")\n+    validator = _module_evidence(\"validator\")\n+\n+    _require(\n+        purpose.get(\"status\") == \"PASS_PURPOSE_FORM_RUNTIME_PRECHECK\",\n+        \"purpose precheck did not pass\",\n+    )\n+    _require(precheck.get(\"status\") == \"PASS_PRECHECK_AUDIT\", \"precheck audit did not pass\")\n+    _require(postcheck.get(\"status\") == \"PASS_GATE_POSTCHECK\", \"postcheck did not pass\")\n+    _require(\n+        backup.get(\"status\") == \"PASS_IMMUTABLE_BACKUP_VERIFY\",\n+        \"backup verification did not pass\",\n+    )\n+    _require(\n+        readback.get(\"status\") == \"PASS_PRE_REGISTERED_GATE_READBACK\",\n+        \"gate readback did not pass\",\n+    )\n+    _require(\n+        signal_probe.get(\"status\") == \"PASS_FOREGROUND_NICE_SIGNAL_PROBE\",\n+        \"signal probe did not pass\",\n+    )\n+    _require(\n+        runner_collect.get(\"status\") == \"PASS_COLLECT_ONLY\"\n+        and runner_collect.get(\"tests\") == EXPECTED_TESTS[\"runner\"],\n+        \"runner collect-only evidence drifted\",\n+    )\n+    _require(\n+        validator_collect.get(\"status\") == \"PASS_COLLECT_ONLY\"\n+        and validator_collect.get(\"tests\") == EXPECTED_TESTS[\"validator\"],\n+        \"validator collect-only evidence drifted\",\n+    )\n+    _require(\n+        precheck.get(\"official_before_fingerprints\")\n+        == precheck.get(\"official_after_fingerprints\")\n+        == postcheck.get(\"official_fingerprints\"),\n+        \"official registered fingerprints drifted across the gate\",\n+    )\n+    _require(\n+        postcheck.get(\"head\") == IMPLEMENTATION_COMMIT\n+        and postcheck.get(\"gate_clean\") is True,\n+        \"postcheck gate state drifted\",\n+    )\n+    _require(postcheck.get(\"temporary_authorities\") == [], \"temporary authority residue exists\")\n+    _require(\n+        postcheck.get(\"backup_artifact_inventory_before\")\n+        == postcheck.get(\"backup_artifact_inventory_after\")\n+        and postcheck.get(\"no_new_backup_artifacts\") is True\n+        and postcheck.get(\"backup_artifacts_unchanged\") is True,\n+        \"backup artifact inventory changed during the gate\",\n+    )\n+    _require(\n+        postcheck.get(\"backup_stamp_before\") == postcheck.get(\"backup_stamp_after\")\n+        and postcheck.get(\"backup_stamp_unchanged\") is True,\n+        \"backup success stamp changed during the gate\",\n+    )\n+    _require(\n+        readback.get(\"runner_tests\") == EXPECTED_TESTS[\"runner\"]\n+        and readback.get(\"validator_tests\") == EXPECTED_TESTS[\"validator\"]\n+        and readback.get(\"next_ordinal\") == 2\n+        and readback.get(\"previous_history_root_sha256\") == PREVIOUS_HISTORY_ROOT,\n+        \"pre-registered gate readback bindings drifted\",\n+    )\n+\n+    runner_end = _parse_utc(runner[\"metadata\"][\"end_utc\"], \"runner.end_utc\")\n+    validator_start = _parse_utc(\n+        validator[\"metadata\"][\"start_utc\"], \"validator.start_utc\"\n+    )\n+    _require(validator_start >= runner_end, \"runner and validator were not sequential\")\n+    gate_start = _parse_utc(runner[\"metadata\"][\"start_utc\"], \"runner.start_utc\")\n+    gate_end = _parse_utc(validator[\"metadata\"][\"end_utc\"], \"validator.end_utc\")\n+    process_envelope_seconds = int((gate_end - gate_start).total_seconds())\n+    _require(process_envelope_seconds >= 0, \"gate process envelope is negative\")\n+\n+    total_tests = (\n+        runner[\"junit_independent_parse\"][\"totals\"][\"tests\"]\n+        + validator[\"junit_independent_parse\"][\"totals\"][\"tests\"]\n+    )\n+    _require(total_tests == EXPECTED_TOTAL_TESTS, \"combined gate test count drifted\")\n+    gate_digest_summary = {\n+        \"runner.log\": runner[\"log\"][\"sha256\"],\n+        \"validator.log\": validator[\"log\"][\"sha256\"],\n+        \"runner.junit.xml\": runner[\"junit\"][\"sha256\"],\n+        \"validator.junit.xml\": validator[\"junit\"][\"sha256\"],\n+        \"postcheck.json\": _artifact(EVIDENCE / \"postcheck.json\")[\"sha256\"],\n+        GATE_MANIFEST_NAME: harness[\"gate_time_manifest\"][\"sha256\"],\n+    }\n+    derived_summary_digests = {\n+        \"runner.junit-summary.json\": runner[\"junit_summary_artifact\"][\"sha256\"],\n+        \"validator.junit-summary.json\": validator[\"junit_summary_artifact\"][\"sha256\"],\n+        \"runner.collect-summary.json\": _artifact(\n+            EVIDENCE / \"runner.collect-summary.json\"\n+        )[\"sha256\"],\n+        \"validator.collect-summary.json\": _artifact(\n+            EVIDENCE / \"validator.collect-summary.json\"\n+        )[\"sha256\"],\n+        \"pre_registered_gate_readback.json\": _artifact(\n+            EVIDENCE / \"pre_registered_gate_readback.json\"\n+        )[\"sha256\"],\n+    }\n     now_utc = datetime.now(timezone.utc).replace(microsecond=0)\n     now_shanghai = now_utc.astimezone(ZoneInfo(\"Asia/Shanghai\"))\n-    if now_shanghai.date().isoformat() != \"2026-08-15\":\n-        raise AssertionError(\"landing report date crossed Shanghai day\")\n-\n-    current_manifest = _artifact(EVIDENCE / \"HARNESS_SHA256SUMS\", verbatim=True)\n-    gate_manifest = _artifact(\n-        EVIDENCE / \"HARNESS_SHA256SUMS.gate-time\", verbatim=True\n+    _require(\n+        now_shanghai.date().isoformat() == REPORT_DATE,\n+        \"landing report Shanghai date drifted\",\n     )\n-    generator = _artifact(Path(__file__).resolve())\n-    if \"landing_report_generator.py\" not in current_manifest[\"verbatim_utf8\"]:\n-        raise AssertionError(\"post-adjudication manifest does not bind generator\")\n \n     return {\n-        \"schema_version\": (\n-            \"p4.2a-v2-2-epoch3-r2-registered-gate-landing-report-v2\"\n-        ),\n-        \"report_id\": (\n-            \"P4.2A-V2-2-EPOCH3-R2-REGISTERED-GATE-LANDING-20260815-R2\"\n-        ),\n+        \"schema_version\": \"p4.2a-v2-2-epoch4-registered-gate-landing-report-v1\",\n+        \"report_id\": \"P4.2A-V2-2-EPOCH4-REGISTERED-GATE-LANDING-20260819\",\n         \"created_at_utc\": now_utc.isoformat().replace(\"+00:00\", \"Z\"),\n         \"created_at_shanghai\": now_shanghai.isoformat(),\n         \"status\": \"PASS_REGISTERED_GATE_LANDING_REPORT_READY_BEFORE_MERGE\",\n         \"scope\": {\n-            \"implementation_epoch\": 3,\n+            \"implementation_epoch\": 4,\n             \"implementation_commit\": IMPLEMENTATION_COMMIT,\n             \"ordinal_2_disposition\": \"NEW_DISCLOSED_ATTEMPT_NOT_A_RETRY\",\n             \"report_path\": REPORT_RELATIVE,\n             \"report_is_attempt_execution_authority\": False,\n         },\n-        \"adjudication_5791041\": {\n-            **_git_artifact(\n-                root,\n-                BASE_COMMIT,\n-                ADJUDICATION_PATH,\n-                \"GATE_PASS_AND_LANDING_AUTHORIZATION\",\n-            ),\n-            \"verdict\": adjudication[\"verdict\"],\n-            \"part_1_six_digest_summary\": PART_1_DIGESTS,\n-            \"runner_summary\": adjudication[\"part_1_gate_result\"][\"runner\"],\n-            \"validator_summary\": adjudication[\"part_1_gate_result\"][\"validator\"],\n-            \"junit_summary\": adjudication[\"part_1_gate_result\"][\n-                \"junit_totals_verified_by_reviewer\"\n-            ],\n-        },\n-        \"generator_correction\": {\n-            \"classification\": \"OPERATOR_TOOL_PATH_ERROR_ZERO_CONSUMPTION\",\n-            \"c6_application\": \"FOURTH\",\n-            \"actual_prearmed_listing\": prearmed_listing,\n-            \"prearmed_filename_from_PREARMED_SHA256\": prearmed_name,\n-            \"prearmed_sha256\": prearmed_sha,\n-            \"stale_literal_rejected\": STALE_PREARMED_NAME,\n-            \"corrected_literal\": CORRECT_PREARMED_NAME,\n-            \"generator\": generator,\n-            \"gate_time_harness_manifest\": gate_manifest,\n-            \"post_adjudication_harness_manifest\": current_manifest,\n-            \"eleven_existing_py_sh_files_byte_locked\": True,\n-            \"automation_heartbeat_prompt_byte_locked\": True,\n-        },\n-        \"candidate_lineage\": {\n-            \"owner_surface_authority_commit\": IMPLEMENTATION_PARENT,\n-            \"implementation_commit\": IMPLEMENTATION_COMMIT,\n-            \"implementation_parent\": IMPLEMENTATION_PARENT,\n-            \"implementation_is_direct_single_parent_child\": True,\n-            \"registered_blob_sha256\": REGISTERED_BLOBS,\n-            \"independent_review\": {\n-                \"commit\": REVIEW_COMMIT,\n-                \"parent\": IMPLEMENTATION_COMMIT,\n-                \"path\": REVIEW_PATH,\n-                \"sha256\": (\n-                    \"590d6b6b24bb6672956ea320a21458aa10523514ec384586029f09ef2cf757ef\"\n-                ),\n-                \"unique_status_a\": True,\n-                \"verdict\": \"APPROVE_EPOCH3_IMPLEMENTATION\",\n-                \"blockers\": [],\n-            },\n-        },\n+        \"candidate_lineage\": lineage,\n         \"pre_registered_gate\": {\n             \"terminal_status\": \"PASS_ALL_PRECHECKS\",\n             \"backup_immutable_verify\": {\n@@ -341,14 +795,17 @@\n                 **_artifact(EVIDENCE / \"precheck_audit.json\"),\n                 \"status\": precheck[\"status\"],\n             },\n-            \"foreground_signal_probe\": _artifact(EVIDENCE / \"signal_probe.json\"),\n+            \"foreground_signal_probe\": {\n+                **_artifact(EVIDENCE / \"signal_probe.json\"),\n+                \"document\": signal_probe,\n+            },\n             \"runner_collect\": {\n                 **_artifact(EVIDENCE / \"runner.collect-summary.json\"),\n-                \"tests\": 152,\n+                \"document\": runner_collect,\n             },\n             \"validator_collect\": {\n                 **_artifact(EVIDENCE / \"validator.collect-summary.json\"),\n-                \"tests\": 109,\n+                \"document\": validator_collect,\n             },\n             \"producer_bound_readback\": {\n                 **_artifact(EVIDENCE / \"pre_registered_gate_readback.json\"),\n@@ -357,60 +814,43 @@\n             },\n         },\n         \"full_registered_gate\": {\n-            \"runner\": {\n-                \"full_log_verbatim_utf8\": _bytes(EVIDENCE / \"runner.log\").decode(\n-                    \"utf-8\"\n-                ),\n-                \"log\": _artifact(EVIDENCE / \"runner.log\"),\n-                \"junit\": _artifact(EVIDENCE / \"runner.junit.xml\"),\n-                \"junit_summary\": runner_summary,\n-                \"metadata\": runner_meta,\n-                \"pytest_reported_seconds\": 6878.33,\n-                \"wrapper_wall_seconds\": 6879,\n-            },\n-            \"validator\": {\n-                \"full_log_verbatim_utf8\": _bytes(\n-                    EVIDENCE / \"validator.log\"\n-                ).decode(\"utf-8\"),\n-                \"log\": _artifact(EVIDENCE / \"validator.log\"),\n-                \"junit\": _artifact(EVIDENCE / \"validator.junit.xml\"),\n-                \"junit_summary\": validator_summary,\n-                \"metadata\": validator_meta,\n-                \"pytest_reported_seconds\": 2094.82,\n-                \"wrapper_wall_seconds\": 2100,\n-            },\n+            \"gate_digest_summary_recomputed_from_current_files\": gate_digest_summary,\n+            \"derived_summary_digests_recomputed_from_current_files\": derived_summary_digests,\n+            \"runner\": runner,\n+            \"validator\": validator,\n             \"totals\": {\n-                \"tests\": 261,\n+                \"tests\": total_tests,\n                 \"failures\": 0,\n                 \"errors\": 0,\n                 \"skipped\": 0,\n                 \"disabled\": 0,\n                 \"all_testcase_times_finite_nonnegative\": True,\n-                \"module_wall_seconds_sum\": 8979,\n-                \"pytest_reported_seconds_sum\": 8973.15,\n-                \"process_envelope_seconds\": 8998,\n+                \"junit_testcase_time_seconds_sum\": (\n+                    runner[\"junit_independent_parse\"][\"testcase_time_seconds_sum\"]\n+                    + validator[\"junit_independent_parse\"][\"testcase_time_seconds_sum\"]\n+                ),\n+                \"module_wall_seconds_sum\": (\n+                    runner[\"wrapper_wall_seconds\"] + validator[\"wrapper_wall_seconds\"]\n+                ),\n+                \"pytest_reported_seconds_sum\": (\n+                    runner[\"pytest_reported_seconds\"]\n+                    + validator[\"pytest_reported_seconds\"]\n+                ),\n+                \"process_envelope_seconds\": process_envelope_seconds,\n+                \"modules_ran_sequentially\": True,\n             },\n         },\n         \"harness_evidence\": {\n-            \"gate_time_harness_sha256sums\": gate_manifest,\n-            \"post_adjudication_harness_sha256sums\": current_manifest,\n-            \"prearmed_sha256\": _artifact(\n-                EVIDENCE / \"PREARMED_SHA256\", verbatim=True\n-            ),\n-            \"prearmed_static_log\": _artifact(EVIDENCE / prearmed_name),\n+            **harness,\n+            \"authorized_before_after_diff_archive\": _change_archive(),\n+            \"prearmed\": _prearmed_evidence(),\n             \"armed_static_log\": _artifact(\n                 EVIDENCE / \"harness_static_check.armed.log\"\n             ),\n-            \"prearmed_equals_armed\": (\n-                _bytes(EVIDENCE / prearmed_name)\n-                == _bytes(EVIDENCE / \"harness_static_check.armed.log\")\n-            ),\n             \"postgate_static_log\": _artifact(\n                 EVIDENCE / \"harness_freeze.postgate.log\"\n             ),\n-            \"four_file_sha256sums\": _artifact(\n-                EVIDENCE / \"SHA256SUMS\", verbatim=True\n-            ),\n+            \"four_file_sha256sums\": _four_file_sha256sums(),\n         },\n         \"operational_safety\": {\n             \"purpose_form_source\": {\n@@ -438,24 +878,20 @@\n                 \"inventory_before\": postcheck[\n                     \"backup_artifact_inventory_before\"\n                 ],\n-                \"inventory_after\": postcheck[\n-                    \"backup_artifact_inventory_after\"\n-                ],\n+                \"inventory_after\": postcheck[\"backup_artifact_inventory_after\"],\n                 \"inventory_canonical\": _canonical_info(\n                     postcheck[\"backup_artifact_inventory_before\"]\n                 ),\n-                \"no_new_backup_artifacts\": postcheck[\n-                    \"no_new_backup_artifacts\"\n-                ],\n+                \"no_new_backup_artifacts\": postcheck[\"no_new_backup_artifacts\"],\n                 \"stamp_before\": postcheck[\"backup_stamp_before\"],\n                 \"stamp_after\": postcheck[\"backup_stamp_after\"],\n                 \"stamp_unchanged\": postcheck[\"backup_stamp_unchanged\"],\n-                \"next_real_backup_window_cst\": purpose[\n-                    \"backup_purpose_form\"\n-                ][\"next_real_window_start_cst\"],\n-                \"four_hour_gate_upper_bound_cst\": purpose[\n-                    \"backup_purpose_form\"\n-                ][\"projected_gate_completion_with_four_hour_bound_cst\"],\n+                \"next_real_backup_window_cst\": purpose[\"backup_purpose_form\"][\n+                    \"next_real_window_start_cst\"\n+                ],\n+                \"four_hour_gate_upper_bound_cst\": purpose[\"backup_purpose_form\"][\n+                    \"projected_gate_completion_with_four_hour_bound_cst\"\n+                ],\n                 \"window_overlap\": purpose[\"backup_purpose_form\"][\n                     \"window_overlap\"\n                 ],\n@@ -497,107 +933,55 @@\n             \"gate_clean\": postcheck[\"gate_clean\"],\n             \"gate_head\": postcheck[\"head\"],\n         },\n-        \"prior_disclosed_stops\": {\n-            \"process_state_race_lineage\": {\n-                **_artifact(\n-                    EVIDENCE / \"prior-disclosed-run-appendix-lineage.json\"\n-                ),\n-                \"document\": _load(\n-                    EVIDENCE / \"prior-disclosed-run-appendix-lineage.json\"\n-                ),\n-            },\n-            \"readback_literal_lineage\": {\n-                **_artifact(\n-                    EVIDENCE / \"prior-readback-stop-appendix-lineage.json\"\n-                ),\n-                \"document\": _load(\n-                    EVIDENCE / \"prior-readback-stop-appendix-lineage.json\"\n-                ),\n-            },\n-            \"appendices_verbatim\": [\n-                {\n-                    **_artifact(PRIOR_FAILED / \"precheck_run.log\", verbatim=True),\n-                    \"classification\": (\n-                        \"BLOCKED_PURPOSE_FORM_PROCESS_STATE_RACE_\"\n-                        \"ZERO_REGISTERED_EFFECT\"\n-                    ),\n-                },\n-                {\n-                    **_artifact(\n-                        PRIOR_FAILED / \"precheck-failure-summary.json\",\n-                        verbatim=True,\n-                    ),\n-                    \"classification\": (\n-                        \"BLOCKED_PURPOSE_FORM_PROCESS_STATE_RACE_\"\n-                        \"ZERO_REGISTERED_EFFECT\"\n-                    ),\n-                },\n-                {\n-                    **_artifact(\n-                        PRIOR_READBACK\n-                        / \"pre-registered-gate-readback-failure-summary.json\",\n-                        verbatim=True,\n-                    ),\n-                    \"classification\": (\n-                        \"OPERATOR_READBACK_SCHEMA_LITERAL_ERROR_\"\n-                        \"ZERO_REGISTERED_EFFECT\"\n-                    ),\n-                },\n-            ],\n-            \"zero_registered_or_attempt_effect\": True,\n-        },\n         \"planned_landing\": {\n+            \"report_generated_before_merge\": True,\n             \"base_commit\": BASE_COMMIT,\n             \"second_parent\": REVIEW_COMMIT,\n-            \"merge_base\": IMPLEMENTATION_PARENT,\n+            \"ordered_no_ff_parents\": [BASE_COMMIT, REVIEW_COMMIT],\n+            \"merge_base\": BASE_COMMIT,\n             \"no_ff\": True,\n             \"merge_only\": True,\n-            \"expected_projection_tree_without_report\": (\n-                \"50280bded3436c5d1883f9148d3067852bdc6647\"\n-            ),\n-            \"report_written_before_merge\": True,\n+            \"preserve_implementation_and_review_objects_byte_exact\": True,\n             \"merge_commit_sha\": None,\n-            \"merge_message_must_bind_report_path_and_sha256\": True,\n-            \"merge_must_not_stage_report\": True,\n             \"report_commit_contract\": (\n-                \"after the merge, commit this exact report as the merge \"\n-                \"commit's single-parent child and unique status-A path\"\n+                \"after the no-ff merge, commit this exact report as the merge \"\n+                \"commit's direct single-parent child and unique status-A path\"\n             ),\n-            \"discarded_unpushed_merge\": {\n-                \"commit\": DISCARDED_MERGE,\n-                \"authorized_for_push\": False,\n-                \"referenced_by_authority_or_ledger\": False,\n-            },\n         },\n         \"governance\": {\n-            \"supersession_statement\": (\n-                \"The 4d5d1664 candidate and the merge approval carried by \"\n-                \"55dbe91 are void for merge purposes under adjudication \"\n-                \"578a625; both objects remain immutable disclosed history. \"\n-                \"d4fb0d8c is a new direct child of d6c9c353 and therefore a \"\n-                \"sibling, not a rewrite, of 4d5d1664. bf9f610 is the current \"\n-                \"effective APPROVE_EPOCH3_IMPLEMENTATION review.\"\n+            \"current_epoch4_authority\": {\n+                \"companion_commit\": COMPANION_COMMIT,\n+                \"machine_authority_commit\": BASE_COMMIT,\n+                \"implementation_commit\": IMPLEMENTATION_COMMIT,\n+                \"independent_review_commit\": REVIEW_COMMIT,\n+                \"independent_review_verdict\": \"APPROVE_EPOCH4_IMPLEMENTATION\",\n+            },\n+            \"f14_operating_constraint\": (\n+                \"From epoch-4 landing until attempt 2 terminates, no commit may \"\n+                \"touch any of the 73 control-surface members. Preflight, Q, R, \"\n+                \"owner binding B, and attempt 2 should proceed promptly.\"\n             ),\n-            \"void_sentinel_statement\": (\n-                \"The r2 production-script blobs carry the reviewed void-epoch \"\n-                \"implementation by byte identity. The old review's part_2_b \"\n-                \"is explanatory only and is not current landing authority.\"\n+            \"historical_epoch3_context_not_current_authority\": (\n+                \"Epoch-3 candidate and review records remain immutable historical \"\n+                \"governance context only. They are not authority for this epoch-4 \"\n+                \"landing; current authority is 8b25d36/2c3171e and current review \"\n+                \"is 858f372.\"\n             ),\n             \"final_release_review_obligation\": (\n                 \"The final release review MUST cite the void-sentinel semantic \"\n                 \"and effective governance: epoch 1 is \"\n-                \"ASSIGNED_AND_STRUCTURALLY_UNCONSUMABLE; positive ordinal \"\n-                \"bounds are schema filler only; epoch 1 is excluded from \"\n-                \"interval accounting and cannot be selected or consumed; \"\n-                \"epoch 2 owns ordinal 1.\"\n+                \"ASSIGNED_AND_STRUCTURALLY_UNCONSUMABLE; positive ordinal bounds \"\n+                \"are schema filler only; epoch 1 is excluded from interval \"\n+                \"accounting and cannot be selected or consumed; epoch 2 owns \"\n+                \"ordinal 1.\"\n             ),\n         },\n         \"boundaries\": {\n             \"this_report_authorizes_attempt_execution\": False,\n             \"next_permitted_steps\": [\n-                \"merge-only landing with report-bound commit message\",\n-                \"registered-root read-only preflight\",\n-                \"create-only ordinal-2 review request Q\",\n+                \"merge-only landing preserving 890e9002 and 858f372\",\n+                \"registered-root read-only preflight for epoch 4\",\n+                \"create-only ordinal-2 review request Q bound to epoch 4 and 890e9002\",\n                 \"STOP_AT_OWNER_BEFORE_R\",\n             ],\n             \"ordinal_2_is_new_disclosed_attempt_not_retry\": True,\n@@ -618,7 +1002,7 @@\n     parser = argparse.ArgumentParser()\n     parser.add_argument(\"--integration\", required=True, type=Path)\n     args = parser.parse_args()\n-    report = build_report(args.integration.resolve())\n+    report = build_report(args.integration.resolve(strict=True))\n     print(\n         json.dumps(\n             report,\n"
+          }
+        },
+        "postcheck.py": {
+          "after": {
+            "bytes": 6955,
+            "path": "/Users/ouyangduning/Documents/project/interesting/.alphapilot-p42a-epoch4-gate-evidence.9nyuYx/before-after-diffs/postcheck.py.after.txt",
+            "sha256": "ca877e6d1fc538529f406dbe1dfb34fb95eccff57ec94d5968ee57db71cb329d"
+          },
+          "before": {
+            "bytes": 6968,
+            "path": "/Users/ouyangduning/Documents/project/interesting/.alphapilot-p42a-epoch4-gate-evidence.9nyuYx/before-after-diffs/postcheck.py.before.txt",
+            "sha256": "59aa92e58d3ec4c8f49bd07c4fcb15fc6907b6602fe0008220aa5499becd0349"
+          },
+          "diff": {
+            "bytes": 1102,
+            "path": "/Users/ouyangduning/Documents/project/interesting/.alphapilot-p42a-epoch4-gate-evidence.9nyuYx/before-after-diffs/postcheck.py.diff",
+            "sha256": "7edd5a806d2581a7382e39b0af80b88f6e6a7bfe53d9b4817e9086facce3ae78",
+            "verbatim_utf8": "--- before/postcheck.py\n+++ after/postcheck.py\n@@ -12,10 +12,10 @@\n GATE = Path(\"/Users/ouyangduning/Documents/project/interesting/.alphapilot-p42a-epoch3-gate.h1iJnS\")\n CANONICAL = Path(\"/Users/ouyangduning/Documents/project/interesting/AlphaPilot-AI\")\n PYTHON = CANONICAL / \".venv/bin/python\"\n-EVIDENCE = CANONICAL.parent / \".alphapilot-p42a-epoch3-r2-gate-evidence-rerun2.2bUkMK\"\n+EVIDENCE = CANONICAL.parent / \".alphapilot-p42a-epoch4-gate-evidence.9nyuYx\"\n PRECHECK = EVIDENCE / \"precheck_audit.json\"\n PURPOSE_PRECHECK = EVIDENCE / \"purpose_precheck.json\"\n-IMPLEMENTATION = \"d4fb0d8c763b9fa104949ea2ac58bc921d9e8889\"\n+IMPLEMENTATION = \"890e9002116c625d41f6aa037975df15d1546c56\"\n BACKUP_DIRECTORY = CANONICAL / \"data/backups\"\n BACKUP_STAMP = (\n     Path.home()\n@@ -138,7 +138,7 @@\n     print(\n         json.dumps(\n             {\n-                \"schema_version\": \"p4.2a-epoch3-r2-full-gate-postcheck-v1\",\n+                \"schema_version\": \"p4.2a-epoch4-full-gate-postcheck-v1\",\n                 \"status\": \"PASS_GATE_POSTCHECK\",\n                 \"head\": head,\n                 \"gate_clean\": True,\n"
+          }
+        },
+        "pre_registered_gate_readback.py": {
+          "after": {
+            "bytes": 6535,
+            "path": "/Users/ouyangduning/Documents/project/interesting/.alphapilot-p42a-epoch4-gate-evidence.9nyuYx/before-after-diffs/pre_registered_gate_readback.py.after.txt",
+            "sha256": "38c597068500db633216e51af43b0f3f0e437cdf32b2843a59bb8f7c4ba2b20e"
+          },
+          "before": {
+            "bytes": 6551,
+            "path": "/Users/ouyangduning/Documents/project/interesting/.alphapilot-p42a-epoch4-gate-evidence.9nyuYx/before-after-diffs/pre_registered_gate_readback.py.before.txt",
+            "sha256": "7b83a71e8d71f058c68a827bb57988b26029db594666e540d449f3d6b0478817"
+          },
+          "diff": {
+            "bytes": 2419,
+            "path": "/Users/ouyangduning/Documents/project/interesting/.alphapilot-p42a-epoch4-gate-evidence.9nyuYx/before-after-diffs/pre_registered_gate_readback.py.diff",
+            "sha256": "1142d572e6ae2ae60d58a9ef1f5a27e35a37da4a4270170dca29a99eb6535d1a",
+            "verbatim_utf8": "--- before/pre_registered_gate_readback.py\n+++ after/pre_registered_gate_readback.py\n@@ -15,7 +15,7 @@\n \n EVIDENCE = Path(\n     \"/Users/ouyangduning/Documents/project/interesting/\"\n-    \".alphapilot-p42a-epoch3-r2-gate-evidence-rerun2.2bUkMK\"\n+    \".alphapilot-p42a-epoch4-gate-evidence.9nyuYx\"\n )\n PYTHON = Path(\n     \"/Users/ouyangduning/Documents/project/interesting/AlphaPilot-AI/.venv/bin/python\"\n@@ -23,11 +23,11 @@\n PREVIOUS_HISTORY_ROOT = (\n     \"076ae961fc149ae271bf5a3724c1677abccfea7139589909ea717a7f4a38083a\"\n )\n-IMPLEMENTATION = \"d4fb0d8c763b9fa104949ea2ac58bc921d9e8889\"\n-IMPLEMENTATION_PARENT = \"d6c9c353217e00730457bf6b944ff26a32b8cf85\"\n-REVIEW_TIP = \"bf9f610bda54523d69ecda0a72bf8fe89eaef78c\"\n-REVIEW_SHA256 = \"590d6b6b24bb6672956ea320a21458aa10523514ec384586029f09ef2cf757ef\"\n-AUDIT_SCHEMA = \"p4.2a-v2-2-epoch3-r2-full-gate-precheck-audit-v1\"\n+IMPLEMENTATION = \"890e9002116c625d41f6aa037975df15d1546c56\"\n+IMPLEMENTATION_PARENT = \"2c3171e68ce0146c158a294d0e494ae4b618310b\"\n+REVIEW_TIP = \"858f372a8ce56f2556d02d03c46c6fb078b5b476\"\n+REVIEW_SHA256 = \"f2fb33db25591662b28aedde0b9bfd0f9151d92186bdd11914010893159c4591\"\n+AUDIT_SCHEMA = \"p4.2a-v2-2-epoch4-full-gate-precheck-audit-v1\"\n \n \n def require(condition: bool, message: str) -> None:\n@@ -126,7 +126,7 @@\n         \"signal probe readback drifted\",\n     )\n     expected_collects = (\n-        (runner, EVIDENCE / \"runner.collect.log\", 152, \"runner\"),\n+        (runner, EVIDENCE / \"runner.collect.log\", 153, \"runner\"),\n         (validator, EVIDENCE / \"validator.collect.log\", 109, \"validator\"),\n     )\n     for value, expected_path, expected_tests, label in expected_collects:\n@@ -138,7 +138,7 @@\n     print(\n         json.dumps(\n             {\n-                \"schema_version\": \"p4.2a-epoch3-r2-pre-registered-gate-readback-v1\",\n+                \"schema_version\": \"p4.2a-epoch4-pre-registered-gate-readback-v1\",\n                 \"status\": \"PASS_PRE_REGISTERED_GATE_READBACK\",\n                 \"producer_bindings\": {\n                     \"precheck_audit_status\": \"PASS_PRECHECK_AUDIT\",\n@@ -148,7 +148,7 @@\n                 },\n                 \"next_ordinal\": 2,\n                 \"previous_history_root_sha256\": PREVIOUS_HISTORY_ROOT,\n-                \"runner_tests\": 152,\n+                \"runner_tests\": 153,\n                 \"validator_tests\": 109,\n                 \"official_fingerprints_unchanged\": True,\n                 \"temporary_authorities\": [],\n"
+          }
+        },
+        "precheck_audit.py": {
+          "after": {
+            "bytes": 15259,
+            "path": "/Users/ouyangduning/Documents/project/interesting/.alphapilot-p42a-epoch4-gate-evidence.9nyuYx/before-after-diffs/precheck_audit.py.after.txt",
+            "sha256": "a80c73b2dcf6cedfebe2f3dfc2a52b322b1a6645d0b3239a5b2a4ce6c291ae72"
+          },
+          "before": {
+            "bytes": 15265,
+            "path": "/Users/ouyangduning/Documents/project/interesting/.alphapilot-p42a-epoch4-gate-evidence.9nyuYx/before-after-diffs/precheck_audit.py.before.txt",
+            "sha256": "1d7f628619e88f99566da60c4cfbd04e97184979bf6189bf4d58c9cb8cc9a2b2"
+          },
+          "diff": {
+            "bytes": 3336,
+            "path": "/Users/ouyangduning/Documents/project/interesting/.alphapilot-p42a-epoch4-gate-evidence.9nyuYx/before-after-diffs/precheck_audit.py.diff",
+            "sha256": "0b89736fda0ccdda36e26ff658accb6dd8b228ed73c31749fba81216c3e96b63",
+            "verbatim_utf8": "--- before/precheck_audit.py\n+++ after/precheck_audit.py\n@@ -18,15 +18,15 @@\n     \"/Users/ouyangduning/Documents/project/interesting/AlphaPilot-AI\"\n )\n CANONICAL_PYTHON = CANONICAL / \".venv/bin/python\"\n-IMPLEMENTATION = \"d4fb0d8c763b9fa104949ea2ac58bc921d9e8889\"\n-IMPLEMENTATION_PARENT = \"d6c9c353217e00730457bf6b944ff26a32b8cf85\"\n-REVIEW_TIP = \"bf9f610bda54523d69ecda0a72bf8fe89eaef78c\"\n+IMPLEMENTATION = \"890e9002116c625d41f6aa037975df15d1546c56\"\n+IMPLEMENTATION_PARENT = \"2c3171e68ce0146c158a294d0e494ae4b618310b\"\n+REVIEW_TIP = \"858f372a8ce56f2556d02d03c46c6fb078b5b476\"\n REVIEW_PATH = Path(\n     \"docs/phase4/reports/\"\n-    \"P4.2a-v2-2-epoch3-r2-implementation-independent-review-20260814.json\"\n+    \"P4.2a-v2-2-epoch4-implementation-independent-review-20260818.json\"\n )\n REVIEW_SHA256 = (\n-    \"590d6b6b24bb6672956ea320a21458aa10523514ec384586029f09ef2cf757ef\"\n+    \"f2fb33db25591662b28aedde0b9bfd0f9151d92186bdd11914010893159c4591\"\n )\n PREVIOUS_HISTORY_ROOT = (\n     \"076ae961fc149ae271bf5a3724c1677abccfea7139589909ea717a7f4a38083a\"\n@@ -36,13 +36,13 @@\n         \"660d6b6e820581eae792e6c04f35b15b30bdb2427d93c3a934af9146f0e044c0\"\n     ),\n     \"scripts/p4_2a_v2_2_heldout_rehearsal.py\": (\n-        \"75f798b442e3adbddda7db0a01745c2dfb16777b6f1a8c5170b57fe68d3766c8\"\n+        \"9318e46e86f9a9a6aa5676a99f000eae4446f000520db261ecef391c30e88d77\"\n     ),\n     \"scripts/validate_p4_2a_v2_2_heldout_rehearsal_bundle.py\": (\n         \"8c2e34370174122d02232e76314ec7cc092523c8424773891b4cdb8335b53b0d\"\n     ),\n     \"tests/test_p4_2a_v2_2_heldout_rehearsal_runner.py\": (\n-        \"250d8259a1cd291563726a0d017512ef91e559464498c17aeda27f5e1365246f\"\n+        \"7209349831a0f1c14d796adf6238ad0b9905b81d5a94b5e273ec4715f417a85a\"\n     ),\n     \"tests/test_p4_2a_v2_2_heldout_rehearsal_validator.py\": (\n         \"fbd7cfedda56bb48f06b1d0438d59ad7d5e635ecc91bf0ca43d2afbfbfd45b13\"\n@@ -169,7 +169,7 @@\n     review_document = json.loads(review_payload)\n     require(\n         review_document.get(\"schema_version\") == \"p4.2a-independent-review-v1\"\n-        and review_document.get(\"verdict\") == \"APPROVE_EPOCH3_IMPLEMENTATION\"\n+        and review_document.get(\"verdict\") == \"APPROVE_EPOCH4_IMPLEMENTATION\"\n         and review_document.get(\"blockers\") == []\n         and review_document.get(\"reviewed_commit\") == IMPLEMENTATION,\n         \"review approval semantics drifted\",\n@@ -221,7 +221,7 @@\n         }\n     require(audited_functions[\"strict_json_loads\"][\"first_line\"] == 1066, \"strict_json_loads line drifted\")\n     require(audited_functions[\"_tree_fingerprint\"][\"first_line\"] == 1206, \"_tree_fingerprint line drifted\")\n-    require(audited_functions[\"_real_path_fingerprints\"][\"first_line\"] == 5137, \"real fingerprints line drifted\")\n+    require(audited_functions[\"_real_path_fingerprints\"][\"first_line\"] == 5151, \"real fingerprints line drifted\")\n \n     python_inventory, package_inventory = validator._independent_runtime_inventory()\n     package_rows = implementation.strict_json_loads(\n@@ -281,7 +281,7 @@\n \n     script_path = Path(__file__).resolve(strict=True)\n     result = {\n-        \"schema_version\": \"p4.2a-v2-2-epoch3-r2-full-gate-precheck-audit-v1\",\n+        \"schema_version\": \"p4.2a-v2-2-epoch4-full-gate-precheck-audit-v1\",\n         \"status\": \"PASS_PRECHECK_AUDIT\",\n         \"audit_script\": {\n             \"path\": script_path.as_posix(),\n"
+          }
+        },
+        "precheck_run.sh": {
+          "after": {
+            "bytes": 3445,
+            "path": "/Users/ouyangduning/Documents/project/interesting/.alphapilot-p42a-epoch4-gate-evidence.9nyuYx/before-after-diffs/precheck_run.sh.after.txt",
+            "sha256": "098c950a19f4d55b099617af3a5036cca2f85556cacf2c45d9bf4bdbdd21414a"
+          },
+          "before": {
+            "bytes": 3455,
+            "path": "/Users/ouyangduning/Documents/project/interesting/.alphapilot-p42a-epoch4-gate-evidence.9nyuYx/before-after-diffs/precheck_run.sh.before.txt",
+            "sha256": "04766225dac881da389dfa6995922119dbe73800c10ecc8a2162d83c68b39f57"
+          },
+          "diff": {
+            "bytes": 1131,
+            "path": "/Users/ouyangduning/Documents/project/interesting/.alphapilot-p42a-epoch4-gate-evidence.9nyuYx/before-after-diffs/precheck_run.sh.diff",
+            "sha256": "35cadce7e29921990225f5700ceafc336b428cd70ba8d77958b7ec84274ede00",
+            "verbatim_utf8": "--- before/precheck_run.sh\n+++ after/precheck_run.sh\n@@ -1,7 +1,7 @@\n #!/bin/bash\n \n gate='/Users/ouyangduning/Documents/project/interesting/.alphapilot-p42a-epoch3-gate.h1iJnS'\n-evidence='/Users/ouyangduning/Documents/project/interesting/.alphapilot-p42a-epoch3-r2-gate-evidence-rerun2.2bUkMK'\n+evidence='/Users/ouyangduning/Documents/project/interesting/.alphapilot-p42a-epoch4-gate-evidence.9nyuYx'\n python='/Users/ouyangduning/Documents/project/interesting/AlphaPilot-AI/.venv/bin/python'\n \n fail() {\n@@ -46,7 +46,7 @@\n (cd \"$gate\" && /usr/bin/env -u PYTEST_ADDOPTS PYTHONDONTWRITEBYTECODE=1 /usr/bin/nice -n 10 \"$python\" -B -m pytest tests/test_p4_2a_v2_2_heldout_rehearsal_runner.py --collect-only -q) > \"$evidence/runner.collect.log\" 2>&1\n rc=$?\n [ \"$rc\" = '0' ] || fail \"runner collect-only rc=$rc\"\n-\"$python\" -S -P -B \"$evidence/collect_validate.py\" \"$evidence/runner.collect.log\" 152 > \"$evidence/runner.collect-summary.json\"\n+\"$python\" -S -P -B \"$evidence/collect_validate.py\" \"$evidence/runner.collect.log\" 153 > \"$evidence/runner.collect-summary.json\"\n rc=$?\n [ \"$rc\" = '0' ] || fail \"runner collect summary rc=$rc\"\n \n"
+          }
+        },
+        "purpose_precheck.py": {
+          "after": {
+            "bytes": 19153,
+            "path": "/Users/ouyangduning/Documents/project/interesting/.alphapilot-p42a-epoch4-gate-evidence.9nyuYx/before-after-diffs/purpose_precheck.py.after.txt",
+            "sha256": "c7745b6a6aa17158dea70c1b4629ab266b64b0e244f3dd40247b6da2b55787b4"
+          },
+          "before": {
+            "bytes": 19166,
+            "path": "/Users/ouyangduning/Documents/project/interesting/.alphapilot-p42a-epoch4-gate-evidence.9nyuYx/before-after-diffs/purpose_precheck.py.before.txt",
+            "sha256": "ae6459fcf810fc1790e7809e45c7c0b2005c4e82c9f6cdee90724234407c63c0"
+          },
+          "diff": {
+            "bytes": 2484,
+            "path": "/Users/ouyangduning/Documents/project/interesting/.alphapilot-p42a-epoch4-gate-evidence.9nyuYx/before-after-diffs/purpose_precheck.py.diff",
+            "sha256": "16c2512a223ac46ba34534e2e0daedd655a5ff17df2c112057794b0bf11b10fc",
+            "verbatim_utf8": "--- before/purpose_precheck.py\n+++ after/purpose_precheck.py\n@@ -18,7 +18,7 @@\n \n ROOT = Path(\"/Users/ouyangduning/Documents/project/interesting/AlphaPilot-AI\")\n PYTHON = ROOT / \".venv/bin/python\"\n-EVIDENCE = ROOT.parent / \".alphapilot-p42a-epoch3-r2-gate-evidence-rerun2.2bUkMK\"\n+EVIDENCE = ROOT.parent / \".alphapilot-p42a-epoch4-gate-evidence.9nyuYx\"\n BACKUP_VERIFY = EVIDENCE / \"backup_immutable_verify.json\"\n DB = ROOT / \"data/alphapilot.db\"\n BACKUP_DIRECTORY = ROOT / \"data/backups\"\n@@ -40,10 +40,10 @@\n     BACKUP_DIRECTORY / \"alphapilot-full-20260813T101514039763Z.manifest.json\"\n )\n MARKET = ZoneInfo(\"Asia/Shanghai\")\n-RUN_DATE = date(2026, 8, 15)\n-EARLIEST_RUN_TIME = time(14, 10)\n-LATEST_RUN_TIME = time(14, 30)\n-COMPLETED_BACKUP_DATE = date(2026, 8, 14)\n+RUN_DATE = date(2026, 8, 18)\n+EARLIEST_RUN_TIME = time(22, 20)\n+LATEST_RUN_TIME = time(22, 30)\n+COMPLETED_BACKUP_DATE = date(2026, 8, 18)\n \n \n def sha256(payload: bytes) -> str:\n@@ -176,11 +176,11 @@\n     require(now_cst.date() == RUN_DATE, \"purpose precheck Shanghai run date drifted\")\n     require(\n         now_cst.timetz().replace(tzinfo=None) >= EARLIEST_RUN_TIME,\n-        \"purpose precheck started before the authorized 14:10 CST window\",\n+        \"purpose precheck started before the authorized 22:20 CST window\",\n     )\n     require(\n         now_cst.timetz().replace(tzinfo=None) < LATEST_RUN_TIME,\n-        \"purpose precheck started after the authorized pre-14:30 CST window\",\n+        \"purpose precheck started after the authorized pre-22:30 CST window\",\n     )\n \n     require(sha256(BACKUP_PLIST.read_bytes()) == BACKUP_PLIST_SHA256, \"backup plist bytes drifted\")\n@@ -275,7 +275,7 @@\n         require(stats.get(\"coverage_gap\") is False, \"latest slot reports coverage gap\")\n         require(stats.get(\"source_failures\") == [], \"latest slot reports source failures\")\n \n-        w3_start = datetime(2026, 8, 13, 18, 0, tzinfo=MARKET)\n+        w3_start = datetime(2026, 8, 17, 10, 0, tzinfo=MARKET)\n         w3_slots = []\n         cursor = w3_start\n         while cursor <= slot_cst:\n@@ -341,7 +341,7 @@\n     repeated_early = any(item[\"early_before_22\"] for item in later_manifests)\n \n     output = {\n-        \"schema_version\": \"p4.2a-epoch3-r2-purpose-form-runtime-precheck-v1\",\n+        \"schema_version\": \"p4.2a-epoch4-purpose-form-runtime-precheck-v1\",\n         \"status\": \"PASS_PURPOSE_FORM_RUNTIME_PRECHECK\",\n         \"checked_at_utc\": now_utc.isoformat(),\n         \"checked_at_cst\": now_cst.isoformat(),\n"
+          }
+        }
+      }
+    },
+    "common_gate_time_and_final_entries_byte_identical": true,
+    "final_manifest": {
+      "bytes": 1138,
+      "entries": {
+        "automation-heartbeat-prompt.txt": "5fc258cf73b1091024c221bbc5e95c4261cd147ca97d4e97a0eaf464f49eff8d",
+        "backup_immutable_verify.py": "10629e9a65406d4c2d53ceced102fdab5ed38a0b5c7ff53513557c0a31b4a115",
+        "collect_validate.py": "7974523cd1cbb0355db4c6573132b9dd7c2246b2faf1fe86700d59cd713cc712",
+        "gate_finalize.sh": "c6d7c8c390b1c03431f19606c355dd9020d189428d9255ca5b36be5908b18820",
+        "gate_module.sh": "ff96580267968f24876ba5f164d996d2606932e90687dea9dc7d759205662801",
+        "harness_static_check.sh": "72c3bd42a012877772ba12f17e76ba1cb82407868499f49dc36940da5b590cbf",
+        "junit_validate.py": "564b75fdbc9b05af79184e74549d352422374111ecf7a3599cc501f1b8d14b7b",
+        "landing_report_generator.py": "a257834040bddbfa7927e9e6c9741a362167a0deb8ce8cac313ffa54b42720c6",
+        "postcheck.py": "ca877e6d1fc538529f406dbe1dfb34fb95eccff57ec94d5968ee57db71cb329d",
+        "pre_registered_gate_readback.py": "38c597068500db633216e51af43b0f3f0e437cdf32b2843a59bb8f7c4ba2b20e",
+        "precheck_audit.py": "a80c73b2dcf6cedfebe2f3dfc2a52b322b1a6645d0b3239a5b2a4ce6c291ae72",
+        "precheck_run.sh": "098c950a19f4d55b099617af3a5036cca2f85556cacf2c45d9bf4bdbdd21414a",
+        "purpose_precheck.py": "c7745b6a6aa17158dea70c1b4629ab266b64b0e244f3dd40247b6da2b55787b4"
+      },
+      "entry_count": 13,
+      "path": "/Users/ouyangduning/Documents/project/interesting/.alphapilot-p42a-epoch4-gate-evidence.9nyuYx/HARNESS_SHA256SUMS",
+      "sha256": "9b04ea8e4e5e70bf2b48519ff0613004a0049d3b520974b13c53ce8cb5062707",
+      "verbatim_utf8": "5fc258cf73b1091024c221bbc5e95c4261cd147ca97d4e97a0eaf464f49eff8d  automation-heartbeat-prompt.txt\n10629e9a65406d4c2d53ceced102fdab5ed38a0b5c7ff53513557c0a31b4a115  backup_immutable_verify.py\n7974523cd1cbb0355db4c6573132b9dd7c2246b2faf1fe86700d59cd713cc712  collect_validate.py\nc6d7c8c390b1c03431f19606c355dd9020d189428d9255ca5b36be5908b18820  gate_finalize.sh\nff96580267968f24876ba5f164d996d2606932e90687dea9dc7d759205662801  gate_module.sh\n72c3bd42a012877772ba12f17e76ba1cb82407868499f49dc36940da5b590cbf  harness_static_check.sh\n564b75fdbc9b05af79184e74549d352422374111ecf7a3599cc501f1b8d14b7b  junit_validate.py\na257834040bddbfa7927e9e6c9741a362167a0deb8ce8cac313ffa54b42720c6  landing_report_generator.py\nca877e6d1fc538529f406dbe1dfb34fb95eccff57ec94d5968ee57db71cb329d  postcheck.py\n38c597068500db633216e51af43b0f3f0e437cdf32b2843a59bb8f7c4ba2b20e  pre_registered_gate_readback.py\na80c73b2dcf6cedfebe2f3dfc2a52b322b1a6645d0b3239a5b2a4ce6c291ae72  precheck_audit.py\n098c950a19f4d55b099617af3a5036cca2f85556cacf2c45d9bf4bdbdd21414a  precheck_run.sh\nc7745b6a6aa17158dea70c1b4629ab266b64b0e244f3dd40247b6da2b55787b4  purpose_precheck.py\n"
+    },
+    "final_manifest_payload_sha256": "9b04ea8e4e5e70bf2b48519ff0613004a0049d3b520974b13c53ce8cb5062707",
+    "four_file_sha256sums": {
+      "bytes": 326,
+      "entries": {
+        "runner.junit.xml": "a8d3acb5c8ff6784a8afb0453e32cc64190dd8ba3ff8840dedf74e5caa213d7b",
+        "runner.log": "4e18dc554c1db7b55e45f7e1517d4c91d95b4062ab090719c52cb64c7eb12d43",
+        "validator.junit.xml": "6656c28cd8f74da820e9c28a0b0d2284c8d243b9b4b3c7b9ed73daa29b8774b0",
+        "validator.log": "0b8ba1de138e2e1623fa78712297a3a092ae6ee4ea28e06056f34718d7b058a4"
+      },
+      "path": "/Users/ouyangduning/Documents/project/interesting/.alphapilot-p42a-epoch4-gate-evidence.9nyuYx/SHA256SUMS",
+      "sha256": "2a9327fa185785e9e0a003c7d741edb65bc129ffad04fd3a5767ae3e9fdcca09",
+      "verbatim_utf8": "4e18dc554c1db7b55e45f7e1517d4c91d95b4062ab090719c52cb64c7eb12d43  runner.log\na8d3acb5c8ff6784a8afb0453e32cc64190dd8ba3ff8840dedf74e5caa213d7b  runner.junit.xml\n0b8ba1de138e2e1623fa78712297a3a092ae6ee4ea28e06056f34718d7b058a4  validator.log\n6656c28cd8f74da820e9c28a0b0d2284c8d243b9b4b3c7b9ed73daa29b8774b0  validator.junit.xml\n"
+    },
+    "gate_time_manifest": {
+      "bytes": 1044,
+      "entries": {
+        "automation-heartbeat-prompt.txt": "5fc258cf73b1091024c221bbc5e95c4261cd147ca97d4e97a0eaf464f49eff8d",
+        "backup_immutable_verify.py": "10629e9a65406d4c2d53ceced102fdab5ed38a0b5c7ff53513557c0a31b4a115",
+        "collect_validate.py": "7974523cd1cbb0355db4c6573132b9dd7c2246b2faf1fe86700d59cd713cc712",
+        "gate_finalize.sh": "c6d7c8c390b1c03431f19606c355dd9020d189428d9255ca5b36be5908b18820",
+        "gate_module.sh": "ff96580267968f24876ba5f164d996d2606932e90687dea9dc7d759205662801",
+        "harness_static_check.sh": "72c3bd42a012877772ba12f17e76ba1cb82407868499f49dc36940da5b590cbf",
+        "junit_validate.py": "564b75fdbc9b05af79184e74549d352422374111ecf7a3599cc501f1b8d14b7b",
+        "postcheck.py": "ca877e6d1fc538529f406dbe1dfb34fb95eccff57ec94d5968ee57db71cb329d",
+        "pre_registered_gate_readback.py": "38c597068500db633216e51af43b0f3f0e437cdf32b2843a59bb8f7c4ba2b20e",
+        "precheck_audit.py": "a80c73b2dcf6cedfebe2f3dfc2a52b322b1a6645d0b3239a5b2a4ce6c291ae72",
+        "precheck_run.sh": "098c950a19f4d55b099617af3a5036cca2f85556cacf2c45d9bf4bdbdd21414a",
+        "purpose_precheck.py": "c7745b6a6aa17158dea70c1b4629ab266b64b0e244f3dd40247b6da2b55787b4"
+      },
+      "entry_count": 12,
+      "path": "/Users/ouyangduning/Documents/project/interesting/.alphapilot-p42a-epoch4-gate-evidence.9nyuYx/HARNESS_SHA256SUMS.gate-time",
+      "sha256": "06b057d6b6a3f3210f47d7abda18542ae02c91114350abefc91d7047fd99785a",
+      "verbatim_utf8": "5fc258cf73b1091024c221bbc5e95c4261cd147ca97d4e97a0eaf464f49eff8d  automation-heartbeat-prompt.txt\n10629e9a65406d4c2d53ceced102fdab5ed38a0b5c7ff53513557c0a31b4a115  backup_immutable_verify.py\n7974523cd1cbb0355db4c6573132b9dd7c2246b2faf1fe86700d59cd713cc712  collect_validate.py\nc6d7c8c390b1c03431f19606c355dd9020d189428d9255ca5b36be5908b18820  gate_finalize.sh\nff96580267968f24876ba5f164d996d2606932e90687dea9dc7d759205662801  gate_module.sh\n72c3bd42a012877772ba12f17e76ba1cb82407868499f49dc36940da5b590cbf  harness_static_check.sh\n564b75fdbc9b05af79184e74549d352422374111ecf7a3599cc501f1b8d14b7b  junit_validate.py\nca877e6d1fc538529f406dbe1dfb34fb95eccff57ec94d5968ee57db71cb329d  postcheck.py\n38c597068500db633216e51af43b0f3f0e437cdf32b2843a59bb8f7c4ba2b20e  pre_registered_gate_readback.py\na80c73b2dcf6cedfebe2f3dfc2a52b322b1a6645d0b3239a5b2a4ce6c291ae72  precheck_audit.py\n098c950a19f4d55b099617af3a5036cca2f85556cacf2c45d9bf4bdbdd21414a  precheck_run.sh\nc7745b6a6aa17158dea70c1b4629ab266b64b0e244f3dd40247b6da2b55787b4  purpose_precheck.py\n"
+    },
+    "gate_time_manifest_payload_sha256": "06b057d6b6a3f3210f47d7abda18542ae02c91114350abefc91d7047fd99785a",
+    "generator": {
+      "bytes": 40226,
+      "path": "/Users/ouyangduning/Documents/project/interesting/.alphapilot-p42a-epoch4-gate-evidence.9nyuYx/landing_report_generator.py",
+      "sha256": "a257834040bddbfa7927e9e6c9741a362167a0deb8ce8cac313ffa54b42720c6"
+    },
+    "generator_preflight_binding": {
+      "bytes": 94,
+      "path": "/Users/ouyangduning/Documents/project/interesting/.alphapilot-p42a-epoch4-gate-evidence.9nyuYx/landing_report_generator.preflight.sha256",
+      "sha256": "66d723842038ab1510e2a5c0f8d089f4e814f8fb07bd1f8c4723aa4ed26aa310",
+      "verbatim_utf8": "a257834040bddbfa7927e9e6c9741a362167a0deb8ce8cac313ffa54b42720c6  landing_report_generator.py\n"
+    },
+    "generator_sha256_equal_preflight_and_final_manifest": true,
+    "postgate_static_log": {
+      "bytes": 7525,
+      "path": "/Users/ouyangduning/Documents/project/interesting/.alphapilot-p42a-epoch4-gate-evidence.9nyuYx/harness_freeze.postgate.log",
+      "sha256": "746ff477c39c58385dd810dd3e241d4df26efd3b7f42679a630d9d69c216b881"
+    },
+    "prearmed": {
+      "binding": {
+        "bytes": 106,
+        "path": "/Users/ouyangduning/Documents/project/interesting/.alphapilot-p42a-epoch4-gate-evidence.9nyuYx/PREARMED_SHA256",
+        "sha256": "dcf0b5b1131c2e2cdaeecb56282568ed9210551161ce6b8f34c0c2b3c0c7577a",
+        "verbatim_utf8": "3300e0a08f5c97803ca6caa967f476d1e2755e90d8754cdb1d2d2ea60fdbe05a  harness_static_check.final-prearmed.log\n"
+      },
+      "static_log": {
+        "bytes": 7440,
+        "path": "/Users/ouyangduning/Documents/project/interesting/.alphapilot-p42a-epoch4-gate-evidence.9nyuYx/harness_static_check.final-prearmed.log",
+        "sha256": "3300e0a08f5c97803ca6caa967f476d1e2755e90d8754cdb1d2d2ea60fdbe05a"
+      }
+    }
+  },
+  "operational_safety": {
+    "backup": {
+      "four_hour_gate_upper_bound_cst": "2026-08-19T02:22:05.323132+08:00",
+      "immutable_verification": {
+        "bytes": 3673,
+        "path": "/Users/ouyangduning/Documents/project/interesting/.alphapilot-p42a-epoch4-gate-evidence.9nyuYx/backup_immutable_verify.json",
+        "sha256": "886e753806208b4f713972c795010625cb03f9c18f759fc9f079ae6c7bda4e32"
+      },
+      "inventory_after": [
+        {
+          "ctime_ns": 1786025119489369499,
+          "device": 16777229,
+          "inode": 288740024,
+          "kind": "file",
+          "mode": 384,
+          "mtime_ns": 1786025032867143666,
+          "name": ".alphapilot-full-20260806T140128258294Z.db.grdmrvzl.partial-shm",
+          "nlink": 1,
+          "size": 32768
+        },
+        {
+          "ctime_ns": 1786025031345248333,
+          "device": 16777229,
+          "inode": 288740023,
+          "kind": "file",
+          "mode": 384,
+          "mtime_ns": 1786025031345248333,
+          "name": ".alphapilot-full-20260806T140128258294Z.db.grdmrvzl.partial-wal",
+          "nlink": 1,
+          "size": 0
+        },
+        {
+          "ctime_ns": 1786113814358615833,
+          "device": 16777229,
+          "inode": 289387622,
+          "kind": "file",
+          "mode": 384,
+          "mtime_ns": 1786113715192191374,
+          "name": ".alphapilot-full-20260807T140839040989Z.db.x36_9ic8.partial-shm",
+          "nlink": 1,
+          "size": 32768
+        },
+        {
+          "ctime_ns": 1786113711901218583,
+          "device": 16777229,
+          "inode": 289387621,
+          "kind": "file",
+          "mode": 384,
+          "mtime_ns": 1786113711901218583,
+          "name": ".alphapilot-full-20260807T140839040989Z.db.x36_9ic8.partial-wal",
+          "nlink": 1,
+          "size": 0
+        },
+        {
+          "ctime_ns": 1786198369663786666,
+          "device": 16777229,
+          "inode": 290049273,
+          "kind": "file",
+          "mode": 384,
+          "mtime_ns": 1786198256763996791,
+          "name": ".alphapilot-full-20260808T140556670834Z.db.geyypzol.partial-shm",
+          "nlink": 1,
+          "size": 32768
+        },
+        {
+          "ctime_ns": 1786198252951236624,
+          "device": 16777229,
+          "inode": 290049272,
+          "kind": "file",
+          "mode": 384,
+          "mtime_ns": 1786198252951236624,
+          "name": ".alphapilot-full-20260808T140556670834Z.db.geyypzol.partial-wal",
+          "nlink": 1,
+          "size": 0
+        },
+        {
+          "ctime_ns": 1786275366886289499,
+          "device": 16777229,
+          "inode": 292141826,
+          "kind": "file",
+          "mode": 384,
+          "mtime_ns": 1786275299919639416,
+          "name": ".alphapilot-full-20260809T113428170070Z.db.j0p56ybp.partial-shm",
+          "nlink": 1,
+          "size": 32768
+        },
+        {
+          "ctime_ns": 1786275297797625833,
+          "device": 16777229,
+          "inode": 292141825,
+          "kind": "file",
+          "mode": 384,
+          "mtime_ns": 1786275297797583999,
+          "name": ".alphapilot-full-20260809T113428170070Z.db.j0p56ybp.partial-wal",
+          "nlink": 1,
+          "size": 0
+        },
+        {
+          "ctime_ns": 1786284380731843208,
+          "device": 16777229,
+          "inode": 292333499,
+          "kind": "file",
+          "mode": 384,
+          "mtime_ns": 1786284264340285208,
+          "name": ".alphapilot-full-20260809T140305129495Z.db.irnfvmc1.partial-shm",
+          "nlink": 1,
+          "size": 32768
+        },
+        {
+          "ctime_ns": 1786284258432011624,
+          "device": 16777229,
+          "inode": 292333498,
+          "kind": "file",
+          "mode": 384,
+          "mtime_ns": 1786284258432011624,
+          "name": ".alphapilot-full-20260809T140305129495Z.db.irnfvmc1.partial-wal",
+          "nlink": 1,
+          "size": 0
+        },
+        {
+          "ctime_ns": 1786370869437961333,
+          "device": 16777229,
+          "inode": 294625207,
+          "kind": "file",
+          "mode": 384,
+          "mtime_ns": 1786370785104265333,
+          "name": ".alphapilot-full-20260810T140605227286Z.db._fwekhvr.partial-shm",
+          "nlink": 1,
+          "size": 32768
+        },
+        {
+          "ctime_ns": 1786370782756270041,
+          "device": 16777229,
+          "inode": 294625206,
+          "kind": "file",
+          "mode": 384,
+          "mtime_ns": 1786370782756270041,
+          "name": ".alphapilot-full-20260810T140605227286Z.db._fwekhvr.partial-wal",
+          "nlink": 1,
+          "size": 0
+        },
+        {
+          "ctime_ns": 1786457303434522958,
+          "device": 16777229,
+          "inode": 298636214,
+          "kind": "file",
+          "mode": 384,
+          "mtime_ns": 1786457121839944374,
+          "name": ".alphapilot-full-20260811T140428778875Z.db.odzwh35n.partial-shm",
+          "nlink": 1,
+          "size": 32768
+        },
+        {
+          "ctime_ns": 1786457117416097374,
+          "device": 16777229,
+          "inode": 298636213,
+          "kind": "file",
+          "mode": 384,
+          "mtime_ns": 1786457117416097374,
+          "name": ".alphapilot-full-20260811T140428778875Z.db.odzwh35n.partial-wal",
+          "nlink": 1,
+          "size": 0
+        },
+        {
+          "ctime_ns": 1786543840205138708,
+          "device": 16777229,
+          "inode": 303729250,
+          "kind": "file",
+          "mode": 384,
+          "mtime_ns": 1786543580983152583,
+          "name": ".alphapilot-full-20260812T140415415325Z.db.ay31lfig.partial-shm",
+          "nlink": 1,
+          "size": 32768
+        },
+        {
+          "ctime_ns": 1786543576000904083,
+          "device": 16777229,
+          "inode": 303729249,
+          "kind": "file",
+          "mode": 384,
+          "mtime_ns": 1786543576000904083,
+          "name": ".alphapilot-full-20260812T140415415325Z.db.ay31lfig.partial-wal",
+          "nlink": 1,
+          "size": 0
+        },
+        {
+          "ctime_ns": 1786616230274283333,
+          "device": 16777229,
+          "inode": 306507919,
+          "kind": "file",
+          "mode": 384,
+          "mtime_ns": 1786616155276348416,
+          "name": ".alphapilot-full-20260813T101514039763Z.db._w9081x9.partial-shm",
+          "nlink": 1,
+          "size": 32768
+        },
+        {
+          "ctime_ns": 1786616134966828333,
+          "device": 16777229,
+          "inode": 306507918,
+          "kind": "file",
+          "mode": 384,
+          "mtime_ns": 1786616134966788541,
+          "name": ".alphapilot-full-20260813T101514039763Z.db._w9081x9.partial-wal",
+          "nlink": 1,
+          "size": 0
+        },
+        {
+          "ctime_ns": 1786716403186232208,
+          "device": 16777229,
+          "inode": 309174733,
+          "kind": "file",
+          "mode": 384,
+          "mtime_ns": 1786716265893605958,
+          "name": ".alphapilot-full-20260814T140354997795Z.db.u99elvzl.partial-shm",
+          "nlink": 1,
+          "size": 32768
+        },
+        {
+          "ctime_ns": 1786716262164228708,
+          "device": 16777229,
+          "inode": 309174732,
+          "kind": "file",
+          "mode": 384,
+          "mtime_ns": 1786716262164228708,
+          "name": ".alphapilot-full-20260814T140354997795Z.db.u99elvzl.partial-wal",
+          "nlink": 1,
+          "size": 0
+        },
+        {
+          "ctime_ns": 1786803295382892166,
+          "device": 16777229,
+          "inode": 310955547,
+          "kind": "file",
+          "mode": 384,
+          "mtime_ns": 1786803155980147374,
+          "name": ".alphapilot-full-20260815T141116570737Z.db.q3o8h8hf.partial-shm",
+          "nlink": 1,
+          "size": 32768
+        },
+        {
+          "ctime_ns": 1786803151611708874,
+          "device": 16777229,
+          "inode": 310955546,
+          "kind": "file",
+          "mode": 384,
+          "mtime_ns": 1786803151611708874,
+          "name": ".alphapilot-full-20260815T141116570737Z.db.q3o8h8hf.partial-wal",
+          "nlink": 1,
+          "size": 0
+        },
+        {
+          "ctime_ns": 1786889292997711999,
+          "device": 16777229,
+          "inode": 311644284,
+          "kind": "file",
+          "mode": 384,
+          "mtime_ns": 1786889120070871124,
+          "name": ".alphapilot-full-20260816T140439462947Z.db.mkp83mmb.partial-shm",
+          "nlink": 1,
+          "size": 32768
+        },
+        {
+          "ctime_ns": 1786889116910790666,
+          "device": 16777229,
+          "inode": 311644283,
+          "kind": "file",
+          "mode": 384,
+          "mtime_ns": 1786889116910790666,
+          "name": ".alphapilot-full-20260816T140439462947Z.db.mkp83mmb.partial-wal",
+          "nlink": 1,
+          "size": 0
+        },
+        {
+          "ctime_ns": 1786976187062477624,
+          "device": 16777229,
+          "inode": 312484673,
+          "kind": "file",
+          "mode": 384,
+          "mtime_ns": 1786976060237475749,
+          "name": ".alphapilot-full-20260817T141325928900Z.db.9ku9tcb2.partial-shm",
+          "nlink": 1,
+          "size": 32768
+        },
+        {
+          "ctime_ns": 1786976056553693124,
+          "device": 16777229,
+          "inode": 312484672,
+          "kind": "file",
+          "mode": 384,
+          "mtime_ns": 1786976056553693124,
+          "name": ".alphapilot-full-20260817T141325928900Z.db.9ku9tcb2.partial-wal",
+          "nlink": 1,
+          "size": 0
+        },
+        {
+          "ctime_ns": 1787062057632231333,
+          "device": 16777229,
+          "inode": 313423053,
+          "kind": "file",
+          "mode": 384,
+          "mtime_ns": 1787061923739054749,
+          "name": ".alphapilot-full-20260818T140452487233Z.db.0g3smfca.partial-shm",
+          "nlink": 1,
+          "size": 32768
+        },
+        {
+          "ctime_ns": 1787061918797605999,
+          "device": 16777229,
+          "inode": 313423052,
+          "kind": "file",
+          "mode": 384,
+          "mtime_ns": 1787061918797605999,
+          "name": ".alphapilot-full-20260818T140452487233Z.db.0g3smfca.partial-wal",
+          "nlink": 1,
+          "size": 0
+        },
+        {
+          "ctime_ns": 1787061892500584874,
+          "device": 16777229,
+          "inode": 273903839,
+          "kind": "file",
+          "mode": 384,
+          "mtime_ns": 1785429453277276791,
+          "name": ".alphapilot-full-backup.lock",
+          "nlink": 1,
+          "size": 0
+        },
+        {
+          "ctime_ns": 1785429434872832208,
+          "device": 16777229,
+          "inode": 273197747,
+          "kind": "file",
+          "mode": 384,
+          "mtime_ns": 1785419688906050458,
+          "name": "alphapilot-before-daily-screening-20260730T215331CST.db",
+          "nlink": 1,
+          "size": 5322227712
+        },
+        {
+          "ctime_ns": 1785429434872564874,
+          "device": 16777229,
+          "inode": 264312163,
+          "kind": "file",
+          "mode": 384,
+          "mtime_ns": 1785012642221167874,
+          "name": "alphapilot-before-orphan-sina-adj-cleanup-20260725T205024Z.db",
+          "nlink": 1,
+          "size": 4749484032
+        },
+        {
+          "ctime_ns": 1786277910929409874,
+          "device": 16777229,
+          "inode": 292143376,
+          "kind": "file",
+          "mode": 384,
+          "mtime_ns": 1786277910338392708,
+          "name": "alphapilot-full-20260809T113428170070Z.db-shm",
+          "nlink": 1,
+          "size": 32768
+        },
+        {
+          "ctime_ns": 1786275419041694374,
+          "device": 16777229,
+          "inode": 292143375,
+          "kind": "file",
+          "mode": 384,
+          "mtime_ns": 1786275419041663041,
+          "name": "alphapilot-full-20260809T113428170070Z.db-wal",
+          "nlink": 1,
+          "size": 0
+        },
+        {
+          "ctime_ns": 1786370877392408708,
+          "device": 16777229,
+          "inode": 294625111,
+          "kind": "file",
+          "mode": 384,
+          "mtime_ns": 1786370782753870874,
+          "name": "alphapilot-full-20260810T140605227286Z.db",
+          "nlink": 1,
+          "size": 5373038592
+        },
+        {
+          "ctime_ns": 1786370877395243624,
+          "device": 16777229,
+          "inode": 294625862,
+          "kind": "file",
+          "mode": 384,
+          "mtime_ns": 1786370877394479666,
+          "name": "alphapilot-full-20260810T140605227286Z.manifest.json",
+          "nlink": 1,
+          "size": 1284
+        },
+        {
+          "ctime_ns": 1786543848003052541,
+          "device": 16777229,
+          "inode": 303728623,
+          "kind": "file",
+          "mode": 384,
+          "mtime_ns": 1786543575834559999,
+          "name": "alphapilot-full-20260812T140415415325Z.db",
+          "nlink": 1,
+          "size": 5373038592
+        },
+        {
+          "ctime_ns": 1786543848005282499,
+          "device": 16777229,
+          "inode": 303731948,
+          "kind": "file",
+          "mode": 384,
+          "mtime_ns": 1786543848004759999,
+          "name": "alphapilot-full-20260812T140415415325Z.manifest.json",
+          "nlink": 1,
+          "size": 1284
+        },
+        {
+          "ctime_ns": 1786616233739422541,
+          "device": 16777229,
+          "inode": 306507674,
+          "kind": "file",
+          "mode": 384,
+          "mtime_ns": 1786616134926260499,
+          "name": "alphapilot-full-20260813T101514039763Z.db",
+          "nlink": 1,
+          "size": 5373038592
+        },
+        {
+          "ctime_ns": 1786616233749463333,
+          "device": 16777229,
+          "inode": 306509731,
+          "kind": "file",
+          "mode": 384,
+          "mtime_ns": 1786616233746319374,
+          "name": "alphapilot-full-20260813T101514039763Z.manifest.json",
+          "nlink": 1,
+          "size": 1284
+        },
+        {
+          "ctime_ns": 1786716412876024041,
+          "device": 16777229,
+          "inode": 309174346,
+          "kind": "file",
+          "mode": 384,
+          "mtime_ns": 1786716262155706666,
+          "name": "alphapilot-full-20260814T140354997795Z.db",
+          "nlink": 1,
+          "size": 5373038592
+        },
+        {
+          "ctime_ns": 1786716412880282583,
+          "device": 16777229,
+          "inode": 309175433,
+          "kind": "file",
+          "mode": 384,
+          "mtime_ns": 1786716412879076374,
+          "name": "alphapilot-full-20260814T140354997795Z.manifest.json",
+          "nlink": 1,
+          "size": 1284
+        },
+        {
+          "ctime_ns": 1786803304886842333,
+          "device": 16777229,
+          "inode": 310955234,
+          "kind": "file",
+          "mode": 384,
+          "mtime_ns": 1786803151592754833,
+          "name": "alphapilot-full-20260815T141116570737Z.db",
+          "nlink": 1,
+          "size": 5373038592
+        },
+        {
+          "ctime_ns": 1786803304892972541,
+          "device": 16777229,
+          "inode": 310957100,
+          "kind": "file",
+          "mode": 384,
+          "mtime_ns": 1786803304892144416,
+          "name": "alphapilot-full-20260815T141116570737Z.manifest.json",
+          "nlink": 1,
+          "size": 1284
+        },
+        {
+          "ctime_ns": 1786889304506778083,
+          "device": 16777229,
+          "inode": 311644123,
+          "kind": "file",
+          "mode": 384,
+          "mtime_ns": 1786889116904613833,
+          "name": "alphapilot-full-20260816T140439462947Z.db",
+          "nlink": 1,
+          "size": 5373038592
+        },
+        {
+          "ctime_ns": 1786889304510424708,
+          "device": 16777229,
+          "inode": 311644773,
+          "kind": "file",
+          "mode": 384,
+          "mtime_ns": 1786889304509111166,
+          "name": "alphapilot-full-20260816T140439462947Z.manifest.json",
+          "nlink": 1,
+          "size": 1284
+        },
+        {
+          "ctime_ns": 1786976196780357124,
+          "device": 16777229,
+          "inode": 312484533,
+          "kind": "file",
+          "mode": 384,
+          "mtime_ns": 1786976056542506333,
+          "name": "alphapilot-full-20260817T141325928900Z.db",
+          "nlink": 1,
+          "size": 5373038592
+        },
+        {
+          "ctime_ns": 1786976196785601083,
+          "device": 16777229,
+          "inode": 312486519,
+          "kind": "file",
+          "mode": 384,
+          "mtime_ns": 1786976196783846583,
+          "name": "alphapilot-full-20260817T141325928900Z.manifest.json",
+          "nlink": 1,
+          "size": 1284
+        },
+        {
+          "ctime_ns": 1787062066236801249,
+          "device": 16777229,
+          "inode": 313422940,
+          "kind": "file",
+          "mode": 384,
+          "mtime_ns": 1787061918794208916,
+          "name": "alphapilot-full-20260818T140452487233Z.db",
+          "nlink": 1,
+          "size": 5373038592
+        },
+        {
+          "ctime_ns": 1787062066241204458,
+          "device": 16777229,
+          "inode": 313424750,
+          "kind": "file",
+          "mode": 384,
+          "mtime_ns": 1787062066240343416,
+          "name": "alphapilot-full-20260818T140452487233Z.manifest.json",
+          "nlink": 1,
+          "size": 1284
+        },
+        {
+          "ctime_ns": 1785613233131017458,
+          "device": 16777229,
+          "inode": 280692376,
+          "kind": "file",
+          "mode": 420,
+          "mtime_ns": 1785613233131017458,
+          "name": "alphapilot-pre-p4.1-20260802T034014-CST.db",
+          "nlink": 1,
+          "size": 5373038592
+        }
+      ],
+      "inventory_before": [
+        {
+          "ctime_ns": 1786025119489369499,
+          "device": 16777229,
+          "inode": 288740024,
+          "kind": "file",
+          "mode": 384,
+          "mtime_ns": 1786025032867143666,
+          "name": ".alphapilot-full-20260806T140128258294Z.db.grdmrvzl.partial-shm",
+          "nlink": 1,
+          "size": 32768
+        },
+        {
+          "ctime_ns": 1786025031345248333,
+          "device": 16777229,
+          "inode": 288740023,
+          "kind": "file",
+          "mode": 384,
+          "mtime_ns": 1786025031345248333,
+          "name": ".alphapilot-full-20260806T140128258294Z.db.grdmrvzl.partial-wal",
+          "nlink": 1,
+          "size": 0
+        },
+        {
+          "ctime_ns": 1786113814358615833,
+          "device": 16777229,
+          "inode": 289387622,
+          "kind": "file",
+          "mode": 384,
+          "mtime_ns": 1786113715192191374,
+          "name": ".alphapilot-full-20260807T140839040989Z.db.x36_9ic8.partial-shm",
+          "nlink": 1,
+          "size": 32768
+        },
+        {
+          "ctime_ns": 1786113711901218583,
+          "device": 16777229,
+          "inode": 289387621,
+          "kind": "file",
+          "mode": 384,
+          "mtime_ns": 1786113711901218583,
+          "name": ".alphapilot-full-20260807T140839040989Z.db.x36_9ic8.partial-wal",
+          "nlink": 1,
+          "size": 0
+        },
+        {
+          "ctime_ns": 1786198369663786666,
+          "device": 16777229,
+          "inode": 290049273,
+          "kind": "file",
+          "mode": 384,
+          "mtime_ns": 1786198256763996791,
+          "name": ".alphapilot-full-20260808T140556670834Z.db.geyypzol.partial-shm",
+          "nlink": 1,
+          "size": 32768
+        },
+        {
+          "ctime_ns": 1786198252951236624,
+          "device": 16777229,
+          "inode": 290049272,
+          "kind": "file",
+          "mode": 384,
+          "mtime_ns": 1786198252951236624,
+          "name": ".alphapilot-full-20260808T140556670834Z.db.geyypzol.partial-wal",
+          "nlink": 1,
+          "size": 0
+        },
+        {
+          "ctime_ns": 1786275366886289499,
+          "device": 16777229,
+          "inode": 292141826,
+          "kind": "file",
+          "mode": 384,
+          "mtime_ns": 1786275299919639416,
+          "name": ".alphapilot-full-20260809T113428170070Z.db.j0p56ybp.partial-shm",
+          "nlink": 1,
+          "size": 32768
+        },
+        {
+          "ctime_ns": 1786275297797625833,
+          "device": 16777229,
+          "inode": 292141825,
+          "kind": "file",
+          "mode": 384,
+          "mtime_ns": 1786275297797583999,
+          "name": ".alphapilot-full-20260809T113428170070Z.db.j0p56ybp.partial-wal",
+          "nlink": 1,
+          "size": 0
+        },
+        {
+          "ctime_ns": 1786284380731843208,
+          "device": 16777229,
+          "inode": 292333499,
+          "kind": "file",
+          "mode": 384,
+          "mtime_ns": 1786284264340285208,
+          "name": ".alphapilot-full-20260809T140305129495Z.db.irnfvmc1.partial-shm",
+          "nlink": 1,
+          "size": 32768
+        },
+        {
+          "ctime_ns": 1786284258432011624,
+          "device": 16777229,
+          "inode": 292333498,
+          "kind": "file",
+          "mode": 384,
+          "mtime_ns": 1786284258432011624,
+          "name": ".alphapilot-full-20260809T140305129495Z.db.irnfvmc1.partial-wal",
+          "nlink": 1,
+          "size": 0
+        },
+        {
+          "ctime_ns": 1786370869437961333,
+          "device": 16777229,
+          "inode": 294625207,
+          "kind": "file",
+          "mode": 384,
+          "mtime_ns": 1786370785104265333,
+          "name": ".alphapilot-full-20260810T140605227286Z.db._fwekhvr.partial-shm",
+          "nlink": 1,
+          "size": 32768
+        },
+        {
+          "ctime_ns": 1786370782756270041,
+          "device": 16777229,
+          "inode": 294625206,
+          "kind": "file",
+          "mode": 384,
+          "mtime_ns": 1786370782756270041,
+          "name": ".alphapilot-full-20260810T140605227286Z.db._fwekhvr.partial-wal",
+          "nlink": 1,
+          "size": 0
+        },
+        {
+          "ctime_ns": 1786457303434522958,
+          "device": 16777229,
+          "inode": 298636214,
+          "kind": "file",
+          "mode": 384,
+          "mtime_ns": 1786457121839944374,
+          "name": ".alphapilot-full-20260811T140428778875Z.db.odzwh35n.partial-shm",
+          "nlink": 1,
+          "size": 32768
+        },
+        {
+          "ctime_ns": 1786457117416097374,
+          "device": 16777229,
+          "inode": 298636213,
+          "kind": "file",
+          "mode": 384,
+          "mtime_ns": 1786457117416097374,
+          "name": ".alphapilot-full-20260811T140428778875Z.db.odzwh35n.partial-wal",
+          "nlink": 1,
+          "size": 0
+        },
+        {
+          "ctime_ns": 1786543840205138708,
+          "device": 16777229,
+          "inode": 303729250,
+          "kind": "file",
+          "mode": 384,
+          "mtime_ns": 1786543580983152583,
+          "name": ".alphapilot-full-20260812T140415415325Z.db.ay31lfig.partial-shm",
+          "nlink": 1,
+          "size": 32768
+        },
+        {
+          "ctime_ns": 1786543576000904083,
+          "device": 16777229,
+          "inode": 303729249,
+          "kind": "file",
+          "mode": 384,
+          "mtime_ns": 1786543576000904083,
+          "name": ".alphapilot-full-20260812T140415415325Z.db.ay31lfig.partial-wal",
+          "nlink": 1,
+          "size": 0
+        },
+        {
+          "ctime_ns": 1786616230274283333,
+          "device": 16777229,
+          "inode": 306507919,
+          "kind": "file",
+          "mode": 384,
+          "mtime_ns": 1786616155276348416,
+          "name": ".alphapilot-full-20260813T101514039763Z.db._w9081x9.partial-shm",
+          "nlink": 1,
+          "size": 32768
+        },
+        {
+          "ctime_ns": 1786616134966828333,
+          "device": 16777229,
+          "inode": 306507918,
+          "kind": "file",
+          "mode": 384,
+          "mtime_ns": 1786616134966788541,
+          "name": ".alphapilot-full-20260813T101514039763Z.db._w9081x9.partial-wal",
+          "nlink": 1,
+          "size": 0
+        },
+        {
+          "ctime_ns": 1786716403186232208,
+          "device": 16777229,
+          "inode": 309174733,
+          "kind": "file",
+          "mode": 384,
+          "mtime_ns": 1786716265893605958,
+          "name": ".alphapilot-full-20260814T140354997795Z.db.u99elvzl.partial-shm",
+          "nlink": 1,
+          "size": 32768
+        },
+        {
+          "ctime_ns": 1786716262164228708,
+          "device": 16777229,
+          "inode": 309174732,
+          "kind": "file",
+          "mode": 384,
+          "mtime_ns": 1786716262164228708,
+          "name": ".alphapilot-full-20260814T140354997795Z.db.u99elvzl.partial-wal",
+          "nlink": 1,
+          "size": 0
+        },
+        {
+          "ctime_ns": 1786803295382892166,
+          "device": 16777229,
+          "inode": 310955547,
+          "kind": "file",
+          "mode": 384,
+          "mtime_ns": 1786803155980147374,
+          "name": ".alphapilot-full-20260815T141116570737Z.db.q3o8h8hf.partial-shm",
+          "nlink": 1,
+          "size": 32768
+        },
+        {
+          "ctime_ns": 1786803151611708874,
+          "device": 16777229,
+          "inode": 310955546,
+          "kind": "file",
+          "mode": 384,
+          "mtime_ns": 1786803151611708874,
+          "name": ".alphapilot-full-20260815T141116570737Z.db.q3o8h8hf.partial-wal",
+          "nlink": 1,
+          "size": 0
+        },
+        {
+          "ctime_ns": 1786889292997711999,
+          "device": 16777229,
+          "inode": 311644284,
+          "kind": "file",
+          "mode": 384,
+          "mtime_ns": 1786889120070871124,
+          "name": ".alphapilot-full-20260816T140439462947Z.db.mkp83mmb.partial-shm",
+          "nlink": 1,
+          "size": 32768
+        },
+        {
+          "ctime_ns": 1786889116910790666,
+          "device": 16777229,
+          "inode": 311644283,
+          "kind": "file",
+          "mode": 384,
+          "mtime_ns": 1786889116910790666,
+          "name": ".alphapilot-full-20260816T140439462947Z.db.mkp83mmb.partial-wal",
+          "nlink": 1,
+          "size": 0
+        },
+        {
+          "ctime_ns": 1786976187062477624,
+          "device": 16777229,
+          "inode": 312484673,
+          "kind": "file",
+          "mode": 384,
+          "mtime_ns": 1786976060237475749,
+          "name": ".alphapilot-full-20260817T141325928900Z.db.9ku9tcb2.partial-shm",
+          "nlink": 1,
+          "size": 32768
+        },
+        {
+          "ctime_ns": 1786976056553693124,
+          "device": 16777229,
+          "inode": 312484672,
+          "kind": "file",
+          "mode": 384,
+          "mtime_ns": 1786976056553693124,
+          "name": ".alphapilot-full-20260817T141325928900Z.db.9ku9tcb2.partial-wal",
+          "nlink": 1,
+          "size": 0
+        },
+        {
+          "ctime_ns": 1787062057632231333,
+          "device": 16777229,
+          "inode": 313423053,
+          "kind": "file",
+          "mode": 384,
+          "mtime_ns": 1787061923739054749,
+          "name": ".alphapilot-full-20260818T140452487233Z.db.0g3smfca.partial-shm",
+          "nlink": 1,
+          "size": 32768
+        },
+        {
+          "ctime_ns": 1787061918797605999,
+          "device": 16777229,
+          "inode": 313423052,
+          "kind": "file",
+          "mode": 384,
+          "mtime_ns": 1787061918797605999,
+          "name": ".alphapilot-full-20260818T140452487233Z.db.0g3smfca.partial-wal",
+          "nlink": 1,
+          "size": 0
+        },
+        {
+          "ctime_ns": 1787061892500584874,
+          "device": 16777229,
+          "inode": 273903839,
+          "kind": "file",
+          "mode": 384,
+          "mtime_ns": 1785429453277276791,
+          "name": ".alphapilot-full-backup.lock",
+          "nlink": 1,
+          "size": 0
+        },
+        {
+          "ctime_ns": 1785429434872832208,
+          "device": 16777229,
+          "inode": 273197747,
+          "kind": "file",
+          "mode": 384,
+          "mtime_ns": 1785419688906050458,
+          "name": "alphapilot-before-daily-screening-20260730T215331CST.db",
+          "nlink": 1,
+          "size": 5322227712
+        },
+        {
+          "ctime_ns": 1785429434872564874,
+          "device": 16777229,
+          "inode": 264312163,
+          "kind": "file",
+          "mode": 384,
+          "mtime_ns": 1785012642221167874,
+          "name": "alphapilot-before-orphan-sina-adj-cleanup-20260725T205024Z.db",
+          "nlink": 1,
+          "size": 4749484032
+        },
+        {
+          "ctime_ns": 1786277910929409874,
+          "device": 16777229,
+          "inode": 292143376,
+          "kind": "file",
+          "mode": 384,
+          "mtime_ns": 1786277910338392708,
+          "name": "alphapilot-full-20260809T113428170070Z.db-shm",
+          "nlink": 1,
+          "size": 32768
+        },
+        {
+          "ctime_ns": 1786275419041694374,
+          "device": 16777229,
+          "inode": 292143375,
+          "kind": "file",
+          "mode": 384,
+          "mtime_ns": 1786275419041663041,
+          "name": "alphapilot-full-20260809T113428170070Z.db-wal",
+          "nlink": 1,
+          "size": 0
+        },
+        {
+          "ctime_ns": 1786370877392408708,
+          "device": 16777229,
+          "inode": 294625111,
+          "kind": "file",
+          "mode": 384,
+          "mtime_ns": 1786370782753870874,
+          "name": "alphapilot-full-20260810T140605227286Z.db",
+          "nlink": 1,
+          "size": 5373038592
+        },
+        {
+          "ctime_ns": 1786370877395243624,
+          "device": 16777229,
+          "inode": 294625862,
+          "kind": "file",
+          "mode": 384,
+          "mtime_ns": 1786370877394479666,
+          "name": "alphapilot-full-20260810T140605227286Z.manifest.json",
+          "nlink": 1,
+          "size": 1284
+        },
+        {
+          "ctime_ns": 1786543848003052541,
+          "device": 16777229,
+          "inode": 303728623,
+          "kind": "file",
+          "mode": 384,
+          "mtime_ns": 1786543575834559999,
+          "name": "alphapilot-full-20260812T140415415325Z.db",
+          "nlink": 1,
+          "size": 5373038592
+        },
+        {
+          "ctime_ns": 1786543848005282499,
+          "device": 16777229,
+          "inode": 303731948,
+          "kind": "file",
+          "mode": 384,
+          "mtime_ns": 1786543848004759999,
+          "name": "alphapilot-full-20260812T140415415325Z.manifest.json",
+          "nlink": 1,
+          "size": 1284
+        },
+        {
+          "ctime_ns": 1786616233739422541,
+          "device": 16777229,
+          "inode": 306507674,
+          "kind": "file",
+          "mode": 384,
+          "mtime_ns": 1786616134926260499,
+          "name": "alphapilot-full-20260813T101514039763Z.db",
+          "nlink": 1,
+          "size": 5373038592
+        },
+        {
+          "ctime_ns": 1786616233749463333,
+          "device": 16777229,
+          "inode": 306509731,
+          "kind": "file",
+          "mode": 384,
+          "mtime_ns": 1786616233746319374,
+          "name": "alphapilot-full-20260813T101514039763Z.manifest.json",
+          "nlink": 1,
+          "size": 1284
+        },
+        {
+          "ctime_ns": 1786716412876024041,
+          "device": 16777229,
+          "inode": 309174346,
+          "kind": "file",
+          "mode": 384,
+          "mtime_ns": 1786716262155706666,
+          "name": "alphapilot-full-20260814T140354997795Z.db",
+          "nlink": 1,
+          "size": 5373038592
+        },
+        {
+          "ctime_ns": 1786716412880282583,
+          "device": 16777229,
+          "inode": 309175433,
+          "kind": "file",
+          "mode": 384,
+          "mtime_ns": 1786716412879076374,
+          "name": "alphapilot-full-20260814T140354997795Z.manifest.json",
+          "nlink": 1,
+          "size": 1284
+        },
+        {
+          "ctime_ns": 1786803304886842333,
+          "device": 16777229,
+          "inode": 310955234,
+          "kind": "file",
+          "mode": 384,
+          "mtime_ns": 1786803151592754833,
+          "name": "alphapilot-full-20260815T141116570737Z.db",
+          "nlink": 1,
+          "size": 5373038592
+        },
+        {
+          "ctime_ns": 1786803304892972541,
+          "device": 16777229,
+          "inode": 310957100,
+          "kind": "file",
+          "mode": 384,
+          "mtime_ns": 1786803304892144416,
+          "name": "alphapilot-full-20260815T141116570737Z.manifest.json",
+          "nlink": 1,
+          "size": 1284
+        },
+        {
+          "ctime_ns": 1786889304506778083,
+          "device": 16777229,
+          "inode": 311644123,
+          "kind": "file",
+          "mode": 384,
+          "mtime_ns": 1786889116904613833,
+          "name": "alphapilot-full-20260816T140439462947Z.db",
+          "nlink": 1,
+          "size": 5373038592
+        },
+        {
+          "ctime_ns": 1786889304510424708,
+          "device": 16777229,
+          "inode": 311644773,
+          "kind": "file",
+          "mode": 384,
+          "mtime_ns": 1786889304509111166,
+          "name": "alphapilot-full-20260816T140439462947Z.manifest.json",
+          "nlink": 1,
+          "size": 1284
+        },
+        {
+          "ctime_ns": 1786976196780357124,
+          "device": 16777229,
+          "inode": 312484533,
+          "kind": "file",
+          "mode": 384,
+          "mtime_ns": 1786976056542506333,
+          "name": "alphapilot-full-20260817T141325928900Z.db",
+          "nlink": 1,
+          "size": 5373038592
+        },
+        {
+          "ctime_ns": 1786976196785601083,
+          "device": 16777229,
+          "inode": 312486519,
+          "kind": "file",
+          "mode": 384,
+          "mtime_ns": 1786976196783846583,
+          "name": "alphapilot-full-20260817T141325928900Z.manifest.json",
+          "nlink": 1,
+          "size": 1284
+        },
+        {
+          "ctime_ns": 1787062066236801249,
+          "device": 16777229,
+          "inode": 313422940,
+          "kind": "file",
+          "mode": 384,
+          "mtime_ns": 1787061918794208916,
+          "name": "alphapilot-full-20260818T140452487233Z.db",
+          "nlink": 1,
+          "size": 5373038592
+        },
+        {
+          "ctime_ns": 1787062066241204458,
+          "device": 16777229,
+          "inode": 313424750,
+          "kind": "file",
+          "mode": 384,
+          "mtime_ns": 1787062066240343416,
+          "name": "alphapilot-full-20260818T140452487233Z.manifest.json",
+          "nlink": 1,
+          "size": 1284
+        },
+        {
+          "ctime_ns": 1785613233131017458,
+          "device": 16777229,
+          "inode": 280692376,
+          "kind": "file",
+          "mode": 420,
+          "mtime_ns": 1785613233131017458,
+          "name": "alphapilot-pre-p4.1-20260802T034014-CST.db",
+          "nlink": 1,
+          "size": 5373038592
+        }
+      ],
+      "inventory_canonical": {
+        "bytes": 10668,
+        "serialization": "UTF-8 sort_keys compact no trailing LF",
+        "sha256": "b5ed777385559e64a0ed2dc2c252d02bc0361450c65046cf0856cc79197b05c6"
+      },
+      "launchagent_process_state_used_as_gate": false,
+      "manifest_created_at_cst": "2026-08-18T22:04:52.487233+08:00",
+      "manifest_path": "/Users/ouyangduning/Documents/project/interesting/AlphaPilot-AI/data/backups/alphapilot-full-20260818T140452487233Z.manifest.json",
+      "manifest_sha256": "c2c1726732de6f12e9091ab486a32a7b8630f2b57f38c936144d5a33a790deaf",
+      "next_real_backup_window_cst": "2026-08-19T22:00:00+08:00",
+      "no_new_backup_artifacts": true,
+      "sidecars_absent_before_and_after": true,
+      "stamp_after": {
+        "bytes": 11,
+        "hex": "323032362d30382d31380a",
+        "identity": {
+          "ctime_ns": 1787062067940808249,
+          "device": 16777229,
+          "inode": 313424763,
+          "mode": 33152,
+          "mtime_ns": 1787062067940472749,
+          "nlink": 1,
+          "path": "/Users/ouyangduning/Library/Application Support/AlphaPilot-AI/database-backup/last-success-shanghai-date",
+          "size": 11
+        },
+        "sha256": "40d28288e65c35ddd831827bf267ec932df243100cbd8e3955d62298858e668e",
+        "utf8": "2026-08-18\n"
+      },
+      "stamp_before": {
+        "bytes": 11,
+        "hex": "323032362d30382d31380a",
+        "identity": {
+          "ctime_ns": 1787062067940808249,
+          "device": 16777229,
+          "inode": 313424763,
+          "mode": 33152,
+          "mtime_ns": 1787062067940472749,
+          "nlink": 1,
+          "path": "/Users/ouyangduning/Library/Application Support/AlphaPilot-AI/database-backup/last-success-shanghai-date",
+          "size": 11
+        },
+        "sha256": "40d28288e65c35ddd831827bf267ec932df243100cbd8e3955d62298858e668e",
+        "utf8": "2026-08-18\n"
+      },
+      "stamp_unchanged": true,
+      "window_overlap": false
+    },
+    "latest_news_poll_slot": {
+      "config_sha256": "9d56e137baf10bd0858723a93aff02c57bf7b35f8705f1817b16a89ec615183f",
+      "finished_at_utc": "2026-08-18T14:00:07.895813+00:00",
+      "job_run_id": 91281,
+      "slot_cst": "2026-08-18T22:00:00+08:00",
+      "started_at_utc": "2026-08-18T14:00:00.376953+00:00",
+      "status": "ok"
+    },
+    "purpose_form_source": {
+      "bytes": 31738,
+      "json_pointers": [
+        "/latest_news_poll_slot",
+        "/scheduler",
+        "/backup_purpose_form",
+        "/w3",
+        "/w4"
+      ],
+      "path": "/Users/ouyangduning/Documents/project/interesting/.alphapilot-p42a-epoch4-gate-evidence.9nyuYx/purpose_precheck.json",
+      "sha256": "b5f88b96c73d9314514a3847127d793589f08da10ac9a9b8640e7b2632cdc18f"
+    },
+    "scheduler": {
+      "label": "com.alphapilot.scheduler",
+      "pid": 9978,
+      "process_start_observation": "Thu Aug 13 06:26:31 2026",
+      "state": "running"
+    },
+    "slot_report_created_by_this_landing": false,
+    "w3": {
+      "current_pid": 9978,
+      "future_death_crossing_slot_makes_day_fail": true,
+      "initial_respawn_pid": 9978,
+      "keepalive_restart_at_cst": "2026-08-13T18:26:31+08:00",
+      "must_be_persisted_in_next_slot_report": true,
+      "old_pid": 11456,
+      "status": "OPEN_OBSERVATION_ZERO_SLOT_LOSS",
+      "verified_slots": [
+        {
+          "job_run_id": 88895,
+          "slot_cst": "2026-08-17T10:00:00+08:00"
+        },
+        {
+          "job_run_id": 88928,
+          "slot_cst": "2026-08-17T10:30:00+08:00"
+        },
+        {
+          "job_run_id": 88960,
+          "slot_cst": "2026-08-17T11:00:00+08:00"
+        },
+        {
+          "job_run_id": 88991,
+          "slot_cst": "2026-08-17T11:30:00+08:00"
+        },
+        {
+          "job_run_id": 89018,
+          "slot_cst": "2026-08-17T12:00:00+08:00"
+        },
+        {
+          "job_run_id": 89049,
+          "slot_cst": "2026-08-17T12:30:00+08:00"
+        },
+        {
+          "job_run_id": 89080,
+          "slot_cst": "2026-08-17T13:00:00+08:00"
+        },
+        {
+          "job_run_id": 89113,
+          "slot_cst": "2026-08-17T13:30:00+08:00"
+        },
+        {
+          "job_run_id": 89146,
+          "slot_cst": "2026-08-17T14:00:00+08:00"
+        },
+        {
+          "job_run_id": 89179,
+          "slot_cst": "2026-08-17T14:30:00+08:00"
+        },
+        {
+          "job_run_id": 89212,
+          "slot_cst": "2026-08-17T15:00:00+08:00"
+        },
+        {
+          "job_run_id": 89245,
+          "slot_cst": "2026-08-17T15:30:00+08:00"
+        },
+        {
+          "job_run_id": 89276,
+          "slot_cst": "2026-08-17T16:00:00+08:00"
+        },
+        {
+          "job_run_id": 89307,
+          "slot_cst": "2026-08-17T16:30:00+08:00"
+        },
+        {
+          "job_run_id": 89338,
+          "slot_cst": "2026-08-17T17:00:00+08:00"
+        },
+        {
+          "job_run_id": 89370,
+          "slot_cst": "2026-08-17T17:30:00+08:00"
+        },
+        {
+          "job_run_id": 89401,
+          "slot_cst": "2026-08-17T18:00:00+08:00"
+        },
+        {
+          "job_run_id": 89432,
+          "slot_cst": "2026-08-17T18:30:00+08:00"
+        },
+        {
+          "job_run_id": 89466,
+          "slot_cst": "2026-08-17T19:00:00+08:00"
+        },
+        {
+          "job_run_id": 89502,
+          "slot_cst": "2026-08-17T19:30:00+08:00"
+        },
+        {
+          "job_run_id": 89541,
+          "slot_cst": "2026-08-17T20:00:00+08:00"
+        },
+        {
+          "job_run_id": 89576,
+          "slot_cst": "2026-08-17T20:30:00+08:00"
+        },
+        {
+          "job_run_id": 89612,
+          "slot_cst": "2026-08-17T21:00:00+08:00"
+        },
+        {
+          "job_run_id": 89649,
+          "slot_cst": "2026-08-17T21:30:00+08:00"
+        },
+        {
+          "job_run_id": 89684,
+          "slot_cst": "2026-08-17T22:00:00+08:00"
+        },
+        {
+          "job_run_id": 89719,
+          "slot_cst": "2026-08-17T22:30:00+08:00"
+        },
+        {
+          "job_run_id": 89754,
+          "slot_cst": "2026-08-17T23:00:00+08:00"
+        },
+        {
+          "job_run_id": 89789,
+          "slot_cst": "2026-08-17T23:30:00+08:00"
+        },
+        {
+          "job_run_id": 89824,
+          "slot_cst": "2026-08-18T00:00:00+08:00"
+        },
+        {
+          "job_run_id": 89859,
+          "slot_cst": "2026-08-18T00:30:00+08:00"
+        },
+        {
+          "job_run_id": 89894,
+          "slot_cst": "2026-08-18T01:00:00+08:00"
+        },
+        {
+          "job_run_id": 89929,
+          "slot_cst": "2026-08-18T01:30:00+08:00"
+        },
+        {
+          "job_run_id": 89964,
+          "slot_cst": "2026-08-18T02:00:00+08:00"
+        },
+        {
+          "job_run_id": 89995,
+          "slot_cst": "2026-08-18T02:30:00+08:00"
+        },
+        {
+          "job_run_id": 90026,
+          "slot_cst": "2026-08-18T03:00:00+08:00"
+        },
+        {
+          "job_run_id": 90057,
+          "slot_cst": "2026-08-18T03:30:00+08:00"
+        },
+        {
+          "job_run_id": 90088,
+          "slot_cst": "2026-08-18T04:00:00+08:00"
+        },
+        {
+          "job_run_id": 90119,
+          "slot_cst": "2026-08-18T04:30:00+08:00"
+        },
+        {
+          "job_run_id": 90150,
+          "slot_cst": "2026-08-18T05:00:00+08:00"
+        },
+        {
+          "job_run_id": 90181,
+          "slot_cst": "2026-08-18T05:30:00+08:00"
+        },
+        {
+          "job_run_id": 90212,
+          "slot_cst": "2026-08-18T06:00:00+08:00"
+        },
+        {
+          "job_run_id": 90243,
+          "slot_cst": "2026-08-18T06:30:00+08:00"
+        },
+        {
+          "job_run_id": 90274,
+          "slot_cst": "2026-08-18T07:00:00+08:00"
+        },
+        {
+          "job_run_id": 90310,
+          "slot_cst": "2026-08-18T07:30:00+08:00"
+        },
+        {
+          "job_run_id": 90345,
+          "slot_cst": "2026-08-18T08:00:00+08:00"
+        },
+        {
+          "job_run_id": 90380,
+          "slot_cst": "2026-08-18T08:30:00+08:00"
+        },
+        {
+          "job_run_id": 90416,
+          "slot_cst": "2026-08-18T09:00:00+08:00"
+        },
+        {
+          "job_run_id": 90451,
+          "slot_cst": "2026-08-18T09:30:00+08:00"
+        },
+        {
+          "job_run_id": 90488,
+          "slot_cst": "2026-08-18T10:00:00+08:00"
+        },
+        {
+          "job_run_id": 90521,
+          "slot_cst": "2026-08-18T10:30:00+08:00"
+        },
+        {
+          "job_run_id": 90554,
+          "slot_cst": "2026-08-18T11:00:00+08:00"
+        },
+        {
+          "job_run_id": 90587,
+          "slot_cst": "2026-08-18T11:30:00+08:00"
+        },
+        {
+          "job_run_id": 90617,
+          "slot_cst": "2026-08-18T12:00:00+08:00"
+        },
+        {
+          "job_run_id": 90648,
+          "slot_cst": "2026-08-18T12:30:00+08:00"
+        },
+        {
+          "job_run_id": 90679,
+          "slot_cst": "2026-08-18T13:00:00+08:00"
+        },
+        {
+          "job_run_id": 90712,
+          "slot_cst": "2026-08-18T13:30:00+08:00"
+        },
+        {
+          "job_run_id": 90745,
+          "slot_cst": "2026-08-18T14:00:00+08:00"
+        },
+        {
+          "job_run_id": 90778,
+          "slot_cst": "2026-08-18T14:30:00+08:00"
+        },
+        {
+          "job_run_id": 90811,
+          "slot_cst": "2026-08-18T15:00:00+08:00"
+        },
+        {
+          "job_run_id": 90844,
+          "slot_cst": "2026-08-18T15:30:00+08:00"
+        },
+        {
+          "job_run_id": 90875,
+          "slot_cst": "2026-08-18T16:00:00+08:00"
+        },
+        {
+          "job_run_id": 90906,
+          "slot_cst": "2026-08-18T16:30:00+08:00"
+        },
+        {
+          "job_run_id": 90937,
+          "slot_cst": "2026-08-18T17:00:00+08:00"
+        },
+        {
+          "job_run_id": 90968,
+          "slot_cst": "2026-08-18T17:30:00+08:00"
+        },
+        {
+          "job_run_id": 91000,
+          "slot_cst": "2026-08-18T18:00:00+08:00"
+        },
+        {
+          "job_run_id": 91031,
+          "slot_cst": "2026-08-18T18:30:00+08:00"
+        },
+        {
+          "job_run_id": 91065,
+          "slot_cst": "2026-08-18T19:00:00+08:00"
+        },
+        {
+          "job_run_id": 91101,
+          "slot_cst": "2026-08-18T19:30:00+08:00"
+        },
+        {
+          "job_run_id": 91140,
+          "slot_cst": "2026-08-18T20:00:00+08:00"
+        },
+        {
+          "job_run_id": 91175,
+          "slot_cst": "2026-08-18T20:30:00+08:00"
+        },
+        {
+          "job_run_id": 91211,
+          "slot_cst": "2026-08-18T21:00:00+08:00"
+        },
+        {
+          "job_run_id": 91246,
+          "slot_cst": "2026-08-18T21:30:00+08:00"
+        },
+        {
+          "job_run_id": 91281,
+          "slot_cst": "2026-08-18T22:00:00+08:00"
+        }
+      ]
+    },
+    "w4": {
+      "baseline_incident": "2026-08-13 backup ran at 18:15 CST despite module default 22:00 window",
+      "baseline_manifest": "/Users/ouyangduning/Documents/project/interesting/AlphaPilot-AI/data/backups/alphapilot-full-20260813T101514039763Z.manifest.json",
+      "if_repeated_distance_to_news_poll_slots_recorded": true,
+      "later_manifests": [
+        {
+          "created_at_cst": "2026-08-14T22:03:54.997795+08:00",
+          "distance_to_nearest_news_poll_slot_seconds": 234,
+          "early_before_22": false,
+          "path": "/Users/ouyangduning/Documents/project/interesting/AlphaPilot-AI/data/backups/alphapilot-full-20260814T140354997795Z.manifest.json"
+        },
+        {
+          "created_at_cst": "2026-08-15T22:11:16.570737+08:00",
+          "distance_to_nearest_news_poll_slot_seconds": 676,
+          "early_before_22": false,
+          "path": "/Users/ouyangduning/Documents/project/interesting/AlphaPilot-AI/data/backups/alphapilot-full-20260815T141116570737Z.manifest.json"
+        },
+        {
+          "created_at_cst": "2026-08-16T22:04:39.462947+08:00",
+          "distance_to_nearest_news_poll_slot_seconds": 279,
+          "early_before_22": false,
+          "path": "/Users/ouyangduning/Documents/project/interesting/AlphaPilot-AI/data/backups/alphapilot-full-20260816T140439462947Z.manifest.json"
+        },
+        {
+          "created_at_cst": "2026-08-17T22:13:25.928900+08:00",
+          "distance_to_nearest_news_poll_slot_seconds": 805,
+          "early_before_22": false,
+          "path": "/Users/ouyangduning/Documents/project/interesting/AlphaPilot-AI/data/backups/alphapilot-full-20260817T141325928900Z.manifest.json"
+        },
+        {
+          "created_at_cst": "2026-08-18T22:04:52.487233+08:00",
+          "distance_to_nearest_news_poll_slot_seconds": 292,
+          "early_before_22": false,
+          "path": "/Users/ouyangduning/Documents/project/interesting/AlphaPilot-AI/data/backups/alphapilot-full-20260818T140452487233Z.manifest.json"
+        }
+      ],
+      "must_be_persisted_with_w3_in_next_slot_report": true,
+      "repeated_early_execution": false,
+      "status": "OPEN_OPERATIONAL_INVESTIGATION_NONBLOCKING_FOR_THIS_GATE"
+    }
+  },
+  "planned_landing": {
+    "base_commit": "2c3171e68ce0146c158a294d0e494ae4b618310b",
+    "merge_base": "2c3171e68ce0146c158a294d0e494ae4b618310b",
+    "merge_commit_sha": null,
+    "merge_only": true,
+    "no_ff": true,
+    "ordered_no_ff_parents": [
+      "2c3171e68ce0146c158a294d0e494ae4b618310b",
+      "858f372a8ce56f2556d02d03c46c6fb078b5b476"
+    ],
+    "preserve_implementation_and_review_objects_byte_exact": true,
+    "report_commit_contract": "after the no-ff merge, commit this exact report as the merge commit's direct single-parent child and unique status-A path",
+    "report_generated_before_merge": true,
+    "second_parent": "858f372a8ce56f2556d02d03c46c6fb078b5b476"
+  },
+  "pre_registered_gate": {
+    "backup_immutable_verify": {
+      "bytes": 3673,
+      "path": "/Users/ouyangduning/Documents/project/interesting/.alphapilot-p42a-epoch4-gate-evidence.9nyuYx/backup_immutable_verify.json",
+      "sha256": "886e753806208b4f713972c795010625cb03f9c18f759fc9f079ae6c7bda4e32",
+      "status": "PASS_IMMUTABLE_BACKUP_VERIFY"
+    },
+    "foreground_signal_probe": {
+      "bytes": 88,
+      "document": {
+        "nice": 10,
+        "sigint": "default_int_handler",
+        "status": "PASS_FOREGROUND_NICE_SIGNAL_PROBE"
+      },
+      "path": "/Users/ouyangduning/Documents/project/interesting/.alphapilot-p42a-epoch4-gate-evidence.9nyuYx/signal_probe.json",
+      "sha256": "f85dc02178497623f5afcda5bbe1ee54244b134c21ba53e68d8e5f68708d0adf"
+    },
+    "precheck_audit": {
+      "bytes": 7288,
+      "path": "/Users/ouyangduning/Documents/project/interesting/.alphapilot-p42a-epoch4-gate-evidence.9nyuYx/precheck_audit.json",
+      "sha256": "a7cf389054dbf7a574cb56ceacb862b074fa45eb1e2e47485bc578793086b447",
+      "status": "PASS_PRECHECK_AUDIT"
+    },
+    "producer_bound_readback": {
+      "bytes": 1853,
+      "path": "/Users/ouyangduning/Documents/project/interesting/.alphapilot-p42a-epoch4-gate-evidence.9nyuYx/pre_registered_gate_readback.json",
+      "producer_bindings": {
+        "collect_count_field": "tests",
+        "collect_status": "PASS_COLLECT_ONLY",
+        "precheck_audit_status": "PASS_PRECHECK_AUDIT",
+        "precheck_run_terminal_line": "status=PASS_ALL_PRECHECKS"
+      },
+      "sha256": "b484f3b1f4a6d9e89e8ae41a7b2ca131f673d16878cf916f256859a35bb813da",
+      "status": "PASS_PRE_REGISTERED_GATE_READBACK"
+    },
+    "purpose_form": {
+      "bytes": 31738,
+      "path": "/Users/ouyangduning/Documents/project/interesting/.alphapilot-p42a-epoch4-gate-evidence.9nyuYx/purpose_precheck.json",
+      "sha256": "b5f88b96c73d9314514a3847127d793589f08da10ac9a9b8640e7b2632cdc18f",
+      "status": "PASS_PURPOSE_FORM_RUNTIME_PRECHECK"
+    },
+    "runner_collect": {
+      "bytes": 166,
+      "document": {
+        "path": "/Users/ouyangduning/Documents/project/interesting/.alphapilot-p42a-epoch4-gate-evidence.9nyuYx/runner.collect.log",
+        "status": "PASS_COLLECT_ONLY",
+        "tests": 153
+      },
+      "path": "/Users/ouyangduning/Documents/project/interesting/.alphapilot-p42a-epoch4-gate-evidence.9nyuYx/runner.collect-summary.json",
+      "sha256": "0e7dc867f48037bf3a96d95a408306ab903e8ce0eb00020623c5ae0476a5340f"
+    },
+    "terminal_status": "PASS_ALL_PRECHECKS",
+    "validator_collect": {
+      "bytes": 169,
+      "document": {
+        "path": "/Users/ouyangduning/Documents/project/interesting/.alphapilot-p42a-epoch4-gate-evidence.9nyuYx/validator.collect.log",
+        "status": "PASS_COLLECT_ONLY",
+        "tests": 109
+      },
+      "path": "/Users/ouyangduning/Documents/project/interesting/.alphapilot-p42a-epoch4-gate-evidence.9nyuYx/validator.collect-summary.json",
+      "sha256": "ae70029c58e01ee5a884ce63e5b00780db7fd701372bacf6963a0bd5b5462062"
+    }
+  },
+  "registered_state_integrity": {
+    "consumed_v2_1_claim_empty_mode_0700": true,
+    "gate_clean": true,
+    "gate_head": "890e9002116c625d41f6aa037975df15d1546c56",
+    "ledger_disclosure": {
+      "next_ordinal": 2,
+      "only_ordinal_1_present": true,
+      "ordinal_1_terminal": "FAILED",
+      "ordinal_2_present": false,
+      "previous_history_root_sha256": "076ae961fc149ae271bf5a3724c1677abccfea7139589909ea717a7f4a38083a"
+    },
+    "official_after_gate_fingerprints": {
+      "consumed_v2_1_claim": {
+        ".": "directory:0700"
+      },
+      "real_heldout_root": {
+        ".": "absent"
+      },
+      "registered_v2_2_destination": {
+        ".": "absent"
+      },
+      "registered_v2_2_ledger": {
+        ".": "directory:0700",
+        ".series.lock": "file:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855:0600:1",
+        "attempts": "directory:0700",
+        "attempts/000001": "directory:0700",
+        "attempts/000001/evidence": "directory:0700",
+        "attempts/000001/evidence/failure": "directory:0700",
+        "attempts/000001/evidence/failure/exception.json": "file:0eae027f49a870b726c8da6abe947be0cf1a9d280e0b485ec553a053b9fdf826:0600:1",
+        "attempts/000001/evidence/probes": "directory:0700",
+        "attempts/000001/evidence/probes/atomic-publication.json": "file:f56962a03e49ba2d36ab5c2344e8991da0dc63681555712e15f2cb0242645974:0600:1",
+        "attempts/000001/evidence/probes/authority-forgery.json": "file:bb86300d7459d18fd6db6b1d41b01c8c878924d48c98f99d08bc2eef756742fb:0600:1",
+        "attempts/000001/evidence/probes/same-parent-first.txt": "file:b640e840b19d378660b32fb51ae18d67dccb4a8596a29e7bd72c1b2ae5928f41:0600:1",
+        "attempts/000001/evidence/probes/same-parent-second.txt": "file:480c2336b410f1ad5f8bf1b28944490255804b65350c527787e74ebdd511e3a4:0600:1",
+        "attempts/000001/started.json": "file:a6a475abb6df4169d5b117283e2d313ee8088b527e9e8e57e9e127e7b56641be:0600:1",
+        "attempts/000001/terminal.json": "file:d922fb19dd55451ddf27bbf7749fa2fcc716b717a08d21b43d8d54cc9d03ede2:0600:1",
+        "series.json": "file:7b3e00f5390d3eec19eb0fbbce0cb1789b2219a768731153906fc38cb5b485c3:0600:1"
+      },
+      "retired_v2_1_destination": {
+        ".": "absent"
+      }
+    },
+    "official_after_precheck_fingerprints": {
+      "consumed_v2_1_claim": {
+        ".": "directory:0700"
+      },
+      "real_heldout_root": {
+        ".": "absent"
+      },
+      "registered_v2_2_destination": {
+        ".": "absent"
+      },
+      "registered_v2_2_ledger": {
+        ".": "directory:0700",
+        ".series.lock": "file:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855:0600:1",
+        "attempts": "directory:0700",
+        "attempts/000001": "directory:0700",
+        "attempts/000001/evidence": "directory:0700",
+        "attempts/000001/evidence/failure": "directory:0700",
+        "attempts/000001/evidence/failure/exception.json": "file:0eae027f49a870b726c8da6abe947be0cf1a9d280e0b485ec553a053b9fdf826:0600:1",
+        "attempts/000001/evidence/probes": "directory:0700",
+        "attempts/000001/evidence/probes/atomic-publication.json": "file:f56962a03e49ba2d36ab5c2344e8991da0dc63681555712e15f2cb0242645974:0600:1",
+        "attempts/000001/evidence/probes/authority-forgery.json": "file:bb86300d7459d18fd6db6b1d41b01c8c878924d48c98f99d08bc2eef756742fb:0600:1",
+        "attempts/000001/evidence/probes/same-parent-first.txt": "file:b640e840b19d378660b32fb51ae18d67dccb4a8596a29e7bd72c1b2ae5928f41:0600:1",
+        "attempts/000001/evidence/probes/same-parent-second.txt": "file:480c2336b410f1ad5f8bf1b28944490255804b65350c527787e74ebdd511e3a4:0600:1",
+        "attempts/000001/started.json": "file:a6a475abb6df4169d5b117283e2d313ee8088b527e9e8e57e9e127e7b56641be:0600:1",
+        "attempts/000001/terminal.json": "file:d922fb19dd55451ddf27bbf7749fa2fcc716b717a08d21b43d8d54cc9d03ede2:0600:1",
+        "series.json": "file:7b3e00f5390d3eec19eb0fbbce0cb1789b2219a768731153906fc38cb5b485c3:0600:1"
+      },
+      "retired_v2_1_destination": {
+        ".": "absent"
+      }
+    },
+    "official_before_fingerprints": {
+      "consumed_v2_1_claim": {
+        ".": "directory:0700"
+      },
+      "real_heldout_root": {
+        ".": "absent"
+      },
+      "registered_v2_2_destination": {
+        ".": "absent"
+      },
+      "registered_v2_2_ledger": {
+        ".": "directory:0700",
+        ".series.lock": "file:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855:0600:1",
+        "attempts": "directory:0700",
+        "attempts/000001": "directory:0700",
+        "attempts/000001/evidence": "directory:0700",
+        "attempts/000001/evidence/failure": "directory:0700",
+        "attempts/000001/evidence/failure/exception.json": "file:0eae027f49a870b726c8da6abe947be0cf1a9d280e0b485ec553a053b9fdf826:0600:1",
+        "attempts/000001/evidence/probes": "directory:0700",
+        "attempts/000001/evidence/probes/atomic-publication.json": "file:f56962a03e49ba2d36ab5c2344e8991da0dc63681555712e15f2cb0242645974:0600:1",
+        "attempts/000001/evidence/probes/authority-forgery.json": "file:bb86300d7459d18fd6db6b1d41b01c8c878924d48c98f99d08bc2eef756742fb:0600:1",
+        "attempts/000001/evidence/probes/same-parent-first.txt": "file:b640e840b19d378660b32fb51ae18d67dccb4a8596a29e7bd72c1b2ae5928f41:0600:1",
+        "attempts/000001/evidence/probes/same-parent-second.txt": "file:480c2336b410f1ad5f8bf1b28944490255804b65350c527787e74ebdd511e3a4:0600:1",
+        "attempts/000001/started.json": "file:a6a475abb6df4169d5b117283e2d313ee8088b527e9e8e57e9e127e7b56641be:0600:1",
+        "attempts/000001/terminal.json": "file:d922fb19dd55451ddf27bbf7749fa2fcc716b717a08d21b43d8d54cc9d03ede2:0600:1",
+        "series.json": "file:7b3e00f5390d3eec19eb0fbbce0cb1789b2219a768731153906fc38cb5b485c3:0600:1"
+      },
+      "retired_v2_1_destination": {
+        ".": "absent"
+      }
+    },
+    "official_fingerprints_canonical": {
+      "bytes": 1507,
+      "serialization": "UTF-8 sort_keys compact no trailing LF",
+      "sha256": "1241fea3d9efb9389d1d92a32c2a2925313ca6aa80283c32f0b92181efeffa36"
+    },
+    "official_fingerprints_unchanged": true,
+    "postcheck": {
+      "bytes": 24201,
+      "path": "/Users/ouyangduning/Documents/project/interesting/.alphapilot-p42a-epoch4-gate-evidence.9nyuYx/postcheck.json",
+      "sha256": "bde885208168024f13ed2db3a57ec0f52074bb39aa54f45deb93e59ed8460bbd",
+      "status": "PASS_GATE_POSTCHECK"
+    },
+    "real_heldout_root_absent": true,
+    "registered_v2_2_destination_absent": true,
+    "temporary_authorities": []
+  },
+  "report_id": "P4.2A-V2-2-EPOCH4-REGISTERED-GATE-LANDING-20260819",
+  "schema_version": "p4.2a-v2-2-epoch4-registered-gate-landing-report-v1",
+  "scope": {
+    "implementation_commit": "890e9002116c625d41f6aa037975df15d1546c56",
+    "implementation_epoch": 4,
+    "ordinal_2_disposition": "NEW_DISCLOSED_ATTEMPT_NOT_A_RETRY",
+    "report_is_attempt_execution_authority": false,
+    "report_path": "docs/phase4/reports/P4.2a-v2-2-epoch4-registered-gate-landing-report-20260819.json"
+  },
+  "status": "PASS_REGISTERED_GATE_LANDING_REPORT_READY_BEFORE_MERGE"
+}
