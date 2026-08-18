@@ -1,0 +1,20 @@
+{
+ "schema_version": "p4.2a-v2-2-implementation-epoch-surface-authorization-v1",
+ "verdict": "APPROVE_EXACT_V2_2_IMPLEMENTATION_EPOCH_SURFACE",
+ "owner": {
+  "identity": "ouyang",
+  "approved": true
+ },
+ "implementation_epoch": 4,
+ "base_commit": "8b25d36033791efb4e800182150f4e7cae9ff597",
+ "exact_surface": [
+  {
+   "path": "scripts/p4_2a_v2_2_heldout_rehearsal.py",
+   "status": "M"
+  },
+  {
+   "path": "tests/test_p4_2a_v2_2_heldout_rehearsal_runner.py",
+   "status": "M"
+  }
+ ]
+}
