@@ -1,0 +1,63 @@
+{
+  "schema_version": "p4.2a-independent-adjudication-v1",
+  "adjudication_id": "p4.2a-epoch4-reanchor-companion-20260818-r1",
+  "created_at_utc": "2026-08-18T03:06:46Z",
+  "created_at_shanghai": "2026-08-18T11:06:46+08:00",
+  "purpose": "companion narrative for the machine-consumable epoch-4 surface authority committed immediately after this document; the machine authority is limited to six fields and can carry no rationale",
+  "issued_by": {
+    "identity": "independent_ai_architect_claude_code",
+    "reviewer_type": "ai",
+    "model": "Anthropic Claude Fable 5 (model id claude-fable-5)",
+    "impersonation_disclaimer": "Not a human reviewer and not the owner. The six-field authority that follows asserts owner approval because the owner gave it explicitly; the transcript binding is recorded below."
+  },
+  "part_1_why_epoch_4_is_necessary": {
+    "trigger": "the owner's sector-flow and baostock workstream landed as 851a4bf, which modifies src/alphapilot/core/config.py",
+    "mechanism": "the rehearsal implementation imports Settings from alphapilot.core.config, so config.py is a provable-local member of the AST control surface. build_control_surface reads every control member's bytes from the SELECTED IMPLEMENTATION COMMIT's tree and, under require_current, demands the worktree match. d4fb0d8c is immutable history whose config.py is 0dddf9a384b404f17f205062a887c009a59d0946173070a8ba4c0af02f43b5bb; the worktree and HEAD now carry 6bdc24abbc943bb52ecc416fd72180e356fbcb3bc55eb6a96f98d5b0be8137cd.",
+    "committing_did_not_help": "the block is not about dirtiness. Moving the bytes from uncommitted to committed leaves the worktree unequal to d4fb0d8c's tree, so both the preflight and attempt 2 still fail closed. This was verified rather than assumed.",
+    "drift_is_minimal": "the reviewer rebuilt the control surface at d4fb0d8c and intersected its 73 repository members with the 41 paths changed between d4fb0d8c and HEAD. Exactly one member drifted: src/alphapilot/core/config.py. Nothing else in the workstream touches the control surface.",
+    "alternatives_rejected": [
+      "reverting the owner's config change: it would break baostock_provider.py, which consumes both new settings, and would subordinate the owner's system to the rehearsal",
+      "running elsewhere: the registered project root is pinned and a non-canonical root is refused by construction",
+      "rewriting history so d4fb0d8c carries the new bytes: forbidden absolutely"
+    ],
+    "empty_surface_is_not_available": "the registered validator rejects an empty exact_surface, so a pure re-anchor with no byte change cannot be expressed. Epoch 4 therefore carries the smallest change that is independently worth making."
+  },
+  "part_2_owner_approval": {
+    "approved_by": "owner (ouyang), in person",
+    "binding": "transcript-bound: the owner was shown the block, the single-file drift, the epoch-4 requirement and the proposed content, and chose the re-anchor with the drift-diagnostic improvement on 2026-08-18 CST morning",
+    "approved_surface": [
+      {"path": "scripts/p4_2a_v2_2_heldout_rehearsal.py", "status": "M"},
+      {"path": "tests/test_p4_2a_v2_2_heldout_rehearsal_runner.py", "status": "M"}
+    ],
+    "approved_content_scope": "re-anchor the implementation epoch onto the current main, and change the control-surface current-byte check from raising on the first drifted member to collecting every drifted member and reporting each with its selected-commit digest and its worktree digest before failing closed; add the registered test coverage for that behaviour; nothing else",
+    "explicitly_out_of_scope": [
+      "any relaxation of require_current or of the control-surface membership rules",
+      "any change to gates, thresholds, samples, seeds, models, prompts, contracts or gold",
+      "the shim, the validator, the validator tests, the 24-field attempt schema",
+      "any ledger mutation or history rewrite"
+    ]
+  },
+  "part_3_finding_F14": {
+    "id": "F-14",
+    "title": "The control surface pins the rehearsal to a whole-repository snapshot, so ordinary development blocks it",
+    "detail": "require_current compares the worktree against the selected implementation commit's tree for all 73 control members, which include ordinary application modules reached through the import closure. Any unrelated commit that touches one of them invalidates the anchor and costs a full epoch cycle to restore. This is correct as a tamper control and expensive as an operating model.",
+    "not_fixed_here": "loosening it is a change to a core invariant and must not be bundled into a re-anchor whose purpose is to unblock an attempt. Recorded for a deliberate future decision.",
+    "operational_mitigation_until_then": "run the attempt promptly after an epoch lands, and freeze control-surface members between the epoch landing and the attempt. The drift diagnostic added in this epoch at least makes a violation report all of its causes at once."
+  },
+  "part_4_sequence": [
+    "commit this companion alone",
+    "commit the six-field machine authority as the direct child of this document's commit, with base_commit set to that parent",
+    "operator implements the approved two-path surface as the direct child of the authority commit, on a new branch",
+    "independent review runs BOTH complete registered test modules at the candidate before any verdict, per F-12",
+    "the full registered gate runs in the persistent gate clone as the unchanged merge condition",
+    "merge-only, then the real-root preflight, then the ordinal-2 Q, R, owner confirmation and attempt 2"
+  ],
+  "part_5_state": {
+    "canonical_main": "851a4bf at the time of writing",
+    "p4_1": "third window PASS at 189 of 189, verdict 84a07a3; the milestone flag remains the owner's to set",
+    "ledger": "ordinal 1 FAILED only; next ordinal 2; history root 076ae961fc149ae271bf5a3724c1677abccfea7139589909ea717a7f4a38083a",
+    "heldout_evaluation_one_shot": "unconsumed",
+    "trading": "zero non-SIMULATE",
+    "phase_locks": {"p4_2a_done": false, "p4_2b_unlocked": false, "p4_3_unlocked": false}
+  }
+}
