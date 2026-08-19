@@ -1,0 +1,51 @@
+{
+  "schema_version": "p4.2a-independent-adjudication-v1",
+  "adjudication_id": "p4.2a-attempt2-adjudication-and-epoch5-direction-20260819-r1",
+  "created_at_utc": "2026-08-19T06:06:54Z",
+  "created_at_shanghai": "2026-08-19T14:06:54+08:00",
+  "issued_by": {
+    "identity": "independent_ai_architect_claude_code",
+    "reviewer_type": "ai",
+    "model": "Anthropic Claude Fable 5 (model id claude-fable-5)",
+    "impersonation_disclaimer": "Not a human reviewer and not the owner. Owner statements below were confirmed by the owner in person to this reviewer and are transcript-bound."
+  },
+  "part_1_attempt_2_adjudicated": {
+    "verdict": "VALID_SERIES_CLOSING_SUCCESS_WITH_FAILED_BUNDLE_CONSTRUCTION",
+    "independently_verified_by_reviewer": {
+      "terminal": "outcome CANDIDATE_VALIDATED_AND_SELECTED, implementation_epoch 4, implementation_commit 890e9002, terminal sha 7ba4ed1b..., candidate sha 92652f96..., both matching the operator report",
+      "history_root": "recomputed from raw ledger bytes over both ordinals using the registered hash recipe: a466de7b349882f2bcd556a4b4d00bf38bace9adb593b0e3b6296c415a8c9ca1, byte-identical to the operator's value",
+      "series_state": "ordinal 2 consumed, first validated success closes the series; no further attempt may ever run in this series",
+      "zero_side_effects": "destination, temp authority and real heldout root absent; zero real DB, model or network consumption; zero trading side effects; the heldout evaluation one-shot remains unconsumed"
+    },
+    "what_succeeded": "the entire purpose of the v2.2 rehearsal: the full synthetic path ran end to end twice with byte-identical results and the candidate passed every registered validation. Three generations of harness and four epochs of governance produced a sealed, immutable, replayable success record.",
+    "what_failed": "bundle construction after sealing: _implementation_epochs accepts used-epoch sequences [1..n] or [2..n+1] only; the real history is [2,4] because epoch 3 landed on main, passed its gate and review, and was then superseded by epoch 4 before any attempt bound it. The gap is lawful history; the packer cannot express it.",
+    "process_exit_note": "the pipeline process exited FAILED_NO_AUTOMATIC_RETRY, which describes the bundle step; the ledger seal is the authoritative record of the attempt itself and records success"
+  },
+  "part_2_finding_C9": {
+    "id": "C-9",
+    "owner_of_the_error": "the reviewer",
+    "statement": "the epoch-3 adjudication itself stated the numbering intent as no gaps among EXECUTED epochs, and the epoch-4 authorization was issued without checking that rule against the [2,4] history it would create. Epoch 3 was structurally unconsumed at that moment and visibly so.",
+    "rule_tightened": "any authorization that changes which epoch an attempt will bind must enumerate the resulting used-epoch sequence and check it against the packer's accepted forms before issuance"
+  },
+  "part_3_governance_deviation_recorded_and_ratified": {
+    "deviation": "the preregistered sequence routed Q to the independent reviewer, who signs R, before the owner's confirmation B. In execution, R was authored operator-side and the owner confirmed directly in the operator session; the reviewer neither reviewed Q nor signed R before the attempt ran.",
+    "owner_ratification": "the owner confirmed in person to the reviewer, transcript-bound 2026-08-19 CST afternoon, that the confirmation text bound in 1832ed7c was genuinely theirs. The machine predicates on R and B held at execution.",
+    "ruling": "ratified as a lawful owner-direct path for this attempt; recorded honestly as a deviation from the preregistered sequence. Default for any future authorization returns to the preregistered routing unless the owner explicitly chooses the direct path again at the time.",
+    "reviewer_note": "the reviewer's field checklist for R was published in advance and the executed R satisfied the runtime's 24-field validation; the reviewer's absent Q-review would not have caught the bundle-epoch defect, which C-9 locates at the epoch-4 authorization instead"
+  },
+  "part_4_owner_decisions_bound": {
+    "decision_1": {"question": "authenticity of the B-bound confirmation", "answer": "confirmed as the owner's own message", "binding": "in person to the reviewer, 2026-08-19 CST"},
+    "decision_2": {"question": "recovery direction", "answer": "epoch-5 bundle-recovery direction approved", "binding": "same exchange", "rejected_alternative": "a new series was rejected as dominated: it would need the same class of code change plus a fresh attempt, and the sealed successful candidate would sit unused"}
+  },
+  "part_5_epoch5_design_requirements": {
+    "note": "direction approved; the exact surface still requires an operator design proposal, reviewer design review, then the owner's six-field surface authorization before any implementation",
+    "required_content": [
+      "a void-epoch-3 disclosure in the bundle epoch table, mirroring the void-epoch-1 mechanism: exact-match sentinel, excluded from ordinal interval accounting, backed by the pinned epoch-3 landing facts (authority d6c9c353, implementation d4fb0d8c, review bf9f610, landing 0069270) and a structural-supersession reason reference",
+      "a read-only bundle-recovery entry point that rebuilds the bundle from the sealed ledger with zero pipeline starts, under its own explicit authority record, refusing to run if the series is not closed with a selected candidate",
+      "a purpose-form correction of the selected-epoch current-byte rule for post-selection execution: the executing code must equal the latest landed epoch's reviewed bytes, while the selected attempt's bytes stay bound by immutable git blob digests; the tamper-control purpose is preserved and must be argued explicitly in the design",
+      "registered tests for all three, including an exact-OS positive that rebuilds a bundle from a synthetic sealed [2,4]-shaped series"
+    ],
+    "constraints": ["no gate, threshold, sample, seed, model, prompt, contract or gold change", "no ledger mutation; the sealed series is read-only input", "the 24-field attempt schema unchanged; no new attempt authority is created by the recovery entry point"]
+  },
+  "part_6_boundaries": {"ledger": "ordinals 1 FAILED and 2 CANDIDATE_VALIDATED_AND_SELECTED; series closed; history root a466de7b...", "heldout_evaluation_one_shot": "unconsumed", "trading": "zero non-SIMULATE", "p4_1": "third window PASS, awaiting owner milestone flag", "phase_locks": {"p4_2a_done": false, "p4_2b_unlocked": false, "p4_3_unlocked": false}}
+}
