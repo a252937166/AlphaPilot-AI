@@ -1,0 +1,66 @@
+{
+  "schema_version": "p4.2a-v2-2-rehearsal-attempt-owner-confirmation-binding-v1",
+  "binding_id": "P4.2A-V2-2-REHEARSAL-ATTEMPT-000002-OWNER-CONFIRMATION-BINDING-20260819",
+  "created_at_utc": "2026-08-19T03:30:14Z",
+  "created_at_shanghai": "2026-08-19T11:30:14+08:00",
+  "status": "BOUND_OWNER_CONFIRMATION_TO_COMMITTED_ACTION_AUTHORIZATION",
+  "owner_confirmation": {
+    "identity": "ouyang",
+    "binding_method": "transcript-bound",
+    "source": "the owner user message in the current Codex task immediately preceding action-time receipt creation",
+    "platform_message_timestamp_available_to_filesystem": false,
+    "confirmation_observed_at_utc": "2026-08-19T03:24:31Z",
+    "confirmation_observed_at_shanghai": "2026-08-19T11:24:31+08:00",
+    "exact_text": "本人 ouyang 已审阅 ordinal-2 评审请求（路径 docs/phase4/reports/P4.2a-v2-2-rehearsal-attempt-000002-review-request-20260819.json，SHA-256 446111042c7a4cd1d15b76eee3a700cb5cee13cbfc90952e5a482aefed616ff2，commit f6f993d0e9f30b6f6c5250a94a4a49b179fc8ff1）及其中 SHA-256 e0cbabfdc85b681783943b40fa2b1574ee860f34b41fd57d2c751be6da3a2718 的真实注册根只读 preflight。确认并批准 SHA-256 8f5c0b31ef88922b8b44b202c729fad55a4d0cb172c000089991f1cd2c995461 所标识的 24 字段 canonical action authorization，仅授权 v2.2 series 35ba1b83a9b187817d7a591758e1c131e867fcd37917cba0ab196799fff832ef 的 ordinal 2 这一新披露尝试（非 retry）一次 pipeline start，automatic retry 为 0；真实 heldout materialization、inference、evaluation、P4.2b、P4.3 和 trading 继续锁定。",
+    "effective_from": "the owner confirmation above; the proposal-fixed timestamps in the machine receipt do not claim an earlier effective authorization"
+  },
+  "review_request": {
+    "path": "docs/phase4/reports/P4.2a-v2-2-rehearsal-attempt-000002-review-request-20260819.json",
+    "sha256": "446111042c7a4cd1d15b76eee3a700cb5cee13cbfc90952e5a482aefed616ff2",
+    "creating_commit": "f6f993d0e9f30b6f6c5250a94a4a49b179fc8ff1",
+    "unique_a_history_verified": true
+  },
+  "registered_read_only_preflight": {
+    "canonical_stdout_sha256": "e0cbabfdc85b681783943b40fa2b1574ee860f34b41fd57d2c751be6da3a2718",
+    "status": "PASS_READ_ONLY_IMPLEMENTATION_PREFLIGHT",
+    "mode": "REGISTERED_OFFICIAL",
+    "execution_head": "be8340dac56dbc3aace73b30875a45d44d8d880c",
+    "implementation_commit": "890e9002116c625d41f6aa037975df15d1546c56",
+    "control_merkle_root_sha256": "76076606d6e40cdd386b28cdd5bc40a8957693b8cfdc8b17a0a77410b4e082e8",
+    "control_record_count": 75
+  },
+  "action_authorization": {
+    "path": "docs/phase4/reports/P4.2a-v2-2-rehearsal-attempt-000002-execution-authorization-20260819.json",
+    "sha256": "8f5c0b31ef88922b8b44b202c729fad55a4d0cb172c000089991f1cd2c995461",
+    "creating_commit": "f004054c1797904206e5590f2b0f4751848665c1",
+    "unique_a_history_verified": true,
+    "canonical_json_bytes": 2862,
+    "schema_field_count": 24,
+    "proposal_fixed_at_utc": "2026-08-19T02:59:21Z",
+    "proposal_fixed_at_shanghai": "2026-08-19T10:59:21+08:00",
+    "authorization_effective_only_after_owner_confirmation": true
+  },
+  "authorized_scope": {
+    "series_token_sha256": "35ba1b83a9b187817d7a591758e1c131e867fcd37917cba0ab196799fff832ef",
+    "ordinal": 2,
+    "authorized_pipeline_starts": 1,
+    "automatic_retry_count": 0,
+    "scope": "one_disclosed_v2_2_rehearsal_ordinal_only"
+  },
+  "explicit_exclusions": {
+    "heldout_evaluation": false,
+    "p4_2b": false,
+    "p4_3": false,
+    "real_heldout_inference": false,
+    "real_heldout_materialization": false,
+    "trading": false
+  },
+  "machine_boundary": {
+    "evidence_only": true,
+    "consumed_by_rehearsal_runner": false,
+    "passed_as_attempt_authorization": false,
+    "machine_attempt_authorization_remains_exactly_24_fields": true,
+    "this_document_adds_no_field_to_the_machine_authorization": true,
+    "required_git_topology": "this binding document is committed as a single-file status-A direct child of action authorization commit f004054c1797904206e5590f2b0f4751848665c1; topology is verified externally because this document cannot self-reference its own creating commit"
+  }
+}
