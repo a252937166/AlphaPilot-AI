@@ -1,0 +1,53 @@
+{
+  "schema_version": "p4.2a-independent-adjudication-v1",
+  "adjudication_id": "p4.2a-epoch5-design-review-and-companion-20260820-r1",
+  "created_at_utc": "2026-08-20T04:33:43Z",
+  "created_at_shanghai": "2026-08-20T12:33:43+08:00",
+  "purpose": "design-review verdict for the epoch-5 bundle-recovery design and companion narrative for the machine-consumable epoch-5 surface authority committed immediately after this document",
+  "issued_by": {
+    "identity": "independent_ai_architect_claude_code",
+    "reviewer_type": "ai",
+    "model": "Anthropic Claude Fable 5 (model id claude-fable-5)",
+    "impersonation_disclaimer": "Not a human reviewer and not the owner. The six-field authority that follows asserts owner approval because the owner gave it explicitly; the transcript binding is recorded below."
+  },
+  "part_1_design_reviewed": {
+    "verdict": "PASS_DESIGN_REVIEW",
+    "document": {"path": "docs/phase4/reports/P4.2a-v2-2-epoch5-bundle-recovery-design-proposal-20260820.md", "sha256": "f9e9774c3f860e24078bd62dc27abd5f525469e958ee8a7ea257da321461692a", "creating_commit": "790dc9e110ae53f121af79992153137b42eda6d2"},
+    "pinned_values_independently_reverified": [
+      "sealed-series bindings against raw ledger bytes: started 75771a37, candidate 92652f96, terminal 7ba4ed1b, evidence root f38b18b9, run-A and run-B roots equal at 5fb8edf3, candidate content root 5de4f74d, reached_stage bundle_candidate_validated, history root a466de7b recomputed over both ordinals",
+      "void-3 sentinel control root recomputed by the reviewer from the immutable d4fb0d8c tree under the epoch-4 code with require_current=False: 5ba2a3dc7f1512efd52e2654b4ac4a491c13218cfe6f92fda8db885be1d9ebbf, 75 records, exact match",
+      "adjudication artifact digests: 578a625 carries 29e476f1..., 8b25d36 carries 14a4eb27..., 0548692 carries e7e7615a...",
+      "epoch-3 lineage facts already held from prior reviews: d6c9c353 unique-A authority, d4fb0d8c its direct child with the exact four-M surface, bf9f610 its direct unique-A APPROVE child with digest 590d6b6b, landing 0069270 with parents [5791041, bf9f610]"
+    ],
+    "design_judgments": {
+      "void_3_encoding": "accepted; mirrors the owner-approved void-1 precedent, with the [2,4] special case closed against generalization and every non-exact match failing into normal-row validation",
+      "recovery_claim": "accepted; the one-start claim outside the sealed ledger preserves ledger immutability while making zero-retry machine-enforceable, and the crash-window rules including the published-but-unterminalized owner-reconciliation case are honest",
+      "dual_anchor_correction": "accepted; the enumeration of every hidden selected-current hook is the load-bearing part, the two non-interchangeable anchor types with static call-graph enforcement prevent regression, and the temporal argument in section 7.4 shows coverage is preserved rather than relaxed",
+      "recovered_release_path": "accepted and commended; without section 7.3.1 the recovery would succeed only to strand at the release validator's active replay, which is exactly the class of one-wall-later failure that cost epochs 3 and 4",
+      "latest_landed_epoch_predicate": "accepted; it machine-enforces what F-14 could only state operationally"
+    },
+    "seven_review_gates": "all seven accepted by the reviewer; gates 1 and 7 additionally required and received the owner's explicit approval"
+  },
+  "part_2_owner_approval": {
+    "approved_by": "owner (ouyang), in person",
+    "binding": "transcript-bound: the owner was shown the design-review result and approved the epoch-5 four-path M surface together with the 0548692 reason-discriminator encoding on 2026-08-20 CST, choosing the option that includes the discriminator explicitly",
+    "approved_surface": [
+      {"path": "scripts/p4_2a_v2_2_heldout_rehearsal.py", "status": "M"},
+      {"path": "scripts/validate_p4_2a_v2_2_heldout_rehearsal_bundle.py", "status": "M"},
+      {"path": "tests/test_p4_2a_v2_2_heldout_rehearsal_runner.py", "status": "M"},
+      {"path": "tests/test_p4_2a_v2_2_heldout_rehearsal_validator.py", "status": "M"}
+    ],
+    "approved_content_scope": "exactly the design document at digest f9e9774c: the exact void-epoch-3 sentinel with the 0548692 discriminator and full external validation of bf9f610, 578a625 and 8b25d36; the [2,4]-only packer special case; the sealed-bundle recovery authorization schema, one-start claim and read-only recovery algorithm; the passive recovery-only validation and recovered-release consumption path; the dual historical/live byte-anchor correction covering every enumerated selected-current hook; and the registered test plan including the exact-OS [2,4] recovery positive",
+    "explicitly_out_of_scope": ["any gate, threshold, sample, seed, model, prompt, contract or gold change", "any ledger mutation; the sealed series is read-only input", "the shim and the 24-field attempt schema", "any new attempt authority"]
+  },
+  "part_3_sequence": [
+    "commit this companion alone; the six-field epoch-5 authority follows as its direct child with base_commit set to this commit",
+    "operator implements the four-path surface on a new branch as the direct child of the authority commit",
+    "independent review runs both complete registered test modules at the candidate per F-12",
+    "persistent full registered gate at the candidate, then merge-only landing",
+    "registered-root preflight on the landed tree",
+    "the sealed-bundle recovery authorization is drafted against the landed state, routed through the reviewer per the ratified default, and confirmed by the owner in person",
+    "one recovery start publishes the bundle; the bundle then enters ordinary owner review toward release"
+  ],
+  "part_4_boundaries": {"ledger": "sealed; ordinals 1 FAILED and 2 CANDIDATE_VALIDATED_AND_SELECTED; history root a466de7b", "heldout_evaluation_one_shot": "unconsumed", "trading": "zero non-SIMULATE", "phase_locks": {"p4_2a_done": false, "p4_2b_unlocked": false, "p4_3_unlocked": false}}
+}
