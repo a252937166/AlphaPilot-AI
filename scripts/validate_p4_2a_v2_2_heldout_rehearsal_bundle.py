@@ -138,6 +138,7 @@ import sysconfig
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from enum import Enum
 from pathlib import Path, PurePosixPath
 from typing import Any, NoReturn, cast
 
@@ -210,6 +211,78 @@ VOID_EPOCH_ONE_RULING = (
     "and the release acknowledges each.",
     "The numbering contract's intent, no gaps and no reuse among EXECUTED epochs, "
     "is preserved; only the assumption that execution starts at 1 is corrected.",
+)
+VOID_EPOCH_THREE_IMPLEMENTATION_COMMIT = (
+    "d4fb0d8c763b9fa104949ea2ac58bc921d9e8889"
+)
+VOID_EPOCH_THREE_IMPLEMENTATION_PARENT = (
+    "d6c9c353217e00730457bf6b944ff26a32b8cf85"
+)
+VOID_EPOCH_THREE_CONTROL_ROOT_SHA256 = (
+    "5ba2a3dc7f1512efd52e2654b4ac4a491c13218cfe6f92fda8db885be1d9ebbf"
+)
+VOID_EPOCH_THREE_CONTROL_RECORD_COUNT = 75
+VOID_EPOCH_THREE_AUTHORITY_RELATIVE = Path(
+    "docs/phase4/reports/P4.2a-v2-2-epoch3-surface-authority-20260813.json"
+)
+VOID_EPOCH_THREE_AUTHORITY_SHA256 = (
+    "44c2ab4e310da3f4b4a11efef8b9c20f73d231dc2b8f44dc535616cf18c646b3"
+)
+VOID_EPOCH_THREE_REVIEW_RELATIVE = Path(
+    "docs/phase4/reports/"
+    "P4.2a-v2-2-epoch3-r2-implementation-independent-review-20260814.json"
+)
+VOID_EPOCH_THREE_REVIEW_SHA256 = (
+    "590d6b6b24bb6672956ea320a21458aa10523514ec384586029f09ef2cf757ef"
+)
+VOID_EPOCH_THREE_REVIEW_COMMIT = "bf9f610bda54523d69ecda0a72bf8fe89eaef78c"
+VOID_EPOCH_THREE_LANDING_COMMIT = "006927080312b0e563e4ec3058b706455b33b70d"
+VOID_EPOCH_THREE_LANDING_PARENTS = (
+    "5791041e7eb48ffc6977752e381b10333bf53358",
+    VOID_EPOCH_THREE_REVIEW_COMMIT,
+)
+VOID_EPOCH_THREE_GATE_ADJUDICATION_RELATIVE = Path(
+    "docs/phase4/reports/P4.2a-epoch3-gate-failure-adjudication-20260814.json"
+)
+VOID_EPOCH_THREE_GATE_ADJUDICATION_SHA256 = (
+    "29e476f1b2817bf8c6bb711230ba8ecb74f27d08648526f12073de3c8a1d067f"
+)
+VOID_EPOCH_THREE_GATE_ADJUDICATION_COMMIT = (
+    "578a62551729e3bdc37ef6f2d2a9851fdf785dbd"
+)
+VOID_EPOCH_THREE_REANCHOR_RELATIVE = Path(
+    "docs/phase4/reports/P4.2a-epoch4-reanchor-companion-20260818.json"
+)
+VOID_EPOCH_THREE_REANCHOR_SHA256 = (
+    "14a4eb277b3e3fb8ac181d432bdf4ee7821c339a25990991408b1759711fc546"
+)
+VOID_EPOCH_THREE_REANCHOR_COMMIT = "8b25d36033791efb4e800182150f4e7cae9ff597"
+VOID_EPOCH_THREE_REASON_RELATIVE = Path(
+    "docs/phase4/reports/"
+    "P4.2a-attempt2-adjudication-and-epoch5-direction-20260819.json"
+)
+VOID_EPOCH_THREE_REASON_SHA256 = (
+    "e7e7615a404c216cfaf6ccba9a523cb46de48d82cd8a178c19612a1a38795180"
+)
+VOID_EPOCH_THREE_REASON_COMMIT = "0548692480ff8325b69be92f01e0d42e11ad4eb0"
+VOID_EPOCH_THREE_GATE_SUPERSESSION_RULING = (
+    "a corrected epoch-3 implementation candidate is authorized as a NEW direct "
+    "single-parent child of the SAME six-field authority d6c9c353 with the SAME "
+    "exact four-M surface, on a NEW branch. No new owner authorization is required: "
+    "the owner approved the surface and content scope, not a byte-pinned diff, and "
+    "both fixes fall inside that scope, the stale-absence repair being part of "
+    "accepting the real bent history and the test relocation being part of the F-11 "
+    "coverage. The epoch is unconsumed: no ledger record references any epoch-3 commit."
+)
+VOID_EPOCH_THREE_REANCHOR_TRIGGER = (
+    "the owner's sector-flow and baostock workstream landed as 851a4bf, which modifies "
+    "src/alphapilot/core/config.py"
+)
+VOID_EPOCH_THREE_REASON_FINDING = (
+    "bundle construction after sealing: _implementation_epochs accepts used-epoch "
+    "sequences [1..n] or [2..n+1] only; the real history is [2,4] because epoch 3 "
+    "landed on main, passed its gate and review, and was then superseded by epoch 4 "
+    "before any attempt bound it. The gap is lawful history; the packer cannot express it."
 )
 _V2_2_REMEDIATION_AUTHORITY = (
     "docs/phase4/reports/"
@@ -802,6 +875,29 @@ def _relative(value: object, label: str) -> str:
     return text
 
 
+def _git_safe_relative(value: object, label: str) -> str:
+    """Accept any strict UTF-8 Git path that is safe as relative POSIX text."""
+
+    text = _string(value, label)
+    segments = text.split("/")
+    if (
+        PurePosixPath(text).is_absolute()
+        or "\x00" in text
+        or "\\" in text
+        or "//" in text
+        or text.endswith("/")
+        or any(segment in {"", ".", ".."} for segment in segments)
+        or any(
+            ord(character) < 0x20 or ord(character) == 0x7F
+            for character in text
+        )
+    ):
+        raise RehearsalV22ValidationError(
+            f"{label} is not a safe relative POSIX path"
+        )
+    return text
+
+
 def _evidence_relative(value: object, label: str) -> str:
     text = _relative(value, label)
     if not text.isascii() or _EVIDENCE_RELATIVE_PATTERN.fullmatch(text) is None:
@@ -993,12 +1089,14 @@ def _schemas_match_after_registered_delta_strip(
         )
 
 
-def _validate_contract_inheritance(
+def _validate_contract_inheritance_payloads(
     *,
-    project_root: Path,
     preregistration_payload: bytes,
     bundle_schema_payload: bytes,
     release_schema_payload: bytes,
+    base_preregistration_payload: bytes,
+    base_bundle_schema_payload: bytes,
+    base_release_schema_payload: bytes,
 ) -> None:
     """Rebuild the typed v2.1 projection and both zero-diff schema projections."""
 
@@ -1018,14 +1116,11 @@ def _validate_contract_inheritance(
         {"path": base_path, "sha256": base_digest, "creating_commit": base_commit},
         "inheritance base preregistration",
     )
-    base_payload = _bound_control(
-        project_root,
-        Path(base_path),
-        base_digest,
-        "v2.1 base preregistration",
-    )
     base = _object(
-        strict_json_loads(base_payload, label="v2.1 base preregistration"),
+        strict_json_loads(
+            base_preregistration_payload,
+            label="v2.1 base preregistration",
+        ),
         "v2.1 base preregistration",
     )
     projection_contract = _object(
@@ -1098,40 +1193,132 @@ def _validate_contract_inheritance(
         list(_RELEASE_SCHEMA_DELTA_POINTERS),
         "release schema delta domains",
     )
-    base_bundle_payload = _bound_control(
-        project_root,
-        _V2_1_BUNDLE_SCHEMA_RELATIVE,
-        _V2_1_BUNDLE_SCHEMA_SHA256,
-        "v2.1 bundle schema",
-    )
-    base_release_payload = _bound_control(
-        project_root,
-        _V2_1_RELEASE_SCHEMA_RELATIVE,
-        _V2_1_RELEASE_SCHEMA_SHA256,
-        "v2.1 release schema",
-    )
     _schemas_match_after_registered_delta_strip(
-        base=strict_json_loads(base_bundle_payload, label="v2.1 bundle schema"),
+        base=strict_json_loads(
+            base_bundle_schema_payload,
+            label="v2.1 bundle schema",
+        ),
         successor=strict_json_loads(bundle_schema_payload, label="v2.2 bundle schema"),
         pointers=_BUNDLE_SCHEMA_DELTA_POINTERS,
         label="bundle schema inheritance",
     )
     _schemas_match_after_registered_delta_strip(
-        base=strict_json_loads(base_release_payload, label="v2.1 release schema"),
+        base=strict_json_loads(
+            base_release_schema_payload,
+            label="v2.1 release schema",
+        ),
         successor=strict_json_loads(release_schema_payload, label="v2.2 release schema"),
         pointers=_RELEASE_SCHEMA_DELTA_POINTERS,
         label="release schema inheritance",
     )
 
 
+def _validate_contract_inheritance(
+    *,
+    project_root: Path,
+    preregistration_payload: bytes,
+    bundle_schema_payload: bytes,
+    release_schema_payload: bytes,
+) -> None:
+    """Validate active inheritance exclusively against current control bytes."""
+
+    base_path, base_digest, _base_commit = _CARRY_FORWARD_AUTHORITIES[
+        "v2_1_preregistration"
+    ]
+    _validate_contract_inheritance_payloads(
+        preregistration_payload=preregistration_payload,
+        bundle_schema_payload=bundle_schema_payload,
+        release_schema_payload=release_schema_payload,
+        base_preregistration_payload=_bound_control(
+            project_root,
+            Path(base_path),
+            base_digest,
+            "v2.1 base preregistration",
+        ),
+        base_bundle_schema_payload=_bound_control(
+            project_root,
+            _V2_1_BUNDLE_SCHEMA_RELATIVE,
+            _V2_1_BUNDLE_SCHEMA_SHA256,
+            "v2.1 bundle schema",
+        ),
+        base_release_schema_payload=_bound_control(
+            project_root,
+            _V2_1_RELEASE_SCHEMA_RELATIVE,
+            _V2_1_RELEASE_SCHEMA_SHA256,
+            "v2.1 release schema",
+        ),
+    )
+
+
 def _validated_implementation_blob(
     *,
     project_root: Path,
-    implementation_commit: str,
+    historical_anchor: implementation.HistoricalSelectedAnchor,
     relative_path: str,
     expected_sha256: str,
 ) -> bytes:
-    payload = _git_blob(project_root, implementation_commit, relative_path)
+    """Validate one selected-history blob without consulting current bytes."""
+
+    payload = _git_blob(project_root, historical_anchor.selected_commit, relative_path)
+    recorded = historical_anchor.selected_git_blob_sha256.get(relative_path)
+    if (
+        _sha256(payload) != expected_sha256
+        or recorded != expected_sha256
+    ):
+        raise RehearsalV22ValidationError(
+            f"historical selected implementation blob drifted: {relative_path}"
+        )
+    return payload
+
+
+def _validate_historical_contract_inheritance(
+    *,
+    project_root: Path,
+    historical_anchor: implementation.HistoricalSelectedAnchor,
+    preregistration_payload: bytes,
+    bundle_schema_payload: bytes,
+    release_schema_payload: bytes,
+) -> None:
+    """Validate passive inheritance only from the selected commit's Git blobs."""
+
+    base_path, base_digest, _base_commit = _CARRY_FORWARD_AUTHORITIES[
+        "v2_1_preregistration"
+    ]
+    _validate_contract_inheritance_payloads(
+        preregistration_payload=preregistration_payload,
+        bundle_schema_payload=bundle_schema_payload,
+        release_schema_payload=release_schema_payload,
+        base_preregistration_payload=_validated_implementation_blob(
+            project_root=project_root,
+            historical_anchor=historical_anchor,
+            relative_path=base_path,
+            expected_sha256=base_digest,
+        ),
+        base_bundle_schema_payload=_validated_implementation_blob(
+            project_root=project_root,
+            historical_anchor=historical_anchor,
+            relative_path=_V2_1_BUNDLE_SCHEMA_RELATIVE.as_posix(),
+            expected_sha256=_V2_1_BUNDLE_SCHEMA_SHA256,
+        ),
+        base_release_schema_payload=_validated_implementation_blob(
+            project_root=project_root,
+            historical_anchor=historical_anchor,
+            relative_path=_V2_1_RELEASE_SCHEMA_RELATIVE.as_posix(),
+            expected_sha256=_V2_1_RELEASE_SCHEMA_SHA256,
+        ),
+    )
+
+
+def _validated_live_implementation_blob(
+    *,
+    project_root: Path,
+    live_anchor: implementation.LiveExecutionAnchor,
+    relative_path: str,
+    expected_sha256: str,
+) -> bytes:
+    """Validate one currently executing blob against the reviewed live epoch."""
+
+    payload = _git_blob(project_root, live_anchor.implementation_commit, relative_path)
     current = _regular_bytes(
         _safe_path(
             project_root,
@@ -1145,13 +1332,14 @@ def _validated_implementation_blob(
         or current != payload
         or implementation.validate_implementation_blob(
             project_root,
-            implementation_commit,
+            live_anchor.implementation_commit,
             relative_path,
+            require_current=True,
         )
         != payload
     ):
         raise RehearsalV22ValidationError(
-            f"implementation commit blob drifted: {relative_path}"
+            f"live execution implementation blob drifted: {relative_path}"
         )
     return payload
 
@@ -1780,9 +1968,14 @@ def _validate_initial_sibling_authority(
     reference: Mapping[str, Any],
     *,
     execution_head: str,
+    require_worktree: bool,
 ) -> bytes:
     """Validate the fixed b21 sibling without counting its merge projection twice."""
 
+    if not isinstance(require_worktree, bool):
+        raise RehearsalV22ValidationError(
+            "initial sibling worktree requirement is not one exact boolean"
+        )
     path = INDEPENDENT_REVIEW_RELATIVE.as_posix()
     expected_reference = {
         "path": path,
@@ -1850,7 +2043,7 @@ def _validate_initial_sibling_authority(
     if _git_optional_blob(root, head, path) != payload:
         raise RehearsalV22ValidationError("initial sibling execution-head bytes drifted")
     worktree_path = root.joinpath(*PurePosixPath(path).parts)
-    if _validator_os.path.lexists(worktree_path):
+    if require_worktree and _validator_os.path.lexists(worktree_path):
         current = _regular_bytes(
             _safe_path(root, path, "initial sibling authority worktree file"),
             "initial sibling authority worktree file",
@@ -1920,7 +2113,112 @@ def _unique_a_unserialized(
     return creating_commit, payload
 
 
+def _parse_git_name_status_z(output: bytes) -> tuple[tuple[str, str], ...]:
+    """Parse raw Git name-status pairs without imposing evidence-path grammar."""
+
+    if not output:
+        return ()
+    fields = output.split(b"\x00")
+    if fields[-1] != b"" or len(fields[:-1]) % 2 != 0:
+        raise RehearsalV22ValidationError("implementation Git surface is malformed")
+    result: list[tuple[str, str]] = []
+    payload_fields = fields[:-1]
+    for index in range(0, len(payload_fields), 2):
+        raw_status, raw_path = payload_fields[index : index + 2]
+        try:
+            status_value = raw_status.decode("ascii", errors="strict")
+            relative = raw_path.decode("utf-8", errors="strict")
+        except UnicodeDecodeError:
+            raise RehearsalV22ValidationError(
+                "implementation Git surface is malformed"
+            ) from None
+        if status_value not in {"A", "M", "D", "T", "U", "X", "B"}:
+            raise RehearsalV22ValidationError("implementation Git surface is malformed")
+        safe_relative = _git_safe_relative(relative, "implementation surface path")
+        result.append((status_value, safe_relative))
+    return tuple(result)
+
+
 def _diff_name_status(root: Path, base: str, commit: str) -> tuple[tuple[str, str], ...]:
+    return _parse_git_name_status_z(
+        _git_bytes(
+            root,
+            "diff",
+            "--no-ext-diff",
+            "--no-textconv",
+            "--name-status",
+            "--no-renames",
+            "-z",
+            base,
+            commit,
+            "--",
+        )
+    )
+
+
+def _root_diff_name_status(root: Path, commit: str) -> tuple[tuple[str, str], ...]:
+    return _parse_git_name_status_z(
+        _git_bytes(
+            root,
+            "diff-tree",
+            "--root",
+            "--no-commit-id",
+            "-r",
+            "--no-ext-diff",
+            "--no-textconv",
+            "--name-status",
+            "--no-renames",
+            "-z",
+            commit,
+            "--",
+        )
+    )
+
+
+def _path_history_touches(
+    root: Path,
+    *,
+    relative: str,
+) -> tuple[tuple[str, str, tuple[str, ...]], ...]:
+    path = _relative(relative, "historical path touch")
+    history = _git_bytes(
+        root,
+        "log",
+        "--all",
+        "--diff-merges=first-parent",
+        "--format=@@%H",
+        "--name-status",
+        "--find-renames",
+        "--find-copies",
+        "--",
+        path,
+    ).decode("utf-8", errors="strict")
+    touches: list[tuple[str, str, tuple[str, ...]]] = []
+    active: str | None = None
+    for raw in history.splitlines():
+        line = raw.strip()
+        if not line:
+            continue
+        if line.startswith("@@"):
+            active = _commit(line[2:], "historical path touch commit")
+            continue
+        if active is None:
+            raise RehearsalV22ValidationError("historical path touch record is malformed")
+        fields = tuple(line.split("\t"))
+        if len(fields) < 2:
+            raise RehearsalV22ValidationError("historical path touch status is malformed")
+        touches.append((active, fields[0], fields[1:]))
+    return tuple(touches)
+
+
+def _path_diff_name_status(
+    root: Path,
+    *,
+    base: str,
+    commit: str,
+    relative: str,
+) -> tuple[tuple[str, str], ...]:
+    path = _relative(relative, "historical projected path")
     output = _git_bytes(
         root,
         "diff",
@@ -1931,14 +2229,605 @@ def _diff_name_status(root: Path, base: str, commit: str) -> tuple[tuple[str, st
         base,
         commit,
         "--",
+        path,
     ).decode("utf-8", errors="strict")
-    result: list[tuple[str, str]] = []
+    rows: list[tuple[str, str]] = []
     for raw in output.splitlines():
         fields = raw.split("\t")
-        if len(fields) != 2 or fields[0] not in {"A", "M", "D", "T", "U", "X", "B"}:
-            raise RehearsalV22ValidationError("implementation Git surface is malformed")
-        result.append((fields[0], _relative(fields[1], "implementation surface path")))
-    return tuple(result)
+        if len(fields) != 2:
+            raise RehearsalV22ValidationError("historical projected path diff is malformed")
+        rows.append((fields[0], _relative(fields[1], "historical projected path diff")))
+    return tuple(rows)
+
+
+_EPOCH_SURFACE_PATH = re.compile(
+    r"^docs/phase4/reports/P4\.2a-v2-2-epoch([0-9]+)-surface-authority-"
+    r"[0-9]{8}\.json$"
+)
+_EPOCH_REVIEW_PATH = re.compile(
+    r"^docs/phase4/reports/P4\.2a-v2-2-epoch([0-9]+)(?:-[A-Za-z0-9-]+)?-"
+    r"implementation-independent-review-[0-9]{8}\.json$"
+)
+_EPOCH_LANDING_PATH = re.compile(
+    r"^docs/phase4/reports/P4\.2a-v2-2-epoch([0-9]+)-.*landing-report-"
+    r"[0-9]{8}\.json$"
+)
+
+
+def _first_parent_chain(root: Path, head: str) -> tuple[str, ...]:
+    rows = _git_bytes(root, "rev-list", "--first-parent", "--reverse", head).decode(
+        "ascii", errors="strict"
+    )
+    chain = tuple(_commit(row, "first-parent commit") for row in rows.splitlines())
+    if not chain or chain[-1] != head or len(set(chain)) != len(chain):
+        raise RehearsalV22ValidationError("execution first-parent chain is malformed")
+    return chain
+
+
+def _unique_a_review_commit_all_history(root: Path, relative: str) -> str:
+    """Resolve one review's source creation without counting merge projections."""
+
+    path = _relative(relative, "landed epoch review path")
+    history = _git_bytes(
+        root,
+        "log",
+        "--all",
+        "--format=@@%H",
+        "--name-status",
+        "--find-renames",
+        "--find-copies",
+        "--",
+        path,
+    ).decode("utf-8", errors="strict")
+    touches: list[tuple[str, str, tuple[str, ...]]] = []
+    active: str | None = None
+    for raw in history.splitlines():
+        line = raw.strip()
+        if not line:
+            continue
+        if line.startswith("@@"):
+            active = _commit(line[2:], "landed epoch review history commit")
+            continue
+        if active is None:
+            raise RehearsalV22ValidationError(
+                "landed epoch review history is malformed"
+            )
+        fields = tuple(line.split("\t"))
+        if len(fields) < 2:
+            raise RehearsalV22ValidationError(
+                "landed epoch review history is malformed"
+            )
+        touches.append((active, fields[0], fields[1:]))
+    if len(touches) != 1 or touches[0][1:] != ("A", (path,)):
+        raise RehearsalV22ValidationError(
+            "landed epoch review is not unique-A across all refs"
+        )
+    return touches[0][0]
+
+
+def _validate_first_parent_epoch_governance(
+    *,
+    root: Path,
+    chain: tuple[str, ...],
+) -> tuple[
+    tuple[tuple[int, str, str], ...],
+    tuple[tuple[int, str, str, str], ...],
+    tuple[tuple[int, str, str, str, str], ...],
+]:
+    """Strictly validate every matching authority, review and landing document."""
+
+    authorities: list[tuple[int, str, str]] = []
+    reviews: list[tuple[int, str, str, str]] = []
+    landings: list[tuple[int, str, str, str, str]] = []
+    observed_paths: set[str] = set()
+    for commit in chain:
+        parents = _git_parents(root, commit)
+        changes = (
+            _diff_name_status(root, parents[0], commit)
+            if parents
+            else _root_diff_name_status(root, commit)
+        )
+        for status_value, relative in changes:
+            matches = tuple(
+                (kind, match)
+                for kind, pattern in (
+                    ("authority", _EPOCH_SURFACE_PATH),
+                    ("review", _EPOCH_REVIEW_PATH),
+                    ("landing", _EPOCH_LANDING_PATH),
+                )
+                if (match := pattern.fullmatch(relative)) is not None
+            )
+            if not matches:
+                continue
+            if len(matches) != 1 or status_value != "A" or relative in observed_paths:
+                raise RehearsalV22ValidationError(
+                    "epoch governance artifact is not one unique first-parent add"
+                )
+            observed_paths.add(relative)
+            kind, match = matches[0]
+            epoch_number = int(match.group(1))
+            payload = _git_blob(root, commit, relative)
+            document = _object(
+                strict_json_loads(payload, label=f"landed epoch {kind} {relative}"),
+                f"landed epoch {kind} {relative}",
+            )
+            if kind == "authority":
+                label = f"landed epoch authority {relative}"
+                _require_exact_keys(
+                    document,
+                    frozenset(
+                        {
+                            "schema_version",
+                            "verdict",
+                            "owner",
+                            "implementation_epoch",
+                            "base_commit",
+                            "exact_surface",
+                        }
+                    ),
+                    label,
+                )
+                _require_equal(
+                    document.get("schema_version"),
+                    "p4.2a-v2-2-implementation-epoch-surface-authorization-v1",
+                    f"{label} schema",
+                )
+                _require_equal(
+                    document.get("verdict"),
+                    "APPROVE_EXACT_V2_2_IMPLEMENTATION_EPOCH_SURFACE",
+                    f"{label} verdict",
+                )
+                _require_equal(
+                    document.get("owner"),
+                    {"identity": "ouyang", "approved": True},
+                    f"{label} owner",
+                )
+                _require_equal(
+                    _integer(document.get("implementation_epoch"), f"{label} epoch"),
+                    epoch_number,
+                    f"{label} filename/document epoch",
+                )
+                _commit(document.get("base_commit"), f"{label} base commit")
+                rows = _array(document.get("exact_surface"), f"{label} exact surface")
+                if not rows:
+                    raise RehearsalV22ValidationError(
+                        "landed epoch authority exact surface is empty"
+                    )
+                observed_surface: dict[str, str] = {}
+                ordered_paths: list[str] = []
+                for index, raw_row in enumerate(rows):
+                    row_label = f"{label} exact surface row {index}"
+                    row = _object(raw_row, row_label)
+                    _require_exact_keys(
+                        row,
+                        frozenset({"path", "status"}),
+                        row_label,
+                    )
+                    path = _relative(row.get("path"), f"{row_label} path")
+                    row_status = _string(row.get("status"), f"{row_label} status")
+                    if (
+                        path not in IMPLEMENTATION_PATHS
+                        or row_status not in {"A", "M"}
+                        or path in observed_surface
+                    ):
+                        raise RehearsalV22ValidationError(
+                            "landed epoch authority exact surface escaped allowlist"
+                        )
+                    observed_surface[path] = row_status
+                    ordered_paths.append(path)
+                if ordered_paths != sorted(
+                    ordered_paths, key=lambda value: value.encode("utf-8")
+                ):
+                    raise RehearsalV22ValidationError(
+                        "landed epoch authority exact surface is not byte-sorted"
+                    )
+                authorities.append((epoch_number, commit, relative))
+                continue
+            if kind == "review":
+                label = f"landed epoch review {relative}"
+                reviewed_commit = _commit(
+                    document.get("reviewed_commit"), f"{label} reviewed commit"
+                )
+                creation_commit = _unique_a_review_commit_all_history(root, relative)
+                if (
+                    document.get("schema_version") != "p4.2a-independent-review-v1"
+                    or document.get("verdict")
+                    != f"APPROVE_EPOCH{epoch_number}_IMPLEMENTATION"
+                    or document.get("blockers") != []
+                    or not _git_is_ancestor(root, creation_commit, chain[-1])
+                    or _git_blob(root, creation_commit, relative) != payload
+                ):
+                    raise RehearsalV22ValidationError(
+                        "landed epoch review shape or creation binding drifted"
+                    )
+                reviews.append(
+                    (epoch_number, creation_commit, relative, reviewed_commit)
+                )
+                continue
+
+            label = f"landed epoch landing {relative}"
+            schema = _string(document.get("schema_version"), f"{label} schema")
+            lineage = _object(
+                document.get("candidate_lineage"), f"{label} candidate lineage"
+            )
+            planned = _object(document.get("planned_landing"), f"{label} plan")
+            implementation_commit = _commit(
+                lineage.get("implementation_commit"),
+                f"{label} implementation commit",
+            )
+            review_row = _object(
+                lineage.get("independent_review"), f"{label} review"
+            )
+            review_path = _relative(review_row.get("path"), f"{label} review path")
+            review_match = _EPOCH_REVIEW_PATH.fullmatch(review_path)
+            review_commit_keys = tuple(
+                key for key in ("creating_commit", "commit") if key in review_row
+            )
+            if len(review_commit_keys) != 1:
+                raise RehearsalV22ValidationError(
+                    "landed epoch landing review commit alias is ambiguous"
+                )
+            review_commit = _commit(
+                review_row[review_commit_keys[0]],
+                f"{label} review commit",
+            )
+            second_parent = _commit(
+                planned.get("second_parent"), f"{label} second parent"
+            )
+            review_creation_commit = _unique_a_review_commit_all_history(
+                root, review_path
+            )
+            review_creation_payload = _git_blob(
+                root, review_creation_commit, review_path
+            )
+            claimed_review_sha = review_row.get("sha256")
+            if claimed_review_sha is not None and _sha(
+                claimed_review_sha, f"{label} review SHA"
+            ) != _sha256(review_creation_payload):
+                raise RehearsalV22ValidationError(
+                    "landed epoch landing review digest drifted"
+                )
+            if (
+                re.fullmatch(
+                    rf"p4\.2a-v2-2-epoch{epoch_number}(?:-[A-Za-z0-9-]+)?-"
+                    r"registered-gate-landing-report-v[0-9]+",
+                    schema,
+                )
+                is None
+                or document.get("status")
+                != "PASS_REGISTERED_GATE_LANDING_REPORT_READY_BEFORE_MERGE"
+                or review_match is None
+                or int(review_match.group(1)) != epoch_number
+                or second_parent != review_commit
+                or review_creation_commit != review_commit
+            ):
+                raise RehearsalV22ValidationError(
+                    "landed epoch landing shape or review binding drifted"
+                )
+            landings.append(
+                (
+                    epoch_number,
+                    commit,
+                    relative,
+                    implementation_commit,
+                    review_commit,
+                )
+            )
+    review_bindings = {
+        (epoch, review_commit, reviewed_commit)
+        for epoch, review_commit, _path, reviewed_commit in reviews
+    }
+    for epoch, _commit_value, _path, implementation_commit, review_commit in landings:
+        if (epoch, review_commit, implementation_commit) not in review_bindings:
+            raise RehearsalV22ValidationError(
+                "landed epoch landing review target binding drifted"
+            )
+    return tuple(authorities), tuple(reviews), tuple(landings)
+
+
+def _validate_latest_landed_epoch(
+    *,
+    project_root: Path,
+    live_anchor: implementation.LiveExecutionAnchor,
+) -> None:
+    """Independently prove that the live anchor is the latest landed epoch chain."""
+
+    root = project_root.resolve(strict=True)
+    execution_head = _git_commit(root, live_anchor.execution_head, "live execution HEAD")
+    observed_head = _git_bytes(root, "rev-parse", "HEAD").decode(
+        "ascii", errors="strict"
+    ).strip()
+    _require_equal(execution_head, observed_head, "live execution HEAD")
+    owner = _authority_reference_json(
+        live_anchor.owner_surface_authorization,
+        "latest epoch surface authority",
+    )
+    review = _authority_reference_json(
+        live_anchor.independent_implementation_review,
+        "latest epoch independent review",
+    )
+    landing_report = _authority_reference_json(
+        live_anchor.landing_report,
+        "latest epoch landing report",
+    )
+    owner_payload = _unique_a_authority(root, owner, require_worktree=True)
+    owner_document = _object(
+        strict_json_loads(owner_payload, label="latest epoch surface authority"),
+        "latest epoch surface authority",
+    )
+    _require_exact_keys(
+        owner_document,
+        frozenset(
+            {
+                "schema_version",
+                "verdict",
+                "owner",
+                "implementation_epoch",
+                "base_commit",
+                "exact_surface",
+            }
+        ),
+        "latest epoch surface authority",
+    )
+    _require_equal(
+        owner_document.get("schema_version"),
+        "p4.2a-v2-2-implementation-epoch-surface-authorization-v1",
+        "latest epoch surface authority schema",
+    )
+    _require_equal(
+        owner_document.get("verdict"),
+        "APPROVE_EXACT_V2_2_IMPLEMENTATION_EPOCH_SURFACE",
+        "latest epoch surface authority verdict",
+    )
+    _require_equal(
+        owner_document.get("owner"),
+        {"identity": "ouyang", "approved": True},
+        "latest epoch surface authority owner",
+    )
+    _require_equal(
+        owner_document.get("implementation_epoch"),
+        live_anchor.execution_epoch,
+        "latest epoch number",
+    )
+    implementation_commit = _git_commit(
+        root,
+        live_anchor.implementation_commit,
+        "latest epoch implementation commit",
+    )
+    if _git_parents(root, implementation_commit) != (cast(str, owner["creating_commit"]),):
+        raise RehearsalV22ValidationError(
+            "latest epoch implementation is not the authority's direct child"
+        )
+    base_commit = _git_commit(
+        root,
+        owner_document.get("base_commit"),
+        "latest epoch surface-authority base",
+    )
+    if (
+        _git_parents(root, cast(str, owner["creating_commit"])) != (base_commit,)
+        or _diff_name_status(root, base_commit, cast(str, owner["creating_commit"]))
+        != (("A", cast(str, owner["path"])),)
+    ):
+        raise RehearsalV22ValidationError(
+            "latest epoch surface authority is not one exact unique-A child"
+        )
+    rows = _array(owner_document.get("exact_surface"), "latest epoch exact surface")
+    expected_surface: dict[str, str] = {}
+    ordered_paths: list[str] = []
+    for index, raw in enumerate(rows):
+        row = _object(raw, f"latest epoch surface row {index}")
+        _require_exact_keys(
+            row,
+            frozenset({"path", "status"}),
+            f"latest epoch surface row {index}",
+        )
+        relative = _relative(row.get("path"), f"latest epoch surface row {index} path")
+        status_value = _string(
+            row.get("status"), f"latest epoch surface row {index} status"
+        )
+        if (
+            relative not in IMPLEMENTATION_PATHS
+            or status_value not in {"A", "M"}
+            or relative in expected_surface
+        ):
+            raise RehearsalV22ValidationError("latest epoch exact surface escaped allowlist")
+        expected_surface[relative] = status_value
+        ordered_paths.append(relative)
+    if (
+        not expected_surface
+        or ordered_paths
+        != sorted(ordered_paths, key=lambda value: value.encode("utf-8"))
+        or {
+            relative: status_value
+            for status_value, relative in _diff_name_status(
+                root,
+                cast(str, owner["creating_commit"]),
+                implementation_commit,
+            )
+        }
+        != expected_surface
+    ):
+        raise RehearsalV22ValidationError("latest epoch exact implementation surface drifted")
+    review_commit = _git_commit(
+        root,
+        review["creating_commit"],
+        "latest epoch source independent review",
+    )
+    review_path = cast(str, review["path"])
+    if (
+        _git_parents(root, review_commit) != (implementation_commit,)
+        or _diff_name_status(root, implementation_commit, review_commit)
+        != (("A", review_path),)
+    ):
+        raise RehearsalV22ValidationError("latest epoch source review topology drifted")
+    review_payload = _git_blob(root, review_commit, review_path)
+    if (
+        _sha256(review_payload) != review["sha256"]
+        or _regular_bytes(
+            _safe_path(root, review_path, "latest epoch review worktree file"),
+            "latest epoch review worktree file",
+        )
+        != review_payload
+    ):
+        raise RehearsalV22ValidationError("latest epoch source review bytes drifted")
+    _validate_implementation_review_document(
+        document=_object(
+            strict_json_loads(review_payload, label="latest epoch independent review"),
+            "latest epoch independent review",
+        ),
+        implementation_commit=implementation_commit,
+        label="latest epoch independent review",
+    )
+    merge_commit = _git_commit(root, live_anchor.merge_commit, "latest epoch landing merge")
+    merge_parents = _git_parents(root, merge_commit)
+    if (
+        len(merge_parents) != 2
+        or merge_parents[1] != review_commit
+        or not _git_is_ancestor(root, implementation_commit, merge_commit)
+    ):
+        raise RehearsalV22ValidationError("latest epoch merge topology drifted")
+    landing_payload = _unique_a_authority(root, landing_report, require_worktree=True)
+    landing_commit = cast(str, landing_report["creating_commit"])
+    if (
+        _git_parents(root, landing_commit) != (merge_commit,)
+        or _diff_name_status(root, merge_commit, landing_commit)
+        != (("A", cast(str, landing_report["path"])),)
+    ):
+        raise RehearsalV22ValidationError(
+            "latest epoch landing report is not one exact unique-A merge child"
+        )
+    _object(
+        strict_json_loads(landing_payload, label="latest epoch landing report"),
+        "latest epoch landing report",
+    )
+    chain = _first_parent_chain(root, execution_head)
+    if landing_commit not in chain or merge_commit not in chain:
+        raise RehearsalV22ValidationError(
+            "latest epoch landing chain is outside first-parent execution history"
+        )
+
+    authorities, matching_reviews, matching_landings = (
+        _validate_first_parent_epoch_governance(root=root, chain=chain)
+    )
+    surface_authorities: dict[int, tuple[str, str]] = {}
+    for epoch_number, commit, relative in authorities:
+        if epoch_number in surface_authorities:
+            raise RehearsalV22ValidationError("duplicate landed surface-authority epoch")
+        surface_authorities[epoch_number] = (commit, relative)
+    if (
+        not surface_authorities
+        or max(surface_authorities) != live_anchor.execution_epoch
+        or surface_authorities.get(live_anchor.execution_epoch)
+        != (cast(str, owner["creating_commit"]), cast(str, owner["path"]))
+    ):
+        raise RehearsalV22ValidationError("live execution epoch is not latest landed authority")
+    if (
+        any(
+            epoch_number > live_anchor.execution_epoch
+            for epoch_number, *_rest in matching_reviews
+        )
+        or any(
+            epoch_number > live_anchor.execution_epoch
+            for epoch_number, *_rest in matching_landings
+        )
+        or tuple(
+            row
+            for row in matching_reviews
+            if row[0] == live_anchor.execution_epoch
+        )
+        != (
+            (
+                live_anchor.execution_epoch,
+                review_commit,
+                cast(str, review["path"]),
+                implementation_commit,
+            ),
+        )
+        or tuple(
+            row
+            for row in matching_landings
+            if row[0] == live_anchor.execution_epoch
+        )
+        != (
+            (
+                live_anchor.execution_epoch,
+                landing_commit,
+                cast(str, landing_report["path"]),
+                implementation_commit,
+                review_commit,
+            ),
+        )
+    ):
+        raise RehearsalV22ValidationError(
+            "live execution epoch is not the unique latest complete governance chain"
+        )
+
+    control_paths = {
+        cast(str, record["repository_path"])
+        for record in live_anchor.control_surface.records
+        if record.get("repository_path") is not None
+    }
+    start = chain.index(merge_commit) + 1
+    for commit in chain[start:]:
+        parent = _git_parents(root, commit)[0]
+        changed = {relative for _status, relative in _diff_name_status(root, parent, commit)}
+        overlap = sorted(changed & control_paths, key=lambda value: value.encode("utf-8"))
+        if overlap:
+            raise RehearsalV22ValidationError(
+                "post-landing control member changed: " + ", ".join(overlap)
+            )
+
+
+def _validate_live_execution_anchor(
+    *,
+    project_root: Path,
+    live_anchor: implementation.LiveExecutionAnchor,
+) -> None:
+    anchor = _live_execution_anchor(live_anchor)
+    _validate_latest_landed_epoch(project_root=project_root, live_anchor=anchor)
+    _validate_current_control_and_modules(project_root=project_root, live_anchor=anchor)
+
+
+def _validate_current_execution_anchor(
+    *,
+    project_root: Path,
+    live_anchor: implementation.LiveExecutionAnchor,
+) -> None:
+    """Validate active code bytes without asserting post-selection landing state."""
+
+    anchor = _live_execution_anchor(live_anchor)
+    _validate_current_control_and_modules(project_root=project_root, live_anchor=anchor)
+    implementation.validate_implementation_epoch(
+        project_root,
+        epoch=anchor.execution_epoch,
+        implementation_commit=anchor.implementation_commit,
+        owner_surface_authorization=anchor.owner_surface_authorization,
+        independent_review=anchor.independent_implementation_review,
+        control_merkle_root_sha256=anchor.control_surface.merkle_root_sha256,
+        execution_head=anchor.execution_head,
+        require_current_bytes=True,
+    )
+
+
+def _validate_current_control_and_modules(
+    *,
+    project_root: Path,
+    live_anchor: implementation.LiveExecutionAnchor,
+) -> None:
+    """Common current-byte half of both ordinary and latest-landed anchors."""
+
+    anchor = _live_execution_anchor(live_anchor)
+    observed = implementation.build_control_surface(
+        project_root,
+        anchor.implementation_commit,
+        require_current=True,
+    )
+    if (
+        observed != anchor.control_surface
+        or observed.implementation_commit != anchor.implementation_commit
+    ):
+        raise RehearsalV22ValidationError("live execution control surface drifted")
+    _validate_module_identity(project_root, anchor)
 
 
 def _schema_validate(document: JsonObject, schema: JsonObject, label: str) -> None:
@@ -2160,6 +3049,14 @@ class HistoryReplay:
     archive_merkle_root_sha256: str
     live_payloads: Mapping[str, bytes]
     archive_payloads: Mapping[str, bytes]
+
+
+class ValidationMode(Enum):
+    """Exact validation capability; passive modes can never request replay."""
+
+    ORDINARY_ACTIVE = "ordinary-active"
+    RECOVERY_PASSIVE = "recovery-passive"
+    RECOVERED_RELEASE_PASSIVE = "recovered-release-passive"
 
 
 def _binding_view(value: object) -> BindingView:
@@ -2438,7 +3335,14 @@ def _audit_hook_source_map(sources: Mapping[str, bytes]) -> dict[str, int]:
     return result
 
 
-def _validate_module_identity(project_root: Path, implementation_commit: str) -> None:
+def _validate_module_identity(
+    project_root: Path,
+    live_anchor: implementation.LiveExecutionAnchor,
+) -> None:
+    implementation_commit = _commit(
+        live_anchor.implementation_commit,
+        "live execution implementation commit",
+    )
     authority_surface = _independent_local_import_closure(
         project_root=project_root,
         implementation_commit=implementation_commit,
@@ -2543,11 +3447,33 @@ def _validate_module_identity(project_root: Path, implementation_commit: str) ->
         or digest != _sha256(_regular_bytes(origin, "implementation module"))
     ):
         raise RehearsalV22ValidationError("module identity observation drifted")
-    _validated_implementation_blob(
+    validator_origin = Path(__file__).resolve(strict=True)
+    expected_validator_origin = (
+        project_root / "scripts/validate_p4_2a_v2_2_heldout_rehearsal_bundle.py"
+    ).resolve(strict=True)
+    if validator_origin != expected_validator_origin:
+        raise RehearsalV22ValidationError("live validator module origin drifted")
+    expected_loaded = {
+        "scripts/p4_2a_v2_2_heldout_rehearsal.py": digest,
+        "scripts/validate_p4_2a_v2_2_heldout_rehearsal_bundle.py": _sha256(
+            _regular_bytes(validator_origin, "validator module")
+        ),
+    }
+    if dict(live_anchor.loaded_module_sha256) != expected_loaded:
+        raise RehearsalV22ValidationError("live loaded-module digest binding drifted")
+    _validated_live_implementation_blob(
         project_root=project_root,
-        implementation_commit=implementation_commit,
+        live_anchor=live_anchor,
         relative_path="scripts/p4_2a_v2_2_heldout_rehearsal.py",
         expected_sha256=digest,
+    )
+    _validated_live_implementation_blob(
+        project_root=project_root,
+        live_anchor=live_anchor,
+        relative_path="scripts/validate_p4_2a_v2_2_heldout_rehearsal_bundle.py",
+        expected_sha256=expected_loaded[
+            "scripts/validate_p4_2a_v2_2_heldout_rehearsal_bundle.py"
+        ],
     )
 
 
@@ -2573,6 +3499,96 @@ def _core_authority(reference: Mapping[str, Any]) -> implementation.AuthorityRef
         creating_commit=cast(str, reference["creating_commit"]),
         unique_a_history_verified=True,
     )
+
+
+def _authority_reference_json(value: object, label: str) -> JsonObject:
+    if not isinstance(value, implementation.AuthorityReference):
+        raise RehearsalV22ValidationError(f"{label} is not an authority reference")
+    return _validate_authority_ref(value.as_json(), label)
+
+
+def _historical_selected_anchor(
+    value: object,
+) -> implementation.HistoricalSelectedAnchor:
+    if not isinstance(value, implementation.HistoricalSelectedAnchor):
+        raise RehearsalV22ValidationError(
+            "historical selected anchor is absent, forged, or cross-typed"
+        )
+    _integer(value.selected_epoch, "historical selected epoch", minimum=1)
+    _commit(value.selected_commit, "historical selected commit")
+    _authority_reference_json(
+        value.owner_action_time_authorization,
+        "historical selected action authorization",
+    )
+    _authority_reference_json(
+        value.owner_surface_authorization,
+        "historical selected surface authorization",
+    )
+    _authority_reference_json(
+        value.independent_implementation_review,
+        "historical selected independent review",
+    )
+    if not isinstance(value.control_surface, implementation.ControlSurface):
+        raise RehearsalV22ValidationError("historical selected control surface is malformed")
+    _require_equal(
+        value.control_surface.implementation_commit,
+        value.selected_commit,
+        "historical selected control commit",
+    )
+    for label, digest in (
+        ("historical selected control root", value.control_surface.merkle_root_sha256),
+        ("historical selected history root", value.history_root_sha256),
+        ("historical selected live-ledger root", value.live_ledger_root_sha256),
+        ("historical selected evidence root", value.evidence_tree_root_sha256),
+        ("historical selected candidate root", value.candidate_content_root_sha256),
+        ("historical selected run-a root", value.run_a_root_sha256),
+        ("historical selected run-b root", value.run_b_root_sha256),
+    ):
+        _sha(digest, label)
+    blob_map = dict(value.selected_git_blob_sha256)
+    if not blob_map:
+        raise RehearsalV22ValidationError("historical selected Git-blob map is empty")
+    for relative, digest in blob_map.items():
+        _relative(relative, "historical selected Git-blob path")
+        _sha(digest, f"historical selected Git-blob SHA {relative}")
+    return value
+
+
+def _live_execution_anchor(value: object) -> implementation.LiveExecutionAnchor:
+    if not isinstance(value, implementation.LiveExecutionAnchor):
+        raise RehearsalV22ValidationError(
+            "live execution anchor is absent, forged, or cross-typed"
+        )
+    _integer(value.execution_epoch, "live execution epoch", minimum=1)
+    _commit(value.implementation_commit, "live execution implementation commit")
+    _authority_reference_json(
+        value.owner_surface_authorization,
+        "live execution surface authorization",
+    )
+    _authority_reference_json(
+        value.independent_implementation_review,
+        "live execution independent review",
+    )
+    _commit(value.merge_commit, "live execution merge commit")
+    _authority_reference_json(value.landing_report, "live execution landing report")
+    _commit(value.execution_head, "live execution HEAD")
+    if not isinstance(value.control_surface, implementation.ControlSurface):
+        raise RehearsalV22ValidationError("live execution control surface is malformed")
+    _require_equal(
+        value.control_surface.implementation_commit,
+        value.implementation_commit,
+        "live execution control commit",
+    )
+    _sha(value.control_surface.merkle_root_sha256, "live execution control root")
+    loaded = dict(value.loaded_module_sha256)
+    if set(loaded) != {
+        "scripts/p4_2a_v2_2_heldout_rehearsal.py",
+        "scripts/validate_p4_2a_v2_2_heldout_rehearsal_bundle.py",
+    }:
+        raise RehearsalV22ValidationError("live loaded-module inventory drifted")
+    for relative, digest in loaded.items():
+        _sha(digest, f"live loaded-module SHA {relative}")
+    return value
 
 
 def _validate_file_ref(value: object, label: str) -> JsonObject:
@@ -2688,6 +3704,29 @@ def _is_void_epoch_one(epoch: Mapping[str, Any]) -> bool:
     )
 
 
+def _is_void_epoch_three(epoch: Mapping[str, Any]) -> bool:
+    return epoch == {
+        "epoch": 3,
+        "implementation_commit": VOID_EPOCH_THREE_IMPLEMENTATION_COMMIT,
+        "owner_exact_surface_authorization": {
+            "path": VOID_EPOCH_THREE_AUTHORITY_RELATIVE.as_posix(),
+            "sha256": VOID_EPOCH_THREE_AUTHORITY_SHA256,
+            "creating_commit": VOID_EPOCH_THREE_IMPLEMENTATION_PARENT,
+            "unique_a_history_verified": True,
+        },
+        "independent_implementation_review": {
+            "path": VOID_EPOCH_THREE_REASON_RELATIVE.as_posix(),
+            "sha256": VOID_EPOCH_THREE_REASON_SHA256,
+            "creating_commit": VOID_EPOCH_THREE_REASON_COMMIT,
+            "unique_a_history_verified": True,
+        },
+        "control_merkle_root_sha256": VOID_EPOCH_THREE_CONTROL_ROOT_SHA256,
+        "first_attempt_ordinal": 2,
+        "last_attempt_ordinal": 2,
+        "all_attempts_authorized": True,
+    }
+
+
 def _epoch_map(bundle: Mapping[str, Any]) -> dict[int, JsonObject]:
     rows = _array(bundle.get("implementation_epochs"), "bundle implementation epochs")
     result: dict[int, JsonObject] = {}
@@ -2697,7 +3736,9 @@ def _epoch_map(bundle: Mapping[str, Any]) -> dict[int, JsonObject]:
         number = cast(int, epoch["epoch"])
         if number != index or number in result:
             raise RehearsalV22ValidationError("implementation epochs are not contiguous")
-        if index == 1 and _is_void_epoch_one(epoch):
+        if (index == 1 and _is_void_epoch_one(epoch)) or (
+            index == 3 and _is_void_epoch_three(epoch)
+        ):
             result[number] = epoch
             continue
         if cast(int, epoch["first_attempt_ordinal"]) != prior_last + 1:
@@ -2708,6 +3749,20 @@ def _epoch_map(bundle: Mapping[str, Any]) -> dict[int, JsonObject]:
         raise RehearsalV22ValidationError("bundle has no implementation epoch")
     if _is_void_epoch_one(result[1]) and len(result) < 2:
         raise RehearsalV22ValidationError("void epoch 1 lacks an executed epoch 2")
+    if 3 in result and _is_void_epoch_three(result[3]):
+        if len(result) != 4 or _is_void_epoch_three(result.get(4, {})):
+            raise RehearsalV22ValidationError(
+                "void epoch 3 requires one executed epoch 4 and no other epoch shape"
+            )
+        if (
+            result[2].get("first_attempt_ordinal") != 1
+            or result[2].get("last_attempt_ordinal") != 1
+            or result[4].get("first_attempt_ordinal") != 2
+            or result[4].get("last_attempt_ordinal") != 2
+        ):
+            raise RehearsalV22ValidationError(
+                "void epoch 3 is accepted only for the exact [2,4] ordinal shape"
+            )
     return result
 
 
@@ -3323,16 +4378,9 @@ def _validate_attempt_history_records(
         creation_payload = _unique_a_authority(
             root,
             action_ref,
-            require_worktree=True,
+            require_worktree=False,
         )
-        action_payload = _regular_bytes(
-            _safe_path(root, action_relative, f"attempt {ordinal} action authorization"),
-            f"attempt {ordinal} action authorization",
-        )
-        if action_payload != creation_payload:
-            raise RehearsalV22ValidationError(
-                "action authorization differs from its unique creation blob"
-            )
+        action_payload = creation_payload
         action_commit = cast(str, action_ref["creating_commit"])
         epoch_review = _validate_authority_ref(
             epoch["independent_implementation_review"],
@@ -3555,9 +4603,14 @@ class ValidatedBundle:
     document: JsonObject
     payload: bytes
     path: Path
+    project_root: Path
+    bundle_directory: Path
     implementation_commit: str
     archives: ArchiveReplay
     history: HistoryReplay
+    historical_anchor: implementation.HistoricalSelectedAnchor
+    live_anchor: implementation.LiveExecutionAnchor
+    validation_mode: ValidationMode
 
 
 def _validate_materialization_manifest(
@@ -3909,7 +4962,7 @@ def _validate_control_archive(
     project_root: Path,
     bundle_directory: Path,
     value: object,
-    implementation_commit: str,
+    historical_anchor: implementation.HistoricalSelectedAnchor,
 ) -> tuple[dict[str, bytes], dict[str, bytes], str]:
     control = _object(value, "control archive")
     _require_equal(control.get("archive_root"), "archive/control-surface/root", "control root")
@@ -3964,22 +5017,14 @@ def _validate_control_archive(
                 raise RehearsalV22ValidationError("control repository/archive mapping drifted")
             governance = _CONTROL_GOVERNANCE_AUTHORITIES.get(relative)
             if governance is None:
-                current = _regular_bytes(
-                    _safe_path(project_root, relative, f"current control {relative}"),
-                    f"current control {relative}",
-                )
-                if current != payload:
-                    raise RehearsalV22ValidationError(
-                        f"current control bytes drifted: {relative}"
-                    )
                 _validated_implementation_blob(
                     project_root=project_root,
-                    implementation_commit=implementation_commit,
+                    historical_anchor=historical_anchor,
                     relative_path=relative,
                     expected_sha256=_sha256(payload),
                 )
             else:
-                digest, creating_commit, require_worktree = governance
+                digest, creating_commit, _require_worktree = governance
                 reference = {
                     "path": relative,
                     "sha256": digest,
@@ -3996,12 +5041,13 @@ def _validate_control_archive(
                         project_root,
                         reference,
                         execution_head=execution_head,
+                        require_worktree=False,
                     )
                 else:
                     creating_payload = _unique_a_authority(
                         project_root,
                         reference,
-                        require_worktree=require_worktree,
+                        require_worktree=False,
                     )
                 if payload != creating_payload:
                     raise RehearsalV22ValidationError(
@@ -4094,7 +5140,7 @@ def _validate_control_archive(
             )
     independent_closure = _independent_local_import_closure(
         project_root=project_root,
-        implementation_commit=implementation_commit,
+        implementation_commit=historical_anchor.selected_commit,
     )
     for relative, payload in independent_closure.items():
         if repository_payloads.get(relative) != payload:
@@ -4113,11 +5159,13 @@ def _validate_control_archive(
         )
     implementation_surface = implementation.build_control_surface(
         project_root,
-        implementation_commit,
-        require_current=True,
+        historical_anchor.selected_commit,
+        require_current=False,
     )
     if (
-        implementation_surface.implementation_commit != implementation_commit
+        implementation_surface != historical_anchor.control_surface
+        or implementation_surface.implementation_commit
+        != historical_anchor.selected_commit
         or list(implementation_surface.records) != files
         or dict(implementation_surface.payloads)
         != {
@@ -4151,7 +5199,7 @@ def _validate_archives(
     project_root: Path,
     bundle_directory: Path,
     bundle: Mapping[str, Any],
-    implementation_commit: str,
+    historical_anchor: implementation.HistoricalSelectedAnchor,
 ) -> ArchiveReplay:
     archive = _object(bundle.get("archive"), "bundle archive")
     runs = _array(archive.get("runs"), "bundle run archives")
@@ -4196,7 +5244,7 @@ def _validate_archives(
         project_root=project_root,
         bundle_directory=bundle_directory,
         value=archive.get("control_surface"),
-        implementation_commit=implementation_commit,
+        historical_anchor=historical_anchor,
     )
     return ArchiveReplay(
         run_a=run_a,
@@ -4213,9 +5261,10 @@ def _validate_lineage(
     *,
     project_root: Path,
     bundle: Mapping[str, Any],
-    implementation_commit: str,
+    historical_anchor: implementation.HistoricalSelectedAnchor,
 ) -> str:
     lineage = _object(bundle.get("lineage"), "bundle lineage")
+    selected_commit = historical_anchor.selected_commit
     expected_refs = {
         "preregistration": (PREREGISTRATION_RELATIVE.as_posix(), PREREGISTRATION_SHA256),
         "bundle_schema": (BUNDLE_SCHEMA_RELATIVE.as_posix(), BUNDLE_SCHEMA_SHA256),
@@ -4227,6 +5276,10 @@ def _validate_lineage(
     for key, (path, digest) in expected_refs.items():
         reference = _validate_file_ref(lineage.get(key), f"bundle lineage {key}")
         _require_equal(reference, {"path": path, "sha256": digest}, f"bundle lineage {key}")
+        if _sha256(_git_blob(project_root, selected_commit, path)) != digest:
+            raise RehearsalV22ValidationError(
+                f"historical selected lineage bytes drifted: {key}"
+            )
     preregistration_commit = _commit(
         lineage.get("preregistration_commit"), "bundle preregistration commit"
     )
@@ -4237,7 +5290,7 @@ def _validate_lineage(
     )
     _require_equal(
         lineage.get("implementation_commit"),
-        implementation_commit,
+        historical_anchor.selected_commit,
         "bundle implementation commit",
     )
     for key in (
@@ -4258,18 +5311,20 @@ def _validate_lineage(
         "round3_plus_contract",
     ):
         reference = _validate_file_ref(lineage.get(key), f"bundle lineage {key}")
-        payload = _regular_bytes(
-            _safe_path(project_root, reference["path"], f"bundle lineage {key}"),
-            f"bundle lineage {key}",
+        payload = _git_blob(
+            project_root,
+            selected_commit,
+            cast(str, reference["path"]),
         )
         if _sha256(payload) != reference["sha256"]:
             raise RehearsalV22ValidationError(f"bundle lineage {key} bytes drifted")
     retired = _array(lineage.get("retired_v1_artifacts"), "retired v1 artifacts")
     for index, raw in enumerate(retired):
         reference = _validate_file_ref(raw, f"retired v1 artifact {index}")
-        payload = _regular_bytes(
-            _safe_path(project_root, reference["path"], f"retired v1 artifact {index}"),
-            f"retired v1 artifact {index}",
+        payload = _git_blob(
+            project_root,
+            selected_commit,
+            cast(str, reference["path"]),
         )
         if _sha256(payload) != reference["sha256"]:
             raise RehearsalV22ValidationError("retired v1 artifact drifted")
@@ -4288,7 +5343,7 @@ def _validate_lineage(
         _unique_a_authority(
             project_root,
             reference,
-            require_worktree=True,
+            require_worktree=False,
         )
     authority_chain = {
         "v2_2_remediation_request": _V2_2_REMEDIATION_AUTHORITY,
@@ -4306,7 +5361,7 @@ def _validate_lineage(
             },
             f"bundle lineage {key}",
         )
-        _unique_a_authority(project_root, reference, require_worktree=True)
+        _unique_a_authority(project_root, reference, require_worktree=False)
     incident_commit = _CARRY_FORWARD_AUTHORITIES[
         "v2_1_consumed_attempt_incident"
     ][2]
@@ -4355,7 +5410,7 @@ def _validate_lineage(
         "creating_commit": preregistration_commit,
         "unique_a_history_verified": True,
     }
-    _unique_a_authority(project_root, prereg_reference, require_worktree=True)
+    _unique_a_authority(project_root, prereg_reference, require_worktree=False)
     preregistration_parent = _V2_2_SCOPE_AUTHORITY[2]
     if _git_parents(project_root, preregistration_commit) != (
         preregistration_parent,
@@ -4387,7 +5442,7 @@ def _validate_harness_identity(
     *,
     project_root: Path,
     bundle: Mapping[str, Any],
-    implementation_commit: str,
+    historical_anchor: implementation.HistoricalSelectedAnchor,
 ) -> None:
     identity = _object(bundle.get("harness_identity"), "bundle harness identity")
     expected_paths = {
@@ -4398,13 +5453,15 @@ def _validate_harness_identity(
     for key, expected_path in expected_paths.items():
         reference = _validate_file_ref(identity.get(key), f"harness {key}")
         _require_equal(reference["path"], expected_path, f"harness {key} path")
-        payload = _regular_bytes(
-            _safe_path(project_root, expected_path, f"harness {key}"), f"harness {key}"
+        payload = _git_blob(
+            project_root,
+            historical_anchor.selected_commit,
+            expected_path,
         )
         _require_equal(reference["sha256"], _sha256(payload), f"harness {key} SHA")
         _validated_implementation_blob(
             project_root=project_root,
-            implementation_commit=implementation_commit,
+            historical_anchor=historical_anchor,
             relative_path=expected_path,
             expected_sha256=_sha256(payload),
         )
@@ -4422,7 +5479,6 @@ def _validate_harness_identity(
     }
     for key, expected in expected_scalars.items():
         _require_equal(identity.get(key), expected, f"harness identity {key}")
-    _validate_module_identity(project_root, implementation_commit)
 
 
 def _validate_history_summary(
@@ -4491,6 +5547,95 @@ def _validate_history_summary(
         + bytes.fromhex(archives.control_root_sha256)
     ).hexdigest()
     _require_equal(merkle.get("bundle_root_sha256"), bundle_root, "bundle root")
+
+
+def _validate_historical_selected_anchor(
+    *,
+    project_root: Path,
+    historical_anchor: implementation.HistoricalSelectedAnchor,
+    replay: HistoryReplay,
+    archives: ArchiveReplay,
+) -> None:
+    anchor = _historical_selected_anchor(historical_anchor)
+    _require_equal(
+        (anchor.selected_epoch, anchor.selected_commit),
+        (replay.selected_implementation_epoch, replay.selected_implementation_commit),
+        "historical selected epoch/commit",
+    )
+    _require_equal(
+        anchor.history_root_sha256,
+        replay.history_root_sha256,
+        "historical selected history root",
+    )
+    _require_equal(
+        anchor.live_ledger_root_sha256,
+        replay.live_ledger_root_sha256,
+        "historical selected live-ledger root",
+    )
+    _require_equal(
+        anchor.control_surface.merkle_root_sha256,
+        archives.control_root_sha256,
+        "historical selected control root",
+    )
+    started, candidate, terminal = replay.source_records[
+        replay.selected_attempt_ordinal - 1
+    ]
+    if candidate is None or terminal is None:
+        raise RehearsalV22ValidationError(
+            "historical selected anchor lacks sealed candidate/terminal"
+        )
+    expected_action = anchor.owner_action_time_authorization.as_json()
+    _require_equal(
+        started.get("owner_action_time_authorization"),
+        expected_action,
+        "historical selected action authorization",
+    )
+    for label, observed, expected in (
+        (
+            "historical selected evidence root",
+            candidate.get("evidence_tree_root_sha256"),
+            anchor.evidence_tree_root_sha256,
+        ),
+        (
+            "historical selected terminal evidence root",
+            terminal.get("evidence_tree_root_sha256"),
+            anchor.evidence_tree_root_sha256,
+        ),
+        (
+            "historical selected candidate content root",
+            candidate.get("candidate_content_root_sha256"),
+            anchor.candidate_content_root_sha256,
+        ),
+        (
+            "historical selected run-a root",
+            candidate.get("run_a_root_sha256"),
+            anchor.run_a_root_sha256,
+        ),
+        (
+            "historical selected run-b root",
+            candidate.get("run_b_root_sha256"),
+            anchor.run_b_root_sha256,
+        ),
+    ):
+        _require_equal(observed, expected, label)
+    observed_blob_map = {
+        relative: _sha256(payload)
+        for relative, payload in archives.control_repository_payloads.items()
+    }
+    expected_repository_paths = {
+        cast(str, record["repository_path"])
+        for record in anchor.control_surface.records
+        if record.get("repository_path") is not None
+    }
+    if set(observed_blob_map) != expected_repository_paths:
+        raise RehearsalV22ValidationError(
+            "historical selected control repository inventory drifted"
+        )
+    _require_equal(
+        dict(anchor.selected_git_blob_sha256),
+        observed_blob_map,
+        "historical selected Git-blob map",
+    )
 
 
 def _validate_implementation_review_document(
@@ -4573,6 +5718,7 @@ def _validate_void_epoch_one(
         project_root,
         owner,
         execution_head=execution_head,
+        require_worktree=False,
     )
     adjudication = _validate_authority_ref(
         epoch["independent_implementation_review"],
@@ -4581,7 +5727,7 @@ def _validate_void_epoch_one(
     adjudication_payload = _unique_a_authority(
         project_root,
         adjudication,
-        require_worktree=True,
+        require_worktree=False,
     )
     if not _git_is_ancestor(
         project_root,
@@ -4611,7 +5757,7 @@ def _validate_void_epoch_one(
     review_payload = _unique_a_authority(
         project_root,
         remediation_review,
-        require_worktree=True,
+        require_worktree=False,
     )
     review_document = _object(
         strict_json_loads(review_payload, label="void epoch implementation review"),
@@ -4651,22 +5797,272 @@ def _validate_void_epoch_one(
         raise RehearsalV22ValidationError("void epoch control surface replay drifted")
 
 
+def _validate_void_epoch_three(
+    *,
+    project_root: Path,
+    epoch: Mapping[str, Any],
+    execution_head: str,
+) -> None:
+    """Re-prove the one exact structurally superseded epoch-3 sentinel."""
+
+    if not _is_void_epoch_three(epoch):
+        raise RehearsalV22ValidationError("void epoch 3 marker drifted")
+    root = project_root.resolve(strict=True)
+    head = _git_commit(root, execution_head, "void epoch 3 execution HEAD")
+    implementation_commit = _git_commit(
+        root,
+        VOID_EPOCH_THREE_IMPLEMENTATION_COMMIT,
+        "void epoch 3 implementation commit",
+    )
+    exact_surface = (
+        ("M", "scripts/p4_2a_v2_2_heldout_rehearsal.py"),
+        ("M", "scripts/validate_p4_2a_v2_2_heldout_rehearsal_bundle.py"),
+        ("M", "tests/test_p4_2a_v2_2_heldout_rehearsal_runner.py"),
+        ("M", "tests/test_p4_2a_v2_2_heldout_rehearsal_validator.py"),
+    )
+    if (
+        _git_parents(root, implementation_commit)
+        != (VOID_EPOCH_THREE_IMPLEMENTATION_PARENT,)
+        or _diff_name_status(
+            root,
+            VOID_EPOCH_THREE_IMPLEMENTATION_PARENT,
+            implementation_commit,
+        )
+        != exact_surface
+        or not _git_is_ancestor(root, implementation_commit, head)
+    ):
+        raise RehearsalV22ValidationError("void epoch 3 implementation topology drifted")
+
+    owner = _validate_authority_ref(
+        epoch["owner_exact_surface_authorization"],
+        "void epoch 3 owner authority",
+    )
+    owner_payload = _unique_a_authority(root, owner, require_worktree=False)
+    owner_document = _object(
+        strict_json_loads(owner_payload, label="void epoch 3 owner authority"),
+        "void epoch 3 owner authority",
+    )
+    _require_equal(
+        owner_document,
+        {
+            "schema_version": (
+                "p4.2a-v2-2-implementation-epoch-surface-authorization-v1"
+            ),
+            "verdict": "APPROVE_EXACT_V2_2_IMPLEMENTATION_EPOCH_SURFACE",
+            "owner": {"identity": "ouyang", "approved": True},
+            "implementation_epoch": 3,
+            "base_commit": _object(owner_document, "void epoch 3 owner authority")[
+                "base_commit"
+            ],
+            "exact_surface": [
+                {"path": path, "status": status_value}
+                for status_value, path in exact_surface
+            ],
+        },
+        "void epoch 3 owner authority document",
+    )
+    authority_base = _git_commit(
+        root,
+        owner_document["base_commit"],
+        "void epoch 3 authority base",
+    )
+    if _git_parents(root, VOID_EPOCH_THREE_IMPLEMENTATION_PARENT) != (authority_base,):
+        raise RehearsalV22ValidationError(
+            "void epoch 3 authority is not the base's direct child"
+        )
+
+    review_reference = {
+        "path": VOID_EPOCH_THREE_REVIEW_RELATIVE.as_posix(),
+        "sha256": VOID_EPOCH_THREE_REVIEW_SHA256,
+        "creating_commit": VOID_EPOCH_THREE_REVIEW_COMMIT,
+        "unique_a_history_verified": True,
+    }
+    review_commit = _git_commit(
+        root,
+        VOID_EPOCH_THREE_REVIEW_COMMIT,
+        "void epoch 3 real implementation review",
+    )
+    review_path = VOID_EPOCH_THREE_REVIEW_RELATIVE.as_posix()
+    if (
+        _git_parents(root, review_commit) != (implementation_commit,)
+        or _diff_name_status(root, implementation_commit, review_commit)
+        != (("A", review_path),)
+    ):
+        raise RehearsalV22ValidationError("void epoch 3 review topology drifted")
+    review_payload = _git_blob(root, review_commit, review_path)
+    if _sha256(review_payload) != VOID_EPOCH_THREE_REVIEW_SHA256:
+        raise RehearsalV22ValidationError("void epoch 3 review SHA drifted")
+    _validate_authority_ref(review_reference, "void epoch 3 real review reference")
+    _validate_implementation_review_document(
+        document=_object(
+            strict_json_loads(review_payload, label="void epoch 3 real review"),
+            "void epoch 3 real review",
+        ),
+        implementation_commit=implementation_commit,
+        label="void epoch 3 real review",
+    )
+    landing = _git_commit(root, VOID_EPOCH_THREE_LANDING_COMMIT, "void epoch 3 landing")
+    review_touches = _path_history_touches(root, relative=review_path)
+    expected_review_touches = {
+        (VOID_EPOCH_THREE_REVIEW_COMMIT, "A", (review_path,)),
+        (VOID_EPOCH_THREE_LANDING_COMMIT, "A", (review_path,)),
+    }
+    if (
+        _git_parents(root, landing) != VOID_EPOCH_THREE_LANDING_PARENTS
+        or len(review_touches) != 2
+        or set(review_touches) != expected_review_touches
+        or _path_diff_name_status(
+            root,
+            base=VOID_EPOCH_THREE_LANDING_PARENTS[0],
+            commit=landing,
+            relative=review_path,
+        )
+        != (("A", review_path),)
+        or _path_diff_name_status(
+            root,
+            base=VOID_EPOCH_THREE_REVIEW_COMMIT,
+            commit=landing,
+            relative=review_path,
+        )
+        != ()
+        or _git_blob(root, landing, review_path) != review_payload
+        or not _git_is_ancestor(root, landing, head)
+    ):
+        raise RehearsalV22ValidationError(
+            "void epoch 3 source/projection review history drifted"
+        )
+
+    ruling_references = (
+        (
+            "void epoch 3 corrected-sibling adjudication",
+            {
+                "path": VOID_EPOCH_THREE_GATE_ADJUDICATION_RELATIVE.as_posix(),
+                "sha256": VOID_EPOCH_THREE_GATE_ADJUDICATION_SHA256,
+                "creating_commit": VOID_EPOCH_THREE_GATE_ADJUDICATION_COMMIT,
+                "unique_a_history_verified": True,
+            },
+        ),
+        (
+            "void epoch 3 re-anchor companion",
+            {
+                "path": VOID_EPOCH_THREE_REANCHOR_RELATIVE.as_posix(),
+                "sha256": VOID_EPOCH_THREE_REANCHOR_SHA256,
+                "creating_commit": VOID_EPOCH_THREE_REANCHOR_COMMIT,
+                "unique_a_history_verified": True,
+            },
+        ),
+        (
+            "void epoch 3 reason discriminator",
+            {
+                "path": VOID_EPOCH_THREE_REASON_RELATIVE.as_posix(),
+                "sha256": VOID_EPOCH_THREE_REASON_SHA256,
+                "creating_commit": VOID_EPOCH_THREE_REASON_COMMIT,
+                "unique_a_history_verified": True,
+            },
+        ),
+    )
+    _require_equal(
+        epoch["independent_implementation_review"],
+        ruling_references[2][1],
+        "void epoch 3 reason discriminator reference",
+    )
+    ruling_documents: list[JsonObject] = []
+    for label, raw_reference in ruling_references:
+        reference = _validate_authority_ref(raw_reference, label)
+        payload = _unique_a_authority(root, reference, require_worktree=False)
+        if not _git_is_ancestor(root, cast(str, reference["creating_commit"]), head):
+            raise RehearsalV22ValidationError(f"{label} is outside execution lineage")
+        ruling_documents.append(
+            _object(strict_json_loads(payload, label=label), label)
+        )
+    gate_document, reanchor_document, reason_document = ruling_documents
+    _require_equal(
+        _object(gate_document.get("part_3_rulings"), "epoch 3 gate rulings").get(
+            "supersession_authorized"
+        ),
+        VOID_EPOCH_THREE_GATE_SUPERSESSION_RULING,
+        "void epoch 3 corrected sibling ruling",
+    )
+    _require_equal(
+        _object(
+            reanchor_document.get("part_1_why_epoch_4_is_necessary"),
+            "epoch 4 re-anchor reason",
+        ).get("trigger"),
+        VOID_EPOCH_THREE_REANCHOR_TRIGGER,
+        "void epoch 3 structural re-anchor trigger",
+    )
+    attempt_finding = _object(
+        reason_document.get("part_1_attempt_2_adjudicated"),
+        "attempt-2 epoch-gap finding",
+    )
+    _require_equal(
+        attempt_finding.get("verdict"),
+        "VALID_SERIES_CLOSING_SUCCESS_WITH_FAILED_BUNDLE_CONSTRUCTION",
+        "void epoch 3 reason verdict",
+    )
+    _require_equal(
+        attempt_finding.get("what_failed"),
+        VOID_EPOCH_THREE_REASON_FINDING,
+        "void epoch 3 exact [2,4] reason",
+    )
+    required_content = _array(
+        _object(
+            reason_document.get("part_5_epoch5_design_requirements"),
+            "epoch-5 design requirements",
+        ).get("required_content"),
+        "epoch-5 required content",
+    )
+    if not any(
+        isinstance(item, str)
+        and "void-epoch-3 disclosure" in item
+        and "exact-match sentinel" in item
+        for item in required_content
+    ):
+        raise RehearsalV22ValidationError("void epoch 3 disclosure ruling drifted")
+
+    control = implementation.build_control_surface(
+        root,
+        implementation_commit,
+        require_current=False,
+    )
+    if (
+        control.implementation_commit != implementation_commit
+        or control.merkle_root_sha256 != VOID_EPOCH_THREE_CONTROL_ROOT_SHA256
+        or control.merkle_root_sha256 != epoch["control_merkle_root_sha256"]
+        or len(control.records) != VOID_EPOCH_THREE_CONTROL_RECORD_COUNT
+        or control.loaded_repository_sources
+        or not set(control.ast_closure_paths).issubset(
+            record["repository_path"]
+            for record in control.records
+            if record["repository_path"] is not None
+        )
+    ):
+        raise RehearsalV22ValidationError("void epoch 3 control surface replay drifted")
+
+
 def _validate_implementation_epochs(
     *,
     project_root: Path,
     bundle: Mapping[str, Any],
     replay: HistoryReplay,
     archives: ArchiveReplay,
+    historical_anchor: implementation.HistoricalSelectedAnchor,
+    live_anchor: implementation.LiveExecutionAnchor,
 ) -> None:
     epochs = _array(bundle.get("implementation_epochs"), "implementation epochs")
-    execution_head = _git_bytes(project_root, "rev-parse", "HEAD").decode(
-        "ascii", errors="strict"
-    ).strip()
+    execution_head = live_anchor.execution_head
     _git_commit(project_root, execution_head, "execution HEAD")
     for index, raw in enumerate(epochs, 1):
         epoch = _validate_epoch_shape(raw, f"implementation epoch {index}")
         if index == 1 and _is_void_epoch_one(epoch):
             _validate_void_epoch_one(
+                project_root=project_root,
+                epoch=epoch,
+                execution_head=execution_head,
+            )
+            continue
+        if index == 3 and _is_void_epoch_three(epoch):
+            _validate_void_epoch_three(
                 project_root=project_root,
                 epoch=epoch,
                 execution_head=execution_head,
@@ -4701,12 +6097,13 @@ def _validate_implementation_epochs(
                 project_root,
                 owner,
                 execution_head=execution_head,
+                require_worktree=False,
             )
         else:
             owner_payload = _unique_a_authority(
                 project_root,
                 owner,
-                require_worktree=True,
+                require_worktree=False,
             )
         parents = _git_parents(project_root, implementation_commit)
         if len(parents) != 1:
@@ -4861,7 +6258,7 @@ def _validate_implementation_epochs(
             _unique_a_authority(
                 project_root,
                 review,
-                require_worktree=True,
+                require_worktree=False,
             )
             if index == 1
             else _validate_implementation_review_authority(
@@ -4869,7 +6266,7 @@ def _validate_implementation_epochs(
                 review,
                 implementation_commit=implementation_commit,
                 execution_head=execution_head,
-                require_worktree=True,
+                require_worktree=False,
             )
         )
         review_document = _object(
@@ -4892,23 +6289,19 @@ def _validate_implementation_epochs(
         for relative in IMPLEMENTATION_PATHS:
             blob = _git_blob(project_root, implementation_commit, relative)
             if index == replay.selected_implementation_epoch:
-                current = _regular_bytes(
-                    _safe_path(
-                        project_root,
-                        relative,
-                        f"epoch {index} implementation path",
-                    ),
-                    f"epoch {index} implementation path",
+                _require_equal(
+                    historical_anchor.selected_git_blob_sha256.get(relative),
+                    _sha256(blob),
+                    f"historical selected implementation SHA {relative}",
                 )
-                if current != blob:
-                    raise RehearsalV22ValidationError(
-                        f"selected implementation bytes drifted: {relative}"
-                    )
-        epoch_control = implementation.build_control_surface(
-            project_root,
-            implementation_commit,
-            require_current=False,
-        )
+        if index == replay.selected_implementation_epoch:
+            epoch_control = historical_anchor.control_surface
+        else:
+            epoch_control = implementation.build_control_surface(
+                project_root,
+                implementation_commit,
+                require_current=False,
+            )
         if (
             epoch_control.implementation_commit != implementation_commit
             or epoch_control.merkle_root_sha256
@@ -4933,7 +6326,7 @@ def _validate_implementation_epochs(
                 str, epoch["control_merkle_root_sha256"]
             ),
             execution_head=execution_head,
-            require_current_bytes=(index == replay.selected_implementation_epoch),
+            require_current_bytes=False,
         )
     if _is_void_epoch_one(_object(epochs[0], "implementation epoch 1")):
         if any(record.get("implementation_epoch") == 1 for record in replay.records):
@@ -4944,6 +6337,25 @@ def _validate_implementation_epochs(
             raise RehearsalV22ValidationError(
                 "executed implementation history does not begin at epoch 2"
             )
+    has_void_epoch_three = any(
+        index == 3 and _is_void_epoch_three(_object(raw, "implementation epoch 3"))
+        for index, raw in enumerate(epochs, 1)
+    )
+    if has_void_epoch_three:
+        if any(record.get("implementation_epoch") == 3 for record in replay.records):
+            raise RehearsalV22ValidationError(
+                "void epoch 3 unexpectedly owns a ledger attempt"
+            )
+        if (
+            [record.get("implementation_epoch") for record in replay.records] != [2, 4]
+            or replay.selected_attempt_ordinal != 2
+            or replay.selected_implementation_epoch != 4
+            or replay.selected_implementation_commit
+            != historical_anchor.selected_commit
+        ):
+            raise RehearsalV22ValidationError(
+                "void epoch 3 is restricted to the exact sealed [2,4] history"
+            )
     selected = _object(
         epochs[replay.selected_implementation_epoch - 1], "selected implementation epoch"
     )
@@ -4951,6 +6363,21 @@ def _validate_implementation_epochs(
         selected["control_merkle_root_sha256"],
         archives.control_root_sha256,
         "selected epoch control root",
+    )
+    _require_equal(
+        selected["implementation_commit"],
+        historical_anchor.selected_commit,
+        "historical selected epoch commit",
+    )
+    _require_equal(
+        selected["owner_exact_surface_authorization"],
+        historical_anchor.owner_surface_authorization.as_json(),
+        "historical selected owner surface authority",
+    )
+    _require_equal(
+        selected["independent_implementation_review"],
+        historical_anchor.independent_implementation_review.as_json(),
+        "historical selected independent review",
     )
 
 
@@ -5087,23 +6514,221 @@ def _active_replay_selected_pipeline(
         replay(replay_context)
 
 
+def _selected_bundle_envelope(bundle_path: Path) -> tuple[int, str, str]:
+    """Read only the three values needed to mint standalone ordinary anchors."""
+
+    payload = _regular_bytes(bundle_path.absolute(), "ordinary bundle envelope")
+    bundle = _strict_canonical_json_loads(payload, label="ordinary bundle envelope")
+    history = _object(bundle.get("attempt_history"), "ordinary bundle history envelope")
+    ordinal = _integer(
+        history.get("selected_attempt_ordinal"),
+        "ordinary bundle selected ordinal",
+        minimum=1,
+    )
+    records = _array(history.get("records"), "ordinary bundle history records")
+    if ordinal > len(records):
+        raise RehearsalV22ValidationError(
+            "ordinary bundle selected ordinal is outside its history"
+        )
+    selected_record = _object(records[ordinal - 1], "ordinary selected attempt")
+    if selected_record.get("outcome") != "CANDIDATE_VALIDATED_AND_SELECTED":
+        raise RehearsalV22ValidationError("ordinary selected attempt is not successful")
+    epoch_number = _integer(
+        selected_record.get("implementation_epoch"),
+        "ordinary selected implementation epoch",
+        minimum=1,
+    )
+    commit = _commit(
+        selected_record.get("implementation_commit"),
+        "ordinary selected implementation commit",
+    )
+    epoch = _epoch_map(bundle).get(epoch_number)
+    if epoch is None or _is_void_epoch_one(epoch) or _is_void_epoch_three(epoch):
+        raise RehearsalV22ValidationError(
+            "ordinary selected implementation epoch is not executed"
+        )
+    _require_equal(epoch.get("implementation_commit"), commit, "ordinary selected commit")
+    return (
+        epoch_number,
+        commit,
+        _sha(epoch.get("control_merkle_root_sha256"), "ordinary selected control root"),
+    )
+
+
+def _ordinary_validation_anchors(
+    *,
+    project_root: Path,
+    raw_binding: implementation.ExecutionBinding,
+    bundle_path: Path,
+    execution_context: object | None,
+) -> tuple[
+    implementation.HistoricalSelectedAnchor,
+    implementation.LiveExecutionAnchor,
+]:
+    if execution_context is None:
+        selected_epoch, selected_commit, selected_control_root = _selected_bundle_envelope(
+            bundle_path
+        )
+        raw_historical, raw_live = implementation._standalone_active_validation_anchors(
+            project_root=project_root,
+            raw_binding=raw_binding,
+            selected_epoch=selected_epoch,
+            selected_commit=selected_commit,
+            selected_control_root_sha256=selected_control_root,
+        )
+    else:
+        raw_historical, raw_live = implementation._active_attempt_validation_anchors(
+            execution_context,
+            project_root=project_root,
+            validator_module=sys.modules[__name__],
+        )
+    historical = _historical_selected_anchor(raw_historical)
+    live = _live_execution_anchor(raw_live)
+    if historical is live or type(historical) is type(live):
+        raise RehearsalV22ValidationError("ordinary historical/live anchors crossed types")
+    return historical, live
+
+
+def _recovery_validation_context(
+    *,
+    project_root: Path,
+    bundle_path: Path,
+    recovery_context: object,
+    recovery_validator_delegation: object,
+) -> tuple[
+    ResolvedExecution,
+    implementation.HistoricalSelectedAnchor,
+    implementation.LiveExecutionAnchor,
+    Path,
+]:
+    validator_module = sys.modules.get(__name__)
+    if validator_module is None:
+        raise RehearsalV22ValidationError("recovery validator module identity is absent")
+    raw_binding = implementation._validate_recovery_execution_capability(
+        recovery_context,
+        project_root=project_root.absolute(),
+    )
+    delegated_binding = implementation._validate_recovery_validator_delegation(
+        recovery_validator_delegation,
+        recovery_context=recovery_context,
+        validator_module=validator_module,
+        project_root=project_root.absolute(),
+        bundle_path=bundle_path.absolute(),
+    )
+    binding = _binding_view(raw_binding)
+    if _binding_view(delegated_binding) != binding:
+        raise RehearsalV22ValidationError("recovery validator binding drifted")
+    raw_historical, raw_live = implementation._recovery_validation_anchors(
+        recovery_context,
+        project_root=binding.project_root,
+    )
+    historical = _historical_selected_anchor(raw_historical)
+    live = _live_execution_anchor(raw_live)
+    if historical is live or type(historical) is type(live):
+        raise RehearsalV22ValidationError("recovery historical/live anchors crossed types")
+    candidate = bundle_path.absolute()
+    authorized_directory = _directory(candidate.parent, "recovery delegated bundle directory")
+    return (
+        ResolvedExecution(view=binding, raw=raw_binding),
+        historical,
+        live,
+        authorized_directory,
+    )
+
+
+def _recovered_release_validation_context(
+    *,
+    project_root: Path,
+    bundle_path: Path,
+    recovered_release_context: object,
+    recovered_release_validator_delegation: object,
+) -> tuple[
+    ResolvedExecution,
+    implementation.HistoricalSelectedAnchor,
+    implementation.LiveExecutionAnchor,
+    Path,
+]:
+    validator_module = sys.modules.get(__name__)
+    if validator_module is None:
+        raise RehearsalV22ValidationError(
+            "recovered-release validator module identity is absent"
+        )
+    raw_binding = implementation._validate_recovered_release_capability(
+        recovered_release_context,
+        project_root=project_root.absolute(),
+    )
+    delegated_binding = implementation._validate_recovered_release_validator_delegation(
+        recovered_release_validator_delegation,
+        recovered_release_context=recovered_release_context,
+        validator_module=validator_module,
+        project_root=project_root.absolute(),
+        bundle_path=bundle_path.absolute(),
+    )
+    binding = _binding_view(raw_binding)
+    if _binding_view(delegated_binding) != binding:
+        raise RehearsalV22ValidationError("recovered-release validator binding drifted")
+    raw_historical, raw_live = implementation._recovered_release_validation_anchors(
+        recovered_release_context,
+        project_root=binding.project_root,
+    )
+    historical = _historical_selected_anchor(raw_historical)
+    live = _live_execution_anchor(raw_live)
+    if historical is live or type(historical) is type(live):
+        raise RehearsalV22ValidationError(
+            "recovered-release historical/live anchors crossed types"
+        )
+    candidate = bundle_path.absolute()
+    authorized_directory = _directory(candidate.parent, "recovered-release bundle directory")
+    if authorized_directory != binding.absolute_destination:
+        raise RehearsalV22ValidationError(
+            "recovered-release bundle is not the published destination"
+        )
+    return (
+        ResolvedExecution(view=binding, raw=raw_binding),
+        historical,
+        live,
+        authorized_directory,
+    )
+
+
 def _validate_bundle_once(
     *,
     project_root: Path,
     bundle_path: Path,
     binding: BindingView,
-    raw_binding: implementation.ExecutionBinding,
-    published_release_revalidation: bool,
+    bundle_directory: Path,
+    historical_anchor: implementation.HistoricalSelectedAnchor,
+    live_anchor: implementation.LiveExecutionAnchor,
+    validation_mode: ValidationMode,
     expected_bundle_sha256: str | None,
 ) -> ValidatedBundle:
     root = project_root.resolve(strict=True)
     candidate = bundle_path.absolute()
-    bundle_directory = _authorized_bundle_directory(
-        binding=binding,
-        raw_binding=raw_binding,
-        bundle_path=candidate,
-        published_release_revalidation=published_release_revalidation,
-    )
+    historical = _historical_selected_anchor(historical_anchor)
+    live = _live_execution_anchor(live_anchor)
+    if not isinstance(validation_mode, ValidationMode):
+        raise RehearsalV22ValidationError("bundle validation mode is not exact")
+    if validation_mode is ValidationMode.ORDINARY_ACTIVE:
+        if (
+            historical.selected_epoch != live.execution_epoch
+            or historical.selected_commit != live.implementation_commit
+        ):
+            raise RehearsalV22ValidationError(
+                "ordinary active replay requires distinct anchors for the same epoch"
+            )
+        _validate_current_execution_anchor(project_root=root, live_anchor=live)
+    elif (
+        historical.selected_epoch != 4
+        or historical.selected_commit
+        != "890e9002116c625d41f6aa037975df15d1546c56"
+        or live.execution_epoch != 5
+        or historical.selected_commit == live.implementation_commit
+    ):
+        raise RehearsalV22ValidationError(
+            "recovered bundle requires historical epoch 4 and live epoch 5 anchors"
+        )
+    else:
+        _validate_live_execution_anchor(project_root=root, live_anchor=live)
     if candidate.parent != bundle_directory:
         raise RehearsalV22ValidationError("bundle path traverses an aliased directory")
     bundle_payload = _regular_bytes(candidate, "v2.2 bundle")
@@ -5114,53 +6739,85 @@ def _validate_bundle_once(
             "release-bound bundle SHA",
         )
     bundle = _object(strict_json_loads(bundle_payload, label="v2.2 bundle"), "v2.2 bundle")
-    schema_payload = _bound_control(
-        root,
-        BUNDLE_SCHEMA_RELATIVE,
-        BUNDLE_SCHEMA_SHA256,
-        "v2.2 bundle schema",
-    )
+    if validation_mode is ValidationMode.ORDINARY_ACTIVE:
+        schema_payload = _bound_control(
+            root,
+            BUNDLE_SCHEMA_RELATIVE,
+            BUNDLE_SCHEMA_SHA256,
+            "v2.2 bundle schema",
+        )
+        preregistration_payload = _bound_control(
+            root,
+            PREREGISTRATION_RELATIVE,
+            PREREGISTRATION_SHA256,
+            "v2.2 preregistration",
+        )
+        release_schema_payload = _bound_control(
+            root,
+            RELEASE_SCHEMA_RELATIVE,
+            RELEASE_SCHEMA_SHA256,
+            "v2.2 release schema",
+        )
+        _validate_contract_inheritance(
+            project_root=root,
+            preregistration_payload=preregistration_payload,
+            bundle_schema_payload=schema_payload,
+            release_schema_payload=release_schema_payload,
+        )
+    else:
+        schema_payload = _validated_implementation_blob(
+            project_root=root,
+            historical_anchor=historical,
+            relative_path=BUNDLE_SCHEMA_RELATIVE.as_posix(),
+            expected_sha256=BUNDLE_SCHEMA_SHA256,
+        )
+        preregistration_payload = _validated_implementation_blob(
+            project_root=root,
+            historical_anchor=historical,
+            relative_path=PREREGISTRATION_RELATIVE.as_posix(),
+            expected_sha256=PREREGISTRATION_SHA256,
+        )
+        release_schema_payload = _validated_implementation_blob(
+            project_root=root,
+            historical_anchor=historical,
+            relative_path=RELEASE_SCHEMA_RELATIVE.as_posix(),
+            expected_sha256=RELEASE_SCHEMA_SHA256,
+        )
+        _validate_historical_contract_inheritance(
+            project_root=root,
+            historical_anchor=historical,
+            preregistration_payload=preregistration_payload,
+            bundle_schema_payload=schema_payload,
+            release_schema_payload=release_schema_payload,
+        )
     schema = _object(strict_json_loads(schema_payload, label="bundle schema"), "bundle schema")
     _schema_validate(bundle, schema, "v2.2 bundle")
-    preregistration_payload = _bound_control(
-        root,
-        PREREGISTRATION_RELATIVE,
-        PREREGISTRATION_SHA256,
-        "v2.2 preregistration",
-    )
-    release_schema_payload = _bound_control(
-        root,
-        RELEASE_SCHEMA_RELATIVE,
-        RELEASE_SCHEMA_SHA256,
-        "v2.2 release schema",
-    )
-    _validate_contract_inheritance(
-        project_root=root,
-        preregistration_payload=preregistration_payload,
-        bundle_schema_payload=schema_payload,
-        release_schema_payload=release_schema_payload,
-    )
     _validate_binding_document(bundle.get("execution_binding"), binding, "bundle execution binding")
     history_stub = _object(bundle.get("attempt_history"), "bundle attempt history")
     implementation_commit = _commit(
         _object(bundle.get("lineage"), "bundle lineage").get("implementation_commit"),
         "bundle implementation commit",
     )
+    _require_equal(
+        implementation_commit,
+        historical.selected_commit,
+        "bundle historical selected commit",
+    )
     _validate_lineage(
         project_root=root,
         bundle=bundle,
-        implementation_commit=implementation_commit,
+        historical_anchor=historical,
     )
     _validate_harness_identity(
         project_root=root,
         bundle=bundle,
-        implementation_commit=implementation_commit,
+        historical_anchor=historical,
     )
     archives = _validate_archives(
         project_root=root,
         bundle_directory=bundle_directory,
         bundle=bundle,
-        implementation_commit=implementation_commit,
+        historical_anchor=historical,
     )
     replay = _validate_attempt_history_records(
         project_root=root,
@@ -5176,11 +6833,19 @@ def _validate_bundle_once(
     )
     del history_stub
     _validate_history_summary(bundle=bundle, binding=binding, replay=replay, archives=archives)
+    _validate_historical_selected_anchor(
+        project_root=root,
+        historical_anchor=historical,
+        replay=replay,
+        archives=archives,
+    )
     _validate_implementation_epochs(
         project_root=root,
         bundle=bundle,
         replay=replay,
         archives=archives,
+        historical_anchor=historical,
+        live_anchor=live,
     )
     _bundle_filesystem_is_exact(
         bundle_directory=bundle_directory,
@@ -5202,9 +6867,14 @@ def _validate_bundle_once(
         document=bundle,
         payload=bundle_payload,
         path=candidate,
+        project_root=root,
+        bundle_directory=bundle_directory,
         implementation_commit=implementation_commit,
         archives=archives,
         history=replay,
+        historical_anchor=historical,
+        live_anchor=live,
+        validation_mode=validation_mode,
     )
 
 
@@ -5216,6 +6886,8 @@ def _active_replay_validated_bundle(
     execution_context: object | None,
     published_release_revalidation: bool,
 ) -> None:
+    if validated.validation_mode is not ValidationMode.ORDINARY_ACTIVE:
+        raise RehearsalV22ValidationError("passive bundle cannot enter active replay")
     bundle_directory = _authorized_bundle_directory(
         binding=binding,
         raw_binding=raw_binding,
@@ -5234,9 +6906,33 @@ def _active_replay_validated_bundle(
     _active_replay_selected_pipeline(
         raw_binding=raw_binding,
         bundle_path=validated.path,
-        implementation_commit=validated.implementation_commit,
+        implementation_commit=validated.live_anchor.implementation_commit,
         execution_context=execution_context,
         archives=validated.archives,
+    )
+
+
+def _passive_revalidate_validated_bundle(
+    *,
+    validated: ValidatedBundle,
+) -> None:
+    if validated.validation_mode not in {
+        ValidationMode.RECOVERY_PASSIVE,
+        ValidationMode.RECOVERED_RELEASE_PASSIVE,
+    }:
+        raise RehearsalV22ValidationError("active bundle cannot enter passive validation")
+    current_payload = _regular_bytes(validated.path, "passive-recovery-bound bundle")
+    if current_payload != validated.payload:
+        raise RehearsalV22ValidationError("bundle bytes drifted before passive validation")
+    _bundle_filesystem_is_exact(
+        bundle_directory=validated.bundle_directory,
+        bundle_payload=current_payload,
+        archives=validated.archives,
+        history=validated.history,
+    )
+    _validate_live_execution_anchor(
+        project_root=validated.project_root,
+        live_anchor=validated.live_anchor,
     )
 
 
@@ -5256,12 +6952,26 @@ def validate_bundle(
     )
     # The context/delegation gate above deliberately precedes every bundle,
     # ledger, archive, database, network, model, or artifact read/write.
+    bundle_directory = _authorized_bundle_directory(
+        binding=resolved.view,
+        raw_binding=resolved.raw,
+        bundle_path=bundle_path.absolute(),
+        published_release_revalidation=False,
+    )
+    historical_anchor, live_anchor = _ordinary_validation_anchors(
+        project_root=resolved.view.project_root,
+        raw_binding=resolved.raw,
+        bundle_path=bundle_path,
+        execution_context=execution_context,
+    )
     validated = _validate_bundle_once(
         project_root=resolved.view.project_root,
         bundle_path=bundle_path,
         binding=resolved.view,
-        raw_binding=resolved.raw,
-        published_release_revalidation=False,
+        bundle_directory=bundle_directory,
+        historical_anchor=historical_anchor,
+        live_anchor=live_anchor,
+        validation_mode=ValidationMode.ORDINARY_ACTIVE,
         expected_bundle_sha256=None,
     )
     _active_replay_validated_bundle(
@@ -5271,6 +6981,37 @@ def validate_bundle(
         execution_context=execution_context,
         published_release_revalidation=False,
     )
+    return validated.document
+
+
+def validate_recovered_bundle(
+    *,
+    project_root: Path,
+    bundle_path: Path,
+    recovery_context: object,
+    recovery_validator_delegation: object,
+) -> JsonObject:
+    """Passively validate one sealed-ledger recovery with zero pipeline starts."""
+
+    resolved, historical_anchor, live_anchor, bundle_directory = (
+        _recovery_validation_context(
+            project_root=project_root,
+            bundle_path=bundle_path,
+            recovery_context=recovery_context,
+            recovery_validator_delegation=recovery_validator_delegation,
+        )
+    )
+    validated = _validate_bundle_once(
+        project_root=resolved.view.project_root,
+        bundle_path=bundle_path,
+        binding=resolved.view,
+        bundle_directory=bundle_directory,
+        historical_anchor=historical_anchor,
+        live_anchor=live_anchor,
+        validation_mode=ValidationMode.RECOVERY_PASSIVE,
+        expected_bundle_sha256=None,
+    )
+    _passive_revalidate_validated_bundle(validated=validated)
     return validated.document
 
 
@@ -5469,8 +7210,31 @@ def _validate_release_once(
     binding: BindingView,
     raw_binding: implementation.ExecutionBinding,
     execution_context: object | None,
+    bundle_directory: Path,
+    historical_anchor: implementation.HistoricalSelectedAnchor,
+    live_anchor: implementation.LiveExecutionAnchor,
+    validation_mode: ValidationMode,
 ) -> JsonObject:
     root = project_root.resolve(strict=True)
+    historical = _historical_selected_anchor(historical_anchor)
+    if validation_mode is ValidationMode.ORDINARY_ACTIVE:
+        schema_payload = _bound_control(
+            root,
+            RELEASE_SCHEMA_RELATIVE,
+            RELEASE_SCHEMA_SHA256,
+            "v2.2 evidence acceptance schema",
+        )
+    elif validation_mode is ValidationMode.RECOVERED_RELEASE_PASSIVE:
+        schema_payload = _validated_implementation_blob(
+            project_root=root,
+            historical_anchor=historical,
+            relative_path=RELEASE_SCHEMA_RELATIVE.as_posix(),
+            expected_sha256=RELEASE_SCHEMA_SHA256,
+        )
+    else:
+        raise RehearsalV22ValidationError(
+            "release validation mode is not active or recovered-release passive"
+        )
     expected_receipt_path = root / RELEASE_RELATIVE
     if receipt_path.absolute() != expected_receipt_path:
         raise RehearsalV22ValidationError("release receipt path is not mode-bound")
@@ -5483,12 +7247,6 @@ def _validate_release_once(
     receipt = _object(
         strict_json_loads(receipt_payload, label="v2.2 evidence acceptance receipt"),
         "v2.2 evidence acceptance receipt",
-    )
-    schema_payload = _bound_control(
-        root,
-        RELEASE_SCHEMA_RELATIVE,
-        RELEASE_SCHEMA_SHA256,
-        "v2.2 evidence acceptance schema",
     )
     schema = _object(strict_json_loads(schema_payload, label="release schema"), "release schema")
     _schema_validate(receipt, schema, "v2.2 evidence acceptance receipt")
@@ -5553,7 +7311,10 @@ def _validate_release_once(
     ):
         authority = _validate_authority_ref(lineage.get(key), f"release lineage {key}")
         release_authorities[key] = authority
-        _unique_a_authority(root, authority, require_worktree=True)
+        if validation_mode is ValidationMode.ORDINARY_ACTIVE:
+            _unique_a_authority(root, authority, require_worktree=True)
+        else:
+            _unique_a_authority(root, authority, require_worktree=False)
         if not _git_is_ancestor(
             root, cast(str, authority["creating_commit"]), reviewed_head
         ):
@@ -5570,8 +7331,10 @@ def _validate_release_once(
         project_root=root,
         bundle_path=bundle_path,
         binding=binding,
-        raw_binding=raw_binding,
-        published_release_revalidation=True,
+        bundle_directory=bundle_directory,
+        historical_anchor=historical,
+        live_anchor=live_anchor,
+        validation_mode=validation_mode,
         expected_bundle_sha256=cast(str, bundle_ref["sha256"]),
     )
     bundle = validated.document
@@ -5602,13 +7365,16 @@ def _validate_release_once(
                 "disposable release did not commit the exact bundle before its "
                 "unique-A review request"
             )
-    _active_replay_validated_bundle(
-        validated=validated,
-        binding=binding,
-        raw_binding=raw_binding,
-        execution_context=execution_context,
-        published_release_revalidation=True,
-    )
+    if validation_mode is ValidationMode.ORDINARY_ACTIVE:
+        _active_replay_validated_bundle(
+            validated=validated,
+            binding=binding,
+            raw_binding=raw_binding,
+            execution_context=execution_context,
+            published_release_revalidation=True,
+        )
+    else:
+        _passive_revalidate_validated_bundle(validated=validated)
     return receipt
 
 
@@ -5628,12 +7394,62 @@ def validate_release_authorization(
     )
     # The private/official authority gate above precedes receipt, bundle,
     # ledger, archive, database, network, model, or artifact access.
+    bundle_path = resolved.view.absolute_destination / BUNDLE_FILENAME
+    bundle_directory = _authorized_bundle_directory(
+        binding=resolved.view,
+        raw_binding=resolved.raw,
+        bundle_path=bundle_path,
+        published_release_revalidation=True,
+    )
+    historical_anchor, live_anchor = _ordinary_validation_anchors(
+        project_root=resolved.view.project_root,
+        raw_binding=resolved.raw,
+        bundle_path=bundle_path,
+        execution_context=execution_context,
+    )
     return _validate_release_once(
         project_root=resolved.view.project_root,
         receipt_path=receipt_path,
         binding=resolved.view,
         raw_binding=resolved.raw,
         execution_context=execution_context,
+        bundle_directory=bundle_directory,
+        historical_anchor=historical_anchor,
+        live_anchor=live_anchor,
+        validation_mode=ValidationMode.ORDINARY_ACTIVE,
+    )
+
+
+def validate_recovered_release_authorization(
+    *,
+    project_root: Path,
+    receipt_path: Path,
+    recovery_context: object,
+    recovery_validator_delegation: object,
+) -> JsonObject:
+    """Passively consume a recovered bundle under its exact recovery capability."""
+
+    bundle_path = project_root.absolute() / REGISTERED_DESTINATION_RELATIVE / BUNDLE_FILENAME
+    resolved, historical_anchor, live_anchor, bundle_directory = (
+        _recovered_release_validation_context(
+            project_root=project_root,
+            bundle_path=bundle_path,
+            recovered_release_context=recovery_context,
+            recovered_release_validator_delegation=(
+                recovery_validator_delegation
+            ),
+        )
+    )
+    return _validate_release_once(
+        project_root=resolved.view.project_root,
+        receipt_path=receipt_path,
+        binding=resolved.view,
+        raw_binding=resolved.raw,
+        execution_context=None,
+        bundle_directory=bundle_directory,
+        historical_anchor=historical_anchor,
+        live_anchor=live_anchor,
+        validation_mode=ValidationMode.RECOVERED_RELEASE_PASSIVE,
     )
 
 
