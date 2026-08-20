@@ -46,6 +46,8 @@ INITIAL_IMPLEMENTATION_COMMIT = "cf10ef8d636049b0fc206c8698a809be3090e1d7"
 EPOCH_TWO_SURFACE_AUTHORITY_COMMIT = "fa4f9e0233de20d5edef201e3a93aed10a67b8be"
 EPOCH_THREE_SURFACE_AUTHORITY_COMMIT = "d6c9c353217e00730457bf6b944ff26a32b8cf85"
 EPOCH_FOUR_SURFACE_AUTHORITY_COMMIT = "2c3171e68ce0146c158a294d0e494ae4b618310b"
+EPOCH_FIVE_COMPANION_COMMIT = "7cf819d43d5b73f7b8f1469a556c79ece12587f0"
+EPOCH_FIVE_SURFACE_AUTHORITY_COMMIT = "02def8fb3026bb797513440508ab0101efec0c35"
 INDEPENDENT_REVIEW_COMMIT = "b21e1bdbf865dfd9c7605ecc7794fc3f8701ed1f"
 INDEPENDENT_REVIEW_RELATIVE = Path(
     "docs/phase4/reports/P4.2a-v2-2-preregistration-independent-review-20260811.json"
@@ -937,6 +939,22 @@ def _exact_read_only_preflight_command(
     ]
 
 
+def _exact_recovered_release_command(
+    binding: Any,
+    recovery_authorization_path: Path,
+) -> list[str]:
+    return [
+        _fixed_interpreter().as_posix(),
+        "-S",
+        "-P",
+        "-B",
+        binding.shim_path.as_posix(),
+        "--consume-recovered-release",
+        "--bundle-recovery-authorization",
+        recovery_authorization_path.absolute().as_posix(),
+    ]
+
+
 def _spawn_exact_attempt(binding: Any, ordinal: int) -> subprocess.Popen[str]:
     previous_sigint = signal.getsignal(signal.SIGINT)
     try:
@@ -1307,6 +1325,7 @@ def _write_synthetic_started_record(
     implementation_commit: str = "2" * 40,
     owner_surface_authorization: Any | None = None,
     independent_review: Any | None = None,
+    control_merkle_root_sha256: str = "f" * 64,
 ) -> Any:
     implementation = importlib.import_module(IMPLEMENTATION_MODULE)
     history = implementation.validate_live_history(binding)
@@ -1319,6 +1338,7 @@ def _write_synthetic_started_record(
         implementation_commit=implementation_commit,
         owner_surface_authorization=owner_surface_authorization,
         independent_review=independent_review,
+        control_merkle_root_sha256=control_merkle_root_sha256,
     )
     attempt_root = binding.ledger_root / "attempts" / f"{ordinal:06d}"
     attempt_root.mkdir(mode=0o700)
@@ -1354,6 +1374,543 @@ def _write_synthetic_started_record(
         implementation._canonical_json_bytes(started),
     )
     return attempt_root
+
+
+def _copy_regular_test_tree(source: Path, destination: Path) -> None:
+    assert source.is_dir() and not source.is_symlink()
+    assert destination.is_dir() and not destination.is_symlink()
+    for current, directory_names, file_names in os.walk(source):
+        current_path = Path(current)
+        relative = current_path.relative_to(source)
+        target_root = destination / relative
+        for directory_name in sorted(directory_names, key=os.fsencode):
+            child = current_path / directory_name
+            assert child.is_dir() and not child.is_symlink()
+            target = target_root / directory_name
+            target.mkdir(mode=0o700)
+        for file_name in sorted(file_names, key=os.fsencode):
+            child = current_path / file_name
+            metadata = child.lstat()
+            assert stat.S_ISREG(metadata.st_mode) and metadata.st_nlink == 1
+            _write_test_file(target_root / file_name, child.read_bytes())
+
+
+def _authority_reference_from_json(implementation: Any, value: object) -> Any:
+    assert isinstance(value, dict)
+    assert set(value) == {
+        "path",
+        "sha256",
+        "creating_commit",
+        "unique_a_history_verified",
+    }
+    assert value["unique_a_history_verified"] is True
+    return implementation.AuthorityReference(
+        path=value["path"],
+        sha256=value["sha256"],
+        creating_commit=value["creating_commit"],
+    )
+
+
+def _rebind_sealed_attempt(
+    *,
+    binding: Any,
+    source_attempt: Path,
+    implementation_epoch: int,
+    implementation_commit: str,
+    owner_surface_authorization: Any,
+    independent_review: Any,
+    control_merkle_root_sha256: str,
+    selected: bool,
+) -> None:
+    implementation = importlib.import_module(IMPLEMENTATION_MODULE)
+    attempt_root = _write_synthetic_started_record(
+        binding,
+        implementation_epoch=implementation_epoch,
+        implementation_commit=implementation_commit,
+        owner_surface_authorization=owner_surface_authorization,
+        independent_review=independent_review,
+        control_merkle_root_sha256=control_merkle_root_sha256,
+    )
+    _copy_regular_test_tree(source_attempt / "evidence", attempt_root / "evidence")
+    started = implementation.strict_json_loads(
+        (attempt_root / "started.json").read_bytes(),
+        source="synthetic sealed attempt started",
+    )
+    assert isinstance(started, dict)
+    ordinal = started["ordinal"]
+    assert isinstance(ordinal, int) and ordinal >= 1
+    previous_history_root = started["previous_history_root_sha256"]
+    evidence_root, inventory = implementation._inventory_from_evidence(
+        attempt_root / "evidence"
+    )
+    source_terminal = implementation.strict_json_loads(
+        (source_attempt / "terminal.json").read_bytes(),
+        source=f"source attempt {ordinal} terminal",
+    )
+    assert isinstance(source_terminal, dict)
+    if selected:
+        source_candidate = implementation.strict_json_loads(
+            (source_attempt / "candidate.json").read_bytes(),
+            source="source selected candidate",
+        )
+        assert isinstance(source_candidate, dict)
+        candidate = {
+            **source_candidate,
+            "ordinal": ordinal,
+            "attempt_token_sha256": started["attempt_token_sha256"],
+            "implementation_epoch": implementation_epoch,
+            "implementation_commit": implementation_commit,
+            "control_surface_root_sha256": started[
+                "control_merkle_root_sha256"
+            ],
+            "evidence_tree_root_sha256": evidence_root,
+        }
+        candidate["candidate_content_root_sha256"] = (
+            implementation._candidate_content_root_sha256(
+                previous_history_root_sha256=previous_history_root,
+                run_a_root_sha256=candidate["run_a_root_sha256"],
+                run_b_root_sha256=candidate["run_b_root_sha256"],
+                control_surface_root_sha256=candidate[
+                    "control_surface_root_sha256"
+                ],
+                evidence_tree_root_sha256=evidence_root,
+            )
+        )
+        _write_test_file(
+            attempt_root / "candidate.json",
+            implementation._canonical_json_bytes(candidate),
+        )
+        terminal = {
+            **source_terminal,
+            "ordinal": ordinal,
+            "attempt_token_sha256": started["attempt_token_sha256"],
+            "outcome": "CANDIDATE_VALIDATED_AND_SELECTED",
+            "reached_stage": "bundle_candidate_validated",
+            "implementation_epoch": implementation_epoch,
+            "implementation_commit": implementation_commit,
+            "artifact_inventory": list(inventory),
+            "error": None,
+            "evidence_tree_root_sha256": evidence_root,
+        }
+    else:
+        terminal = {
+            **source_terminal,
+            "ordinal": ordinal,
+            "attempt_token_sha256": started["attempt_token_sha256"],
+            "outcome": "FAILED",
+            "implementation_epoch": implementation_epoch,
+            "implementation_commit": implementation_commit,
+            "artifact_inventory": list(inventory),
+            "evidence_tree_root_sha256": evidence_root,
+        }
+        assert isinstance(terminal["error"], dict)
+    _write_test_file(
+        attempt_root / "terminal.json",
+        implementation._canonical_json_bytes(terminal),
+    )
+
+
+def _epoch_action_binding(
+    implementation: Any,
+    project_root: Path,
+    relative: Path,
+) -> tuple[str, Any, Any, str]:
+    document = implementation.strict_json_loads(
+        (project_root / relative).read_bytes(),
+        source=f"synthetic epoch binding {relative}",
+    )
+    assert isinstance(document, dict)
+    return (
+        document["implementation_commit"],
+        _authority_reference_from_json(
+            implementation,
+            document["owner_exact_surface_authorization"],
+        ),
+        _authority_reference_from_json(
+            implementation,
+            document["independent_implementation_review"],
+        ),
+        document["control_merkle_root_sha256"],
+    )
+
+
+def _prepare_synthetic_gap_recovery(
+    tmp_path: Path,
+    *,
+    sealed_evidence_fixture: dict[str, Any],
+) -> dict[str, Any]:
+    implementation = importlib.import_module(IMPLEMENTATION_MODULE)
+    root = tmp_path / "epoch5-recovery-root"
+    _git(
+        "clone",
+        "--quiet",
+        "--no-hardlinks",
+        PROJECT_ROOT.as_posix(),
+        root.as_posix(),
+    )
+    authority_commit = EPOCH_FIVE_SURFACE_AUTHORITY_COMMIT
+    cloned_head = _fixture_git(root, "rev-parse", "HEAD").decode().strip()
+    if cloned_head == authority_commit:
+        for relative in (
+            IMPLEMENTATION_RELATIVE,
+            VALIDATOR_RELATIVE,
+            RUNNER_TEST_RELATIVE,
+            VALIDATOR_TEST_RELATIVE,
+        ):
+            (root / relative).write_bytes((PROJECT_ROOT / relative).read_bytes())
+        _fixture_git(
+            root,
+            "add",
+            "--",
+            IMPLEMENTATION_RELATIVE.as_posix(),
+            VALIDATOR_RELATIVE.as_posix(),
+            RUNNER_TEST_RELATIVE.as_posix(),
+            VALIDATOR_TEST_RELATIVE.as_posix(),
+        )
+        _fixture_git(root, "commit", "--quiet", "-m", "synthetic epoch five")
+        implementation_commit = _fixture_git(root, "rev-parse", "HEAD").decode().strip()
+    else:
+        parents = _fixture_git(
+            root,
+            "rev-list",
+            "--parents",
+            "-n",
+            "1",
+            cloned_head,
+        ).decode().split()
+        assert parents == [cloned_head, authority_commit]
+        implementation_commit = cloned_head
+    assert (
+        _fixture_git(
+            root,
+            "diff-tree",
+            "--no-commit-id",
+            "--name-status",
+            "-r",
+            implementation_commit,
+        )
+        .decode()
+        .splitlines()
+        == [
+            f"M\t{relative.as_posix()}"
+            for relative in sorted(
+                (
+                    IMPLEMENTATION_RELATIVE,
+                    VALIDATOR_RELATIVE,
+                    RUNNER_TEST_RELATIVE,
+                    VALIDATOR_TEST_RELATIVE,
+                ),
+                key=lambda path: os.fsencode(path.as_posix()),
+            )
+        ]
+    )
+
+    review_relative = Path(
+        "docs/phase4/reports/"
+        "P4.2a-v2-2-epoch5-synthetic-implementation-independent-review-20260820.json"
+    )
+    review_payload = implementation._canonical_json_bytes(
+        {
+            "schema_version": "p4.2a-independent-review-v1",
+            "verdict": "APPROVE_EPOCH5_IMPLEMENTATION",
+            "reviewed_commit": implementation_commit,
+            "blockers": [],
+        }
+    )
+    _fixture_git(
+        root,
+        "checkout",
+        "--quiet",
+        "-b",
+        "synthetic-epoch5-review",
+        implementation_commit,
+    )
+    review_commit = _fixture_commit_file(root, review_relative, review_payload)
+    _fixture_git(
+        root,
+        "checkout",
+        "--quiet",
+        "-B",
+        "synthetic-recovery-main",
+        implementation_commit,
+    )
+
+    recovery_relative = Path(
+        "docs/phase4/reports/"
+        "P4.2a-v2-2-synthetic-sealed-bundle-recovery-authorization.json"
+    )
+    binding = implementation._derive_binding_unchecked(
+        root,
+        action_authorization_path=root / recovery_relative,
+    )
+    _initialize_synthetic_ledger(binding)
+    epoch_two = _epoch_action_binding(
+        implementation,
+        root,
+        Path(
+            "docs/phase4/reports/"
+            "P4.2a-v2-2-rehearsal-attempt-000001-execution-authorization-20260813.json"
+        ),
+    )
+    epoch_four = _epoch_action_binding(
+        implementation,
+        root,
+        Path(
+            "docs/phase4/reports/"
+            "P4.2a-v2-2-rehearsal-attempt-000002-execution-authorization-20260819.json"
+        ),
+    )
+    source_ledger = sealed_evidence_fixture["binding"].ledger_root
+    _rebind_sealed_attempt(
+        binding=binding,
+        source_attempt=source_ledger / "attempts/000001",
+        implementation_epoch=2,
+        implementation_commit=epoch_two[0],
+        owner_surface_authorization=epoch_two[1],
+        independent_review=epoch_two[2],
+        control_merkle_root_sha256=epoch_two[3],
+        selected=False,
+    )
+    first_history = implementation.validate_live_history(binding)
+    assert tuple(record.outcome for record in first_history.records) == ("FAILED",)
+    _rebind_sealed_attempt(
+        binding=binding,
+        source_attempt=source_ledger / "attempts/000003",
+        implementation_epoch=4,
+        implementation_commit=epoch_four[0],
+        owner_surface_authorization=epoch_four[1],
+        independent_review=epoch_four[2],
+        control_merkle_root_sha256=epoch_four[3],
+        selected=True,
+    )
+    history = implementation.validate_live_history(binding)
+    assert tuple(record.implementation_epoch for record in history.records) == (2, 4)
+    assert tuple(record.outcome for record in history.records) == (
+        "FAILED",
+        "CANDIDATE_VALIDATED_AND_SELECTED",
+    )
+    assert history.series_closed is True
+    assert history.selected_attempt_ordinal == 2
+
+    _fixture_git(
+        root,
+        "merge",
+        "--quiet",
+        "--no-ff",
+        "--no-edit",
+        review_commit,
+    )
+    merge_commit = _fixture_git(root, "rev-parse", "HEAD").decode().strip()
+    assert (
+        _fixture_git(root, "rev-list", "--parents", "-n", "1", merge_commit)
+        .decode()
+        .split()
+        == [
+            merge_commit,
+            history.records[1].owner_action_time_authorization.creating_commit,
+            review_commit,
+        ]
+    )
+    landing_relative = Path(
+        "docs/phase4/reports/"
+        "P4.2a-v2-2-epoch5-synthetic-registered-gate-landing-report-20260820.json"
+    )
+    landing_payload = implementation._canonical_json_bytes(
+        {
+            "schema_version": (
+                "p4.2a-v2-2-epoch5-synthetic-registered-gate-landing-report-v1"
+            ),
+            "status": "PASS_REGISTERED_GATE_LANDING_REPORT_READY_BEFORE_MERGE",
+            "candidate_lineage": {
+                "implementation_commit": implementation_commit,
+                "independent_review": {
+                    "path": review_relative.as_posix(),
+                    "creating_commit": review_commit,
+                },
+            },
+            "planned_landing": {"second_parent": review_commit},
+            "merge_commit": merge_commit,
+        }
+    )
+    landing_commit = _fixture_commit_file(root, landing_relative, landing_payload)
+    control = implementation.build_control_surface(
+        root,
+        implementation_commit,
+        # This parent-side fixture only binds the immutable epoch-5 commit root.
+        # The exact-OS recovery child independently rechecks the same root with
+        # require_current=True under its registered locked bootstrap.
+        require_current=False,
+    )
+    selected = history.records[1]
+    assert selected.candidate_bytes is not None and selected.terminal_bytes is not None
+    candidate = implementation.strict_json_loads(
+        selected.candidate_bytes,
+        source="synthetic sealed selected candidate",
+    )
+    assert isinstance(candidate, dict)
+    epoch_five_authority_relative = Path(
+        "docs/phase4/reports/P4.2a-v2-2-epoch5-surface-authority-20260820.json"
+    )
+    epoch_five_authority_payload = (root / epoch_five_authority_relative).read_bytes()
+    epoch_five_owner = implementation.AuthorityReference(
+        epoch_five_authority_relative.as_posix(),
+        _sha256(epoch_five_authority_payload),
+        authority_commit,
+    )
+    review = implementation.AuthorityReference(
+        review_relative.as_posix(),
+        _sha256(review_payload),
+        review_commit,
+    )
+    landing = implementation.AuthorityReference(
+        landing_relative.as_posix(),
+        _sha256(landing_payload),
+        landing_commit,
+    )
+    command = [
+        _fixed_interpreter().as_posix(),
+        "-S",
+        "-P",
+        "-B",
+        binding.shim_path.as_posix(),
+        "--recover-sealed-bundle",
+        "--bundle-recovery-authorization",
+        (root / recovery_relative).as_posix(),
+    ]
+    exact_environment = _locked_environment()
+    selected_files = {
+        "started": {
+            "relative_path": "attempts/000002/started.json",
+            "sha256": selected.started_sha256,
+            "bytes": len(selected.started_bytes),
+        },
+        "candidate": {
+            "relative_path": "attempts/000002/candidate.json",
+            "sha256": selected.candidate_sha256,
+            "bytes": len(selected.candidate_bytes),
+        },
+        "terminal": {
+            "relative_path": "attempts/000002/terminal.json",
+            "sha256": selected.terminal_sha256,
+            "bytes": len(selected.terminal_bytes),
+        },
+    }
+    recovery_document = {
+        "schema_version": "p4.2a-v2-2-sealed-bundle-recovery-authorization-v1",
+        "authorization_id": "P4.2A-V2-2-SYNTHETIC-SEALED-BUNDLE-RECOVERY",
+        "created_at_utc": "2026-08-20T12:00:00Z",
+        "created_at_shanghai": "2026-08-20T20:00:00+08:00",
+        "verdict": "APPROVE_EXACTLY_ONE_SEALED_BUNDLE_RECOVERY_ZERO_PIPELINE_START",
+        "owner": {
+            "identity": "ouyang",
+            "approved": True,
+            "scope": "one disclosed sealed-bundle recovery only",
+        },
+        "sealed_series": {
+            "series_id": implementation.REHEARSAL_ID,
+            "series_token_sha256": binding.series_token_sha256,
+            "ledger_root": binding.ledger_root.as_posix(),
+            "history_root_sha256": history.history_root_sha256,
+            "live_ledger_root_sha256": history.live_ledger_root_sha256,
+            "series_closed": True,
+            "started_count": 2,
+            "failed_count": 1,
+            "incomplete_count": 0,
+            "validated_candidate_count": 1,
+            "selected_attempt_ordinal": 2,
+            "selected_implementation_epoch": 4,
+            "selected_implementation_commit": epoch_four[0],
+            "selected_control_merkle_root_sha256": candidate[
+                "control_surface_root_sha256"
+            ],
+            "selected_evidence_tree_root_sha256": selected.evidence_tree_root_sha256,
+            "selected_candidate_content_root_sha256": candidate[
+                "candidate_content_root_sha256"
+            ],
+            "selected_run_a_root_sha256": candidate["run_a_root_sha256"],
+            "selected_run_b_root_sha256": candidate["run_b_root_sha256"],
+            "selected_terminal_outcome": "CANDIDATE_VALIDATED_AND_SELECTED",
+            "selected_reached_stage": "bundle_candidate_validated",
+            "automatic_retry_count": 0,
+            "selected_files": selected_files,
+        },
+        "execution_epoch": {
+            "epoch": 5,
+            "implementation_commit": implementation_commit,
+            "owner_exact_surface_authorization": epoch_five_owner.as_json(),
+            "independent_implementation_review": review.as_json(),
+            "merge_commit": merge_commit,
+            "landing_report": landing.as_json(),
+            "control_merkle_root_sha256": control.merkle_root_sha256,
+            "control_record_count": len(control.records),
+            "latest_complete_landed_epoch_required": True,
+            "current_control_bytes_required": True,
+            "loaded_module_bytes_required": True,
+        },
+        "destination": {
+            "absolute_path": binding.destination.as_posix(),
+            "required_absent_before_start": True,
+            "publication_mode": "ATOMIC_DIRECTORY_NO_REPLACE",
+            "bundle_schema_version": implementation.BUNDLE_SCHEMA_VERSION,
+            "expected_bundle_status": "PASS_REHEARSAL_V2_2_AWAITING_OWNER_REVIEW",
+        },
+        "exact_argv": command,
+        "command_sha256": implementation._command_sha256(command),
+        "exact_environment": exact_environment,
+        "environment_sha256": implementation._environment_sha256(exact_environment),
+        "authorized_bundle_recovery_starts": 1,
+        "authorized_pipeline_starts": 0,
+        "automatic_retry_count": 0,
+        "effect_authorization": {
+            "ledger_read": True,
+            "ledger_write": False,
+            "git_object_read": True,
+            "git_or_worktree_write": False,
+            "recovery_claim_create_once": True,
+            "temporary_stage_create_once": True,
+            "destination_publish_once": True,
+            "attempt_allocation": False,
+            "candidate_or_terminal_rewrite": False,
+            "pipeline_execution": False,
+            "model_access": False,
+            "network_access": False,
+            "sqlite_or_production_database_access": False,
+            "heldout_materialization_inference_or_evaluation": False,
+        },
+        "interpreter": {
+            "path": _fixed_interpreter().as_posix(),
+            "sha256": _sha256(_fixed_interpreter().read_bytes()),
+            "version": (
+                f"{sys.version_info.major}.{sys.version_info.minor}."
+                f"{sys.version_info.micro}"
+            ),
+        },
+        "locks": {
+            "p4_2a_done": False,
+            "p4_2b_unlocked": False,
+            "p4_3_unlocked": False,
+            "heldout_evaluation_unlocked": False,
+            "real_trading_unlocked": False,
+            "non_simulate_trading_unlocked": False,
+        },
+    }
+    recovery_payload = implementation._canonical_json_bytes(recovery_document)
+    recovery_commit = _fixture_commit_file(root, recovery_relative, recovery_payload)
+    assert recovery_commit == _fixture_git(root, "rev-parse", "HEAD").decode().strip()
+    return {
+        "binding": binding,
+        "command": command,
+        "environment": exact_environment,
+        "history": history,
+        "ledger_before": implementation._tree_fingerprint(binding.ledger_root),
+        "implementation_commit": implementation_commit,
+        "merge_commit": merge_commit,
+        "landing_commit": landing_commit,
+        "recovery_commit": recovery_commit,
+        "recovery_payload": recovery_payload,
+        "recovery_sha256": _sha256(recovery_payload),
+        "source_selected_evidence": source_ledger / "attempts/000003/evidence",
+    }
 
 
 def test_preregistration_and_both_schemas_are_frozen_draft_2020_12_controls() -> None:
@@ -1464,9 +2021,20 @@ def test_runner_rederives_strict_inheritance_before_building_control_surface() -
         snapshot,
         _preregistration()["contract_inheritance"]["strict_inheritance_snapshot"],
     )
-    assert "validate_strict_v2_1_inheritance(root)" in inspect.getsource(
-        implementation.build_control_surface
-    )
+    tree = ast.parse(inspect.getsource(implementation.build_control_surface))
+    calls = [
+        node
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Name)
+        and node.func.id == "validate_strict_v2_1_inheritance"
+    ]
+    assert len(calls) == 1
+    keywords = {keyword.arg: keyword.value for keyword in calls[0].keywords}
+    assert isinstance(keywords["implementation_commit"], ast.Name)
+    assert keywords["implementation_commit"].id == "commit"
+    assert isinstance(keywords["require_current"], ast.Name)
+    assert keywords["require_current"].id == "require_current"
     assert implementation._typed_json_equal(1.0, 1) is False
     assert _all_real_path_fingerprints() == before
 
@@ -1632,6 +2200,17 @@ def test_preregistration_commit_shape_and_current_implementation_topology() -> N
     head = _git("rev-parse", "HEAD").decode().strip()
     parents = _git("rev-list", "--parents", "-n", "1", head).decode().split()
     git_order = tuple(sorted(REGISTERED_SURFACE, key=lambda path: os.fsencode(path.as_posix())))
+    epoch_five_paths = tuple(
+        sorted(
+            (
+                IMPLEMENTATION_RELATIVE,
+                VALIDATOR_RELATIVE,
+                RUNNER_TEST_RELATIVE,
+                VALIDATOR_TEST_RELATIVE,
+            ),
+            key=lambda path: os.fsencode(path.as_posix()),
+        )
+    )
     if head == PREREGISTRATION_COMMIT:
         status = (
             _git(
@@ -1790,7 +2369,7 @@ def test_preregistration_commit_shape_and_current_implementation_topology() -> N
             path.as_posix() for path in epoch_four_paths
         ]
         assert all(line[:2] in {" M", "M "} for line in status)
-    else:
+    elif parents == [head, EPOCH_FOUR_SURFACE_AUTHORITY_COMMIT]:
         assert parents == [head, EPOCH_FOUR_SURFACE_AUTHORITY_COMMIT]
         epoch_four_surface = (
             _git("diff-tree", "--no-commit-id", "--name-status", "-r", head)
@@ -1803,6 +2382,46 @@ def test_preregistration_commit_shape_and_current_implementation_topology() -> N
                 (IMPLEMENTATION_RELATIVE, RUNNER_TEST_RELATIVE),
                 key=lambda path: os.fsencode(path.as_posix()),
             )
+        ]
+        cumulative_surface = (
+            _git(
+                "diff",
+                "--name-status",
+                PREREGISTRATION_COMMIT,
+                head,
+                "--",
+                *(path.as_posix() for path in REGISTERED_SURFACE),
+            )
+            .decode()
+            .splitlines()
+        )
+        assert cumulative_surface == [f"A\t{path.as_posix()}" for path in git_order]
+    elif head == EPOCH_FIVE_SURFACE_AUTHORITY_COMMIT:
+        assert parents == [head, EPOCH_FIVE_COMPANION_COMMIT]
+        status = (
+            _git(
+                "status",
+                "--porcelain=v1",
+                "--untracked-files=all",
+                "--",
+                *(path.as_posix() for path in epoch_five_paths),
+            )
+            .decode()
+            .splitlines()
+        )
+        assert [line[3:] for line in status] == [
+            path.as_posix() for path in epoch_five_paths
+        ]
+        assert all(line[:2] in {" M", "M "} for line in status)
+    else:
+        assert parents == [head, EPOCH_FIVE_SURFACE_AUTHORITY_COMMIT]
+        epoch_five_surface = (
+            _git("diff-tree", "--no-commit-id", "--name-status", "-r", head)
+            .decode()
+            .splitlines()
+        )
+        assert epoch_five_surface == [
+            f"M\t{path.as_posix()}" for path in epoch_five_paths
         ]
         cumulative_surface = (
             _git(
@@ -2178,6 +2797,7 @@ def test_independent_validator_rejects_any_second_or_missing_process_audit_hook(
     relative: Path,
     mutation: str,
 ) -> None:
+    implementation = importlib.import_module(IMPLEMENTATION_MODULE)
     validator = importlib.import_module(VALIDATOR_MODULE)
     binding = _synthetic_binding(tmp_path, label=f"audit-owner-{relative.stem}-{mutation}")
     _initialize_synthetic_ledger(binding)
@@ -2194,11 +2814,30 @@ def test_independent_validator_rejects_any_second_or_missing_process_audit_hook(
         payload += b"\nimport sys\nsys.addaudithook(lambda *_args: None)\n"
     drifted_commit = _fixture_commit_file(binding.project_root, relative, payload)
     assert drifted_commit != implementation_commit
+    authority = implementation.AuthorityReference(
+        "docs/phase4/reports/synthetic-module-identity.json",
+        "0" * 64,
+        "0" * 40,
+    )
+    live_anchor = implementation.LiveExecutionAnchor(
+        execution_epoch=5,
+        implementation_commit=drifted_commit,
+        owner_surface_authorization=authority,
+        independent_implementation_review=authority,
+        merge_commit="0" * 40,
+        landing_report=authority,
+        control_surface=replace(
+            _synthetic_control_surface(implementation),
+            implementation_commit=drifted_commit,
+        ),
+        execution_head=drifted_commit,
+        loaded_module_sha256={},
+    )
     with pytest.raises(
         validator.RehearsalV22ValidationError,
         match=r"sole process audit-hook installer",
     ):
-        validator._validate_module_identity(binding.project_root, drifted_commit)
+        validator._validate_module_identity(binding.project_root, live_anchor)
 
 
 def test_runtime_module_and_both_contextvar_identities_are_exactly_shared() -> None:
@@ -2873,6 +3512,329 @@ def test_hash_domains_and_empty_roots_are_exact_and_noninterchangeable() -> None
     assert ledger["history_step_formula"] == merkle["attempt_history_step_formula"]["const"]
 
 
+def test_bundle_recovery_authorization_and_claim_contracts_are_exact_closed_shapes() -> None:
+    implementation = importlib.import_module(IMPLEMENTATION_MODULE)
+    assert len(implementation.RECOVERY_AUTHORIZATION_FIELDS) == 19
+    assert {
+        "schema_version",
+        "authorization_id",
+        "created_at_utc",
+        "created_at_shanghai",
+        "verdict",
+        "owner",
+        "sealed_series",
+        "execution_epoch",
+        "destination",
+        "exact_argv",
+        "command_sha256",
+        "exact_environment",
+        "environment_sha256",
+        "authorized_bundle_recovery_starts",
+        "authorized_pipeline_starts",
+        "automatic_retry_count",
+        "effect_authorization",
+        "interpreter",
+        "locks",
+    } == implementation.RECOVERY_AUTHORIZATION_FIELDS
+    assert {
+        "identity",
+        "approved",
+        "scope",
+    } == implementation.RECOVERY_OWNER_FIELDS
+    assert {
+        "started",
+        "candidate",
+        "terminal",
+    } == implementation.RECOVERY_SELECTED_FILES_FIELDS
+    assert {
+        "relative_path",
+        "sha256",
+        "bytes",
+    } == implementation.RECOVERY_SELECTED_FILE_FIELDS
+    assert {
+        "ledger_read",
+        "ledger_write",
+        "git_object_read",
+        "git_or_worktree_write",
+        "recovery_claim_create_once",
+        "temporary_stage_create_once",
+        "destination_publish_once",
+        "attempt_allocation",
+        "candidate_or_terminal_rewrite",
+        "pipeline_execution",
+        "model_access",
+        "network_access",
+        "sqlite_or_production_database_access",
+        "heldout_materialization_inference_or_evaluation",
+    } == implementation.RECOVERY_EFFECT_FIELDS
+    assert {
+        "p4_2a_done",
+        "p4_2b_unlocked",
+        "p4_3_unlocked",
+        "heldout_evaluation_unlocked",
+        "real_trading_unlocked",
+        "non_simulate_trading_unlocked",
+    } == implementation.RECOVERY_LOCK_FIELDS
+    assert {
+        "schema_version",
+        "recovery_id",
+        "authorization",
+        "created_at_utc",
+        "created_at_shanghai",
+        "execution_head",
+        "execution_epoch",
+        "sealed_history_root_sha256",
+        "sealed_live_ledger_root_sha256",
+        "destination",
+        "state",
+        "authorized_bundle_recovery_starts",
+        "authorized_pipeline_starts",
+        "automatic_retry_count",
+    } == implementation.RECOVERY_STARTED_FIELDS
+    assert {
+        "schema_version",
+        "recovery_id",
+        "authorization",
+        "completed_at_utc",
+        "completed_at_shanghai",
+        "outcome",
+        "reached_stage",
+        "sealed_ledger_before_sha256",
+        "sealed_ledger_after_sha256",
+        "destination",
+        "published_bundle_sha256",
+        "published_tree_sha256",
+        "temporary_authority_absent",
+        "pipeline_starts",
+        "automatic_retry_count",
+        "error",
+    } == implementation.RECOVERY_TERMINAL_FIELDS
+
+
+@pytest.mark.parametrize(
+    "exact_surface",
+    (
+        [
+            {
+                "path": "../scripts/p4_2a_v2_2_heldout_rehearsal.py",
+                "status": "M",
+            }
+        ],
+        [{"path": "README.md", "status": "M"}],
+        [
+            {
+                "path": "scripts/p4_2a_v2_2_heldout_rehearsal.py",
+                "status": "M",
+            },
+            {
+                "path": "scripts/p4_2a_v2_2_heldout_rehearsal.py",
+                "status": "M",
+            },
+        ],
+        [
+            {
+                "path": "tests/test_p4_2a_v2_2_heldout_rehearsal_runner.py",
+                "status": "M",
+            },
+            {
+                "path": "scripts/p4_2a_v2_2_heldout_rehearsal.py",
+                "status": "M",
+            },
+        ],
+        [
+            {
+                "path": "scripts/p4_2a_v2_2_heldout_rehearsal.py",
+                "status": "D",
+            }
+        ],
+    ),
+    ids=("unsafe", "outside-allowlist", "duplicate", "unsorted", "bad-status"),
+)
+def test_first_parent_governance_rejects_malformed_low_epoch_exact_surface(
+    tmp_path: Path,
+    exact_surface: list[dict[str, str]],
+) -> None:
+    implementation = importlib.import_module(IMPLEMENTATION_MODULE)
+    root = (tmp_path / "malformed-low-epoch-authority").resolve()
+    root.mkdir(mode=0o700)
+    _fixture_git(root, "init", "--quiet")
+    base = _fixture_commit_file(root, Path("README.md"), b"base\n")
+    authority_relative = Path(
+        "docs/phase4/reports/"
+        "P4.2a-v2-2-epoch2-surface-authority-20260820.json"
+    )
+    authority = {
+        "schema_version": (
+            "p4.2a-v2-2-implementation-epoch-surface-authorization-v1"
+        ),
+        "verdict": "APPROVE_EXACT_V2_2_IMPLEMENTATION_EPOCH_SURFACE",
+        "owner": {"identity": "ouyang", "approved": True},
+        "implementation_epoch": 2,
+        "base_commit": base,
+        "exact_surface": exact_surface,
+    }
+    head = _fixture_commit_file(
+        root,
+        authority_relative,
+        implementation._canonical_json_bytes(authority),
+    )
+    with pytest.raises(implementation.RehearsalV22Error):
+        implementation._first_parent_epoch_governance(
+            root,
+            execution_head=head,
+        )
+
+
+def test_recovered_release_claim_rejects_started_head_before_recovery_authority(
+    tmp_path: Path,
+) -> None:
+    implementation = importlib.import_module(IMPLEMENTATION_MODULE)
+    root = (tmp_path / "started-before-recovery-authority").resolve()
+    root.mkdir(mode=0o700)
+    _fixture_git(root, "init", "--quiet")
+    _fixture_commit_file(root, Path("base.txt"), b"base\n")
+    landing = _fixture_commit_file(root, Path("landing.txt"), b"landing\n")
+    started = _fixture_commit_file(root, Path("started.txt"), b"started\n")
+    authority = _fixture_commit_file(root, Path("authority.txt"), b"authority\n")
+    live = _fixture_commit_file(root, Path("live.txt"), b"live\n")
+
+    with pytest.raises(
+        implementation.RehearsalV22Error,
+        match="claim commit order is not landing-authority-started",
+    ):
+        implementation._validate_recovery_claim_first_parent_order(
+            root,
+            live_execution_head=live,
+            landing_commit=landing,
+            authorization_commit=authority,
+            started_execution_head=started,
+        )
+
+
+def test_registered_recovery_pins_the_exact_sealed_two_four_history() -> None:
+    implementation = importlib.import_module(IMPLEMENTATION_MODULE)
+    expected = {
+        "OFFICIAL_SEALED_HISTORY_ROOT_SHA256": (
+            "a466de7b349882f2bcd556a4b4d00bf38bace9adb593b0e3b6296c415a8c9ca1"
+        ),
+        "OFFICIAL_SEALED_LIVE_LEDGER_ROOT_SHA256": (
+            "9aa7923239e687be2e17f91b8e0e8213d28ad2b08348efb1ae1457a4dddee6e6"
+        ),
+        "OFFICIAL_FAILED_EPOCH_TWO_IMPLEMENTATION_COMMIT": (
+            "1b4e05c6acd513bb1bc11245911da97b6a128ca1"
+        ),
+        "OFFICIAL_FAILED_STARTED_SHA256": (
+            "a6a475abb6df4169d5b117283e2d313ee8088b527e9e8e57e9e127e7b56641be"
+        ),
+        "OFFICIAL_FAILED_TERMINAL_SHA256": (
+            "d922fb19dd55451ddf27bbf7749fa2fcc716b717a08d21b43d8d54cc9d03ede2"
+        ),
+        "OFFICIAL_FAILED_EVIDENCE_ROOT_SHA256": (
+            "deea0e81e3fd8a5c886cc4c757fb5485cb7f750718462489dea48d3deed2691c"
+        ),
+        "OFFICIAL_SELECTED_EPOCH_FOUR_IMPLEMENTATION_COMMIT": (
+            "890e9002116c625d41f6aa037975df15d1546c56"
+        ),
+        "OFFICIAL_SELECTED_STARTED_SHA256": (
+            "75771a37572fb9191a9db26f986b1e9d89c26843556b502866322a8f4bdaf42d"
+        ),
+        "OFFICIAL_SELECTED_CANDIDATE_SHA256": (
+            "92652f963b04b79e29580978cd6857c2154df0b429ac09502be6c0c0c5d84da5"
+        ),
+        "OFFICIAL_SELECTED_TERMINAL_SHA256": (
+            "7ba4ed1b5d7e7abc462b312f08b131ff438cc524cecbdeea6b43dc199292e3dc"
+        ),
+        "OFFICIAL_SELECTED_CONTROL_ROOT_SHA256": (
+            "76076606d6e40cdd386b28cdd5bc40a8957693b8cfdc8b17a0a77410b4e082e8"
+        ),
+        "OFFICIAL_SELECTED_EVIDENCE_ROOT_SHA256": (
+            "f38b18b972f14a170fc9bb4129f25ec77e8ad1c4e8a8f137b5853cc371b694c2"
+        ),
+        "OFFICIAL_SELECTED_CANDIDATE_CONTENT_ROOT_SHA256": (
+            "5de4f74d1f73e5f90aa9c196c8fc6574bce2ecfa91abd750b22726c14c6a60b7"
+        ),
+        "OFFICIAL_SELECTED_RUN_ROOT_SHA256": (
+            "5fb8edf3aa65cdcd0f54b82bdf6f240104fa8537c1004e640671910115f8f314"
+        ),
+    }
+    assert {name: getattr(implementation, name) for name in expected} == expected
+    source = inspect.getsource(implementation._validate_bundle_recovery_authorization)
+    assert 'if binding.mode == "REGISTERED_OFFICIAL":' in source
+    assert "len(history.records) != 2" in source
+    assert 'failed.outcome != "FAILED"' in source
+    assert 'selected.outcome != "CANDIDATE_VALIDATED_AND_SELECTED"' in source
+    assert all(name in source for name in expected)
+
+    preflight_source = inspect.getsource(implementation._preflight_bundle_recovery)
+    assert '[row.get("epoch") for row in epoch_rows] != [1, 2, 3, 4]' in preflight_source
+    assert "!= [(1, 1), (1, 1), (2, 2), (2, 2)]" in preflight_source
+    assert "exact disclosed [2,4] shape" in preflight_source
+
+
+def test_recovery_audit_policy_is_git_read_and_capability_rebinds_exact_policy(
+    tmp_path: Path,
+) -> None:
+    implementation = importlib.import_module(IMPLEMENTATION_MODULE)
+    root = (tmp_path / "recovery-policy-root").absolute()
+    claim = tmp_path / "recovery-policy-claim"
+    temporary = tmp_path / "recovery-policy-temporary"
+    binding = implementation.ExecutionBinding(
+        mode="DISPOSABLE_FULL_SHAPE_TEST",
+        project_root=root,
+        shim_path=root / IMPLEMENTATION_RELATIVE,
+        action_authorization_path=root / "recovery.json",
+        destination=root / "destination",
+        series_token_sha256="1" * 64,
+        ledger_root=tmp_path / "ledger",
+    )
+    policy = implementation._recovery_execution_policy(
+        binding,
+        claim_root=claim,
+        temporary_authority=temporary,
+    )
+    assert policy.subprocess_mode == "git-read"
+    assert policy.synthetic_git_root is None
+    assert policy.git_roots == (root,)
+    assert policy.write_roots == (claim, temporary)
+    assert policy.exact_write_paths == (binding.destination,)
+
+    validator_source = inspect.getsource(
+        implementation._validate_recovery_execution_capability
+    )
+    assert "_recovery_execution_policy(" in validator_source
+    assert "claim_root=value.claim_root" in validator_source
+    assert "temporary_authority=value.temporary_authority" in validator_source
+    assert "policy != expected_policy" in validator_source
+
+
+def test_recovery_claim_linearization_crash_and_zero_retry_policy_are_explicit() -> None:
+    implementation = importlib.import_module(IMPLEMENTATION_MODULE)
+    claim_source = inspect.getsource(implementation._create_recovery_claim)
+    terminal_source = inspect.getsource(implementation._write_recovery_terminal)
+    cli_source = inspect.getsource(implementation._run_cli)
+    assert claim_source.index("os.mkdir(claim, 0o700)") < claim_source.index(
+        '_write_exclusive(claim / "started.json"'
+    )
+    assert "os.rmdir(claim)" not in claim_source
+    assert "shutil.rmtree(claim)" not in claim_source
+    assert 'outcome="FAILED_NO_AUTOMATIC_RETRY"' in cli_source
+    assert "published-but-unterminalized" not in cli_source
+    assert "and not os.path.lexists(binding.destination)" in cli_source
+    assert '"pipeline_starts": 0' in terminal_source
+    assert '"automatic_retry_count": 0' in terminal_source
+    assert "successful recovery terminal lacks publication proof" in terminal_source
+    assert "failed recovery terminal makes a false publication claim" in terminal_source
+    execute_source = inspect.getsource(
+        implementation._execute_authorized_bundle_recovery
+    )
+    assert "if not published and not os.path.lexists" in execute_source
+    assert "if not published" in execute_source
+    assert "if published:" not in {
+        line.strip() for line in execute_source.splitlines()
+    }
+    assert "owner-reconciliation state" in execute_source
+
+
 def test_runner_and_validator_independently_agree_on_series_hash_formulas() -> None:
     implementation = importlib.import_module(IMPLEMENTATION_MODULE)
     validator = importlib.import_module(VALIDATOR_MODULE)
@@ -3383,6 +4345,461 @@ def test_exact_os_selected_attempt_runs_full_path_twice_and_archives_fourteen_pa
     assert _all_real_path_fingerprints() == fixture["real_fingerprints"]
 
 
+def test_exact_os_bundle_recovery_rebuilds_sealed_epoch_gap_two_four_without_pipeline_start(
+    exact_two_failures_then_success_series: dict[str, Any],
+    tmp_path: Path,
+) -> None:
+    implementation = importlib.import_module(IMPLEMENTATION_MODULE)
+    before = _all_real_path_fingerprints()
+    fixture = _prepare_synthetic_gap_recovery(
+        tmp_path,
+        sealed_evidence_fixture=exact_two_failures_then_success_series,
+    )
+    binding = fixture["binding"]
+    recovery_path = binding.action_authorization_path
+    claim = binding.project_root.parent / (
+        ".alphapilot-p4-2a-v2-2-bundle-recovery-claim-"
+        + fixture["recovery_sha256"]
+    )
+    temporary = binding.project_root.parent / (
+        ".alphapilot-p4-2a-v2-2-bundle-recovery-temp-"
+        + fixture["recovery_sha256"]
+    )
+    pre_recovery_paths = {
+        "authorization": recovery_path,
+        "claim": claim,
+        "destination": binding.destination,
+        "ledger": binding.ledger_root,
+        "temporary": temporary,
+    }
+    pre_recovery_fingerprints = {
+        name: implementation._tree_fingerprint(path)
+        for name, path in pre_recovery_paths.items()
+    }
+    missing_authorization = recovery_path.with_name(
+        "P4.2a-v2-2-absent-sealed-bundle-recovery-authorization.json"
+    )
+    rejected = subprocess.run(
+        _exact_recovered_release_command(binding, missing_authorization),
+        check=False,
+        capture_output=True,
+        text=True,
+        cwd=binding.project_root,
+        env=fixture["environment"],
+    )
+    assert rejected.returncode == 1, (rejected.stdout, rejected.stderr)
+    assert rejected.stdout == ""
+    rejection = implementation.strict_json_loads(
+        rejected.stderr,
+        source="exact-OS recovered-release missing-authority rejection",
+    )
+    assert isinstance(rejection, dict)
+    assert implementation._canonical_json_bytes(rejection).decode() == rejected.stderr
+    assert rejection["status"] == "FAILED_NO_AUTOMATIC_RETRY"
+    assert {
+        name: implementation._tree_fingerprint(path)
+        for name, path in pre_recovery_paths.items()
+    } == pre_recovery_fingerprints
+    assert _all_real_path_fingerprints() == before
+
+    completed = subprocess.run(
+        fixture["command"],
+        check=False,
+        capture_output=True,
+        text=True,
+        cwd=binding.project_root,
+        env=fixture["environment"],
+    )
+    assert completed.returncode == 0, _exact_child_diagnostic(
+        implementation,
+        returncode=completed.returncode,
+        stdout=completed.stdout,
+        stderr=completed.stderr,
+    )
+    assert completed.stderr == ""
+    result = implementation.strict_json_loads(
+        completed.stdout,
+        source="exact-OS sealed [2,4] recovery result",
+    )
+    assert isinstance(result, dict)
+    assert implementation._canonical_json_bytes(result).decode() == completed.stdout
+    assert result["status"] == "PASS_REHEARSAL_V2_2_AWAITING_OWNER_REVIEW"
+    assert result["mode"] == "DISPOSABLE_FULL_SHAPE_TEST"
+    assert result["pipeline_starts"] == 0
+    assert result["automatic_retry_count"] == 0
+    assert result["active_pipeline_capability_issued"] is False
+    assert result["sealed_rehydrate_only"] is True
+    ledger_after = implementation._tree_fingerprint(binding.ledger_root)
+    assert ledger_after == fixture["ledger_before"]
+    assert not (binding.ledger_root / "attempts/000003").exists()
+
+    bundle_path = binding.destination / implementation.BUNDLE_FILENAME
+    bundle_payload = bundle_path.read_bytes()
+    bundle = implementation.strict_json_loads(
+        bundle_payload,
+        source="exact-OS recovered bundle",
+    )
+    assert isinstance(bundle, dict)
+    assert implementation._canonical_json_bytes(bundle) == bundle_payload
+    assert bundle["status"] == "PASS_REHEARSAL_V2_2_AWAITING_OWNER_REVIEW"
+    assert [row["epoch"] for row in bundle["implementation_epochs"]] == [1, 2, 3, 4]
+    assert [
+        (row["first_attempt_ordinal"], row["last_attempt_ordinal"])
+        for row in bundle["implementation_epochs"]
+    ] == [(1, 1), (1, 1), (2, 2), (2, 2)]
+    assert bundle["attempt_history"]["selected_attempt_ordinal"] == 2
+    assert bundle["attempt_history"]["records"][1]["implementation_epoch"] == 4
+    assert bundle["evaluation_one_shot"][
+        "attempts_consumed_by_v2_2_rehearsal"
+    ] == 0
+    runs = bundle["archive"]["runs"]
+    assert [run["run_label"] for run in runs] == ["run-a", "run-b"]
+    assert [run["artifact_count"] for run in runs] == [14, 14]
+    assert runs[0]["artifact_merkle_root_sha256"] == (
+        runs[1]["artifact_merkle_root_sha256"]
+    )
+    assert all(len(run["artifacts"]) == 14 for run in runs)
+
+    source_evidence = fixture["source_selected_evidence"]
+    assert source_evidence.is_dir() and not source_evidence.is_symlink()
+    source_run_maps: list[dict[str, bytes]] = []
+    published_run_maps: list[dict[str, bytes]] = []
+    for run in runs:
+        source_root = source_evidence / "runs" / run["run_label"] / "root"
+        assert source_root.is_dir() and not source_root.is_symlink()
+        source_artifacts: dict[str, bytes] = {}
+        for source_path in sorted(
+            source_root.rglob("*"),
+            key=lambda path: path.relative_to(source_root).as_posix().encode("utf-8"),
+        ):
+            metadata = source_path.lstat()
+            assert not source_path.is_symlink()
+            if source_path.is_dir():
+                continue
+            assert stat.S_ISREG(metadata.st_mode) and metadata.st_nlink == 1
+            source_artifacts[source_path.relative_to(source_root).as_posix()] = (
+                source_path.read_bytes()
+            )
+        assert len(source_artifacts) == 14
+        records = {
+            artifact["source_relative_path"]: artifact
+            for artifact in run["artifacts"]
+        }
+        assert len(records) == 14
+        assert set(records) == set(source_artifacts)
+        published: dict[str, bytes] = {}
+        for relative, artifact in records.items():
+            published_path = (
+                binding.destination / run["archive_root"] / relative
+            )
+            metadata = published_path.lstat()
+            assert not published_path.is_symlink()
+            assert stat.S_ISREG(metadata.st_mode) and metadata.st_nlink == 1
+            payload = published_path.read_bytes()
+            assert payload == source_artifacts[relative]
+            assert artifact["bytes"] == len(payload)
+            assert artifact["sha256"] == _sha256(payload)
+            published[relative] = payload
+        source_run_maps.append(source_artifacts)
+        published_run_maps.append(published)
+    assert source_run_maps[0] == source_run_maps[1]
+    assert published_run_maps == source_run_maps
+
+    assert claim.is_dir() and not claim.is_symlink()
+    started = implementation.strict_json_loads(
+        (claim / "started.json").read_bytes(),
+        source="exact-OS recovery claim started",
+    )
+    terminal = implementation.strict_json_loads(
+        (claim / "terminal.json").read_bytes(),
+        source="exact-OS recovery claim terminal",
+    )
+    assert isinstance(started, dict) and isinstance(terminal, dict)
+    assert set(started) == implementation.RECOVERY_STARTED_FIELDS
+    assert set(terminal) == implementation.RECOVERY_TERMINAL_FIELDS
+    assert started["authorized_bundle_recovery_starts"] == 1
+    assert started["authorized_pipeline_starts"] == 0
+    assert started["automatic_retry_count"] == 0
+    assert terminal["outcome"] == "BUNDLE_RECOVERY_PUBLISHED"
+    assert terminal["pipeline_starts"] == 0
+    assert terminal["automatic_retry_count"] == 0
+    assert terminal["temporary_authority_absent"] is True
+    assert terminal["sealed_ledger_before_sha256"] == (
+        terminal["sealed_ledger_after_sha256"]
+    )
+    assert terminal["sealed_ledger_before_sha256"] == _sha256(
+        implementation._canonical_json_bytes(fixture["ledger_before"])
+    )
+    assert terminal["published_bundle_sha256"] == _sha256(bundle_payload)
+    assert not os.path.lexists(temporary)
+
+    bundle_relative = implementation.DESTINATION_RELATIVE / implementation.BUNDLE_FILENAME
+    bundle_commit = _fixture_commit_file(
+        binding.project_root,
+        bundle_relative,
+        bundle_payload,
+    )
+    assert (
+        _fixture_git(
+            binding.project_root,
+            "rev-list",
+            "--parents",
+            "-n",
+            "1",
+            bundle_commit,
+        )
+        .decode("ascii", errors="strict")
+        .split()
+        == [bundle_commit, fixture["recovery_commit"]]
+    )
+    assert (
+        _fixture_git(
+            binding.project_root,
+            "diff-tree",
+            "--no-commit-id",
+            "--name-status",
+            "-r",
+            bundle_commit,
+        )
+        .decode("utf-8", errors="strict")
+        .splitlines()
+        == [f"A\t{bundle_relative.as_posix()}"]
+    )
+    review_payload = implementation._release_review_request_payload(
+        binding=binding,
+        bundle_sha256=_sha256(bundle_payload),
+        bundle_commit=bundle_commit,
+    )
+    review_commit = _fixture_commit_file(
+        binding.project_root,
+        implementation.RELEASE_REVIEW_REQUEST_RELATIVE,
+        review_payload,
+    )
+    assert (
+        _fixture_git(
+            binding.project_root,
+            "rev-list",
+            "--parents",
+            "-n",
+            "1",
+            review_commit,
+        )
+        .decode("ascii", errors="strict")
+        .split()
+        == [review_commit, bundle_commit]
+    )
+    assert (
+        _fixture_git(
+            binding.project_root,
+            "diff-tree",
+            "--no-commit-id",
+            "--name-status",
+            "-r",
+            review_commit,
+        )
+        .decode("utf-8", errors="strict")
+        .splitlines()
+        == [f"A\t{implementation.RELEASE_REVIEW_REQUEST_RELATIVE.as_posix()}"]
+    )
+    review_reference = implementation.AuthorityReference(
+        implementation.RELEASE_REVIEW_REQUEST_RELATIVE.as_posix(),
+        _sha256(review_payload),
+        review_commit,
+    )
+    receipt = implementation._release_receipt_document(
+        binding=binding,
+        bundle=bundle,
+        bundle_sha256=_sha256(bundle_payload),
+        review_request=review_reference,
+        reviewed_head=review_commit,
+    )
+    receipt_payload = implementation._canonical_json_bytes(receipt)
+    receipt_commit = _fixture_commit_file(
+        binding.project_root,
+        implementation.RELEASE_RELATIVE,
+        receipt_payload,
+    )
+    assert (
+        _fixture_git(
+            binding.project_root,
+            "rev-list",
+            "--parents",
+            "-n",
+            "1",
+            receipt_commit,
+        )
+        .decode("ascii", errors="strict")
+        .split()
+        == [receipt_commit, review_commit]
+    )
+    assert (
+        _fixture_git(
+            binding.project_root,
+            "diff-tree",
+            "--no-commit-id",
+            "--name-status",
+            "-r",
+            receipt_commit,
+        )
+        .decode("utf-8", errors="strict")
+        .splitlines()
+        == [f"A\t{implementation.RELEASE_RELATIVE.as_posix()}"]
+    )
+
+    governed_paths = {
+        "authorization": binding.action_authorization_path,
+        "claim": claim,
+        "destination": binding.destination,
+        "ledger": binding.ledger_root,
+        "receipt": binding.project_root / implementation.RELEASE_RELATIVE,
+    }
+    governed_before = {
+        name: implementation._tree_fingerprint(path)
+        for name, path in governed_paths.items()
+    }
+    claim_metadata_before = claim.lstat()
+    claim_identity_before = (
+        claim_metadata_before.st_dev,
+        claim_metadata_before.st_ino,
+    )
+    hidden_claim = claim.with_name(claim.name + "-hidden-missing-claim-probe")
+    assert not os.path.lexists(hidden_claim)
+    claim.rename(hidden_claim)
+    missing_claim_paths = {
+        **governed_paths,
+        "hidden_claim": hidden_claim,
+    }
+    missing_claim_before = {
+        name: implementation._tree_fingerprint(path)
+        for name, path in missing_claim_paths.items()
+    }
+    try:
+        missing_claim = subprocess.run(
+            _exact_recovered_release_command(binding, recovery_path),
+            check=False,
+            capture_output=True,
+            text=True,
+            cwd=binding.project_root,
+            env=fixture["environment"],
+        )
+        assert missing_claim.returncode == 1, (
+            missing_claim.stdout,
+            missing_claim.stderr,
+        )
+        assert missing_claim.stdout == ""
+        missing_claim_error = implementation.strict_json_loads(
+            missing_claim.stderr,
+            source="exact-OS recovered-release missing-success-claim rejection",
+        )
+        assert isinstance(missing_claim_error, dict)
+        assert implementation._canonical_json_bytes(missing_claim_error).decode() == (
+            missing_claim.stderr
+        )
+        assert missing_claim_error["status"] == "FAILED_NO_AUTOMATIC_RETRY"
+        assert {
+            name: implementation._tree_fingerprint(path)
+            for name, path in missing_claim_paths.items()
+        } == missing_claim_before
+    finally:
+        assert not os.path.lexists(claim)
+        hidden_claim.rename(claim)
+    assert not os.path.lexists(hidden_claim)
+    claim_metadata_after = claim.lstat()
+    assert (claim_metadata_after.st_dev, claim_metadata_after.st_ino) == (
+        claim_identity_before
+    )
+    assert {
+        name: implementation._tree_fingerprint(path)
+        for name, path in governed_paths.items()
+    } == governed_before
+
+    consumed_process = subprocess.run(
+        _exact_recovered_release_command(binding, recovery_path),
+        check=False,
+        capture_output=True,
+        text=True,
+        cwd=binding.project_root,
+        env=fixture["environment"],
+    )
+    assert consumed_process.returncode == 0, _exact_child_diagnostic(
+        implementation,
+        returncode=consumed_process.returncode,
+        stdout=consumed_process.stdout,
+        stderr=consumed_process.stderr,
+    )
+    assert consumed_process.stderr == ""
+    consumed = implementation.strict_json_loads(
+        consumed_process.stdout,
+        source="exact-OS recovered-release canonical result",
+    )
+    assert isinstance(consumed, dict)
+    assert implementation._canonical_json_bytes(consumed).decode() == (
+        consumed_process.stdout
+    )
+    assert consumed == receipt
+    assert {
+        name: implementation._tree_fingerprint(path)
+        for name, path in governed_paths.items()
+    } == governed_before
+    assert _all_real_path_fingerprints() == before
+
+    recovery_source = inspect.getsource(
+        implementation._execute_authorized_bundle_recovery
+    )
+    rehydrate_source = inspect.getsource(
+        implementation._rehydrate_sealed_pipeline_replays
+    )
+    validator = importlib.import_module(VALIDATOR_MODULE)
+    recovered_release_source = inspect.getsource(
+        implementation.consume_recovered_release_authorization
+    )
+    passive_release_source = inspect.getsource(
+        validator.validate_recovered_release_authorization
+    )
+    passive_bundle_source = inspect.getsource(validator._passive_revalidate_validated_bundle)
+    validate_bundle_once_source = inspect.getsource(validator._validate_bundle_once)
+    for forbidden in (
+        "replay_selected_pipeline",
+        "_execute_pipeline_inner",
+        "SeriesLedger.open",
+        "allocate_attempt",
+        "write_candidate",
+        "write_terminal",
+    ):
+        assert forbidden not in recovery_source
+        assert forbidden not in rehydrate_source
+    for forbidden in (
+        "replay_selected_pipeline",
+        "_execute_pipeline_inner",
+        "_active_replay_validated_bundle",
+        "_active_replay_selected_pipeline",
+    ):
+        assert forbidden not in recovered_release_source
+        assert forbidden not in passive_release_source
+        assert forbidden not in passive_bundle_source
+        assert forbidden not in validate_bundle_once_source
+    assert (
+        "validation_mode=ValidationMode.RECOVERED_RELEASE_PASSIVE"
+        in passive_release_source
+    )
+    release_once_source = inspect.getsource(validator._validate_release_once)
+    assert (
+        "if validation_mode is ValidationMode.ORDINARY_ACTIVE:"
+        in release_once_source
+    )
+    assert release_once_source.count("_active_replay_validated_bundle(") == 1
+    assert "else:\n        _passive_revalidate_validated_bundle" in release_once_source
+    assert tuple(inspect.signature(implementation._SealedPipelineReplay).parameters) == (
+        "run_label",
+        "artifacts",
+        "probe_evidence",
+    )
+    assert not issubclass(
+        implementation.RecoveryExecutionCapability,
+        implementation.ExecutionCapability,
+    )
+
+
 def test_started_only_crash_uses_empty_evidence_root_and_unique_next_history(
     exact_failed_epoch_then_incomplete_success_series: dict[str, Any],
 ) -> None:
@@ -3877,7 +5294,10 @@ def test_cli_surface_and_disposable_only_started_checkpoint_are_exact() -> None:
     assert set(actions) == {
         "execute",
         "preflight_only",
+        "recover_sealed_bundle",
+        "consume_recovered_release",
         "attempt_authorization",
+        "bundle_recovery_authorization",
         "expected_ordinal",
         "implementation_epoch",
         "implementation_commit",
@@ -3888,12 +5308,19 @@ def test_cli_surface_and_disposable_only_started_checkpoint_are_exact() -> None:
         group
         for group in parser._mutually_exclusive_groups
         if {action.dest for action in group._group_actions}
-        == {"execute", "preflight_only"}
+        == {
+            "execute",
+            "preflight_only",
+            "recover_sealed_bundle",
+            "consume_recovered_release",
+        }
     ]
     assert len(operation_groups) == 1
     assert operation_groups[0].required is True
     assert not any(action.required for action in actions.values())
+    assert actions["consume_recovered_release"].default is False
     assert actions["attempt_authorization"].default is None
+    assert actions["bundle_recovery_authorization"].default is None
     assert actions["expected_ordinal"].default is None
     assert actions["implementation_epoch"].default is None
     assert actions["implementation_commit"].default is None
@@ -3903,6 +5330,16 @@ def test_cli_surface_and_disposable_only_started_checkpoint_are_exact() -> None:
         parser.parse_args([])
     with pytest.raises(SystemExit):
         parser.parse_args(["--execute", "--preflight-only"])
+    with pytest.raises(SystemExit):
+        parser.parse_args(["--execute", "--recover-sealed-bundle"])
+    with pytest.raises(SystemExit):
+        parser.parse_args(["--preflight-only", "--recover-sealed-bundle"])
+    with pytest.raises(SystemExit):
+        parser.parse_args(["--execute", "--consume-recovered-release"])
+    with pytest.raises(SystemExit):
+        parser.parse_args(["--preflight-only", "--consume-recovered-release"])
+    with pytest.raises(SystemExit):
+        parser.parse_args(["--recover-sealed-bundle", "--consume-recovered-release"])
     read_only_source = inspect.getsource(implementation._read_only_implementation_preflight)
     for forbidden in (
         "_validate_action_authorization",
@@ -3941,6 +5378,61 @@ def test_cli_surface_and_disposable_only_started_checkpoint_are_exact() -> None:
     assert "REGISTERED_OFFICIAL" not in ast.unparse(checkpoint_if.test)
     assert "registered_official_pause_enabled" in source
     assert "resume_requires_external_SIGCONT" in source
+
+
+def test_recovered_release_cli_is_one_exact_locked_read_only_shim_entry() -> None:
+    implementation = importlib.import_module(IMPLEMENTATION_MODULE)
+    run_source = inspect.getsource(implementation._run_cli)
+    consume_branch = run_source[
+        run_source.index("if arguments.consume_recovered_release is True:") :
+        run_source.index("if arguments.recover_sealed_bundle is True:")
+    ]
+    assert (
+        '"--consume-recovered-release",\n'
+        '            "--bundle-recovery-authorization",'
+    ) in consume_branch
+    assert "if tuple(sys.argv) != expected_argv:" in consume_branch
+    assert "_bootstrap_evidence_scope(" in consume_branch
+    assert "_audited_execution(" in consume_branch
+    assert "_read_only_preflight_policy(project_root)" in consume_branch
+    assert "_shared_series_lock(binding)" in consume_branch
+    assert "receipt_path = project_root / RELEASE_RELATIVE" in consume_branch
+    assert "consume_recovered_release_authorization(" in consume_branch
+    for forbidden in (
+        "_create_recovery_claim",
+        "_create_recovery_temporary_authority",
+        "_execute_authorized_bundle_recovery",
+        "_execution_capability_scope",
+        "_execute_authorized_attempt",
+    ):
+        assert forbidden not in consume_branch
+
+
+def test_recovered_release_consumer_requires_authority_and_success_claim_read_only() -> None:
+    implementation = importlib.import_module(IMPLEMENTATION_MODULE)
+    consumer_source = inspect.getsource(
+        implementation.consume_recovered_release_authorization
+    )
+    capability_source = inspect.getsource(
+        implementation._validate_recovered_release_capability
+    )
+    claim_source = inspect.getsource(implementation._successful_recovery_claim)
+    assert "_authority_reference_for_path(" in consumer_source
+    assert "_validate_bundle_recovery_authorization(" in consumer_source
+    assert "_successful_recovery_claim(" in capability_source
+    assert "recovered release lacks one private recovery claim" in claim_source
+    assert 'terminal.get("outcome") != "BUNDLE_RECOVERY_PUBLISHED"' in claim_source
+    assert 'terminal.get("reached_stage") != "bundle_recovery_published"' in claim_source
+    assert 'terminal.get("pipeline_starts"), 0' in claim_source
+    assert 'terminal.get("automatic_retry_count"), 0' in claim_source
+    for source in (consumer_source, capability_source):
+        for forbidden in (
+            "_write_exclusive",
+            "os.mkdir",
+            "shutil.rmtree",
+            "_publish_candidate",
+        ):
+            assert forbidden not in source
 
 
 def test_unexpected_exact_child_result_diagnostic_preserves_both_streams_canonically() -> None:
@@ -4702,6 +6194,40 @@ def _exact_ls_tree_audit_shape(
     return command, policy, implementation._git_environment()
 
 
+def _exact_diff_tree_root_audit_shape(
+    implementation: Any,
+    root: Path,
+) -> tuple[list[str], Any, dict[str, str]]:
+    command = [
+        "/usr/bin/git",
+        *implementation.GIT_CONFIG_PREFIX,
+        "-C",
+        root.as_posix(),
+        "diff-tree",
+        "--root",
+        "--no-commit-id",
+        "-r",
+        "--no-ext-diff",
+        "--no-textconv",
+        "--name-status",
+        "--no-renames",
+        "-z",
+        "a" * 40,
+        "--",
+    ]
+    policy = implementation._AuditPolicy(
+        project_root=root,
+        write_roots=(),
+        exact_write_paths=(),
+        create_only_roots=(),
+        sqlite_roots=(),
+        git_roots=(root,),
+        subprocess_mode="synthetic-git",
+        synthetic_git_root=root,
+    )
+    return command, policy, implementation._git_environment()
+
+
 @pytest.mark.parametrize("subprocess_mode", ("git-read", "synthetic-git"))
 def test_git_audit_allows_only_exact_read_only_ls_tree_shape(
     tmp_path: Path,
@@ -4713,6 +6239,85 @@ def test_git_audit_allows_only_exact_read_only_ls_tree_shape(
     command, policy, environment = _exact_ls_tree_audit_shape(implementation, root)
     policy = replace(policy, subprocess_mode=subprocess_mode)
     assert implementation._git_audit_allowed(command, None, environment, policy)
+
+
+@pytest.mark.parametrize("subprocess_mode", ("git-read", "synthetic-git"))
+def test_git_audit_allows_only_exact_root_diff_tree_shape(
+    tmp_path: Path,
+    subprocess_mode: str,
+) -> None:
+    implementation = importlib.import_module(IMPLEMENTATION_MODULE)
+    root = (tmp_path / "allowed-diff-tree-root").resolve()
+    root.mkdir(mode=0o700)
+    command, policy, environment = _exact_diff_tree_root_audit_shape(
+        implementation,
+        root,
+    )
+    policy = replace(policy, subprocess_mode=subprocess_mode)
+    assert implementation._git_audit_allowed(command, None, environment, policy)
+
+
+@pytest.mark.parametrize(
+    "fault",
+    (
+        "missing-root-flag",
+        "wrong-flag",
+        "reordered-flags",
+        "short-commit",
+        "uppercase-commit",
+        "nonhex-commit",
+        "missing-separator",
+        "extra-argument",
+        "wrong-root",
+        "extra-environment",
+        "missing-environment",
+        "subprocess-mode-none",
+    ),
+)
+def test_git_audit_rejects_every_noncanonical_root_diff_tree_shape(
+    tmp_path: Path,
+    fault: str,
+) -> None:
+    implementation = importlib.import_module(IMPLEMENTATION_MODULE)
+    root = (tmp_path / "allowed-diff-tree-root").resolve()
+    root.mkdir(mode=0o700)
+    command, policy, environment = _exact_diff_tree_root_audit_shape(
+        implementation,
+        root,
+    )
+    operation = 1 + len(implementation.GIT_CONFIG_PREFIX) + 2
+    if fault == "missing-root-flag":
+        del command[operation + 1]
+    elif fault == "wrong-flag":
+        command[operation + 5] = "--textconv"
+    elif fault == "reordered-flags":
+        command[operation + 1], command[operation + 2] = (
+            command[operation + 2],
+            command[operation + 1],
+        )
+    elif fault == "short-commit":
+        command[operation + 9] = "a" * 39
+    elif fault == "uppercase-commit":
+        command[operation + 9] = "A" * 40
+    elif fault == "nonhex-commit":
+        command[operation + 9] = "z" * 40
+    elif fault == "missing-separator":
+        command.pop()
+    elif fault == "extra-argument":
+        command.append("unexpected")
+    elif fault == "wrong-root":
+        other = (tmp_path / "other-diff-tree-root").resolve()
+        other.mkdir(mode=0o700)
+        command[1 + len(implementation.GIT_CONFIG_PREFIX) + 1] = other.as_posix()
+    elif fault == "extra-environment":
+        environment["UNEXPECTED"] = "1"
+    elif fault == "missing-environment":
+        del environment["GIT_NO_REPLACE_OBJECTS"]
+    elif fault == "subprocess-mode-none":
+        policy = replace(policy, subprocess_mode="none")
+    else:  # pragma: no cover - the exhaustive parameter list owns this branch.
+        raise AssertionError(f"unknown diff-tree audit fault: {fault}")
+    assert not implementation._git_audit_allowed(command, None, environment, policy)
 
 
 @pytest.mark.parametrize(
@@ -4799,7 +6404,7 @@ def test_git_audit_rejects_every_noncanonical_ls_tree_shape(
     assert not implementation._git_audit_allowed(command, None, environment, policy)
 
 
-def test_git_audit_ls_tree_is_special_cased_before_generic_read_only_commands() -> None:
+def test_git_audit_strict_shapes_are_special_cased_before_generic_read_only_commands() -> None:
     implementation = importlib.import_module(IMPLEMENTATION_MODULE)
     tree = ast.parse(inspect.getsource(implementation._git_audit_allowed))
     string_constants = [
@@ -4808,7 +6413,19 @@ def test_git_audit_ls_tree_is_special_cased_before_generic_read_only_commands() 
         if isinstance(node, ast.Constant) and isinstance(node.value, str)
     ]
     assert string_constants.count("ls-tree") == 1
-    assert {"-z", "--full-tree", "--"}.issubset(string_constants)
+    assert string_constants.count("diff-tree") == 1
+    assert {
+        "-z",
+        "--full-tree",
+        "--root",
+        "--no-commit-id",
+        "-r",
+        "--no-ext-diff",
+        "--no-textconv",
+        "--name-status",
+        "--no-renames",
+        "--",
+    }.issubset(string_constants)
     generic_read_only_sets = [
         {
             element.value
@@ -4824,6 +6441,7 @@ def test_git_audit_ls_tree_is_special_cased_before_generic_read_only_commands() 
     ]
     assert len(generic_read_only_sets) == 1
     assert "ls-tree" not in generic_read_only_sets[0]
+    assert "diff-tree" not in generic_read_only_sets[0]
     calls = [
         node
         for node in ast.walk(tree)
@@ -4831,10 +6449,12 @@ def test_git_audit_ls_tree_is_special_cased_before_generic_read_only_commands() 
     ]
     lower_hex_calls = [node for node in calls if node.func.id == "_lower_hex"]
     relative_calls = [node for node in calls if node.func.id == "_relative_text"]
-    assert len(lower_hex_calls) == 1
+    assert len(lower_hex_calls) == 2
     assert len(relative_calls) == 1
-    assert isinstance(lower_hex_calls[0].args[1], ast.Constant)
-    assert lower_hex_calls[0].args[1].value == 40
+    assert all(
+        isinstance(call.args[1], ast.Constant) and call.args[1].value == 40
+        for call in lower_hex_calls
+    )
 
 
 @pytest.mark.parametrize(
