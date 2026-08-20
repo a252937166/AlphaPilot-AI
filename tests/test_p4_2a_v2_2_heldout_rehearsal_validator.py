@@ -11,6 +11,8 @@ import stat
 import subprocess
 import sys
 from collections.abc import Callable
+from contextlib import nullcontext
+from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
@@ -233,6 +235,7 @@ def _module_identity_subprocess(
     historical_modules = tuple(V2_1_HISTORICAL_AUTHORITY_MODULES)
     program = """
 import importlib
+import hashlib
 import json
 import sys
 from pathlib import Path
@@ -251,7 +254,43 @@ try:
     }
     if loaded_historical_module is not None:
         sys.modules[loaded_historical_module] = ModuleType(loaded_historical_module)
-    validator._validate_module_identity(root, implementation_commit)
+    implementation = validator.implementation
+    authority = implementation.AuthorityReference(
+        "docs/phase4/reports/synthetic-live-authority.json",
+        "0" * 64,
+        "0" * 40,
+    )
+    control = implementation.ControlSurface(
+        implementation_commit=implementation_commit,
+        records=(),
+        payloads={},
+        manifest_payload=b"",
+        merkle_root_sha256="0" * 64,
+        ast_closure_paths=(),
+        loaded_repository_sources=(),
+        python_inventory=b"",
+        package_inventory=b"",
+    )
+    loaded = {
+        "scripts/p4_2a_v2_2_heldout_rehearsal.py": hashlib.sha256(
+            (root / "scripts/p4_2a_v2_2_heldout_rehearsal.py").read_bytes()
+        ).hexdigest(),
+        "scripts/validate_p4_2a_v2_2_heldout_rehearsal_bundle.py": hashlib.sha256(
+            (root / "scripts/validate_p4_2a_v2_2_heldout_rehearsal_bundle.py").read_bytes()
+        ).hexdigest(),
+    }
+    live_anchor = implementation.LiveExecutionAnchor(
+        execution_epoch=5,
+        implementation_commit=implementation_commit,
+        owner_surface_authorization=authority,
+        independent_implementation_review=authority,
+        merge_commit="0" * 40,
+        landing_report=authority,
+        control_surface=control,
+        execution_head=implementation_commit,
+        loaded_module_sha256=loaded,
+    )
+    validator._validate_module_identity(root, live_anchor)
 except Exception as exc:
     print(json.dumps({
         "status": "ERROR",
@@ -379,6 +418,175 @@ def module_identity_git_repository(
         "implementation_commit": (
             _fixture_git(validator, root, "rev-parse", "HEAD").strip().decode("ascii")
         ),
+    }
+
+
+@pytest.fixture
+def latest_landed_epoch_repository(tmp_path: Path) -> dict[str, Any]:
+    implementation = importlib.import_module(IMPLEMENTATION_MODULE)
+    validator = _validator_module()
+    root = tmp_path / "latest-landed-epoch"
+    root.mkdir(mode=0o700)
+    _fixture_git(validator, root, "init", "--quiet")
+    target = Path("scripts/p4_2a_v2_2_heldout_rehearsal.py")
+    (root / target).parent.mkdir(parents=True)
+    (root / target).write_bytes(b"EPOCH_FOUR = True\n")
+    _fixture_git(validator, root, "add", "--", target.as_posix())
+    _fixture_git(validator, root, "commit", "--quiet", "-m", "epoch four base")
+    base_commit = _fixture_git(validator, root, "rev-parse", "HEAD").decode().strip()
+
+    authority_relative = Path(
+        "docs/phase4/reports/P4.2a-v2-2-epoch5-surface-authority-20260820.json"
+    )
+    authority_document = {
+        "schema_version": "p4.2a-v2-2-implementation-epoch-surface-authorization-v1",
+        "verdict": "APPROVE_EXACT_V2_2_IMPLEMENTATION_EPOCH_SURFACE",
+        "owner": {"identity": "ouyang", "approved": True},
+        "implementation_epoch": 5,
+        "base_commit": base_commit,
+        "exact_surface": [{"path": target.as_posix(), "status": "M"}],
+    }
+    authority_payload = implementation._canonical_json_bytes(authority_document)
+    (root / authority_relative).parent.mkdir(parents=True, mode=0o700)
+    authority_commit = _fixture_commit_file(
+        validator,
+        root,
+        authority_relative,
+        authority_payload,
+    )
+    (root / target).write_bytes(b"EPOCH_FIVE = True\n")
+    _fixture_git(validator, root, "add", "--", target.as_posix())
+    _fixture_git(validator, root, "commit", "--quiet", "-m", "epoch five implementation")
+    implementation_commit = _fixture_git(
+        validator,
+        root,
+        "rev-parse",
+        "HEAD",
+    ).decode().strip()
+
+    review_relative = Path(
+        "docs/phase4/reports/"
+        "P4.2a-v2-2-epoch5-implementation-independent-review-20260820.json"
+    )
+    review_payload = implementation._canonical_json_bytes(
+        {
+            "schema_version": "p4.2a-independent-review-v1",
+            "verdict": "APPROVE_EPOCH5_IMPLEMENTATION",
+            "reviewed_commit": implementation_commit,
+            "blockers": [],
+        }
+    )
+    _fixture_git(
+        validator,
+        root,
+        "checkout",
+        "--quiet",
+        "-b",
+        "epoch5-review",
+        implementation_commit,
+    )
+    review_commit = _fixture_commit_file(
+        validator,
+        root,
+        review_relative,
+        review_payload,
+    )
+    _fixture_git(
+        validator,
+        root,
+        "checkout",
+        "--quiet",
+        "-B",
+        "main",
+        implementation_commit,
+    )
+    _fixture_git(
+        validator,
+        root,
+        "merge",
+        "--quiet",
+        "--no-ff",
+        "--no-edit",
+        review_commit,
+    )
+    merge_commit = _fixture_git(validator, root, "rev-parse", "HEAD").decode().strip()
+    landing_relative = Path(
+        "docs/phase4/reports/"
+        "P4.2a-v2-2-epoch5-registered-gate-landing-report-20260820.json"
+    )
+    landing_payload = implementation._canonical_json_bytes(
+        {
+            "schema_version": (
+                "p4.2a-v2-2-epoch5-synthetic-registered-gate-landing-report-v1"
+            ),
+            "status": "PASS_REGISTERED_GATE_LANDING_REPORT_READY_BEFORE_MERGE",
+            "candidate_lineage": {
+                "implementation_commit": implementation_commit,
+                "independent_review": {
+                    "path": review_relative.as_posix(),
+                    "creating_commit": review_commit,
+                    "sha256": hashlib.sha256(review_payload).hexdigest(),
+                },
+            },
+            "planned_landing": {"second_parent": review_commit},
+            "merge_commit": merge_commit,
+        }
+    )
+    landing_commit = _fixture_commit_file(
+        validator,
+        root,
+        landing_relative,
+        landing_payload,
+    )
+    authority = implementation.AuthorityReference(
+        authority_relative.as_posix(),
+        hashlib.sha256(authority_payload).hexdigest(),
+        authority_commit,
+    )
+    review = implementation.AuthorityReference(
+        review_relative.as_posix(),
+        hashlib.sha256(review_payload).hexdigest(),
+        review_commit,
+    )
+    landing = implementation.AuthorityReference(
+        landing_relative.as_posix(),
+        hashlib.sha256(landing_payload).hexdigest(),
+        landing_commit,
+    )
+    control = implementation.ControlSurface(
+        implementation_commit=implementation_commit,
+        records=({"repository_path": target.as_posix()},),
+        payloads={},
+        manifest_payload=b"",
+        merkle_root_sha256="1" * 64,
+        ast_closure_paths=(),
+        loaded_repository_sources=(),
+        python_inventory=b"",
+        package_inventory=b"",
+    )
+    anchor = implementation.LiveExecutionAnchor(
+        execution_epoch=5,
+        implementation_commit=implementation_commit,
+        owner_surface_authorization=authority,
+        independent_implementation_review=review,
+        merge_commit=merge_commit,
+        landing_report=landing,
+        control_surface=control,
+        execution_head=landing_commit,
+        loaded_module_sha256={
+            "scripts/p4_2a_v2_2_heldout_rehearsal.py": "2" * 64,
+            "scripts/validate_p4_2a_v2_2_heldout_rehearsal_bundle.py": "3" * 64,
+        },
+    )
+    validator._validate_latest_landed_epoch(
+        project_root=root,
+        live_anchor=anchor,
+    )
+    return {
+        "root": root,
+        "target": target,
+        "anchor": anchor,
+        "landing_commit": landing_commit,
     }
 
 
@@ -631,6 +839,57 @@ def _all_real_path_fingerprints() -> tuple[
 
 def _validator_module() -> Any:
     return importlib.import_module(VALIDATOR_MODULE)
+
+
+def _void_epoch_three_document(validator: Any) -> dict[str, Any]:
+    return {
+        "epoch": 3,
+        "implementation_commit": validator.VOID_EPOCH_THREE_IMPLEMENTATION_COMMIT,
+        "owner_exact_surface_authorization": {
+            "path": validator.VOID_EPOCH_THREE_AUTHORITY_RELATIVE.as_posix(),
+            "sha256": validator.VOID_EPOCH_THREE_AUTHORITY_SHA256,
+            "creating_commit": validator.VOID_EPOCH_THREE_IMPLEMENTATION_PARENT,
+            "unique_a_history_verified": True,
+        },
+        "independent_implementation_review": {
+            "path": validator.VOID_EPOCH_THREE_REASON_RELATIVE.as_posix(),
+            "sha256": validator.VOID_EPOCH_THREE_REASON_SHA256,
+            "creating_commit": validator.VOID_EPOCH_THREE_REASON_COMMIT,
+            "unique_a_history_verified": True,
+        },
+        "control_merkle_root_sha256": validator.VOID_EPOCH_THREE_CONTROL_ROOT_SHA256,
+        "first_attempt_ordinal": 2,
+        "last_attempt_ordinal": 2,
+        "all_attempts_authorized": True,
+    }
+
+
+def _ordinary_epoch_document(
+    number: int,
+    *,
+    first: int,
+    last: int,
+) -> dict[str, Any]:
+    return {
+        "epoch": number,
+        "implementation_commit": f"{number:x}" * 40,
+        "owner_exact_surface_authorization": {
+            "path": f"docs/phase4/reports/epoch-{number}-owner.json",
+            "sha256": f"{number + 1:x}" * 64,
+            "creating_commit": f"{number + 2:x}" * 40,
+            "unique_a_history_verified": True,
+        },
+        "independent_implementation_review": {
+            "path": f"docs/phase4/reports/epoch-{number}-review.json",
+            "sha256": f"{number + 3:x}" * 64,
+            "creating_commit": f"{number + 4:x}" * 40,
+            "unique_a_history_verified": True,
+        },
+        "control_merkle_root_sha256": f"{number + 5:x}" * 64,
+        "first_attempt_ordinal": first,
+        "last_attempt_ordinal": last,
+        "all_attempts_authorized": True,
+    }
 
 
 def _minimal_execution_binding(*, mode: str) -> dict[str, Any]:
@@ -905,6 +1164,10 @@ def test_validator_public_apis_are_fixed_keyword_only_read_contracts() -> None:
     validator = _validator_module()
     bundle_signature = inspect.signature(validator.validate_bundle)
     release_signature = inspect.signature(validator.validate_release_authorization)
+    recovered_bundle_signature = inspect.signature(validator.validate_recovered_bundle)
+    recovered_release_signature = inspect.signature(
+        validator.validate_recovered_release_authorization
+    )
     assert tuple(bundle_signature.parameters) == (
         "project_root",
         "bundle_path",
@@ -924,6 +1187,21 @@ def test_validator_public_apis_are_fixed_keyword_only_read_contracts() -> None:
         )
         assert signature.parameters["execution_context"].default is None
         assert signature.parameters["validator_delegation"].default is None
+    for signature, path_parameter in (
+        (recovered_bundle_signature, "bundle_path"),
+        (recovered_release_signature, "receipt_path"),
+    ):
+        assert tuple(signature.parameters) == (
+            "project_root",
+            path_parameter,
+            "recovery_context",
+            "recovery_validator_delegation",
+        )
+        assert all(
+            parameter.kind is inspect.Parameter.KEYWORD_ONLY
+            and parameter.default is inspect.Parameter.empty
+            for parameter in signature.parameters.values()
+        )
 
 
 def test_canonical_imported_validator_cannot_mint_official_replay_or_read_bundle() -> None:
@@ -945,6 +1223,1014 @@ def test_canonical_imported_validator_cannot_mint_official_replay_or_read_bundle
     ):
         raise AssertionError("canonical import must never enter official replay scope")
     assert _all_real_path_fingerprints() == before
+
+
+def test_passive_recovery_apis_reject_forged_capability_before_any_path_read() -> None:
+    validator = _validator_module()
+    before = _all_real_path_fingerprints()
+    for function, path_keyword in (
+        (validator.validate_recovered_bundle, "bundle_path"),
+        (
+            validator.validate_recovered_release_authorization,
+            "receipt_path",
+        ),
+    ):
+        arguments = {
+            "project_root": PROJECT_ROOT,
+            path_keyword: PROJECT_ROOT / "must-not-be-read.json",
+            "recovery_context": object(),
+            "recovery_validator_delegation": object(),
+        }
+        with pytest.raises(
+            (validator.RehearsalV22ValidationError, RuntimeError),
+            match=r"recovery|capability|delegation|forged|binding",
+        ):
+            function(**arguments)
+    assert _all_real_path_fingerprints() == before
+    for function in (
+        validator.validate_recovered_bundle,
+        validator.validate_recovered_release_authorization,
+    ):
+        source = inspect.getsource(function)
+        assert "_active_replay_validated_bundle" not in source
+        assert "_active_replay_selected_pipeline" not in source
+        assert "_passive_revalidate_validated_bundle" in source or (
+            "ValidationMode.RECOVERED_RELEASE_PASSIVE" in source
+        )
+
+
+def test_recovered_release_uses_its_own_read_only_scope_and_zero_replay_path() -> None:
+    implementation = importlib.import_module(IMPLEMENTATION_MODULE)
+    validator = _validator_module()
+    assert implementation.RecoveredReleaseCapability is not (
+        implementation.RecoveryExecutionCapability
+    )
+    assert not issubclass(
+        implementation.RecoveredReleaseCapability,
+        implementation.RecoveryExecutionCapability,
+    )
+    scope_source = inspect.getsource(
+        implementation._recovered_release_validation_scope
+    )
+    assert "_read_only_preflight_policy(binding.project_root)" in scope_source
+    assert "write_roots" in scope_source
+    assert "exact_write_paths" in scope_source
+    assert "create_only_roots" in scope_source
+    assert "sqlite_roots" in scope_source
+    assert "_recovery_execution_capability_scope" not in scope_source
+
+    context_source = inspect.getsource(
+        validator._recovered_release_validation_context
+    )
+    assert "_validate_recovered_release_capability(" in context_source
+    assert "_validate_recovered_release_validator_delegation(" in context_source
+    assert "_recovered_release_validation_anchors(" in context_source
+    assert "_validate_recovery_execution_capability(" not in context_source
+    assert "_validate_recovery_validator_delegation(" not in context_source
+    assert "_recovery_validation_anchors(" not in context_source
+
+    public_source = inspect.getsource(
+        validator.validate_recovered_release_authorization
+    )
+    assert "ValidationMode.RECOVERED_RELEASE_PASSIVE" in public_source
+    assert "execution_context=None" in public_source
+    assert "_active_replay_validated_bundle" not in public_source
+    release_source = inspect.getsource(validator._validate_release_once)
+    assert "if validation_mode is ValidationMode.ORDINARY_ACTIVE:" in release_source
+    assert "_active_replay_validated_bundle(" in release_source
+    assert "else:\n        _passive_revalidate_validated_bundle(" in release_source
+
+
+def test_passive_bundle_controls_and_inheritance_use_only_selected_git_blobs(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    validator = _validator_module()
+    bundle_directory = tmp_path / "passive-bundle"
+    bundle_directory.mkdir(mode=0o700)
+    bundle_path = bundle_directory / validator.BUNDLE_FILENAME
+    bundle_path.write_bytes(b"{}\n")
+    historical = SimpleNamespace(
+        selected_epoch=4,
+        selected_commit="890e9002116c625d41f6aa037975df15d1546c56",
+    )
+    live = SimpleNamespace(execution_epoch=5, implementation_commit="1" * 40)
+    requested: list[str] = []
+
+    def selected_blob(**arguments: object) -> bytes:
+        relative = arguments["relative_path"]
+        assert isinstance(relative, str)
+        requested.append(relative)
+        payload = (PROJECT_ROOT / relative).read_bytes()
+        assert hashlib.sha256(payload).hexdigest() == arguments["expected_sha256"]
+        return payload
+
+    monkeypatch.setattr(validator, "_historical_selected_anchor", lambda value: value)
+    monkeypatch.setattr(validator, "_live_execution_anchor", lambda value: value)
+    monkeypatch.setattr(validator, "_validate_live_execution_anchor", lambda **_kwargs: None)
+    monkeypatch.setattr(validator, "_validated_implementation_blob", selected_blob)
+    monkeypatch.setattr(
+        validator,
+        "_bound_control",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            AssertionError("passive validation read a current control")
+        ),
+    )
+    monkeypatch.setattr(validator, "_schema_validate", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(
+        validator,
+        "_validate_binding_document",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("controls complete")),
+    )
+    binding = validator.BindingView(
+        mode="DISPOSABLE_FULL_SHAPE_TEST",
+        project_root=tmp_path,
+        absolute_destination=bundle_directory,
+        series_token_sha256="2" * 64,
+        ledger_root=tmp_path / "ledger",
+    )
+    with pytest.raises(RuntimeError, match="controls complete"):
+        validator._validate_bundle_once(
+            project_root=tmp_path,
+            bundle_path=bundle_path,
+            binding=binding,
+            bundle_directory=bundle_directory,
+            historical_anchor=historical,
+            live_anchor=live,
+            validation_mode=validator.ValidationMode.RECOVERY_PASSIVE,
+            expected_bundle_sha256=None,
+        )
+    assert requested == [
+        BUNDLE_SCHEMA_RELATIVE.as_posix(),
+        PREREGISTRATION_RELATIVE.as_posix(),
+        RELEASE_SCHEMA_RELATIVE.as_posix(),
+        validator._CARRY_FORWARD_AUTHORITIES["v2_1_preregistration"][0],
+        V2_1_BUNDLE_SCHEMA_RELATIVE.as_posix(),
+        V2_1_RELEASE_SCHEMA_RELATIVE.as_posix(),
+    ]
+
+
+def test_producer_consumes_recovered_release_through_passive_validator_api_only(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    implementation = importlib.import_module(IMPLEMENTATION_MODULE)
+    validator = _validator_module()
+    root = (tmp_path / "recovered-release-consumer").resolve()
+    root.mkdir(mode=0o700)
+    destination = root / validator.REGISTERED_DESTINATION_RELATIVE
+    destination.mkdir(parents=True, mode=0o700)
+    bundle_path = destination / validator.BUNDLE_FILENAME
+    bundle_payload = b'{"status":"recovered"}\n'
+    bundle_path.write_bytes(bundle_payload)
+    ledger = root / "ledger"
+    ledger.mkdir(mode=0o700)
+    claim = root / "claim"
+    claim.mkdir(mode=0o700)
+    recovery_authorization_path = root / "recovery.json"
+    recovery_authorization_path.write_bytes(b"{}\n")
+    receipt_path = root / validator.RELEASE_RELATIVE
+    receipt_path.parent.mkdir(parents=True, mode=0o700)
+    reviewed_head = "a" * 40
+    authority = {
+        "path": "docs/phase4/reports/authority.json",
+        "sha256": "b" * 64,
+        "creating_commit": "c" * 40,
+        "unique_a_history_verified": True,
+    }
+    receipt = {
+        "execution_binding": {},
+        "reviewed_repository_head": reviewed_head,
+        "lineage": {
+            "bundle": {
+                "path": (
+                    f"{validator.REGISTERED_DESTINATION_RELATIVE.as_posix()}/"
+                    f"{validator.BUNDLE_FILENAME}"
+                ),
+                "sha256": hashlib.sha256(bundle_payload).hexdigest(),
+            },
+            "rehearsal_evidence_commit": reviewed_head,
+            "selected_implementation_commit": "d" * 40,
+            "preregistration_commit": "e" * 40,
+            "v2_1_incident": authority,
+            "remediation_request": authority,
+            "v2_2_scope_authorization": authority,
+            "review_request": authority,
+        },
+    }
+    receipt_payload = implementation._canonical_json_bytes(receipt)
+    receipt_path.write_bytes(receipt_payload)
+    raw_binding = implementation.ExecutionBinding(
+        mode="REGISTERED_OFFICIAL",
+        project_root=root,
+        shim_path=root / SHIM_RELATIVE,
+        action_authorization_path=recovery_authorization_path,
+        destination=destination,
+        series_token_sha256="1" * 64,
+        ledger_root=ledger,
+    )
+    view = validator.BindingView(
+        mode=raw_binding.mode,
+        project_root=root,
+        absolute_destination=destination,
+        series_token_sha256=raw_binding.series_token_sha256,
+        ledger_root=ledger,
+    )
+    recovery_context = object()
+    delegation = object()
+    historical = SimpleNamespace(selected_commit="d" * 40)
+    live = object()
+    observed = {"public_api": 0, "passive_release": 0, "active": 0}
+
+    monkeypatch.setattr(
+        implementation,
+        "_recovered_release_validation_scope",
+        lambda **_kwargs: nullcontext((recovery_context, delegation)),
+    )
+    monkeypatch.setattr(
+        implementation,
+        "_validate_recovered_release_capability",
+        lambda *_args, **_kwargs: raw_binding,
+    )
+    monkeypatch.setattr(
+        implementation,
+        "_validate_recovered_release_validator_delegation",
+        lambda *_args, **_kwargs: raw_binding,
+    )
+    monkeypatch.setattr(
+        implementation,
+        "_recovered_release_validation_anchors",
+        lambda *_args, **_kwargs: (historical, live),
+    )
+    monkeypatch.setattr(
+        implementation,
+        "_authority_reference_for_path",
+        lambda *_args, **_kwargs: object(),
+    )
+    monkeypatch.setattr(
+        implementation,
+        "_validate_bundle_recovery_authorization",
+        lambda *_args, **_kwargs: object(),
+    )
+    monkeypatch.setattr(implementation, "_recovery_claim_path", lambda *_args: claim)
+    monkeypatch.setattr(implementation, "_current_execution_head", lambda _root: "f" * 40)
+    monkeypatch.setattr(validator, "_binding_view", lambda _value: view)
+    monkeypatch.setattr(validator, "_historical_selected_anchor", lambda value: value)
+    monkeypatch.setattr(validator, "_live_execution_anchor", lambda value: value)
+    monkeypatch.setattr(
+        validator,
+        "_validated_implementation_blob",
+        lambda **_kwargs: (PROJECT_ROOT / RELEASE_SCHEMA_RELATIVE).read_bytes(),
+    )
+    monkeypatch.setattr(validator, "_schema_validate", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(validator, "_validate_binding_document", lambda *_args: None)
+    monkeypatch.setattr(validator, "_git_commit", lambda _root, value, _label: value)
+    monkeypatch.setattr(validator, "_git_bytes", lambda *_args: ("f" * 40 + "\n").encode())
+    monkeypatch.setattr(
+        validator,
+        "_unique_a_unserialized",
+        lambda *_args, **_kwargs: ("9" * 40, receipt_payload),
+    )
+    monkeypatch.setattr(validator, "_git_is_ancestor", lambda *_args: True)
+    authority_current_flags: list[bool] = []
+    monkeypatch.setattr(
+        validator,
+        "_unique_a_authority",
+        lambda _root, _authority, *, require_worktree: authority_current_flags.append(
+            require_worktree
+        ),
+    )
+    validated = validator.ValidatedBundle(
+        document={"status": "recovered"},
+        payload=bundle_payload,
+        path=bundle_path,
+        project_root=root,
+        bundle_directory=destination,
+        implementation_commit="d" * 40,
+        archives=SimpleNamespace(),
+        history=SimpleNamespace(),
+        historical_anchor=historical,
+        live_anchor=live,
+        validation_mode=validator.ValidationMode.RECOVERED_RELEASE_PASSIVE,
+    )
+    monkeypatch.setattr(validator, "_validate_bundle_once", lambda **_kwargs: validated)
+    monkeypatch.setattr(validator, "_cross_validate_release", lambda **_kwargs: None)
+    monkeypatch.setattr(validator, "_git_blob", lambda *_args: bundle_payload)
+
+    def passive_release(*, validated: object) -> None:
+        assert validated is not None
+        observed["passive_release"] += 1
+
+    def active_canary(*_args: object, **_kwargs: object) -> None:
+        observed["active"] += 1
+        raise AssertionError("recovered release reached active replay or pipeline")
+
+    monkeypatch.setattr(validator, "_passive_revalidate_validated_bundle", passive_release)
+    monkeypatch.setattr(validator, "_active_replay_validated_bundle", active_canary)
+    monkeypatch.setattr(validator, "_active_replay_selected_pipeline", active_canary)
+    monkeypatch.setattr(implementation, "replay_selected_pipeline", active_canary)
+    monkeypatch.setattr(implementation, "_execute_pipeline_inner", active_canary)
+    public_api = validator.validate_recovered_release_authorization
+
+    def public_api_spy(**arguments: object) -> dict[str, Any]:
+        observed["public_api"] += 1
+        return public_api(**arguments)
+
+    monkeypatch.setattr(
+        validator,
+        "validate_recovered_release_authorization",
+        public_api_spy,
+    )
+    result = implementation.consume_recovered_release_authorization(
+        binding=raw_binding,
+        validator_module=validator,
+        recovery_authorization_path=recovery_authorization_path,
+        receipt_path=receipt_path,
+    )
+    assert result == receipt
+    assert observed == {"public_api": 1, "passive_release": 1, "active": 0}
+    assert authority_current_flags == [False, False, False, False]
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    (
+        "top-extra",
+        "owner-extra",
+        "selected-file-extra",
+        "starts-two",
+        "pipeline-one",
+        "retry-one",
+        "ledger-write",
+        "phase-unlock",
+        "series-open",
+        "terminal-not-selected",
+        "owner-approved-int",
+        "starts-bool",
+        "pipeline-bool",
+        "retry-bool",
+        "series-closed-int",
+        "started-count-bool",
+        "failed-count-bool",
+        "selected-ordinal-bool",
+        "selected-epoch-bool",
+        "execution-epoch-bool",
+        "control-count-bool",
+        "latest-required-int",
+        "effect-int",
+        "lock-int",
+        "selected-file-bytes-bool",
+    ),
+)
+def test_recovery_authorization_shape_or_effect_drift_rejects_before_any_write(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    mutation: str,
+) -> None:
+    implementation = importlib.import_module(IMPLEMENTATION_MODULE)
+    root = tmp_path / "recovery-authorization-root"
+    root.mkdir(mode=0o700)
+    destination = root / "destination"
+    ledger = tmp_path / "sealed-ledger"
+    authority_path = root / "recovery.json"
+    binding = implementation.ExecutionBinding(
+        mode="DISPOSABLE_FULL_SHAPE_TEST",
+        project_root=root,
+        shim_path=root / "scripts/rehearse_p4_2a_v2_2_heldout_full_path.py",
+        action_authorization_path=authority_path,
+        destination=destination,
+        series_token_sha256="1" * 64,
+        ledger_root=ledger,
+    )
+    started_bytes = b'{"started":true}\n'
+    candidate_document = {
+        "run_a_root_sha256": "2" * 64,
+        "run_b_root_sha256": "2" * 64,
+        "control_surface_root_sha256": "3" * 64,
+        "evidence_tree_root_sha256": "4" * 64,
+        "candidate_content_root_sha256": "5" * 64,
+    }
+    candidate_bytes = implementation._canonical_json_bytes(candidate_document)
+    terminal_bytes = b'{"terminal":true}\n'
+    selected = SimpleNamespace(
+        ordinal=2,
+        implementation_epoch=4,
+        implementation_commit="6" * 40,
+        started_bytes=started_bytes,
+        candidate_bytes=candidate_bytes,
+        terminal_bytes=terminal_bytes,
+        evidence_tree_root_sha256="4" * 64,
+    )
+    history = SimpleNamespace(
+        records=(SimpleNamespace(), selected),
+        series_closed=True,
+        selected_attempt_ordinal=2,
+        validated_candidate_count=1,
+        incomplete_count=0,
+        live_ledger_root_sha256="7" * 64,
+        history_root_sha256="8" * 64,
+        started_count=2,
+        failed_count=1,
+    )
+    exact_argv = ["python", "--recover-sealed-bundle"]
+    exact_environment = {"LOCKED": "1"}
+    selected_files = {
+        "started": {
+            "relative_path": "attempts/000002/started.json",
+            "sha256": hashlib.sha256(started_bytes).hexdigest(),
+            "bytes": len(started_bytes),
+        },
+        "candidate": {
+            "relative_path": "attempts/000002/candidate.json",
+            "sha256": hashlib.sha256(candidate_bytes).hexdigest(),
+            "bytes": len(candidate_bytes),
+        },
+        "terminal": {
+            "relative_path": "attempts/000002/terminal.json",
+            "sha256": hashlib.sha256(terminal_bytes).hexdigest(),
+            "bytes": len(terminal_bytes),
+        },
+    }
+    document = {
+        "schema_version": "p4.2a-v2-2-sealed-bundle-recovery-authorization-v1",
+        "authorization_id": "SYNTHETIC-RECOVERY",
+        "created_at_utc": "2026-08-20T12:00:00Z",
+        "created_at_shanghai": "2026-08-20T20:00:00+08:00",
+        "verdict": "APPROVE_EXACTLY_ONE_SEALED_BUNDLE_RECOVERY_ZERO_PIPELINE_START",
+        "owner": {
+            "identity": "ouyang",
+            "approved": True,
+            "scope": "one disclosed sealed-bundle recovery only",
+        },
+        "sealed_series": {
+            "series_id": implementation.REHEARSAL_ID,
+            "series_token_sha256": binding.series_token_sha256,
+            "ledger_root": ledger.as_posix(),
+            "history_root_sha256": history.history_root_sha256,
+            "live_ledger_root_sha256": history.live_ledger_root_sha256,
+            "series_closed": True,
+            "started_count": 2,
+            "failed_count": 1,
+            "incomplete_count": 0,
+            "validated_candidate_count": 1,
+            "selected_attempt_ordinal": 2,
+            "selected_implementation_epoch": 4,
+            "selected_implementation_commit": selected.implementation_commit,
+            "selected_control_merkle_root_sha256": "3" * 64,
+            "selected_evidence_tree_root_sha256": "4" * 64,
+            "selected_candidate_content_root_sha256": "5" * 64,
+            "selected_run_a_root_sha256": "2" * 64,
+            "selected_run_b_root_sha256": "2" * 64,
+            "selected_terminal_outcome": "CANDIDATE_VALIDATED_AND_SELECTED",
+            "selected_reached_stage": "bundle_candidate_validated",
+            "automatic_retry_count": 0,
+            "selected_files": selected_files,
+        },
+        "execution_epoch": {
+            "epoch": 5,
+            "implementation_commit": "9" * 40,
+            "owner_exact_surface_authorization": {
+                "path": "docs/phase4/reports/owner.json",
+                "sha256": "a" * 64,
+                "creating_commit": "b" * 40,
+                "unique_a_history_verified": True,
+            },
+            "independent_implementation_review": {
+                "path": "docs/phase4/reports/review.json",
+                "sha256": "c" * 64,
+                "creating_commit": "d" * 40,
+                "unique_a_history_verified": True,
+            },
+            "merge_commit": "e" * 40,
+            "landing_report": {
+                "path": "docs/phase4/reports/landing.json",
+                "sha256": "f" * 64,
+                "creating_commit": "1" * 40,
+                "unique_a_history_verified": True,
+            },
+            "control_merkle_root_sha256": "2" * 64,
+            "control_record_count": 75,
+            "latest_complete_landed_epoch_required": True,
+            "current_control_bytes_required": True,
+            "loaded_module_bytes_required": True,
+        },
+        "destination": {
+            "absolute_path": destination.as_posix(),
+            "required_absent_before_start": True,
+            "publication_mode": "ATOMIC_DIRECTORY_NO_REPLACE",
+            "bundle_schema_version": implementation.BUNDLE_SCHEMA_VERSION,
+            "expected_bundle_status": "PASS_REHEARSAL_V2_2_AWAITING_OWNER_REVIEW",
+        },
+        "exact_argv": exact_argv,
+        "command_sha256": implementation._command_sha256(exact_argv),
+        "exact_environment": exact_environment,
+        "environment_sha256": implementation._environment_sha256(exact_environment),
+        "authorized_bundle_recovery_starts": 1,
+        "authorized_pipeline_starts": 0,
+        "automatic_retry_count": 0,
+        "effect_authorization": {
+            "ledger_read": True,
+            "ledger_write": False,
+            "git_object_read": True,
+            "git_or_worktree_write": False,
+            "recovery_claim_create_once": True,
+            "temporary_stage_create_once": True,
+            "destination_publish_once": True,
+            "attempt_allocation": False,
+            "candidate_or_terminal_rewrite": False,
+            "pipeline_execution": False,
+            "model_access": False,
+            "network_access": False,
+            "sqlite_or_production_database_access": False,
+            "heldout_materialization_inference_or_evaluation": False,
+        },
+        "interpreter": {
+            "path": Path(sys.executable).absolute().as_posix(),
+            "sha256": hashlib.sha256(
+                Path(sys.executable).absolute().read_bytes()
+            ).hexdigest(),
+            "version": (
+                f"{sys.version_info.major}.{sys.version_info.minor}."
+                f"{sys.version_info.micro}"
+            ),
+        },
+        "locks": {
+            "p4_2a_done": False,
+            "p4_2b_unlocked": False,
+            "p4_3_unlocked": False,
+            "heldout_evaluation_unlocked": False,
+            "real_trading_unlocked": False,
+            "non_simulate_trading_unlocked": False,
+        },
+    }
+    if mutation == "top-extra":
+        document["unexpected"] = False
+    elif mutation == "owner-extra":
+        document["owner"]["unexpected"] = False
+    elif mutation == "selected-file-extra":
+        document["sealed_series"]["selected_files"]["started"]["unexpected"] = 0
+    elif mutation == "starts-two":
+        document["authorized_bundle_recovery_starts"] = 2
+    elif mutation == "pipeline-one":
+        document["authorized_pipeline_starts"] = 1
+    elif mutation == "retry-one":
+        document["automatic_retry_count"] = 1
+    elif mutation == "ledger-write":
+        document["effect_authorization"]["ledger_write"] = True
+    elif mutation == "phase-unlock":
+        document["locks"]["p4_2b_unlocked"] = True
+    elif mutation == "series-open":
+        document["sealed_series"]["series_closed"] = False
+    elif mutation == "terminal-not-selected":
+        document["sealed_series"]["selected_terminal_outcome"] = "FAILED"
+    elif mutation == "owner-approved-int":
+        document["owner"]["approved"] = 1
+    elif mutation == "starts-bool":
+        document["authorized_bundle_recovery_starts"] = True
+    elif mutation == "pipeline-bool":
+        document["authorized_pipeline_starts"] = False
+    elif mutation == "retry-bool":
+        document["automatic_retry_count"] = False
+    elif mutation == "series-closed-int":
+        document["sealed_series"]["series_closed"] = 1
+    elif mutation == "started-count-bool":
+        document["sealed_series"]["started_count"] = True
+    elif mutation == "failed-count-bool":
+        document["sealed_series"]["failed_count"] = True
+    elif mutation == "selected-ordinal-bool":
+        document["sealed_series"]["selected_attempt_ordinal"] = True
+    elif mutation == "selected-epoch-bool":
+        document["sealed_series"]["selected_implementation_epoch"] = True
+    elif mutation == "execution-epoch-bool":
+        document["execution_epoch"]["epoch"] = True
+    elif mutation == "control-count-bool":
+        document["execution_epoch"]["control_record_count"] = True
+    elif mutation == "latest-required-int":
+        document["execution_epoch"]["latest_complete_landed_epoch_required"] = 1
+    elif mutation == "effect-int":
+        document["effect_authorization"]["ledger_read"] = 1
+    elif mutation == "lock-int":
+        document["locks"]["p4_2a_done"] = 0
+    else:
+        document["sealed_series"]["selected_files"]["started"]["bytes"] = False
+    payload = implementation._canonical_json_bytes(document)
+    authority = implementation.AuthorityReference(
+        "recovery.json",
+        hashlib.sha256(payload).hexdigest(),
+        "2" * 40,
+    )
+    monkeypatch.setattr(
+        implementation,
+        "validate_unique_a_authority",
+        lambda *_args, **_kwargs: payload,
+    )
+    monkeypatch.setattr(
+        implementation,
+        "_current_execution_head",
+        lambda _root: "3" * 40,
+    )
+    monkeypatch.setattr(
+        implementation,
+        "validate_live_history",
+        lambda _binding: history,
+    )
+    monkeypatch.setattr(
+        implementation,
+        "_live_execution_anchor",
+        lambda _binding, _execution: object(),
+    )
+    monkeypatch.setattr(implementation, "_git_is_ancestor", lambda *_args: True)
+    before = _tree_fingerprint(tmp_path)
+    with pytest.raises(implementation.RehearsalV22Error):
+        implementation._validate_bundle_recovery_authorization(
+            binding,
+            authority,
+            require_current_process=False,
+        )
+    assert _tree_fingerprint(tmp_path) == before
+    assert not os.path.lexists(destination)
+    assert not os.path.lexists(ledger)
+
+
+@pytest.mark.parametrize(
+    "history_shape",
+    ("missing-void-three", "extra-epoch", "wrong-interval", "unauthorized"),
+)
+def test_bundle_recovery_rejects_every_closed_history_except_exact_two_four(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    history_shape: str,
+) -> None:
+    implementation = importlib.import_module(IMPLEMENTATION_MODULE)
+    validator = _validator_module()
+    root = tmp_path / "closed-history-root"
+    scripts = root / "scripts"
+    scripts.mkdir(parents=True, mode=0o700)
+    producer_path = root / IMPLEMENTATION_RELATIVE
+    validator_path = root / VALIDATOR_RELATIVE
+    producer_path.write_bytes(b"producer\n")
+    validator_path.write_bytes(b"validator\n")
+    binding = implementation.ExecutionBinding(
+        mode="DISPOSABLE_FULL_SHAPE_TEST",
+        project_root=root,
+        shim_path=root / SHIM_RELATIVE,
+        action_authorization_path=root / "recovery.json",
+        destination=root / "destination",
+        series_token_sha256="1" * 64,
+        ledger_root=tmp_path / "sealed-ledger",
+    )
+    rows = [
+        {
+            "epoch": number,
+            "first_attempt_ordinal": ordinal,
+            "last_attempt_ordinal": ordinal,
+            "all_attempts_authorized": True,
+        }
+        for number, ordinal in ((1, 1), (2, 1), (3, 2), (4, 2))
+    ]
+    if history_shape == "missing-void-three":
+        rows.pop(2)
+    elif history_shape == "extra-epoch":
+        rows.append(
+            {
+                "epoch": 5,
+                "first_attempt_ordinal": 2,
+                "last_attempt_ordinal": 2,
+                "all_attempts_authorized": True,
+            }
+        )
+    elif history_shape == "wrong-interval":
+        rows[2]["first_attempt_ordinal"] = 1
+    else:
+        rows[3]["all_attempts_authorized"] = False
+    live = SimpleNamespace(
+        loaded_module_sha256={
+            IMPLEMENTATION_RELATIVE.as_posix(): hashlib.sha256(
+                producer_path.read_bytes()
+            ).hexdigest(),
+            VALIDATOR_RELATIVE.as_posix(): hashlib.sha256(
+                validator_path.read_bytes()
+            ).hexdigest(),
+        }
+    )
+    monkeypatch.setattr(validator, "__file__", validator_path.as_posix())
+    monkeypatch.setattr(implementation, "_current_execution_head", lambda _root: "2" * 40)
+    monkeypatch.setattr(implementation, "_recovery_reference", lambda *_args, **_kwargs: object())
+    monkeypatch.setattr(
+        implementation,
+        "_validate_bundle_recovery_authorization",
+        lambda *_args, **_kwargs: SimpleNamespace(execution_epoch={}),
+    )
+    monkeypatch.setattr(
+        implementation,
+        "_recovery_claim_path",
+        lambda *_args: tmp_path / "absent-claim",
+    )
+    monkeypatch.setattr(
+        implementation,
+        "_recovery_temporary_authority_path",
+        lambda *_args: tmp_path / "absent-temporary",
+    )
+    monkeypatch.setattr(implementation, "validate_live_history", lambda _binding: object())
+    monkeypatch.setattr(
+        implementation,
+        "_historical_selected_anchor",
+        lambda *_args: object(),
+    )
+    monkeypatch.setattr(implementation, "_live_execution_anchor", lambda *_args: live)
+    monkeypatch.setattr(
+        implementation,
+        "_module_identity_observation",
+        lambda: SimpleNamespace(module_origin=producer_path),
+    )
+    monkeypatch.setattr(implementation, "_implementation_epochs", lambda *_args: rows)
+    monkeypatch.setattr(
+        implementation,
+        "_void_epoch_one",
+        lambda *_args, **_kwargs: rows[0],
+    )
+    monkeypatch.setattr(
+        implementation,
+        "_void_epoch_three",
+        lambda *_args, **_kwargs: rows[2],
+    )
+    monkeypatch.setattr(
+        implementation,
+        "_rehydrate_sealed_pipeline_replays",
+        lambda *_args: (_ for _ in ()).throw(
+            AssertionError("invalid history reached sealed rehydration")
+        ),
+    )
+    before = _tree_fingerprint(tmp_path)
+    with pytest.raises(
+        implementation.RehearsalV22Error,
+        match=r"exact disclosed \[2,4\] shape",
+    ):
+        implementation._preflight_bundle_recovery(binding)
+    assert _tree_fingerprint(tmp_path) == before
+
+
+def test_recovery_rejects_staged_tree_tamper_after_passive_validation_before_rename(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    implementation = importlib.import_module(IMPLEMENTATION_MODULE)
+    root = tmp_path / "staged-tamper-root"
+    root.mkdir(mode=0o700)
+    ledger = tmp_path / "staged-tamper-ledger"
+    ledger.mkdir(mode=0o700)
+    (ledger / "sealed.json").write_bytes(b"{}\n")
+    binding = implementation.ExecutionBinding(
+        mode="DISPOSABLE_FULL_SHAPE_TEST",
+        project_root=root,
+        shim_path=root / SHIM_RELATIVE,
+        action_authorization_path=root / "recovery.json",
+        destination=root / "destination",
+        series_token_sha256="1" * 64,
+        ledger_root=ledger,
+    )
+    candidate = root / "staged-candidate"
+    bundle_payload = b'{"status":"sealed"}\n'
+    assembly = SimpleNamespace(
+        document={"status": "sealed"},
+        bundle_payload=bundle_payload,
+    )
+    published: list[Path] = []
+
+    def stage(**_kwargs: object) -> Path:
+        candidate.mkdir(mode=0o700)
+        (candidate / implementation.BUNDLE_FILENAME).write_bytes(bundle_payload)
+        return candidate
+
+    def passive_validate(**arguments: object) -> dict[str, str]:
+        bundle_path = arguments["bundle_path"]
+        assert isinstance(bundle_path, Path)
+        (bundle_path.parent / "post-validation-tamper").write_bytes(b"tamper\n")
+        return assembly.document
+
+    def publish(_binding: object, staged: Path) -> dict[str, str]:
+        published.append(staged)
+        return {}
+
+    monkeypatch.setattr(
+        implementation,
+        "_validate_recovery_execution_capability",
+        lambda *_args, **_kwargs: binding,
+    )
+    monkeypatch.setattr(implementation, "_build_bundle", lambda **_kwargs: assembly)
+    monkeypatch.setattr(implementation, "_stage_bundle", stage)
+    monkeypatch.setattr(
+        implementation,
+        "_borrow_recovery_validator_authority",
+        lambda *_args, **_kwargs: nullcontext(object()),
+    )
+    monkeypatch.setattr(implementation, "_publish_candidate", publish)
+    monkeypatch.setattr(
+        implementation,
+        "_write_recovery_terminal",
+        lambda **_kwargs: {},
+    )
+    with pytest.raises(
+        implementation.RehearsalV22Error,
+        match=r"staged|candidate|changed|drift",
+    ):
+        implementation._execute_authorized_bundle_recovery(
+            binding=binding,
+            history=object(),
+            authorization=object(),
+            historical_anchor=object(),
+            live_anchor=object(),
+            run_a=object(),
+            run_b=object(),
+            ledger_snapshot=implementation._tree_fingerprint(ledger),
+            bootstrap=object(),
+            recovery_context=object(),
+            validator_module=SimpleNamespace(
+                validate_recovered_bundle=passive_validate,
+            ),
+            claim_root=root / "claim",
+            temporary_authority=root / "temporary",
+        )
+    assert published == []
+    assert not os.path.lexists(binding.destination)
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    (
+        "valid",
+        "started-schema",
+        "started-recovery-id",
+        "started-pipeline-bool",
+        "terminal-schema",
+        "terminal-recovery-id",
+        "terminal-pipeline-bool",
+        "terminal-temporary-int",
+        "terminal-error-false",
+        "terminal-bundle-sha",
+    ),
+)
+def test_successful_recovery_claim_requires_exact_published_zero_start_semantics(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    mutation: str,
+) -> None:
+    implementation = importlib.import_module(IMPLEMENTATION_MODULE)
+    root = tmp_path / "successful-claim-root"
+    root.mkdir(mode=0o700)
+    ledger = tmp_path / "successful-claim-ledger"
+    ledger.mkdir(mode=0o700)
+    (ledger / "series.json").write_bytes(b"{}\n")
+    destination = root / "destination"
+    destination.mkdir(mode=0o700)
+    bundle_payload = b'{"status":"recovered"}\n'
+    (destination / implementation.BUNDLE_FILENAME).write_bytes(bundle_payload)
+    binding = implementation.ExecutionBinding(
+        mode="DISPOSABLE_FULL_SHAPE_TEST",
+        project_root=root,
+        shim_path=root / SHIM_RELATIVE,
+        action_authorization_path=root / "recovery.json",
+        destination=destination,
+        series_token_sha256="1" * 64,
+        ledger_root=ledger,
+    )
+    authorization = implementation.BundleRecoveryAuthorization(
+        path=root / "recovery.json",
+        payload=b"{}\n",
+        sha256="2" * 64,
+        creating_commit="3" * 40,
+        authorization_id="RECOVERY-EXACT-CLAIM",
+        sealed_series={
+            "history_root_sha256": "4" * 64,
+            "live_ledger_root_sha256": "5" * 64,
+        },
+        execution_epoch={"epoch": 5},
+        destination={},
+        exact_argv=(),
+        command_sha256="6" * 64,
+        exact_environment={},
+        environment_sha256="7" * 64,
+        effect_authorization={},
+        interpreter={},
+        locks={},
+    )
+    claim = implementation._recovery_claim_path(binding, authorization)
+    claim.mkdir(mode=0o700)
+    reference = authorization.authority_ref(root).as_json()
+    landing_commit = "a" * 40
+    started_commit = "b" * 40
+    live_head = "8" * 40
+    started = {
+        "schema_version": "p4.2a-v2-2-sealed-bundle-recovery-started-v1",
+        "recovery_id": authorization.authorization_id,
+        "authorization": reference,
+        "created_at_utc": "2026-08-20T12:00:00Z",
+        "created_at_shanghai": "2026-08-20T20:00:00+08:00",
+        "execution_head": started_commit,
+        "execution_epoch": 5,
+        "sealed_history_root_sha256": "4" * 64,
+        "sealed_live_ledger_root_sha256": "5" * 64,
+        "destination": destination.as_posix(),
+        "state": "STARTED",
+        "authorized_bundle_recovery_starts": 1,
+        "authorized_pipeline_starts": 0,
+        "automatic_retry_count": 0,
+    }
+    ledger_sha = hashlib.sha256(
+        implementation._canonical_json_bytes(implementation._tree_fingerprint(ledger))
+    ).hexdigest()
+    destination_sha = hashlib.sha256(
+        implementation._canonical_json_bytes(
+            implementation._tree_fingerprint(destination)
+        )
+    ).hexdigest()
+    terminal = {
+        "schema_version": "p4.2a-v2-2-sealed-bundle-recovery-terminal-v1",
+        "recovery_id": authorization.authorization_id,
+        "authorization": reference,
+        "completed_at_utc": "2026-08-20T12:01:00Z",
+        "completed_at_shanghai": "2026-08-20T20:01:00+08:00",
+        "outcome": "BUNDLE_RECOVERY_PUBLISHED",
+        "reached_stage": "bundle_recovery_published",
+        "sealed_ledger_before_sha256": ledger_sha,
+        "sealed_ledger_after_sha256": ledger_sha,
+        "destination": destination.as_posix(),
+        "published_bundle_sha256": hashlib.sha256(bundle_payload).hexdigest(),
+        "published_tree_sha256": destination_sha,
+        "temporary_authority_absent": True,
+        "pipeline_starts": 0,
+        "automatic_retry_count": 0,
+        "error": None,
+    }
+    if mutation == "started-schema":
+        started["schema_version"] = "wrong"
+    elif mutation == "started-recovery-id":
+        started["recovery_id"] = "wrong"
+    elif mutation == "started-pipeline-bool":
+        started["authorized_pipeline_starts"] = False
+    elif mutation == "terminal-schema":
+        terminal["schema_version"] = "wrong"
+    elif mutation == "terminal-recovery-id":
+        terminal["recovery_id"] = "wrong"
+    elif mutation == "terminal-pipeline-bool":
+        terminal["pipeline_starts"] = False
+    elif mutation == "terminal-temporary-int":
+        terminal["temporary_authority_absent"] = 1
+    elif mutation == "terminal-error-false":
+        terminal["error"] = False
+    elif mutation == "terminal-bundle-sha":
+        terminal["published_bundle_sha256"] = "9" * 64
+    for path, document in (
+        (claim / "started.json", started),
+        (claim / "terminal.json", terminal),
+    ):
+        path.write_bytes(implementation._canonical_json_bytes(document))
+        path.chmod(0o600)
+    monkeypatch.setattr(
+        implementation,
+        "_live_execution_anchor",
+        lambda *_args: SimpleNamespace(
+            execution_head=live_head,
+            execution_epoch=5,
+            landing_report=SimpleNamespace(creating_commit=landing_commit),
+        ),
+    )
+    monkeypatch.setattr(
+        implementation,
+        "_git_commit",
+        lambda _root, value, _label: value,
+    )
+
+    def first_parent_git_bytes(_root: Path, *arguments: str) -> bytes:
+        assert arguments == (
+            "rev-list",
+            "--first-parent",
+            "--reverse",
+            live_head,
+            "--",
+        )
+        return (
+            f"{landing_commit}\n{authorization.creating_commit}\n"
+            f"{started_commit}\n{live_head}\n"
+        ).encode("ascii")
+
+    monkeypatch.setattr(implementation, "_git_bytes", first_parent_git_bytes)
+    if mutation == "valid":
+        observed_claim, observed_terminal, terminal_sha, bundle_sha = (
+            implementation._successful_recovery_claim(binding, authorization)
+        )
+        assert observed_claim == claim
+        assert observed_terminal == terminal
+        assert terminal_sha == hashlib.sha256(
+            implementation._canonical_json_bytes(terminal)
+        ).hexdigest()
+        assert bundle_sha == hashlib.sha256(bundle_payload).hexdigest()
+    else:
+        with pytest.raises(
+            implementation.RehearsalV22Error,
+            match=r"success claim semantics|recovery.*claim",
+        ):
+            implementation._successful_recovery_claim(binding, authorization)
 
 
 @pytest.mark.parametrize(
@@ -1287,105 +2573,516 @@ def test_materialization_manifest_never_accepts_a_harness_or_arbitrary_commit_as
         )
 
 
-def test_archive_semantics_keep_pipeline_producer_and_harness_commit_dataflows_separate() -> None:
-    tree = ast.parse((PROJECT_ROOT / VALIDATOR_RELATIVE).read_bytes())
-    functions = {
-        node.name: node
-        for node in tree.body
-        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+def test_archive_semantics_and_dual_byte_anchors_are_noninterchangeable() -> None:
+    implementation = importlib.import_module(IMPLEMENTATION_MODULE)
+    validator = _validator_module()
+    assert implementation.HistoricalSelectedAnchor is not implementation.LiveExecutionAnchor
+    bundle_signature = inspect.signature(validator._validate_bundle_once)
+    assert tuple(bundle_signature.parameters) == (
+        "project_root",
+        "bundle_path",
+        "binding",
+        "bundle_directory",
+        "historical_anchor",
+        "live_anchor",
+        "validation_mode",
+        "expected_bundle_sha256",
+    )
+    assert all(
+        parameter.kind is inspect.Parameter.KEYWORD_ONLY
+        for parameter in bundle_signature.parameters.values()
+    )
+    assert all(
+        parameter.default is inspect.Parameter.empty
+        for parameter in bundle_signature.parameters.values()
+        if parameter.name
+        in {"historical_anchor", "live_anchor", "validation_mode"}
+    )
+    helper_contracts = {
+        "_validate_control_archive": "historical_anchor",
+        "_validate_archives": "historical_anchor",
+        "_validate_lineage": "historical_anchor",
+        "_validate_harness_identity": "historical_anchor",
     }
-
-    def calls(function_name: str, callee_name: str) -> list[ast.Call]:
-        return [
-            node
-            for node in ast.walk(functions[function_name])
-            if isinstance(node, ast.Call)
-            and (
-                (
-                    isinstance(node.func, ast.Name)
-                    and node.func.id == callee_name
-                )
-                or (
-                    isinstance(node.func, ast.Attribute)
-                    and node.func.attr == callee_name
-                )
-            )
-        ]
-
-    def keyword_name(call: ast.Call, keyword: str) -> str:
-        values = [item.value for item in call.keywords if item.arg == keyword]
-        assert len(values) == 1
-        value = values[0]
-        assert isinstance(value, ast.Name)
-        return value.id
-
-    materialization = functions["_validate_materialization_manifest"]
-    semantics = functions["_validate_artifact_semantics"]
-    epochs = functions["_validate_implementation_epochs"]
-    assert [argument.arg for argument in materialization.args.kwonlyargs] == [
-        "pipeline_implementation_commit"
-    ]
-    assert [argument.arg for argument in semantics.args.kwonlyargs] == [
-        "pipeline_implementation_commit"
-    ]
-    manifest_calls = calls("_validate_artifact_semantics", "_validate_materialization_manifest")
-    assert len(manifest_calls) == 1
-    assert (
-        keyword_name(manifest_calls[0], "pipeline_implementation_commit")
-        == "pipeline_implementation_commit"
-    )
-    artifact_calls = calls("_validate_archives", "_validate_artifact_semantics")
-    assert len(artifact_calls) == 1
-    assert (
-        keyword_name(artifact_calls[0], "pipeline_implementation_commit")
-        == "_V2_1_IMPLEMENTATION_COMMIT"
-    )
-    control_calls = calls("_validate_archives", "_validate_control_archive")
-    assert len(control_calls) == 1
-    assert keyword_name(control_calls[0], "implementation_commit") == "implementation_commit"
-    for callee_name in ("_validate_lineage", "_validate_harness_identity", "_validate_archives"):
-        selected_calls = calls("_validate_bundle_once", callee_name)
-        assert len(selected_calls) == 1
-        assert keyword_name(selected_calls[0], "implementation_commit") == "implementation_commit"
-    epoch_calls = calls("_validate_bundle_once", "_validate_implementation_epochs")
-    assert len(epoch_calls) == 1
-    assert keyword_name(epoch_calls[0], "replay") == "replay"
-    assert keyword_name(epoch_calls[0], "archives") == "archives"
-    replay_selected_bindings = [
-        node
-        for node in calls("_validate_bundle_once", "_require_equal")
-        if len(node.args) >= 2
-        and isinstance(node.args[0], ast.Name)
-        and node.args[0].id == "implementation_commit"
-        and isinstance(node.args[1], ast.Attribute)
-        and isinstance(node.args[1].value, ast.Name)
-        and node.args[1].value.id == "replay"
-        and node.args[1].attr == "selected_implementation_commit"
-    ]
-    assert len(replay_selected_bindings) == 1
-    epoch_validation_calls = calls(
-        "_validate_implementation_epochs", "validate_implementation_epoch"
-    )
-    assert len(epoch_validation_calls) == 1
-    assert (
-        keyword_name(epoch_validation_calls[0], "implementation_commit")
-        == "implementation_commit"
-    )
-    assert any(
-        isinstance(node, ast.Attribute)
-        and isinstance(node.value, ast.Name)
-        and node.value.id == "replay"
-        and node.attr == "selected_implementation_epoch"
-        for node in ast.walk(epochs)
-    )
-    # Lineage and control replay legitimately verify the carried-forward v2.1
-    # commit as historical evidence.  The selected harness extraction and its
-    # epoch gate must never substitute that constant for their live value.
-    for function_name in ("_validate_bundle_once", "_validate_implementation_epochs"):
-        assert not any(
-            isinstance(node, ast.Name) and node.id == "_V2_1_IMPLEMENTATION_COMMIT"
-            for node in ast.walk(functions[function_name])
+    for helper_name, anchor_name in helper_contracts.items():
+        signature = inspect.signature(getattr(validator, helper_name))
+        assert anchor_name in signature.parameters
+        assert signature.parameters[anchor_name].default is inspect.Parameter.empty
+        source = inspect.getsource(getattr(validator, helper_name))
+        assert (
+            "historical_anchor.selected_commit" in source
+            or "historical_anchor=historical_anchor" in source
         )
+    epoch_signature = inspect.signature(validator._validate_implementation_epochs)
+    assert "historical_anchor" in epoch_signature.parameters
+    assert "live_anchor" in epoch_signature.parameters
+    assert all(
+        epoch_signature.parameters[name].default is inspect.Parameter.empty
+        for name in ("historical_anchor", "live_anchor")
+    )
+    control_source = inspect.getsource(validator._validate_control_archive)
+    assert "require_current=False" in control_source
+    assert "require_current=True" not in control_source
+    assert "_validated_live_implementation_blob" not in control_source
+    assert "_validated_implementation_blob" in control_source
+    bundle_source = inspect.getsource(validator._validate_bundle_once)
+    assert "historical.selected_commit" in bundle_source
+    assert "live.implementation_commit" in bundle_source
+    assert "historical = _historical_selected_anchor(historical_anchor)" in bundle_source
+    assert "live = _live_execution_anchor(live_anchor)" in bundle_source
+    assert "historical_anchor=historical" in bundle_source
+    assert "live_anchor=live" in bundle_source
+    assert "historical_anchor or live_anchor" not in bundle_source
+    assert "live_anchor or historical_anchor" not in bundle_source
+
+    archives_tree = ast.parse(inspect.getsource(validator._validate_archives))
+    artifact_calls = [
+        node
+        for node in ast.walk(archives_tree)
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Name)
+        and node.func.id == "_validate_artifact_semantics"
+    ]
+    assert len(artifact_calls) == 1
+    pipeline_keywords = [
+        keyword.value
+        for keyword in artifact_calls[0].keywords
+        if keyword.arg == "pipeline_implementation_commit"
+    ]
+    assert len(pipeline_keywords) == 1
+    assert isinstance(pipeline_keywords[0], ast.Name)
+    assert pipeline_keywords[0].id == "_V2_1_IMPLEMENTATION_COMMIT"
+
+
+def test_live_control_accepts_nonempty_loaded_repository_sources(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    implementation = importlib.import_module(IMPLEMENTATION_MODULE)
+    validator = _validator_module()
+    authority = implementation.AuthorityReference(
+        "docs/phase4/reports/live-authority.json",
+        "1" * 64,
+        "2" * 40,
+    )
+    control = implementation.ControlSurface(
+        implementation_commit="3" * 40,
+        records=({"repository_path": "src/alphapilot/live.py"},),
+        payloads={"src/alphapilot/live.py": b"LIVE = True\n"},
+        manifest_payload=b"{}\n",
+        merkle_root_sha256="4" * 64,
+        ast_closure_paths=("src/alphapilot/live.py",),
+        loaded_repository_sources=("src/alphapilot/live.py",),
+        python_inventory=b"python\n",
+        package_inventory=b"packages\n",
+    )
+    live = implementation.LiveExecutionAnchor(
+        execution_epoch=5,
+        implementation_commit=control.implementation_commit,
+        owner_surface_authorization=authority,
+        independent_implementation_review=authority,
+        merge_commit="5" * 40,
+        landing_report=authority,
+        control_surface=control,
+        execution_head="6" * 40,
+        loaded_module_sha256={
+            IMPLEMENTATION_RELATIVE.as_posix(): "7" * 64,
+            VALIDATOR_RELATIVE.as_posix(): "8" * 64,
+        },
+    )
+    observed_module_identity: list[Any] = []
+    monkeypatch.setattr(
+        implementation,
+        "build_control_surface",
+        lambda *_args, **_kwargs: control,
+    )
+    monkeypatch.setattr(
+        validator,
+        "_validate_module_identity",
+        lambda _root, anchor: observed_module_identity.append(anchor),
+    )
+    validator._validate_current_control_and_modules(
+        project_root=tmp_path,
+        live_anchor=live,
+    )
+    assert observed_module_identity == [live]
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    (
+        "later-authority",
+        "duplicate-authority",
+        "later-review-only",
+        "later-landing-only",
+        "control-modified-then-restored",
+    ),
+)
+def test_latest_landed_epoch_rejects_later_duplicate_incomplete_or_restored_control(
+    latest_landed_epoch_repository: dict[str, Any],
+    mutation: str,
+) -> None:
+    implementation = importlib.import_module(IMPLEMENTATION_MODULE)
+    validator = _validator_module()
+    root = latest_landed_epoch_repository["root"]
+    anchor = latest_landed_epoch_repository["anchor"]
+    if mutation in {"later-authority", "duplicate-authority"}:
+        epoch = 6 if mutation == "later-authority" else 5
+        date = "20260821"
+        relative = Path(
+            "docs/phase4/reports/"
+            f"P4.2a-v2-2-epoch{epoch}-surface-authority-{date}.json"
+        )
+        payload = implementation._canonical_json_bytes(
+            {
+                "schema_version": (
+                    "p4.2a-v2-2-implementation-epoch-surface-authorization-v1"
+                ),
+                "verdict": "APPROVE_EXACT_V2_2_IMPLEMENTATION_EPOCH_SURFACE",
+                "owner": {"identity": "ouyang", "approved": True},
+                "implementation_epoch": epoch,
+                "base_commit": latest_landed_epoch_repository["landing_commit"],
+                "exact_surface": [
+                    {
+                        "path": latest_landed_epoch_repository[
+                            "target"
+                        ].as_posix(),
+                        "status": "M",
+                    }
+                ],
+            }
+        )
+        _fixture_commit_file(validator, root, relative, payload)
+    elif mutation in {"later-review-only", "later-landing-only"}:
+        suffix = (
+            "implementation-independent-review"
+            if mutation == "later-review-only"
+            else "uncompleted-landing-report"
+        )
+        relative = Path(
+            "docs/phase4/reports/"
+            f"P4.2a-v2-2-epoch6-{suffix}-20260821.json"
+        )
+        _fixture_commit_file(
+            validator,
+            root,
+            relative,
+            implementation._canonical_json_bytes(
+                {
+                    "schema_version": "p4.2a-v2-2-incomplete-epoch-artifact-v1",
+                    "epoch": 6,
+                }
+            ),
+        )
+    else:
+        target = root / latest_landed_epoch_repository["target"]
+        expected = target.read_bytes()
+        target.write_bytes(expected + b"CONTROL_DRIFT = True\n")
+        _fixture_git(
+            validator,
+            root,
+            "add",
+            "--",
+            latest_landed_epoch_repository["target"].as_posix(),
+        )
+        _fixture_git(validator, root, "commit", "--quiet", "-m", "control drift")
+        target.write_bytes(expected)
+        _fixture_git(
+            validator,
+            root,
+            "add",
+            "--",
+            latest_landed_epoch_repository["target"].as_posix(),
+        )
+        _fixture_git(validator, root, "commit", "--quiet", "-m", "restore control")
+    drifted_anchor = replace(
+        anchor,
+        execution_head=(
+            _fixture_git(validator, root, "rev-parse", "HEAD").decode().strip()
+        ),
+    )
+    with pytest.raises(
+        validator.RehearsalV22ValidationError,
+        match=r"latest|duplicate|later|ambiguous|landed epoch|post-landing control",
+    ):
+        validator._validate_latest_landed_epoch(
+            project_root=root,
+            live_anchor=drifted_anchor,
+        )
+
+
+@pytest.mark.parametrize("commit_kind", ("authority", "landing"))
+def test_latest_landed_epoch_rejects_unrelated_path_in_governance_commit(
+    latest_landed_epoch_repository: dict[str, Any],
+    monkeypatch: pytest.MonkeyPatch,
+    commit_kind: str,
+) -> None:
+    validator = _validator_module()
+    root = latest_landed_epoch_repository["root"]
+    anchor = latest_landed_epoch_repository["anchor"]
+    if commit_kind == "authority":
+        commit = anchor.owner_surface_authorization.creating_commit
+        base = validator._git_parents(root, commit)[0]
+    else:
+        commit = anchor.landing_report.creating_commit
+        base = anchor.merge_commit
+    original = validator._diff_name_status
+
+    def injected(root_value: Path, base_value: str, commit_value: str) -> Any:
+        rows = original(root_value, base_value, commit_value)
+        if (base_value, commit_value) == (base, commit):
+            return (*rows, ("A", "docs/phase4/reports/unrelated-extra.json"))
+        return rows
+
+    monkeypatch.setattr(validator, "_diff_name_status", injected)
+    with pytest.raises(
+        validator.RehearsalV22ValidationError,
+        match=r"exact unique-A",
+    ):
+        validator._validate_latest_landed_epoch(
+            project_root=root,
+            live_anchor=anchor,
+        )
+
+
+def test_latest_landed_epoch_accepts_unrelated_unicode_path_in_first_parent_history(
+    latest_landed_epoch_repository: dict[str, Any],
+) -> None:
+    validator = _validator_module()
+    root = latest_landed_epoch_repository["root"]
+    relative = Path("docs/phase4/reports/无关历史证据.txt")
+    _fixture_commit_file(validator, root, relative, b"unrelated\n")
+    live_anchor = replace(
+        latest_landed_epoch_repository["anchor"],
+        execution_head=(
+            _fixture_git(validator, root, "rev-parse", "HEAD").decode().strip()
+        ),
+    )
+
+    validator._validate_latest_landed_epoch(
+        project_root=root,
+        live_anchor=live_anchor,
+    )
+
+
+def test_latest_landed_epoch_accepts_unrelated_ascii_space_and_plus_path(
+    latest_landed_epoch_repository: dict[str, Any],
+) -> None:
+    validator = _validator_module()
+    root = latest_landed_epoch_repository["root"]
+    relative = Path("docs/phase4/reports/unrelated first-parent+evidence.txt")
+    _fixture_commit_file(validator, root, relative, b"unrelated\n")
+    live_anchor = replace(
+        latest_landed_epoch_repository["anchor"],
+        execution_head=(
+            _fixture_git(validator, root, "rev-parse", "HEAD").decode().strip()
+        ),
+    )
+
+    validator._validate_latest_landed_epoch(
+        project_root=root,
+        live_anchor=live_anchor,
+    )
+
+
+@pytest.mark.parametrize("artifact_kind", ("authority", "review", "landing"))
+def test_latest_landed_epoch_rejects_malformed_lower_epoch_governance_artifact(
+    latest_landed_epoch_repository: dict[str, Any],
+    artifact_kind: str,
+) -> None:
+    implementation = importlib.import_module(IMPLEMENTATION_MODULE)
+    validator = _validator_module()
+    root = latest_landed_epoch_repository["root"]
+    anchor = latest_landed_epoch_repository["anchor"]
+    target = latest_landed_epoch_repository["target"].as_posix()
+    if artifact_kind == "authority":
+        relative = Path(
+            "docs/phase4/reports/"
+            "P4.2a-v2-2-epoch4-surface-authority-20260819.json"
+        )
+        document = {
+            "schema_version": (
+                "p4.2a-v2-2-implementation-epoch-surface-authorization-v1"
+            ),
+            "verdict": "APPROVE_EXACT_V2_2_IMPLEMENTATION_EPOCH_SURFACE",
+            "owner": {"identity": "ouyang", "approved": True},
+            "implementation_epoch": 4,
+            "base_commit": latest_landed_epoch_repository["landing_commit"],
+            "exact_surface": [
+                {"path": target, "status": "M", "unexpected": True}
+            ],
+        }
+    elif artifact_kind == "review":
+        relative = Path(
+            "docs/phase4/reports/"
+            "P4.2a-v2-2-epoch4-implementation-independent-review-20260819.json"
+        )
+        document = {
+            "schema_version": "p4.2a-independent-review-v0",
+            "verdict": "APPROVE_EPOCH4_IMPLEMENTATION",
+            "reviewed_commit": anchor.implementation_commit,
+            "blockers": [],
+        }
+    else:
+        review_relative = Path(
+            "docs/phase4/reports/"
+            "P4.2a-v2-2-epoch4-implementation-independent-review-20260819.json"
+        )
+        review_commit = _fixture_commit_file(
+            validator,
+            root,
+            review_relative,
+            implementation._canonical_json_bytes(
+                {
+                    "schema_version": "p4.2a-independent-review-v1",
+                    "verdict": "APPROVE_EPOCH4_IMPLEMENTATION",
+                    "reviewed_commit": anchor.implementation_commit,
+                    "blockers": [],
+                }
+            ),
+        )
+        relative = Path(
+            "docs/phase4/reports/"
+            "P4.2a-v2-2-epoch4-registered-gate-landing-report-20260819.json"
+        )
+        document = {
+            "schema_version": "p4.2a-v2-2-epoch4-registered-gate-landing-report-v1",
+            "status": "PASS_REGISTERED_GATE_LANDING_REPORT_READY_BEFORE_MERGE",
+            "candidate_lineage": {
+                "implementation_commit": anchor.implementation_commit,
+                "independent_review": {
+                    "path": review_relative.as_posix(),
+                    "creating_commit": review_commit,
+                },
+            },
+            "planned_landing": {"second_parent": "0" * 40},
+        }
+    _fixture_commit_file(
+        validator,
+        root,
+        relative,
+        implementation._canonical_json_bytes(document),
+    )
+    drifted_anchor = replace(
+        anchor,
+        execution_head=(
+            _fixture_git(validator, root, "rev-parse", "HEAD").decode().strip()
+        ),
+    )
+
+    with pytest.raises(
+        validator.RehearsalV22ValidationError,
+        match=r"landed epoch",
+    ):
+        validator._validate_latest_landed_epoch(
+            project_root=root,
+            live_anchor=drifted_anchor,
+        )
+
+
+@pytest.mark.parametrize("mutation", ("commit-alias", "digest"))
+def test_latest_landed_epoch_rejects_lower_landing_review_alias_or_digest_drift(
+    latest_landed_epoch_repository: dict[str, Any],
+    mutation: str,
+) -> None:
+    implementation = importlib.import_module(IMPLEMENTATION_MODULE)
+    validator = _validator_module()
+    root = latest_landed_epoch_repository["root"]
+    anchor = latest_landed_epoch_repository["anchor"]
+    review_relative = Path(
+        "docs/phase4/reports/"
+        "P4.2a-v2-2-epoch4-implementation-independent-review-20260819.json"
+    )
+    review_payload = implementation._canonical_json_bytes(
+        {
+            "schema_version": "p4.2a-independent-review-v1",
+            "verdict": "APPROVE_EPOCH4_IMPLEMENTATION",
+            "reviewed_commit": anchor.implementation_commit,
+            "blockers": [],
+        }
+    )
+    review_commit = _fixture_commit_file(
+        validator,
+        root,
+        review_relative,
+        review_payload,
+    )
+    review_row = {
+        "path": review_relative.as_posix(),
+        "creating_commit": review_commit,
+        "sha256": hashlib.sha256(review_payload).hexdigest(),
+    }
+    if mutation == "commit-alias":
+        review_row["commit"] = review_commit
+    else:
+        review_row["sha256"] = "0" * 64
+    landing_relative = Path(
+        "docs/phase4/reports/"
+        "P4.2a-v2-2-epoch4-registered-gate-landing-report-20260819.json"
+    )
+    _fixture_commit_file(
+        validator,
+        root,
+        landing_relative,
+        implementation._canonical_json_bytes(
+            {
+                "schema_version": (
+                    "p4.2a-v2-2-epoch4-registered-gate-landing-report-v1"
+                ),
+                "status": "PASS_REGISTERED_GATE_LANDING_REPORT_READY_BEFORE_MERGE",
+                "candidate_lineage": {
+                    "implementation_commit": anchor.implementation_commit,
+                    "independent_review": review_row,
+                },
+                "planned_landing": {"second_parent": review_commit},
+            }
+        ),
+    )
+    drifted_anchor = replace(
+        anchor,
+        execution_head=(
+            _fixture_git(validator, root, "rev-parse", "HEAD").decode().strip()
+        ),
+    )
+
+    with pytest.raises(
+        validator.RehearsalV22ValidationError,
+        match=r"landing review.*(?:alias|digest)",
+    ):
+        validator._validate_latest_landed_epoch(
+            project_root=root,
+            live_anchor=drifted_anchor,
+        )
+
+
+def test_first_parent_governance_rejects_incomplete_epoch_99_artifact_in_root_commit(
+    tmp_path: Path,
+) -> None:
+    implementation = importlib.import_module(IMPLEMENTATION_MODULE)
+    validator = _validator_module()
+    root = tmp_path / "root-governance-artifact"
+    root.mkdir(mode=0o700)
+    _fixture_git(validator, root, "init", "--quiet")
+    relative = Path(
+        "docs/phase4/reports/"
+        "P4.2a-v2-2-epoch99-surface-authority-20260820.json"
+    )
+    (root / relative).parent.mkdir(parents=True, mode=0o700)
+    head = _fixture_commit_file(
+        validator,
+        root,
+        relative,
+        implementation._canonical_json_bytes(
+            {"schema_version": "p4.2a-v2-2-incomplete-root-epoch-v1"}
+        ),
+    )
+    chain = validator._first_parent_chain(root, head)
+
+    with pytest.raises(
+        validator.RehearsalV22ValidationError,
+        match=r"landed epoch authority",
+    ):
+        validator._validate_first_parent_epoch_governance(root=root, chain=chain)
 
 
 def test_both_active_schemas_are_closed_and_compile_under_draft_2020_12() -> None:
@@ -1721,7 +3418,7 @@ def test_validator_independent_review_accepts_exact_approve_prefix_and_commit() 
     )
 
 
-def test_bundle_epoch_table_discloses_void_epoch_one_before_used_epochs_two_and_three(
+def test_bundle_epoch_table_accepts_only_exact_used_epoch_gap_two_four(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
@@ -1740,12 +3437,23 @@ def test_bundle_epoch_table_discloses_void_epoch_one_before_used_epochs_two_and_
         SimpleNamespace(
             ordinal=ordinal,
             implementation_epoch=epoch,
+            outcome=(
+                "FAILED"
+                if ordinal == 1
+                else "CANDIDATE_VALIDATED_AND_SELECTED"
+            ),
             previous_history_root_sha256=str(ordinal) * 64,
             owner_action_time_authorization=owner,
         )
-        for ordinal, epoch in ((1, 2), (2, 3))
+        for ordinal, epoch in ((1, 2), (2, 4))
     )
-    history = SimpleNamespace(records=records, selected_attempt_ordinal=2)
+    history = SimpleNamespace(
+        records=records,
+        selected_attempt_ordinal=2,
+        validated_candidate_count=1,
+        incomplete_count=0,
+        series_closed=True,
+    )
     binding = SimpleNamespace(project_root=tmp_path)
     void = {
         "epoch": 1,
@@ -1768,7 +3476,7 @@ def test_bundle_epoch_table_discloses_void_epoch_one_before_used_epochs_two_and_
     ) -> Any:
         del _binding, _reference, expected_previous_history_root_sha256
         assert require_current_process is False
-        epoch = expected_ordinal + 1
+        epoch = 2 if expected_ordinal == 1 else 4
         return SimpleNamespace(
             implementation_epoch=epoch,
             implementation_commit=str(epoch) * 40,
@@ -1780,6 +3488,12 @@ def test_bundle_epoch_table_discloses_void_epoch_one_before_used_epochs_two_and_
 
     monkeypatch.setattr(implementation, "_current_execution_head", lambda _root: "9" * 40)
     monkeypatch.setattr(implementation, "_void_epoch_one", lambda *_args, **_kwargs: void)
+    void_three = _void_epoch_three_document(_validator_module())
+    monkeypatch.setattr(
+        implementation,
+        "_void_epoch_three",
+        lambda *_args, **_kwargs: void_three,
+    )
     monkeypatch.setattr(implementation, "_validate_action_authorization", authorization)
     monkeypatch.setattr(
         implementation,
@@ -1790,31 +3504,37 @@ def test_bundle_epoch_table_discloses_void_epoch_one_before_used_epochs_two_and_
     )
     monkeypatch.setattr(implementation, "_git_is_ancestor", lambda *_args: True)
     observed = implementation._implementation_epochs(binding, history)
-    assert [row["epoch"] for row in observed] == [1, 2, 3]
+    assert [row["epoch"] for row in observed] == [1, 2, 3, 4]
     assert observed[0] == void
+    assert observed[2] == void_three
     assert [(row["first_attempt_ordinal"], row["last_attempt_ordinal"]) for row in observed] == [
         (1, 1),
         (1, 1),
         (2, 2),
+        (2, 2),
     ]
 
-    gap_history = SimpleNamespace(
-        records=(
-            records[0],
-            SimpleNamespace(
-                **{
-                    **vars(records[1]),
-                    "implementation_epoch": 4,
-                }
+    for used_epochs in ((2, 5), (1, 3)):
+        gap_history = SimpleNamespace(
+            records=tuple(
+                SimpleNamespace(
+                    **{
+                        **vars(record),
+                        "implementation_epoch": epoch,
+                    }
+                )
+                for record, epoch in zip(records, used_epochs, strict=True)
             ),
-        ),
-        selected_attempt_ordinal=2,
-    )
-    with pytest.raises(
-        implementation.RehearsalV22Error,
-        match="epoch numbers are not contiguous",
-    ):
-        implementation._implementation_epochs(binding, gap_history)
+            selected_attempt_ordinal=2,
+            validated_candidate_count=1,
+            incomplete_count=0,
+            series_closed=True,
+        )
+        with pytest.raises(
+            implementation.RehearsalV22Error,
+            match="epoch numbers are not contiguous",
+        ):
+            implementation._implementation_epochs(binding, gap_history)
 
 
 def test_void_epoch_one_is_schema_compatible_and_does_not_consume_ordinal_one() -> None:
@@ -1913,6 +3633,151 @@ def test_void_epoch_one_is_schema_compatible_and_does_not_consume_ordinal_one() 
         validator._epoch_map({"implementation_epochs": [tampered, epoch_two]})
 
 
+def test_void_epoch_three_is_exact_and_excluded_from_interval_accounting() -> None:
+    validator = _validator_module()
+    void_one = {
+        "epoch": 1,
+        "implementation_commit": validator.VOID_EPOCH_ONE_IMPLEMENTATION_COMMIT,
+        "owner_exact_surface_authorization": _initial_sibling_reference(),
+        "independent_implementation_review": {
+            "path": validator.VOID_EPOCH_ONE_ADJUDICATION_RELATIVE.as_posix(),
+            "sha256": validator.VOID_EPOCH_ONE_ADJUDICATION_SHA256,
+            "creating_commit": validator.VOID_EPOCH_ONE_ADJUDICATION_COMMIT,
+            "unique_a_history_verified": True,
+        },
+        "control_merkle_root_sha256": "0" * 64,
+        "first_attempt_ordinal": 1,
+        "last_attempt_ordinal": 1,
+        "all_attempts_authorized": True,
+    }
+    epoch_two = _ordinary_epoch_document(2, first=1, last=1)
+    void_three = _void_epoch_three_document(validator)
+    epoch_four = _ordinary_epoch_document(4, first=2, last=2)
+    observed = validator._epoch_map(
+        {
+            "implementation_epochs": [
+                void_one,
+                epoch_two,
+                void_three,
+                epoch_four,
+            ]
+        }
+    )
+    assert list(observed) == [1, 2, 3, 4]
+    assert validator._is_void_epoch_one(observed[1]) is True
+    assert validator._is_void_epoch_three(observed[3]) is True
+    assert [
+        (row["first_attempt_ordinal"], row["last_attempt_ordinal"])
+        for row in observed.values()
+    ] == [(1, 1), (1, 1), (2, 2), (2, 2)]
+
+    bundle_schema, release_schema = _schemas()
+    bundle_epoch_schema = {
+        "$schema": bundle_schema["$schema"],
+        "$defs": bundle_schema["$defs"],
+        "$ref": "#/$defs/implementationEpoch",
+    }
+    assert not list(
+        Draft202012Validator(bundle_epoch_schema).iter_errors(void_three)
+    )
+    release_void = {
+        "epoch": void_three["epoch"],
+        "implementation_commit": void_three["implementation_commit"],
+        "owner_surface_authorization": void_three[
+            "owner_exact_surface_authorization"
+        ],
+        "independent_implementation_review": void_three[
+            "independent_implementation_review"
+        ],
+        "control_merkle_root_sha256": void_three[
+            "control_merkle_root_sha256"
+        ],
+        "first_attempt_ordinal": void_three["first_attempt_ordinal"],
+        "last_attempt_ordinal": void_three["last_attempt_ordinal"],
+    }
+    release_epoch_schema = {
+        "$schema": release_schema["$schema"],
+        "$defs": release_schema["$defs"],
+        "$ref": "#/$defs/implementationEpoch",
+    }
+    assert not list(
+        Draft202012Validator(release_epoch_schema).iter_errors(release_void)
+    )
+
+    with pytest.raises(
+        validator.RehearsalV22ValidationError,
+        match=r"void epoch 3.*epoch 4|executed epoch 4",
+    ):
+        validator._epoch_map(
+            {"implementation_epochs": [void_one, epoch_two, void_three]}
+        )
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    (
+        "epoch",
+        "implementation",
+        "owner",
+        "reason",
+        "control",
+        "first",
+        "last",
+        "authorization",
+    ),
+)
+def test_void_epoch_three_tamper_is_never_treated_as_a_sentinel(
+    mutation: str,
+) -> None:
+    validator = _validator_module()
+    void_one = {
+        "epoch": 1,
+        "implementation_commit": validator.VOID_EPOCH_ONE_IMPLEMENTATION_COMMIT,
+        "owner_exact_surface_authorization": _initial_sibling_reference(),
+        "independent_implementation_review": {
+            "path": validator.VOID_EPOCH_ONE_ADJUDICATION_RELATIVE.as_posix(),
+            "sha256": validator.VOID_EPOCH_ONE_ADJUDICATION_SHA256,
+            "creating_commit": validator.VOID_EPOCH_ONE_ADJUDICATION_COMMIT,
+            "unique_a_history_verified": True,
+        },
+        "control_merkle_root_sha256": "0" * 64,
+        "first_attempt_ordinal": 1,
+        "last_attempt_ordinal": 1,
+        "all_attempts_authorized": True,
+    }
+    epoch_two = _ordinary_epoch_document(2, first=1, last=1)
+    void_three = _void_epoch_three_document(validator)
+    epoch_four = _ordinary_epoch_document(4, first=2, last=2)
+    if mutation == "epoch":
+        void_three["epoch"] = 4
+    elif mutation == "implementation":
+        void_three["implementation_commit"] = "0" * 40
+    elif mutation == "owner":
+        void_three["owner_exact_surface_authorization"]["sha256"] = "0" * 64
+    elif mutation == "reason":
+        void_three["independent_implementation_review"]["sha256"] = "0" * 64
+    elif mutation == "control":
+        void_three["control_merkle_root_sha256"] = "0" * 64
+    elif mutation == "first":
+        void_three["first_attempt_ordinal"] = 3
+    elif mutation == "last":
+        void_three["last_attempt_ordinal"] = 3
+    else:
+        void_three["all_attempts_authorized"] = False
+    assert validator._is_void_epoch_three(void_three) is False
+    with pytest.raises(validator.RehearsalV22ValidationError):
+        validator._epoch_map(
+            {
+                "implementation_epochs": [
+                    void_one,
+                    epoch_two,
+                    void_three,
+                    epoch_four,
+                ]
+            }
+        )
+
+
 def test_fixed_void_epoch_one_real_lineage_round_trips_without_heavy_control(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -1965,6 +3830,105 @@ def test_fixed_void_epoch_one_real_lineage_round_trips_without_heavy_control(
         (PROJECT_ROOT, validator.VOID_EPOCH_ONE_IMPLEMENTATION_COMMIT, False),
         (PROJECT_ROOT, validator.VOID_EPOCH_ONE_IMPLEMENTATION_COMMIT, False),
     ]
+    assert _all_real_path_fingerprints() == before
+
+
+def test_fixed_void_epoch_three_real_lineage_round_trips_all_pinned_rulings(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    implementation = importlib.import_module(IMPLEMENTATION_MODULE)
+    validator = _validator_module()
+    execution_head = validator._git_bytes(PROJECT_ROOT, "rev-parse", "HEAD").decode().strip()
+    calls: list[tuple[Path, str, bool]] = []
+
+    def control(root: Path, commit: str, *, require_current: bool) -> Any:
+        calls.append((root, commit, require_current))
+        return SimpleNamespace(
+            implementation_commit=commit,
+            merkle_root_sha256=validator.VOID_EPOCH_THREE_CONTROL_ROOT_SHA256,
+            loaded_repository_sources=(),
+            ast_closure_paths=(),
+            records=tuple(
+                {
+                    "repository_path": (
+                        f"synthetic/control/member-{index:02d}.json"
+                    )
+                }
+                for index in range(validator.VOID_EPOCH_THREE_CONTROL_RECORD_COUNT)
+            ),
+        )
+
+    monkeypatch.setattr(implementation, "_validate_git_metadata_authority", lambda _root: None)
+    monkeypatch.setattr(implementation, "build_control_surface", control)
+    before = _all_real_path_fingerprints()
+    epoch = implementation._void_epoch_three(
+        SimpleNamespace(project_root=PROJECT_ROOT),
+        execution_head=execution_head,
+    )
+    validator._validate_void_epoch_three(
+        project_root=PROJECT_ROOT,
+        epoch=epoch,
+        execution_head=execution_head,
+    )
+    assert epoch == _void_epoch_three_document(validator)
+    assert calls == [
+        (
+            PROJECT_ROOT,
+            validator.VOID_EPOCH_THREE_IMPLEMENTATION_COMMIT,
+            False,
+        ),
+        (
+            PROJECT_ROOT,
+            validator.VOID_EPOCH_THREE_IMPLEMENTATION_COMMIT,
+            False,
+        ),
+    ]
+    producer_source = inspect.getsource(implementation._void_epoch_three)
+    validator_source = inspect.getsource(validator._validate_void_epoch_three)
+    producer_pins = (
+        "VOID_EPOCH_THREE_REVIEW_COMMIT",
+        "VOID_EPOCH_THREE_LANDING_COMMIT",
+        "VOID_EPOCH_THREE_GATE_RULING_COMMIT",
+        "VOID_EPOCH_THREE_REANCHOR_COMMIT",
+        "VOID_EPOCH_THREE_REASON_COMMIT",
+    )
+    validator_pins = (
+        "VOID_EPOCH_THREE_REVIEW_COMMIT",
+        "VOID_EPOCH_THREE_LANDING_COMMIT",
+        "VOID_EPOCH_THREE_GATE_ADJUDICATION_COMMIT",
+        "VOID_EPOCH_THREE_REANCHOR_COMMIT",
+        "VOID_EPOCH_THREE_REASON_COMMIT",
+    )
+    assert all(name in producer_source for name in producer_pins)
+    assert all(name in validator_source for name in validator_pins)
+    review_path = validator.VOID_EPOCH_THREE_REVIEW_RELATIVE.as_posix()
+    assert set(
+        validator._path_history_touches(PROJECT_ROOT, relative=review_path)
+    ) == {
+        (
+            validator.VOID_EPOCH_THREE_REVIEW_COMMIT,
+            "A",
+            (review_path,),
+        ),
+        (
+            validator.VOID_EPOCH_THREE_LANDING_COMMIT,
+            "A",
+            (review_path,),
+        ),
+    }
+    source_review_payload = validator._git_blob(
+        PROJECT_ROOT,
+        validator.VOID_EPOCH_THREE_REVIEW_COMMIT,
+        review_path,
+    )
+    assert hashlib.sha256(source_review_payload).hexdigest() == (
+        validator.VOID_EPOCH_THREE_REVIEW_SHA256
+    )
+    assert validator._git_blob(
+        PROJECT_ROOT,
+        validator.VOID_EPOCH_THREE_LANDING_COMMIT,
+        review_path,
+    ) == source_review_payload
     assert _all_real_path_fingerprints() == before
 
 
@@ -2546,6 +4510,7 @@ def _assert_initial_sibling_baseline_pass(
         repository["root"],
         _initial_sibling_reference(),
         execution_head=repository["execution_head"],
+        require_worktree=True,
     )
     assert hashlib.sha256(payload).hexdigest() == INITIAL_SIBLING_SHA256
     assert _all_real_path_fingerprints() == before
@@ -2619,6 +4584,7 @@ def test_initial_sibling_rejects_any_substituted_reference_after_baseline_pass(
             initial_sibling_git_repository["root"],
             reference,
             execution_head=initial_sibling_git_repository["execution_head"],
+            require_worktree=True,
         )
 
 
@@ -2752,6 +4718,7 @@ def test_initial_sibling_graph_rejects_lineage_or_path_reintroduction_after_base
             root,
             _initial_sibling_reference(),
             execution_head=execution_head,
+            require_worktree=True,
         )
 
 
@@ -2790,6 +4757,7 @@ def test_initial_sibling_worktree_is_optional_but_any_present_entry_is_exact_reg
                 root,
                 _initial_sibling_reference(),
                 execution_head=initial_sibling_git_repository["execution_head"],
+                require_worktree=True,
             )
             == payload
         )
@@ -2802,6 +4770,7 @@ def test_initial_sibling_worktree_is_optional_but_any_present_entry_is_exact_reg
                 root,
                 _initial_sibling_reference(),
                 execution_head=initial_sibling_git_repository["execution_head"],
+                require_worktree=True,
             )
 
 
@@ -2829,6 +4798,295 @@ def test_initial_sibling_fixed_parent_diff_blob_and_callsite_partition_are_expli
     assert "else:\n            owner_payload = _unique_a_authority(" in epoch_source
     assert "_unique_a_authority(" in epoch_source
     assert "_validate_implementation_review_authority(" in epoch_source
+
+
+def test_historical_initial_sibling_calls_never_require_worktree_bytes(
+    initial_sibling_git_repository: dict[str, Any],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    validator = _validator_module()
+    for function_name in (
+        "_validate_control_archive",
+        "_validate_void_epoch_one",
+        "_validate_implementation_epochs",
+    ):
+        tree = ast.parse(inspect.getsource(getattr(validator, function_name)))
+        calls = [
+            node
+            for node in ast.walk(tree)
+            if isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Name)
+            and node.func.id == "_validate_initial_sibling_authority"
+        ]
+        assert calls, function_name
+        for call in calls:
+            values = [
+                keyword.value
+                for keyword in call.keywords
+                if keyword.arg == "require_worktree"
+            ]
+            assert len(values) == 1
+            assert isinstance(values[0], ast.Constant)
+            assert values[0].value is False
+
+    def forbidden_worktree_read(*_args: object, **_kwargs: object) -> bytes:
+        raise AssertionError("historical validation attempted a worktree byte read")
+
+    monkeypatch.setattr(validator, "_regular_bytes", forbidden_worktree_read)
+    payload = validator._validate_initial_sibling_authority(
+        initial_sibling_git_repository["root"],
+        _initial_sibling_reference(),
+        execution_head=initial_sibling_git_repository["execution_head"],
+        require_worktree=False,
+    )
+    assert hashlib.sha256(payload).hexdigest() == INITIAL_SIBLING_SHA256
+
+
+def test_historical_action_owner_and_review_calls_never_request_current_bytes() -> None:
+    validator = _validator_module()
+
+    def false_keywords(function_name: str, callee: str, keyword: str) -> list[ast.Constant]:
+        tree = ast.parse(inspect.getsource(getattr(validator, function_name)))
+        values: list[ast.Constant] = []
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Call):
+                continue
+            function = node.func
+            name = (
+                function.id
+                if isinstance(function, ast.Name)
+                else function.attr
+                if isinstance(function, ast.Attribute)
+                else ""
+            )
+            if name != callee:
+                continue
+            matches = [item.value for item in node.keywords if item.arg == keyword]
+            assert len(matches) == 1, (function_name, callee, keyword)
+            assert isinstance(matches[0], ast.Constant)
+            values.append(matches[0])
+        assert values, (function_name, callee, keyword)
+        assert all(value.value is False for value in values)
+        return values
+
+    false_keywords(
+        "_validate_attempt_history_records",
+        "_unique_a_authority",
+        "require_worktree",
+    )
+    false_keywords(
+        "_validate_implementation_epochs",
+        "_unique_a_authority",
+        "require_worktree",
+    )
+    false_keywords(
+        "_validate_implementation_epochs",
+        "_validate_implementation_review_authority",
+        "require_worktree",
+    )
+    false_keywords(
+        "_validate_implementation_epochs",
+        "validate_implementation_epoch",
+        "require_current_bytes",
+    )
+    lineage_source = inspect.getsource(validator._validate_lineage)
+    assert "_regular_bytes(" not in lineage_source
+    lineage_tree = ast.parse(lineage_source)
+    lineage_authority_calls = [
+        node
+        for node in ast.walk(lineage_tree)
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Name)
+        and node.func.id == "_unique_a_authority"
+    ]
+    assert lineage_authority_calls
+    for call in lineage_authority_calls:
+        values = [item.value for item in call.keywords if item.arg == "require_worktree"]
+        assert len(values) == 1
+        assert isinstance(values[0], ast.Constant)
+        assert values[0].value is False
+
+
+def test_producer_void_and_history_archive_governance_is_git_only() -> None:
+    implementation = importlib.import_module(IMPLEMENTATION_MODULE)
+
+    def false_keyword_calls(function_name: str, callee: str, keyword: str) -> int:
+        tree = ast.parse(inspect.getsource(getattr(implementation, function_name)))
+        calls = [
+            node
+            for node in ast.walk(tree)
+            if isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Name)
+            and node.func.id == callee
+        ]
+        assert calls, (function_name, callee)
+        for call in calls:
+            values = [item.value for item in call.keywords if item.arg == keyword]
+            assert len(values) == 1, (function_name, callee, keyword)
+            assert isinstance(values[0], ast.Constant)
+            assert values[0].value is False
+        return len(calls)
+
+    assert false_keyword_calls(
+        "_void_epoch_one",
+        "validate_unique_a_authority",
+        "require_current",
+    ) == 3
+    assert false_keyword_calls(
+        "_void_epoch_three",
+        "validate_unique_a_authority",
+        "require_current",
+    ) == 3
+    assert false_keyword_calls(
+        "_void_epoch_three",
+        "_later_epoch_surface",
+        "require_current",
+    ) == 1
+    assert false_keyword_calls(
+        "_history_archive",
+        "validate_unique_a_authority",
+        "require_current",
+    ) == 1
+    history_source = inspect.getsource(implementation._history_archive)
+    assert "action_path =" not in history_source
+    assert "action_payload = _regular_bytes" not in history_source
+    assert "record.owner_action_time_authorization" in history_source
+    assert "_sha256(action_payload)" in history_source
+
+
+def test_producer_history_archive_uses_action_creation_blob_when_worktree_is_absent(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    implementation = importlib.import_module(IMPLEMENTATION_MODULE)
+    project_root = (tmp_path / "history-archive-project").absolute()
+    project_root.mkdir(mode=0o700)
+    ledger_root = (tmp_path / "history-archive-ledger").absolute()
+    ledger_root.mkdir(mode=0o700)
+    (ledger_root / "series.json").write_bytes(b"{}\n")
+    (ledger_root / ".series.lock").write_bytes(b"")
+    token = "1" * 64
+    binding = implementation.ExecutionBinding(
+        mode="DISPOSABLE_FULL_SHAPE_TEST",
+        project_root=project_root,
+        shim_path=project_root / SHIM_RELATIVE,
+        action_authorization_path=project_root / "unused.json",
+        destination=project_root / "destination",
+        series_token_sha256=token,
+        ledger_root=ledger_root,
+    )
+    action_relative = (
+        "docs/phase4/reports/"
+        "P4.2a-v2-2-rehearsal-attempt-000001-execution-authorization-20260811.json"
+    )
+    action_payload = implementation._canonical_json_bytes({"authority": "immutable-git"})
+    action = implementation.AuthorityReference(
+        action_relative,
+        hashlib.sha256(action_payload).hexdigest(),
+        "2" * 40,
+    )
+    attempt_root = ledger_root / "attempts/000001"
+    record = implementation.ValidatedAttemptRecord(
+        ordinal=1,
+        outcome="CANDIDATE_VALIDATED_AND_SELECTED",
+        reached_stage="bundle_candidate_validated",
+        attempt_token_sha256="3" * 64,
+        previous_history_root_sha256="4" * 64,
+        implementation_epoch=4,
+        implementation_commit="5" * 40,
+        owner_action_time_authorization=action,
+        command_sha256="6" * 64,
+        environment_sha256="7" * 64,
+        started_path=attempt_root / "started.json",
+        started_bytes=b'{"started":true}\n',
+        started_sha256="8" * 64,
+        candidate_path=attempt_root / "candidate.json",
+        candidate_bytes=b'{"candidate":true}\n',
+        candidate_sha256="9" * 64,
+        terminal_path=attempt_root / "terminal.json",
+        terminal_bytes=b'{"terminal":true}\n',
+        terminal_sha256="a" * 64,
+        evidence_tree_root_sha256=implementation._evidence_empty_root_sha256(),
+        artifact_inventory=(),
+        error=None,
+        record_root_sha256="b" * 64,
+        history_root_sha256="c" * 64,
+    )
+    history = implementation.HistoryValidation(
+        binding=binding,
+        ledger_exists=True,
+        records=(record,),
+        started_count=1,
+        failed_count=0,
+        incomplete_count=0,
+        validated_candidate_count=1,
+        selected_attempt_ordinal=1,
+        series_closed=True,
+        history_root_sha256="c" * 64,
+        live_ledger_root_sha256="d" * 64,
+        live_file_inventory=(),
+    )
+    action_worktree = project_root / action_relative
+    original_regular_bytes = implementation._regular_bytes
+    calls: list[tuple[str, bool | None]] = []
+
+    def regular_bytes(path: Path, label: str, **kwargs: object) -> bytes:
+        if path == action_worktree:
+            raise AssertionError("history archive read action authority from worktree")
+        return original_regular_bytes(path, label, **kwargs)
+
+    def unique_authority(
+        _root: Path,
+        authority: Any,
+        **kwargs: object,
+    ) -> bytes:
+        calls.append((authority.path, kwargs.get("require_current")))
+        return action_payload
+
+    monkeypatch.setattr(implementation, "_regular_bytes", regular_bytes)
+    monkeypatch.setattr(implementation, "_current_execution_head", lambda _root: "e" * 40)
+    monkeypatch.setattr(implementation, "validate_unique_a_authority", unique_authority)
+    archive = implementation._history_archive(binding, history)
+    archived_path = "archive/attempt-history/attempts/000001/action-time-authorization.json"
+    assert archive.payloads[archived_path] == action_payload
+    assert calls == [(action_relative, False)]
+    assert not os.path.lexists(action_worktree)
+
+
+def test_recovery_schema_and_lineage_read_selected_git_tree(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    implementation = importlib.import_module(IMPLEMENTATION_MODULE)
+    selected_commit = "1" * 40
+    observed: list[tuple[str, str]] = []
+
+    def git_blob(_root: Path, commit: str, relative: str) -> bytes:
+        assert commit == selected_commit
+        observed.append((commit, relative))
+        return (PROJECT_ROOT / relative).read_bytes()
+
+    def forbidden_current_read(*_args: object, **_kwargs: object) -> bytes:
+        raise AssertionError("recovery historical schema/lineage read current bytes")
+
+    monkeypatch.setattr(implementation, "_git_blob", git_blob)
+    monkeypatch.setattr(implementation, "_regular_bytes", forbidden_current_read)
+    schema = implementation._bundle_schema(
+        PROJECT_ROOT,
+        historical_selected_commit=selected_commit,
+    )
+    lineage = implementation._bundle_lineage(
+        PROJECT_ROOT,
+        implementation_commit=selected_commit,
+        historical_selected_commit=selected_commit,
+    )
+    assert schema["$schema"] == "https://json-schema.org/draft/2020-12/schema"
+    assert lineage["implementation_commit"] == selected_commit
+    assert (selected_commit, BUNDLE_SCHEMA_RELATIVE.as_posix()) in observed
+    assert len(observed) > 10
+    build_source = inspect.getsource(implementation._build_bundle)
+    assert "isinstance(run_a, _SealedPipelineReplay)" in build_source
+    assert "historical_anchor.selected_commit if all(sealed_inputs) else None" in build_source
+    assert "historical_selected_commit=historical_source_commit" in build_source
 
 
 def test_generic_authority_keeps_unique_a_semantics_for_non_sibling_paths(
