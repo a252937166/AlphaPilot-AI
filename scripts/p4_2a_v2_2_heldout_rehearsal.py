@@ -46,9 +46,9 @@ import sysconfig
 import tempfile
 import uuid
 from collections.abc import Callable, Iterator, Mapping, Sequence
-from contextlib import contextmanager
+from contextlib import contextmanager, nullcontext
 from dataclasses import dataclass, replace
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta, timezone
 from pathlib import Path, PurePosixPath
 from types import ModuleType
 from typing import Any, Literal, NoReturn, cast
@@ -446,6 +446,24 @@ def _git_audit_allowed(
             relative == operation[5]
             and policy.subprocess_mode in {"git-read", "synthetic-git"}
         )
+    if operation[0] == "diff-tree":
+        return (
+            len(operation) == 11
+            and operation[1:9]
+            == (
+                "--root",
+                "--no-commit-id",
+                "-r",
+                "--no-ext-diff",
+                "--no-textconv",
+                "--name-status",
+                "--no-renames",
+                "-z",
+            )
+            and _lower_hex(operation[9], 40)
+            and operation[10] == "--"
+            and policy.subprocess_mode in {"git-read", "synthetic-git"}
+        )
     read_only = operation[0] in {
         "cat-file",
         "diff",
@@ -831,6 +849,55 @@ VOID_EPOCH_ONE_RULING = (
     "The numbering contract's intent, no gaps and no reuse among EXECUTED epochs, "
     "is preserved; only the assumption that execution starts at 1 is corrected.",
 )
+VOID_EPOCH_THREE_IMPLEMENTATION_COMMIT = "d4fb0d8c763b9fa104949ea2ac58bc921d9e8889"
+VOID_EPOCH_THREE_IMPLEMENTATION_PARENT = "d6c9c353217e00730457bf6b944ff26a32b8cf85"
+VOID_EPOCH_THREE_OWNER_RELATIVE = Path(
+    "docs/phase4/reports/P4.2a-v2-2-epoch3-surface-authority-20260813.json"
+)
+VOID_EPOCH_THREE_OWNER_SHA256 = (
+    "44c2ab4e310da3f4b4a11efef8b9c20f73d231dc2b8f44dc535616cf18c646b3"
+)
+VOID_EPOCH_THREE_REVIEW_RELATIVE = Path(
+    "docs/phase4/reports/"
+    "P4.2a-v2-2-epoch3-r2-implementation-independent-review-20260814.json"
+)
+VOID_EPOCH_THREE_REVIEW_SHA256 = (
+    "590d6b6b24bb6672956ea320a21458aa10523514ec384586029f09ef2cf757ef"
+)
+VOID_EPOCH_THREE_REVIEW_COMMIT = "bf9f610bda54523d69ecda0a72bf8fe89eaef78c"
+VOID_EPOCH_THREE_LANDING_COMMIT = "006927080312b0e563e4ec3058b706455b33b70d"
+VOID_EPOCH_THREE_LANDING_PARENT = "5791041e7eb48ffc6977752e381b10333bf53358"
+VOID_EPOCH_THREE_CONTROL_ROOT_SHA256 = (
+    "5ba2a3dc7f1512efd52e2654b4ac4a491c13218cfe6f92fda8db885be1d9ebbf"
+)
+VOID_EPOCH_THREE_CONTROL_RECORD_COUNT = 75
+VOID_EPOCH_THREE_GATE_RULING_RELATIVE = Path(
+    "docs/phase4/reports/P4.2a-epoch3-gate-failure-adjudication-20260814.json"
+)
+VOID_EPOCH_THREE_GATE_RULING_SHA256 = (
+    "29e476f1b2817bf8c6bb711230ba8ecb74f27d08648526f12073de3c8a1d067f"
+)
+VOID_EPOCH_THREE_GATE_RULING_COMMIT = "578a62551729e3bdc37ef6f2d2a9851fdf785dbd"
+VOID_EPOCH_THREE_REANCHOR_RELATIVE = Path(
+    "docs/phase4/reports/P4.2a-epoch4-reanchor-companion-20260818.json"
+)
+VOID_EPOCH_THREE_REANCHOR_SHA256 = (
+    "14a4eb277b3e3fb8ac181d432bdf4ee7821c339a25990991408b1759711fc546"
+)
+VOID_EPOCH_THREE_REANCHOR_COMMIT = "8b25d36033791efb4e800182150f4e7cae9ff597"
+VOID_EPOCH_THREE_REASON_RELATIVE = Path(
+    "docs/phase4/reports/P4.2a-attempt2-adjudication-and-epoch5-direction-20260819.json"
+)
+VOID_EPOCH_THREE_REASON_SHA256 = (
+    "e7e7615a404c216cfaf6ccba9a523cb46de48d82cd8a178c19612a1a38795180"
+)
+VOID_EPOCH_THREE_REASON_COMMIT = "0548692480ff8325b69be92f01e0d42e11ad4eb0"
+VOID_EPOCH_THREE_SURFACE: Mapping[str, str] = {
+    IMPLEMENTATION_RELATIVE.as_posix(): "M",
+    VALIDATOR_RELATIVE.as_posix(): "M",
+    RUNNER_TEST_RELATIVE.as_posix(): "M",
+    VALIDATOR_TEST_RELATIVE.as_posix(): "M",
+}
 INCIDENT_RELATIVE = Path(
     "docs/phase4/reports/P4.2a-v2-heldout-rehearsal-v2-1-one-shot-consumed-incident-20260811.json"
 )
@@ -856,6 +923,48 @@ OFFICIAL_DESTINATION = REGISTERED_PROJECT_ROOT / DESTINATION_RELATIVE
 OFFICIAL_SERIES_TOKEN = "35ba1b83a9b187817d7a591758e1c131e867fcd37917cba0ab196799fff832ef"
 OFFICIAL_LEDGER_ROOT = REGISTERED_PROJECT_ROOT.parent / (
     ".alphapilot-p4-2a-v2-2-execution-claim-" + OFFICIAL_SERIES_TOKEN
+)
+OFFICIAL_SEALED_HISTORY_ROOT_SHA256 = (
+    "a466de7b349882f2bcd556a4b4d00bf38bace9adb593b0e3b6296c415a8c9ca1"
+)
+OFFICIAL_SEALED_LIVE_LEDGER_ROOT_SHA256 = (
+    "9aa7923239e687be2e17f91b8e0e8213d28ad2b08348efb1ae1457a4dddee6e6"
+)
+OFFICIAL_FAILED_EPOCH_TWO_IMPLEMENTATION_COMMIT = (
+    "1b4e05c6acd513bb1bc11245911da97b6a128ca1"
+)
+OFFICIAL_FAILED_STARTED_SHA256 = (
+    "a6a475abb6df4169d5b117283e2d313ee8088b527e9e8e57e9e127e7b56641be"
+)
+OFFICIAL_FAILED_TERMINAL_SHA256 = (
+    "d922fb19dd55451ddf27bbf7749fa2fcc716b717a08d21b43d8d54cc9d03ede2"
+)
+OFFICIAL_FAILED_EVIDENCE_ROOT_SHA256 = (
+    "deea0e81e3fd8a5c886cc4c757fb5485cb7f750718462489dea48d3deed2691c"
+)
+OFFICIAL_SELECTED_EPOCH_FOUR_IMPLEMENTATION_COMMIT = (
+    "890e9002116c625d41f6aa037975df15d1546c56"
+)
+OFFICIAL_SELECTED_STARTED_SHA256 = (
+    "75771a37572fb9191a9db26f986b1e9d89c26843556b502866322a8f4bdaf42d"
+)
+OFFICIAL_SELECTED_CANDIDATE_SHA256 = (
+    "92652f963b04b79e29580978cd6857c2154df0b429ac09502be6c0c0c5d84da5"
+)
+OFFICIAL_SELECTED_TERMINAL_SHA256 = (
+    "7ba4ed1b5d7e7abc462b312f08b131ff438cc524cecbdeea6b43dc199292e3dc"
+)
+OFFICIAL_SELECTED_CONTROL_ROOT_SHA256 = (
+    "76076606d6e40cdd386b28cdd5bc40a8957693b8cfdc8b17a0a77410b4e082e8"
+)
+OFFICIAL_SELECTED_EVIDENCE_ROOT_SHA256 = (
+    "f38b18b972f14a170fc9bb4129f25ec77e8ad1c4e8a8f137b5853cc371b694c2"
+)
+OFFICIAL_SELECTED_CANDIDATE_CONTENT_ROOT_SHA256 = (
+    "5de4f74d1f73e5f90aa9c196c8fc6574bce2ecfa91abd750b22726c14c6a60b7"
+)
+OFFICIAL_SELECTED_RUN_ROOT_SHA256 = (
+    "5fb8edf3aa65cdcd0f54b82bdf6f240104fa8537c1004e640671910115f8f314"
 )
 V2_1_DESTINATION = REGISTERED_PROJECT_ROOT / ("docs/phase4/rehearsals/P4.2a-v2-calibration-v2-1")
 V2_1_EMPTY_CLAIM = REGISTERED_PROJECT_ROOT.parent / (
@@ -1100,6 +1209,14 @@ def _lower_hex(value: object, length: int) -> bool:
         and len(value) == length
         and all(character in "0123456789abcdef" for character in value)
     )
+
+
+def _is_exact_int(value: object, expected: int | None = None) -> bool:
+    return type(value) is int and (expected is None or value == expected)
+
+
+def _is_exact_bool_mapping(value: Mapping[str, object]) -> bool:
+    return all(type(item) is bool for item in value.values())
 
 
 def _relative_text(value: object, label: str) -> str:
@@ -2187,6 +2304,7 @@ def validate_unique_a_authority(
     *,
     execution_head: str,
     allow_initial_sibling: bool = False,
+    require_current: bool = True,
 ) -> bytes:
     """Rehash a create-only authority and prove its unique status-A history."""
 
@@ -2250,7 +2368,7 @@ def validate_unique_a_authority(
     if _sha256(payload) != authority.sha256:
         raise RehearsalV22Error("authority bytes differ from its SHA-256 binding")
     current_path = root.joinpath(*PurePosixPath(authority.path).parts)
-    if os.path.lexists(current_path):
+    if require_current and os.path.lexists(current_path):
         current = _regular_bytes(current_path, f"current authority {authority.path}")
         if current != payload:
             raise RehearsalV22Error("current authority differs from unique creation blob")
@@ -2345,11 +2463,31 @@ def _frozen_delta_pointers(
     return pointers
 
 
-def validate_strict_v2_1_inheritance(project_root: Path) -> JsonObject:
+def validate_strict_v2_1_inheritance(
+    project_root: Path,
+    *,
+    implementation_commit: str | None = None,
+    require_current: bool = True,
+) -> JsonObject:
     """Independently rederive the frozen v2.1 projection and schema zero-diffs."""
 
     root = project_root.absolute()
-    prereg_payload = _regular_bytes(root / PREREGISTRATION_RELATIVE, "v2.2 preregistration")
+    immutable_commit = (
+        None
+        if require_current
+        else _git_commit(
+            root,
+            implementation_commit,
+            "historical inheritance implementation commit",
+        )
+    )
+
+    def inheritance_payload(relative: Path, label: str) -> bytes:
+        if immutable_commit is None:
+            return _regular_bytes(root / relative, label)
+        return _git_blob(root, immutable_commit, relative.as_posix())
+
+    prereg_payload = inheritance_payload(PREREGISTRATION_RELATIVE, "v2.2 preregistration")
     if _sha256(prereg_payload) != PREREGISTRATION_SHA256:
         raise RehearsalV22Error("v2.2 preregistration bytes drifted")
     prereg = _object(
@@ -2361,8 +2499,10 @@ def validate_strict_v2_1_inheritance(project_root: Path) -> JsonObject:
         inheritance.get("source_projection"),
         "inheritance source projection",
     )
-    v2_1_path = _safe_path(root, source_contract.get("source_file"), "v2.1 preregistration")
-    v2_1_payload = _regular_bytes(v2_1_path, "v2.1 preregistration")
+    v2_1_relative = Path(
+        _relative_text(source_contract.get("source_file"), "v2.1 preregistration")
+    )
+    v2_1_payload = inheritance_payload(v2_1_relative, "v2.1 preregistration")
     expected_base = CARRY_FORWARD_AUTHORITIES["v2_1_preregistration"]
     if _sha256(v2_1_payload) != expected_base[1]:
         raise RehearsalV22Error("v2.1 preregistration projection source drifted")
@@ -2457,8 +2597,8 @@ def validate_strict_v2_1_inheritance(project_root: Path) -> JsonObject:
             "release_schema_delta_domains",
         ),
     ):
-        old_payload = _regular_bytes(root / old_path, f"v2.1 {label} schema")
-        new_payload = _regular_bytes(root / new_path, f"v2.2 {label} schema")
+        old_payload = inheritance_payload(old_path, f"v2.1 {label} schema")
+        new_payload = inheritance_payload(new_path, f"v2.2 {label} schema")
         if _sha256(old_payload) != old_sha or _sha256(new_payload) != new_sha:
             raise RehearsalV22Error(f"{label} schema bytes drifted")
         old = copy.deepcopy(
@@ -2484,13 +2624,27 @@ def validate_carry_forward_lineage(
     project_root: Path,
     *,
     execution_head: str,
+    implementation_commit: str | None = None,
     require_current: bool = True,
 ) -> tuple[AuthorityReference, ...]:
     """Reprove the nine frozen carry-forward rows and v2.1 exact 15-path tree."""
 
     root = project_root.absolute()
     head = _git_commit(root, execution_head, "carry-forward execution head")
-    prereg_payload = _regular_bytes(root / PREREGISTRATION_RELATIVE, "v2.2 preregistration")
+    historical_commit = (
+        None
+        if require_current
+        else _git_commit(
+            root,
+            implementation_commit,
+            "historical carry-forward implementation commit",
+        )
+    )
+    prereg_payload = (
+        _regular_bytes(root / PREREGISTRATION_RELATIVE, "v2.2 preregistration")
+        if historical_commit is None
+        else _git_blob(root, historical_commit, PREREGISTRATION_RELATIVE.as_posix())
+    )
     if _sha256(prereg_payload) != PREREGISTRATION_SHA256:
         raise RehearsalV22Error("v2.2 preregistration bytes drifted")
     prereg = _object(
@@ -2535,7 +2689,12 @@ def validate_carry_forward_lineage(
         raise RehearsalV22Error("carry-forward lineage registry drifted")
     references = tuple(AuthorityReference(path, digest, commit) for path, digest, commit in named)
     for reference in references:
-        validate_unique_a_authority(root, reference, execution_head=head)
+        validate_unique_a_authority(
+            root,
+            reference,
+            execution_head=head,
+            require_current=require_current,
+        )
     parents = (
         _git_bytes(
             root,
@@ -2660,6 +2819,7 @@ def _later_epoch_surface(
         root,
         owner_surface_authorization,
         execution_head=execution_head,
+        require_current=require_current,
     )
     document = _object(
         strict_json_loads(payload, source="later epoch surface authorization"),
@@ -2703,6 +2863,23 @@ def _later_epoch_surface(
     )
     if authority_parents != [owner_surface_authorization.creating_commit, base_commit]:
         raise RehearsalV22Error("later epoch authority is not the direct child of its base")
+    authority_surface = _parse_name_status(
+        _git_bytes(
+            root,
+            "diff",
+            "--no-ext-diff",
+            "--no-textconv",
+            "--name-status",
+            "--no-renames",
+            base_commit,
+            owner_surface_authorization.creating_commit,
+            "--",
+        )
+    )
+    if authority_surface != {owner_surface_authorization.path: "A"}:
+        raise RehearsalV22Error(
+            "later epoch authority commit is not the exact unique-A authority surface"
+        )
     selected = _git_commit(root, implementation_commit, "later epoch implementation")
     selected_parents = (
         _git_bytes(
@@ -2813,6 +2990,7 @@ def validate_implementation_epoch(
             owner_surface_authorization,
             execution_head=head,
             allow_initial_sibling=True,
+            require_current=require_current_bytes,
         )
         surface_document = _object(
             strict_json_loads(surface_payload, source="initial surface review"),
@@ -2846,6 +3024,7 @@ def validate_implementation_epoch(
         root,
         independent_review,
         execution_head=head,
+        require_current=require_current_bytes,
     )
     review_document = _object(
         strict_json_loads(review_payload, source="implementation review"),
@@ -3197,6 +3376,133 @@ ACTION_AUTHORIZATION_FIELDS = {
     "heldout_evaluation_authorized",
     "locks",
 }
+RECOVERY_AUTHORIZATION_FIELDS = {
+    "schema_version",
+    "authorization_id",
+    "created_at_utc",
+    "created_at_shanghai",
+    "verdict",
+    "owner",
+    "sealed_series",
+    "execution_epoch",
+    "destination",
+    "exact_argv",
+    "command_sha256",
+    "exact_environment",
+    "environment_sha256",
+    "authorized_bundle_recovery_starts",
+    "authorized_pipeline_starts",
+    "automatic_retry_count",
+    "effect_authorization",
+    "interpreter",
+    "locks",
+}
+RECOVERY_OWNER_FIELDS = {"identity", "approved", "scope"}
+RECOVERY_SEALED_SERIES_FIELDS = {
+    "series_id",
+    "series_token_sha256",
+    "ledger_root",
+    "history_root_sha256",
+    "live_ledger_root_sha256",
+    "series_closed",
+    "started_count",
+    "failed_count",
+    "incomplete_count",
+    "validated_candidate_count",
+    "selected_attempt_ordinal",
+    "selected_implementation_epoch",
+    "selected_implementation_commit",
+    "selected_control_merkle_root_sha256",
+    "selected_evidence_tree_root_sha256",
+    "selected_candidate_content_root_sha256",
+    "selected_run_a_root_sha256",
+    "selected_run_b_root_sha256",
+    "selected_terminal_outcome",
+    "selected_reached_stage",
+    "automatic_retry_count",
+    "selected_files",
+}
+RECOVERY_SELECTED_FILES_FIELDS = {"started", "candidate", "terminal"}
+RECOVERY_SELECTED_FILE_FIELDS = {"relative_path", "sha256", "bytes"}
+RECOVERY_EXECUTION_EPOCH_FIELDS = {
+    "epoch",
+    "implementation_commit",
+    "owner_exact_surface_authorization",
+    "independent_implementation_review",
+    "merge_commit",
+    "landing_report",
+    "control_merkle_root_sha256",
+    "control_record_count",
+    "latest_complete_landed_epoch_required",
+    "current_control_bytes_required",
+    "loaded_module_bytes_required",
+}
+RECOVERY_DESTINATION_FIELDS = {
+    "absolute_path",
+    "required_absent_before_start",
+    "publication_mode",
+    "bundle_schema_version",
+    "expected_bundle_status",
+}
+RECOVERY_INTERPRETER_FIELDS = {"path", "sha256", "version"}
+RECOVERY_EFFECT_FIELDS = {
+    "ledger_read",
+    "ledger_write",
+    "git_object_read",
+    "git_or_worktree_write",
+    "recovery_claim_create_once",
+    "temporary_stage_create_once",
+    "destination_publish_once",
+    "attempt_allocation",
+    "candidate_or_terminal_rewrite",
+    "pipeline_execution",
+    "model_access",
+    "network_access",
+    "sqlite_or_production_database_access",
+    "heldout_materialization_inference_or_evaluation",
+}
+RECOVERY_LOCK_FIELDS = {
+    "p4_2a_done",
+    "p4_2b_unlocked",
+    "p4_3_unlocked",
+    "heldout_evaluation_unlocked",
+    "real_trading_unlocked",
+    "non_simulate_trading_unlocked",
+}
+RECOVERY_STARTED_FIELDS = {
+    "schema_version",
+    "recovery_id",
+    "authorization",
+    "created_at_utc",
+    "created_at_shanghai",
+    "execution_head",
+    "execution_epoch",
+    "sealed_history_root_sha256",
+    "sealed_live_ledger_root_sha256",
+    "destination",
+    "state",
+    "authorized_bundle_recovery_starts",
+    "authorized_pipeline_starts",
+    "automatic_retry_count",
+}
+RECOVERY_TERMINAL_FIELDS = {
+    "schema_version",
+    "recovery_id",
+    "authorization",
+    "completed_at_utc",
+    "completed_at_shanghai",
+    "outcome",
+    "reached_stage",
+    "sealed_ledger_before_sha256",
+    "sealed_ledger_after_sha256",
+    "destination",
+    "published_bundle_sha256",
+    "published_tree_sha256",
+    "temporary_authority_absent",
+    "pipeline_starts",
+    "automatic_retry_count",
+    "error",
+}
 RFC3339_UTC_SECONDS = re.compile(r"^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$")
 RFC3339_SHANGHAI_SECONDS = re.compile(
     r"^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\+08:00$"
@@ -3441,6 +3747,7 @@ def _validate_action_authorization(
         root,
         authority,
         execution_head=execution_head,
+        require_current=require_current_process,
     )
     document = _object(
         strict_json_loads(payload, source="action-time authorization"),
@@ -3576,6 +3883,347 @@ def _validate_action_authorization(
         command_sha256=_command_sha256(expected_argv),
         exact_environment=dict(EXACT_ENVIRONMENT),
         environment_sha256=_environment_sha256(EXACT_ENVIRONMENT),
+    )
+
+
+def _validate_bundle_recovery_authorization(
+    binding: ExecutionBinding,
+    authority: AuthorityReference,
+    *,
+    require_current_process: bool,
+    require_destination_absent: bool = True,
+) -> BundleRecoveryAuthorization:
+    """Validate the exact 19-field owner authority for one sealed recovery."""
+
+    root = binding.project_root.absolute()
+    execution_head = _current_execution_head(root)
+    payload = validate_unique_a_authority(
+        root,
+        authority,
+        execution_head=execution_head,
+    )
+    document = _object(
+        strict_json_loads(payload, source="sealed-bundle recovery authorization"),
+        "sealed-bundle recovery authorization",
+    )
+    if set(document) != RECOVERY_AUTHORIZATION_FIELDS or _canonical_json_bytes(
+        document
+    ) != payload:
+        raise RehearsalV22Error("recovery authorization is not exact canonical JSON")
+    created_utc = document.get("created_at_utc")
+    created_shanghai = document.get("created_at_shanghai")
+    if (
+        not isinstance(created_utc, str)
+        or RFC3339_UTC_SECONDS.fullmatch(created_utc) is None
+        or not isinstance(created_shanghai, str)
+        or RFC3339_SHANGHAI_SECONDS.fullmatch(created_shanghai) is None
+    ):
+        raise RehearsalV22Error("recovery authorization timestamps are invalid")
+    try:
+        if datetime.fromisoformat(created_utc.replace("Z", "+00:00")) != datetime.fromisoformat(
+            created_shanghai
+        ):
+            raise RehearsalV22Error("recovery authorization timestamps disagree")
+    except ValueError as exc:
+        raise RehearsalV22Error("recovery authorization timestamp is invalid") from exc
+    owner = _object(document.get("owner"), "recovery owner")
+    sealed = _object(document.get("sealed_series"), "recovery sealed series")
+    execution = _object(document.get("execution_epoch"), "recovery execution epoch")
+    destination = _object(document.get("destination"), "recovery destination")
+    interpreter = _object(document.get("interpreter"), "recovery interpreter")
+    effects = _object(document.get("effect_authorization"), "recovery effects")
+    locks = _object(document.get("locks"), "recovery locks")
+    selected_files = _object(sealed.get("selected_files"), "recovery selected files")
+    if (
+        set(owner) != RECOVERY_OWNER_FIELDS
+        or set(sealed) != RECOVERY_SEALED_SERIES_FIELDS
+        or set(execution) != RECOVERY_EXECUTION_EPOCH_FIELDS
+        or set(destination) != RECOVERY_DESTINATION_FIELDS
+        or set(interpreter) != RECOVERY_INTERPRETER_FIELDS
+        or set(effects) != RECOVERY_EFFECT_FIELDS
+        or set(locks) != RECOVERY_LOCK_FIELDS
+        or set(selected_files) != RECOVERY_SELECTED_FILES_FIELDS
+    ):
+        raise RehearsalV22Error("recovery authorization nested shape drifted")
+    for label in sorted(RECOVERY_SELECTED_FILES_FIELDS):
+        if set(_object(selected_files[label], f"recovery selected {label}")) != (
+            RECOVERY_SELECTED_FILE_FIELDS
+        ):
+            raise RehearsalV22Error("recovery selected-file shape drifted")
+    exact_argv_raw = document.get("exact_argv")
+    exact_environment_raw = document.get("exact_environment")
+    if (
+        not isinstance(document.get("authorization_id"), str)
+        or not cast(str, document["authorization_id"])
+        or document.get("schema_version")
+        != "p4.2a-v2-2-sealed-bundle-recovery-authorization-v1"
+        or document.get("verdict")
+        != "APPROVE_EXACTLY_ONE_SEALED_BUNDLE_RECOVERY_ZERO_PIPELINE_START"
+        or owner
+        != {
+            "identity": "ouyang",
+            "approved": True,
+            "scope": "one disclosed sealed-bundle recovery only",
+        }
+        or type(owner.get("approved")) is not bool
+        or not isinstance(exact_argv_raw, list)
+        or not exact_argv_raw
+        or any(not isinstance(value, str) or not value for value in exact_argv_raw)
+        or not isinstance(exact_environment_raw, dict)
+        or any(
+            not isinstance(key, str)
+            or not key
+            or not isinstance(value, str)
+            for key, value in exact_environment_raw.items()
+        )
+        or document.get("command_sha256") != _command_sha256(cast(list[str], exact_argv_raw))
+        or document.get("environment_sha256")
+        != _environment_sha256(cast(dict[str, str], exact_environment_raw))
+        or not _is_exact_int(document.get("authorized_bundle_recovery_starts"), 1)
+        or not _is_exact_int(document.get("authorized_pipeline_starts"), 0)
+        or not _is_exact_int(document.get("automatic_retry_count"), 0)
+    ):
+        raise RehearsalV22Error("recovery authorization top-level binding drifted")
+    expected_effects = {
+        "ledger_read": True,
+        "ledger_write": False,
+        "git_object_read": True,
+        "git_or_worktree_write": False,
+        "recovery_claim_create_once": True,
+        "temporary_stage_create_once": True,
+        "destination_publish_once": True,
+        "attempt_allocation": False,
+        "candidate_or_terminal_rewrite": False,
+        "pipeline_execution": False,
+        "model_access": False,
+        "network_access": False,
+        "sqlite_or_production_database_access": False,
+        "heldout_materialization_inference_or_evaluation": False,
+    }
+    if (
+        not _is_exact_bool_mapping(effects)
+        or not _is_exact_bool_mapping(locks)
+        or effects != expected_effects
+        or any(value is not False for value in locks.values())
+    ):
+        raise RehearsalV22Error("recovery effect or phase locks are not fail-closed")
+    interpreter_path = interpreter.get("path")
+    interpreter_payload = (
+        _fixed_launcher_bytes()
+        if interpreter_path == FIXED_PYTHON_LAUNCHER.as_posix()
+        else _regular_bytes(Path(cast(str, interpreter_path)), "recovery interpreter")
+        if isinstance(interpreter_path, str)
+        else b""
+    )
+    if (
+        not isinstance(interpreter_path, str)
+        or Path(interpreter_path).absolute() != Path(sys.executable).absolute()
+        or interpreter.get("sha256") != _sha256(interpreter_payload)
+        or interpreter.get("version") != platform.python_version()
+    ):
+        raise RehearsalV22Error("recovery interpreter binding drifted")
+    if (
+        destination
+        != {
+            "absolute_path": binding.destination.as_posix(),
+            "required_absent_before_start": True,
+            "publication_mode": "ATOMIC_DIRECTORY_NO_REPLACE",
+            "bundle_schema_version": BUNDLE_SCHEMA_VERSION,
+            "expected_bundle_status": "PASS_REHEARSAL_V2_2_AWAITING_OWNER_REVIEW",
+        }
+        or type(destination.get("required_absent_before_start")) is not bool
+        or (require_destination_absent and os.path.lexists(binding.destination))
+        or (
+            not require_destination_absent
+            and (
+                not binding.destination.is_dir()
+                or binding.destination.is_symlink()
+                or binding.destination.resolve(strict=True) != binding.destination.absolute()
+            )
+        )
+    ):
+        raise RehearsalV22Error("recovery destination binding or absence drifted")
+    history = validate_live_history(binding)
+    if (
+        not history.series_closed
+        or history.selected_attempt_ordinal is None
+        or history.validated_candidate_count != 1
+        or history.incomplete_count != 0
+        or history.live_ledger_root_sha256 is None
+    ):
+        raise RehearsalV22Error("recovery requires one closed selected series")
+    selected = history.records[history.selected_attempt_ordinal - 1]
+    if selected.candidate_bytes is None or selected.terminal_bytes is None:
+        raise RehearsalV22Error("recovery selected record is incomplete")
+    candidate = _object(
+        strict_json_loads(selected.candidate_bytes, source="recovery selected candidate"),
+        "recovery selected candidate",
+    )
+    sealed_integer_fields = {
+        "started_count": history.started_count,
+        "failed_count": history.failed_count,
+        "incomplete_count": 0,
+        "validated_candidate_count": 1,
+        "selected_attempt_ordinal": selected.ordinal,
+        "selected_implementation_epoch": selected.implementation_epoch,
+        "automatic_retry_count": 0,
+    }
+    if (
+        type(sealed.get("series_closed")) is not bool
+        or any(
+            not _is_exact_int(sealed.get(key), expected)
+            for key, expected in sealed_integer_fields.items()
+        )
+        or not _is_exact_int(execution.get("epoch"))
+        or not _is_exact_int(execution.get("control_record_count"))
+        or any(
+            type(execution.get(key)) is not bool
+            for key in (
+                "latest_complete_landed_epoch_required",
+                "current_control_bytes_required",
+                "loaded_module_bytes_required",
+            )
+        )
+    ):
+        raise RehearsalV22Error("recovery authorization bool/int types drifted")
+    expected_sealed = {
+        "series_id": REHEARSAL_ID,
+        "series_token_sha256": binding.series_token_sha256,
+        "ledger_root": binding.ledger_root.as_posix(),
+        "history_root_sha256": history.history_root_sha256,
+        "live_ledger_root_sha256": history.live_ledger_root_sha256,
+        "series_closed": True,
+        "started_count": history.started_count,
+        "failed_count": history.failed_count,
+        "incomplete_count": 0,
+        "validated_candidate_count": 1,
+        "selected_attempt_ordinal": selected.ordinal,
+        "selected_implementation_epoch": selected.implementation_epoch,
+        "selected_implementation_commit": selected.implementation_commit,
+        "selected_control_merkle_root_sha256": candidate.get(
+            "control_surface_root_sha256"
+        ),
+        "selected_evidence_tree_root_sha256": selected.evidence_tree_root_sha256,
+        "selected_candidate_content_root_sha256": candidate.get(
+            "candidate_content_root_sha256"
+        ),
+        "selected_run_a_root_sha256": candidate.get("run_a_root_sha256"),
+        "selected_run_b_root_sha256": candidate.get("run_b_root_sha256"),
+        "selected_terminal_outcome": "CANDIDATE_VALIDATED_AND_SELECTED",
+        "selected_reached_stage": "bundle_candidate_validated",
+        "automatic_retry_count": 0,
+        "selected_files": selected_files,
+    }
+    if any(
+        sealed.get(key) != value
+        for key, value in expected_sealed.items()
+        if key != "selected_files"
+    ):
+        raise RehearsalV22Error("recovery sealed-series binding drifted")
+    file_bindings = {
+        "started": (
+            f"attempts/{selected.ordinal:06d}/started.json",
+            selected.started_bytes,
+        ),
+        "candidate": (
+            f"attempts/{selected.ordinal:06d}/candidate.json",
+            selected.candidate_bytes,
+        ),
+        "terminal": (
+            f"attempts/{selected.ordinal:06d}/terminal.json",
+            selected.terminal_bytes,
+        ),
+    }
+    for label, (relative, selected_payload) in file_bindings.items():
+        row = _object(selected_files[label], f"recovery selected {label}")
+        if not _is_exact_int(row.get("bytes"), len(selected_payload)) or row != {
+            "relative_path": relative,
+            "sha256": _sha256(selected_payload),
+            "bytes": len(selected_payload),
+        }:
+            raise RehearsalV22Error("recovery selected-file bytes drifted")
+    if binding.mode == "REGISTERED_OFFICIAL":
+        if len(history.records) != 2:
+            raise RehearsalV22Error("official recovery history is not exactly two records")
+        failed = history.records[0]
+        if (
+            failed.ordinal != 1
+            or failed.outcome != "FAILED"
+            or failed.reached_stage != "started_persisted"
+            or failed.implementation_epoch != 2
+            or failed.implementation_commit
+            != OFFICIAL_FAILED_EPOCH_TWO_IMPLEMENTATION_COMMIT
+            or failed.started_sha256 != OFFICIAL_FAILED_STARTED_SHA256
+            or failed.candidate_sha256 is not None
+            or failed.terminal_sha256 != OFFICIAL_FAILED_TERMINAL_SHA256
+            or failed.evidence_tree_root_sha256
+            != OFFICIAL_FAILED_EVIDENCE_ROOT_SHA256
+            or selected.ordinal != 2
+            or selected.outcome != "CANDIDATE_VALIDATED_AND_SELECTED"
+            or selected.reached_stage != "bundle_candidate_validated"
+            or selected.implementation_epoch != 4
+            or selected.implementation_commit
+            != OFFICIAL_SELECTED_EPOCH_FOUR_IMPLEMENTATION_COMMIT
+            or selected.started_sha256 != OFFICIAL_SELECTED_STARTED_SHA256
+            or selected.candidate_sha256 != OFFICIAL_SELECTED_CANDIDATE_SHA256
+            or selected.terminal_sha256 != OFFICIAL_SELECTED_TERMINAL_SHA256
+            or selected.evidence_tree_root_sha256
+            != OFFICIAL_SELECTED_EVIDENCE_ROOT_SHA256
+            or history.history_root_sha256
+            != OFFICIAL_SEALED_HISTORY_ROOT_SHA256
+            or history.live_ledger_root_sha256
+            != OFFICIAL_SEALED_LIVE_LEDGER_ROOT_SHA256
+            or candidate.get("run_a_root_sha256")
+            != OFFICIAL_SELECTED_RUN_ROOT_SHA256
+            or candidate.get("run_b_root_sha256")
+            != OFFICIAL_SELECTED_RUN_ROOT_SHA256
+            or candidate.get("control_surface_root_sha256")
+            != OFFICIAL_SELECTED_CONTROL_ROOT_SHA256
+            or candidate.get("evidence_tree_root_sha256")
+            != OFFICIAL_SELECTED_EVIDENCE_ROOT_SHA256
+            or candidate.get("candidate_content_root_sha256")
+            != OFFICIAL_SELECTED_CANDIDATE_CONTENT_ROOT_SHA256
+        ):
+            raise RehearsalV22Error("official sealed attempt-2 evidence drifted")
+    live = _live_execution_anchor(binding, execution)
+    exact_argv = tuple(cast(list[str], exact_argv_raw))
+    exact_environment = dict(cast(dict[str, str], exact_environment_raw))
+    expected_authority_path = root.joinpath(*PurePosixPath(authority.path).parts)
+    if binding.action_authorization_path != expected_authority_path:
+        raise RehearsalV22Error("recovery binding names a different authority path")
+    observed_process_argv = (Path(sys.executable).absolute().as_posix(), *sys.orig_argv[1:])
+    if require_current_process and (
+        observed_process_argv != exact_argv or dict(os.environ) != exact_environment
+    ):
+        raise RehearsalV22Error("recovery authorization differs from this OS process")
+    execution_review = _validate_authority_ref_shape(
+        execution.get("independent_implementation_review"),
+        "recovery execution review",
+    )
+    if not _git_is_ancestor(root, execution_review.creating_commit, authority.creating_commit):
+        raise RehearsalV22Error("recovery authorization predates execution review")
+    if not _git_is_ancestor(
+        root,
+        live.landing_report.creating_commit,
+        authority.creating_commit,
+    ):
+        raise RehearsalV22Error("recovery authorization predates live epoch landing")
+    return BundleRecoveryAuthorization(
+        path=expected_authority_path,
+        payload=payload,
+        sha256=authority.sha256,
+        creating_commit=authority.creating_commit,
+        authorization_id=cast(str, document["authorization_id"]),
+        sealed_series=dict(sealed),
+        execution_epoch=dict(execution),
+        destination=dict(destination),
+        exact_argv=exact_argv,
+        command_sha256=cast(str, document["command_sha256"]),
+        exact_environment=exact_environment,
+        environment_sha256=cast(str, document["environment_sha256"]),
+        effect_authorization=cast(dict[str, bool], dict(effects)),
+        interpreter=cast(dict[str, str], dict(interpreter)),
+        locks=cast(dict[str, bool], dict(locks)),
     )
 
 
@@ -4299,6 +4947,131 @@ class ControlSurface:
     package_inventory: bytes
 
 
+@dataclass(frozen=True)
+class HistoricalSelectedAnchor:
+    """Immutable selected-attempt evidence; never authorizes current bytes."""
+
+    selected_epoch: int
+    selected_commit: str
+    owner_action_time_authorization: AuthorityReference
+    owner_surface_authorization: AuthorityReference
+    independent_implementation_review: AuthorityReference
+    control_surface: ControlSurface
+    history_root_sha256: str
+    live_ledger_root_sha256: str
+    evidence_tree_root_sha256: str
+    candidate_content_root_sha256: str
+    run_a_root_sha256: str
+    run_b_root_sha256: str
+    selected_git_blob_sha256: Mapping[str, str]
+
+
+@dataclass(frozen=True)
+class LiveExecutionAnchor:
+    """Current reviewed execution bytes; never supplies selected archive bytes."""
+
+    execution_epoch: int
+    implementation_commit: str
+    owner_surface_authorization: AuthorityReference
+    independent_implementation_review: AuthorityReference
+    merge_commit: str
+    landing_report: AuthorityReference
+    control_surface: ControlSurface
+    execution_head: str
+    loaded_module_sha256: Mapping[str, str]
+
+
+@dataclass(frozen=True)
+class BundleRecoveryAuthorization:
+    path: Path
+    payload: bytes
+    sha256: str
+    creating_commit: str
+    authorization_id: str
+    sealed_series: Mapping[str, Any]
+    execution_epoch: Mapping[str, Any]
+    destination: Mapping[str, Any]
+    exact_argv: tuple[str, ...]
+    command_sha256: str
+    exact_environment: Mapping[str, str]
+    environment_sha256: str
+    effect_authorization: Mapping[str, bool]
+    interpreter: Mapping[str, str]
+    locks: Mapping[str, bool]
+
+    def authority_ref(self, project_root: Path) -> AuthorityReference:
+        return AuthorityReference(
+            path=self.path.relative_to(project_root).as_posix(),
+            sha256=self.sha256,
+            creating_commit=self.creating_commit,
+        )
+
+
+@dataclass(frozen=True)
+class _SealedPipelineReplay:
+    """Read-only archive material with no active pipeline/workspace capability."""
+
+    run_label: str
+    artifacts: Mapping[str, bytes]
+    probe_evidence: Mapping[str, JsonObject]
+
+
+@dataclass(frozen=True)
+class RecoveryExecutionCapability:
+    _nonce: object
+    binding: ExecutionBinding
+    bootstrap: _BootstrapEvidence
+    authorization: BundleRecoveryAuthorization
+    historical_anchor: HistoricalSelectedAnchor
+    live_anchor: LiveExecutionAnchor
+    claim_root: Path
+    temporary_authority: Path
+    audit_policy: _AuditPolicy
+    audit_policy_id: int
+
+
+@dataclass(frozen=True)
+class RecoveryValidatorDelegation:
+    _nonce: object
+    binding: ExecutionBinding
+    capability_id: int
+    validator_module_id: int
+    audit_policy_id: int
+    temporary_authority: Path
+    bundle_path: Path
+    bundle_sha256: str
+    creator_module_id: int
+    lifetime_id: int
+
+
+@dataclass(frozen=True)
+class RecoveredReleaseCapability:
+    _nonce: object
+    binding: ExecutionBinding
+    authorization: BundleRecoveryAuthorization
+    historical_anchor: HistoricalSelectedAnchor
+    live_anchor: LiveExecutionAnchor
+    claim_root: Path
+    terminal_sha256: str
+    bundle_path: Path
+    bundle_sha256: str
+    validator_module_id: int
+
+
+@dataclass(frozen=True)
+class RecoveredReleaseValidatorDelegation:
+    _nonce: object
+    binding: ExecutionBinding
+    capability_id: int
+    validator_module_id: int
+    audit_policy_id: int
+    bundle_path: Path
+    bundle_sha256: str
+    terminal_sha256: str
+    creator_module_id: int
+    lifetime_id: int
+
+
 _ALLOWED_ORIGINLESS_RUNTIME_MODULES = frozenset(
     {"_cython_3_1_4", "_cython_3_2_4", "_cython_3_2_5", "cython_runtime"}
 )
@@ -4680,11 +5453,16 @@ def build_control_surface(
     root = project_root.absolute()
     commit = _git_commit(root, implementation_commit, "control implementation commit")
     execution_head = _git_bytes(root, "rev-parse", "HEAD").decode("ascii", errors="strict").strip()
-    validate_strict_v2_1_inheritance(root)
+    validate_strict_v2_1_inheritance(
+        root,
+        implementation_commit=commit,
+        require_current=require_current,
+    )
     validate_carry_forward_lineage(
         root,
         execution_head=execution_head,
-        require_current=True,
+        implementation_commit=commit,
+        require_current=require_current,
     )
     validate_unique_a_authority(
         root,
@@ -4695,6 +5473,7 @@ def build_control_surface(
         ),
         execution_head=execution_head,
         allow_initial_sibling=True,
+        require_current=require_current,
     )
 
     def blob_reader(relative: str) -> bytes:
@@ -4847,6 +5626,1455 @@ def build_control_surface(
         python_inventory=python_payload,
         package_inventory=package_payload,
     )
+
+
+def _historical_selected_anchor(
+    binding: ExecutionBinding,
+    history: HistoryValidation,
+) -> HistoricalSelectedAnchor:
+    """Bind the selected attempt exclusively to immutable ledger and Git bytes."""
+
+    if (
+        not history.series_closed
+        or history.selected_attempt_ordinal is None
+        or history.validated_candidate_count != 1
+        or history.incomplete_count != 0
+        or history.live_ledger_root_sha256 is None
+    ):
+        raise RehearsalV22Error("historical selected anchor requires one closed selected series")
+    selected = history.records[history.selected_attempt_ordinal - 1]
+    if selected.candidate_bytes is None or selected.terminal_bytes is None:
+        raise RehearsalV22Error("historical selected anchor lacks candidate or terminal")
+    authorization = _validate_action_authorization(
+        binding,
+        selected.owner_action_time_authorization,
+        expected_ordinal=selected.ordinal,
+        expected_previous_history_root_sha256=selected.previous_history_root_sha256,
+        require_current_process=False,
+    )
+    control = build_control_surface(
+        binding.project_root,
+        selected.implementation_commit,
+        require_current=False,
+    )
+    candidate = _object(
+        strict_json_loads(selected.candidate_bytes, source="historical selected candidate"),
+        "historical selected candidate",
+    )
+    roots = (
+        candidate.get("run_a_root_sha256"),
+        candidate.get("run_b_root_sha256"),
+        candidate.get("control_surface_root_sha256"),
+        candidate.get("evidence_tree_root_sha256"),
+        candidate.get("candidate_content_root_sha256"),
+    )
+    if (
+        any(not _lower_hex(value, 64) for value in roots)
+        or candidate.get("control_surface_root_sha256") != control.merkle_root_sha256
+        or candidate.get("control_surface_root_sha256")
+        != authorization.control_merkle_root_sha256
+        or candidate.get("evidence_tree_root_sha256")
+        != selected.evidence_tree_root_sha256
+    ):
+        raise RehearsalV22Error("historical selected anchor roots drifted")
+    selected_git_blobs = {
+        cast(str, row["repository_path"]): cast(str, row["sha256"])
+        for row in control.records
+        if row.get("repository_path") is not None
+    }
+    archived_git_blobs = {
+        relative: _sha256(
+            control.payloads[f"archive/control-surface/root/repo/{relative}"]
+        )
+        for relative in selected_git_blobs
+    }
+    if not selected_git_blobs or selected_git_blobs != archived_git_blobs:
+        raise RehearsalV22Error("historical selected Git blob map drifted")
+    return HistoricalSelectedAnchor(
+        selected_epoch=selected.implementation_epoch,
+        selected_commit=selected.implementation_commit,
+        owner_action_time_authorization=selected.owner_action_time_authorization,
+        owner_surface_authorization=authorization.owner_surface_authorization,
+        independent_implementation_review=authorization.independent_implementation_review,
+        control_surface=control,
+        history_root_sha256=history.history_root_sha256,
+        live_ledger_root_sha256=history.live_ledger_root_sha256,
+        evidence_tree_root_sha256=selected.evidence_tree_root_sha256,
+        candidate_content_root_sha256=cast(
+            str,
+            candidate["candidate_content_root_sha256"],
+        ),
+        run_a_root_sha256=cast(str, candidate["run_a_root_sha256"]),
+        run_b_root_sha256=cast(str, candidate["run_b_root_sha256"]),
+        selected_git_blob_sha256=dict(sorted(selected_git_blobs.items())),
+    )
+
+
+_EPOCH_SURFACE_AUTHORITY_PATH = re.compile(
+    r"^docs/phase4/reports/P4\.2a-v2-2-epoch([0-9]+)-surface-authority-"
+    r"[0-9]{8}\.json$"
+)
+_EPOCH_IMPLEMENTATION_REVIEW_PATH = re.compile(
+    r"^docs/phase4/reports/P4\.2a-v2-2-epoch([0-9]+)(?:-[A-Za-z0-9-]+)?-"
+    r"implementation-independent-review-[0-9]{8}\.json$"
+)
+_EPOCH_LANDING_REPORT_PATH = re.compile(
+    r"^docs/phase4/reports/P4\.2a-v2-2-epoch([0-9]+)-.*landing-report-"
+    r"[0-9]{8}\.json$"
+)
+
+
+def _unique_a_commit_all_history(
+    project_root: Path,
+    relative: str,
+) -> str:
+    history = _git_bytes(
+        project_root,
+        "log",
+        "--all",
+        "--format=@@%H",
+        "--name-status",
+        "--find-renames",
+        "--find-copies",
+        "--",
+        relative,
+    ).decode("utf-8", errors="strict")
+    touches: list[tuple[str, str, tuple[str, ...]]] = []
+    active: str | None = None
+    for raw_line in history.splitlines():
+        line = raw_line.strip()
+        if not line:
+            continue
+        if line.startswith("@@"):
+            active = line[2:]
+            continue
+        if active is None:
+            raise RehearsalV22Error("all-history unique-A log is malformed")
+        fields = tuple(line.split("\t"))
+        if len(fields) < 2:
+            raise RehearsalV22Error("all-history unique-A log is malformed")
+        touches.append((active, fields[0], fields[1:]))
+    if len(touches) != 1 or touches[0][1:] != ("A", (relative,)):
+        raise RehearsalV22Error(f"review is not unique-A across all refs: {relative}")
+    return _git_commit(project_root, touches[0][0], "all-history unique-A commit")
+
+
+def _first_parent_epoch_governance(
+    project_root: Path,
+    *,
+    execution_head: str,
+) -> tuple[
+    tuple[str, ...],
+    tuple[tuple[int, AuthorityReference], ...],
+    tuple[tuple[int, str, str, str], ...],
+    tuple[tuple[int, str, str, str, str], ...],
+]:
+    """Strictly parse every matching epoch authority/review/landing on first-parent."""
+
+    root = project_root.absolute()
+    commits = tuple(
+        _git_bytes(root, "rev-list", "--first-parent", "--reverse", execution_head, "--")
+        .decode("ascii", errors="strict")
+        .splitlines()
+    )
+    authorities: list[tuple[int, AuthorityReference]] = []
+    reviews: list[tuple[int, str, str, str]] = []
+    landings: list[tuple[int, str, str, str, str]] = []
+    observed_paths: set[str] = set()
+    for commit in commits:
+        parents = (
+            _git_bytes(root, "rev-list", "--parents", "-n", "1", commit, "--")
+            .decode("ascii", errors="strict")
+            .strip()
+            .split()
+        )
+        if not parents or parents[0] != commit:
+            raise RehearsalV22Error("first-parent governance chain is malformed")
+        if len(parents) == 1:
+            continue
+        changes = _git_bytes(
+            root,
+            "diff",
+            "--no-ext-diff",
+            "--no-textconv",
+            "--name-status",
+            "--no-renames",
+            parents[1],
+            commit,
+            "--",
+            "docs/phase4/reports",
+        ).decode("utf-8", errors="strict")
+        for line in changes.splitlines():
+            fields = line.split("\t")
+            if len(fields) != 2:
+                raise RehearsalV22Error("first-parent governance change is malformed")
+            status_value, relative = fields
+            matches = [
+                (kind, pattern.fullmatch(relative))
+                for kind, pattern in (
+                    ("authority", _EPOCH_SURFACE_AUTHORITY_PATH),
+                    ("review", _EPOCH_IMPLEMENTATION_REVIEW_PATH),
+                    ("landing", _EPOCH_LANDING_REPORT_PATH),
+                )
+            ]
+            selected_matches = [(kind, match) for kind, match in matches if match is not None]
+            if not selected_matches:
+                continue
+            if len(selected_matches) != 1 or status_value != "A" or relative in observed_paths:
+                raise RehearsalV22Error("epoch governance artifact is not one unique add")
+            observed_paths.add(relative)
+            kind, match = selected_matches[0]
+            if match is None:
+                raise RehearsalV22Error("epoch governance matcher vanished")
+            payload = _git_blob(root, commit, relative)
+            document = _object(
+                strict_json_loads(payload, source=f"reachable epoch {kind} {relative}"),
+                f"reachable epoch {kind} {relative}",
+            )
+            epoch = int(match.group(1))
+            if kind == "authority":
+                surface = document.get("exact_surface")
+                if (
+                    set(document)
+                    != {
+                        "schema_version",
+                        "verdict",
+                        "owner",
+                        "implementation_epoch",
+                        "base_commit",
+                        "exact_surface",
+                    }
+                    or document.get("schema_version")
+                    != "p4.2a-v2-2-implementation-epoch-surface-authorization-v1"
+                    or document.get("verdict")
+                    != "APPROVE_EXACT_V2_2_IMPLEMENTATION_EPOCH_SURFACE"
+                    or document.get("owner") != {"identity": "ouyang", "approved": True}
+                    or type(_object(document.get("owner"), "epoch owner").get("approved"))
+                    is not bool
+                    or not _is_exact_int(document.get("implementation_epoch"), epoch)
+                    or not _lower_hex(document.get("base_commit"), 40)
+                    or not isinstance(surface, list)
+                    or not surface
+                ):
+                    raise RehearsalV22Error("reachable epoch authority shape drifted")
+                permitted_paths = {
+                    path.as_posix() for path in IMPLEMENTATION_SURFACE
+                }
+                observed_surface_paths: list[str] = []
+                for index, raw_row in enumerate(surface):
+                    row = _object(
+                        raw_row,
+                        f"reachable epoch exact_surface[{index}]",
+                    )
+                    if set(row) != {"path", "status"}:
+                        raise RehearsalV22Error(
+                            "reachable epoch authority shape drifted"
+                        )
+                    surface_relative = _relative_text(
+                        row.get("path"),
+                        f"reachable epoch exact_surface[{index}].path",
+                    )
+                    if (
+                        surface_relative not in permitted_paths
+                        or row.get("status") not in {"A", "M"}
+                        or surface_relative in observed_surface_paths
+                    ):
+                        raise RehearsalV22Error(
+                            "reachable epoch authority exact surface drifted"
+                        )
+                    observed_surface_paths.append(surface_relative)
+                if observed_surface_paths != sorted(
+                    observed_surface_paths,
+                    key=lambda value: value.encode("utf-8"),
+                ):
+                    raise RehearsalV22Error(
+                        "reachable epoch authority exact surface is not byte-sorted"
+                    )
+                authorities.append(
+                    (epoch, AuthorityReference(relative, _sha256(payload), commit))
+                )
+            elif kind == "review":
+                verdict = document.get("verdict")
+                reviewed_commit = document.get("reviewed_commit")
+                unique_a_commit = _unique_a_commit_all_history(root, relative)
+                if (
+                    document.get("schema_version") != "p4.2a-independent-review-v1"
+                    or verdict != f"APPROVE_EPOCH{epoch}_IMPLEMENTATION"
+                    or document.get("blockers") != []
+                    or not _lower_hex(reviewed_commit, 40)
+                    or _git_blob(root, unique_a_commit, relative) != payload
+                ):
+                    raise RehearsalV22Error("reachable epoch review shape drifted")
+                reviews.append(
+                    (epoch, unique_a_commit, relative, cast(str, reviewed_commit))
+                )
+            else:
+                schema = document.get("schema_version")
+                lineage = _object(
+                    document.get("candidate_lineage"),
+                    "reachable epoch landing candidate lineage",
+                )
+                planned = _object(
+                    document.get("planned_landing"),
+                    "reachable epoch landing plan",
+                )
+                implementation = lineage.get("implementation_commit")
+                review_row = _object(
+                    lineage.get("independent_review"),
+                    "reachable epoch landing review",
+                )
+                review_commit = review_row.get(
+                    "creating_commit",
+                    review_row.get("commit"),
+                )
+                review_path = review_row.get("path")
+                if (
+                    not isinstance(schema, str)
+                    or re.fullmatch(
+                        rf"p4\.2a-v2-2-epoch{epoch}(?:-[A-Za-z0-9-]+)?-"
+                        r"registered-gate-landing-report-v[0-9]+",
+                        schema,
+                    )
+                    is None
+                    or document.get("status")
+                    != "PASS_REGISTERED_GATE_LANDING_REPORT_READY_BEFORE_MERGE"
+                    or not _lower_hex(implementation, 40)
+                    or not _lower_hex(review_commit, 40)
+                    or planned.get("second_parent") != review_commit
+                    or not isinstance(review_path, str)
+                    or (
+                        (review_match := _EPOCH_IMPLEMENTATION_REVIEW_PATH.fullmatch(
+                            review_path
+                        ))
+                        is None
+                    )
+                    or int(review_match.group(1)) != epoch
+                ):
+                    raise RehearsalV22Error("reachable epoch landing shape drifted")
+                if _unique_a_commit_all_history(root, review_path) != review_commit:
+                    raise RehearsalV22Error("reachable epoch landing review binding drifted")
+                landings.append(
+                    (
+                        epoch,
+                        commit,
+                        relative,
+                        cast(str, implementation),
+                        cast(str, review_commit),
+                    )
+                )
+    if not commits or commits[-1] != execution_head or len(commits) != len(set(commits)):
+        raise RehearsalV22Error("first-parent governance chain is incomplete")
+    return commits, tuple(authorities), tuple(reviews), tuple(landings)
+
+
+def _first_parent_added_epoch_documents(
+    project_root: Path,
+    *,
+    execution_head: str,
+) -> tuple[tuple[int, AuthorityReference], ...]:
+    _chain, authorities, _reviews, _landings = _first_parent_epoch_governance(
+        project_root,
+        execution_head=execution_head,
+    )
+    return authorities
+
+
+def _live_execution_anchor(
+    binding: ExecutionBinding,
+    execution_epoch: Mapping[str, Any],
+) -> LiveExecutionAnchor:
+    """Prove the latest landed reviewed epoch against all current executing bytes."""
+
+    root = binding.project_root.absolute()
+    execution_head = _current_execution_head(root)
+    epoch = execution_epoch.get("epoch")
+    implementation_commit = execution_epoch.get("implementation_commit")
+    if isinstance(epoch, bool) or not isinstance(epoch, int) or epoch < 1:
+        raise RehearsalV22Error("live execution epoch is invalid")
+    commit = _git_commit(root, implementation_commit, "live execution implementation")
+    owner = _validate_authority_ref_shape(
+        execution_epoch.get("owner_exact_surface_authorization"),
+        "live execution owner authority",
+    )
+    review = _validate_authority_ref_shape(
+        execution_epoch.get("independent_implementation_review"),
+        "live execution independent review",
+    )
+    landing_report = _validate_authority_ref_shape(
+        execution_epoch.get("landing_report"),
+        "live execution landing report",
+    )
+    merge_commit = _git_commit(
+        root,
+        execution_epoch.get("merge_commit"),
+        "live execution merge commit",
+    )
+    control = build_control_surface(root, commit, require_current=True)
+    if (
+        execution_epoch.get("control_merkle_root_sha256") != control.merkle_root_sha256
+        or execution_epoch.get("control_record_count") != len(control.records)
+        or execution_epoch.get("latest_complete_landed_epoch_required") is not True
+        or execution_epoch.get("current_control_bytes_required") is not True
+        or execution_epoch.get("loaded_module_bytes_required") is not True
+    ):
+        raise RehearsalV22Error("live execution control binding drifted")
+    _later_epoch_surface(
+        root,
+        epoch=epoch,
+        implementation_commit=commit,
+        owner_surface_authorization=owner,
+        execution_head=execution_head,
+        require_current=True,
+    )
+    review_parents = (
+        _git_bytes(
+            root,
+            "rev-list",
+            "--parents",
+            "-n",
+            "1",
+            review.creating_commit,
+            "--",
+        )
+        .decode("ascii", errors="strict")
+        .strip()
+        .split()
+    )
+    review_surface = _parse_name_status(
+        _git_bytes(
+            root,
+            "diff",
+            "--no-ext-diff",
+            "--no-textconv",
+            "--name-status",
+            "--no-renames",
+            commit,
+            review.creating_commit,
+            "--",
+        )
+    )
+    review_payload = _git_blob(root, review.creating_commit, review.path)
+    review_document = _object(
+        strict_json_loads(review_payload, source="live execution independent review"),
+        "live execution independent review",
+    )
+    review_verdict = review_document.get("verdict")
+    if (
+        review_parents != [review.creating_commit, commit]
+        or review_surface != {review.path: "A"}
+        or _sha256(review_payload) != review.sha256
+        or not isinstance(review_verdict, str)
+        or not review_verdict.startswith("APPROVE_")
+        or "IMPLEMENTATION" not in review_verdict.split("_")
+        or review_document.get("blockers") not in (None, [])
+        or not _document_mentions_commit(review_document, commit)
+    ):
+        raise RehearsalV22Error("live execution independent review lineage drifted")
+    landing_payload = validate_unique_a_authority(
+        root,
+        landing_report,
+        execution_head=execution_head,
+    )
+    landing_document = _object(
+        strict_json_loads(landing_payload, source="live execution landing report"),
+        "live execution landing report",
+    )
+    if not (
+        _document_mentions_commit(landing_document, commit)
+        and _document_mentions_commit(landing_document, review.creating_commit)
+    ):
+        raise RehearsalV22Error("live execution landing report binding drifted")
+    merge_parents = (
+        _git_bytes(root, "rev-list", "--parents", "-n", "1", merge_commit, "--")
+        .decode("ascii", errors="strict")
+        .strip()
+        .split()
+    )
+    landing_parents = (
+        _git_bytes(
+            root,
+            "rev-list",
+            "--parents",
+            "-n",
+            "1",
+            landing_report.creating_commit,
+            "--",
+        )
+        .decode("ascii", errors="strict")
+        .strip()
+        .split()
+    )
+    if (
+        len(merge_parents) != 3
+        or merge_parents[2] != review.creating_commit
+        or landing_parents != [landing_report.creating_commit, merge_commit]
+        or not _git_is_ancestor(root, landing_report.creating_commit, execution_head)
+    ):
+        raise RehearsalV22Error("live execution merge/landing topology drifted")
+    landing_surface = _parse_name_status(
+        _git_bytes(
+            root,
+            "diff",
+            "--no-ext-diff",
+            "--no-textconv",
+            "--name-status",
+            "--no-renames",
+            merge_commit,
+            landing_report.creating_commit,
+            "--",
+        )
+    )
+    if landing_surface != {landing_report.path: "A"}:
+        raise RehearsalV22Error(
+            "live execution landing commit is not the exact unique-A report surface"
+        )
+
+    chain, authorities, reviews, landings = _first_parent_epoch_governance(
+        root,
+        execution_head=execution_head,
+    )
+    epoch_values = [value for value, _reference in authorities]
+    matching = [reference for value, reference in authorities if value == epoch]
+    matching_reviews = [
+        row
+        for row in reviews
+        if row[0] == epoch
+    ]
+    matching_landings = [
+        row
+        for row in landings
+        if row[0] == epoch
+    ]
+    if (
+        not authorities
+        or len(epoch_values) != len(set(epoch_values))
+        or max(epoch_values) != epoch
+        or matching != [owner]
+        or any(review_epoch > epoch for review_epoch, *_rest in reviews)
+        or any(landing_epoch > epoch for landing_epoch, *_rest in landings)
+        or matching_reviews
+        != [(epoch, review.creating_commit, review.path, commit)]
+        or matching_landings
+        != [
+            (
+                epoch,
+                landing_report.creating_commit,
+                landing_report.path,
+                commit,
+                review.creating_commit,
+            )
+        ]
+        or _unique_a_commit_all_history(root, review.path)
+        != review.creating_commit
+    ):
+        raise RehearsalV22Error(
+            "live execution epoch is not the unique latest complete governance chain"
+        )
+    control_members = {
+        cast(str, row["repository_path"])
+        for row in control.records
+        if row.get("repository_path") is not None
+    }
+    if len(control_members) != 73:
+        raise RehearsalV22Error("live execution repository control-member count drifted")
+    try:
+        merge_index = chain.index(merge_commit)
+    except ValueError as exc:
+        raise RehearsalV22Error("live execution merge is absent from first-parent chain") from exc
+    for descendant in chain[merge_index + 1 :]:
+        parents = (
+            _git_bytes(root, "rev-list", "--parents", "-n", "1", descendant, "--")
+            .decode("ascii", errors="strict")
+            .strip()
+            .split()
+        )
+        if len(parents) < 2 or parents[0] != descendant:
+            raise RehearsalV22Error("post-landing first-parent topology drifted")
+        changed = set(
+            _git_bytes(
+                root,
+                "diff",
+                "--no-ext-diff",
+                "--no-textconv",
+                "--name-only",
+                parents[1],
+                descendant,
+                "--",
+            )
+            .decode("utf-8", errors="strict")
+            .splitlines()
+        )
+        if changed & control_members:
+            raise RehearsalV22Error(
+                "a repository control member changed in a post-merge first-parent commit"
+            )
+    loaded_module_sha256: dict[str, str] = {}
+    for relative in (IMPLEMENTATION_RELATIVE, VALIDATOR_RELATIVE):
+        payload = validate_implementation_blob(
+            root,
+            commit,
+            relative.as_posix(),
+            require_current=True,
+        )
+        loaded_module_sha256[relative.as_posix()] = _sha256(payload)
+    return LiveExecutionAnchor(
+        execution_epoch=epoch,
+        implementation_commit=commit,
+        owner_surface_authorization=owner,
+        independent_implementation_review=review,
+        merge_commit=merge_commit,
+        landing_report=landing_report,
+        control_surface=control,
+        execution_head=execution_head,
+        loaded_module_sha256=loaded_module_sha256,
+    )
+
+
+def _ordinary_live_execution_anchor(
+    binding: ExecutionBinding,
+    historical_anchor: HistoricalSelectedAnchor,
+) -> LiveExecutionAnchor:
+    """Build an independently typed live anchor for the ordinary active path."""
+
+    if not isinstance(historical_anchor, HistoricalSelectedAnchor):
+        raise RehearsalV22Error("ordinary live anchor requires historical anchor input")
+    root = binding.project_root.absolute()
+    execution_head = _current_execution_head(root)
+    commit = historical_anchor.selected_commit
+    control = build_control_surface(root, commit, require_current=True)
+    validate_implementation_epoch(
+        root,
+        epoch=historical_anchor.selected_epoch,
+        implementation_commit=commit,
+        owner_surface_authorization=historical_anchor.owner_surface_authorization,
+        independent_review=historical_anchor.independent_implementation_review,
+        control_merkle_root_sha256=control.merkle_root_sha256,
+        execution_head=execution_head,
+        require_current_bytes=True,
+    )
+    loaded_module_sha256 = {
+        relative.as_posix(): _sha256(
+            validate_implementation_blob(
+                root,
+                commit,
+                relative.as_posix(),
+                require_current=True,
+            )
+        )
+        for relative in (IMPLEMENTATION_RELATIVE, VALIDATOR_RELATIVE)
+    }
+    return LiveExecutionAnchor(
+        execution_epoch=historical_anchor.selected_epoch,
+        implementation_commit=commit,
+        owner_surface_authorization=historical_anchor.owner_surface_authorization,
+        independent_implementation_review=(historical_anchor.independent_implementation_review),
+        # Ordinary attempt execution precedes merge/landing by design.  These
+        # provenance slots therefore bind the unique action receipt; only the
+        # recovery modes may enter the latest-landed predicate.
+        merge_commit=historical_anchor.owner_action_time_authorization.creating_commit,
+        landing_report=historical_anchor.owner_action_time_authorization,
+        control_surface=control,
+        execution_head=execution_head,
+        loaded_module_sha256=loaded_module_sha256,
+    )
+
+
+def _active_attempt_validation_anchors(
+    value: object,
+    *,
+    project_root: Path,
+    validator_module: ModuleType,
+) -> tuple[HistoricalSelectedAnchor, LiveExecutionAnchor]:
+    context = cast(ExecutionCapability, value)
+    binding = _validate_execution_capability(context, project_root=project_root)
+    if (
+        validator_module.__name__
+        != "scripts.validate_p4_2a_v2_2_heldout_rehearsal_bundle"
+        or sys.modules.get(validator_module.__name__) is not validator_module
+    ):
+        raise RehearsalV22Error("active anchor extraction lacks validator identity")
+    history = validate_live_history(binding)
+    historical = _historical_selected_anchor(binding, history)
+    live = _ordinary_live_execution_anchor(binding, historical)
+    if historical is live:
+        raise RehearsalV22Error("historical and live anchors must be distinct values")
+    return historical, live
+
+
+def _standalone_active_validation_anchors(
+    *,
+    project_root: Path,
+    raw_binding: ExecutionBinding,
+    selected_epoch: int,
+    selected_commit: str,
+    selected_control_root_sha256: str,
+) -> tuple[HistoricalSelectedAnchor, LiveExecutionAnchor]:
+    """Ordinary official validator bridge; recovery may never use this path."""
+
+    if raw_binding.mode != "REGISTERED_OFFICIAL" or raw_binding.project_root != project_root:
+        raise RehearsalV22Error("standalone active anchors require the registered binding")
+    history = validate_live_history(raw_binding)
+    historical = _historical_selected_anchor(raw_binding, history)
+    if (
+        historical.selected_epoch != selected_epoch
+        or historical.selected_commit != selected_commit
+        or historical.control_surface.merkle_root_sha256
+        != selected_control_root_sha256
+    ):
+        raise RehearsalV22Error("standalone selected envelope differs from live history")
+    live = _ordinary_live_execution_anchor(raw_binding, historical)
+    return historical, live
+
+
+def _build_recovery_authority_state() -> tuple[Any, ...]:
+    capability_nonce = object()
+    delegation_nonce = object()
+    capability_registry: tuple[RecoveryExecutionCapability, ...] = ()
+    delegation_registry: tuple[
+        tuple[RecoveryValidatorDelegation, RecoveryExecutionCapability, ModuleType, _AuditPolicy],
+        ...,
+    ] = ()
+
+    def validate_recovery_execution_capability(
+        value: RecoveryExecutionCapability,
+        *,
+        project_root: Path,
+    ) -> ExecutionBinding:
+        if (
+            not isinstance(value, RecoveryExecutionCapability)
+            or value._nonce is not capability_nonce
+            or not any(record is value for record in capability_registry)
+            or value.binding.project_root != project_root.absolute()
+        ):
+            raise RehearsalV22Error("recovery execution capability is forged or stale")
+        _validate_bootstrap_evidence(value.bootstrap)
+        policy = _AUDIT_POLICY.get()
+        authority_root = _TEMP_AUTHORITY.get()
+        expected_policy = _recovery_execution_policy(
+            value.binding,
+            claim_root=value.claim_root,
+            temporary_authority=value.temporary_authority,
+        )
+        if (
+            policy is None
+            or not _audit_policy_is_issued(policy)
+            or policy != expected_policy
+            or policy is not value.audit_policy
+            or id(policy) != value.audit_policy_id
+            or authority_root != value.temporary_authority
+            or policy.project_root != value.binding.project_root
+            or not value.claim_root.is_dir()
+            or value.claim_root.is_symlink()
+            or not value.temporary_authority.is_dir()
+            or value.temporary_authority.is_symlink()
+        ):
+            raise RehearsalV22Error("recovery capability is outside its audit lifetime")
+        reference = value.authorization.authority_ref(value.binding.project_root)
+        observed_authorization = _validate_bundle_recovery_authorization(
+            value.binding,
+            reference,
+            require_current_process=True,
+        )
+        history = validate_live_history(value.binding)
+        observed_historical = _historical_selected_anchor(value.binding, history)
+        observed_live = _live_execution_anchor(
+            value.binding,
+            observed_authorization.execution_epoch,
+        )
+        if (
+            observed_authorization != value.authorization
+            or observed_historical != value.historical_anchor
+            or observed_live != value.live_anchor
+        ):
+            raise RehearsalV22Error("recovery capability bytes or anchors drifted")
+        started, _payload, _digest = _canonical_object_file(
+            value.claim_root / "started.json",
+            label="bundle recovery started claim",
+            exact_fields=RECOVERY_STARTED_FIELDS,
+        )
+        created_utc = started.get("created_at_utc")
+        created_shanghai = started.get("created_at_shanghai")
+        if (
+            not isinstance(created_utc, str)
+            or RFC3339_UTC_SECONDS.fullmatch(created_utc) is None
+            or not isinstance(created_shanghai, str)
+            or RFC3339_SHANGHAI_SECONDS.fullmatch(created_shanghai) is None
+        ):
+            raise RehearsalV22Error("bundle recovery started timestamp is invalid")
+        try:
+            if datetime.fromisoformat(
+                created_utc.replace("Z", "+00:00")
+            ) != datetime.fromisoformat(created_shanghai):
+                raise RehearsalV22Error("bundle recovery started timestamps disagree")
+        except ValueError as exc:
+            raise RehearsalV22Error("bundle recovery started timestamp is invalid") from exc
+        if (
+            started.get("schema_version")
+            != "p4.2a-v2-2-sealed-bundle-recovery-started-v1"
+            or started.get("recovery_id") != value.authorization.authorization_id
+            or started.get("authorization") != value.authorization.authority_ref(
+                value.binding.project_root
+            ).as_json()
+            or started.get("state") != "STARTED"
+            or started.get("execution_head") != value.live_anchor.execution_head
+            or not _is_exact_int(
+                started.get("execution_epoch"),
+                value.live_anchor.execution_epoch,
+            )
+            or started.get("sealed_history_root_sha256")
+            != value.historical_anchor.history_root_sha256
+            or started.get("sealed_live_ledger_root_sha256")
+            != value.historical_anchor.live_ledger_root_sha256
+            or started.get("destination") != value.binding.destination.as_posix()
+            or not _is_exact_int(started.get("authorized_bundle_recovery_starts"), 1)
+            or not _is_exact_int(started.get("authorized_pipeline_starts"), 0)
+            or not _is_exact_int(started.get("automatic_retry_count"), 0)
+        ):
+            raise RehearsalV22Error("bundle recovery started claim drifted")
+        return value.binding
+
+    @contextmanager
+    def recovery_execution_capability_scope(
+        *,
+        binding: ExecutionBinding,
+        bootstrap: _BootstrapEvidence,
+        authorization: BundleRecoveryAuthorization,
+        historical_anchor: HistoricalSelectedAnchor,
+        live_anchor: LiveExecutionAnchor,
+        claim_root: Path,
+        temporary_authority: Path,
+    ) -> Iterator[RecoveryExecutionCapability]:
+        nonlocal capability_registry
+        _validate_bootstrap_evidence(bootstrap)
+        if not isinstance(historical_anchor, HistoricalSelectedAnchor) or not isinstance(
+            live_anchor,
+            LiveExecutionAnchor,
+        ):
+            raise RehearsalV22Error("recovery capability requires both typed anchors")
+        policy = _AUDIT_POLICY.get()
+        expected_policy = _recovery_execution_policy(
+            binding,
+            claim_root=claim_root,
+            temporary_authority=temporary_authority,
+        )
+        if (
+            policy is None
+            or not _audit_policy_is_issued(policy)
+            or policy != expected_policy
+        ):
+            raise RehearsalV22Error("recovery capability lacks its exact effect policy")
+        value = RecoveryExecutionCapability(
+            _nonce=capability_nonce,
+            binding=binding,
+            bootstrap=bootstrap,
+            authorization=authorization,
+            historical_anchor=historical_anchor,
+            live_anchor=live_anchor,
+            claim_root=claim_root,
+            temporary_authority=temporary_authority,
+            audit_policy=policy,
+            audit_policy_id=id(policy),
+        )
+        capability_registry = (*capability_registry, value)
+        try:
+            validate_recovery_execution_capability(value, project_root=binding.project_root)
+            yield value
+        finally:
+            capability_registry = tuple(
+                record for record in capability_registry if record is not value
+            )
+
+    @contextmanager
+    def borrow_recovery_validator_authority(
+        recovery_context: RecoveryExecutionCapability,
+        *,
+        validator_module: ModuleType,
+        bundle_path: Path,
+    ) -> Iterator[RecoveryValidatorDelegation]:
+        nonlocal delegation_registry
+        binding = validate_recovery_execution_capability(
+            recovery_context,
+            project_root=recovery_context.binding.project_root,
+        )
+        policy = _AUDIT_POLICY.get()
+        if (
+            policy is None
+            or validator_module.__name__
+            != "scripts.validate_p4_2a_v2_2_heldout_rehearsal_bundle"
+            or sys.modules.get(validator_module.__name__) is not validator_module
+        ):
+            raise RehearsalV22Error("recovery validator delegation lacks exact identity")
+        candidate = bundle_path.absolute()
+        if not candidate.is_relative_to(recovery_context.temporary_authority):
+            raise RehearsalV22Error("recovery validator bundle escapes temporary authority")
+        payload = _regular_bytes(candidate, "recovery delegated bundle")
+        token = RecoveryValidatorDelegation(
+            _nonce=delegation_nonce,
+            binding=binding,
+            capability_id=id(recovery_context),
+            validator_module_id=id(validator_module),
+            audit_policy_id=id(policy),
+            temporary_authority=recovery_context.temporary_authority,
+            bundle_path=candidate,
+            bundle_sha256=_sha256(payload),
+            creator_module_id=id(sys.modules[MODULE_NAME]),
+            lifetime_id=id(object()),
+        )
+        record = (token, recovery_context, validator_module, policy)
+        delegation_registry = (*delegation_registry, record)
+        try:
+            yield token
+        finally:
+            delegation_registry = tuple(
+                active for active in delegation_registry if active is not record
+            )
+
+    def validate_recovery_validator_delegation(
+        value: RecoveryValidatorDelegation,
+        *,
+        recovery_context: RecoveryExecutionCapability,
+        validator_module: ModuleType,
+        project_root: Path,
+        bundle_path: Path,
+    ) -> ExecutionBinding:
+        binding = validate_recovery_execution_capability(
+            recovery_context,
+            project_root=project_root,
+        )
+        policy = _AUDIT_POLICY.get()
+        matches = [record for record in delegation_registry if record[0] is value]
+        record = matches[0] if len(matches) == 1 else None
+        candidate = bundle_path.absolute()
+        if (
+            not isinstance(value, RecoveryValidatorDelegation)
+            or value._nonce is not delegation_nonce
+            or record is None
+            or record[1] is not recovery_context
+            or record[2] is not validator_module
+            or record[3] is not policy
+            or value.binding != binding
+            or value.capability_id != id(recovery_context)
+            or value.validator_module_id != id(validator_module)
+            or value.audit_policy_id != id(policy)
+            or value.temporary_authority != recovery_context.temporary_authority
+            or value.bundle_path != candidate
+            or value.bundle_sha256
+            != _sha256(_regular_bytes(candidate, "recovery delegated bundle"))
+            or value.creator_module_id != id(sys.modules[MODULE_NAME])
+        ):
+            raise RehearsalV22Error("recovery validator delegation is forged or stale")
+        return binding
+
+    def recovery_validation_anchors(
+        value: RecoveryExecutionCapability,
+        *,
+        project_root: Path,
+    ) -> tuple[HistoricalSelectedAnchor, LiveExecutionAnchor]:
+        validate_recovery_execution_capability(value, project_root=project_root)
+        return value.historical_anchor, value.live_anchor
+
+    return (
+        recovery_execution_capability_scope,
+        validate_recovery_execution_capability,
+        borrow_recovery_validator_authority,
+        validate_recovery_validator_delegation,
+        recovery_validation_anchors,
+    )
+
+
+(
+    _recovery_execution_capability_scope,
+    _validate_recovery_execution_capability,
+    _borrow_recovery_validator_authority,
+    _validate_recovery_validator_delegation,
+    _recovery_validation_anchors,
+) = _build_recovery_authority_state()
+
+
+def _validate_recovery_claim_first_parent_order(
+    project_root: Path,
+    *,
+    live_execution_head: str,
+    landing_commit: str,
+    authorization_commit: str,
+    started_execution_head: str,
+) -> None:
+    """Bind landing, recovery authority, and its one start on one live spine."""
+
+    root = project_root.absolute()
+    live_head = _git_commit(root, live_execution_head, "recovered release live head")
+    landing = _git_commit(root, landing_commit, "recovered release landing")
+    authority = _git_commit(
+        root,
+        authorization_commit,
+        "recovered release authorization",
+    )
+    started = _git_commit(
+        root,
+        started_execution_head,
+        "recovered release started execution head",
+    )
+    live_first_parent_chain = tuple(
+        _git_bytes(
+            root,
+            "rev-list",
+            "--first-parent",
+            "--reverse",
+            live_head,
+            "--",
+        )
+        .decode("ascii", errors="strict")
+        .splitlines()
+    )
+    try:
+        landing_index = live_first_parent_chain.index(landing)
+        authority_index = live_first_parent_chain.index(authority)
+        started_index = live_first_parent_chain.index(started)
+    except ValueError as exc:
+        raise RehearsalV22Error(
+            "recovered release claim commits are outside live first-parent history"
+        ) from exc
+    if not landing_index <= authority_index <= started_index:
+        raise RehearsalV22Error(
+            "recovered release claim commit order is not landing-authority-started"
+        )
+
+
+def _successful_recovery_claim(
+    binding: ExecutionBinding,
+    authorization: BundleRecoveryAuthorization,
+) -> tuple[Path, JsonObject, str, str]:
+    claim = _recovery_claim_path(binding, authorization)
+    if (
+        not claim.is_dir()
+        or claim.is_symlink()
+        or stat.S_IMODE(claim.stat().st_mode) != 0o700
+        or claim.resolve(strict=True) != claim.absolute()
+    ):
+        raise RehearsalV22Error("recovered release lacks one private recovery claim")
+    names = sorted(path.name for path in claim.iterdir())
+    if names != ["started.json", "terminal.json"]:
+        raise RehearsalV22Error("recovered release claim inventory drifted")
+    for name in names:
+        metadata = (claim / name).lstat()
+        if (
+            not stat.S_ISREG(metadata.st_mode)
+            or stat.S_IMODE(metadata.st_mode) != 0o600
+            or metadata.st_nlink != 1
+        ):
+            raise RehearsalV22Error("recovered release claim file identity drifted")
+    started, _started_payload, _started_sha = _canonical_object_file(
+        claim / "started.json",
+        label="recovered release started claim",
+        exact_fields=RECOVERY_STARTED_FIELDS,
+    )
+    terminal, _terminal_payload, terminal_sha = _canonical_object_file(
+        claim / "terminal.json",
+        label="recovered release terminal claim",
+        exact_fields=RECOVERY_TERMINAL_FIELDS,
+    )
+    reference = authorization.authority_ref(binding.project_root).as_json()
+    bundle_path = binding.destination / BUNDLE_FILENAME
+    bundle_payload = _regular_bytes(bundle_path, "recovered release bundle")
+    expected_tree_sha = _sha256(
+        _canonical_json_bytes(_tree_fingerprint(binding.destination))
+    )
+    current_ledger_sha = _sha256(
+        _canonical_json_bytes(_tree_fingerprint(binding.ledger_root))
+    )
+    live = _live_execution_anchor(binding, authorization.execution_epoch)
+    _validate_recovery_claim_first_parent_order(
+        binding.project_root,
+        live_execution_head=live.execution_head,
+        landing_commit=live.landing_report.creating_commit,
+        authorization_commit=authorization.creating_commit,
+        started_execution_head=cast(str, started.get("execution_head")),
+    )
+    started_utc = started.get("created_at_utc")
+    started_shanghai = started.get("created_at_shanghai")
+    completed_utc = terminal.get("completed_at_utc")
+    completed_shanghai = terminal.get("completed_at_shanghai")
+    if (
+        not isinstance(started_utc, str)
+        or RFC3339_UTC_SECONDS.fullmatch(started_utc) is None
+        or not isinstance(started_shanghai, str)
+        or RFC3339_SHANGHAI_SECONDS.fullmatch(started_shanghai) is None
+        or not isinstance(completed_utc, str)
+        or RFC3339_UTC_SECONDS.fullmatch(completed_utc) is None
+        or not isinstance(completed_shanghai, str)
+        or RFC3339_SHANGHAI_SECONDS.fullmatch(completed_shanghai) is None
+    ):
+        raise RehearsalV22Error("recovered release claim timestamps are invalid")
+    try:
+        started_instant = datetime.fromisoformat(started_utc.replace("Z", "+00:00"))
+        completed_instant = datetime.fromisoformat(completed_utc.replace("Z", "+00:00"))
+        if (
+            started_instant != datetime.fromisoformat(started_shanghai)
+            or completed_instant != datetime.fromisoformat(completed_shanghai)
+            or completed_instant < started_instant
+        ):
+            raise RehearsalV22Error("recovered release claim timestamps disagree")
+    except ValueError as exc:
+        raise RehearsalV22Error("recovered release claim timestamp is invalid") from exc
+    if (
+        started.get("schema_version")
+        != "p4.2a-v2-2-sealed-bundle-recovery-started-v1"
+        or started.get("recovery_id") != authorization.authorization_id
+        or started.get("authorization") != reference
+        or started.get("state") != "STARTED"
+        or not _is_exact_int(started.get("execution_epoch"), live.execution_epoch)
+        or started.get("sealed_history_root_sha256")
+        != authorization.sealed_series.get("history_root_sha256")
+        or started.get("sealed_live_ledger_root_sha256")
+        != authorization.sealed_series.get("live_ledger_root_sha256")
+        or started.get("destination") != binding.destination.as_posix()
+        or not _is_exact_int(started.get("authorized_bundle_recovery_starts"), 1)
+        or not _is_exact_int(started.get("authorized_pipeline_starts"), 0)
+        or not _is_exact_int(started.get("automatic_retry_count"), 0)
+        or terminal.get("schema_version")
+        != "p4.2a-v2-2-sealed-bundle-recovery-terminal-v1"
+        or terminal.get("recovery_id") != authorization.authorization_id
+        or terminal.get("authorization") != reference
+        or terminal.get("outcome") != "BUNDLE_RECOVERY_PUBLISHED"
+        or terminal.get("reached_stage") != "bundle_recovery_published"
+        or terminal.get("sealed_ledger_before_sha256")
+        != terminal.get("sealed_ledger_after_sha256")
+        or terminal.get("sealed_ledger_before_sha256") != current_ledger_sha
+        or not _lower_hex(terminal.get("sealed_ledger_before_sha256"), 64)
+        or terminal.get("destination") != binding.destination.as_posix()
+        or terminal.get("published_bundle_sha256") != _sha256(bundle_payload)
+        or terminal.get("published_tree_sha256") != expected_tree_sha
+        or type(terminal.get("temporary_authority_absent")) is not bool
+        or terminal.get("temporary_authority_absent") is not True
+        or not _is_exact_int(terminal.get("pipeline_starts"), 0)
+        or not _is_exact_int(terminal.get("automatic_retry_count"), 0)
+        or terminal.get("error") is not None
+        or os.path.lexists(_recovery_temporary_authority_path(binding, authorization))
+    ):
+        raise RehearsalV22Error("recovered release success claim semantics drifted")
+    return claim, terminal, terminal_sha, _sha256(bundle_payload)
+
+
+def _build_recovered_release_authority_state() -> tuple[Any, ...]:
+    capability_nonce = object()
+    delegation_nonce = object()
+    capability_registry: tuple[RecoveredReleaseCapability, ...] = ()
+    delegation_registry: tuple[
+        tuple[
+            RecoveredReleaseValidatorDelegation,
+            RecoveredReleaseCapability,
+            ModuleType,
+            _AuditPolicy,
+        ],
+        ...,
+    ] = ()
+
+    def validate_recovered_release_capability(
+        value: RecoveredReleaseCapability,
+        *,
+        project_root: Path,
+    ) -> ExecutionBinding:
+        if (
+            not isinstance(value, RecoveredReleaseCapability)
+            or value._nonce is not capability_nonce
+            or not any(record is value for record in capability_registry)
+            or value.binding.project_root != project_root.absolute()
+        ):
+            raise RehearsalV22Error("recovered-release capability is forged or stale")
+        policy = _AUDIT_POLICY.get()
+        if (
+            policy is None
+            or not _audit_policy_is_issued(policy)
+            or policy.project_root != value.binding.project_root
+            or policy.write_roots
+            or policy.exact_write_paths
+            or policy.create_only_roots
+            or policy.sqlite_roots
+        ):
+            raise RehearsalV22Error("recovered-release capability is not read-only")
+        validator_module = sys.modules.get(
+            "scripts.validate_p4_2a_v2_2_heldout_rehearsal_bundle"
+        )
+        main_module = sys.modules.get("__main__")
+        if id(validator_module) != value.validator_module_id and id(main_module) != (
+            value.validator_module_id
+        ):
+            raise RehearsalV22Error("recovered-release validator module identity drifted")
+        reference = value.authorization.authority_ref(value.binding.project_root)
+        observed_authorization = _validate_bundle_recovery_authorization(
+            value.binding,
+            reference,
+            require_current_process=False,
+            require_destination_absent=False,
+        )
+        history = validate_live_history(value.binding)
+        historical = _historical_selected_anchor(value.binding, history)
+        live = _live_execution_anchor(
+            value.binding,
+            observed_authorization.execution_epoch,
+        )
+        claim, _terminal, terminal_sha, bundle_sha = _successful_recovery_claim(
+            value.binding,
+            observed_authorization,
+        )
+        if (
+            observed_authorization != value.authorization
+            or historical != value.historical_anchor
+            or live != value.live_anchor
+            or claim != value.claim_root
+            or terminal_sha != value.terminal_sha256
+            or value.bundle_path != value.binding.destination / BUNDLE_FILENAME
+            or bundle_sha != value.bundle_sha256
+        ):
+            raise RehearsalV22Error("recovered-release evidence drifted")
+        return value.binding
+
+    @contextmanager
+    def recovered_release_validation_scope(
+        *,
+        binding: ExecutionBinding,
+        validator_module: ModuleType,
+        recovery_authorization_path: Path,
+        bundle_path: Path,
+    ) -> Iterator[
+        tuple[RecoveredReleaseCapability, RecoveredReleaseValidatorDelegation]
+    ]:
+        nonlocal capability_registry, delegation_registry
+        candidate = bundle_path.absolute()
+        if (
+            binding.action_authorization_path != recovery_authorization_path.absolute()
+            or candidate != binding.destination / BUNDLE_FILENAME
+        ):
+            raise RehearsalV22Error("recovered-release scope binding drifted")
+        existing_policy = _AUDIT_POLICY.get()
+        if existing_policy is None:
+            audit_scope = _audited_execution(
+                _read_only_preflight_policy(binding.project_root),
+                validator_replay_module=validator_module,
+            )
+        else:
+            if (
+                not _audit_policy_is_issued(existing_policy)
+                or existing_policy.project_root != binding.project_root
+                or existing_policy.write_roots
+                or existing_policy.exact_write_paths
+                or existing_policy.create_only_roots
+                or existing_policy.sqlite_roots
+            ):
+                raise RehearsalV22Error("recovered-release existing policy is not read-only")
+            audit_scope = nullcontext()
+        with audit_scope:
+            execution_head = _current_execution_head(binding.project_root)
+            reference = _authority_reference_for_path(
+                binding.project_root,
+                recovery_authorization_path,
+                execution_head=execution_head,
+                label="recovered-release recovery authorization",
+            )
+            authorization = _validate_bundle_recovery_authorization(
+                binding,
+                reference,
+                require_current_process=False,
+                require_destination_absent=False,
+            )
+            history = validate_live_history(binding)
+            historical = _historical_selected_anchor(binding, history)
+            live = _live_execution_anchor(binding, authorization.execution_epoch)
+            claim, _terminal, terminal_sha, bundle_sha = _successful_recovery_claim(
+                binding,
+                authorization,
+            )
+            value = RecoveredReleaseCapability(
+                _nonce=capability_nonce,
+                binding=binding,
+                authorization=authorization,
+                historical_anchor=historical,
+                live_anchor=live,
+                claim_root=claim,
+                terminal_sha256=terminal_sha,
+                bundle_path=candidate,
+                bundle_sha256=bundle_sha,
+                validator_module_id=id(validator_module),
+            )
+            capability_registry = (*capability_registry, value)
+            policy = _AUDIT_POLICY.get()
+            if policy is None:
+                raise RehearsalV22Error("recovered-release read-only policy vanished")
+            delegation = RecoveredReleaseValidatorDelegation(
+                _nonce=delegation_nonce,
+                binding=binding,
+                capability_id=id(value),
+                validator_module_id=id(validator_module),
+                audit_policy_id=id(policy),
+                bundle_path=candidate,
+                bundle_sha256=bundle_sha,
+                terminal_sha256=terminal_sha,
+                creator_module_id=id(sys.modules[MODULE_NAME]),
+                lifetime_id=id(object()),
+            )
+            record = (delegation, value, validator_module, policy)
+            delegation_registry = (*delegation_registry, record)
+            try:
+                validate_recovered_release_capability(
+                    value,
+                    project_root=binding.project_root,
+                )
+                yield value, delegation
+            finally:
+                delegation_registry = tuple(
+                    active for active in delegation_registry if active is not record
+                )
+                capability_registry = tuple(
+                    active for active in capability_registry if active is not value
+                )
+
+    def validate_recovered_release_validator_delegation(
+        value: RecoveredReleaseValidatorDelegation,
+        *,
+        recovered_release_context: RecoveredReleaseCapability,
+        validator_module: ModuleType,
+        project_root: Path,
+        bundle_path: Path,
+    ) -> ExecutionBinding:
+        binding = validate_recovered_release_capability(
+            recovered_release_context,
+            project_root=project_root,
+        )
+        policy = _AUDIT_POLICY.get()
+        matches = [record for record in delegation_registry if record[0] is value]
+        record = matches[0] if len(matches) == 1 else None
+        candidate = bundle_path.absolute()
+        if (
+            not isinstance(value, RecoveredReleaseValidatorDelegation)
+            or value._nonce is not delegation_nonce
+            or record is None
+            or record[1] is not recovered_release_context
+            or record[2] is not validator_module
+            or record[3] is not policy
+            or value.binding != binding
+            or value.capability_id != id(recovered_release_context)
+            or value.validator_module_id != id(validator_module)
+            or value.audit_policy_id != id(policy)
+            or value.bundle_path != candidate
+            or value.bundle_sha256 != recovered_release_context.bundle_sha256
+            or value.terminal_sha256 != recovered_release_context.terminal_sha256
+            or value.creator_module_id != id(sys.modules[MODULE_NAME])
+        ):
+            raise RehearsalV22Error("recovered-release delegation is forged or stale")
+        return binding
+
+    def recovered_release_validation_anchors(
+        value: RecoveredReleaseCapability,
+        *,
+        project_root: Path,
+    ) -> tuple[HistoricalSelectedAnchor, LiveExecutionAnchor]:
+        validate_recovered_release_capability(value, project_root=project_root)
+        return value.historical_anchor, value.live_anchor
+
+    return (
+        recovered_release_validation_scope,
+        validate_recovered_release_capability,
+        validate_recovered_release_validator_delegation,
+        recovered_release_validation_anchors,
+    )
+
+
+(
+    _recovered_release_validation_scope,
+    _validate_recovered_release_capability,
+    _validate_recovered_release_validator_delegation,
+    _recovered_release_validation_anchors,
+) = _build_recovered_release_authority_state()
+
+
+def consume_recovered_release_authorization(
+    *,
+    binding: ExecutionBinding,
+    validator_module: ModuleType,
+    recovery_authorization_path: Path,
+    receipt_path: Path,
+) -> JsonObject:
+    """Passively consume one recovered release with no pipeline capability."""
+
+    if (
+        validator_module.__name__
+        != "scripts.validate_p4_2a_v2_2_heldout_rehearsal_bundle"
+        or sys.modules.get(validator_module.__name__) is not validator_module
+    ):
+        raise RehearsalV22Error("recovered-release consumer lacks exact validator identity")
+    bundle_path = binding.destination / BUNDLE_FILENAME
+    observed_before = {
+        "authorization": _tree_fingerprint(recovery_authorization_path.absolute()),
+        "claim": _tree_fingerprint(
+            _recovery_claim_path(
+                binding,
+                _validate_bundle_recovery_authorization(
+                    binding,
+                    _authority_reference_for_path(
+                        binding.project_root,
+                        recovery_authorization_path,
+                        execution_head=_current_execution_head(binding.project_root),
+                        label="recovered-release consumer authorization",
+                    ),
+                    require_current_process=False,
+                    require_destination_absent=False,
+                ),
+            )
+        ),
+        "destination": _tree_fingerprint(binding.destination),
+        "ledger": _tree_fingerprint(binding.ledger_root),
+        "receipt": _tree_fingerprint(receipt_path.absolute()),
+    }
+    with _recovered_release_validation_scope(
+        binding=binding,
+        validator_module=validator_module,
+        recovery_authorization_path=recovery_authorization_path,
+        bundle_path=bundle_path,
+    ) as (recovery_context, recovery_validator_delegation):
+        validate_recovered_release = getattr(
+            validator_module,
+            "validate_recovered_release_authorization",
+            None,
+        )
+        if not callable(validate_recovered_release):
+            raise RehearsalV22Error("passive recovered-release validator API is unavailable")
+        result = validate_recovered_release(
+            project_root=binding.project_root,
+            receipt_path=receipt_path.absolute(),
+            recovery_context=recovery_context,
+            recovery_validator_delegation=recovery_validator_delegation,
+        )
+        _validate_recovered_release_capability(
+            recovery_context,
+            project_root=binding.project_root,
+        )
+    observed_after = {
+        "authorization": _tree_fingerprint(recovery_authorization_path.absolute()),
+        "claim": observed_before["claim"],
+        "destination": _tree_fingerprint(binding.destination),
+        "ledger": _tree_fingerprint(binding.ledger_root),
+        "receipt": _tree_fingerprint(receipt_path.absolute()),
+    }
+    # The claim was re-read in the capability immediately after validation;
+    # re-resolve its path only after the read-only scope has closed.
+    execution_head = _current_execution_head(binding.project_root)
+    authority = _validate_bundle_recovery_authorization(
+        binding,
+        _authority_reference_for_path(
+            binding.project_root,
+            recovery_authorization_path,
+            execution_head=execution_head,
+            label="recovered-release post-consumption authorization",
+        ),
+        require_current_process=False,
+        require_destination_absent=False,
+    )
+    observed_after["claim"] = _tree_fingerprint(
+        _recovery_claim_path(binding, authority)
+    )
+    if observed_after != observed_before:
+        raise RehearsalV22Error("recovered-release consumption changed governed evidence")
+    return _object(result, "recovered-release validation result")
 
 
 def _validate_post_run_control_surface(
@@ -6076,8 +8304,20 @@ def _schema_const_template(
     return result
 
 
-def _bundle_schema(project_root: Path) -> JsonObject:
-    payload = _regular_bytes(project_root / BUNDLE_SCHEMA_RELATIVE, "v2.2 bundle schema")
+def _bundle_schema(
+    project_root: Path,
+    *,
+    historical_selected_commit: str | None = None,
+) -> JsonObject:
+    payload = (
+        _regular_bytes(project_root / BUNDLE_SCHEMA_RELATIVE, "v2.2 bundle schema")
+        if historical_selected_commit is None
+        else _git_blob(
+            project_root,
+            historical_selected_commit,
+            BUNDLE_SCHEMA_RELATIVE.as_posix(),
+        )
+    )
     if _sha256(payload) != BUNDLE_SCHEMA_SHA256:
         raise RehearsalV22Error("v2.2 bundle schema bytes drifted")
     return _object(strict_json_loads(payload, source="v2.2 bundle schema"), "bundle schema")
@@ -6097,10 +8337,20 @@ def _constant_section(schema: JsonObject, name: str) -> JsonObject:
     )
 
 
-def _verified_file_ref(project_root: Path, relative: str, digest: str) -> JsonObject:
-    payload = _regular_bytes(
-        _safe_path(project_root, relative, f"lineage file {relative}"),
-        f"lineage file {relative}",
+def _verified_file_ref(
+    project_root: Path,
+    relative: str,
+    digest: str,
+    *,
+    historical_selected_commit: str | None = None,
+) -> JsonObject:
+    payload = (
+        _regular_bytes(
+            _safe_path(project_root, relative, f"lineage file {relative}"),
+            f"lineage file {relative}",
+        )
+        if historical_selected_commit is None
+        else _git_blob(project_root, historical_selected_commit, relative)
     )
     if _sha256(payload) != digest:
         raise RehearsalV22Error(f"lineage file bytes drifted: {relative}")
@@ -6175,28 +8425,42 @@ def _bundle_lineage(
     project_root: Path,
     *,
     implementation_commit: str,
+    historical_selected_commit: str | None = None,
 ) -> JsonObject:
+    if (
+        historical_selected_commit is not None
+        and implementation_commit != historical_selected_commit
+    ):
+        raise RehearsalV22Error("historical bundle lineage commit binding drifted")
     lineage: JsonObject = {
         "preregistration": _verified_file_ref(
             project_root,
             PREREGISTRATION_RELATIVE.as_posix(),
             PREREGISTRATION_SHA256,
+            historical_selected_commit=historical_selected_commit,
         ),
         "bundle_schema": _verified_file_ref(
             project_root,
             BUNDLE_SCHEMA_RELATIVE.as_posix(),
             BUNDLE_SCHEMA_SHA256,
+            historical_selected_commit=historical_selected_commit,
         ),
         "release_authorization_schema": _verified_file_ref(
             project_root,
             RELEASE_SCHEMA_RELATIVE.as_posix(),
             RELEASE_SCHEMA_SHA256,
+            historical_selected_commit=historical_selected_commit,
         ),
         "v1_fail_close_commit": V1_FAIL_CLOSE_COMMIT,
         "preregistration_commit": PREREGISTRATION_COMMIT,
         "implementation_commit": implementation_commit,
         "retired_v1_artifacts": [
-            _verified_file_ref(project_root, path, digest)
+            _verified_file_ref(
+                project_root,
+                path,
+                digest,
+                historical_selected_commit=historical_selected_commit,
+            )
             for path, digest in base_runner.RETIRED_V1_REFERENCES
         ],
         "v2_1_implementation_commit": V2_1_IMPLEMENTATION_COMMIT,
@@ -6210,14 +8474,19 @@ def _bundle_lineage(
         ).as_json(),
     }
     for key, (path, digest) in _LINEAGE_FILE_REFS.items():
-        lineage[key] = _verified_file_ref(project_root, path, digest)
+        lineage[key] = _verified_file_ref(
+            project_root,
+            path,
+            digest,
+            historical_selected_commit=historical_selected_commit,
+        )
     for key, (path, digest, creating_commit) in CARRY_FORWARD_AUTHORITIES.items():
         lineage[key] = AuthorityReference(path, digest, creating_commit).as_json()
     return lineage
 
 
 def _run_archive(
-    replay: PipelineReplay,
+    replay: PipelineReplay | _SealedPipelineReplay,
 ) -> tuple[JsonObject, dict[str, bytes], str]:
     archive_root = f"archive/{replay.run_label}/root"
     records: list[JsonObject] = []
@@ -6320,6 +8589,7 @@ def _history_archive(
         or len(history.records) != history.started_count
     ):
         raise RehearsalV22Error("bundle history is not one closed disclosed series")
+    execution_head = _current_execution_head(binding.project_root)
     payloads: dict[str, bytes] = {}
     bundle_records: list[JsonObject] = []
     for relative in ("series.json", ".series.lock"):
@@ -6352,14 +8622,11 @@ def _history_archive(
                 archive_relative=terminal_archive,
                 payload=record.terminal_bytes,
             )
-        action_path = _safe_path(
+        action_payload = validate_unique_a_authority(
             binding.project_root,
-            record.owner_action_time_authorization.path,
-            f"attempt {record.ordinal} action authorization",
-        )
-        action_payload = _regular_bytes(
-            action_path,
-            f"attempt {record.ordinal} action authorization",
+            record.owner_action_time_authorization,
+            execution_head=execution_head,
+            require_current=False,
         )
         if _sha256(action_payload) != record.owner_action_time_authorization.sha256:
             raise RehearsalV22Error("action authorization bytes changed before archive")
@@ -6465,12 +8732,96 @@ def _history_archive(
     )
 
 
+def _rehydrate_sealed_pipeline_replays(
+    binding: ExecutionBinding,
+    history: HistoryValidation,
+    authorization: BundleRecoveryAuthorization,
+) -> tuple[_SealedPipelineReplay, _SealedPipelineReplay]:
+    """Read already persisted run bytes without possessing a replay capability."""
+
+    historical = _historical_selected_anchor(binding, history)
+    if (
+        authorization.sealed_series.get("history_root_sha256")
+        != historical.history_root_sha256
+        or authorization.sealed_series.get("live_ledger_root_sha256")
+        != historical.live_ledger_root_sha256
+    ):
+        raise RehearsalV22Error("sealed-run rehydrate authority differs from history")
+    selected = history.records[history.selected_attempt_ordinal - 1]  # type: ignore[operator]
+    evidence_root = selected.started_path.parent / "evidence"
+    observed_evidence_root, _all_evidence = _evidence_tree(evidence_root)
+    if (
+        observed_evidence_root != historical.evidence_tree_root_sha256
+        or observed_evidence_root
+        != authorization.sealed_series.get("selected_evidence_tree_root_sha256")
+    ):
+        raise RehearsalV22Error("sealed evidence tree drifted before rehydrate")
+    replays: list[_SealedPipelineReplay] = []
+    for run_label in ("run-a", "run-b"):
+        artifacts: dict[str, bytes] = {}
+        merkle_payloads: dict[str, bytes] = {}
+        for logical_name, source_relative in ARTIFACT_INVENTORY:
+            path = evidence_root.joinpath(
+                *PurePosixPath(f"runs/{run_label}/root/{source_relative}").parts
+            )
+            payload = _regular_bytes(path, f"sealed {run_label} {logical_name}")
+            artifacts[logical_name] = payload
+            merkle_payloads[source_relative] = payload
+        if len(artifacts) != 14:
+            raise RehearsalV22Error("sealed rehydrate did not read exactly 14 artifacts")
+        run_root = _generic_merkle_root(merkle_payloads)
+        expected_root = authorization.sealed_series.get(
+            "selected_run_a_root_sha256" if run_label == "run-a" else "selected_run_b_root_sha256"
+        )
+        if run_root != expected_root:
+            raise RehearsalV22Error(f"sealed {run_label} root drifted")
+        probe_path = evidence_root / "probes" / f"{run_label}.json"
+        probe_payload = _regular_bytes(probe_path, f"sealed {run_label} probe")
+        probes = _object(
+            strict_json_loads(probe_payload, source=f"sealed {run_label} probe"),
+            f"sealed {run_label} probe",
+        )
+        if _canonical_json_bytes(probes) != probe_payload:
+            raise RehearsalV22Error(f"sealed {run_label} probe is not canonical")
+        expected_probes = _pipeline_probe_evidence(
+            run_label=run_label,
+            clock=DeterministicClock(
+                MONOTONIC_INITIAL_SECONDS + float(CNINFO_GAP_COUNT)
+            ),
+            artifacts=artifacts,
+        )
+        if probes != expected_probes:
+            raise RehearsalV22Error(f"sealed {run_label} probe semantics drifted")
+        replays.append(
+            _SealedPipelineReplay(
+                run_label=run_label,
+                artifacts=dict(artifacts),
+                probe_evidence=copy.deepcopy(probes),
+            )
+        )
+    if dict(replays[0].artifacts) != dict(replays[1].artifacts):
+        raise RehearsalV22Error("sealed run-A and run-B are not byte-identical")
+    return replays[0], replays[1]
+
+
 def _implementation_epochs(
     binding: ExecutionBinding,
     history: HistoryValidation,
+    *,
+    historical_anchor: HistoricalSelectedAnchor | None = None,
 ) -> list[JsonObject]:
     if not history.records:
         raise RehearsalV22Error("implementation epochs require at least one attempt")
+    if historical_anchor is not None and (
+        not isinstance(historical_anchor, HistoricalSelectedAnchor)
+        or historical_anchor.history_root_sha256 != history.history_root_sha256
+        or history.selected_attempt_ordinal is None
+        or history.records[history.selected_attempt_ordinal - 1].implementation_epoch
+        != historical_anchor.selected_epoch
+        or history.records[history.selected_attempt_ordinal - 1].implementation_commit
+        != historical_anchor.selected_commit
+    ):
+        raise RehearsalV22Error("implementation epoch historical anchor drifted")
     execution_head = _current_execution_head(binding.project_root)
     groups: list[list[ValidatedAttemptRecord]] = []
     for record in history.records:
@@ -6479,16 +8830,33 @@ def _implementation_epochs(
         else:
             groups[-1].append(record)
     used_epochs = [group[0].implementation_epoch for group in groups]
-    if used_epochs not in (
+    epoch_three_gap = used_epochs == [2, 4]
+    if not epoch_three_gap and used_epochs not in (
         list(range(1, len(groups) + 1)),
         list(range(2, len(groups) + 2)),
     ):
         raise RehearsalV22Error("implementation epoch numbers are not contiguous")
+    if epoch_three_gap and not (
+        len(history.records) == 2
+        and history.records[0].ordinal == 1
+        and history.records[0].outcome == "FAILED"
+        and history.records[0].implementation_epoch == 2
+        and history.records[1].ordinal == 2
+        and history.records[1].outcome == "CANDIDATE_VALIDATED_AND_SELECTED"
+        and history.records[1].implementation_epoch == 4
+        and history.selected_attempt_ordinal == 2
+        and history.validated_candidate_count == 1
+        and history.incomplete_count == 0
+        and history.series_closed
+    ):
+        raise RehearsalV22Error("the void epoch 3 exception requires exact closed [2,4] history")
     result: list[JsonObject] = []
     if used_epochs[0] == 2:
         result.append(_void_epoch_one(binding, execution_head=execution_head))
     for records in groups:
         expected_epoch = records[0].implementation_epoch
+        if epoch_three_gap and expected_epoch == 4:
+            result.append(_void_epoch_three(binding, execution_head=execution_head))
         first = records[0]
         authorization = _validate_action_authorization(
             binding,
@@ -6499,14 +8867,21 @@ def _implementation_epochs(
         )
         if authorization.implementation_epoch != expected_epoch:
             raise RehearsalV22Error("action authorization epoch interval drifted")
-        control = build_control_surface(
-            binding.project_root,
-            authorization.implementation_commit,
-            require_current=(
-                history.selected_attempt_ordinal is not None
-                and records[-1].ordinal == history.selected_attempt_ordinal
-            ),
-        )
+        if (
+            historical_anchor is not None
+            and expected_epoch == historical_anchor.selected_epoch
+            and authorization.implementation_commit == historical_anchor.selected_commit
+        ):
+            control = historical_anchor.control_surface
+        else:
+            control = build_control_surface(
+                binding.project_root,
+                authorization.implementation_commit,
+                # An epoch table is historical disclosure.  Current executing bytes
+                # are proved independently by LiveExecutionAnchor and must never be
+                # substituted for the immutable selected Git blobs.
+                require_current=False,
+            )
         if control.merkle_root_sha256 != authorization.control_merkle_root_sha256:
             raise RehearsalV22Error("implementation epoch control root drifted")
         for record in records:
@@ -6548,6 +8923,233 @@ def _implementation_epochs(
             }
         )
     return result
+
+
+def _void_epoch_three(
+    binding: ExecutionBinding,
+    *,
+    execution_head: str,
+) -> JsonObject:
+    """Return the one exact schema-compatible sentinel for superseded epoch 3."""
+
+    root = binding.project_root.absolute()
+    head = _git_commit(root, execution_head, "void epoch 3 execution head")
+    owner = AuthorityReference(
+        VOID_EPOCH_THREE_OWNER_RELATIVE.as_posix(),
+        VOID_EPOCH_THREE_OWNER_SHA256,
+        VOID_EPOCH_THREE_IMPLEMENTATION_PARENT,
+    )
+    control = build_control_surface(
+        root,
+        VOID_EPOCH_THREE_IMPLEMENTATION_COMMIT,
+        require_current=False,
+    )
+    if (
+        control.merkle_root_sha256 != VOID_EPOCH_THREE_CONTROL_ROOT_SHA256
+        or len(control.records) != VOID_EPOCH_THREE_CONTROL_RECORD_COUNT
+    ):
+        raise RehearsalV22Error("void epoch 3 immutable control surface drifted")
+    _later_epoch_surface(
+        root,
+        epoch=3,
+        implementation_commit=VOID_EPOCH_THREE_IMPLEMENTATION_COMMIT,
+        owner_surface_authorization=owner,
+        execution_head=head,
+        require_current=False,
+    )
+    review_parents = (
+        _git_bytes(
+            root,
+            "rev-list",
+            "--parents",
+            "-n",
+            "1",
+            VOID_EPOCH_THREE_REVIEW_COMMIT,
+            "--",
+        )
+        .decode("ascii", errors="strict")
+        .strip()
+        .split()
+    )
+    review_surface = _parse_name_status(
+        _git_bytes(
+            root,
+            "diff",
+            "--no-ext-diff",
+            "--no-textconv",
+            "--name-status",
+            "--no-renames",
+            VOID_EPOCH_THREE_IMPLEMENTATION_COMMIT,
+            VOID_EPOCH_THREE_REVIEW_COMMIT,
+            "--",
+        )
+    )
+    review_payload = _git_blob(
+        root,
+        VOID_EPOCH_THREE_REVIEW_COMMIT,
+        VOID_EPOCH_THREE_REVIEW_RELATIVE.as_posix(),
+    )
+    review_document = _object(
+        strict_json_loads(review_payload, source="void epoch 3 real review"),
+        "void epoch 3 real review",
+    )
+    if (
+        review_parents
+        != [VOID_EPOCH_THREE_REVIEW_COMMIT, VOID_EPOCH_THREE_IMPLEMENTATION_COMMIT]
+        or review_surface != {VOID_EPOCH_THREE_REVIEW_RELATIVE.as_posix(): "A"}
+        or _sha256(review_payload) != VOID_EPOCH_THREE_REVIEW_SHA256
+        or review_document.get("verdict") != "APPROVE_EPOCH3_IMPLEMENTATION"
+        or review_document.get("blockers") != []
+        or review_document.get("reviewed_commit")
+        != VOID_EPOCH_THREE_IMPLEMENTATION_COMMIT
+    ):
+        raise RehearsalV22Error("void epoch 3 real review lineage drifted")
+    parents = (
+        _git_bytes(
+            root,
+            "rev-list",
+            "--parents",
+            "-n",
+            "1",
+            VOID_EPOCH_THREE_IMPLEMENTATION_COMMIT,
+            "--",
+        )
+        .decode("ascii", errors="strict")
+        .strip()
+        .split()
+    )
+    if parents != [
+        VOID_EPOCH_THREE_IMPLEMENTATION_COMMIT,
+        VOID_EPOCH_THREE_IMPLEMENTATION_PARENT,
+    ]:
+        raise RehearsalV22Error("void epoch 3 implementation parent drifted")
+    observed_surface = _parse_name_status(
+        _git_bytes(
+            root,
+            "diff",
+            "--no-ext-diff",
+            "--no-textconv",
+            "--name-status",
+            "--no-renames",
+            VOID_EPOCH_THREE_IMPLEMENTATION_PARENT,
+            VOID_EPOCH_THREE_IMPLEMENTATION_COMMIT,
+            "--",
+        )
+    )
+    if observed_surface != dict(VOID_EPOCH_THREE_SURFACE):
+        raise RehearsalV22Error("void epoch 3 implementation surface drifted")
+    landing = _git_commit(root, VOID_EPOCH_THREE_LANDING_COMMIT, "void epoch 3 landing")
+    landing_parents = (
+        _git_bytes(root, "rev-list", "--parents", "-n", "1", landing, "--")
+        .decode("ascii", errors="strict")
+        .strip()
+        .split()
+    )
+    if landing_parents != [
+        landing,
+        VOID_EPOCH_THREE_LANDING_PARENT,
+        VOID_EPOCH_THREE_REVIEW_COMMIT,
+    ] or not _git_is_ancestor(root, landing, head):
+        raise RehearsalV22Error("void epoch 3 landing topology drifted")
+
+    gate_ruling = AuthorityReference(
+        VOID_EPOCH_THREE_GATE_RULING_RELATIVE.as_posix(),
+        VOID_EPOCH_THREE_GATE_RULING_SHA256,
+        VOID_EPOCH_THREE_GATE_RULING_COMMIT,
+    )
+    gate_payload = validate_unique_a_authority(
+        root,
+        gate_ruling,
+        execution_head=head,
+        require_current=False,
+    )
+    gate_document = _object(
+        strict_json_loads(gate_payload, source="void epoch 3 gate ruling"),
+        "void epoch 3 gate ruling",
+    )
+    gate_rulings = _object(gate_document.get("part_3_rulings"), "void epoch 3 rulings")
+    supersession = gate_rulings.get("supersession_authorized")
+    if not (
+        isinstance(supersession, str)
+        and "d6c9c353" in supersession
+        and "SAME exact four-M surface" in supersession
+        and "epoch is unconsumed" in supersession
+    ):
+        raise RehearsalV22Error("void epoch 3 gate ruling semantics drifted")
+
+    reanchor = AuthorityReference(
+        VOID_EPOCH_THREE_REANCHOR_RELATIVE.as_posix(),
+        VOID_EPOCH_THREE_REANCHOR_SHA256,
+        VOID_EPOCH_THREE_REANCHOR_COMMIT,
+    )
+    reanchor_payload = validate_unique_a_authority(
+        root,
+        reanchor,
+        execution_head=head,
+        require_current=False,
+    )
+    reanchor_document = _object(
+        strict_json_loads(reanchor_payload, source="void epoch 3 re-anchor ruling"),
+        "void epoch 3 re-anchor ruling",
+    )
+    necessity = _object(
+        reanchor_document.get("part_1_why_epoch_4_is_necessary"),
+        "void epoch 3 re-anchor necessity",
+    )
+    mechanism = necessity.get("mechanism")
+    if not (
+        isinstance(mechanism, str)
+        and "d4fb0d8c" in mechanism
+        and "config.py" in mechanism
+        and "require_current" in mechanism
+    ):
+        raise RehearsalV22Error("void epoch 3 structural supersession semantics drifted")
+
+    reason = AuthorityReference(
+        VOID_EPOCH_THREE_REASON_RELATIVE.as_posix(),
+        VOID_EPOCH_THREE_REASON_SHA256,
+        VOID_EPOCH_THREE_REASON_COMMIT,
+    )
+    reason_payload = validate_unique_a_authority(
+        root,
+        reason,
+        execution_head=head,
+        require_current=False,
+    )
+    reason_document = _object(
+        strict_json_loads(reason_payload, source="void epoch 3 reason discriminator"),
+        "void epoch 3 reason discriminator",
+    )
+    requirements = _object(
+        reason_document.get("part_5_epoch5_design_requirements"),
+        "void epoch 3 design requirements",
+    )
+    required_content = _array(
+        requirements.get("required_content"),
+        "void epoch 3 required content",
+    )
+    if not (
+        reason_document.get("part_1_attempt_2_adjudicated", {}).get("verdict")
+        == "VALID_SERIES_CLOSING_SUCCESS_WITH_FAILED_BUNDLE_CONSTRUCTION"
+        and len(required_content) == 4
+        and isinstance(required_content[0], str)
+        and "void-epoch-3" in required_content[0]
+        and "d6c9c353" in required_content[0]
+        and "d4fb0d8c" in required_content[0]
+        and "bf9f610" in required_content[0]
+        and "0069270" in required_content[0]
+    ):
+        raise RehearsalV22Error("void epoch 3 reason discriminator semantics drifted")
+    return {
+        "epoch": 3,
+        "implementation_commit": VOID_EPOCH_THREE_IMPLEMENTATION_COMMIT,
+        "owner_exact_surface_authorization": owner.as_json(),
+        "independent_implementation_review": reason.as_json(),
+        "control_merkle_root_sha256": VOID_EPOCH_THREE_CONTROL_ROOT_SHA256,
+        "first_attempt_ordinal": 2,
+        "last_attempt_ordinal": 2,
+        "all_attempts_authorized": True,
+    }
 
 
 def _void_epoch_one(
@@ -6606,6 +9208,7 @@ def _void_epoch_one(
         owner,
         execution_head=head,
         allow_initial_sibling=True,
+        require_current=False,
     )
     adjudication = AuthorityReference(
         VOID_EPOCH_ONE_ADJUDICATION_RELATIVE.as_posix(),
@@ -6616,6 +9219,7 @@ def _void_epoch_one(
         root,
         adjudication,
         execution_head=head,
+        require_current=False,
     )
     adjudication_document = _object(
         strict_json_loads(adjudication_payload, source="void epoch adjudication"),
@@ -6636,6 +9240,7 @@ def _void_epoch_one(
         root,
         review,
         execution_head=head,
+        require_current=False,
     )
     review_document = _object(
         strict_json_loads(review_payload, source="void epoch implementation review"),
@@ -6701,8 +9306,10 @@ def _execution_binding_document(binding: ExecutionBinding) -> JsonObject:
 def _harness_identity(
     binding: ExecutionBinding,
     *,
-    implementation_commit: str,
+    historical_anchor: HistoricalSelectedAnchor,
 ) -> JsonObject:
+    if not isinstance(historical_anchor, HistoricalSelectedAnchor):
+        raise RehearsalV22Error("harness identity requires a historical selected anchor")
     files = {
         "thin_main_shim": SHIM_RELATIVE,
         "implementation_module": IMPLEMENTATION_RELATIVE,
@@ -6712,9 +9319,14 @@ def _harness_identity(
     for key, relative in files.items():
         payload = validate_implementation_blob(
             binding.project_root,
-            implementation_commit,
+            historical_anchor.selected_commit,
             relative.as_posix(),
+            require_current=False,
         )
+        if historical_anchor.selected_git_blob_sha256.get(relative.as_posix()) != _sha256(
+            payload
+        ):
+            raise RehearsalV22Error("historical harness identity blob map drifted")
         result[key] = {"path": relative.as_posix(), "sha256": _sha256(payload)}
     result.update(
         {
@@ -6737,10 +9349,26 @@ def _build_bundle(
     *,
     binding: ExecutionBinding,
     history: HistoryValidation,
-    run_a: PipelineReplay,
-    run_b: PipelineReplay,
-    control: ControlSurface,
+    run_a: PipelineReplay | _SealedPipelineReplay,
+    run_b: PipelineReplay | _SealedPipelineReplay,
+    historical_anchor: HistoricalSelectedAnchor,
+    live_anchor: LiveExecutionAnchor,
 ) -> _BundleAssembly:
+    if not isinstance(historical_anchor, HistoricalSelectedAnchor) or not isinstance(
+        live_anchor,
+        LiveExecutionAnchor,
+    ):
+        raise RehearsalV22Error("bundle construction requires both typed byte anchors")
+    sealed_inputs = (
+        isinstance(run_a, _SealedPipelineReplay),
+        isinstance(run_b, _SealedPipelineReplay),
+    )
+    if sealed_inputs[0] != sealed_inputs[1]:
+        raise RehearsalV22Error("bundle construction mixed active and sealed run values")
+    historical_source_commit = (
+        historical_anchor.selected_commit if all(sealed_inputs) else None
+    )
+    control = historical_anchor.control_surface
     if (
         run_a.run_label != "run-a"
         or run_b.run_label != "run-b"
@@ -6750,8 +9378,24 @@ def _build_bundle(
         raise RehearsalV22Error("selected runs are not 14/14 byte-identical")
     history_archive = _history_archive(binding, history)
     selected = history_archive.selected_record
-    if selected.implementation_commit != control.implementation_commit:
+    if (
+        selected.implementation_commit != historical_anchor.selected_commit
+        or selected.implementation_epoch != historical_anchor.selected_epoch
+        or selected.implementation_commit != control.implementation_commit
+        or history.history_root_sha256 != historical_anchor.history_root_sha256
+        or history.live_ledger_root_sha256 != historical_anchor.live_ledger_root_sha256
+    ):
         raise RehearsalV22Error("selected history and control implementation disagree")
+    observed_live = build_control_surface(
+        binding.project_root,
+        live_anchor.implementation_commit,
+        require_current=True,
+    )
+    if (
+        observed_live != live_anchor.control_surface
+        or live_anchor.execution_head != _current_execution_head(binding.project_root)
+    ):
+        raise RehearsalV22Error("live execution anchor drifted before bundle construction")
     run_a_record, run_a_payloads, run_a_root = _run_archive(run_a)
     run_b_record, run_b_payloads, run_b_root = _run_archive(run_b)
     control_record, control_payloads = _control_archive(control)
@@ -6774,7 +9418,10 @@ def _build_bundle(
         run_b_root_sha256=run_b_root,
         control_surface_root_sha256=control.merkle_root_sha256,
     )
-    schema = _bundle_schema(binding.project_root)
+    schema = _bundle_schema(
+        binding.project_root,
+        historical_selected_commit=historical_source_commit,
+    )
     merkle = _object(
         _schema_const_template(
             schema,
@@ -6809,6 +9456,7 @@ def _build_bundle(
         "lineage": _bundle_lineage(
             binding.project_root,
             implementation_commit=selected.implementation_commit,
+            historical_selected_commit=historical_source_commit,
         ),
         "publication": _constant_section(schema, "publication"),
         "execution_binding": _execution_binding_document(binding),
@@ -6818,9 +9466,13 @@ def _build_bundle(
         ),
         "harness_identity": _harness_identity(
             binding,
-            implementation_commit=selected.implementation_commit,
+            historical_anchor=historical_anchor,
         ),
-        "implementation_epochs": _implementation_epochs(binding, history),
+        "implementation_epochs": _implementation_epochs(
+            binding,
+            history,
+            historical_anchor=historical_anchor,
+        ),
         "attempt_history": history_archive.summary,
         "determinism": _constant_section(schema, "determinism"),
         "real_entry_gate_validation": _constant_section(
@@ -8423,6 +11075,210 @@ def _temporary_authority_path(
     return authority
 
 
+def _recovery_claim_path(
+    binding: ExecutionBinding,
+    authorization: BundleRecoveryAuthorization,
+) -> Path:
+    parent = binding.project_root.parent
+    if (
+        parent.is_symlink()
+        or not parent.is_dir()
+        or parent.resolve(strict=True) != parent.absolute()
+    ):
+        raise RehearsalV22Error("recovery claim parent is aliased")
+    claim = parent / (
+        ".alphapilot-p4-2a-v2-2-bundle-recovery-claim-" + authorization.sha256
+    )
+    protected = (
+        binding.project_root,
+        binding.destination,
+        binding.ledger_root,
+        REGISTERED_PROJECT_ROOT,
+        OFFICIAL_DESTINATION,
+        OFFICIAL_LEDGER_ROOT,
+        V2_1_DESTINATION,
+        V2_1_EMPTY_CLAIM,
+        PROTECTED_HELDOUT_ROOT,
+    )
+    if any(
+        claim == path or claim.is_relative_to(path) or path.is_relative_to(claim)
+        for path in protected
+    ):
+        raise RehearsalV22Error("recovery claim overlaps protected state")
+    return claim
+
+
+def _recovery_temporary_authority_path(
+    binding: ExecutionBinding,
+    authorization: BundleRecoveryAuthorization,
+) -> Path:
+    parent = binding.project_root.parent
+    authority = parent / (
+        ".alphapilot-p4-2a-v2-2-bundle-recovery-temp-" + authorization.sha256
+    )
+    claim = _recovery_claim_path(binding, authorization)
+    protected = (
+        claim,
+        binding.project_root,
+        binding.destination,
+        binding.ledger_root,
+        REGISTERED_PROJECT_ROOT,
+        OFFICIAL_DESTINATION,
+        OFFICIAL_LEDGER_ROOT,
+        V2_1_DESTINATION,
+        V2_1_EMPTY_CLAIM,
+        PROTECTED_HELDOUT_ROOT,
+    )
+    if any(
+        authority == path
+        or authority.is_relative_to(path)
+        or path.is_relative_to(authority)
+        for path in protected
+    ):
+        raise RehearsalV22Error("recovery temporary authority overlaps protected state")
+    return authority
+
+
+def _timestamp_pair() -> tuple[str, str]:
+    current = datetime.now(UTC).replace(microsecond=0)
+    shanghai = current.astimezone(timezone(timedelta(hours=8)))
+    return (
+        current.isoformat().replace("+00:00", "Z"),
+        shanghai.isoformat(),
+    )
+
+
+@contextmanager
+def _shared_series_lock(binding: ExecutionBinding) -> Iterator[None]:
+    path = binding.ledger_root / ".series.lock"
+    descriptor = os.open(path, os.O_RDONLY)
+    try:
+        metadata = os.fstat(descriptor)
+        path_metadata = path.stat()
+        if (
+            not stat.S_ISREG(metadata.st_mode)
+            or (metadata.st_dev, metadata.st_ino)
+            != (path_metadata.st_dev, path_metadata.st_ino)
+        ):
+            raise RehearsalV22Error("recovery series lock identity drifted")
+        try:
+            fcntl.flock(descriptor, fcntl.LOCK_SH | fcntl.LOCK_NB)
+        except (BlockingIOError, OSError) as exc:
+            raise RehearsalV22Error("recovery could not acquire the shared series lock") from exc
+        yield
+    finally:
+        try:
+            fcntl.flock(descriptor, fcntl.LOCK_UN)
+        finally:
+            os.close(descriptor)
+
+
+def _recovery_reference(
+    binding: ExecutionBinding,
+    *,
+    execution_head: str,
+) -> AuthorityReference:
+    return _authority_reference_for_path(
+        binding.project_root,
+        binding.action_authorization_path,
+        execution_head=execution_head,
+        label="sealed-bundle recovery authorization",
+    )
+
+
+def _preflight_bundle_recovery(
+    binding: ExecutionBinding,
+) -> tuple[
+    HistoryValidation,
+    BundleRecoveryAuthorization,
+    HistoricalSelectedAnchor,
+    LiveExecutionAnchor,
+    _SealedPipelineReplay,
+    _SealedPipelineReplay,
+    Mapping[str, str],
+]:
+    if os.path.lexists(binding.destination):
+        raise RehearsalV22Error("bundle recovery destination already exists")
+    execution_head = _current_execution_head(binding.project_root)
+    reference = _recovery_reference(binding, execution_head=execution_head)
+    authorization = _validate_bundle_recovery_authorization(
+        binding,
+        reference,
+        require_current_process=True,
+    )
+    claim = _recovery_claim_path(binding, authorization)
+    temporary = _recovery_temporary_authority_path(binding, authorization)
+    if os.path.lexists(claim) or os.path.lexists(temporary):
+        raise RehearsalV22Error("recovery authority is already consumed or staged")
+    history = validate_live_history(binding)
+    historical = _historical_selected_anchor(binding, history)
+    live = _live_execution_anchor(binding, authorization.execution_epoch)
+    observation = _module_identity_observation()
+    validator_module = sys.modules.get(
+        "scripts.validate_p4_2a_v2_2_heldout_rehearsal_bundle"
+    )
+    validator_origin = getattr(validator_module, "__file__", None)
+    if (
+        observation.module_origin != binding.project_root / IMPLEMENTATION_RELATIVE
+        or not isinstance(validator_module, ModuleType)
+        or not isinstance(validator_origin, str)
+        or Path(validator_origin).resolve(strict=True)
+        != binding.project_root / VALIDATOR_RELATIVE
+        or live.loaded_module_sha256
+        != {
+            IMPLEMENTATION_RELATIVE.as_posix(): _sha256(
+                _regular_bytes(observation.module_origin, "loaded recovery producer")
+            ),
+            VALIDATOR_RELATIVE.as_posix(): _sha256(
+                _regular_bytes(
+                    Path(validator_origin).resolve(strict=True),
+                    "loaded recovery validator",
+                )
+            ),
+        }
+    ):
+        raise RehearsalV22Error("recovery loaded-module identity drifted before claim")
+    epoch_rows = _implementation_epochs(
+        binding,
+        history,
+        historical_anchor=historical,
+    )
+    execution_head = _current_execution_head(binding.project_root)
+    if (
+        [row.get("epoch") for row in epoch_rows] != [1, 2, 3, 4]
+        or epoch_rows[0]
+        != _void_epoch_one(binding, execution_head=execution_head)
+        or epoch_rows[2]
+        != _void_epoch_three(binding, execution_head=execution_head)
+        or [
+            (row.get("first_attempt_ordinal"), row.get("last_attempt_ordinal"))
+            for row in epoch_rows
+        ]
+        != [(1, 1), (1, 1), (2, 2), (2, 2)]
+        or any(type(row.get("all_attempts_authorized")) is not bool for row in epoch_rows)
+        or epoch_rows[1].get("all_attempts_authorized") is not True
+        or epoch_rows[3].get("all_attempts_authorized") is not True
+    ):
+        raise RehearsalV22Error("recovery history is not the exact disclosed [2,4] shape")
+    run_a, run_b = _rehydrate_sealed_pipeline_replays(
+        binding,
+        history,
+        authorization,
+    )
+    ledger_snapshot = _tree_fingerprint(binding.ledger_root)
+    if ledger_snapshot == {".": "absent"}:
+        raise RehearsalV22Error("recovery sealed ledger is absent")
+    return (
+        history,
+        authorization,
+        historical,
+        live,
+        run_a,
+        run_b,
+        ledger_snapshot,
+    )
+
+
 def _authority_creation_policy(
     binding: ExecutionBinding,
     authority: Path,
@@ -8507,6 +11363,312 @@ def _execution_policy(binding: ExecutionBinding, authority: Path) -> _AuditPolic
         git_roots=(binding.project_root,),
         subprocess_mode=subprocess_mode,
     )
+
+
+def _recovery_exact_path_policy(binding: ExecutionBinding, path: Path) -> _AuditPolicy:
+    return _AuditPolicy(
+        project_root=binding.project_root,
+        write_roots=(),
+        exact_write_paths=(path,),
+        create_only_roots=(),
+        sqlite_roots=(),
+        git_roots=(binding.project_root,),
+        subprocess_mode="git-read",
+    )
+
+
+def _recovery_claim_policy(binding: ExecutionBinding, claim_root: Path) -> _AuditPolicy:
+    return _AuditPolicy(
+        project_root=binding.project_root,
+        write_roots=(claim_root,),
+        exact_write_paths=(),
+        create_only_roots=(),
+        sqlite_roots=(),
+        git_roots=(binding.project_root,),
+        subprocess_mode="git-read",
+    )
+
+
+def _recovery_execution_policy(
+    binding: ExecutionBinding,
+    *,
+    claim_root: Path,
+    temporary_authority: Path,
+) -> _AuditPolicy:
+    return _AuditPolicy(
+        project_root=binding.project_root,
+        write_roots=(claim_root, temporary_authority),
+        exact_write_paths=(binding.destination,),
+        create_only_roots=(),
+        sqlite_roots=(),
+        git_roots=(binding.project_root,),
+        subprocess_mode="git-read",
+        synthetic_git_root=None,
+    )
+
+
+def _create_recovery_claim(
+    binding: ExecutionBinding,
+    authorization: BundleRecoveryAuthorization,
+    historical_anchor: HistoricalSelectedAnchor,
+    live_anchor: LiveExecutionAnchor,
+    *,
+    bootstrap: _BootstrapEvidence,
+) -> Path:
+    claim = _recovery_claim_path(binding, authorization)
+    created_utc, created_shanghai = _timestamp_pair()
+    with _audited_execution(
+        _recovery_exact_path_policy(binding, claim),
+        bootstrap=bootstrap,
+    ):
+        os.mkdir(claim, 0o700)
+        _fsync_directory(claim.parent)
+    # The mkdir above is the one-start linearization point.  A later failure
+    # deliberately leaves this claim consumed rather than deleting it.
+    started = {
+        "schema_version": "p4.2a-v2-2-sealed-bundle-recovery-started-v1",
+        "recovery_id": authorization.authorization_id,
+        "authorization": authorization.authority_ref(binding.project_root).as_json(),
+        "created_at_utc": created_utc,
+        "created_at_shanghai": created_shanghai,
+        "execution_head": live_anchor.execution_head,
+        "execution_epoch": live_anchor.execution_epoch,
+        "sealed_history_root_sha256": historical_anchor.history_root_sha256,
+        "sealed_live_ledger_root_sha256": historical_anchor.live_ledger_root_sha256,
+        "destination": binding.destination.as_posix(),
+        "state": "STARTED",
+        "authorized_bundle_recovery_starts": 1,
+        "authorized_pipeline_starts": 0,
+        "automatic_retry_count": 0,
+    }
+    with _audited_execution(
+        _recovery_claim_policy(binding, claim),
+        bootstrap=bootstrap,
+    ):
+        _write_exclusive(claim / "started.json", _canonical_json_bytes(started), mode=0o600)
+        _fsync_directory(claim)
+    return claim
+
+
+def _create_recovery_temporary_authority(
+    binding: ExecutionBinding,
+    authorization: BundleRecoveryAuthorization,
+    *,
+    bootstrap: _BootstrapEvidence,
+) -> Path:
+    authority = _recovery_temporary_authority_path(binding, authorization)
+    with _audited_execution(
+        _recovery_exact_path_policy(binding, authority),
+        bootstrap=bootstrap,
+    ):
+        os.mkdir(authority, 0o700)
+        _fsync_directory(authority.parent)
+    return authority
+
+
+def _write_recovery_terminal(
+    *,
+    binding: ExecutionBinding,
+    authorization: BundleRecoveryAuthorization,
+    claim_root: Path,
+    outcome: Literal["BUNDLE_RECOVERY_PUBLISHED", "FAILED_NO_AUTOMATIC_RETRY"],
+    reached_stage: str,
+    ledger_before_sha256: str,
+    ledger_after_sha256: str,
+    temporary_authority_absent: bool,
+    published_bundle_sha256: str | None,
+    published_tree_sha256: str | None,
+    error: BaseException | None,
+) -> JsonObject:
+    if outcome == "BUNDLE_RECOVERY_PUBLISHED":
+        if (
+            error is not None
+            or published_bundle_sha256 is None
+            or published_tree_sha256 is None
+            or not temporary_authority_absent
+        ):
+            raise RehearsalV22Error("successful recovery terminal lacks publication proof")
+        error_value: JsonObject | None = None
+    else:
+        if (
+            error is None
+            or published_bundle_sha256 is not None
+            or published_tree_sha256 is not None
+        ):
+            raise RehearsalV22Error("failed recovery terminal makes a false publication claim")
+        error_value = {
+            "exception_type": type(error).__name__,
+            "message_sha256": _sha256(str(error).encode("utf-8")),
+            "failing_stage": reached_stage,
+        }
+    completed_utc, completed_shanghai = _timestamp_pair()
+    terminal: JsonObject = {
+        "schema_version": "p4.2a-v2-2-sealed-bundle-recovery-terminal-v1",
+        "recovery_id": authorization.authorization_id,
+        "authorization": authorization.authority_ref(binding.project_root).as_json(),
+        "completed_at_utc": completed_utc,
+        "completed_at_shanghai": completed_shanghai,
+        "outcome": outcome,
+        "reached_stage": reached_stage,
+        "sealed_ledger_before_sha256": ledger_before_sha256,
+        "sealed_ledger_after_sha256": ledger_after_sha256,
+        "destination": binding.destination.as_posix(),
+        "published_bundle_sha256": published_bundle_sha256,
+        "published_tree_sha256": published_tree_sha256,
+        "temporary_authority_absent": temporary_authority_absent,
+        "pipeline_starts": 0,
+        "automatic_retry_count": 0,
+        "error": error_value,
+    }
+    if set(terminal) != RECOVERY_TERMINAL_FIELDS:
+        raise RehearsalV22Error("recovery terminal internal shape drifted")
+    _write_exclusive(
+        claim_root / "terminal.json",
+        _canonical_json_bytes(terminal),
+        mode=0o600,
+    )
+    _fsync_directory(claim_root)
+    return terminal
+
+
+def _execute_authorized_bundle_recovery(
+    *,
+    binding: ExecutionBinding,
+    history: HistoryValidation,
+    authorization: BundleRecoveryAuthorization,
+    historical_anchor: HistoricalSelectedAnchor,
+    live_anchor: LiveExecutionAnchor,
+    run_a: _SealedPipelineReplay,
+    run_b: _SealedPipelineReplay,
+    ledger_snapshot: Mapping[str, str],
+    bootstrap: _BootstrapEvidence,
+    recovery_context: RecoveryExecutionCapability,
+    validator_module: ModuleType,
+    claim_root: Path,
+    temporary_authority: Path,
+) -> tuple[_BundleAssembly, JsonObject, JsonObject]:
+    """Build and publish from sealed bytes; this function owns no replay call."""
+
+    observed_binding = _validate_recovery_execution_capability(
+        recovery_context,
+        project_root=binding.project_root,
+    )
+    if observed_binding != binding:
+        raise RehearsalV22Error("recovery execution binding differs from capability")
+    before_digest = _sha256(_canonical_json_bytes(dict(ledger_snapshot)))
+    candidate_directory: Path | None = None
+    published = False
+    reached_stage = "sealed_evidence_rehydrated"
+    try:
+        assembly = _build_bundle(
+            binding=binding,
+            history=history,
+            run_a=run_a,
+            run_b=run_b,
+            historical_anchor=historical_anchor,
+            live_anchor=live_anchor,
+        )
+        reached_stage = "bundle_assembled_from_sealed_evidence"
+        candidate_directory = _stage_bundle(binding=binding, assembly=assembly)
+        staged_tree_fingerprint = _tree_fingerprint(candidate_directory)
+        if staged_tree_fingerprint == {".": "absent"}:
+            raise RehearsalV22Error("recovery staged bundle fingerprint is absent")
+        reached_stage = "staged_bundle_fsynced"
+        with _borrow_recovery_validator_authority(
+            recovery_context,
+            validator_module=validator_module,
+            bundle_path=candidate_directory / BUNDLE_FILENAME,
+        ) as delegation:
+            validate_recovered_bundle = getattr(
+                validator_module,
+                "validate_recovered_bundle",
+                None,
+            )
+            if not callable(validate_recovered_bundle):
+                raise RehearsalV22Error("passive recovered-bundle validator API is unavailable")
+            validated = validate_recovered_bundle(
+                project_root=binding.project_root,
+                bundle_path=candidate_directory / BUNDLE_FILENAME,
+                recovery_context=recovery_context,
+                recovery_validator_delegation=delegation,
+            )
+        if _tree_fingerprint(candidate_directory) != staged_tree_fingerprint:
+            raise RehearsalV22Error("passive validation changed the staged bundle tree")
+        if validated != assembly.document:
+            raise RehearsalV22Error("passive validator returned different recovered bundle")
+        reached_stage = "passive_independent_validation_passed"
+        _validate_recovery_execution_capability(
+            recovery_context,
+            project_root=binding.project_root,
+        )
+        if _tree_fingerprint(binding.ledger_root) != dict(ledger_snapshot):
+            raise RehearsalV22Error("sealed ledger changed before recovery publication")
+        if os.path.lexists(binding.destination):
+            raise RehearsalV22Error("bundle destination appeared before recovery publication")
+        if _tree_fingerprint(candidate_directory) != staged_tree_fingerprint:
+            raise RehearsalV22Error("staged bundle changed immediately before publication")
+        publication = _publish_candidate(binding, candidate_directory)
+        candidate_directory = None
+        published = True
+        reached_stage = "bundle_recovery_published"
+        published_payload = _regular_bytes(
+            binding.destination / BUNDLE_FILENAME,
+            "published recovered bundle",
+        )
+        if published_payload != assembly.bundle_payload:
+            raise RehearsalV22Error("published recovered bundle bytes drifted")
+        published_tree_fingerprint = _tree_fingerprint(binding.destination)
+        if published_tree_fingerprint != staged_tree_fingerprint:
+            raise RehearsalV22Error("published recovered bundle tree differs from frozen stage")
+        after_snapshot = _tree_fingerprint(binding.ledger_root)
+        if after_snapshot != dict(ledger_snapshot):
+            raise RehearsalV22Error("sealed ledger changed during recovery publication")
+        after_digest = _sha256(_canonical_json_bytes(after_snapshot))
+        if os.path.lexists(temporary_authority):
+            shutil.rmtree(temporary_authority)
+            _fsync_directory(temporary_authority.parent)
+        if os.path.lexists(temporary_authority):
+            raise RehearsalV22Error("recovery temporary authority cleanup failed")
+        terminal = _write_recovery_terminal(
+            binding=binding,
+            authorization=authorization,
+            claim_root=claim_root,
+            outcome="BUNDLE_RECOVERY_PUBLISHED",
+            reached_stage=reached_stage,
+            ledger_before_sha256=before_digest,
+            ledger_after_sha256=after_digest,
+            temporary_authority_absent=True,
+            published_bundle_sha256=_sha256(published_payload),
+            published_tree_sha256=_sha256(
+                _canonical_json_bytes(published_tree_fingerprint)
+            ),
+            error=None,
+        )
+        return assembly, publication, terminal
+    except BaseException as exc:
+        if candidate_directory is not None and os.path.lexists(candidate_directory):
+            shutil.rmtree(candidate_directory)
+        if os.path.lexists(temporary_authority):
+            shutil.rmtree(temporary_authority)
+            _fsync_directory(temporary_authority.parent)
+        # Once publication happened, absence of a terminal is an explicit
+        # owner-reconciliation state; never relabel it as failure or retry it.
+        if not published and not os.path.lexists(claim_root / "terminal.json"):
+            after_snapshot = _tree_fingerprint(binding.ledger_root)
+            _write_recovery_terminal(
+                binding=binding,
+                authorization=authorization,
+                claim_root=claim_root,
+                outcome="FAILED_NO_AUTOMATIC_RETRY",
+                reached_stage=reached_stage,
+                ledger_before_sha256=before_digest,
+                ledger_after_sha256=_sha256(_canonical_json_bytes(after_snapshot)),
+                temporary_authority_absent=not os.path.lexists(temporary_authority),
+                published_bundle_sha256=None,
+                published_tree_sha256=None,
+                error=exc,
+            )
+        raise
 
 
 def _execute_authorized_attempt(
@@ -8663,12 +11825,15 @@ def _execute_authorized_attempt(
             )
             lease.reached_stage = "series_closed"
             history = validate_live_history(binding)
+            historical_anchor = _historical_selected_anchor(binding, history)
+            live_anchor = _ordinary_live_execution_anchor(binding, historical_anchor)
             assembly = _build_bundle(
                 binding=binding,
                 history=history,
                 run_a=run_a,
                 run_b=run_b,
-                control=control,
+                historical_anchor=historical_anchor,
+                live_anchor=live_anchor,
             )
             candidate_directory = _stage_bundle(binding=binding, assembly=assembly)
             lease.reached_stage = "staged_bundle_fsynced"
@@ -8719,7 +11884,10 @@ def _parser() -> argparse.ArgumentParser:
     operation = parser.add_mutually_exclusive_group(required=True)
     operation.add_argument("--execute", action="store_true")
     operation.add_argument("--preflight-only", action="store_true")
+    operation.add_argument("--recover-sealed-bundle", action="store_true")
+    operation.add_argument("--consume-recovered-release", action="store_true")
     parser.add_argument("--attempt-authorization", type=Path)
+    parser.add_argument("--bundle-recovery-authorization", type=Path)
     parser.add_argument("--expected-ordinal", type=_positive_ordinal)
     parser.add_argument("--implementation-epoch", type=_positive_ordinal)
     parser.add_argument("--implementation-commit")
@@ -8748,7 +11916,10 @@ def _run_cli() -> JsonObject:
     if arguments.preflight_only is True:
         if (
             arguments.execute is True
+            or arguments.recover_sealed_bundle is True
+            or arguments.consume_recovered_release is True
             or arguments.attempt_authorization is not None
+            or arguments.bundle_recovery_authorization is not None
             or arguments.expected_ordinal is not None
             or any(value is None for value in preflight_values)
         ):
@@ -8792,9 +11963,245 @@ def _run_cli() -> JsonObject:
                 owner_surface_authorization_path=owner_surface_path,
                 independent_review_path=independent_review_path,
             )
+    if arguments.consume_recovered_release is True:
+        if (
+            arguments.execute is True
+            or arguments.preflight_only is True
+            or arguments.recover_sealed_bundle is True
+            or arguments.attempt_authorization is not None
+            or arguments.bundle_recovery_authorization is None
+            or arguments.expected_ordinal is not None
+            or any(value is not None for value in preflight_values)
+        ):
+            raise RehearsalV22Error(
+                "v2.2 recovered-release consumption arguments are not exact"
+            )
+        recovery_path = cast(Path, arguments.bundle_recovery_authorization).absolute()
+        expected_argv = (
+            (project_root / SHIM_RELATIVE).as_posix(),
+            "--consume-recovered-release",
+            "--bundle-recovery-authorization",
+            recovery_path.as_posix(),
+        )
+        if tuple(sys.argv) != expected_argv:
+            raise RehearsalV22Error(
+                "v2.2 recovered-release consumption argv is not exact"
+            )
+        binding = _derive_binding_unchecked(
+            project_root,
+            action_authorization_path=recovery_path,
+        )
+        receipt_path = project_root / RELEASE_RELATIVE
+        with (
+            _bootstrap_evidence_scope(
+                project_root=project_root,
+                shim_path=binding.shim_path,
+                argv=tuple(sys.argv),
+                orig_argv=tuple(sys.orig_argv),
+                environment=dict(os.environ),
+            ) as bootstrap,
+            _audited_execution(
+                _read_only_preflight_policy(project_root),
+                bootstrap=bootstrap,
+            ),
+        ):
+            from scripts import (
+                validate_p4_2a_v2_2_heldout_rehearsal_bundle as validator_module,
+            )
+
+            with _shared_series_lock(binding):
+                return consume_recovered_release_authorization(
+                    binding=binding,
+                    validator_module=validator_module,
+                    recovery_authorization_path=recovery_path,
+                    receipt_path=receipt_path,
+                )
+    if arguments.recover_sealed_bundle is True:
+        if (
+            arguments.execute is True
+            or arguments.preflight_only is True
+            or arguments.consume_recovered_release is True
+            or arguments.attempt_authorization is not None
+            or arguments.bundle_recovery_authorization is None
+            or arguments.expected_ordinal is not None
+            or any(value is not None for value in preflight_values)
+        ):
+            raise RehearsalV22Error("v2.2 sealed-bundle recovery arguments are not exact")
+        recovery_path = cast(Path, arguments.bundle_recovery_authorization).absolute()
+        binding = _derive_binding_unchecked(
+            project_root,
+            action_authorization_path=recovery_path,
+        )
+        with _bootstrap_evidence_scope(
+            project_root=project_root,
+            shim_path=binding.shim_path,
+            argv=tuple(sys.argv),
+            orig_argv=tuple(sys.orig_argv),
+            environment=dict(os.environ),
+        ) as bootstrap:
+            with _audited_execution(
+                _read_only_preflight_policy(project_root),
+                bootstrap=bootstrap,
+            ):
+                from scripts import (
+                    validate_p4_2a_v2_2_heldout_rehearsal_bundle as validator_module,
+                )
+
+                screened = _preflight_bundle_recovery(binding)
+            with _shared_series_lock(binding):
+                with _audited_execution(
+                    _read_only_preflight_policy(project_root),
+                    bootstrap=bootstrap,
+                ):
+                    protected = _preflight_bundle_recovery(binding)
+                if screened != protected:
+                    raise RehearsalV22Error(
+                        "recovery evidence changed between screening and shared-lock snapshot"
+                    )
+                (
+                    history,
+                    recovery_authorization,
+                    historical_anchor,
+                    live_anchor,
+                    sealed_run_a,
+                    sealed_run_b,
+                    ledger_snapshot,
+                ) = protected
+                claim_root: Path | None = None
+                temporary_authority: Path | None = None
+                authority_token: contextvars.Token[Path | None] | None = None
+                try:
+                    claim_root = _recovery_claim_path(binding, recovery_authorization)
+                    _create_recovery_claim(
+                        binding,
+                        recovery_authorization,
+                        historical_anchor,
+                        live_anchor,
+                        bootstrap=bootstrap,
+                    )
+                    temporary_authority = _recovery_temporary_authority_path(
+                        binding,
+                        recovery_authorization,
+                    )
+                    _create_recovery_temporary_authority(
+                        binding,
+                        recovery_authorization,
+                        bootstrap=bootstrap,
+                    )
+                    authority_token = _TEMP_AUTHORITY.set(temporary_authority)
+                    recovery_policy = _recovery_execution_policy(
+                        binding,
+                        claim_root=claim_root,
+                        temporary_authority=temporary_authority,
+                    )
+                    with (
+                        _audited_execution(recovery_policy, bootstrap=bootstrap),
+                        _recovery_execution_capability_scope(
+                            binding=binding,
+                            bootstrap=bootstrap,
+                            authorization=recovery_authorization,
+                            historical_anchor=historical_anchor,
+                            live_anchor=live_anchor,
+                            claim_root=claim_root,
+                            temporary_authority=temporary_authority,
+                        ) as recovery_context,
+                    ):
+                        assembly, publication, terminal = (
+                            _execute_authorized_bundle_recovery(
+                                binding=binding,
+                                history=history,
+                                authorization=recovery_authorization,
+                                historical_anchor=historical_anchor,
+                                live_anchor=live_anchor,
+                                run_a=sealed_run_a,
+                                run_b=sealed_run_b,
+                                ledger_snapshot=ledger_snapshot,
+                                bootstrap=bootstrap,
+                                recovery_context=recovery_context,
+                                validator_module=validator_module,
+                                claim_root=claim_root,
+                                temporary_authority=temporary_authority,
+                            )
+                        )
+                except BaseException as exc:
+                    if (
+                        temporary_authority is not None
+                        and os.path.lexists(temporary_authority)
+                    ):
+                        with _audited_execution(
+                            _recovery_execution_policy(
+                                binding,
+                                claim_root=cast(Path, claim_root),
+                                temporary_authority=temporary_authority,
+                            ),
+                            bootstrap=bootstrap,
+                        ):
+                            shutil.rmtree(temporary_authority)
+                            _fsync_directory(temporary_authority.parent)
+                    if (
+                        claim_root is not None
+                        and os.path.lexists(claim_root / "started.json")
+                        and not os.path.lexists(claim_root / "terminal.json")
+                        and not os.path.lexists(binding.destination)
+                    ):
+                        before_digest = _sha256(
+                            _canonical_json_bytes(dict(ledger_snapshot))
+                        )
+                        after_snapshot = _tree_fingerprint(binding.ledger_root)
+                        with _audited_execution(
+                            _recovery_claim_policy(binding, claim_root),
+                            bootstrap=bootstrap,
+                        ):
+                            _write_recovery_terminal(
+                                binding=binding,
+                                authorization=recovery_authorization,
+                                claim_root=claim_root,
+                                outcome="FAILED_NO_AUTOMATIC_RETRY",
+                                reached_stage="recovery_setup_or_execution",
+                                ledger_before_sha256=before_digest,
+                                ledger_after_sha256=_sha256(
+                                    _canonical_json_bytes(after_snapshot)
+                                ),
+                                temporary_authority_absent=(
+                                    temporary_authority is None
+                                    or not os.path.lexists(temporary_authority)
+                                ),
+                                published_bundle_sha256=None,
+                                published_tree_sha256=None,
+                                error=exc,
+                            )
+                    raise
+                finally:
+                    if authority_token is not None:
+                        _TEMP_AUTHORITY.reset(authority_token)
+        if temporary_authority is None or os.path.lexists(temporary_authority):
+            raise RehearsalV22Error("recovery temporary authority remains after completion")
+        return {
+            "schema_version": "p4.2a-v2-2-sealed-bundle-recovery-result-v1",
+            "status": "PASS_REHEARSAL_V2_2_AWAITING_OWNER_REVIEW",
+            "mode": binding.mode,
+            "selected_attempt_ordinal": history.selected_attempt_ordinal,
+            "selected_implementation_epoch": historical_anchor.selected_epoch,
+            "execution_implementation_epoch": live_anchor.execution_epoch,
+            "bundle_path": (binding.destination / BUNDLE_FILENAME).as_posix(),
+            "bundle_sha256": _sha256(assembly.bundle_payload),
+            "bundle_root_sha256": assembly.bundle_root_sha256,
+            "recovery_claim_path": cast(Path, claim_root).as_posix(),
+            "recovery_terminal": terminal,
+            "publication": publication,
+            "bundle_recovery_starts": 1,
+            "pipeline_starts": 0,
+            "active_pipeline_capability_issued": False,
+            "sealed_rehydrate_only": True,
+            "automatic_retry_count": 0,
+            "heldout_evaluation_attempts_consumed": 0,
+        }
     if (
         arguments.execute is not True
+        or arguments.recover_sealed_bundle is True
+        or arguments.consume_recovered_release is True
         or arguments.attempt_authorization is None
+        or arguments.bundle_recovery_authorization is not None
         or arguments.expected_ordinal is None
         or any(value is not None for value in preflight_values)
     ):
