@@ -15,13 +15,13 @@ manifest 包含 SHA-256、文件大小、`PRAGMA quick_check`、页信息以及
 `trade_proposals`、`broker_orders`、`runtime_flags`、`job_runs` 的验收证据。目录权限为
 `0700`，备份、manifest、锁和日门文件为 `0600`。
 
-手动创建并保留最近 7 份受管备份：
+手动创建并保留最近 3 份受管备份：
 
 ```bash
 .venv/bin/python scripts/manage_database_backup.py backup \
   --db data/alphapilot.db \
   --backup-dir data/backups \
-  --retain 7
+  --retain 3
 ```
 
 验证一份备份：
@@ -33,6 +33,10 @@ manifest 包含 SHA-256、文件大小、`PRAGMA quick_check`、页信息以及
 
 只有名称符合 `alphapilot-full-*`、且具有格式与文件证据相符的 manifest 的备份才进入自动
 保留轮换；手工命名文件和 manifest 缺失或异常的文件不会被自动删除。
+manifest 继续记录发布时的文件系统 `device`，轮换时要求它是合法非负整数，但不把跨挂载后
+可能变化的 `device` 作为等值条件；`inode`、`mtime_ns`、`ctime_ns` 和文件大小仍须精确匹配，
+format、manager、filename、quick-check 与 SHA 字段形状仍须通过既有门。任一不符都会 fail
+closed，不会被当成健康备份修剪。
 
 ## 每日 LaunchAgent
 

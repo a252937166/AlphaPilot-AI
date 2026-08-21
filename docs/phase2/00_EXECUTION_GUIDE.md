@@ -29,7 +29,7 @@
 - 前端：`apps/web/`（Vue3+TS+vite），dev server 5173 常驻（vite 热更新，改前端不用重启）；构建校验用 `cd apps/web && npm run build`。
 - 富途 OpenD：launchd 服务常驻 `127.0.0.1:11111`（`make futu-start` 可拉起）。行情+交易均已登录。
 - 数据库：SQLite `data/alphapilot.db`（启动时 `init_db()` create_all）。每日在线全量备份由
-  LaunchAgent `com.alphapilot.database-backup` 在上海时间 22:00 后执行并保留最近 7 份；
+  LaunchAgent `com.alphapilot.database-backup` 在上海时间 22:00 后执行并保留最近 3 份；
   `./scripts/status_database_backup_launchd.sh` 查看状态，校验与恢复纪律见
   `docs/operations/database-backup.md`。`.env` 在项目根（**已 gitignore，含巨潮凭据，绝不能进
   git/日志/前端**）。

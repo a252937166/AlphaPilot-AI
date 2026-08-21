@@ -17,7 +17,7 @@ from urllib.parse import quote
 
 BACKUP_FORMAT_VERSION = 1
 BACKUP_MANAGED_BY = "alphapilot.db.backup"
-DEFAULT_RETENTION = 7
+DEFAULT_RETENTION = 3
 DEFAULT_MINIMUM_FREE_BYTES = 512 * 1024 * 1024
 BACKUP_PREFIX = "alphapilot-full-"
 _BACKUP_PATTERN = re.compile(r"^alphapilot-full-\d{8}T\d{12}Z\.db$")
@@ -244,6 +244,23 @@ def _file_identity(path: Path) -> dict[str, int]:
     }
 
 
+def _retention_identity_matches(
+    recorded: object,
+    observed: dict[str, int],
+) -> bool:
+    if (
+        not isinstance(recorded, dict)
+        or set(recorded) != {"device", "inode", "mtime_ns", "ctime_ns"}
+        or type(recorded.get("device")) is not int
+        or recorded["device"] < 0
+    ):
+        return False
+    return all(
+        type(recorded.get(field)) is int and recorded[field] == observed[field]
+        for field in ("inode", "mtime_ns", "ctime_ns")
+    )
+
+
 def _retention_eligible_backups(directory: Path) -> list[Path]:
     """Return backups proven at creation and unchanged since publication."""
 
@@ -266,7 +283,10 @@ def _retention_eligible_backups(directory: Path) -> list[Path]:
             or evidence.get("size_bytes") != backup_path.stat().st_size
             or not isinstance(evidence.get("sha256"), str)
             or _SHA256_PATTERN.fullmatch(evidence["sha256"]) is None
-            or evidence.get("file_identity") != _file_identity(backup_path)
+            or not _retention_identity_matches(
+                evidence.get("file_identity"),
+                _file_identity(backup_path),
+            )
         ):
             continue
         eligible.append(backup_path)
