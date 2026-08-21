@@ -1,0 +1,45 @@
+{
+  "schema_version": "p4.2a-independent-adjudication-v1",
+  "adjudication_id": "p4.2a-epoch5-f12-blocked-adjudication-20260821-r1",
+  "created_at_utc": "2026-08-21T14:16:41Z",
+  "created_at_shanghai": "2026-08-21T22:16:41+08:00",
+  "verdict": "BLOCKED_EPOCH5_IMPLEMENTATION",
+  "blocked_candidate": "005feadeddbbb578dd6c65486839fdff5fed800d",
+  "issued_by": {
+    "identity": "independent_ai_architect_claude_code",
+    "reviewer_type": "ai",
+    "model": "Anthropic Claude Fable 5 (model id claude-fable-5)",
+    "impersonation_disclaimer": "Not a human reviewer and not the owner."
+  },
+  "part_1_f12_result": {
+    "runner_module": "178 passed, 2 errors, twice: 19422s and 20300s full-module runs on consecutive days; validator module not started per stop rule",
+    "failing_fixture": "exact_failed_epoch_then_incomplete_success_series, backing the last two registered runner tests",
+    "standalone_reproduction": "the two tests alone reproduce the identical failure in 1145.67 seconds with the identical error digest, eliminating module-context and environmental explanations",
+    "error_identity": "child exit 1 with RehearsalV22Error, message_sha256 a907e65960718c559fdbfcbe716e07b1179c6c3213f7b784a271947aff17ac64, reverse-looked-up by hashing every static raise literal in the candidate implementation: the message is 'historical selected anchor requires one closed selected series' at the anchor builder"
+  },
+  "part_2_root_cause": {
+    "defect": "_historical_selected_anchor includes history.incomplete_count != 0 among its rejection conditions, and the builder is shared by ordinary execution paths: _execute_authorized_attempt invokes it after sealing a successful candidate to construct the bundle, and _active_attempt_validation_anchors invokes it for ordinary post-seal validation",
+    "why_that_is_wrong": "an INCOMPLETE_UNTERMINALIZED record is lawful, permanent series history: a crashed attempt leaves one forever and the next ordinal lawfully continues the chain. The registered fixture pins exactly this semantics with a FAILED, INCOMPLETE, SUCCESS series, and it passed complete at epoch 4. Under the candidate, any series containing a crash record can never finish a successful attempt's bundle construction: the attempt seals, the series closes with incomplete_count above zero, and the anchor builder then refuses",
+    "contrast_proof": "the FAILED, FAILED, SUCCESS series test passed in the same runs; the only difference is the incomplete record",
+    "why_the_operator_evidence_missed_it": "the operator's four-and-a-half-hour exact-OS run exercised recovery on the real-shaped sealed series, whose incomplete count is zero; the general-series fixtures were left to the F-12 full-module review, which is where they failed",
+    "recovery_itself_unaffected": "the real sealed series holds FAILED at ordinal 1 with a terminal and SELECTED at ordinal 2, incomplete_count zero, so the recovery path would have worked; the block protects the general registered semantics, not this series"
+  },
+  "part_3_finding_C10": {
+    "id": "C-10",
+    "owner_of_the_error": "the reviewer",
+    "statement": "after the first full-module run died in this fixture, the reviewer attributed the failure to the concurrent CacheDelete purge and stated the candidate was not implicated. The purge explanation was correct for that run's early death at ordinal 2, but generalizing it to clear the code was premature: the shielded rerun reached ordinal 3 and exposed a real regression the environmental death had masked.",
+    "rule_tightened": "an environmental explanation for a test failure clears the code only after the test passes in a shielded rerun; until then the code remains a suspect"
+  },
+  "part_4_fix_prescription": {
+    "change": "remove the history.incomplete_count != 0 condition from _historical_selected_anchor; every other condition stays: series closed, selected ordinal present, exactly one validated candidate, live ledger root present, candidate and terminal bytes present",
+    "why_no_security_loss": "the anchor's job is to bind the selected attempt's bytes immutably; sibling incomplete records do not touch that binding. Recovery-side strictness is separately enforced where it belongs: _validate_bundle_recovery_authorization performs its own history checks and the recovery authorization's sealed_series block pins started, failed and incomplete counts against the ledger by equality",
+    "scope": "this one condition, plus whatever registered-test additions the operator judges necessary to pin the corrected semantics; nothing else moves",
+    "process": "r2 candidate as a NEW direct single-parent child of the SAME epoch-5 authority 02def8f on a new branch, per the epoch-3 supersession precedent; the blocked candidate and its branch remain in history untouched; full F-12 both-module review and the persistent gate re-run apply unchanged"
+  },
+  "part_5_operational_notes": [
+    "the canonical worktree is currently checked out on the epoch-5 branch; the operator should restore it to main before the r2 cycle. The branch touches only registered scripts and tests, so the scheduler's imported src bytes were never affected",
+    "the backup-retention fix landed on main as 5d394b1 as separately approved; the st_dev root cause and retention 3 stand",
+    "gate scheduling and harness adaptation wait for the r2 candidate; the epoch-5 constant table previously issued remains valid except the candidate commit and file digests, which will change"
+  ],
+  "part_6_boundaries": {"ledger": "sealed, ordinals 1 FAILED and 2 CANDIDATE_VALIDATED_AND_SELECTED, untouched", "heldout_evaluation_one_shot": "unconsumed", "trading": "zero non-SIMULATE", "phase_locks": {"p4_2a_done": false, "p4_2b_unlocked": false, "p4_3_unlocked": false}}
+}
