@@ -1,0 +1,28 @@
+{
+  "schema_version": "p4.2a-independent-adjudication-v1",
+  "adjudication_id": "p4.2a-epoch5-r2-f12-blocked-adjudication-20260822-r1",
+  "created_at_utc": "2026-08-22T11:49:07Z",
+  "created_at_shanghai": "2026-08-22T19:49:07+08:00",
+  "verdict": "BLOCKED_EPOCH5_R2_IMPLEMENTATION",
+  "blocked_candidate": "b0d57387f09c69846dc12190673f13e335ac7c9b",
+  "issued_by": {"identity": "independent_ai_architect_claude_code", "reviewer_type": "ai", "model": "Anthropic Claude Fable 5 (model id claude-fable-5)", "impersonation_disclaimer": "Not a human reviewer and not the owner."},
+  "part_1_f12_result": {
+    "runner_module": "180 passed, 0 failed, 19840.44 seconds. The incomplete-count regression is confirmed fixed in full-module context: the FAILED, INCOMPLETE, SUCCESS fixture and its two tests pass.",
+    "validator_module": "180 passed, 4 failed, 2612.06 seconds",
+    "failures": "all four parametrizations of test_bundle_recovery_rejects_every_closed_history_except_exact_two_four: missing-void-three, extra-epoch, wrong-interval, unauthorized",
+    "failure_mode": "TypeError before any assertion: the test's monkeypatch stub for _implementation_epochs is lambda *_args: rows, positional-only, while the epoch-5 implementation added the keyword-only parameter historical_anchor and the recovery preflight passes it by keyword"
+  },
+  "part_2_root_cause_and_consequence": {
+    "defect_class": "registered test stub signature stale relative to the implementation refactor; a test-file defect, not an implementation defect as far as is known",
+    "why_it_matters_more_than_a_typo": "this is the test that pins the design's section 8.1 negatives: recovery must reject a missing void-3 row, an extra epoch, a wrong interval and an unauthorized recovery. Because it crashes before asserting, none of those four rejections has ever been demonstrated against the real implementation. Their true behaviour is unknown until the stub is corrected and the test runs to its assertions.",
+    "why_it_was_not_caught_before": "the validator module was never executed at either epoch-5 candidate: both F-12 runs of the first candidate stopped at the runner, and the operator's targeted validation never included the validator module. A 43-minute module run would have found this before delivery."
+  },
+  "part_3_fix_prescription": {
+    "test_correction": "change the stub to accept the keyword, for example lambda *_args, **_kwargs: rows, or bind the parameter explicitly; then run the test and REPORT THE REAL OUTCOME of all four negatives",
+    "if_any_negative_fails_to_reject": "that is an implementation defect in the recovery path and must be fixed in the same r3 candidate with its own explanation; the test must not be weakened to pass",
+    "scope": "within the approved epoch-5 four-path surface; r3 is a NEW direct single-parent child of the SAME authority 02def8f on a new branch; r2 and its branch remain in history",
+    "operator_pre_delivery_requirement": "before delivering r3, run the complete validator module and the runner module's non-exact-OS subset locally and attach the results; the six-hour F-12 must not be the first execution of a 43-minute module again"
+  },
+  "part_4_finding_F15": {"id": "F-15", "title": "An unexecuted registered test is an unverified claim", "rule": "every registered test file on a change surface must have been executed in full by the operator at the delivered commit before independent review begins; F-12 remains the reviewer's independent confirmation, not the first run"},
+  "part_5_boundaries": {"ledger": "sealed, untouched", "heldout_evaluation_one_shot": "unconsumed", "trading": "zero non-SIMULATE", "phase_locks": {"p4_2a_done": false, "p4_2b_unlocked": false, "p4_3_unlocked": false}}
+}
