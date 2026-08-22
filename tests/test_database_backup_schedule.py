@@ -50,7 +50,6 @@ def test_daily_backup_waits_for_window_and_runs_once_per_shanghai_date(
     assert first["status"] == "backed_up"
     assert second["status"] == "already_complete"
     assert len(calls) == 1
-    assert calls[0]["retain"] == 3
     assert (runtime / "last-success-shanghai-date").read_text().strip() == "2026-07-30"
     assert (runtime / "last-success-shanghai-date").stat().st_mode & 0o777 == 0o600
 

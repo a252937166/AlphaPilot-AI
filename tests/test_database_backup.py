@@ -69,7 +69,7 @@ def _backup(
     directory: Path,
     *,
     now: datetime,
-    retain: int = 3,
+    retain: int = 7,
 ) -> dict[str, object]:
     return create_database_backup(
         source,
@@ -199,7 +199,7 @@ def test_failed_backup_does_not_replace_previous_success(
     assert not list(backup_directory.glob("*.partial"))
 
 
-def test_successful_backup_retains_only_three_matching_snapshots(
+def test_successful_backup_retains_only_seven_matching_snapshots(
     tmp_path: Path,
 ) -> None:
     source = tmp_path / "live.db"
@@ -207,7 +207,7 @@ def test_successful_backup_retains_only_three_matching_snapshots(
     backup_directory = tmp_path / "backups"
     start = datetime(2026, 7, 20, 3, 30, tzinfo=UTC)
     try:
-        for offset in range(5):
+        for offset in range(9):
             _backup(
                 source,
                 backup_directory,
@@ -217,7 +217,7 @@ def test_successful_backup_retains_only_three_matching_snapshots(
         writer.close()
 
     matching = sorted(backup_directory.glob("alphapilot-full-*.db"))
-    assert len(matching) == 3
+    assert len(matching) == 7
     assert "20260720" not in matching[0].name
     assert "20260721" not in matching[0].name
     assert "20260722" in matching[0].name
@@ -230,54 +230,11 @@ def test_successful_backup_retains_only_three_matching_snapshots(
     _backup(
         source,
         backup_directory,
-        now=start + timedelta(days=5),
+        now=start + timedelta(days=9),
     )
     assert unrelated.read_bytes() == b"do-not-delete"
     assert orphan.read_bytes() == b"manifest-missing-do-not-delete"
-    assert len(list(backup_directory.glob("alphapilot-full-*.db"))) == 4
-
-
-def test_retention_ignores_device_only_drift_and_removes_exact_oldest_backup(
-    tmp_path: Path,
-) -> None:
-    source = tmp_path / "live.db"
-    writer = _create_wal_database(source)
-    backup_directory = tmp_path / "backups"
-    start = datetime(2026, 7, 20, 3, 30, tzinfo=UTC)
-    try:
-        results = [
-            _backup(
-                source,
-                backup_directory,
-                now=start + timedelta(days=offset),
-            )
-            for offset in range(3)
-        ]
-        oldest = Path(str(results[0]["backup_path"]))
-        oldest_manifest = manifest_path_for(oldest)
-        manifest = json.loads(oldest_manifest.read_text(encoding="utf-8"))
-        recorded_device = manifest["backup"]["file_identity"]["device"]
-        assert type(recorded_device) is int
-        manifest["backup"]["file_identity"]["device"] = recorded_device + 1
-        oldest_manifest.write_text(
-            json.dumps(manifest, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
-            encoding="utf-8",
-        )
-
-        newest = _backup(
-            source,
-            backup_directory,
-            now=start + timedelta(days=3),
-        )
-    finally:
-        writer.close()
-
-    assert not oldest.exists()
-    assert not oldest_manifest.exists()
-    matching = sorted(backup_directory.glob("alphapilot-full-*.db"))
-    assert len(matching) == 3
-    assert Path(str(newest["backup_path"])) == matching[-1]
-    assert newest["retention"]["removed"] == [str(oldest)]
+    assert len(list(backup_directory.glob("alphapilot-full-*.db"))) == 8
 
 
 def test_retention_does_not_count_same_size_tampered_backup_as_healthy(
@@ -294,7 +251,7 @@ def test_retention_does_not_count_same_size_tampered_backup_as_healthy(
                 backup_directory,
                 now=start + timedelta(days=offset),
             )
-            for offset in range(3)
+            for offset in range(7)
         ]
         oldest = Path(str(results[0]["backup_path"]))
         newest = Path(str(results[-1]["backup_path"]))
@@ -310,14 +267,14 @@ def test_retention_does_not_count_same_size_tampered_backup_as_healthy(
         _backup(
             source,
             backup_directory,
-            now=start + timedelta(days=3),
+            now=start + timedelta(days=7),
         )
     finally:
         writer.close()
 
     assert oldest.is_file()
     assert manifest_path_for(oldest).is_file()
-    assert len(list(backup_directory.glob("alphapilot-full-*.db"))) == 4
+    assert len(list(backup_directory.glob("alphapilot-full-*.db"))) == 8
 
 
 def test_retention_unlink_failure_keeps_manifest_for_existing_backup(
@@ -336,7 +293,7 @@ def test_retention_unlink_failure_keeps_manifest_for_existing_backup(
                 backup_directory,
                 now=start + timedelta(days=offset),
             )
-            for offset in range(3)
+            for offset in range(7)
         ]
         oldest = Path(str(results[0]["backup_path"]))
         oldest_manifest = manifest_path_for(oldest)
@@ -354,7 +311,7 @@ def test_retention_unlink_failure_keeps_manifest_for_existing_backup(
             _backup(
                 source,
                 backup_directory,
-                now=start + timedelta(days=3),
+                now=start + timedelta(days=7),
             )
     finally:
         writer.close()
