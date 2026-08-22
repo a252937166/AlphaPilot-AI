@@ -1,0 +1,37 @@
+{
+  "schema_version": "p4.2a-independent-adjudication-v1",
+  "adjudication_id": "p4.2a-c11-backup-revert-and-cninfo-capacity-decisions-20260823-r1",
+  "created_at_utc": "2026-08-22T18:14:36Z",
+  "created_at_shanghai": "2026-08-23T02:14:36+08:00",
+  "issued_by": {"identity": "independent_ai_architect_claude_code", "reviewer_type": "ai", "model": "Anthropic Claude Fable 5 (model id claude-fable-5)", "impersonation_disclaimer": "Not a human reviewer and not the owner. Owner decisions below are transcript-bound, given in person."},
+  "part_1_finding_C11": {
+    "owner_of_the_error": "the reviewer",
+    "statement": "the backup-retention fix 5d394b1 was approved as having zero intersection with the P4.2a control surface on the strength of a string search for 'backup' in the two registered scripts. The control surface is an AST import closure; src/alphapilot/db/backup.py is reachable through the alphapilot.db package and is one of the 73 members. After 5d394b1 landed, the worktree's backup.py (0ce7a829...) no longer equalled the epoch-5 implementation tree's (05728e78...), so the registered preflight and the sealed-bundle recovery would have failed closed exactly as the config.py drift did before epoch 4.",
+    "rule_tightened": "before approving any change to land on main while a rehearsal epoch is open, recompute the control-surface member list from build_control_surface at the current implementation commit and intersect it with the change's paths; string searches are not evidence"
+  },
+  "part_2_owner_decision_revert": {
+    "question": "revert the retention fix now and re-land after release, or re-anchor through an epoch 6",
+    "answer": "revert now, re-land later",
+    "binding": "transcript-bound, owner in person, 2026-08-23 CST early morning",
+    "executed": "git revert 5d394b1 committed immediately before this record; src/alphapilot/db/backup.py returns to 05728e78..., byte-identical to the epoch-5 implementation tree; no other commit had touched the five reverted paths",
+    "mitigation_while_reverted": "the retention defect returns; the operator's daily inspection keeps at most three managed daily backups by manual pruning with create-only deletion records, as it did before the fix; free disk is about 65 GiB",
+    "re_landing_condition": "the retention fix is re-landed only after the recovered bundle's release consumption has completed, because the live execution anchor binds the worktree to epoch-5 bytes until then; any earlier re-landing recreates this block"
+  },
+  "part_3_owner_decision_cninfo_capacity": {
+    "incident": "since 2026-08-21 01:00 CST every news_poll slot is degraded: cninfo reports pagination_incomplete for the 2026-08-20 daily slice, whose volume exceeds the frozen cap of 30 items by 80 pages per day, so the daily checkpoint is stuck at 2026-08-19 and cninfo ingestion has effectively stopped (228 rows on 08-21, none on 08-22). Cause is interim-report season volume, not a code change; the degradation predates the 2026-08-23 00:25 CST host reboot.",
+    "answer": "capacity expansion authorized",
+    "binding": "same exchange",
+    "hard_constraints_on_the_change": [
+      "config/p4_news_poll_v2_1.yaml must not change by a single byte: it is a control-surface member and its digest 9d56e137 is pinned in the rehearsal implementation, both bundle schemas and news_poll.py. Create a new versioned config file instead, with its own config_version and digest recorded per run as the poller already does",
+      "no change may touch any of the 73 control-surface members; src/alphapilot/jobs/news_poll.py is not a member and may switch its default config path; src/alphapilot/core/config.py is a member and must not gain settings for this",
+      "normal change control: operator proposal with the exact new cap and request-budget arithmetic, reviewer review, owner sign-off on the digest, scheduler restart; no observation window is required because P4.1 acceptance is complete",
+      "the coverage-gap catch-up must be shown to recover 2026-08-20 onward; report the per-date cninfo row counts after the first healthy day"
+    ]
+  },
+  "part_4_gate_health_predicate_amended": {
+    "old": "latest news_poll slot must be ok",
+    "new": "scheduler process alive; every scheduled slot in the last six hours has a terminal record, ok or degraded; zero failed; zero missing",
+    "why": "the old form protected an observation window that no longer exists and conflated CNInfo's external data volume with the gate's read-only synthetic run, which cannot affect it"
+  },
+  "part_5_state": {"main_after_this_record": "revert commit then this record; the operator pins the landing base to this record's commit", "canonical_src_provenance": "scheduler PID 800 started at the 2026-08-23 00:25 CST reboot on main@a9d6c92; until the operator pulls, the running backup agent still executes the fixed retention code", "ledger": "sealed, untouched", "heldout_evaluation_one_shot": "unconsumed"}
+}
