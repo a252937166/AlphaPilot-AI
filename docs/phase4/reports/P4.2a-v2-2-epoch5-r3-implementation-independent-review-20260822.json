@@ -1,0 +1,51 @@
+{
+  "schema_version": "p4.2a-independent-review-v1",
+  "review_id": "p4.2a-v2-2-epoch5-r3-implementation-review-20260822-r1",
+  "created_at_utc": "2026-08-22T15:35:08Z",
+  "created_at_shanghai": "2026-08-22T23:35:08+08:00",
+  "verdict": "APPROVE_EPOCH5_IMPLEMENTATION",
+  "blockers": [],
+  "reviewed_commit": "8dc4ce910c445d0947d404bba9e57235293098d9",
+  "supersession_context": "third epoch-5 candidate. 005feade was blocked at 37a4682 for the incomplete-count regression; b0d57387 fixed it and was blocked at a9d6c92 for a stale validator test stub; this candidate corrects the stub. Both earlier candidates and branches remain in history untouched.",
+  "reviewer": {
+    "identity": "independent_ai_architect_claude_code",
+    "reviewer_type": "ai",
+    "model": "Anthropic Claude Fable 5 (model id claude-fable-5)",
+    "impersonation_disclaimer": "Not a human reviewer. Issued under the owner governance amendment with requires_release_gate_amendment=true.",
+    "method": "structured review of the full epoch-5 diff across three candidates; per F-12 the changed validator test module was run complete by the reviewer at this commit, and the runner module's green full run at b0d57387 is carried forward by byte identity of every input it consumes",
+    "lineage_note": "committed as a single-parent child of 8dc4ce91 adding exactly this one file"
+  },
+  "part_1_commit_shape": {
+    "parent": "02def8fb3026bb797513440508ab0101efec0c35",
+    "parent_is_the_owner_surface_authority": true,
+    "single_parent": true,
+    "surface": "exactly the four authorized M paths of the epoch-5 six-field authority",
+    "file_digests": {
+      "scripts/p4_2a_v2_2_heldout_rehearsal.py": "0254356ce67bfb460573e61e38bd5006e0f4d7512c4bd19618f8e90f45780d65",
+      "scripts/validate_p4_2a_v2_2_heldout_rehearsal_bundle.py": "3c3dc388be235358b930b14d282d9bc9eb478c6783612b6ae9222da1e6a69b4f",
+      "tests/test_p4_2a_v2_2_heldout_rehearsal_runner.py": "25d20bdbfd55bdbaa4d246c49e2acf992ae4a8896f2196988abb1d3188127df2",
+      "tests/test_p4_2a_v2_2_heldout_rehearsal_validator.py": "54910db097a78eafa0ad4200cb93b8d000dab169d6246bdcb115d8a713310b65"
+    },
+    "diff_vs_b0d57387": "exactly one change: the _implementation_epochs monkeypatch stub accepts keyword arguments",
+    "no_merge_rebase_or_squash": true
+  },
+  "part_2_changes_reviewed": {
+    "design_conformance": "the implementation realizes the owner-approved design at digest f9e9774c: exact void-epoch-3 sentinel with the 0548692 discriminator and external validation of bf9f610, 578a625 and 8b25d36; the [2,4]-only packer special case with a full shape predicate; the 19-field recovery authorization, one-start claim and read-only rehydrating recovery; passive recovery-only validation and the recovered-release consumption route; the dual historical and live anchors as disjoint frozen types; the registered test plan including the exact-OS [2,4] recovery positive",
+    "recovered_release_cli": "--consume-recovered-release was added under the reviewer's mechanical-completion ruling after design review: the design specified the route's semantics but omitted its entry point, and the entry point lives in the approved implementation file. It is a member of the required mutually exclusive operation group. This was a reviewer ruling within the owner-approved scope, not a separate owner authorization.",
+    "incomplete_count_fix": "verified in full-module context: the FAILED, INCOMPLETE, SUCCESS fixture passes; lawful crash-bearing series can again complete a successful attempt's bundle",
+    "recovery_negatives": "missing void-3 row, extra epoch, wrong interval and unauthorized recovery are each rejected by the real implementation, proven by the corrected test and by the reviewer's own module run",
+    "forbidden_changes_swept": "zero hits on gate, threshold, gold, heldout-sample and 24-field schema constants across the whole epoch-5 diff"
+  },
+  "part_3_reviewer_run_evidence": {
+    "validator_module_at_8dc4ce91": "184 passed, 0 failed, 2193.22 seconds; JUnit totals tests 184, failures 0, errors 0, skipped 0",
+    "runner_module_carried_from_b0d57387": "180 passed, 0 failed, 19840.44 seconds, run by the reviewer; the producer, validator script and runner test file are byte-identical between b0d57387 and 8dc4ce91, so every input of that run is unchanged and its result binds this commit",
+    "operator_f15_evidence_verified": "four-negatives JUnit bd1dee81 with 4 of 4, validator JUnit 50886dbe with 184 of 184, runner non-exact JUnit 9850b36a with 161 of 161 and the proven 19 plus 161 partition of 180; digests and totals re-parsed by the reviewer",
+    "static": "ruff and strict mypy results from the r2 review stand by digest identity of the production files"
+  },
+  "part_4_merge_condition": {
+    "full_registered_gate": "the complete registered gate must run to completion in the persistent gate clone at 8dc4ce91 detached, output attached to the merge report; the runner alone is about five and a half hours and the full gate about six and a half",
+    "landing_rule": "merge only, preserving 8dc4ce91 and this review commit byte-exact"
+  },
+  "part_5_after_landing": ["registered-root preflight on the landed tree", "sealed-bundle recovery authorization drafted against the landed state, routed through the reviewer, confirmed by the owner in person", "one recovery start publishes the bundle; no pipeline start, no ledger write"],
+  "part_6_boundaries": {"ledger": "sealed; ordinals 1 FAILED and 2 CANDIDATE_VALIDATED_AND_SELECTED", "heldout_evaluation_one_shot": "unconsumed", "trading": "zero non-SIMULATE", "phase_locks": {"p4_2a_done": false, "p4_2b_unlocked": false, "p4_3_unlocked": false}}
+}
