@@ -1014,6 +1014,86 @@ def test_v2_2_reconciles_aggregate_and_all_partitions_including_empty_bj() -> No
     assert _terminal_complete(public)
 
 
+def test_v2_2_accepts_live_shaped_empty_bj_null_and_terminal_consumer_passes() -> None:
+    _seed_v2_1(date(2026, 8, 19))
+    target = date(2026, 8, 20)
+    client = _FakeClient(
+        [
+            _probe(2),
+            _page(1, [_row(1, target)]),
+            _page(1, [_row(2, target)]),
+            _page(0, None),
+        ]
+    )
+
+    batch = _fetch(client)
+    public = _terminal_public(batch, ["inserted", "inserted"])
+    slice_stats = cast(list[dict[str, object]], batch.details["slices"])[0]
+    checkpoint = cast(dict[str, object], batch.details["daily_checkpoint"])
+
+    assert batch.status == "ok"
+    assert len(batch.candidates) == 2
+    assert slice_stats["partition_rows_seen"] == {"sz": 1, "sh": 1, "bj": 0}
+    assert slice_stats["partition_upstream_totals"] == {"sz": 1, "sh": 1, "bj": 0}
+    assert slice_stats["partition_completion"] == {"sz": True, "sh": True, "bj": True}
+    assert slice_stats["pagination_complete"] is True
+    assert slice_stats["coverage_proven"] is True
+    assert slice_stats["checkpoint_committed"] is True
+    assert slice_stats["checkpoint_advanced"] is True
+    assert checkpoint["checkpoint_committed"] is True
+    assert checkpoint["verified_checkpoint_date_shanghai_after"] == "2026-08-20"
+    assert batch.details["response_shape_events"] == [
+        {
+            "date_shanghai": "2026-08-20",
+            "partition": "bj",
+            "page": 1,
+            "response_json_type": "object",
+            "announcements_field_present": True,
+            "announcements_json_type": "null",
+            "total_announcement_json_type": "integer",
+            "total_announcement_value": 0,
+            "normalized_to_empty_list": True,
+        }
+    ]
+    assert public["response_shape_events"] == batch.details["response_shape_events"]
+    assert _terminal_complete(public)
+
+
+def test_v2_2_rejects_other_announcement_shapes_without_checkpoint_or_event() -> None:
+    _seed_v2_1(date(2026, 8, 19))
+    invalid_pages = [
+        _FakeResponse({"totalAnnouncement": 0, "hasMore": False}),
+        _page(1, None),
+        _page(False, None),
+        _page(0, False),
+        _page(0, ""),
+        _page(0, {}),
+        _page(0, 0),
+    ]
+
+    for invalid_page in invalid_pages:
+        batch = _fetch(_FakeClient([_probe(0), invalid_page]))
+        slice_stats = cast(list[dict[str, object]], batch.details["slices"])[0]
+        checkpoint = cast(dict[str, object], batch.details["daily_checkpoint"])
+
+        assert batch.status == "unavailable"
+        assert len(batch.failures) == 1
+        assert batch.failures[0]["code"] == "schema_changed"
+        assert batch.failures[0]["blocked"] is False
+        assert batch.failures[0]["error_type"] == "NewsSourceError"
+        assert batch.failures[0]["date_shanghai"] == "2026-08-20"
+        assert batch.failures[0]["partition"] == "sz"
+        assert batch.details["response_shape_events"] == []
+        assert slice_stats["pagination_complete"] is False
+        assert slice_stats["checkpoint_committed"] is False
+        assert slice_stats["checkpoint_advanced"] is False
+        assert slice_stats["checkpoint_before"] == "2026-08-19"
+        assert slice_stats["checkpoint_after"] == "2026-08-19"
+        assert checkpoint["checkpoint_committed"] is False
+        assert checkpoint["verified_checkpoint_date_shanghai_before"] == "2026-08-19"
+        assert checkpoint["verified_checkpoint_date_shanghai_after"] == "2026-08-19"
+
+
 @pytest.mark.parametrize(
     "missing_field",
     [
