@@ -1,0 +1,53 @@
+{
+  "schema_version": "p4.2a-independent-adjudication-v1",
+  "adjudication_id": "p4.2a-series-2-epoch5-companion-20260823-r1",
+  "created_at_utc": "2026-08-23T13:23:40Z",
+  "created_at_shanghai": "2026-08-23T21:23:40+08:00",
+  "purpose": "companion narrative for the machine-consumable series-2 epoch-5 surface authority committed immediately after this document",
+  "issued_by": {"identity": "independent_ai_architect_claude_code", "reviewer_type": "ai", "model": "Anthropic Claude Fable 5 (model id claude-fable-5)", "impersonation_disclaimer": "Not a human reviewer and not the owner. The six-field authority asserts owner approval because the owner gave it explicitly; the transcript binding is below."},
+  "part_1_amendment_landed_and_signed": {
+    "landing_commit": "b6dfff08557fdbca1336f816b197cd6c8a0d5c41",
+    "parent": "f21fa10babd9b300fae03c751ba038c7ebc77392",
+    "git_shape": "exactly three status-A paths, no other diff",
+    "owner_signature": {
+      "binding": "transcript-bound, owner in person, 2026-08-23 CST evening: the owner signed the three exact digests below and approved landing",
+      "amendment": {"path": "docs/phase4/reports/P4.2a-v2-2-series-2-preregistration-amendment-20260823.json", "sha256": "be98803a6b6cbe25a79242c23ee728d0ed687ac70e3f6990230bb1710886e91c"},
+      "bundle_schema": {"path": "config/schemas/p4_2a_v2_2_series_2_heldout_rehearsal_bundle.schema.json", "sha256": "252ad069ed300917989a97656b4c38e6ee2c74069b2bacd6c258b263b5684ec7"},
+      "release_schema": {"path": "config/schemas/p4_2a_v2_2_series_2_heldout_release_authorization.schema.json", "sha256": "c7228bff2d4ec575bcdec024194ce2b53d37a27e05ba793bd4bdf145a97f63be"}
+    },
+    "reviewer_verification_before_signature": [
+      "the two new schemas differ from the frozen ones at exactly 7 and exactly 6 JSON pointers, every one a governance binding: ledger_root, series token, preregistration path, schema paths and digests, and $id; mechanically diffed pointer by pointer",
+      "series-2 token 2543d679... recomputed from the registered formula over 232 material bytes seeded by the loss-incident digest 2deee307...",
+      "history empty root 318b5c9e... recomputed from the registered prefix",
+      "all evidence paths use the home-root locations from d3db7a4; no project/interesting evidence path and no cloud path remains",
+      "scientific and release contract bytes unchanged; historical constants and the v2.1 config digest 9d56e137 untouched"
+    ]
+  },
+  "part_2_owner_approval_of_the_epoch5_surface": {
+    "approved_by": "owner (ouyang), in person",
+    "binding": "transcript-bound, same exchange as the amendment signature",
+    "approved_surface": [
+      {"path": "scripts/p4_2a_v2_2_heldout_rehearsal.py", "status": "M"},
+      {"path": "scripts/validate_p4_2a_v2_2_heldout_rehearsal_bundle.py", "status": "M"},
+      {"path": "tests/test_p4_2a_v2_2_heldout_rehearsal_runner.py", "status": "M"},
+      {"path": "tests/test_p4_2a_v2_2_heldout_rehearsal_validator.py", "status": "M"}
+    ],
+    "approved_content_scope": "exactly the landed amendment be98803a and the reviewed design a80437b7 as amended by d3db7a4: SERIES_2_* constants isolated from the unchanged historical constants; epoch-origin-5 packing and validation keyed by explicit epoch value; the visible home-root primary ledger, mirror snapshot and paired receipt roots; the primary-seal-then-byte-exact-mirror protocol whose failure blocks the next ordinal, bundle and release without ever rolling back a sealed terminal; audited write authority confined to those registered roots; and the registered tests for every positive and negative invariant named in the amendment",
+    "explicitly_out_of_scope": [
+      "any gate, threshold, sample, seed, model, prompt, contract or gold change",
+      "the thin shim and the exact 24-field action authorization shape",
+      "void-epoch-3, the [2,4] exception, the 19-field bundle-recovery authorization, --recover-sealed-bundle and --consume-recovered-release",
+      "any mirror-only completion entrypoint; a mirror failure stops and needs its own future design",
+      "reconstructing the lost series-1 bytes from digests or reports"
+    ]
+  },
+  "part_3_sequence": [
+    "commit this companion alone; the six-field epoch-5 authority follows as its direct child with base_commit set to this commit",
+    "operator implements the four-path surface on a new branch as the direct child of the authority commit",
+    "operator F-15 local runs, then independent full F-12 runner and validator modules by the reviewer",
+    "persistent registered gate, landing report before merge, merge-only landing",
+    "owner provisions the two SERIES-000002 container directories at mode 0700",
+    "registered-root preflight, then series-2 ordinal-1 Q with epoch 5 and previous history root 318b5c9ed06b2eed4ea55bf6f14da4c27e11b4cb2122e3f182847644aa549605, the 24-field R, the owner's in-person B, one pipeline start, seal, mirror, then the bundle"
+  ],
+  "part_4_state": {"main_at_companion": "b6dfff08557fdbca1336f816b197cd6c8a0d5c41", "cninfo_null_fix": "reviewed separately; news_poll.py is not a control-surface member so its landing does not disturb this chain", "seventy_three_member_freeze": "active from f21fa10b through series-2 attempt 1 and release", "heldout_evaluation_one_shot": "unconsumed", "trading": "zero non-SIMULATE"}
+}
