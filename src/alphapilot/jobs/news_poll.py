@@ -1959,6 +1959,7 @@ def _fetch_cninfo_v2_2(
     latest_attempt_observed = seed.newest_observed_at_utc
     any_checkpoint_committed = False
     closed_date_without_observed_high: tuple[date, int, int] | None = None
+    response_shape_events: list[JsonObject] = []
 
     def upstream_total(payload: Mapping[str, object], label: str) -> int:
         raw = payload.get(str(source["aggregate_total_field"]))
@@ -2053,7 +2054,23 @@ def _fetch_cninfo_v2_2(
                                 "partition_count_mismatch",
                                 "CNInfo partition total changed between pages",
                             )
+                        announcements_field_present = "announcements" in payload
                         rows = payload.get("announcements")
+                        if announcements_field_present and rows is None and observed_total == 0:
+                            rows = []
+                            response_shape_events.append(
+                                {
+                                    "date_shanghai": slice_date.isoformat(),
+                                    "partition": partition,
+                                    "page": page,
+                                    "response_json_type": "object",
+                                    "announcements_field_present": True,
+                                    "announcements_json_type": "null",
+                                    "total_announcement_json_type": "integer",
+                                    "total_announcement_value": 0,
+                                    "normalized_to_empty_list": True,
+                                }
+                            )
                         if not isinstance(rows, list):
                             raise NewsSourceError(
                                 "schema_changed",
@@ -2292,6 +2309,7 @@ def _fetch_cninfo_v2_2(
         "canonical_column": canonical_column,
         "partition_parameter": partition_parameter,
         "partitions": partitions,
+        "response_shape_events": response_shape_events,
         "slice_dates_shanghai": [item.isoformat() for item in slice_dates],
         "slices": slices,
         "request_budget": {
