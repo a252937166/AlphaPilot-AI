@@ -1,0 +1,30 @@
+{
+  "schema_version": "p4.2a-independent-adjudication-v1",
+  "adjudication_id": "p4.2a-series-2-design-review-and-storage-decisions-20260823-r1",
+  "created_at_utc": "2026-08-23T05:56:59Z",
+  "created_at_shanghai": "2026-08-23T13:56:59+08:00",
+  "verdict": "PASS_DESIGN_REVIEW_WITH_TWO_STORAGE_AMENDMENTS",
+  "issued_by": {"identity": "independent_ai_architect_claude_code", "reviewer_type": "ai", "model": "Anthropic Claude Fable 5 (model id claude-fable-5)", "impersonation_disclaimer": "Not a human reviewer and not the owner. Owner decisions are transcript-bound, given in person."},
+  "design_reviewed": {"path": "docs/phase4/reports/P4.2a-v2-2-series-2-design-proposal-20260823.json", "sha256": "a80437b7925ac089989176473b3a67bb6cc6431cd9a92d57515d85dc7c2b7bfc", "creating_commit": "5c7e81c0f4850bb2fe21346c7a7e7d140b9bb3c1", "branch": "codex/p4-2a-v2-2-series2-design"},
+  "part_1_reverified_by_reviewer": [
+    "series-2 token seed 2deee307... is the SHA-256 of the loss incident file at a7cea63",
+    "series-2 token 2543d679... recomputed from the registered formula over 232 material bytes",
+    "history empty root 318b5c9e... recomputed from the registered prefix",
+    "INCIDENT_SHA256 d658336f... unchanged in the landed implementation",
+    "bundle destination docs/phase4/rehearsals/P4.2a-v2-calibration-v2-2 absent"
+  ],
+  "part_2_design_judgments": {
+    "epoch_origin_5_with_explicit_epoch_keys": "accepted; no synthetic void rows, origin pinned to this series, generalization deferred",
+    "lost_series_in_lineage_not_in_history_root": "accepted; the new chain starts from the empty root and the loss record enters only the amendment, control surface and bundle lineage",
+    "seal_then_mirror_protocol": "accepted; primary seal irreversible, mirror failure blocks the next ordinal, bundle and release without rollback, atomic RENAME_EXCL publish, no completion entrypoint in this epoch",
+    "amendment_three_A_and_implementation_four_M": "accepted; historical constants untouched, SERIES_2_* constants isolated; amendment lands after cninfo and before the companion",
+    "no_recovery_machinery_from_the_unlanded_epoch_5_candidates": "accepted"
+  },
+  "part_3_storage_amendments": {
+    "primary_ledger_root_changed_by_reviewer": {"from": "/Users/ouyangduning/Documents/project/interesting/AlphaPilot-AI-EVIDENCE-DO-NOT-DELETE/...", "to": "/Users/ouyangduning/AlphaPilot-EVIDENCE-DO-NOT-DELETE/P4.2a-v2.2/SERIES-000002-<token>/PRIMARY-LEDGER-DO-NOT-DELETE", "why": "the project parent is the directory the owner cleans by hand; the home root is outside that blast radius; the token is independent of the root so this changes no identity"},
+    "second_copy_owner_decision": {"question": "iCloud Drive off-machine copy or a second local visible directory", "answer": "second local visible directory only; no cloud service", "binding": "transcript-bound, owner in person, 2026-08-23 CST", "secondary_snapshot_root": "/Users/ouyangduning/AlphaPilot-EVIDENCE-MIRROR-DO-NOT-DELETE/P4.2a-v2.2/SERIES-000002-<token>/SEALED-LEDGER-SNAPSHOTS-DO-NOT-DELETE", "receipt_roots": "MIRROR-RECEIPTS-DO-NOT-DELETE under each of the two roots", "residual_risk_accepted_by_owner": "protects against accidental deletion, not disk failure; iCloud and external media declined"},
+    "provisioning": "the owner creates the two SERIES-000002-* containers, mode 0700, before attempt 1; the preflight proves ownership, mode, non-symlink, non-overlap and absent leaves exactly as designed"
+  },
+  "part_4_sequence_confirmed": ["cninfo capacity change lands first", "exact-three-A amendment package drafted with the amended paths, independently reviewed, owner-approved, landed", "reviewer companion then six-field epoch-5 authority as its direct child", "exact-four-M implementation, operator F-15 runs, reviewer F-12 full modules, persistent gate, landing report, merge-only", "owner provisioning, registered-root preflight, Q, R, B, one pipeline start, seal, mirror, bundle"],
+  "boundaries": {"heldout_evaluation_one_shot": "unconsumed", "trading": "zero non-SIMULATE", "phase_locks": {"p4_2a_done": false, "p4_2b_unlocked": false, "p4_3_unlocked": false}}
+}
