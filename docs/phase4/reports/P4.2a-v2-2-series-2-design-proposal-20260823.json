@@ -1,0 +1,450 @@
+{
+  "schema_version": "p4.2a-v2-2-series-2-design-proposal-v1",
+  "proposal_id": "P4.2A-V2-2-SERIES-2-DESIGN-PROPOSAL-20260823",
+  "status": "DRAFT_FOR_OWNER_REVIEW_NOT_EFFECTIVE",
+  "created_at_shanghai": "2026-08-23T13:21:54+08:00",
+  "scope": {
+    "design_only": true,
+    "code_changed": false,
+    "schema_changed": false,
+    "ledger_created_or_reconstructed": false,
+    "pipeline_started": false,
+    "heldout_materialized": false,
+    "inference_started": false,
+    "evaluation_started": false,
+    "bundle_created": false,
+    "release_authorization_created": false,
+    "trading_effects": 0
+  },
+  "authority_chain": {
+    "sealed_ledger_loss_incident": {
+      "commit": "a7cea63378a39702b1618895b3a7350febcb5da6",
+      "path": "docs/phase4/reports/P4.2a-v2-2-sealed-ledger-loss-incident-20260823.json",
+      "sha256": "2deee3072c339d8e8993bbf8ca8ecbe9380576c1499835828064fb4aead43d30",
+      "bytes": 6422,
+      "verdict": "SEALED_LEDGER_BYTES_LOST_SERIES_SUCCESS_STANDS_BY_DIGEST"
+    },
+    "owner_decision_to_run_series_2": {
+      "commit": "9a028855c73c4feba36125ed30cf5a7d4db5fff4",
+      "path": "docs/phase4/reports/P4.2a-owner-decision-rerun-rehearsal-series-2-20260823.json",
+      "sha256": "e0fc6a17c853be063632551b4b794091a6152324af7f7ec95262ed2af8538051",
+      "bytes": 2347,
+      "decision": "run it again"
+    },
+    "design_base": "9a028855c73c4feba36125ed30cf5a7d4db5fff4",
+    "implementation_base": "DEFERRED_UNTIL_CNINFO_CAPACITY_CHANGE_IS_LANDED_AND_VERIFIED",
+    "implementation_authority": "NOT_ISSUED",
+    "owner_companion": "NOT_ISSUED"
+  },
+  "mandatory_order": [
+    "land and activate the independently reviewed CNInfo capacity correction",
+    "refresh main and prove the five registered P4.2a files still equal the epoch-4 implementation bytes",
+    "land and review the series-2 preregistration amendment and binding-only schema profiles",
+    "issue the owner companion and six-field epoch-5 surface authority",
+    "implement and independently review the minimal series-2 epoch",
+    "run the unchanged F-12 modules and persistent registered gate",
+    "merge-only, run registered-root preflight, authorize and execute series-2 attempt 1",
+    "from series-2 implementation landing through release, change none of the 73 control-surface members",
+    "re-land the reverted backup-retention correction only after release"
+  ],
+  "current_registered_state": {
+    "landed_implementation_epoch": 4,
+    "implementation_commit": "890e9002116c625d41f6aa037975df15d1546c56",
+    "implementation_parent": "2c3171e68ce0146c158a294d0e494ae4b618310b",
+    "independent_review_commit": "858f372a8ce56f2556d02d03c46c6fb078b5b476",
+    "implementation_is_ancestor_of_design_base": true,
+    "registered_files_equal_implementation_bytes": true,
+    "registered_file_sha256": {
+      "scripts/rehearse_p4_2a_v2_2_heldout_full_path.py": "660d6b6e820581eae792e6c04f35b15b30bdb2427d93c3a934af9146f0e044c0",
+      "scripts/p4_2a_v2_2_heldout_rehearsal.py": "9318e46e86f9a9a6aa5676a99f000eae4446f000520db261ecef391c30e88d77",
+      "scripts/validate_p4_2a_v2_2_heldout_rehearsal_bundle.py": "8c2e34370174122d02232e76314ec7cc092523c8424773891b4cdb8335b53b0d",
+      "tests/test_p4_2a_v2_2_heldout_rehearsal_runner.py": "7209349831a0f1c14d796adf6238ad0b9905b81d5a94b5e273ec4715f417a85a",
+      "tests/test_p4_2a_v2_2_heldout_rehearsal_validator.py": "fbd7cfedda56bb48f06b1d0438d59ad7d5e635ecc91bf0ca43d2afbfbfd45b13"
+    },
+    "unlanded_epoch_5_candidates_consume_no_landed_epoch_number": true,
+    "main_contains_void_epoch_1_support": true,
+    "main_contains_void_epoch_3_support": false,
+    "main_contains_2_4_epoch_exception": false,
+    "main_contains_sealed_bundle_recovery_or_recovered_release_cli": false
+  },
+  "frozen_scientific_and_release_contract": {
+    "rule": "Gates, thresholds, samples, seeds, models, prompts, scientific contracts, gold data, the 24-field action authorization shape and all heldout locks remain byte-identical.",
+    "existing_preregistration": {
+      "path": "docs/phase4/reports/P4.2a-v2-heldout-rehearsal-v2-2-preregistration-20260811.json",
+      "sha256": "8f52a9e24df11e23a900b5cb79720f3b4aae999c6ab770a9038ebe2617e8d8d5",
+      "bytes": 106742,
+      "change": "FORBIDDEN"
+    },
+    "existing_bundle_schema": {
+      "path": "config/schemas/p4_2a_v2_2_heldout_rehearsal_bundle.schema.json",
+      "sha256": "19903ac94d4d7ced81c7f18e7b8880bd1dbb68fd3ededf3f0b91f89d034aa5db",
+      "bytes": 93736,
+      "change": "FORBIDDEN"
+    },
+    "existing_release_schema": {
+      "path": "config/schemas/p4_2a_v2_2_heldout_release_authorization.schema.json",
+      "sha256": "098d213f510718aab0d9c6bfc950a30bb1c4841ca151631bea78c1bf0238e7ea",
+      "bytes": 27235,
+      "change": "FORBIDDEN"
+    },
+    "binding_conflict_and_resolution": {
+      "fact": "Both existing schemas hard-code the lost series token and hidden ledger root in their registered executionBinding branch, so a fresh token and visible ledger cannot validate against those exact registered constants.",
+      "resolution": "Keep both existing schema files byte-identical and add series-2 binding profiles during the preregistration-amendment stage. The new profiles are canonical copies whose only differences are the new schema identity, active series-2 preregistration/schema lineage, fresh registered token and visible ledger root; all scientific, safety, evaluation and release-decision semantics remain identical.",
+      "required_owner_companion_classification": "The additive series-2 files are binding-only governance profiles, not a relaxation or mutation of the frozen scientific/release contract.",
+      "allowed_json_pointer_differences": {
+        "series_2_bundle_schema_exact_7": [
+          "/$id",
+          "/$defs/lineage/properties/preregistration/allOf/1/properties/path/const",
+          "/$defs/lineage/properties/bundle_schema/allOf/1/properties/path/const",
+          "/$defs/lineage/properties/release_authorization_schema/allOf/1/properties/path/const",
+          "/$defs/lineage/properties/release_authorization_schema/allOf/1/properties/sha256/const",
+          "/$defs/executionBinding/oneOf/0/properties/series_token_sha256/const",
+          "/$defs/executionBinding/oneOf/0/properties/ledger_root/const"
+        ],
+        "series_2_release_schema_exact_6": [
+          "/$id",
+          "/properties/lineage/properties/preregistration/allOf/1/properties/path/const",
+          "/properties/lineage/properties/bundle_schema/allOf/1/properties/path/const",
+          "/properties/lineage/properties/release_schema/allOf/1/properties/path/const",
+          "/$defs/executionBinding/oneOf/0/properties/series_token_sha256/const",
+          "/$defs/executionBinding/oneOf/0/properties/ledger_root/const"
+        ]
+      },
+      "schema_construction_order": "Create the series-2 release schema first and compute its SHA-256; then bind that digest into the series-2 bundle schema release_authorization_schema lineage pointer. The amendment binds the final path/SHA/bytes of both. No hash fallback or self-reference is permitted.",
+      "all_other_canonical_json_pointers_must_equal_the_frozen_schema": true
+    }
+  },
+  "lost_series_history_summary": {
+    "classification": "DIGEST_PROOF_CHAIN_NOT_RECONSTRUCTABLE_LEDGER_BYTES",
+    "old_series_token_sha256": "35ba1b83a9b187817d7a591758e1c131e867fcd37917cba0ab196799fff832ef",
+    "old_ledger_root": "/Users/ouyangduning/Documents/project/interesting/.alphapilot-p4-2a-v2-2-execution-claim-35ba1b83a9b187817d7a591758e1c131e867fcd37917cba0ab196799fff832ef",
+    "history_root_after_ordinal_1": "076ae961fc149ae271bf5a3724c1677abccfea7139589909ea717a7f4a38083a",
+    "history_root_after_ordinal_2": "a466de7b349882f2bcd556a4b4d00bf38bace9adb593b0e3b6296c415a8c9ca1",
+    "attempt_1": {
+      "ordinal": 1,
+      "outcome": "FAILED",
+      "implementation_epoch": 2,
+      "implementation_commit": "1b4e05c6acd513bb1bc11245911da97b6a128ca1",
+      "evidence_tree_root_sha256": "deea0e81e3fd8a5c886cc4c757fb5485cb7f750718462489dea48d3deed2691c"
+    },
+    "attempt_2": {
+      "ordinal": 2,
+      "outcome": "CANDIDATE_VALIDATED_AND_SELECTED",
+      "implementation_epoch": 4,
+      "implementation_commit": "890e9002116c625d41f6aa037975df15d1546c56",
+      "started_sha256": "75771a37572fb9191a9db26f986b1e9d89c26843556b502866322a8f4bdaf42d",
+      "candidate_sha256": "92652f963b04b79e29580978cd6857c2154df0b429ac09502be6c0c0c5d84da5",
+      "terminal_sha256": "7ba4ed1b5d7e7abc462b312f08b131ff438cc524cecbdeea6b43dc199292e3dc",
+      "evidence_tree_root_sha256": "f38b18b972f14a170fc9bb4129f25ec77e8ad1c4e8a8f137b5853cc371b694c2",
+      "run_a_and_run_b_root_sha256": "5fb8edf3aa65cdcd0f54b82bdf6f240104fa8537c1004e640671910115f8f314",
+      "candidate_content_root_sha256": "5de4f74d1f73e5f90aa9c196c8fc6574bce2ecfa91abd750b22726c14c6a60b7",
+      "selected_control_root_sha256": "76076606d6e40cdd386b28cdd5bc40a8957693b8cfdc8b17a0a77410b4e082e8",
+      "q_r_b_commits": [
+        "f6f993d0e9f30b6f6c5250a94a4a49b179fc8ff1",
+        "f004054c1797904206e5590f2b0f4751848665c1",
+        "1832ed7c6130b71d5a99722721eaec83b2adabdd"
+      ],
+      "execution_authorization_sha256": "8f5c0b31ef88922b8b44b202c729fad55a4d0cb172c000089991f1cd2c995461"
+    },
+    "contemporaneous_verification_commits": [
+      "7fc122f575801ff43d2446a2c59491a086735e93",
+      "0548692480ff8325b69be92f01e0d42e11ad4eb0",
+      "7cf819d43d5b73f7b8f1469a556c79ece12587f0"
+    ],
+    "series_1_outcome_stands": true,
+    "series_1_bundle_cannot_be_reconstructed_or_released": true,
+    "series_1_digests_enter_series_2_amendment_lineage": true,
+    "series_1_digests_enter_series_2_attempt_history_root": false,
+    "series_1_digests_enter_series_2_control_surface_and_bundle_lineage_through_the_amendment": true,
+    "old_ledger_and_retired_v2_1_claim_must_remain_absent": true
+  },
+  "series_2_identity": {
+    "series_number": 2,
+    "policy": "DISCLOSED_REPEATABLE_SERIES_V1",
+    "rehearsal_id_unchanged": "P4.2A-V2-HELDOUT-REHEARSAL-V2-2-DETERMINISTIC-20260811",
+    "bundle_destination_unchanged": "/Users/ouyangduning/Documents/project/interesting/AlphaPilot-AI/docs/phase4/rehearsals/P4.2a-v2-calibration-v2-2",
+    "token_derivation_reuses_the_registered_formula": "SHA256(lowercase(loss_incident_file_sha256) || NUL || rehearsal_id || NUL || absolute_bundle_destination)",
+    "token_material_bytes": 232,
+    "loss_incident_file_sha256": "2deee3072c339d8e8993bbf8ca8ecbe9380576c1499835828064fb4aead43d30",
+    "series_token_sha256": "2543d679819f96958baf747ef61dda2044013a0b00a9cb824c0d7675640d9f93",
+    "constant_isolation": {
+      "new_token_seed_constant": "SERIES_2_TOKEN_SEED_SHA256",
+      "new_token_seed_value": "2deee3072c339d8e8993bbf8ca8ecbe9380576c1499835828064fb4aead43d30",
+      "legacy_incident_sha256_constant_name": "INCIDENT_SHA256",
+      "legacy_incident_sha256_value_unchanged": "d658336f61cdca0239584b696043fe4abc5ede1ef7aff76a4fe514b7b5d0735c",
+      "rule": "The series-2 token function uses SERIES_2_TOKEN_SEED_SHA256. It must not overwrite, alias or reinterpret INCIDENT_SHA256, which continues to bind the original v2.1 consumed-attempt incident and carry-forward lineage."
+    },
+    "history_empty_root_formula": "SHA256(UTF8('p4.2a-rehearsal-v2.2-history-empty-v1') || NUL)",
+    "history_empty_root_sha256": "318b5c9ed06b2eed4ea55bf6f14da4c27e11b4cb2122e3f182847644aa549605",
+    "ordinal_1_previous_history_root_sha256": "318b5c9ed06b2eed4ea55bf6f14da4c27e11b4cb2122e3f182847644aa549605",
+    "old_history_root_must_not_seed_series_2": true
+  },
+  "epoch_origin_rule": {
+    "registered_base_epoch_before_series_2_change": 4,
+    "smallest_authorizable_successor_epoch": 5,
+    "series_2_epoch_origin": 5,
+    "timing_clarification": "At design time the landed registered bytes are epoch 4. The minimal series-2 implementation is epoch 5. After that implementation lands, series-2 ordinal 1 binds the then-current landed epoch 5.",
+    "unlanded_epoch_5_candidates_consume_the_official_number": false,
+    "packer_rules": [
+      "series.json uses schema_version p4.2a-v2-2-rehearsal-series-2-v1 and has the existing exact 13 fields plus exactly one new field implementation_epoch_origin=5",
+      "the first attempt must use implementation_epoch=5",
+      "distinct used epochs must equal range(5, 5 + distinct_epoch_count)",
+      "multiple contiguous attempts may use the same epoch",
+      "an implementation transition may only advance by exactly one",
+      "bundle implementation_epochs contains only epochs actually used by series 2 and emits no synthetic rows for epochs 1 through 4",
+      "attempt ordinals start at 1 and remain contiguous"
+    ],
+    "validator_rules": [
+      "index implementation epochs by their explicit epoch field rather than by one-based array position",
+      "require the first registered series-2 epoch key to equal 5 and every later key to increase by one",
+      "resolve selected, authority, review, topology, control-root and current-byte checks by the explicit epoch key",
+      "keep the selected epoch current-byte check fully fail-closed",
+      "reject origin 1, 2, 3, 4 or 6, reject [5,7], regression, reorder and an authority whose epoch differs from its row"
+    ],
+    "legacy_behavior": {
+      "existing_void_epoch_1_code_may_remain_for_legacy_and_disposable_validation": true,
+      "official_series_2_bundle_emits_void_epoch_1": false,
+      "void_epoch_3_added": false,
+      "2_4_exception_added": false,
+      "sealed_bundle_recovery_added": false,
+      "recover_sealed_bundle_cli_added": false,
+      "consume_recovered_release_cli_added": false
+    }
+  },
+  "durable_storage_options": {
+    "recommended_option": "a",
+    "recommendation_reason": "Only option (a) combines a visible non-hidden primary path with a second location designed for off-machine synchronization without adding a Git evidence-container protocol.",
+    "W7_scope_and_owner_confirmation": "The post-incident owner brief explicitly nominates /Users/ouyangduning/Documents/project/interesting/AlphaPilot-AI-EVIDENCE-DO-NOT-DELETE as option (a), so this proposal does not silently substitute another root. It is outside the hidden .alphapilot-* evidence naming/cleanup class but remains under the broader project/interesting parent used during the manual cleanup. The companion must explicitly accept that residual broad-parent human-deletion risk together with the visible DO-NOT-DELETE name and iCloud second copy; otherwise it must choose a different primary root before preregistration and rebind every registered ledger/receipt/schema path. The series-token formula is independent of ledger root, so such a path decision does not change the token.",
+    "option_a": {
+      "rank": 1,
+      "status": "RECOMMENDED_BUT_NOT_CURRENTLY_READY",
+      "primary_ledger_root": "/Users/ouyangduning/Documents/project/interesting/AlphaPilot-AI-EVIDENCE-DO-NOT-DELETE/P4.2a-v2.2/SERIES-000002-2543d679819f96958baf747ef61dda2044013a0b00a9cb824c0d7675640d9f93/PRIMARY-LEDGER-DO-NOT-DELETE",
+      "secondary_snapshot_root": "/Users/ouyangduning/Library/Mobile Documents/com~apple~CloudDocs/AlphaPilot-EVIDENCE/P4.2a-v2.2/SERIES-000002-2543d679819f96958baf747ef61dda2044013a0b00a9cb824c0d7675640d9f93/SEALED-LEDGER-SNAPSHOTS-DO-NOT-DELETE",
+      "primary_receipt_root": "/Users/ouyangduning/Documents/project/interesting/AlphaPilot-AI-EVIDENCE-DO-NOT-DELETE/P4.2a-v2.2/SERIES-000002-2543d679819f96958baf747ef61dda2044013a0b00a9cb824c0d7675640d9f93/MIRROR-RECEIPTS-DO-NOT-DELETE",
+      "secondary_receipt_root": "/Users/ouyangduning/Library/Mobile Documents/com~apple~CloudDocs/AlphaPilot-EVIDENCE/P4.2a-v2.2/SERIES-000002-2543d679819f96958baf747ef61dda2044013a0b00a9cb824c0d7675640d9f93/MIRROR-RECEIPTS-DO-NOT-DELETE",
+      "current_primary_parent_exists": false,
+      "current_cloud_docs_parent_exists": false,
+      "current_mobile_documents_enabled": false,
+      "attempt_1_precondition": "The owner enables iCloud Drive, then explicitly provisions the two exact SERIES-000002-* container directories as mode 0700. An independent preflight proves each container and every ancestor is owner-controlled, non-symlink and non-overlapping; the registered PRIMARY-LEDGER, SEALED-LEDGER-SNAPSHOTS and both MIRROR-RECEIPTS leaves must still be absent. Existing SeriesLedger.open creates only the primary leaf, so recursive parent creation is forbidden and not inferred.",
+      "machine_claim_boundary": "A local re-read can prove only LOCAL_SECOND_COPY_VERIFIED. It must not claim asynchronous iCloud upload or off-device presence; the owner separately confirms the synchronization facility is active."
+    },
+    "option_b": {
+      "rank": 3,
+      "status": "NOT_RECOMMENDED_AS_THE_REQUIRED_SECOND_COPY",
+      "mechanism": "Push a deterministic evidence container to orphan branch evidence/series-2.",
+      "risks": [
+        "Git does not preserve 0700/0600 modes or empty evidence directories",
+        "a deterministic container adds a new format and validation surface",
+        "large binary evidence permanently expands every clone and fetch without Git LFS",
+        "the branch may be deleted or force-pushed unless separately protected",
+        "network and remote authorization become part of attempt sealing"
+      ],
+      "allowed_future_role": "Optional tertiary audit copy after a separately reviewed design, never the primary required mirror in this amendment."
+    },
+    "option_c": {
+      "rank": 2,
+      "status": "LOCAL_DEGRADED_FALLBACK_REQUIRES_EXPLICIT_OWNER_ACCEPTANCE",
+      "primary_ledger_root": "/Users/ouyangduning/Documents/project/interesting/AlphaPilot-AI-EVIDENCE-DO-NOT-DELETE/P4.2a-v2.2/SERIES-000002-2543d679819f96958baf747ef61dda2044013a0b00a9cb824c0d7675640d9f93/PRIMARY-LEDGER-DO-NOT-DELETE",
+      "secondary_snapshot_root": "/Users/ouyangduning/Documents/AlphaPilot-AI-EVIDENCE-SECOND-COPY-DO-NOT-DELETE/P4.2a-v2.2/SERIES-000002-2543d679819f96958baf747ef61dda2044013a0b00a9cb824c0d7675640d9f93/SEALED-LEDGER-SNAPSHOTS-DO-NOT-DELETE",
+      "primary_receipt_root": "/Users/ouyangduning/Documents/project/interesting/AlphaPilot-AI-EVIDENCE-DO-NOT-DELETE/P4.2a-v2.2/SERIES-000002-2543d679819f96958baf747ef61dda2044013a0b00a9cb824c0d7675640d9f93/MIRROR-RECEIPTS-DO-NOT-DELETE",
+      "secondary_receipt_root": "/Users/ouyangduning/Documents/AlphaPilot-AI-EVIDENCE-SECOND-COPY-DO-NOT-DELETE/P4.2a-v2.2/SERIES-000002-2543d679819f96958baf747ef61dda2044013a0b00a9cb824c0d7675640d9f93/MIRROR-RECEIPTS-DO-NOT-DELETE",
+      "same_data_volume_observed": true,
+      "risk": "Protects against path-scoped accidental deletion but not disk loss, machine loss or same-volume corruption."
+    }
+  },
+  "attempt_seal_and_second_copy_protocol": {
+    "primary_seal_semantics": [
+      "While holding the exclusive series lock, persist the primary terminal with the existing create-only rules and fsync every file and directory.",
+      "Once the primary terminal is durable, the attempt is sealed and its terminal outcome is irreversible.",
+      "If a process dies before terminalization, the next lock holder first replays and classifies the persisted attempt as INCOMPLETE_UNTERMINALIZED, freezes exactly the primary bytes then present, keeps terminal.json absent, and must finish that frozen-history mirror before allocating a later ordinal.",
+      "A later mirror failure must never delete, rewrite, roll back or reclassify the sealed terminal attempt or the frozen incomplete primary bytes."
+    ],
+    "snapshot_scope": "After each terminal seal, and before carrying any replay-confirmed INCOMPLETE_UNTERMINALIZED record into a later ordinal, copy the entire live ledger as of that ordinal, including series.json and all attempts through the sealed or frozen ordinal, into a new create-only secondary snapshot.",
+    "snapshot_name": "through-ordinal-{ordinal:06d}-{live_ledger_root_sha256}",
+    "copy_algorithm": [
+      "continue holding the series lock and replay the complete primary history",
+      "compute the existing sorted live-ledger inventory and Merkle root plus path, mode, bytes, SHA-256, file count, total bytes and history root",
+      "reject symlink, hardlink, special-file, alias and overlapping primary/secondary ancestors; prohibit clonefile/reflink APIs and copy with explicit read/write, without claiming that APFS extent sharing can be detected after the fact",
+      "on the first mirror only, create the registered secondary snapshot root and both registered receipt roots with one-level create-only mkdir mode 0700 under the already provisioned SERIES-000002-* containers, then fsync all three parents; on later mirrors require those roots to exist with the exact owner, mode and non-alias properties",
+      "copy file bytes into a unique same-parent staging directory with O_EXCL; directories are 0700 and files are 0600",
+      "fsync each file, each directory and the staging parent",
+      "independently re-read the secondary tree and recompute the same inventory, history root and live-ledger root",
+      "require exact equality of relative paths, modes, bytes, per-file SHA-256, history root and live-ledger root",
+      "on exact macOS publish the same-parent staging directory only with renameatx_np(..., RENAME_EXCL=0x00000004), require success, fsync the final parent after rename, and re-read the published tree once more; absent-check plus os.rename is forbidden because it can overwrite after a TOCTOU race",
+      "construct one canonical receipt byte string and publish it with O_CREAT|O_EXCL under both registered MIRROR-RECEIPTS-DO-NOT-DELETE roots using the exact same filename; fsync each receipt and parent, then require the two independently re-read receipt files to be byte-identical"
+    ],
+    "receipt_filename": "through-ordinal-{ordinal:06d}-{live_ledger_root_sha256}.mirror-verification.json",
+    "receipt_required_fields": [
+      "schema_version",
+      "series_token_sha256",
+      "ordinal",
+      "attempt_outcome",
+      "attempt_sealed",
+      "primary_ledger_root",
+      "secondary_snapshot_root",
+      "history_root_sha256",
+      "live_ledger_root_sha256",
+      "file_count",
+      "total_bytes",
+      "primary_inventory_sha256",
+      "secondary_inventory_sha256",
+      "second_copy_verified",
+      "verified_at_utc"
+    ],
+    "mirror_failure_semantics": {
+      "terminalized_attempt_seal_or_incomplete_history_freeze_remains_effective": true,
+      "second_copy_verified": false,
+      "primary_terminal_unchanged_for_terminalized_attempt": true,
+      "primary_incomplete_history_bytes_unchanged_and_terminal_absent_when_applicable": true,
+      "next_attempt_forbidden": true,
+      "bundle_forbidden": true,
+      "release_forbidden": true,
+      "pipeline_retry_started": false,
+      "automatic_retry": 0,
+      "staging_or_partial_artifacts_automatically_deleted_or_overwritten": false,
+      "completion_in_this_epoch": "NOT_IMPLEMENTED_OR_PREAUTHORIZED",
+      "required_response": "Stop the line and preserve all primary, staging, snapshot and receipt bytes. Any mirror-only completion requires a later explicit design, authorization record, one-use claim and separately authorized entrypoint; it must never reuse the 24-field pipeline authorization or start the pipeline."
+    },
+    "states_covered": [
+      "FAILED",
+      "CANDIDATE_VALIDATED_AND_SELECTED",
+      "a persisted incomplete attempt frozen by the existing history classification before another disclosed attempt"
+    ]
+  },
+  "preregistration_amendment_design": {
+    "landing_base": "POST_CNINFO_MAIN_READ_FRESH_AT_CREATION_TIME",
+    "create_only_paths": [
+      "docs/phase4/reports/P4.2a-v2-2-series-2-preregistration-amendment-YYYYMMDD.json",
+      "config/schemas/p4_2a_v2_2_series_2_heldout_rehearsal_bundle.schema.json",
+      "config/schemas/p4_2a_v2_2_series_2_heldout_release_authorization.schema.json"
+    ],
+    "git_shape": "one commit, exact three status-A paths, no other diff",
+    "required_amendment_sections": [
+      "a7cea63 loss record and 9a02885 owner decision bindings",
+      "the complete lost-series digest summary in this proposal",
+      "explicit non-reconstruction and independent empty-history reset",
+      "fresh token derivation and visible primary/mirror paths",
+      "epoch origin 5 and explicit-epoch-key packer/validator rule",
+      "the binding-only schema equivalence allowlist",
+      "attempt-seal and second-copy fail-closed protocol",
+      "unchanged scientific/release bytes and all phase/trading locks",
+      "CNInfo-first and post-release backup-fix ordering"
+    ],
+    "active_and_historical_constant_separation": {
+      "historical_constants_unchanged": [
+        "PREREGISTRATION_RELATIVE",
+        "PREREGISTRATION_SHA256",
+        "PREREGISTRATION_COMMIT",
+        "INCIDENT_RELATIVE",
+        "INCIDENT_SHA256",
+        "BUNDLE_SCHEMA_RELATIVE",
+        "BUNDLE_SCHEMA_SHA256",
+        "RELEASE_SCHEMA_RELATIVE",
+        "RELEASE_SCHEMA_SHA256"
+      ],
+      "historical_preregistration_binding": {
+        "path": "docs/phase4/reports/P4.2a-v2-heldout-rehearsal-v2-2-preregistration-20260811.json",
+        "sha256": "8f52a9e24df11e23a900b5cb79720f3b4aae999c6ab770a9038ebe2617e8d8d5",
+        "creating_commit": "be6423506f598c290db7ad944b002763fdf806ab"
+      },
+      "new_active_constants": [
+        "SERIES_2_PREREGISTRATION_RELATIVE",
+        "SERIES_2_PREREGISTRATION_SHA256",
+        "SERIES_2_PREREGISTRATION_COMMIT",
+        "SERIES_2_TOKEN_SEED_SHA256",
+        "SERIES_2_BUNDLE_SCHEMA_RELATIVE",
+        "SERIES_2_BUNDLE_SCHEMA_SHA256",
+        "SERIES_2_RELEASE_SCHEMA_RELATIVE",
+        "SERIES_2_RELEASE_SCHEMA_SHA256"
+      ],
+      "role_rule": "Legacy initial-epoch, void-epoch-1, strict inheritance and historical topology checks continue to use the unchanged historical constants. Series-2 series.json, bundle/release lineage, control surface and active validators use only the SERIES_2_* constants and also carry the immutable historical bindings through the amendment."
+    },
+    "review_required_before_implementation_authority": true
+  },
+  "minimal_epoch_5_implementation_surface": {
+    "authorization_base": "the owner companion commit descending from the independently reviewed exact-three-A amendment landing, where that amendment landing itself descends from fresh post-CNInfo main",
+    "exact_status_M_paths": [
+      "scripts/p4_2a_v2_2_heldout_rehearsal.py",
+      "scripts/validate_p4_2a_v2_2_heldout_rehearsal_bundle.py",
+      "tests/test_p4_2a_v2_2_heldout_rehearsal_runner.py",
+      "tests/test_p4_2a_v2_2_heldout_rehearsal_validator.py"
+    ],
+    "thin_shim_changed": false,
+    "gold_or_evaluation_contract_changed": false,
+    "new_recovery_cli_added": false,
+    "implementation_contents": [
+      "series-2 token seed, active preregistration, active schema, visible primary, snapshot and paired receipt constants, all isolated from unchanged historical constants",
+      "epoch-origin-5 packing and validation keyed by explicit epoch value",
+      "primary-seal-followed-by-byte-exact-secondary-snapshot protocol",
+      "audited write authority only for the registered ledger/snapshot/receipt paths and guards that block next attempt, bundle and release until both identical mirror receipts pass",
+      "registered tests for every positive and negative invariant in this proposal"
+    ],
+    "independent_F12_runner_and_validator_modules": "UNCHANGED_FULL_MODULE_REQUIREMENT",
+    "persistent_registered_gate": "UNCHANGED",
+    "merge_only_and_registered_root_preflight": "UNCHANGED"
+  },
+  "registered_test_plan": {
+    "epoch_origin": [
+      "accept [5], repeated attempt epoch sequence [5,5] and implementation transition [5,6]",
+      "reject origin 1, 2, 3, 4 or 6, [5,7], reorder, regression and authority/index substitution",
+      "selected epoch 5 and 6 resolve authority, review, topology, control and current bytes by explicit key",
+      "official series-2 bundle contains no synthetic void row",
+      "series.json has exact schema_version p4.2a-v2-2-rehearsal-series-2-v1 and exactly the old 13 fields plus implementation_epoch_origin=5"
+    ],
+    "series_identity": [
+      "recompute token 2543d679819f96958baf747ef61dda2044013a0b00a9cb824c0d7675640d9f93 from the frozen formula",
+      "reject the old token, hidden ledger root, old series summary as previous history and any schema/binding mismatch",
+      "prove the new bundle schema differs at exactly its seven allowed JSON pointers and the new release schema at exactly its six allowed JSON pointers",
+      "prove SERIES_2_TOKEN_SEED_SHA256 and all SERIES_2_PREREGISTRATION_* bindings cannot overwrite or substitute the historical INCIDENT_* and PREREGISTRATION_* bindings"
+    ],
+    "lost_history": [
+      "tampering any a7cea63/9a02885 path, commit, SHA, bytes, history root or attempt digest fails preflight",
+      "prove series-1 summaries never enter the series-2 attempt-history root but necessarily enter the control-surface and bundle lineage through the active amendment",
+      "prove the old ledger and retired v2.1 claim remain absent and are never recreated"
+    ],
+    "second_copy": [
+      "exact primary-to-secondary full-ledger snapshot succeeds for FAILED, incomplete and selected terminal histories",
+      "missing file, extra file, byte/SHA/mode drift, symlink, hardlink, alias, overlap, publish collision and receipt failure all fail closed",
+      "mirror failure leaves the primary terminal sealed but blocks another ordinal, bundle and release",
+      "an incomplete replay keeps terminal absent and cannot allocate the next ordinal until its frozen-history snapshot and both receipts pass",
+      "no mirror-only completion entrypoint or authorization exists in this epoch"
+    ],
+    "absence_guards": [
+      "no void-epoch-3 discriminator",
+      "no [2,4] exception",
+      "no 19-field bundle-recovery authorization",
+      "no --recover-sealed-bundle or --consume-recovered-release entrypoint"
+    ],
+    "exact_os_positive": "A synthetic registered-shape series with ordinal 1 at epoch 5 seals primary, verifies the second snapshot and packs/validates the bundle without changing any scientific or safety contract."
+  },
+  "attempt_1_minimal_path": [
+    "complete the CNInfo capacity review, owner digest signoff, landing, scheduler activation and catch-up verification",
+    "create and independently review the exact-three-A preregistration amendment package",
+    "obtain an owner companion descending from the independently reviewed exact-three-A amendment landing, which itself descends from fresh post-CNInfo main, then issue the six-field epoch-5 authority as the companion's direct child",
+    "implement exact four-M surface and run local registered regression",
+    "obtain independent full F-12 runner and validator evidence",
+    "run the persistent gate with zero retry, generate landing report before merge and merge-only",
+    "after explicit owner provisioning authority, create only the two registered SERIES-000002-* parent containers; preflight requires mode 0700, owner UID, non-symlink/non-overlap and all ledger/snapshot/receipt leaves absent",
+    "run the merged registered-root read-only preflight and require the canonical bundle destination, retired v2.1 claim, lost-series ledger, new primary ledger, secondary snapshot and both receipt leaves all absent",
+    "create series-2 ordinal-1 Q with epoch 5, the fresh token/root, previous history root 318b5c9ed06b2eed4ea55bf6f14da4c27e11b4cb2122e3f182847644aa549605, one pipeline start and automatic retry zero",
+    "obtain the exact 24-field R and in-person B",
+    "execute one exact-OS pipeline start",
+    "seal the primary attempt, then publish and verify the create-only secondary full-ledger snapshot",
+    "only after second_copy_verified=true may packer, validator and release processing continue"
+  ],
+  "owner_review_recommendations": {
+    "storage_option": "Approve option (a), conditional on enabling iCloud Drive and satisfying its preflight before attempt 1.",
+    "bundle_destination": "Keep the existing destination byte-identical; series identity changes through the incident digest, token and ledger roots.",
+    "binding_schema_classification": "Approve the two additive binding-only schema profiles and require exact equivalence outside the bundle schema's seven and release schema's six registered binding pointers.",
+    "mirror_failure": "Do not preauthorize or implement completion in epoch 5. A failure preserves the primary seal/frozen incomplete bytes and stops; any later mirror-only completion needs a separate reviewed design, authorization record, one-use claim and entrypoint with zero pipeline authority.",
+    "epoch": "Approve epoch 5 as the smallest successor to the currently landed epoch 4.",
+    "implementation_surface": "Approve exact four M only after the preregistration-amendment review passes."
+  },
+  "stop_boundary": {
+    "proposal_is_authorization": false,
+    "directories_may_be_created_from_this_proposal": false,
+    "schemas_may_be_added_from_this_proposal": false,
+    "implementation_may_start_from_this_proposal": false,
+    "owner_companion_and_six_field_authority_required": true
+  }
+}
