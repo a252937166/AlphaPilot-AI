@@ -1,0 +1,179 @@
+{
+  "schema_version": "p4.1-news-poll-v2-2-cninfo-null-shape-deployment-w5-evidence-v1",
+  "evidence_id": "P4.1-NEWS-POLL-V2-2-CNINFO-NULL-SHAPE-DEPLOYMENT-W5-EVIDENCE-20260824",
+  "status": "PASS_APPROVED_MERGE_AND_W5_RESTART_PENDING_NATURAL_20260822_CATCHUP",
+  "evidence_not_owner_verdict": true,
+  "created_at_shanghai": "2026-08-24T01:20:45+08:00",
+  "owner_authorization": {
+    "verdict": "APPROVE",
+    "approved_tip": "995905f4691dbc1d1c69b6ea943aecbf052ba01c",
+    "approved_branch": "codex/p4-news-poll-v2-2-cninfo-null-empty",
+    "approved_scope": "CNInfo totalAnnouncement=0 plus announcements=null normalization and schema_changed response-shape disclosure",
+    "approved_test_observation": "141 tests passed and Ruff was clean; the acceptance test was unchanged",
+    "deployment_test_rerun_performed": false
+  },
+  "merge": {
+    "base": "5bea28957e873857e7bca6dd30f7226d8b09bbf7",
+    "candidate": "995905f4691dbc1d1c69b6ea943aecbf052ba01c",
+    "merge_commit": "318997c00cfa7af22faca7ac48d7e0838e6942d4",
+    "parents_in_order": [
+      "5bea28957e873857e7bca6dd30f7226d8b09bbf7",
+      "995905f4691dbc1d1c69b6ea943aecbf052ba01c"
+    ],
+    "merge_commit_created_at_shanghai": "2026-08-24T01:18:40+08:00",
+    "strategy": "ordinary_no_ff_merge",
+    "normal_nonforce_push": true,
+    "changed_paths_against_first_parent": [
+      "src/alphapilot/jobs/news_poll.py",
+      "tests/test_p4_news_poll_v2_2.py"
+    ],
+    "current_main_series_2_authority_files_preserved": true,
+    "canonical_pull_mode": "ff-only",
+    "canonical_head_after_pull": "318997c00cfa7af22faca7ac48d7e0838e6942d4",
+    "tracked_diff_empty_before_restart": true,
+    "owner_untracked_paths_preserved": true
+  },
+  "implementation_boundary": {
+    "null_normalization_predicate": {
+      "announcements_field_present": true,
+      "announcements_json_type": "null",
+      "observed_total_from_same_response": 0,
+      "all_three_conditions_required": true,
+      "other_null_or_schema_shapes_fail_closed": true
+    },
+    "schema_changed_shape_disclosure": {
+      "site_count": 9,
+      "sites": [
+        "aggregate_response_not_object",
+        "aggregate_total_invalid",
+        "partition_response_not_object",
+        "partition_total_invalid",
+        "partition_announcements_not_list",
+        "announcement_row_not_object",
+        "announcement_id_invalid",
+        "announcement_content_fields_invalid",
+        "announcement_timestamp_invalid"
+      ],
+      "shape_fields_exact_keys": [
+        "name",
+        "json_type"
+      ],
+      "response_values_recorded": false,
+      "row_values_recorded": false,
+      "title_or_body_content_recorded": false,
+      "diagnostic_context_only": true
+    },
+    "source_sha256": "4b629ca83632d022dae66114deda25141cfe7e3036ffb6981b5e7efedf38ae95",
+    "test_sha256": "47df6c2677028fd8af048fa5cbf2d28667e4ea617ccd5234f41f0bd1a16a2673",
+    "acceptance_test_path_changed": false
+  },
+  "W_5_restart": {
+    "mechanism": "/bin/launchctl kill SIGTERM gui/501/com.alphapilot.scheduler",
+    "requested_at_shanghai": "2026-08-24T01:19:48+08:00",
+    "signals_sent": [
+      "SIGTERM"
+    ],
+    "signal_count": 1,
+    "launchd_keepalive_respawn": true,
+    "old_pid": 31161,
+    "old_pid_started_at_shanghai": "2026-08-23T18:08:35+08:00",
+    "new_pid": 60247,
+    "new_pid_started_at_shanghai": "2026-08-24T01:19:48+08:00",
+    "new_pid_observed_at_shanghai": "2026-08-24T01:19:55+08:00",
+    "process_command": "/Users/ouyangduning/Documents/project/interesting/AlphaPilot-AI/.venv/bin/python -m alphapilot.scheduler_main",
+    "working_directory": "/Users/ouyangduning/Documents/project/interesting/AlphaPilot-AI",
+    "launchd_label": "com.alphapilot.scheduler",
+    "launchd_state_after": "running",
+    "launchd_runs_after": 3,
+    "launchd_last_exit_code_after": 0,
+    "registered_job_count": 18,
+    "api_plist_scheduler_enabled": false,
+    "scheduler_plist_scheduler_enabled": true,
+    "old_process_only_held_scheduler_wide_process_lock": true,
+    "latest_contemporary_job_before_restart_terminal": true,
+    "database_read_only_check": {
+      "mode": "ro",
+      "pragma_query_only": true,
+      "total_changes_before": 0,
+      "total_changes_after": 0,
+      "historical_unterminalized_rows_preserved": [
+        {
+          "id": 77698,
+          "job_name": "sync_calendar",
+          "started_at_utc": "2026-08-09T23:30:00.414378+00:00"
+        },
+        {
+          "id": 77769,
+          "job_name": "sync_universe",
+          "started_at_utc": "2026-08-10T00:30:00.237672+00:00"
+        }
+      ],
+      "operator_database_writes": 0
+    },
+    "trading_safety": {
+      "trading_mode": "research",
+      "live_trading_enabled": false,
+      "paper_auto_trading_enabled": false,
+      "futu_enable_account_mutation": false,
+      "futu_enable_trade": false
+    }
+  },
+  "W_5_five_file_news_poll_scheduler_spine": {
+    "all_worktree_sha256_equal_head": true,
+    "all_bytes_unchanged_across_restart": true,
+    "all_mtime_before_new_pid_start": true,
+    "files": [
+      {
+        "path": "src/alphapilot/scheduler_main.py",
+        "sha256": "de42cb33baab65ea5212d03e990fa907a0fc342adc7474ca5b1ededbbfd995b9",
+        "bytes": 3872,
+        "mtime_shanghai": "2026-08-13T14:51:21+08:00"
+      },
+      {
+        "path": "src/alphapilot/jobs/__init__.py",
+        "sha256": "b2418506f51327073e9be738bd472ac6f4de2881b5ee1a747f93ced19fc31b72",
+        "bytes": 2472,
+        "mtime_shanghai": "2026-08-02T03:11:31+08:00"
+      },
+      {
+        "path": "src/alphapilot/jobs/scheduler.py",
+        "sha256": "a8a7c6de74d6480b7c009b7d921d592226063affc9a647369157152be5848b41",
+        "bytes": 2586,
+        "mtime_shanghai": "2026-08-13T11:01:02+08:00"
+      },
+      {
+        "path": "src/alphapilot/jobs/registry.py",
+        "sha256": "e1aefd98f33a66166bc345b9de473b2efa4888ce6168454e1206a324cb2e6aa6",
+        "bytes": 4560,
+        "mtime_shanghai": "2026-08-13T14:51:02+08:00"
+      },
+      {
+        "path": "src/alphapilot/jobs/news_poll.py",
+        "sha256": "4b629ca83632d022dae66114deda25141cfe7e3036ffb6981b5e7efedf38ae95",
+        "bytes": 201118,
+        "mtime_shanghai": "2026-08-24T01:19:07+08:00"
+      }
+    ]
+  },
+  "control_surface_freeze": {
+    "seventy_three_member_surface_untouched": true,
+    "changed_implementation_and_test_paths_are_not_members": true,
+    "this_report_path_is_not_a_member": true,
+    "membership_reason": "The registered control surface is an explicit import closure plus exact registered paths and authorities; it does not glob arbitrary docs/phase4/reports files.",
+    "report_addition_changes_member_discovery": false
+  },
+  "natural_catchup_boundary": {
+    "target_closed_date_shanghai": "2026-08-22",
+    "manual_news_poll_or_catchup_triggered": false,
+    "natural_retry_observed_in_this_report": false,
+    "next_action": "Observe the scheduler's next natural v2.2 news_poll slot and report the 2026-08-22 CNInfo row count, partition row counts, page-cap event state, and any schema_changed response-shape facts.",
+    "page_cap_hit_must_be_explicit_in_stats": true,
+    "if_failure_repeats_use_recorded_shape_not_inference": true
+  },
+  "report": {
+    "path": "docs/phase4/reports/P4.1-news-poll-v2-2-cninfo-null-shape-deployment-W5-evidence-20260824.json",
+    "create_only": true,
+    "only_new_tracked_path_in_report_commit_required": true,
+    "sha256_and_bytes_reported_after_creation": true
+  }
+}
