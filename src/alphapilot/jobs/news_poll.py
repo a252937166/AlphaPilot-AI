@@ -1959,10 +1959,84 @@ def _fetch_cninfo_v2_2(
     latest_attempt_observed = seed.newest_observed_at_utc
     any_checkpoint_committed = False
     closed_date_without_observed_high: tuple[date, int, int] | None = None
+    response_shape_events: list[JsonObject] = []
+    no_row = object()
 
-    def upstream_total(payload: Mapping[str, object], label: str) -> int:
+    def json_type(value: object) -> str:
+        if value is None:
+            return "null"
+        if isinstance(value, bool):
+            return "boolean"
+        if isinstance(value, int):
+            return "integer"
+        if isinstance(value, float):
+            return "number"
+        if isinstance(value, str):
+            return "string"
+        if isinstance(value, list):
+            return "array"
+        if isinstance(value, Mapping):
+            return "object"
+        return "non_json"
+
+    def shape_fields(value: object) -> list[JsonObject]:
+        if not isinstance(value, Mapping):
+            return []
+        string_fields = sorted(
+            ((name, field_value) for name, field_value in value.items() if isinstance(name, str)),
+            key=lambda item: item[0].encode("utf-8"),
+        )
+        return [
+            {
+                "name": name,
+                "json_type": json_type(field_value),
+            }
+            for name, field_value in string_fields
+        ]
+
+    def record_schema_changed_shape(
+        site: str,
+        response: object,
+        *,
+        date_shanghai: date,
+        partition: str | None = None,
+        page: int | None = None,
+        row_index: int | None = None,
+        row: object = no_row,
+    ) -> None:
+        response_shape_events.append(
+            {
+                "event": "schema_changed_response_shape",
+                "site": site,
+                "date_shanghai": date_shanghai.isoformat(),
+                "partition": partition,
+                "page": page,
+                "row_index": row_index,
+                "response_json_type": json_type(response),
+                "response_fields": shape_fields(response),
+                "row_json_type": None if row is no_row else json_type(row),
+                "row_fields": shape_fields(row),
+            }
+        )
+
+    def upstream_total(
+        payload: Mapping[str, object],
+        label: str,
+        *,
+        site: str,
+        date_shanghai: date,
+        partition: str | None = None,
+        page: int | None = None,
+    ) -> int:
         raw = payload.get(str(source["aggregate_total_field"]))
         if not isinstance(raw, int) or isinstance(raw, bool) or raw < 0:
+            record_schema_changed_shape(
+                site,
+                payload,
+                date_shanghai=date_shanghai,
+                partition=partition,
+                page=page,
+            )
             raise NewsSourceError(
                 "schema_changed",
                 f"CNInfo {label} totalAnnouncement must be a non-negative integer",
@@ -2007,6 +2081,11 @@ def _fetch_cninfo_v2_2(
                 )
                 probe_payload = _decode_json(probe)
                 if not isinstance(probe_payload, dict):
+                    record_schema_changed_shape(
+                        "aggregate_response_not_object",
+                        probe_payload,
+                        date_shanghai=slice_date,
+                    )
                     raise NewsSourceError(
                         "schema_changed",
                         "CNInfo aggregate probe response is not an object",
@@ -2014,6 +2093,8 @@ def _fetch_cninfo_v2_2(
                 aggregate_upstream_total = upstream_total(
                     probe_payload,
                     "aggregate probe",
+                    site="aggregate_total_invalid",
+                    date_shanghai=slice_date,
                 )
 
                 for partition in partitions:
@@ -2041,11 +2122,25 @@ def _fetch_cninfo_v2_2(
                         partition_page_counts[partition] += 1
                         payload = _decode_json(response)
                         if not isinstance(payload, dict):
+                            record_schema_changed_shape(
+                                "partition_response_not_object",
+                                payload,
+                                date_shanghai=slice_date,
+                                partition=partition,
+                                page=page,
+                            )
                             raise NewsSourceError(
                                 "schema_changed",
                                 "CNInfo partition response is not an object",
                             )
-                        observed_total = upstream_total(payload, partition)
+                        observed_total = upstream_total(
+                            payload,
+                            partition,
+                            site="partition_total_invalid",
+                            date_shanghai=slice_date,
+                            partition=partition,
+                            page=page,
+                        )
                         if partition_total is None:
                             partition_total = observed_total
                         elif partition_total != observed_total:
@@ -2053,16 +2148,48 @@ def _fetch_cninfo_v2_2(
                                 "partition_count_mismatch",
                                 "CNInfo partition total changed between pages",
                             )
+                        announcements_field_present = "announcements" in payload
                         rows = payload.get("announcements")
+                        if announcements_field_present and rows is None and observed_total == 0:
+                            rows = []
+                            response_shape_events.append(
+                                {
+                                    "date_shanghai": slice_date.isoformat(),
+                                    "partition": partition,
+                                    "page": page,
+                                    "response_json_type": "object",
+                                    "announcements_field_present": True,
+                                    "announcements_json_type": "null",
+                                    "total_announcement_json_type": "integer",
+                                    "total_announcement_value": 0,
+                                    "normalized_to_empty_list": True,
+                                }
+                            )
                         if not isinstance(rows, list):
+                            record_schema_changed_shape(
+                                "partition_announcements_not_list",
+                                payload,
+                                date_shanghai=slice_date,
+                                partition=partition,
+                                page=page,
+                            )
                             raise NewsSourceError(
                                 "schema_changed",
                                 "CNInfo partition announcements is not a list",
                             )
                         page_times: list[datetime] = []
                         page_candidates: list[NewsCandidate] = []
-                        for raw in rows:
+                        for row_index, raw in enumerate(rows):
                             if not isinstance(raw, dict):
+                                record_schema_changed_shape(
+                                    "announcement_row_not_object",
+                                    payload,
+                                    date_shanghai=slice_date,
+                                    partition=partition,
+                                    page=page,
+                                    row_index=row_index,
+                                    row=raw,
+                                )
                                 raise NewsSourceError(
                                     "schema_changed",
                                     "CNInfo v2.2 announcement row must be an object",
@@ -2071,6 +2198,15 @@ def _fetch_cninfo_v2_2(
                                 raw.get(str(source["announcement_id_field"]))
                             )
                             if not announcement_id:
+                                record_schema_changed_shape(
+                                    "announcement_id_invalid",
+                                    payload,
+                                    date_shanghai=slice_date,
+                                    partition=partition,
+                                    page=page,
+                                    row_index=row_index,
+                                    row=raw,
+                                )
                                 raise NewsSourceError(
                                     "schema_changed",
                                     "CNInfo announcementId must be non-empty",
@@ -2089,6 +2225,15 @@ def _fetch_cninfo_v2_2(
                             title = _normalize_text(raw.get("announcementTitle"))
                             adjunct = _normalize_text(raw.get("adjunctUrl"))
                             if not title or not adjunct:
+                                record_schema_changed_shape(
+                                    "announcement_content_fields_invalid",
+                                    payload,
+                                    date_shanghai=slice_date,
+                                    partition=partition,
+                                    page=page,
+                                    row_index=row_index,
+                                    row=raw,
+                                )
                                 raise NewsSourceError(
                                     "schema_changed",
                                     "CNInfo title and adjunctUrl must be non-empty",
@@ -2100,6 +2245,15 @@ def _fetch_cninfo_v2_2(
                                 and raw_published_at != ""
                                 and published_at is None
                             ):
+                                record_schema_changed_shape(
+                                    "announcement_timestamp_invalid",
+                                    payload,
+                                    date_shanghai=slice_date,
+                                    partition=partition,
+                                    page=page,
+                                    row_index=row_index,
+                                    row=raw,
+                                )
                                 raise NewsSourceError(
                                     "schema_changed",
                                     "CNInfo non-null announcementTime must be parseable",
@@ -2292,6 +2446,7 @@ def _fetch_cninfo_v2_2(
         "canonical_column": canonical_column,
         "partition_parameter": partition_parameter,
         "partitions": partitions,
+        "response_shape_events": response_shape_events,
         "slice_dates_shanghai": [item.isoformat() for item in slice_dates],
         "slices": slices,
         "request_budget": {
