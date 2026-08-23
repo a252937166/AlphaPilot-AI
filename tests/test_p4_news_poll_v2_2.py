@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import inspect
+import json
 from collections.abc import Callable, Iterator, Sequence
 from copy import deepcopy
 from datetime import UTC, date, datetime, timedelta
@@ -1012,6 +1013,291 @@ def test_v2_2_reconciles_aggregate_and_all_partitions_including_empty_bj() -> No
         candidate.raw_payload["_alphapilot_cninfo_partition"] for candidate in batch.candidates
     } == {"sz", "sh"}
     assert _terminal_complete(public)
+
+
+def test_v2_2_accepts_live_shaped_empty_bj_null_and_terminal_consumer_passes() -> None:
+    _seed_v2_1(date(2026, 8, 19))
+    target = date(2026, 8, 20)
+    client = _FakeClient(
+        [
+            _probe(2),
+            _page(1, [_row(1, target)]),
+            _page(1, [_row(2, target)]),
+            _page(0, None),
+        ]
+    )
+
+    batch = _fetch(client)
+    public = _terminal_public(batch, ["inserted", "inserted"])
+    slice_stats = cast(list[dict[str, object]], batch.details["slices"])[0]
+    checkpoint = cast(dict[str, object], batch.details["daily_checkpoint"])
+
+    assert batch.status == "ok"
+    assert len(batch.candidates) == 2
+    assert slice_stats["partition_rows_seen"] == {"sz": 1, "sh": 1, "bj": 0}
+    assert slice_stats["partition_upstream_totals"] == {"sz": 1, "sh": 1, "bj": 0}
+    assert slice_stats["partition_completion"] == {"sz": True, "sh": True, "bj": True}
+    assert slice_stats["pagination_complete"] is True
+    assert slice_stats["coverage_proven"] is True
+    assert slice_stats["checkpoint_committed"] is True
+    assert slice_stats["checkpoint_advanced"] is True
+    assert checkpoint["checkpoint_committed"] is True
+    assert checkpoint["verified_checkpoint_date_shanghai_after"] == "2026-08-20"
+    assert batch.details["response_shape_events"] == [
+        {
+            "date_shanghai": "2026-08-20",
+            "partition": "bj",
+            "page": 1,
+            "response_json_type": "object",
+            "announcements_field_present": True,
+            "announcements_json_type": "null",
+            "total_announcement_json_type": "integer",
+            "total_announcement_value": 0,
+            "normalized_to_empty_list": True,
+        }
+    ]
+    assert public["response_shape_events"] == batch.details["response_shape_events"]
+    assert _terminal_complete(public)
+
+
+def test_v2_2_rejects_other_announcement_shapes_without_checkpoint_or_event() -> None:
+    _seed_v2_1(date(2026, 8, 19))
+    invalid_pages = [
+        _FakeResponse({"totalAnnouncement": 0, "hasMore": False}),
+        _page(1, None),
+        _page(False, None),
+        _page(0, False),
+        _page(0, ""),
+        _page(0, {}),
+        _page(0, 0),
+    ]
+
+    for invalid_page in invalid_pages:
+        batch = _fetch(_FakeClient([_probe(0), invalid_page]))
+        slice_stats = cast(list[dict[str, object]], batch.details["slices"])[0]
+        checkpoint = cast(dict[str, object], batch.details["daily_checkpoint"])
+
+        assert batch.status == "unavailable"
+        assert len(batch.failures) == 1
+        assert batch.failures[0]["code"] == "schema_changed"
+        assert batch.failures[0]["blocked"] is False
+        assert batch.failures[0]["error_type"] == "NewsSourceError"
+        assert batch.failures[0]["date_shanghai"] == "2026-08-20"
+        assert batch.failures[0]["partition"] == "sz"
+        events = cast(list[dict[str, object]], batch.details["response_shape_events"])
+        assert len(events) == 1
+        assert events[0]["event"] == "schema_changed_response_shape"
+        assert events[0]["site"] in {
+            "partition_announcements_not_list",
+            "partition_total_invalid",
+        }
+        assert "normalized_to_empty_list" not in events[0]
+        assert slice_stats["pagination_complete"] is False
+        assert slice_stats["checkpoint_committed"] is False
+        assert slice_stats["checkpoint_advanced"] is False
+        assert slice_stats["checkpoint_before"] == "2026-08-19"
+        assert slice_stats["checkpoint_after"] == "2026-08-19"
+        assert checkpoint["checkpoint_committed"] is False
+        assert checkpoint["verified_checkpoint_date_shanghai_before"] == "2026-08-19"
+        assert checkpoint["verified_checkpoint_date_shanghai_after"] == "2026-08-19"
+
+
+def test_v2_2_schema_changed_sites_record_only_response_shapes_without_values() -> None:
+    _seed_v2_1(date(2026, 8, 19))
+    target = date(2026, 8, 20)
+    missing_id = _row(1, target)
+    missing_id.pop("announcementId")
+    missing_adjunct = _row(2, target)
+    missing_adjunct["announcementTitle"] = "DO_NOT_STORE_TITLE_CONTENT"
+    missing_adjunct.pop("adjunctUrl")
+    invalid_timestamp = _row(3, target)
+    invalid_timestamp["announcementTime"] = "DO_NOT_STORE_TIMESTAMP_VALUE"
+    cases: list[tuple[str, list[_FakeResponse]]] = [
+        (
+            "aggregate_response_not_object",
+            [_FakeResponse(["DO_NOT_STORE_AGGREGATE_BODY"])],
+        ),
+        (
+            "aggregate_total_invalid",
+            [_probe("DO_NOT_STORE_AGGREGATE_TOTAL")],
+        ),
+        (
+            "partition_response_not_object",
+            [_probe(0), _FakeResponse(["DO_NOT_STORE_PARTITION_BODY"])],
+        ),
+        (
+            "partition_total_invalid",
+            [_probe(0), _page("DO_NOT_STORE_PARTITION_TOTAL", [])],
+        ),
+        (
+            "partition_announcements_not_list",
+            [_probe(0), _page(0, {"body": "DO_NOT_STORE_ANNOUNCEMENTS_BODY"})],
+        ),
+        (
+            "announcement_row_not_object",
+            [_probe(1), _page(1, ["DO_NOT_STORE_ROW_BODY"])],
+        ),
+        (
+            "announcement_id_invalid",
+            [_probe(1), _page(1, [missing_id])],
+        ),
+        (
+            "announcement_content_fields_invalid",
+            [_probe(1), _page(1, [missing_adjunct])],
+        ),
+        (
+            "announcement_timestamp_invalid",
+            [_probe(1), _page(1, [invalid_timestamp])],
+        ),
+    ]
+    page_fields_integer = [
+        ("announcements", "array"),
+        ("hasMore", "boolean"),
+        ("totalAnnouncement", "integer"),
+    ]
+    expected_shapes: dict[
+        str,
+        tuple[str, list[tuple[str, str]], str | None, list[tuple[str, str]]],
+    ] = {
+        "aggregate_response_not_object": ("array", [], None, []),
+        "aggregate_total_invalid": (
+            "object",
+            [("totalAnnouncement", "string")],
+            None,
+            [],
+        ),
+        "partition_response_not_object": ("array", [], None, []),
+        "partition_total_invalid": (
+            "object",
+            [
+                ("announcements", "array"),
+                ("hasMore", "boolean"),
+                ("totalAnnouncement", "string"),
+            ],
+            None,
+            [],
+        ),
+        "partition_announcements_not_list": (
+            "object",
+            [
+                ("announcements", "object"),
+                ("hasMore", "boolean"),
+                ("totalAnnouncement", "integer"),
+            ],
+            None,
+            [],
+        ),
+        "announcement_row_not_object": (
+            "object",
+            page_fields_integer,
+            "string",
+            [],
+        ),
+        "announcement_id_invalid": (
+            "object",
+            page_fields_integer,
+            "object",
+            [
+                ("adjunctUrl", "string"),
+                ("announcementTime", "integer"),
+                ("announcementTitle", "string"),
+                ("secCode", "string"),
+            ],
+        ),
+        "announcement_content_fields_invalid": (
+            "object",
+            page_fields_integer,
+            "object",
+            [
+                ("announcementId", "string"),
+                ("announcementTime", "integer"),
+                ("announcementTitle", "string"),
+                ("secCode", "string"),
+            ],
+        ),
+        "announcement_timestamp_invalid": (
+            "object",
+            page_fields_integer,
+            "object",
+            [
+                ("adjunctUrl", "string"),
+                ("announcementId", "string"),
+                ("announcementTime", "string"),
+                ("announcementTitle", "string"),
+                ("secCode", "string"),
+            ],
+        ),
+    }
+    forbidden_values = {
+        "DO_NOT_STORE_AGGREGATE_BODY",
+        "DO_NOT_STORE_AGGREGATE_TOTAL",
+        "DO_NOT_STORE_PARTITION_BODY",
+        "DO_NOT_STORE_PARTITION_TOTAL",
+        "DO_NOT_STORE_ANNOUNCEMENTS_BODY",
+        "DO_NOT_STORE_ROW_BODY",
+        "DO_NOT_STORE_TITLE_CONTENT",
+        "DO_NOT_STORE_TIMESTAMP_VALUE",
+    }
+    event_keys = {
+        "event",
+        "site",
+        "date_shanghai",
+        "partition",
+        "page",
+        "row_index",
+        "response_json_type",
+        "response_fields",
+        "row_json_type",
+        "row_fields",
+    }
+    allowed_json_types = {
+        "null",
+        "boolean",
+        "integer",
+        "number",
+        "string",
+        "array",
+        "object",
+        "non_json",
+    }
+
+    for expected_site, outcomes in cases:
+        batch = _fetch(_FakeClient(outcomes))
+        events = cast(list[dict[str, object]], batch.details["response_shape_events"])
+
+        assert batch.status == "unavailable"
+        assert batch.failures[0]["code"] == "schema_changed"
+        assert len(events) == 1
+        event = events[0]
+        assert set(event) == event_keys
+        assert event["event"] == "schema_changed_response_shape"
+        assert event["site"] == expected_site
+        assert event["date_shanghai"] == "2026-08-20"
+        (
+            expected_response_type,
+            expected_response_fields,
+            expected_row_type,
+            expected_row_fields,
+        ) = expected_shapes[expected_site]
+        assert event["response_json_type"] == expected_response_type
+        assert event["row_json_type"] == expected_row_type
+        for field_group in (event["response_fields"], event["row_fields"]):
+            assert isinstance(field_group, list)
+            for field in field_group:
+                assert isinstance(field, dict)
+                assert set(field) == {"name", "json_type"}
+                assert isinstance(field["name"], str)
+                assert field["json_type"] in allowed_json_types
+        response_fields = cast(list[dict[str, object]], event["response_fields"])
+        row_fields = cast(list[dict[str, object]], event["row_fields"])
+        assert [
+            (cast(str, field["name"]), cast(str, field["json_type"])) for field in response_fields
+        ] == expected_response_fields
+        assert [
+            (cast(str, field["name"]), cast(str, field["json_type"])) for field in row_fields
+        ] == expected_row_fields
+        serialized = json.dumps(event, ensure_ascii=False, sort_keys=True)
+        assert all(value not in serialized for value in forbidden_values)
 
 
 @pytest.mark.parametrize(
