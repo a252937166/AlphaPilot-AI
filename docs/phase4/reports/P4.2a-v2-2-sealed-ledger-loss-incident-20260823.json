@@ -1,0 +1,42 @@
+{
+  "schema_version": "p4.2a-independent-adjudication-v1",
+  "adjudication_id": "p4.2a-v2-2-sealed-ledger-loss-incident-20260823-r1",
+  "created_at_utc": "2026-08-23T05:01:00Z",
+  "created_at_shanghai": "2026-08-23T13:01:00+08:00",
+  "verdict": "SEALED_LEDGER_BYTES_LOST_SERIES_SUCCESS_STANDS_BY_DIGEST",
+  "issued_by": {"identity": "independent_ai_architect_claude_code", "reviewer_type": "ai", "model": "Anthropic Claude Fable 5 (model id claude-fable-5)", "impersonation_disclaimer": "Not a human reviewer and not the owner. Owner statements are transcript-bound, given in person."},
+  "part_1_what_was_lost": {
+    "path": "/Users/ouyangduning/Documents/project/interesting/.alphapilot-p4-2a-v2-2-execution-claim-35ba1b83a9b187817d7a591758e1c131e867fcd37917cba0ab196799fff832ef",
+    "contents": "the complete immutable v2.2 rehearsal series ledger: series.json, .series.lock, attempts 000001 (FAILED, epoch 2) and 000002 (CANDIDATE_VALIDATED_AND_SELECTED, epoch 4) with started, candidate, terminal and the full evidence trees including both sealed run archives and probes; about 48 MB",
+    "also_lost_in_the_same_deletion": ["the retired v2.1 empty 0700 claim directory", "every gate clone and gate-evidence directory from epochs 3 and 4", "the reviewer's own epoch-3-r2 and epoch-4 evidence directories"],
+    "survived": "every directory created on or after 2026-08-21; the production database; the repository and all worktrees; every committed artifact"
+  },
+  "part_2_cause_and_timeline": {
+    "deleted_at": "2026-08-23 10:57 CST, parent directory mtime, shortly after the 10:31 CST login following the morning reboot",
+    "cause": "the owner, cleaning disk space, manually deleted the old hidden .alphapilot-* folders under the project parent directory; confirmed by the owner in person",
+    "operator_automation_exonerated": "the Codex cleanup heartbeat's prompt explicitly excluded the ledger and forbade broad globs; the deletion pattern, hidden directories older than 2026-08-21 only, matches a manual cleanup and not its four named targets",
+    "recovery_channels_exhausted": ["Trash empty", "no Time Machine destination", "APFS snapshots exist only for the system volume, none on the Data volume", "iCloud Desktop and Documents sync not syncing this path; Recently Deleted empty", "no byte copy in any surviving evidence directory"]
+  },
+  "part_3_what_survives_as_proof": {
+    "note": "these digests are committed in earlier records and reproduced here so the series' outcome remains provable without its bytes; none permits reconstruction",
+    "series_token_sha256": "35ba1b83a9b187817d7a591758e1c131e867fcd37917cba0ab196799fff832ef",
+    "history_root_after_ordinal_1": "076ae961fc149ae271bf5a3724c1677abccfea7139589909ea717a7f4a38083a",
+    "history_root_after_ordinal_2": "a466de7b349882f2bcd556a4b4d00bf38bace9adb593b0e3b6296c415a8c9ca1",
+    "attempt_1": {"outcome": "FAILED", "epoch": 2, "implementation_commit": "1b4e05c6acd513bb1bc11245911da97b6a128ca1", "evidence_tree_root": "deea0e81e3fd8a5c886cc4c757fb5485cb7f750718462489dea48d3deed2691c"},
+    "attempt_2": {"outcome": "CANDIDATE_VALIDATED_AND_SELECTED", "epoch": 4, "implementation_commit": "890e9002116c625d41f6aa037975df15d1546c56", "started_sha256": "75771a37572fb9191a9db26f986b1e9d89c26843556b502866322a8f4bdaf42d", "candidate_sha256": "92652f963b04b79e29580978cd6857c2154df0b429ac09502be6c0c0c5d84da5", "terminal_sha256": "7ba4ed1b5d7e7abc462b312f08b131ff438cc524cecbdeea6b43dc199292e3dc", "evidence_tree_root": "f38b18b972f14a170fc9bb4129f25ec77e8ad1c4e8a8f137b5853cc371b694c2", "run_a_and_run_b_root": "5fb8edf3aa65cdcd0f54b82bdf6f240104fa8537c1004e640671910115f8f314", "candidate_content_root": "5de4f74d1f73e5f90aa9c196c8fc6574bce2ecfa91abd750b22726c14c6a60b7", "selected_control_root": "76076606d6e40cdd386b28cdd5bc40a8957693b8cfdc8b17a0a77410b4e082e8", "q_r_b_commits": ["f6f993d0e9f30b6f6c5250a94a4a49b179fc8ff1", "f004054c1797904206e5590f2b0f4751848665c1", "1832ed7c6130b71d5a99722721eaec83b2adabdd"], "r_sha256": "8f5c0b31ef88922b8b44b202c729fad55a4d0cb172c000089991f1cd2c995461"},
+    "reviewer_attestation": "the reviewer independently recomputed both history roots from the raw ledger bytes on 2026-08-13 and 2026-08-19 and verified the attempt-2 file digests against the raw files on 2026-08-20; those verifications are recorded in 7fc122f, 0548692 and 7cf819d"
+  },
+  "part_4_rulings": {
+    "series_outcome": "the v2.2 rehearsal series succeeded at ordinal 2 and that success stands, proven by digest chain and by the reviewer's contemporaneous verification. What is lost is the evidence bytes, not the fact.",
+    "bundle_recovery": "impossible. Epoch-5's sealed-bundle recovery rehydrates the bundle from the sealed run archives; without the bytes there is nothing to rehydrate and nothing may be reconstructed from digests or reports. The epoch-5 r3 candidate, its review and the pending gate are stood down; the candidate is not landed.",
+    "release_path": "the registered release requires a validator-checked bundle. The honest path is a new rehearsal series under a preregistration amendment that records this loss, not a relaxation of the release gate.",
+    "operator_standing_down": "no gate, landing, preflight, recovery authorization or cleanup proceeds; all surviving evidence directories are preserved as-is"
+  },
+  "part_5_finding_W7": {
+    "id": "W-7",
+    "title": "Immutable evidence lived in hidden folders inside a directory the owner cleans by hand",
+    "rule": "durable evidence must live in a visible, unmistakably named location outside any directory used for disk cleanup, and every sealed attempt must be copied at seal time to a second location the owner designates; a ledger with one copy on a laptop is not durable"
+  },
+  "part_6_next": ["owner decides between a new rehearsal series under an amended preregistration and pausing P4.2a", "if a new series: operator proposes the amendment, the fresh-series epoch-origin rule for the packer, the durable ledger location and the seal-time copy policy; reviewer reviews the design before any authorization", "the cninfo capacity change and the LaunchDaemon migration proceed independently of this incident"],
+  "part_7_boundaries": {"heldout_evaluation_one_shot": "unconsumed", "trading": "zero non-SIMULATE", "production_database": "intact", "phase_locks": {"p4_2a_done": false, "p4_2b_unlocked": false, "p4_3_unlocked": false}}
+}
