@@ -1,0 +1,346 @@
+{
+  "schema_version": "p4.1-news-poll-v2-2-cninfo-partition-capacity-implementation-evidence-v1",
+  "evidence_id": "P4.1-NEWS-POLL-V2-2-CNINFO-PARTITION-CAPACITY-IMPLEMENTATION-EVIDENCE-20260823",
+  "status": "PASS_CANDIDATE_IMPLEMENTATION_EVIDENCE_AWAITING_OWNER_REVIEW",
+  "created_at_shanghai": "2026-08-23T17:22:27+08:00",
+  "created_at_utc": "2026-08-23T09:22:27Z",
+  "owner_verdict_issued": false,
+  "candidate_may_land_by_this_report_alone": false,
+  "scheduler_restart_authorized_by_this_report_alone": false,
+  "candidate": {
+    "base_commit": "d3db7a40e764cca36c7ecf07a8ff9b94c36eead6",
+    "base_equals_origin_main_after_fresh_fetch": true,
+    "branch": "codex/p4-news-poll-v2-2-cninfo-capacity",
+    "creating_commit_embedded": false,
+    "creating_commit_derivation": "Read the first Git commit that adds this report path on the named branch.",
+    "commit_and_push_pending_at_report_creation": true
+  },
+  "governance_bindings": [
+    {
+      "purpose": "P4.1 v2.1 window criterion and immutable historical evidence boundary",
+      "commit": "84a07a3fdaa46a94f11037c03731e316a6ccc194",
+      "path": "docs/phase4/reports/P4.1-v2.1-third-window-acceptance-verdict-20260818.json",
+      "sha256": "a6975ee15606a76852ac5176173dd1658641cea1b0b9aa109d729ce6c3122811",
+      "bytes": 9347,
+      "bounded_statement": "The P4.1 v2.1 acceptance criterion passed 189/189 slots; this evidence does not restate that as a new owner DONE verdict."
+    },
+    {
+      "purpose": "P4.1 v2.1 close-window raw evidence",
+      "path": "docs/phase4/reports/P4.1-v2.1-misfire-remediation-window-close-evidence-20260818.json",
+      "sha256": "787800bc9d02e69aecd4a2a9fef4a4194bebd9760f7d353089a410e34c024ee1",
+      "bytes": 468312
+    },
+    {
+      "purpose": "Owner-approved CNInfo partition-capacity direction",
+      "commit": "d7723975efb4c011bd0bee3372cdcab42981cab5",
+      "path": "docs/phase4/reports/P4.2a-C11-backup-revert-and-cninfo-capacity-decisions-20260823.json",
+      "sha256": "4d9ad31bc66e7de68580fd11bae77c1d9c1ba804a72a015e80849b26ec86b0be",
+      "bytes": 4962
+    },
+    {
+      "purpose": "Owner decision that CNInfo production repair lands before series 2",
+      "commit": "9a028855c73c4feba36125ed30cf5a7d4db5fff4",
+      "path": "docs/phase4/reports/P4.2a-owner-decision-rerun-rehearsal-series-2-20260823.json",
+      "sha256": "e0fc6a17c853be063632551b4b794091a6152324af7f7ec95262ed2af8538051",
+      "bytes": 2347
+    },
+    {
+      "purpose": "Latest sequence confirmation and series-2 design review",
+      "commit": "d3db7a40e764cca36c7ecf07a8ff9b94c36eead6",
+      "path": "docs/phase4/reports/P4.2a-series-2-design-review-and-storage-decisions-20260823.json",
+      "sha256": "523cdf9adeb25eccaf8c73eb9cb3d5e5dd58a5e102116f9cdff8da058f54639f",
+      "bytes": 4159
+    }
+  ],
+  "design_proposal_binding": {
+    "path": "docs/phase4/reports/P4.1-news-poll-v2-2-cninfo-partition-capacity-proposal-20260823.json",
+    "sha256": "3d576c9c8180816515a628d6f7a21d3bdc7213abed867c32c27cf0e2f39809c7",
+    "bytes": 10687,
+    "status_in_source": "DRAFT_FOR_OWNER_REVIEW_NOT_EFFECTIVE",
+    "git_state_at_candidate_time": "untracked user-owned source; not added to this candidate",
+    "adopted_content": "Partition scheme, request arithmetic, catch-up order, completion predicates, explicit cap event and reserved 100-page upgrade.",
+    "superseded_content": "Its d772397 draft base and epoch-5-first landing order were replaced by the 9a02885 and d3db7a4 decisions."
+  },
+  "owner_authorized_surface": {
+    "original_four_path_plan": [
+      "A config/p4_news_poll_v2_2.yaml",
+      "M src/alphapilot/jobs/news_poll.py",
+      "A tests/test_p4_news_poll_v2_2.py",
+      "A docs/phase4/reports/P4.1-news-poll-v2-2-cninfo-partition-capacity-implementation-evidence-20260823.json"
+    ],
+    "authorized_mechanical_expansion": {
+      "path": "tests/test_p4_news_poll.py",
+      "status": "M",
+      "scope": "Only three existing nodes changed: default config path/version, explicit registered-version coverage, and scheduler default/trigger path assertions now select v2.2.",
+      "v2_1_history_requirement": "The existing loader node still explicitly loads config/p4_news_poll_v2_1.yaml and verifies EXPECTED_V2_1_CONFIG_SHA256 and schema p4.1-news-poll-v2.1.",
+      "owner_authorized_in_current_task": true
+    },
+    "final_candidate_name_status": [
+      "A config/p4_news_poll_v2_2.yaml",
+      "A docs/phase4/reports/P4.1-news-poll-v2-2-cninfo-partition-capacity-implementation-evidence-20260823.json",
+      "M src/alphapilot/jobs/news_poll.py",
+      "M tests/test_p4_news_poll.py",
+      "A tests/test_p4_news_poll_v2_2.py"
+    ]
+  },
+  "immutable_boundaries": {
+    "config/p4_news_poll_v2_1.yaml": {
+      "sha256_before_and_after": "9d56e137baf10bd0858723a93aff02c57bf7b35f8705f1817b16a89ec615183f",
+      "bytes": 17272,
+      "git_diff": "absent",
+      "role": "immutable exact checkpoint-lineage predecessor"
+    },
+    "src/alphapilot/core/config.py": {
+      "sha256_before_and_after": "6bdc24abbc943bb52ecc416fd72180e356fbcb3bc55eb6a96f98d5b0be8137cd",
+      "bytes": 3628,
+      "git_diff": "absent",
+      "new_setting_added": false
+    },
+    "tests/test_p4_news_acceptance.py": {
+      "sha256_worktree": "6ef790a84c23b1120e282b2733a7282d89ec278e755b080b8f718164814b7c5f",
+      "sha256_head_blob": "6ef790a84c23b1120e282b2733a7282d89ec278e755b080b8f718164814b7c5f",
+      "bytes": 70543,
+      "git_diff": "absent",
+      "v2_1_digest_assertion_9d56e137_preserved": true
+    },
+    "control_surface": {
+      "rebuild_implementation_commit": "d3db7a40e764cca36c7ecf07a8ff9b94c36eead6",
+      "require_current": false,
+      "repository_member_count": 73,
+      "runtime_record_count": 2,
+      "news_poll_member_paths": [],
+      "candidate_path_intersection": [],
+      "result": "PASS_ZERO_INTERSECTION"
+    }
+  },
+  "candidate_file_fingerprints": [
+    {
+      "path": "config/p4_news_poll_v2_2.yaml",
+      "status": "A",
+      "sha256": "72e4b83f98252d7e7e3d9fa54abc6a3430a04e8dc27d7ece3a36f3f8d5563378",
+      "bytes": 21422
+    },
+    {
+      "path": "src/alphapilot/jobs/news_poll.py",
+      "status": "M",
+      "sha256_before": "740f628c1cec1df7c7d9675c8b822e0c69dc5bb02ddd981b555ece85a05d1305",
+      "bytes_before": 129139,
+      "sha256_after": "5a4178b43b9a74500f874bd0bf2cecfe1adfd5a6b941f7e7d5e03f5496170294",
+      "bytes_after": 194546
+    },
+    {
+      "path": "tests/test_p4_news_poll.py",
+      "status": "M",
+      "sha256_before": "a0c91fee98b650777cfaa5a4236ff900ec030e1308726fd0c25fc4deac322f6a",
+      "bytes_before": 73073,
+      "sha256_after": "9afaa2a8d27aa961a9979efff052aec2ca6048fb4ce4243390b8c64c049246e8",
+      "bytes_after": 73276,
+      "diff_numstat": "9 additions, 6 deletions"
+    },
+    {
+      "path": "tests/test_p4_news_poll_v2_2.py",
+      "status": "A",
+      "sha256": "c4db2b0b81fcaeb52fa95e2fc3c8f00c038a7fa6adec9a4f0ed05ffdd12519b7",
+      "bytes": 58758
+    }
+  ],
+  "registered_config_contract": {
+    "schema_version": "p4.1-news-poll-v2.2",
+    "default_path": "config/p4_news_poll_v2_2.yaml",
+    "default_sha256": "72e4b83f98252d7e7e3d9fa54abc6a3430a04e8dc27d7ece3a36f3f8d5563378",
+    "reserved_100_page_exact_sha256": "d6ce47f2f41156ec525eb2fabd2ac8f88a4f0ef830859aa3867fe9588347f11d",
+    "reserved_100_page_bytes": 21423,
+    "one_number_upgrade_field": "sources.cninfo.max_pages_per_partition",
+    "canonical_column": "szse",
+    "partition_parameter": "plate",
+    "partitions": [
+      "sz",
+      "sh",
+      "bj"
+    ],
+    "page_size": 30,
+    "max_pages_per_partition": 80,
+    "max_dates_per_run": 1,
+    "aggregate_probe_per_date": 1,
+    "max_attempts_per_logical_request": 2,
+    "min_interval_seconds": 1.0,
+    "retry_backoff_seconds": [
+      0.0
+    ],
+    "logical_budget": {
+      "formula": "1 * (1 + 3 * 80)",
+      "requests": 241
+    },
+    "physical_budget": {
+      "formula": "241 * 2",
+      "attempts": 482,
+      "throttle_only_worst_case_seconds": 482,
+      "slot_margin_seconds_before_processing_overhead": 118
+    },
+    "initial_capacity_rows": {
+      "per_partition": 2400,
+      "aggregate": 7200
+    },
+    "reserved_100_page_budget": {
+      "logical_requests": 301,
+      "physical_attempts": 602,
+      "throttle_only_worst_case_seconds": 602,
+      "slot_margin_seconds_before_processing_overhead": -2,
+      "separate_owner_operational_signoff_required": true,
+      "page_101_forbidden": true
+    }
+  },
+  "implementation_contract": {
+    "execution_entry": "receipt-free scheduler only",
+    "manual_v2_2_modes_fail_before_network": true,
+    "aggregate_and_partition_reconciliation": [
+      "Issue one unfiltered aggregate count probe for exactly one Shanghai date.",
+      "Fetch plate=sz, plate=sh and plate=bj independently.",
+      "Require stable per-partition totals, terminal pagination and strict non-boolean integer accounting.",
+      "Require unique non-empty announcementId values across all partitions.",
+      "Require partition sum, cross-partition unique count and aggregate probe count to agree before checkpoint advancement."
+    ],
+    "page_cap_event": {
+      "code": "cninfo_partition_pagination_incomplete",
+      "terminal_status": "degraded",
+      "checkpoint_advanced": false,
+      "may_be_reported_as_empty_or_complete": false,
+      "page_81_requested_at_initial_cap": false,
+      "page_101_requested": false
+    },
+    "checkpoint_history": {
+      "start": "latest accepted exact v2.1 checkpoint predecessor",
+      "scan_order": "JobRun ID ascending",
+      "first_v2_2_lineage": "v2.1_daily_checkpoint_predecessor",
+      "later_v2_2_lineage": "v2.2_daily_checkpoint",
+      "before_must_equal_prior_after": true,
+      "observed_high_must_not_regress": true,
+      "orphan_or_gap_rows_accepted": false,
+      "each_row_page_cap_derived_from_its_exact_config_sha256": true,
+      "known_80_to_100_transition_supported_on_one_continuous_chain": true
+    },
+    "terminal_evidence_consumption": {
+      "source_partition_and_disposition_identity": true,
+      "daily_checkpoint_and_no_observed_high_proof": true,
+      "request_budget_and_each_request_attempt_identity": true,
+      "pit_order_fetch_lock_available_flush_commit": true,
+      "source_poll_start_equals_top_level_poll_start": true,
+      "db_commit_no_later_than_top_level_poll_complete": true,
+      "closed_date_requires_capacity_gap_context": true,
+      "capacity_gap_target_equals_slice_date": true,
+      "ordinary_and_no_observed_high_history_rows_are_passively_revalidated": true
+    },
+    "capacity_catchup": {
+      "reason": "cninfo_capacity_checkpoint_lag",
+      "ordered_closed_dates": [
+        "2026-08-20",
+        "2026-08-21",
+        "2026-08-22"
+      ],
+      "dates_per_natural_scheduler_run": 1,
+      "after_catchup": "current-date incremental mode",
+      "only_cninfo_rows_marked_for_capacity_gap": true,
+      "available_time_policy": "actual write-locked insertion time; no historical-timeliness substitution"
+    },
+    "dedupe_and_safety": {
+      "url_and_content_hash_dual_dedupe_preserved": true,
+      "first_available_time_and_ingestion_evidence_preserved_on_replay": true,
+      "trading_safety_snapshot_unchanged_required": true,
+      "trade_proposal_creation": false,
+      "broker_order_creation": false
+    }
+  },
+  "test_evidence": {
+    "command": "PYTHONDONTWRITEBYTECODE=1 .venv/bin/pytest tests/test_p4_news_poll_v2_2.py tests/test_p4_news_poll_v2_1.py tests/test_p4_news_poll.py tests/test_p4_news_acceptance.py tests/test_phase2_jobs.py --basetemp=/Users/ouyangduning/Documents/project/interesting/.alphapilot-cninfo-v22-candidate-evidence.FvROCl/basetemp-final-five --junitxml=/Users/ouyangduning/Documents/project/interesting/.alphapilot-cninfo-v22-candidate-evidence.FvROCl/final-five.junit.xml",
+    "environment": {
+      "os": "macOS 15.4.1 build 24E263",
+      "architecture": "arm64",
+      "python": "3.12.0",
+      "pytest": "8.4.2",
+      "parallelism": false,
+      "persistent_basetemp": true
+    },
+    "return_code": 0,
+    "pytest_reported_seconds": 10.33,
+    "junit_time_seconds": 10.324,
+    "outer_process_wall_seconds": 10.646364583,
+    "totals": {
+      "tests": 202,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "disabled": 0
+    },
+    "module_counts": {
+      "tests/test_p4_news_poll_v2_2.py": 67,
+      "tests/test_p4_news_poll_v2_1.py": 26,
+      "tests/test_p4_news_poll.py": 48,
+      "tests/test_p4_news_acceptance.py": 23,
+      "tests/test_phase2_jobs.py": 38
+    },
+    "log": {
+      "path": "/Users/ouyangduning/Documents/project/interesting/.alphapilot-cninfo-v22-candidate-evidence.FvROCl/final-five.log",
+      "sha256": "b03a50879a2ccc5ee5041a501c65cbb24dd7c2d62d1455c2e5d834c5f8711290",
+      "bytes": 405
+    },
+    "junit": {
+      "path": "/Users/ouyangduning/Documents/project/interesting/.alphapilot-cninfo-v22-candidate-evidence.FvROCl/final-five.junit.xml",
+      "sha256": "b90b5ae15c1d0bd90d6df86535d5822112563c542085e8737d254d9528acd2f6",
+      "bytes": 29000
+    },
+    "explicit_shared_regressions": [
+      "tests.test_p4_news_poll::test_config_loader_explicitly_accepts_all_hash_locked_versions",
+      "tests.test_p4_news_poll::test_news_poll_scheduler_requires_explicit_env_enable",
+      "tests.test_p4_news_poll::test_dual_dedupe_preserves_first_available_time_and_ingestion_evidence",
+      "tests.test_p4_news_poll::test_pit_timestamp_is_assigned_only_after_sqlite_write_lock"
+    ]
+  },
+  "static_evidence": {
+    "ruff_check_touched_python": "PASS",
+    "ruff_format_check_news_poll_and_new_v2_2_test": "PASS",
+    "mypy_news_poll_and_new_v2_2_test": "PASS",
+    "git_diff_check": "PASS",
+    "old_test_file_boundary": {
+      "ruff_format_status": "The HEAD version already requires whole-file reformatting; no formatter was run because authorization covered only three nodes.",
+      "mypy_status": "One pre-existing unrelated error remains at tests/test_p4_news_poll.py:1006; candidate implementation and new tests are strict-mypy clean.",
+      "candidate_added_lint_findings": 0
+    },
+    "read_only_peer_audits": [
+      {
+        "result": "PASS",
+        "scope": "producer, terminal consumer, next-seed consumer, PIT, request accounting and continuous checkpoint history",
+        "bound_config_sha256": "72e4b83f98252d7e7e3d9fa54abc6a3430a04e8dc27d7ece3a36f3f8d5563378",
+        "bound_implementation_sha256": "5a4178b43b9a74500f874bd0bf2cecfe1adfd5a6b941f7e7d5e03f5496170294",
+        "bound_new_test_sha256": "c4db2b0b81fcaeb52fa95e2fc3c8f00c038a7fa6adec9a4f0ed05ffdd12519b7"
+      }
+    ]
+  },
+  "current_effects": {
+    "scheduler_restarted": false,
+    "production_network_requests_started_by_candidate_work": 0,
+    "business_news_poll_job_started_by_candidate_work": 0,
+    "capacity_catchup_started": false,
+    "production_checkpoint_changed_by_candidate_work": false,
+    "production_database_written_by_candidate_work": false,
+    "p4_2a_attempt_started": false,
+    "heldout_materialized": false,
+    "inference_started": false,
+    "evaluation_started": false,
+    "p4_2b_unlocked": false,
+    "p4_3_unlocked": false,
+    "trading_unlocked": false
+  },
+  "post_owner_review_operations_not_yet_performed": {
+    "landing": "Merge only after owner reviews this candidate diff.",
+    "scheduler_restart": "After landing, perform the separately authorized restart only when no JobRun is running.",
+    "W_5_capture": "At restart time, resolve and hash the actual five scheduler-loaded files in the clean landed worktree, record old/new PID and start time, prove each mtime precedes the new process start, and bind the first natural v2.2 JobRun config path/SHA. No restart-time SHA is prefilled here.",
+    "catchup_observation": "Do not trigger manually. Observe natural scheduler slots in the order 2026-08-20, 2026-08-21, 2026-08-22; verify no max_instances missing slot.",
+    "daily_counts": "Report upstream reconciled totals, per-JobRun inserted/duplicate/filtered counts, and final live database CNInfo counts by published Shanghai date separately."
+  },
+  "report_self_binding": {
+    "path": "docs/phase4/reports/P4.1-news-poll-v2-2-cninfo-partition-capacity-implementation-evidence-20260823.json",
+    "create_only": true,
+    "self_sha256_embedded": false,
+    "reason": "Embedding this file's own SHA-256 would be self-referential; Git creating commit and external readback provide the binding."
+  }
+}
