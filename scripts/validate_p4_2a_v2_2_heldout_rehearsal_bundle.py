@@ -19,19 +19,15 @@ _VALIDATOR_ENVIRONMENT_MARKER = "ALPHAPILOT_P42A_REHEARSAL_V2_2_ENV_LOCKED"
 _VALIDATOR_PROJECT_ROOT_TEXT = _validator_os.path.dirname(
     _validator_os.path.dirname(_validator_os.path.realpath(__file__))
 )
-_VALIDATOR_REGISTERED_ROOT_TEXT = (
-    "/Users/ouyangduning/Documents/project/interesting/AlphaPilot-AI"
-)
+_VALIDATOR_REGISTERED_ROOT_TEXT = "/Users/ouyangduning/Documents/project/interesting/AlphaPilot-AI"
 _VALIDATOR_FIXED_PYTHON = (
     "/Users/ouyangduning/Documents/project/interesting/AlphaPilot-AI/.venv/bin/python"
 )
 _VALIDATOR_FIXED_ORIG_PYTHON = (
-    "/Library/Frameworks/Python.framework/Versions/3.12/Resources/"
-    "Python.app/Contents/MacOS/Python"
+    "/Library/Frameworks/Python.framework/Versions/3.12/Resources/Python.app/Contents/MacOS/Python"
 )
 _VALIDATOR_REGISTERED_PATH_TEXT = (
-    _VALIDATOR_REGISTERED_ROOT_TEXT
-    + "/scripts/validate_p4_2a_v2_2_heldout_rehearsal_bundle.py"
+    _VALIDATOR_REGISTERED_ROOT_TEXT + "/scripts/validate_p4_2a_v2_2_heldout_rehearsal_bundle.py"
 )
 _VALIDATOR_LOCKED_ENVIRONMENT = {
     "LANG": "C.UTF-8",
@@ -68,8 +64,7 @@ def _validator_direct_entry() -> bool:
         isinstance(main_file, str)
         and _validator_os.path.realpath(main_file) == _VALIDATOR_REGISTERED_PATH_TEXT
         and _validator_os.path.realpath(__file__) == _VALIDATOR_REGISTERED_PATH_TEXT
-        and _validator_os.path.abspath(_validator_sys.executable)
-        == _VALIDATOR_FIXED_PYTHON
+        and _validator_os.path.abspath(_validator_sys.executable) == _VALIDATOR_FIXED_PYTHON
         and tuple(_validator_sys.orig_argv)
         == (
             _VALIDATOR_FIXED_ORIG_PYTHON,
@@ -82,12 +77,9 @@ def _validator_direct_entry() -> bool:
     )
 
 
-if __name__ == "__main__" and not (
-    _validator_locked_runtime() and _validator_direct_entry()
-):
+if __name__ == "__main__" and not (_validator_locked_runtime() and _validator_direct_entry()):
     raise RuntimeError(
-        "registered v2.2 validation must start in the exact locked -S -P -B "
-        "interpreter environment"
+        "registered v2.2 validation must start in the exact locked -S -P -B interpreter environment"
     )
 
 _VALIDATOR_REGISTERED_BOOTSTRAP = __name__ == "__main__"
@@ -125,7 +117,9 @@ import scripts.p4_2a_v2_2_heldout_rehearsal as implementation
 
 import argparse
 import ast
+import contextlib
 import copy
+import fcntl
 import hashlib
 import importlib.metadata
 import json
@@ -154,30 +148,45 @@ JsonObject = dict[str, Any]
 PROJECT_ROOT = Path(_VALIDATOR_PROJECT_ROOT_TEXT).resolve()
 REGISTERED_PROJECT_ROOT = Path(_VALIDATOR_REGISTERED_ROOT_TEXT)
 PREREGISTRATION_RELATIVE = Path(
-    "docs/phase4/reports/"
-    "P4.2a-v2-heldout-rehearsal-v2-2-preregistration-20260811.json"
+    "docs/phase4/reports/P4.2a-v2-heldout-rehearsal-v2-2-preregistration-20260811.json"
 )
-PREREGISTRATION_SHA256 = (
-    "8f52a9e24df11e23a900b5cb79720f3b4aae999c6ab770a9038ebe2617e8d8d5"
-)
-BUNDLE_SCHEMA_RELATIVE = Path(
-    "config/schemas/p4_2a_v2_2_heldout_rehearsal_bundle.schema.json"
-)
-BUNDLE_SCHEMA_SHA256 = (
-    "19903ac94d4d7ced81c7f18e7b8880bd1dbb68fd3ededf3f0b91f89d034aa5db"
-)
+PREREGISTRATION_SHA256 = "8f52a9e24df11e23a900b5cb79720f3b4aae999c6ab770a9038ebe2617e8d8d5"
+BUNDLE_SCHEMA_RELATIVE = Path("config/schemas/p4_2a_v2_2_heldout_rehearsal_bundle.schema.json")
+BUNDLE_SCHEMA_SHA256 = "19903ac94d4d7ced81c7f18e7b8880bd1dbb68fd3ededf3f0b91f89d034aa5db"
 RELEASE_SCHEMA_RELATIVE = Path(
     "config/schemas/p4_2a_v2_2_heldout_release_authorization.schema.json"
 )
-RELEASE_SCHEMA_SHA256 = (
-    "098d213f510718aab0d9c6bfc950a30bb1c4841ca151631bea78c1bf0238e7ea"
+RELEASE_SCHEMA_SHA256 = "098d213f510718aab0d9c6bfc950a30bb1c4841ca151631bea78c1bf0238e7ea"
+SERIES_2_PREREGISTRATION_RELATIVE = Path(
+    "docs/phase4/reports/P4.2a-v2-2-series-2-preregistration-amendment-20260823.json"
 )
+SERIES_2_PREREGISTRATION_SHA256 = "be98803a6b6cbe25a79242c23ee728d0ed687ac70e3f6990230bb1710886e91c"
+SERIES_2_PREREGISTRATION_COMMIT = "b6dfff08557fdbca1336f816b197cd6c8a0d5c41"
+SERIES_2_PREREGISTRATION_PARENT = "f21fa10babd9b300fae03c751ba038c7ebc77392"
+SERIES_2_TOKEN_SEED_SHA256 = "2deee3072c339d8e8993bbf8ca8ecbe9380576c1499835828064fb4aead43d30"
+SERIES_2_BUNDLE_SCHEMA_RELATIVE = Path(
+    "config/schemas/p4_2a_v2_2_series_2_heldout_rehearsal_bundle.schema.json"
+)
+SERIES_2_BUNDLE_SCHEMA_SHA256 = "252ad069ed300917989a97656b4c38e6ee2c74069b2bacd6c258b263b5684ec7"
+SERIES_2_RELEASE_SCHEMA_RELATIVE = Path(
+    "config/schemas/p4_2a_v2_2_series_2_heldout_release_authorization.schema.json"
+)
+SERIES_2_RELEASE_SCHEMA_SHA256 = "c7228bff2d4ec575bcdec024194ce2b53d37a27e05ba793bd4bdf145a97f63be"
+SERIES_2_LOSS_INCIDENT_RELATIVE = Path(
+    "docs/phase4/reports/P4.2a-v2-2-sealed-ledger-loss-incident-20260823.json"
+)
+SERIES_2_LOSS_INCIDENT_COMMIT = "a7cea63378a39702b1618895b3a7350febcb5da6"
+SERIES_2_OWNER_DECISION_RELATIVE = Path(
+    "docs/phase4/reports/P4.2a-owner-decision-rerun-rehearsal-series-2-20260823.json"
+)
+SERIES_2_OWNER_DECISION_SHA256 = "e0fc6a17c853be063632551b4b794091a6152324af7f7ec95262ed2af8538051"
+SERIES_2_OWNER_DECISION_COMMIT = "9a028855c73c4feba36125ed30cf5a7d4db5fff4"
+SERIES_2_EPOCH_ORIGIN = 5
+SERIES_2_SERIES_SCHEMA_VERSION = "p4.2a-v2-2-rehearsal-series-2-v1"
 INDEPENDENT_REVIEW_RELATIVE = Path(
     "docs/phase4/reports/P4.2a-v2-2-preregistration-independent-review-20260811.json"
 )
-INDEPENDENT_REVIEW_SHA256 = (
-    "6707e2b3c0b2ba87712e88b59ceaed17524be2de947b764a94c8b170b2a30bb6"
-)
+INDEPENDENT_REVIEW_SHA256 = "6707e2b3c0b2ba87712e88b59ceaed17524be2de947b764a94c8b170b2a30bb6"
 INDEPENDENT_REVIEW_COMMIT = "b21e1bdbf865dfd9c7605ecc7794fc3f8701ed1f"
 INITIAL_REVIEWED_COMMIT = "be6423506f598c290db7ad944b002763fdf806ab"
 INITIAL_IMPLEMENTATION_PARENT = INITIAL_REVIEWED_COMMIT
@@ -187,9 +196,7 @@ VOID_EPOCH_ONE_LANDING_COMMIT = "be7a2cedff1ad4bf523d88d83fa333126d502720"
 VOID_EPOCH_ONE_REVIEW_RELATIVE = Path(
     "docs/phase4/reports/P4.2a-v2-2-remediation-independent-review-20260812.json"
 )
-VOID_EPOCH_ONE_REVIEW_SHA256 = (
-    "e348bbc6c2976d473bf2b8e5b280784fd45ff7ae1ba7d7a4119309eb178b16cf"
-)
+VOID_EPOCH_ONE_REVIEW_SHA256 = "e348bbc6c2976d473bf2b8e5b280784fd45ff7ae1ba7d7a4119309eb178b16cf"
 VOID_EPOCH_ONE_REVIEW_COMMIT = "16f3e700c2ca9da997c8c0180e8b780aeae93346"
 VOID_EPOCH_ONE_ADJUDICATION_RELATIVE = Path(
     "docs/phase4/reports/P4.2a-attempt1-adjudication-and-epoch3-companion-20260813.json"
@@ -231,27 +238,110 @@ IMPLEMENTATION_PATHS = (
 )
 REHEARSAL_ID = "P4.2A-V2-HELDOUT-REHEARSAL-V2-2-DETERMINISTIC-20260811"
 SERIES_POLICY = "DISCLOSED_REPEATABLE_SERIES_V1"
-REGISTERED_DESTINATION_RELATIVE = Path(
-    "docs/phase4/rehearsals/P4.2a-v2-calibration-v2-2"
+REGISTERED_DESTINATION_RELATIVE = Path("docs/phase4/rehearsals/P4.2a-v2-calibration-v2-2")
+REGISTERED_SERIES_TOKEN = "35ba1b83a9b187817d7a591758e1c131e867fcd37917cba0ab196799fff832ef"
+INCIDENT_SHA256 = "d658336f61cdca0239584b696043fe4abc5ede1ef7aff76a4fe514b7b5d0735c"
+SERIES_2_REGISTERED_SERIES_TOKEN = (
+    "2543d679819f96958baf747ef61dda2044013a0b00a9cb824c0d7675640d9f93"
 )
-REGISTERED_SERIES_TOKEN = (
-    "35ba1b83a9b187817d7a591758e1c131e867fcd37917cba0ab196799fff832ef"
+SERIES_2_PRIMARY_SERIES_CONTAINER = Path(
+    "/Users/ouyangduning/AlphaPilot-EVIDENCE-DO-NOT-DELETE/P4.2a/v2.2/"
+    f"SERIES-000002-{SERIES_2_REGISTERED_SERIES_TOKEN}"
 )
-INCIDENT_SHA256 = (
-    "d658336f61cdca0239584b696043fe4abc5ede1ef7aff76a4fe514b7b5d0735c"
+SERIES_2_PRIMARY_LEDGER_ROOT = SERIES_2_PRIMARY_SERIES_CONTAINER / "PRIMARY-LEDGER-DO-NOT-DELETE"
+SERIES_2_PRIMARY_RECEIPT_ROOT = SERIES_2_PRIMARY_SERIES_CONTAINER / "MIRROR-RECEIPTS-DO-NOT-DELETE"
+SERIES_2_SECONDARY_SERIES_CONTAINER = Path(
+    "/Users/ouyangduning/AlphaPilot-EVIDENCE-MIRROR-DO-NOT-DELETE/P4.2a/v2.2/"
+    f"SERIES-000002-{SERIES_2_REGISTERED_SERIES_TOKEN}"
 )
+SERIES_2_SECONDARY_SNAPSHOT_ROOT = (
+    SERIES_2_SECONDARY_SERIES_CONTAINER / "SEALED-LEDGER-SNAPSHOTS-DO-NOT-DELETE"
+)
+SERIES_2_SECONDARY_RECEIPT_ROOT = (
+    SERIES_2_SECONDARY_SERIES_CONTAINER / "MIRROR-RECEIPTS-DO-NOT-DELETE"
+)
+SERIES_2_LEGACY_LEDGER_ROOT = REGISTERED_PROJECT_ROOT.parent / (
+    ".alphapilot-p4-2a-v2-2-execution-claim-" + REGISTERED_SERIES_TOKEN
+)
+SERIES_2_RETIRED_V2_1_CLAIM = REGISTERED_PROJECT_ROOT.parent / (
+    ".alphapilot-p4-2a-v2-1-execution-claim-"
+    "52378ddcda558a8489795c62a5c4d290687700801320508c03c51589c202e962"
+)
+MIRROR_INVENTORY_PREFIX = b"p4.2a-rehearsal-v2.2-mirror-inventory-v1\0"
+MIRROR_RECEIPT_SCHEMA = "p4.2a-v2-2-series-2-mirror-verification-v1"
+FIXED_WALL_CLOCK_TEXT = "2026-08-10T12:30:00Z"
+SERIES_2_LOST_HISTORY_SUMMARY: JsonObject = {
+    "classification": "DIGEST_PROOF_CHAIN_NOT_RECONSTRUCTABLE_LEDGER_BYTES",
+    "old_series_token_sha256": REGISTERED_SERIES_TOKEN,
+    "old_ledger_root": SERIES_2_LEGACY_LEDGER_ROOT.as_posix(),
+    "history_root_after_ordinal_1": (
+        "076ae961fc149ae271bf5a3724c1677abccfea7139589909ea717a7f4a38083a"
+    ),
+    "history_root_after_ordinal_2": (
+        "a466de7b349882f2bcd556a4b4d00bf38bace9adb593b0e3b6296c415a8c9ca1"
+    ),
+    "attempt_1": {
+        "ordinal": 1,
+        "outcome": "FAILED",
+        "implementation_epoch": 2,
+        "implementation_commit": "1b4e05c6acd513bb1bc11245911da97b6a128ca1",
+        "evidence_tree_root_sha256": (
+            "deea0e81e3fd8a5c886cc4c757fb5485cb7f750718462489dea48d3deed2691c"
+        ),
+    },
+    "attempt_2": {
+        "ordinal": 2,
+        "outcome": "CANDIDATE_VALIDATED_AND_SELECTED",
+        "implementation_epoch": 4,
+        "implementation_commit": "890e9002116c625d41f6aa037975df15d1546c56",
+        "started_sha256": ("75771a37572fb9191a9db26f986b1e9d89c26843556b502866322a8f4bdaf42d"),
+        "candidate_sha256": ("92652f963b04b79e29580978cd6857c2154df0b429ac09502be6c0c0c5d84da5"),
+        "terminal_sha256": ("7ba4ed1b5d7e7abc462b312f08b131ff438cc524cecbdeea6b43dc199292e3dc"),
+        "evidence_tree_root_sha256": (
+            "f38b18b972f14a170fc9bb4129f25ec77e8ad1c4e8a8f137b5853cc371b694c2"
+        ),
+        "run_a_and_run_b_root_sha256": (
+            "5fb8edf3aa65cdcd0f54b82bdf6f240104fa8537c1004e640671910115f8f314"
+        ),
+        "candidate_content_root_sha256": (
+            "5de4f74d1f73e5f90aa9c196c8fc6574bce2ecfa91abd750b22726c14c6a60b7"
+        ),
+        "selected_control_root_sha256": (
+            "76076606d6e40cdd386b28cdd5bc40a8957693b8cfdc8b17a0a77410b4e082e8"
+        ),
+        "q_r_b_commits": [
+            "f6f993d0e9f30b6f6c5250a94a4a49b179fc8ff1",
+            "f004054c1797904206e5590f2b0f4751848665c1",
+            "1832ed7c6130b71d5a99722721eaec83b2adabdd",
+        ],
+        "execution_authorization_sha256": (
+            "8f5c0b31ef88922b8b44b202c729fad55a4d0cb172c000089991f1cd2c995461"
+        ),
+    },
+    "contemporaneous_verification_commits": [
+        "7fc122f575801ff43d2446a2c59491a086735e93",
+        "0548692480ff8325b69be92f01e0d42e11ad4eb0",
+        "7cf819d43d5b73f7b8f1469a556c79ece12587f0",
+    ],
+    "series_1_outcome_stands": True,
+    "series_1_bundle_cannot_be_reconstructed_or_released": True,
+    "series_1_digests_enter_series_2_amendment_lineage": True,
+    "series_1_digests_enter_series_2_attempt_history_root": False,
+    (
+        "series_1_digests_enter_series_2_control_surface_and_bundle_lineage_through_the_amendment"
+    ): True,
+    "old_ledger_and_retired_v2_1_claim_must_remain_absent": True,
+}
 BUNDLE_FILENAME = "bundle.json"
 RELEASE_RELATIVE = Path(
-    "docs/phase4/reports/"
-    "P4.2a-v2-heldout-rehearsal-v2-2-release-authorization-20260811.json"
+    "docs/phase4/reports/P4.2a-v2-heldout-rehearsal-v2-2-release-authorization-20260811.json"
 )
 VALIDATOR_RESULT_SCHEMA = "p4.2a-v2-heldout-validator-result-v2.2"
 CONTROL_MANIFEST_SCHEMA = "p4.2a-v2-heldout-rehearsal-control-manifest-v2.2"
 
 _CARRY_FORWARD_AUTHORITIES = {
     "v2_1_preregistration": (
-        "docs/phase4/reports/"
-        "P4.2a-v2-heldout-rehearsal-v2-1-preregistration-20260810.json",
+        "docs/phase4/reports/P4.2a-v2-heldout-rehearsal-v2-1-preregistration-20260810.json",
         "c303cfb13a42ecbb7e0acaec04de12a9e9169b89cf9e93ea79d0f120d1439d3e",
         "b302d5889f01296568340bcc15041cc554ceb2c7",
     ),
@@ -263,14 +353,12 @@ _CARRY_FORWARD_AUTHORITIES = {
         "b3c2d2216c1feffd9949f181fa6766f8357ff683",
     ),
     "v2_1_frame_authority_ruling": (
-        "docs/phase4/reports/"
-        "P4.2a-rehearsal-v2-approval-and-frame-authority-ruling-20260810.json",
+        "docs/phase4/reports/P4.2a-rehearsal-v2-approval-and-frame-authority-ruling-20260810.json",
         "8605dd30dd6bffa9621b6efe5e01c4c9cead615c9639259c2e79e14fcbbc3421",
         "da374342781d6fde2f2c6d87d23582050bc8edaa",
     ),
     "v2_1_code_gate_authorization": (
-        "docs/phase4/reports/P4.2a-successor-v2-1-code-gate-authorization-"
-        "20260810.json",
+        "docs/phase4/reports/P4.2a-successor-v2-1-code-gate-authorization-20260810.json",
         "e28db692dc150983f86f6760fb1a95584d8607658e8a78a0de35cf3fc81940cd",
         "aa082578aa48296f1dd394a380775a5a4546ca65",
     ),
@@ -288,8 +376,7 @@ _CARRY_FORWARD_AUTHORITIES = {
         "d37040be87644977ddaad60b2590ac2e62b2aeed",
     ),
     "v2_1_independent_implementation_review": (
-        "docs/phase4/reports/"
-        "P4.2a-v2-1-implementation-independent-review-20260811.json",
+        "docs/phase4/reports/P4.2a-v2-1-implementation-independent-review-20260811.json",
         "d144f77d4e7a2946f00e618fb768960b0abdd6e40caf5831f4f198700762d276",
         "ed59a0ce6057145068b7c87fc681dd0aeea47270",
     ),
@@ -345,18 +432,12 @@ _CONTROL_GOVERNANCE_AUTHORITIES = {
 _V2_1_BUNDLE_SCHEMA_RELATIVE = Path(
     "config/schemas/p4_2a_v2_1_heldout_rehearsal_bundle.schema.json"
 )
-_V2_1_BUNDLE_SCHEMA_SHA256 = (
-    "ed827e29ce853f07a9110d44c98793a4cc3ef0634a12fe7e8bc64c7290d7d716"
-)
+_V2_1_BUNDLE_SCHEMA_SHA256 = "ed827e29ce853f07a9110d44c98793a4cc3ef0634a12fe7e8bc64c7290d7d716"
 _V2_1_RELEASE_SCHEMA_RELATIVE = Path(
     "config/schemas/p4_2a_v2_1_heldout_release_authorization.schema.json"
 )
-_V2_1_RELEASE_SCHEMA_SHA256 = (
-    "c5a4ecfe8c5bf3e3ebea2d4470337a67dde3a8e9dbe6fc3df68b1c4e16241c51"
-)
-_INHERITANCE_SNAPSHOT_SHA256 = (
-    "f3d74f06c9b114ce85768f647252db76edadc42a95ab6a6f29c05d69f39bea0e"
-)
+_V2_1_RELEASE_SCHEMA_SHA256 = "c5a4ecfe8c5bf3e3ebea2d4470337a67dde3a8e9dbe6fc3df68b1c4e16241c51"
+_INHERITANCE_SNAPSHOT_SHA256 = "f3d74f06c9b114ce85768f647252db76edadc42a95ab6a6f29c05d69f39bea0e"
 _PROJECTION_TARGETS = {
     "/frozen_inputs": "frozen_inputs",
     "/request_interval_contract": "request_interval_contract",
@@ -469,6 +550,23 @@ _RELEASE_SCHEMA_DELTA_POINTERS = (
     "/$defs/executionBinding",
     "/$defs/attemptOutcomeAcknowledgement",
     "/$defs/implementationEpoch",
+)
+SERIES_2_BUNDLE_SCHEMA_DELTA_POINTERS = (
+    "/$id",
+    "/$defs/lineage/properties/preregistration/allOf/1/properties/path/const",
+    "/$defs/lineage/properties/bundle_schema/allOf/1/properties/path/const",
+    ("/$defs/lineage/properties/release_authorization_schema/allOf/1/properties/path/const"),
+    ("/$defs/lineage/properties/release_authorization_schema/allOf/1/properties/sha256/const"),
+    "/$defs/executionBinding/oneOf/0/properties/series_token_sha256/const",
+    "/$defs/executionBinding/oneOf/0/properties/ledger_root/const",
+)
+SERIES_2_RELEASE_SCHEMA_DELTA_POINTERS = (
+    "/$id",
+    "/properties/lineage/properties/preregistration/allOf/1/properties/path/const",
+    "/properties/lineage/properties/bundle_schema/allOf/1/properties/path/const",
+    "/properties/lineage/properties/release_schema/allOf/1/properties/path/const",
+    "/$defs/executionBinding/oneOf/0/properties/series_token_sha256/const",
+    "/$defs/executionBinding/oneOf/0/properties/ledger_root/const",
 )
 
 _GIT_CONFIG_PREFIX = (
@@ -627,6 +725,26 @@ _SERIES_FIELDS = frozenset(
         "created_at_utc",
     }
 )
+_SERIES_2_FIELDS = _SERIES_FIELDS | frozenset({"implementation_epoch_origin"})
+_MIRROR_RECEIPT_FIELDS = frozenset(
+    {
+        "schema_version",
+        "series_token_sha256",
+        "ordinal",
+        "attempt_outcome",
+        "attempt_sealed",
+        "primary_ledger_root",
+        "secondary_snapshot_root",
+        "history_root_sha256",
+        "live_ledger_root_sha256",
+        "file_count",
+        "total_bytes",
+        "primary_inventory_sha256",
+        "secondary_inventory_sha256",
+        "second_copy_verified",
+        "verified_at_utc",
+    }
+)
 _REAL_STAGES = (
     "materialize",
     "infer",
@@ -645,9 +763,7 @@ class RehearsalV22ValidationError(RuntimeError):
 
 
 def _reject_constant(value: str, *, label: str) -> NoReturn:
-    raise RehearsalV22ValidationError(
-        f"{label} contains forbidden numeric constant {value!r}"
-    )
+    raise RehearsalV22ValidationError(f"{label} contains forbidden numeric constant {value!r}")
 
 
 def strict_json_loads(payload: bytes | str, *, label: str = "JSON") -> Any:
@@ -872,11 +988,7 @@ def _directory(path: Path, label: str) -> Path:
     except OSError as exc:
         raise RehearsalV22ValidationError(f"{label} is unavailable") from exc
     resolved = path.resolve(strict=True)
-    if (
-        path.is_symlink()
-        or not stat.S_ISDIR(metadata.st_mode)
-        or path.absolute() != resolved
-    ):
+    if path.is_symlink() or not stat.S_ISDIR(metadata.st_mode) or path.absolute() != resolved:
         raise RehearsalV22ValidationError(f"{label} is not one regular directory")
     return resolved
 
@@ -896,9 +1008,13 @@ def _typed_json_equal(left: object, right: object) -> bool:
             return False
         return all(_typed_json_equal(left[key], right[key]) for key in left)
     if isinstance(left, list):
-        return isinstance(right, list) and len(left) == len(right) and all(
-            _typed_json_equal(left_item, right_item)
-            for left_item, right_item in zip(left, right, strict=True)
+        return (
+            isinstance(right, list)
+            and len(left) == len(right)
+            and all(
+                _typed_json_equal(left_item, right_item)
+                for left_item, right_item in zip(left, right, strict=True)
+            )
         )
     return left == right
 
@@ -1010,9 +1126,7 @@ def _validate_contract_inheritance(
         preregistration.get("contract_inheritance"),
         "v2.2 contract inheritance",
     )
-    base_path, base_digest, base_commit = _CARRY_FORWARD_AUTHORITIES[
-        "v2_1_preregistration"
-    ]
+    base_path, base_digest, base_commit = _CARRY_FORWARD_AUTHORITIES["v2_1_preregistration"]
     _require_equal(
         inheritance.get("base_preregistration"),
         {"path": base_path, "sha256": base_digest, "creating_commit": base_commit},
@@ -1058,9 +1172,7 @@ def _validate_contract_inheritance(
     )
     snapshot: JsonObject = {}
     for pointer, target in _PROJECTION_TARGETS.items():
-        value = copy.deepcopy(
-            _pointer_get(base, pointer, f"inheritance source {pointer}")
-        )
+        value = copy.deepcopy(_pointer_get(base, pointer, f"inheritance source {pointer}"))
         if pointer == "/rehearsal_contract":
             projected = _object(value, "projected rehearsal contract")
             for excluded in _PROJECTION_EXCLUDED_REHEARSAL_KEYS:
@@ -1076,8 +1188,7 @@ def _validate_contract_inheritance(
             "typed strict-inheritance source projection differs from preregistration"
         )
     if (
-        inheritance.get("strict_inheritance_snapshot_sha256")
-        != _INHERITANCE_SNAPSHOT_SHA256
+        inheritance.get("strict_inheritance_snapshot_sha256") != _INHERITANCE_SNAPSHOT_SHA256
         or _sha256(_snapshot_bytes(snapshot)) != _INHERITANCE_SNAPSHOT_SHA256
     ):
         raise RehearsalV22ValidationError("strict-inheritance snapshot digest drifted")
@@ -1124,6 +1235,260 @@ def _validate_contract_inheritance(
     )
 
 
+def _validate_series_2_schema_profiles(
+    *,
+    project_root: Path,
+    historical_bundle_payload: bytes,
+    historical_release_payload: bytes,
+    active_bundle_payload: bytes,
+    active_release_payload: bytes,
+) -> None:
+    """Prove the active profiles differ only at the registered 7/6 bindings."""
+
+    if (
+        _sha256(historical_bundle_payload) != BUNDLE_SCHEMA_SHA256
+        or _sha256(historical_release_payload) != RELEASE_SCHEMA_SHA256
+        or _sha256(active_bundle_payload) != SERIES_2_BUNDLE_SCHEMA_SHA256
+        or _sha256(active_release_payload) != SERIES_2_RELEASE_SCHEMA_SHA256
+    ):
+        raise RehearsalV22ValidationError("series-2 schema profile bytes drifted")
+    _schemas_match_after_registered_delta_strip(
+        base=strict_json_loads(
+            historical_bundle_payload,
+            label="historical v2.2 bundle schema",
+        ),
+        successor=strict_json_loads(
+            active_bundle_payload,
+            label="series-2 bundle schema",
+        ),
+        pointers=SERIES_2_BUNDLE_SCHEMA_DELTA_POINTERS,
+        label="series-2 bundle schema profile",
+    )
+    _schemas_match_after_registered_delta_strip(
+        base=strict_json_loads(
+            historical_release_payload,
+            label="historical v2.2 release schema",
+        ),
+        successor=strict_json_loads(
+            active_release_payload,
+            label="series-2 release schema",
+        ),
+        pointers=SERIES_2_RELEASE_SCHEMA_DELTA_POINTERS,
+        label="series-2 release schema profile",
+    )
+    del project_root
+
+
+def _validate_series_2_lost_history_summary(value: object) -> JsonObject:
+    summary = _object(value, "series-2 complete lost-series digest history")
+    if not _typed_json_equal(summary, SERIES_2_LOST_HISTORY_SUMMARY):
+        raise RehearsalV22ValidationError("series-2 complete lost-series digest history drifted")
+    return copy.deepcopy(summary)
+
+
+def _validate_series_2_preregistration(
+    *,
+    project_root: Path,
+    execution_head: str,
+) -> str:
+    """Independently bind the landed amendment, loss lineage, and schema profiles."""
+
+    root = project_root.resolve(strict=True)
+    head = _git_commit(root, execution_head, "series-2 execution HEAD")
+    amendment_reference = {
+        "path": SERIES_2_PREREGISTRATION_RELATIVE.as_posix(),
+        "sha256": SERIES_2_PREREGISTRATION_SHA256,
+        "creating_commit": SERIES_2_PREREGISTRATION_COMMIT,
+        "unique_a_history_verified": True,
+    }
+    amendment_payload = _unique_a_authority(
+        root,
+        amendment_reference,
+        require_worktree=True,
+    )
+    if (
+        _git_parents(root, SERIES_2_PREREGISTRATION_COMMIT) != (SERIES_2_PREREGISTRATION_PARENT,)
+        or set(
+            _diff_name_status(
+                root,
+                SERIES_2_PREREGISTRATION_PARENT,
+                SERIES_2_PREREGISTRATION_COMMIT,
+            )
+        )
+        != {
+            ("A", SERIES_2_PREREGISTRATION_RELATIVE.as_posix()),
+            ("A", SERIES_2_BUNDLE_SCHEMA_RELATIVE.as_posix()),
+            ("A", SERIES_2_RELEASE_SCHEMA_RELATIVE.as_posix()),
+        }
+        or not _git_is_ancestor(root, SERIES_2_PREREGISTRATION_COMMIT, head)
+    ):
+        raise RehearsalV22ValidationError("series-2 preregistration exact-three-A topology drifted")
+    amendment = _object(
+        strict_json_loads(amendment_payload, label="series-2 preregistration amendment"),
+        "series-2 preregistration amendment",
+    )
+    authority_bindings = _object(
+        amendment.get("part_1_authority_loss_and_owner_decision_bindings"),
+        "series-2 amendment authority bindings",
+    )
+    loss = _object(
+        authority_bindings.get("loss_incident"),
+        "series-2 loss incident binding",
+    )
+    owner = _object(
+        authority_bindings.get("owner_decision"),
+        "series-2 owner decision binding",
+    )
+    _require_equal(
+        loss,
+        {
+            "commit": SERIES_2_LOSS_INCIDENT_COMMIT,
+            "path": SERIES_2_LOSS_INCIDENT_RELATIVE.as_posix(),
+            "sha256": SERIES_2_TOKEN_SEED_SHA256,
+            "bytes": 6422,
+            "verdict": "SEALED_LEDGER_BYTES_LOST_SERIES_SUCCESS_STANDS_BY_DIGEST",
+        },
+        "series-2 loss incident binding",
+    )
+    _require_equal(
+        owner,
+        {
+            "commit": SERIES_2_OWNER_DECISION_COMMIT,
+            "path": SERIES_2_OWNER_DECISION_RELATIVE.as_posix(),
+            "sha256": SERIES_2_OWNER_DECISION_SHA256,
+            "bytes": 2347,
+            "decision": "run it again",
+        },
+        "series-2 owner decision binding",
+    )
+    _validate_series_2_lost_history_summary(
+        amendment.get("part_2_complete_lost_series_digest_history")
+    )
+    for reference, expected_bytes in (
+        (
+            {
+                "path": SERIES_2_LOSS_INCIDENT_RELATIVE.as_posix(),
+                "sha256": SERIES_2_TOKEN_SEED_SHA256,
+                "creating_commit": SERIES_2_LOSS_INCIDENT_COMMIT,
+            },
+            6422,
+        ),
+        (
+            {
+                "path": SERIES_2_OWNER_DECISION_RELATIVE.as_posix(),
+                "sha256": SERIES_2_OWNER_DECISION_SHA256,
+                "creating_commit": SERIES_2_OWNER_DECISION_COMMIT,
+            },
+            2347,
+        ),
+    ):
+        payload = _unique_a_authority(root, reference, require_worktree=True)
+        if len(payload) != expected_bytes:
+            raise RehearsalV22ValidationError("series-2 lineage authority byte count drifted")
+    identity = _object(
+        amendment.get("part_4_fresh_series_identity_and_visible_primary_mirror_paths"),
+        "series-2 visible identity",
+    )
+    expected_identity = {
+        "series_token_sha256": SERIES_2_REGISTERED_SERIES_TOKEN,
+        "loss_incident_file_sha256": SERIES_2_TOKEN_SEED_SHA256,
+        "primary_series_container": SERIES_2_PRIMARY_SERIES_CONTAINER.as_posix(),
+        "primary_ledger_root": SERIES_2_PRIMARY_LEDGER_ROOT.as_posix(),
+        "primary_receipt_root": SERIES_2_PRIMARY_RECEIPT_ROOT.as_posix(),
+        "secondary_series_container": SERIES_2_SECONDARY_SERIES_CONTAINER.as_posix(),
+        "secondary_snapshot_root": SERIES_2_SECONDARY_SNAPSHOT_ROOT.as_posix(),
+        "secondary_receipt_root": SERIES_2_SECONDARY_RECEIPT_ROOT.as_posix(),
+    }
+    for key, expected in expected_identity.items():
+        _require_equal(identity.get(key), expected, f"series-2 identity {key}")
+    isolation = _object(identity.get("constant_isolation"), "series-2 constant isolation")
+    _require_equal(
+        isolation.get("new_token_seed_constant"),
+        "SERIES_2_TOKEN_SEED_SHA256",
+        "series-2 token seed constant",
+    )
+    _require_equal(
+        isolation.get("new_token_seed_value"),
+        SERIES_2_TOKEN_SEED_SHA256,
+        "series-2 token seed value",
+    )
+    _require_equal(
+        isolation.get("legacy_incident_sha256_constant_name"),
+        "INCIDENT_SHA256",
+        "historical incident constant name",
+    )
+    _require_equal(
+        isolation.get("legacy_incident_sha256_value_unchanged"),
+        INCIDENT_SHA256,
+        "historical incident constant value",
+    )
+    reset = _object(
+        amendment.get("part_3_non_reconstruction_and_independent_empty_history_reset"),
+        "series-2 history reset",
+    )
+    if (
+        reset.get("history_empty_root_sha256") != _history_empty_root()
+        or reset.get("ordinal_1_previous_history_root_sha256") != _history_empty_root()
+        or reset.get("old_history_root_must_not_seed_series_2") is not True
+        or reset.get("old_ledger_must_remain_absent") is not True
+    ):
+        raise RehearsalV22ValidationError("series-2 independent history reset drifted")
+    epoch_contract = _object(
+        amendment.get("part_5_epoch_origin_5_and_explicit_epoch_key_rules"),
+        "series-2 epoch origin contract",
+    )
+    _require_equal(
+        epoch_contract.get("series_2_epoch_origin"),
+        SERIES_2_EPOCH_ORIGIN,
+        "series-2 epoch origin",
+    )
+    legacy = _object(
+        epoch_contract.get("legacy_and_absence_rules"),
+        "series-2 legacy absence rules",
+    )
+    for key in (
+        "official_series_2_bundle_emits_void_epoch_1",
+        "void_epoch_3_added",
+        "two_four_exception_added",
+        "sealed_bundle_recovery_added",
+        "recover_sealed_bundle_cli_added",
+        "consume_recovered_release_cli_added",
+    ):
+        _require_equal(legacy.get(key), False, f"series-2 absence rule {key}")
+    historical_bundle = _bound_control(
+        root,
+        BUNDLE_SCHEMA_RELATIVE,
+        BUNDLE_SCHEMA_SHA256,
+        "historical v2.2 bundle schema",
+    )
+    historical_release = _bound_control(
+        root,
+        RELEASE_SCHEMA_RELATIVE,
+        RELEASE_SCHEMA_SHA256,
+        "historical v2.2 release schema",
+    )
+    active_bundle = _bound_control(
+        root,
+        SERIES_2_BUNDLE_SCHEMA_RELATIVE,
+        SERIES_2_BUNDLE_SCHEMA_SHA256,
+        "series-2 bundle schema",
+    )
+    active_release = _bound_control(
+        root,
+        SERIES_2_RELEASE_SCHEMA_RELATIVE,
+        SERIES_2_RELEASE_SCHEMA_SHA256,
+        "series-2 release schema",
+    )
+    _validate_series_2_schema_profiles(
+        project_root=root,
+        historical_bundle_payload=historical_bundle,
+        historical_release_payload=historical_release,
+        active_bundle_payload=active_bundle,
+        active_release_payload=active_release,
+    )
+    return SERIES_2_PREREGISTRATION_COMMIT
+
+
 def _validated_implementation_blob(
     *,
     project_root: Path,
@@ -1150,9 +1515,7 @@ def _validated_implementation_blob(
         )
         != payload
     ):
-        raise RehearsalV22ValidationError(
-            f"implementation commit blob drifted: {relative_path}"
-        )
+        raise RehearsalV22ValidationError(f"implementation commit blob drifted: {relative_path}")
     return payload
 
 
@@ -1178,12 +1541,16 @@ def _raw_hardened_git(root: Path, *arguments: str) -> bytes:
 
 
 def _git_metadata_roots(root: Path) -> tuple[Path, Path]:
-    observed_git_dir = _raw_hardened_git(
-        root, "rev-parse", "--path-format=absolute", "--git-dir"
-    ).decode("utf-8", errors="strict").strip()
-    observed_common_dir = _raw_hardened_git(
-        root, "rev-parse", "--path-format=absolute", "--git-common-dir"
-    ).decode("utf-8", errors="strict").strip()
+    observed_git_dir = (
+        _raw_hardened_git(root, "rev-parse", "--path-format=absolute", "--git-dir")
+        .decode("utf-8", errors="strict")
+        .strip()
+    )
+    observed_common_dir = (
+        _raw_hardened_git(root, "rev-parse", "--path-format=absolute", "--git-common-dir")
+        .decode("utf-8", errors="strict")
+        .strip()
+    )
     if not observed_git_dir or not observed_common_dir:
         raise RehearsalV22ValidationError("Git metadata authority path is empty")
     git_dir = Path(observed_git_dir)
@@ -1265,18 +1632,22 @@ def _git_bytes(root: Path, *arguments: str) -> bytes:
 
 def _git_commit(root: Path, value: object, label: str) -> str:
     commit = _commit(value, label)
-    observed = _git_bytes(root, "rev-parse", "--verify", f"{commit}^{{commit}}").decode(
-        "ascii", errors="strict"
-    ).strip()
+    observed = (
+        _git_bytes(root, "rev-parse", "--verify", f"{commit}^{{commit}}")
+        .decode("ascii", errors="strict")
+        .strip()
+    )
     if observed != commit:
         raise RehearsalV22ValidationError(f"{label} object identity drifted")
     return commit
 
 
 def _git_parents(root: Path, commit: str) -> tuple[str, ...]:
-    line = _git_bytes(root, "rev-list", "--parents", "-n", "1", commit).decode(
-        "ascii", errors="strict"
-    ).strip()
+    line = (
+        _git_bytes(root, "rev-list", "--parents", "-n", "1", commit)
+        .decode("ascii", errors="strict")
+        .strip()
+    )
     fields = tuple(line.split())
     if not fields or fields[0] != commit:
         raise RehearsalV22ValidationError("Git parent record drifted")
@@ -1342,9 +1713,7 @@ def _git_optional_blob(root: Path, commit: str, relative: str) -> bytes | None:
         )
     target = f"{commit}:{path}"
     if _git_bytes(root, "rev-parse", "--verify", target).strip() != fields[2]:
-        raise RehearsalV22ValidationError(
-            "optional local-import candidate object identity drifted"
-        )
+        raise RehearsalV22ValidationError("optional local-import candidate object identity drifted")
     return _git_blob(root, commit, path)
 
 
@@ -1355,9 +1724,7 @@ def _local_module_name(relative: str) -> tuple[str, str]:
     elif path.parts[:2] == ("src", "alphapilot"):
         components = list(path.with_suffix("").parts[1:])
     else:
-        raise RehearsalV22ValidationError(
-            "local Python source is outside registered namespaces"
-        )
+        raise RehearsalV22ValidationError("local Python source is outside registered namespaces")
     package_source = components[-1] == "__init__"
     if package_source:
         components.pop()
@@ -1377,9 +1744,7 @@ def _local_module_file(
     elif module_name == "alphapilot":
         stem = "src/alphapilot"
     elif module_name.startswith("alphapilot."):
-        stem = "src/alphapilot/" + module_name.removeprefix("alphapilot.").replace(
-            ".", "/"
-        )
+        stem = "src/alphapilot/" + module_name.removeprefix("alphapilot.").replace(".", "/")
     else:
         return None
     found = [
@@ -1525,8 +1890,7 @@ def _independent_local_import_closure(
                 if name in {"__import__", "import_module"}:
                     if not isinstance(target, str):
                         raise RehearsalV22ValidationError(
-                            "nonliteral dynamic import cannot be proven non-local: "
-                            f"{relative}"
+                            f"nonliteral dynamic import cannot be proven non-local: {relative}"
                         )
                     if target in {"scripts", "alphapilot"} or target.startswith(
                         ("scripts.", "alphapilot.")
@@ -1540,9 +1904,7 @@ def _independent_local_import_closure(
                 key=lambda value: value.encode("utf-8"),
             )
         )
-    return dict(
-        sorted(payloads.items(), key=lambda item: item[0].encode("utf-8"))
-    )
+    return dict(sorted(payloads.items(), key=lambda item: item[0].encode("utf-8")))
 
 
 def _unique_a_authority(
@@ -1628,14 +1990,10 @@ def _validate_implementation_review_authority(
                 active = _commit(line[2:], "implementation review history commit")
                 continue
             if active is None:
-                raise RehearsalV22ValidationError(
-                    "implementation review Git history is malformed"
-                )
+                raise RehearsalV22ValidationError("implementation review Git history is malformed")
             fields = tuple(line.split("\t"))
             if len(fields) < 2:
-                raise RehearsalV22ValidationError(
-                    "implementation review Git status is malformed"
-                )
+                raise RehearsalV22ValidationError("implementation review Git status is malformed")
             touches.append((active, fields[0], fields[1:]))
         return touches
 
@@ -1702,9 +2060,7 @@ def _validate_implementation_review_authority(
         )
     payload = _git_blob(root, creating_commit, path)
     if _sha256(payload) != expected_sha or _git_optional_blob(root, head, path) != payload:
-        raise RehearsalV22ValidationError(
-            "implementation review projection bytes or SHA drifted"
-        )
+        raise RehearsalV22ValidationError("implementation review projection bytes or SHA drifted")
 
     parents = _git_parents(root, creating_commit)
     if len(parents) == 1:
@@ -1736,8 +2092,7 @@ def _validate_implementation_review_authority(
         source_parents = _git_parents(root, source_review)
         if (
             len(source_parents) != 1
-            or _diff_name_status(root, source_parents[0], source_review)
-            != (("A", path),)
+            or _diff_name_status(root, source_parents[0], source_review) != (("A", path),)
             or _git_blob(root, source_review, path) != payload
             or not _git_is_ancestor(root, reviewed_implementation, source_review)
             or not _git_is_ancestor(root, source_review, review_parent)
@@ -1805,17 +2160,13 @@ def _validate_initial_sibling_authority(
         raise RehearsalV22ValidationError("initial sibling authority creation SHA drifted")
 
     graph: dict[str, tuple[str, ...]] = {}
-    rows = _git_bytes(root, "rev-list", "--all", "--children").decode(
-        "ascii", errors="strict"
-    )
+    rows = _git_bytes(root, "rev-list", "--all", "--children").decode("ascii", errors="strict")
     for raw in rows.splitlines():
         fields = tuple(raw.split())
         if not fields:
             continue
         commit = _commit(fields[0], "initial sibling graph commit")
-        children = tuple(
-            _commit(value, "initial sibling graph child") for value in fields[1:]
-        )
+        children = tuple(_commit(value, "initial sibling graph child") for value in fields[1:])
         if commit in graph or len(set(children)) != len(children):
             raise RehearsalV22ValidationError("initial sibling authority graph is malformed")
         graph[commit] = children
@@ -1856,9 +2207,7 @@ def _validate_initial_sibling_authority(
             "initial sibling authority worktree file",
         )
         if current != payload:
-            raise RehearsalV22ValidationError(
-                "initial sibling authority worktree bytes drifted"
-            )
+            raise RehearsalV22ValidationError("initial sibling authority worktree bytes drifted")
     return payload
 
 
@@ -1900,9 +2249,7 @@ def _unique_a_unserialized(
             raise RehearsalV22ValidationError("first-parent authority status is malformed")
         touches.append((active, fields[0], fields[1:]))
     if len(touches) != 1 or touches[0][1:] != ("A", (relative,)):
-        raise RehearsalV22ValidationError(
-            "authority is not one globally unique status-A Git touch"
-        )
+        raise RehearsalV22ValidationError("authority is not one globally unique status-A Git touch")
     creating_commit = _git_commit(root, touches[0][0], "authority creating commit")
     if not _git_is_ancestor(root, creating_commit, head):
         raise RehearsalV22ValidationError(
@@ -1991,10 +2338,7 @@ def _path_merkle(
     ordered = sorted(payloads.items(), key=lambda item: item[0].encode("utf-8"))
     leaves = [
         hashlib.sha256(
-            leaf_domain
-            + relative.encode("utf-8")
-            + b"\0"
-            + hashlib.sha256(payload).digest()
+            leaf_domain + relative.encode("utf-8") + b"\0" + hashlib.sha256(payload).digest()
         ).digest()
         for relative, payload in ordered
     ]
@@ -2123,11 +2467,21 @@ def registered_series_ledger(project_root: Path = PROJECT_ROOT) -> Path:
     root = project_root.resolve()
     destination = registered_rehearsal_directory(root).absolute()
     token = hashlib.sha256(
-        (INCIDENT_SHA256 + "\0" + REHEARSAL_ID + "\0" + destination.as_posix()).encode(
+        (SERIES_2_TOKEN_SEED_SHA256 + "\0" + REHEARSAL_ID + "\0" + destination.as_posix()).encode(
             "utf-8"
         )
     ).hexdigest()
-    return root.parent / f".alphapilot-p4-2a-v2-2-execution-claim-{token}"
+    if root == REGISTERED_PROJECT_ROOT.resolve():
+        if token != SERIES_2_REGISTERED_SERIES_TOKEN:
+            raise RehearsalV22ValidationError("registered series-2 token drifted")
+        return SERIES_2_PRIMARY_LEDGER_ROOT
+    return (
+        root.parent
+        / f"{root.name}-EVIDENCE-DO-NOT-DELETE"
+        / "P4.2a/v2.2"
+        / f"SERIES-000002-{token}"
+        / "PRIMARY-LEDGER-DO-NOT-DELETE"
+    )
 
 
 @dataclass(frozen=True)
@@ -2137,6 +2491,11 @@ class BindingView:
     absolute_destination: Path
     series_token_sha256: str
     ledger_root: Path
+    primary_series_container: Path
+    primary_receipt_root: Path
+    secondary_series_container: Path
+    secondary_snapshot_root: Path
+    secondary_receipt_root: Path
 
 
 @dataclass(frozen=True)
@@ -2159,6 +2518,7 @@ class HistoryReplay:
     live_ledger_root_sha256: str
     archive_merkle_root_sha256: str
     live_payloads: Mapping[str, bytes]
+    live_identities: Mapping[str, tuple[int, ...]]
     archive_payloads: Mapping[str, bytes]
 
 
@@ -2171,30 +2531,70 @@ def _binding_view(value: object) -> BindingView:
         destination = value.destination.absolute()
         token = _sha(value.series_token_sha256, "execution series token")
         ledger = value.ledger_root.absolute()
-    except OSError as exc:
+        primary_container = value.primary_series_container.absolute()
+        primary_receipts = value.primary_receipt_root.absolute()
+        secondary_container = value.secondary_series_container.absolute()
+        secondary_snapshots = value.secondary_snapshot_root.absolute()
+        secondary_receipts = value.secondary_receipt_root.absolute()
+    except (AttributeError, OSError) as exc:
         raise RehearsalV22ValidationError("implementation execution binding is malformed") from exc
     if mode not in {"REGISTERED_OFFICIAL", "DISPOSABLE_FULL_SHAPE_TEST"}:
         raise RehearsalV22ValidationError("execution binding mode is unknown")
     expected_destination = project_root / REGISTERED_DESTINATION_RELATIVE
     expected_token = hashlib.sha256(
         (
-            INCIDENT_SHA256
+            SERIES_2_TOKEN_SEED_SHA256
             + "\0"
             + REHEARSAL_ID
             + "\0"
             + expected_destination.absolute().as_posix()
         ).encode("utf-8")
     ).hexdigest()
-    expected_ledger = (
-        project_root.parent
-        / f".alphapilot-p4-2a-v2-2-execution-claim-{expected_token}"
-    )
-    if destination != expected_destination or token != expected_token or ledger != expected_ledger:
-        raise RehearsalV22ValidationError("implementation execution binding derivation drifted")
     registered = REGISTERED_PROJECT_ROOT.absolute()
     if mode == "REGISTERED_OFFICIAL":
-        if project_root != registered or token != REGISTERED_SERIES_TOKEN:
+        expected_primary_container = SERIES_2_PRIMARY_SERIES_CONTAINER
+        expected_secondary_container = SERIES_2_SECONDARY_SERIES_CONTAINER
+    else:
+        expected_primary_container = (
+            project_root.parent
+            / f"{project_root.name}-EVIDENCE-DO-NOT-DELETE"
+            / "P4.2a/v2.2"
+            / f"SERIES-000002-{expected_token}"
+        )
+        expected_secondary_container = (
+            project_root.parent
+            / f"{project_root.name}-EVIDENCE-MIRROR-DO-NOT-DELETE"
+            / "P4.2a/v2.2"
+            / f"SERIES-000002-{expected_token}"
+        )
+    expected_ledger = expected_primary_container / "PRIMARY-LEDGER-DO-NOT-DELETE"
+    expected_primary_receipts = expected_primary_container / "MIRROR-RECEIPTS-DO-NOT-DELETE"
+    expected_secondary_snapshots = (
+        expected_secondary_container / "SEALED-LEDGER-SNAPSHOTS-DO-NOT-DELETE"
+    )
+    expected_secondary_receipts = expected_secondary_container / "MIRROR-RECEIPTS-DO-NOT-DELETE"
+    if (
+        destination != expected_destination
+        or token != expected_token
+        or ledger != expected_ledger
+        or primary_container != expected_primary_container
+        or primary_receipts != expected_primary_receipts
+        or secondary_container != expected_secondary_container
+        or secondary_snapshots != expected_secondary_snapshots
+        or secondary_receipts != expected_secondary_receipts
+    ):
+        raise RehearsalV22ValidationError("implementation execution binding derivation drifted")
+    if mode == "REGISTERED_OFFICIAL":
+        if project_root != registered or token != SERIES_2_REGISTERED_SERIES_TOKEN:
             raise RehearsalV22ValidationError("official execution binding is not canonical")
+        if _validator_os.path.lexists(SERIES_2_LEGACY_LEDGER_ROOT):
+            raise RehearsalV22ValidationError(
+                "official execution binding found the lost series ledger"
+            )
+        if _validator_os.path.lexists(SERIES_2_RETIRED_V2_1_CLAIM):
+            raise RehearsalV22ValidationError(
+                "official execution binding found the retired v2.1 claim"
+            )
     elif (
         project_root == registered
         or project_root.is_relative_to(registered)
@@ -2207,6 +2607,11 @@ def _binding_view(value: object) -> BindingView:
         absolute_destination=destination,
         series_token_sha256=token,
         ledger_root=ledger,
+        primary_series_container=primary_container,
+        primary_receipt_root=primary_receipts,
+        secondary_series_container=secondary_container,
+        secondary_snapshot_root=secondary_snapshots,
+        secondary_receipt_root=secondary_receipts,
     )
 
 
@@ -2267,9 +2672,7 @@ def _assert_official_runtime_before_read(root: Path) -> None:
         ) from exc
     match = _ACTION_PATH_PATTERN.fullmatch(action_relative)
     if match is None or int(match.group(1)) != int(orig[9]):
-        raise RehearsalV22ValidationError(
-            "official validation action ordinal binding drifted"
-        )
+        raise RehearsalV22ValidationError("official validation action ordinal binding drifted")
     policy = implementation._AUDIT_POLICY.get()
     authority = implementation._TEMP_AUTHORITY.get()
     if (
@@ -2308,9 +2711,7 @@ def _resolve_execution_binding(
         _assert_official_runtime_before_read(registered)
         root = registered.resolve(strict=True)
         if root != registered:
-            raise RehearsalV22ValidationError(
-                "canonical project root is aliased"
-            )
+            raise RehearsalV22ValidationError("canonical project root is aliased")
         raw_binding = implementation.derive_execution_binding(
             project_root=root,
             execution_context=None,
@@ -2360,9 +2761,7 @@ def _validate_binding_document(value: object, binding: BindingView, label: str) 
         "series_token_sha256": binding.series_token_sha256,
         "ledger_root": binding.ledger_root.as_posix(),
         "derivation_recomputed": True,
-        "private_rebase_capability_validated": (
-            binding.mode == "DISPOSABLE_FULL_SHAPE_TEST"
-        ),
+        "private_rebase_capability_validated": (binding.mode == "DISPOSABLE_FULL_SHAPE_TEST"),
     }
     if binding.mode == "REGISTERED_OFFICIAL":
         expected_common[
@@ -2404,9 +2803,7 @@ def _authorized_bundle_directory(
         )
     authorized = _directory(evidence_root, "closure-authorized evidence root")
     if candidate.parent != authorized:
-        raise RehearsalV22ValidationError(
-            "bundle is outside its closure-authorized evidence root"
-        )
+        raise RehearsalV22ValidationError("bundle is outside its closure-authorized evidence root")
     return authorized
 
 
@@ -2414,9 +2811,7 @@ def _audit_hook_source_map(sources: Mapping[str, bytes]) -> dict[str, int]:
     """Count syntactic audit-hook installers in commit-bound Python sources."""
 
     result: dict[str, int] = {}
-    for relative, payload in sorted(
-        sources.items(), key=lambda item: item[0].encode("utf-8")
-    ):
+    for relative, payload in sorted(sources.items(), key=lambda item: item[0].encode("utf-8")):
         try:
             tree = ast.parse(payload, filename=relative)
         except (SyntaxError, ValueError) as exc:
@@ -2428,10 +2823,9 @@ def _audit_hook_source_map(sources: Mapping[str, bytes]) -> dict[str, int]:
             if not isinstance(node, ast.Call):
                 continue
             function = node.func
-            if (
-                isinstance(function, ast.Attribute)
-                and function.attr == "addaudithook"
-            ) or (isinstance(function, ast.Name) and function.id == "addaudithook"):
+            if (isinstance(function, ast.Attribute) and function.attr == "addaudithook") or (
+                isinstance(function, ast.Name) and function.id == "addaudithook"
+            ):
                 count += 1
         if count:
             result[relative] = count
@@ -2454,8 +2848,7 @@ def _validate_module_identity(project_root: Path, implementation_commit: str) ->
         relative for relative, _module_name, _count in _INERT_HISTORICAL_AUDIT_HOOK_SOURCES
     )
     expected_historical = {
-        relative: count
-        for relative, _module_name, count in _INERT_HISTORICAL_AUDIT_HOOK_SOURCES
+        relative: count for relative, _module_name, count in _INERT_HISTORICAL_AUDIT_HOOK_SOURCES
     }
     observed_historical = {
         relative: audit_hook_sources.get(relative, 0) for relative in historical_paths
@@ -2474,25 +2867,20 @@ def _validate_module_identity(project_root: Path, implementation_commit: str) ->
         for relative, count in audit_hook_sources.items()
         if relative not in historical_paths
     }
-    if (
-        observed_historical != expected_historical
-        or active_hook_sources
-        != {"scripts/p4_2a_v2_2_heldout_rehearsal.py": 1}
-    ):
+    if observed_historical != expected_historical or active_hook_sources != {
+        "scripts/p4_2a_v2_2_heldout_rehearsal.py": 1
+    }:
         raise RehearsalV22ValidationError(
             "implementation is not the sole process audit-hook installer"
         )
 
-    base_runner_module = sys.modules.get(
-        "scripts.rehearse_p4_2a_v2_heldout_full_path"
-    )
+    base_runner_module = sys.modules.get("scripts.rehearse_p4_2a_v2_heldout_full_path")
     base_runner_payload = _regular_bytes(
         project_root / "scripts/rehearse_p4_2a_v2_heldout_full_path.py",
         "v2 pure control helper",
     )
     if (
-        sys.modules.get("scripts.p4_2a_v2_2_heldout_rehearsal")
-        is not _implementation_module
+        sys.modules.get("scripts.p4_2a_v2_2_heldout_rehearsal") is not _implementation_module
         or any(
             module_name in sys.modules
             for _relative, module_name, _count in _INERT_HISTORICAL_AUDIT_HOOK_SOURCES
@@ -2524,9 +2912,7 @@ def _validate_module_identity(project_root: Path, implementation_commit: str) ->
     observation = implementation._module_identity_observation()
     try:
         module_object_id = _integer(observation.module_object_id, "module object id", minimum=1)
-        audit_policy_id = _integer(
-            observation.audit_policy_object_id, "audit policy id", minimum=1
-        )
+        audit_policy_id = _integer(observation.audit_policy_object_id, "audit policy id", minimum=1)
         temp_authority_id = _integer(
             observation.temp_authority_object_id, "temp authority id", minimum=1
         )
@@ -2590,10 +2976,8 @@ def _validate_series_json(
     preregistration_commit: str,
 ) -> JsonObject:
     series = _strict_canonical_json_loads(payload, label="live series.json")
-    _require_exact_keys(series, _SERIES_FIELDS, "live series.json")
-    _require_equal(
-        series["schema_version"], "p4.2a-v2-2-rehearsal-series-v1", "series schema"
-    )
+    _require_exact_keys(series, _SERIES_2_FIELDS, "live series.json")
+    _require_equal(series["schema_version"], SERIES_2_SERIES_SCHEMA_VERSION, "series schema")
     _require_equal(series["series_id"], REHEARSAL_ID, "series id")
     _require_equal(series["series_token_sha256"], binding.series_token_sha256, "series token")
     _require_equal(series["policy"], SERIES_POLICY, "series policy")
@@ -2609,23 +2993,36 @@ def _validate_series_json(
         "series per-attempt authorization",
     )
     _require_equal(series["automatic_retry_count"], 0, "series automatic retry count")
+    _require_equal(series["first_validated_candidate_closes_series"], True, "series close policy")
     _require_equal(
-        series["first_validated_candidate_closes_series"], True, "series close policy"
+        series["implementation_epoch_origin"],
+        SERIES_2_EPOCH_ORIGIN,
+        "series implementation epoch origin",
     )
     prereg = _validate_authority_ref(series["preregistration"], "series preregistration")
-    _require_equal(prereg["path"], PREREGISTRATION_RELATIVE.as_posix(), "series prereg path")
-    _require_equal(prereg["sha256"], PREREGISTRATION_SHA256, "series prereg SHA")
+    _require_equal(
+        prereg["path"],
+        SERIES_2_PREREGISTRATION_RELATIVE.as_posix(),
+        "series prereg path",
+    )
+    _require_equal(prereg["sha256"], SERIES_2_PREREGISTRATION_SHA256, "series prereg SHA")
     _require_equal(prereg["creating_commit"], preregistration_commit, "series prereg commit")
     bundle_schema = _validate_file_ref(series["bundle_schema"], "series bundle schema")
     _require_equal(
         bundle_schema,
-        {"path": BUNDLE_SCHEMA_RELATIVE.as_posix(), "sha256": BUNDLE_SCHEMA_SHA256},
+        {
+            "path": SERIES_2_BUNDLE_SCHEMA_RELATIVE.as_posix(),
+            "sha256": SERIES_2_BUNDLE_SCHEMA_SHA256,
+        },
         "series bundle schema",
     )
     release_schema = _validate_file_ref(series["release_schema"], "series release schema")
     _require_equal(
         release_schema,
-        {"path": RELEASE_SCHEMA_RELATIVE.as_posix(), "sha256": RELEASE_SCHEMA_SHA256},
+        {
+            "path": SERIES_2_RELEASE_SCHEMA_RELATIVE.as_posix(),
+            "sha256": SERIES_2_RELEASE_SCHEMA_SHA256,
+        },
         "series release schema",
     )
     _rfc3339_utc(series["created_at_utc"], "series created_at_utc")
@@ -2688,16 +3085,23 @@ def _is_void_epoch_one(epoch: Mapping[str, Any]) -> bool:
     )
 
 
-def _epoch_map(bundle: Mapping[str, Any]) -> dict[int, JsonObject]:
+def _epoch_map(
+    bundle: Mapping[str, Any],
+    *,
+    epoch_origin: int = 1,
+) -> dict[int, JsonObject]:
     rows = _array(bundle.get("implementation_epochs"), "bundle implementation epochs")
     result: dict[int, JsonObject] = {}
     prior_last = 0
-    for index, raw in enumerate(rows, 1):
-        epoch = _validate_epoch_shape(raw, f"implementation epoch {index}")
+    for row_index, raw in enumerate(rows):
+        epoch = _validate_epoch_shape(raw, f"implementation epoch row {row_index}")
         number = cast(int, epoch["epoch"])
-        if number != index or number in result:
-            raise RehearsalV22ValidationError("implementation epochs are not contiguous")
-        if index == 1 and _is_void_epoch_one(epoch):
+        expected_number = epoch_origin + row_index
+        if number != expected_number or number in result:
+            raise RehearsalV22ValidationError(
+                "implementation epochs are not contiguous explicit keys"
+            )
+        if epoch_origin == 1 and number == 1 and _is_void_epoch_one(epoch):
             result[number] = epoch
             continue
         if cast(int, epoch["first_attempt_ordinal"]) != prior_last + 1:
@@ -2706,7 +3110,7 @@ def _epoch_map(bundle: Mapping[str, Any]) -> dict[int, JsonObject]:
         result[number] = epoch
     if not result:
         raise RehearsalV22ValidationError("bundle has no implementation epoch")
-    if _is_void_epoch_one(result[1]) and len(result) < 2:
+    if epoch_origin == 1 and _is_void_epoch_one(result[1]) and len(result) < 2:
         raise RehearsalV22ValidationError("void epoch 1 lacks an executed epoch 2")
     return result
 
@@ -2742,9 +3146,7 @@ def _validate_started(
         "interpreter_path": (
             "/Users/ouyangduning/Documents/project/interesting/AlphaPilot-AI/.venv/bin/python"
         ),
-        "interpreter_sha256": (
-            "f4cd716d4b54f205398bec6932cc59361b087494ca2ddb157a5e8631d4d6f863"
-        ),
+        "interpreter_sha256": ("f4cd716d4b54f205398bec6932cc59361b087494ca2ddb157a5e8631d4d6f863"),
     }
     for key, expected in scalar_expected.items():
         _require_equal(started[key], expected, f"attempt {ordinal} started.{key}")
@@ -2931,16 +3333,12 @@ def _walk_regular_tree(
                 stack.append(path)
                 continue
             if not stat.S_ISREG(metadata.st_mode) or metadata.st_nlink != 1:
-                raise RehearsalV22ValidationError(
-                    f"{label} contains a special or hardlinked entry"
-                )
+                raise RehearsalV22ValidationError(f"{label} contains a special or hardlinked entry")
             if (
                 required_file_mode is not None
                 and stat.S_IMODE(metadata.st_mode) != required_file_mode
             ):
-                raise RehearsalV22ValidationError(
-                    f"{label} contains a file with the wrong mode"
-                )
+                raise RehearsalV22ValidationError(f"{label} contains a file with the wrong mode")
             relative = path.relative_to(directory).as_posix()
             if relative in result:
                 raise RehearsalV22ValidationError(f"{label} contains duplicate path")
@@ -3006,9 +3404,7 @@ def _validate_action_authorization(
         raise RehearsalV22ValidationError(f"{label} date binding drifted")
     expected: JsonObject = {
         "schema_version": "p4.2a-v2-2-rehearsal-attempt-execution-authorization-v1",
-        "verdict": (
-            "APPROVE_EXACTLY_ONE_V2_2_REHEARSAL_ATTEMPT_ZERO_AUTOMATIC_RETRY"
-        ),
+        "verdict": ("APPROVE_EXACTLY_ONE_V2_2_REHEARSAL_ATTEMPT_ZERO_AUTOMATIC_RETRY"),
         "owner": {
             "identity": "ouyang",
             "approved": True,
@@ -3051,10 +3447,7 @@ def _validate_action_authorization(
         "-S",
         "-P",
         "-B",
-        (
-            binding.project_root
-            / "scripts/rehearse_p4_2a_v2_2_heldout_full_path.py"
-        ).as_posix(),
+        (binding.project_root / "scripts/rehearse_p4_2a_v2_2_heldout_full_path.py").as_posix(),
         "--execute",
         "--attempt-authorization",
         (binding.project_root / source_relative).as_posix(),
@@ -3062,9 +3455,7 @@ def _validate_action_authorization(
         str(ordinal),
     ]
     _require_equal(command, expected_command, f"{label}.exact_argv")
-    _require_equal(
-        receipt["command_sha256"], _command_sha256(command), f"{label}.command_sha256"
-    )
+    _require_equal(receipt["command_sha256"], _command_sha256(command), f"{label}.command_sha256")
     _require_equal(
         receipt["environment_sha256"],
         _environment_sha256(_EXACT_ENVIRONMENT),
@@ -3122,7 +3513,8 @@ def _artifact_evidence(
 
 
 def _bundle_attempt_record(
-    bundle: Mapping[str, Any], ordinal: int,
+    bundle: Mapping[str, Any],
+    ordinal: int,
 ) -> JsonObject:
     history = _object(bundle.get("attempt_history"), "bundle attempt_history")
     records = _array(history.get("records"), "bundle attempt_history.records")
@@ -3154,16 +3546,14 @@ def _validate_attempt_history_records(
     if archive != bundle_directory / "archive/attempt-history":
         raise RehearsalV22ValidationError("attempt-history archive path drifted")
 
-    live_payloads = _walk_regular_tree(
+    live_inventory = _strict_private_tree_inventory(
         ledger,
         label="series ledger",
-        required_directory_mode=0o700,
-        required_file_mode=0o600,
     )
+    live_payloads = dict(live_inventory.payloads)
     archive_tree = _walk_regular_tree(archive, label="attempt-history archive")
     archive_payloads = {
-        f"archive/attempt-history/{relative}": payload
-        for relative, payload in archive_tree.items()
+        f"archive/attempt-history/{relative}": payload for relative, payload in archive_tree.items()
     }
     if "series.json" not in live_payloads or ".series.lock" not in live_payloads:
         raise RehearsalV22ValidationError("series ledger lacks its fixed root records")
@@ -3207,14 +3597,15 @@ def _validate_attempt_history_records(
     expected_live_directories = _directories_implied_by_files(tuple(live_payloads)) | {
         f"attempts/{ordinal:06d}/evidence" for ordinal in ordinals
     }
-    if _tree_directory_relatives(ledger, label="series ledger") != (
-        expected_live_directories
-    ):
-        raise RehearsalV22ValidationError(
-            "series ledger contains a missing or extra directory"
-        )
+    observed_live_directories = {
+        cast(str, row["relative_path"])
+        for row in live_inventory.rows
+        if row["kind"] == "directory" and row["relative_path"] != "."
+    }
+    if observed_live_directories != expected_live_directories:
+        raise RehearsalV22ValidationError("series ledger contains a missing or extra directory")
 
-    epochs = _epoch_map(bundle)
+    epochs = _epoch_map(bundle, epoch_origin=SERIES_2_EPOCH_ORIGIN)
     prior_root = _history_empty_root()
     records: list[JsonObject] = []
     source_records: list[tuple[JsonObject, JsonObject | None, JsonObject | None]] = []
@@ -3294,14 +3685,12 @@ def _validate_attempt_history_records(
             if terminal_payload is not None
             else None
         )
-        if candidate is not None and terminal is None:
-            raise RehearsalV22ValidationError(
-                "candidate exists without terminal; owner recovery ruling is required"
-            )
         if terminal is None:
             outcome = "INCOMPLETE_UNTERMINALIZED"
-            reached_stage = _string(
-                bundle_record.get("reached_stage"), f"attempt {ordinal} reached stage"
+            reached_stage = (
+                "candidate_without_terminal"
+                if candidate is not None
+                else "started_without_terminal"
             )
             error: object = None
         else:
@@ -3426,7 +3815,7 @@ def _validate_attempt_history_records(
                     archive_relative=f"{archive_prefix}/candidate.json",
                     payload=candidate_payload,
                 )
-                if candidate_payload is not None
+                if candidate_payload is not None and outcome == "CANDIDATE_VALIDATED_AND_SELECTED"
                 else None
             ),
             "terminal": (
@@ -3505,9 +3894,13 @@ def _validate_attempt_history_records(
     if manifest_paths != expected_archive_paths:
         raise RehearsalV22ValidationError("attempt archive manifest set is not exact")
     _require_equal(attempt_archive.get("file_count"), len(archive_payloads), "archive file count")
-    if attempt_archive.get(
-        "every_live_started_candidate_terminal_and_action_authorization_byte_archived"
-    ) is not True or attempt_archive.get("every_attempt_evidence_byte_archived") is not True:
+    if (
+        attempt_archive.get(
+            "every_live_started_candidate_terminal_and_action_authorization_byte_archived"
+        )
+        is not True
+        or attempt_archive.get("every_attempt_evidence_byte_archived") is not True
+    ):
         raise RehearsalV22ValidationError("attempt archive completeness claims are false")
     archive_merkle = _path_merkle(
         archive_payloads,
@@ -3535,8 +3928,819 @@ def _validate_attempt_history_records(
         live_ledger_root_sha256=live_merkle,
         archive_merkle_root_sha256=archive_merkle,
         live_payloads=live_payloads,
+        live_identities=live_inventory.identities,
         archive_payloads=archive_payloads,
     )
+
+
+@dataclass(frozen=True)
+class _MirrorTreeInventory:
+    rows: tuple[JsonObject, ...]
+    payloads: Mapping[str, bytes]
+    identities: Mapping[str, tuple[int, ...]]
+    sha256: str
+    file_count: int
+    total_bytes: int
+
+
+def _metadata_identity(metadata: _validator_os.stat_result) -> tuple[int, ...]:
+    return (
+        metadata.st_dev,
+        metadata.st_ino,
+        metadata.st_mode,
+        metadata.st_uid,
+        metadata.st_nlink,
+        metadata.st_size,
+        metadata.st_mtime_ns,
+        metadata.st_ctime_ns,
+    )
+
+
+def _descriptor_path(descriptor: int, *, label: str) -> Path:
+    try:
+        raw = fcntl.fcntl(descriptor, fcntl.F_GETPATH, b"\0" * 1024)
+    except (OSError, TypeError, ValueError) as exc:
+        raise RehearsalV22ValidationError(f"{label} descriptor path is unavailable") from exc
+    terminator = raw.find(b"\0")
+    if terminator <= 0:
+        raise RehearsalV22ValidationError(f"{label} descriptor path is unavailable")
+    return Path(_validator_os.fsdecode(raw[:terminator])).absolute()
+
+
+def _open_stable_read_descriptor(
+    path: Path,
+    *,
+    label: str,
+    directory: bool,
+    parent_descriptor: int | None = None,
+    entry_name: str | None = None,
+) -> tuple[int, _validator_os.stat_result]:
+    if (parent_descriptor is None) != (entry_name is None):
+        raise RehearsalV22ValidationError(f"{label} parent descriptor binding is incomplete")
+    try:
+        before = path.lstat()
+        flags = _validator_os.O_RDONLY | _validator_os.O_NOFOLLOW | _validator_os.O_CLOEXEC
+        if directory:
+            flags |= _validator_os.O_DIRECTORY
+        target: str | Path = cast(str, entry_name) if parent_descriptor is not None else path
+        descriptor = _validator_os.open(
+            target,
+            flags,
+            dir_fd=parent_descriptor,
+        )
+    except OSError as exc:
+        raise RehearsalV22ValidationError(f"{label} is unavailable or aliased") from exc
+    try:
+        descriptor_metadata = _validator_os.fstat(descriptor)
+        after_open = path.lstat()
+        descriptor_path = _descriptor_path(descriptor, label=label)
+        descriptor_flags = fcntl.fcntl(descriptor, fcntl.F_GETFL)
+        descriptor_fd_flags = fcntl.fcntl(descriptor, fcntl.F_GETFD)
+    except BaseException:
+        _validator_os.close(descriptor)
+        raise
+    identities = {
+        _metadata_identity(before),
+        _metadata_identity(descriptor_metadata),
+        _metadata_identity(after_open),
+    }
+    expected_kind = (
+        stat.S_ISDIR(descriptor_metadata.st_mode)
+        if directory
+        else stat.S_ISREG(descriptor_metadata.st_mode)
+    )
+    if (
+        len(identities) != 1
+        or not expected_kind
+        or descriptor_path != path.absolute()
+        or descriptor_flags & _validator_os.O_ACCMODE != _validator_os.O_RDONLY
+        or descriptor_fd_flags & fcntl.FD_CLOEXEC == 0
+    ):
+        _validator_os.close(descriptor)
+        raise RehearsalV22ValidationError(f"{label} descriptor identity changed or escaped")
+    return descriptor, before
+
+
+def _verify_stable_directory_descriptor(
+    descriptor: int,
+    path: Path,
+    before: _validator_os.stat_result,
+    *,
+    label: str,
+) -> None:
+    try:
+        descriptor_after = _validator_os.fstat(descriptor)
+        path_after = path.lstat()
+        descriptor_path = _descriptor_path(descriptor, label=label)
+    except BaseException as exc:
+        raise RehearsalV22ValidationError(f"{label} directory identity recheck failed") from exc
+    if (
+        len(
+            {
+                _metadata_identity(before),
+                _metadata_identity(descriptor_after),
+                _metadata_identity(path_after),
+            }
+        )
+        != 1
+        or descriptor_path != path.absolute()
+    ):
+        raise RehearsalV22ValidationError(f"{label} directory changed during descriptor read")
+
+
+def _close_stable_directory_descriptor(
+    descriptor: int,
+    path: Path,
+    before: _validator_os.stat_result,
+    *,
+    label: str,
+) -> None:
+    try:
+        _verify_stable_directory_descriptor(
+            descriptor,
+            path,
+            before,
+            label=label,
+        )
+    finally:
+        _validator_os.close(descriptor)
+
+
+def _read_stable_regular_descriptor(
+    path: Path,
+    *,
+    label: str,
+    parent_descriptor: int,
+    entry_name: str,
+) -> tuple[bytes, _validator_os.stat_result]:
+    descriptor, before = _open_stable_read_descriptor(
+        path,
+        label=label,
+        directory=False,
+        parent_descriptor=parent_descriptor,
+        entry_name=entry_name,
+    )
+    if (
+        stat.S_IMODE(before.st_mode) != 0o600
+        or before.st_uid != _validator_os.getuid()
+        or before.st_nlink != 1
+    ):
+        _validator_os.close(descriptor)
+        raise RehearsalV22ValidationError(f"{label} is hardlinked, wrong-mode, or wrong-owner")
+    chunks: list[bytes] = []
+    try:
+        while True:
+            chunk = _validator_os.read(descriptor, 1024 * 1024)
+            if not chunk:
+                break
+            chunks.append(chunk)
+        descriptor_after = _validator_os.fstat(descriptor)
+        path_after = path.lstat()
+        descriptor_path = _descriptor_path(descriptor, label=label)
+    except BaseException:
+        _validator_os.close(descriptor)
+        raise
+    _validator_os.close(descriptor)
+    payload = b"".join(chunks)
+    if (
+        len(
+            {
+                _metadata_identity(before),
+                _metadata_identity(descriptor_after),
+                _metadata_identity(path_after),
+            }
+        )
+        != 1
+        or descriptor_path != path.absolute()
+        or len(payload) != before.st_size
+    ):
+        raise RehearsalV22ValidationError(f"{label} changed during descriptor read")
+    return payload, before
+
+
+def _strict_owner_directory_identity(path: Path, *, label: str) -> Path:
+    descriptor, before = _open_stable_read_descriptor(
+        path,
+        label=label,
+        directory=True,
+    )
+    if stat.S_IMODE(before.st_mode) != 0o700 or before.st_uid != _validator_os.getuid():
+        _validator_os.close(descriptor)
+        raise RehearsalV22ValidationError(f"{label} identity, owner, or mode drifted")
+    _close_stable_directory_descriptor(descriptor, path, before, label=label)
+    return path.absolute()
+
+
+def _strict_private_tree_inventory(
+    root: Path,
+    *,
+    label: str,
+    root_descriptor: int | None = None,
+    root_before: _validator_os.stat_result | None = None,
+    root_parent_descriptor: int | None = None,
+    root_entry_name: str | None = None,
+) -> _MirrorTreeInventory:
+    """Descriptor-bind one private tree against aliases, links, and read races."""
+
+    rows: list[JsonObject] = []
+    payloads: dict[str, bytes] = {}
+    identities: dict[str, tuple[int, ...]] = {}
+
+    def walk_directory(
+        path: Path,
+        *,
+        relative: str,
+        parent_descriptor: int | None,
+        entry_name: str | None,
+        supplied_descriptor: int | None = None,
+        supplied_before: _validator_os.stat_result | None = None,
+    ) -> None:
+        owns_descriptor = supplied_descriptor is None
+        if supplied_descriptor is None:
+            descriptor, before = _open_stable_read_descriptor(
+                path,
+                label=f"{label} directory {relative}",
+                directory=True,
+                parent_descriptor=parent_descriptor,
+                entry_name=entry_name,
+            )
+        else:
+            if supplied_before is None:
+                raise RehearsalV22ValidationError(
+                    f"{label} supplied root descriptor lacks identity"
+                )
+            descriptor, before = supplied_descriptor, supplied_before
+            _verify_stable_directory_descriptor(
+                descriptor,
+                path,
+                before,
+                label=f"{label} directory {relative}",
+            )
+        if stat.S_IMODE(before.st_mode) != 0o700 or before.st_uid != _validator_os.getuid():
+            if owns_descriptor:
+                _validator_os.close(descriptor)
+            raise RehearsalV22ValidationError(f"{label} directory mode or owner drifted")
+        rows.append(
+            {
+                "relative_path": relative,
+                "kind": "directory",
+                "mode": 0o700,
+                "bytes": 0,
+                "sha256": None,
+            }
+        )
+        identities[relative] = _metadata_identity(before)
+        try:
+            names = sorted(
+                _validator_os.listdir(descriptor),
+                key=lambda value: value.encode("utf-8"),
+            )
+            for name in names:
+                if not isinstance(name, str) or name in {"", ".", ".."} or "/" in name:
+                    raise RehearsalV22ValidationError(
+                        f"{label} contains an invalid directory member"
+                    )
+                child = path / name
+                child_relative = name if relative == "." else f"{relative}/{name}"
+                _relative(child_relative, f"{label} member")
+                try:
+                    child_metadata = _validator_os.stat(
+                        name,
+                        dir_fd=descriptor,
+                        follow_symlinks=False,
+                    )
+                except OSError as exc:
+                    raise RehearsalV22ValidationError(f"{label} member is unavailable") from exc
+                if stat.S_ISDIR(child_metadata.st_mode):
+                    walk_directory(
+                        child,
+                        relative=child_relative,
+                        parent_descriptor=descriptor,
+                        entry_name=name,
+                    )
+                    continue
+                if not stat.S_ISREG(child_metadata.st_mode):
+                    raise RehearsalV22ValidationError(
+                        f"{label} contains an alias or special member"
+                    )
+                payload, stable_metadata = _read_stable_regular_descriptor(
+                    child,
+                    label=f"{label} file {child_relative}",
+                    parent_descriptor=descriptor,
+                    entry_name=name,
+                )
+                payloads[child_relative] = payload
+                identities[child_relative] = _metadata_identity(stable_metadata)
+                rows.append(
+                    {
+                        "relative_path": child_relative,
+                        "kind": "file",
+                        "mode": stat.S_IMODE(stable_metadata.st_mode),
+                        "bytes": len(payload),
+                        "sha256": _sha256(payload),
+                    }
+                )
+        except BaseException:
+            if owns_descriptor:
+                _validator_os.close(descriptor)
+            raise
+        if owns_descriptor:
+            _close_stable_directory_descriptor(
+                descriptor,
+                path,
+                before,
+                label=f"{label} directory {relative}",
+            )
+        else:
+            _verify_stable_directory_descriptor(
+                descriptor,
+                path,
+                before,
+                label=f"{label} directory {relative}",
+            )
+
+    walk_directory(
+        root,
+        relative=".",
+        parent_descriptor=root_parent_descriptor,
+        entry_name=root_entry_name,
+        supplied_descriptor=root_descriptor,
+        supplied_before=root_before,
+    )
+    root_row = [row for row in rows if row["relative_path"] == "."]
+    if len(root_row) != 1:
+        raise RehearsalV22ValidationError(f"{label} root inventory drifted")
+    ordered_rows = tuple(
+        root_row
+        + sorted(
+            (row for row in rows if row["relative_path"] != "."),
+            key=lambda row: cast(str, row["relative_path"]).encode("utf-8"),
+        )
+    )
+    ordered_payloads = dict(sorted(payloads.items(), key=lambda item: item[0].encode("utf-8")))
+    ordered_identities = dict(sorted(identities.items(), key=lambda item: item[0].encode("utf-8")))
+    return _MirrorTreeInventory(
+        rows=ordered_rows,
+        payloads=ordered_payloads,
+        identities=ordered_identities,
+        sha256=_sha256(MIRROR_INVENTORY_PREFIX + _canonical_json_bytes(list(ordered_rows))),
+        file_count=len(ordered_payloads),
+        total_bytes=sum(len(payload) for payload in ordered_payloads.values()),
+    )
+
+
+def _mirror_inventory_through_ordinal(
+    inventory: _MirrorTreeInventory,
+    *,
+    ordinal: int,
+) -> _MirrorTreeInventory:
+    def included(relative: str) -> bool:
+        if relative in {".", "series.json", ".series.lock", "attempts"}:
+            return True
+        parts = PurePosixPath(relative).parts
+        return (
+            len(parts) >= 2
+            and parts[0] == "attempts"
+            and re.fullmatch(r"[0-9]{6}", parts[1]) is not None
+            and int(parts[1]) <= ordinal
+        )
+
+    rows = tuple(
+        copy.deepcopy(row) for row in inventory.rows if included(cast(str, row["relative_path"]))
+    )
+    payloads = {
+        relative: payload for relative, payload in inventory.payloads.items() if included(relative)
+    }
+    identities = {
+        relative: identity
+        for relative, identity in inventory.identities.items()
+        if included(relative)
+    }
+    return _MirrorTreeInventory(
+        rows=rows,
+        payloads=payloads,
+        identities=identities,
+        sha256=_sha256(MIRROR_INVENTORY_PREFIX + _canonical_json_bytes(list(rows))),
+        file_count=len(payloads),
+        total_bytes=sum(len(payload) for payload in payloads.values()),
+    )
+
+
+def _strict_receipt_inventory(
+    path: Path,
+    *,
+    label: str,
+    root_descriptor: int | None = None,
+    root_before: _validator_os.stat_result | None = None,
+) -> _MirrorTreeInventory:
+    inventory = _strict_private_tree_inventory(
+        path,
+        label=label,
+        root_descriptor=root_descriptor,
+        root_before=root_before,
+    )
+    if any(
+        row["kind"] != "file" or len(PurePosixPath(cast(str, row["relative_path"])).parts) != 1
+        for row in inventory.rows
+        if row["relative_path"] != "."
+    ):
+        raise RehearsalV22ValidationError(f"{label} contains a noncanonical receipt member")
+    return inventory
+
+
+def _strict_receipt_root(
+    path: Path,
+    *,
+    label: str,
+    root_descriptor: int | None = None,
+    root_before: _validator_os.stat_result | None = None,
+) -> tuple[tuple[str, bytes], ...]:
+    inventory = _strict_receipt_inventory(
+        path,
+        label=label,
+        root_descriptor=root_descriptor,
+        root_before=root_before,
+    )
+    return tuple(inventory.payloads.items())
+
+
+def _mirror_receipt_filename(ordinal: int, live_root: str) -> str:
+    _sha(live_root, "mirror live-ledger root")
+    if ordinal < 1:
+        raise RehearsalV22ValidationError("mirror receipt ordinal is invalid")
+    return f"through-ordinal-{ordinal:06d}-{live_root}.mirror-verification.json"
+
+
+def _mirror_snapshot_name(ordinal: int, live_root: str) -> str:
+    _sha(live_root, "mirror snapshot live-ledger root")
+    if ordinal < 1:
+        raise RehearsalV22ValidationError("mirror snapshot ordinal is invalid")
+    return f"through-ordinal-{ordinal:06d}-{live_root}"
+
+
+def _validate_second_copy_history(
+    *,
+    binding: BindingView,
+    replay: HistoryReplay,
+) -> tuple[JsonObject, ...]:
+    """Passively rebind every cumulative snapshot and paired receipt to primary."""
+
+    if not replay.records:
+        raise RehearsalV22ValidationError(
+            "series-2 second-copy validation requires persisted history"
+        )
+    primary_container = _strict_owner_directory_identity(
+        binding.primary_series_container,
+        label="series-2 primary container",
+    )
+    secondary_container = _strict_owner_directory_identity(
+        binding.secondary_series_container,
+        label="series-2 secondary container",
+    )
+    if (
+        binding.ledger_root != binding.primary_series_container / "PRIMARY-LEDGER-DO-NOT-DELETE"
+        or binding.primary_receipt_root
+        != binding.primary_series_container / "MIRROR-RECEIPTS-DO-NOT-DELETE"
+        or binding.secondary_snapshot_root
+        != binding.secondary_series_container / "SEALED-LEDGER-SNAPSHOTS-DO-NOT-DELETE"
+        or binding.secondary_receipt_root
+        != binding.secondary_series_container / "MIRROR-RECEIPTS-DO-NOT-DELETE"
+    ):
+        raise RehearsalV22ValidationError("series-2 mirror leaf binding drifted")
+    protected = (binding.project_root, binding.absolute_destination)
+    if (
+        primary_container == secondary_container
+        or primary_container.is_relative_to(secondary_container)
+        or secondary_container.is_relative_to(primary_container)
+        or any(
+            primary_container == path
+            or secondary_container == path
+            or primary_container.is_relative_to(path)
+            or secondary_container.is_relative_to(path)
+            or path.is_relative_to(primary_container)
+            or path.is_relative_to(secondary_container)
+            for path in protected
+        )
+    ):
+        raise RehearsalV22ValidationError(
+            "series-2 evidence containers overlap each other or protected state"
+        )
+    leaves = (
+        binding.secondary_snapshot_root,
+        binding.primary_receipt_root,
+        binding.secondary_receipt_root,
+    )
+    if tuple(_validator_os.path.lexists(path) for path in leaves) != (
+        True,
+        True,
+        True,
+    ):
+        raise RehearsalV22ValidationError("series-2 mirror leaves are partial or absent")
+    held_roots: list[tuple[int, Path, _validator_os.stat_result, str]] = []
+    try:
+        for path, label in (
+            (binding.ledger_root, "series-2 primary live-ledger root"),
+            (binding.secondary_snapshot_root, "series-2 snapshot root"),
+            (binding.primary_receipt_root, "series-2 primary receipt root"),
+            (binding.secondary_receipt_root, "series-2 secondary receipt root"),
+        ):
+            descriptor, before = _open_stable_read_descriptor(
+                path,
+                label=label,
+                directory=True,
+            )
+            if stat.S_IMODE(before.st_mode) != 0o700 or before.st_uid != _validator_os.getuid():
+                _validator_os.close(descriptor)
+                raise RehearsalV22ValidationError(f"{label} owner or mode drifted")
+            held_roots.append((descriptor, path, before, label))
+    except BaseException:
+        for descriptor, _path, _before, _label in held_roots:
+            _validator_os.close(descriptor)
+        raise
+    (
+        (primary_descriptor, _primary_path, primary_before, _primary_label),
+        (snapshot_descriptor, snapshot_root, _snapshot_before, _snapshot_label),
+        (
+            primary_receipt_descriptor,
+            _primary_receipt_path,
+            primary_receipt_before,
+            _primary_receipt_label,
+        ),
+        (
+            secondary_receipt_descriptor,
+            _secondary_receipt_path,
+            secondary_receipt_before,
+            _secondary_receipt_label,
+        ),
+    ) = held_roots
+    result: tuple[JsonObject, ...] | None = None
+    try:
+        primary_receipt_inventory = _strict_receipt_inventory(
+            binding.primary_receipt_root,
+            label="series-2 primary receipt root",
+            root_descriptor=primary_receipt_descriptor,
+            root_before=primary_receipt_before,
+        )
+        secondary_receipt_inventory = _strict_receipt_inventory(
+            binding.secondary_receipt_root,
+            label="series-2 secondary receipt root",
+            root_descriptor=secondary_receipt_descriptor,
+            root_before=secondary_receipt_before,
+        )
+        primary_receipts = tuple(primary_receipt_inventory.payloads.items())
+        secondary_receipts = tuple(secondary_receipt_inventory.payloads.items())
+        if primary_receipts != secondary_receipts:
+            raise RehearsalV22ValidationError("series-2 paired mirror receipt bytes differ")
+        if len(primary_receipts) != len(replay.records):
+            raise RehearsalV22ValidationError(
+                "series-2 mirror receipt count blocks bundle or release"
+            )
+        snapshot_names = sorted(
+            _validator_os.listdir(snapshot_descriptor),
+            key=lambda value: value.encode("utf-8"),
+        )
+        if any(
+            not isinstance(name, str) or name in {"", ".", ".."} or "/" in name
+            for name in snapshot_names
+        ) or len(snapshot_names) != len(replay.records):
+            raise RehearsalV22ValidationError(
+                "series-2 mirror snapshot count or name blocks bundle or release"
+            )
+        current_primary = _strict_private_tree_inventory(
+            binding.ledger_root,
+            label="series-2 current primary live ledger",
+            root_descriptor=primary_descriptor,
+            root_before=primary_before,
+        )
+        if current_primary.payloads != replay.live_payloads:
+            raise RehearsalV22ValidationError(
+                "primary ledger bytes changed after independent history replay"
+            )
+        if current_primary.identities != replay.live_identities:
+            raise RehearsalV22ValidationError(
+                "primary ledger identity changed after independent history replay"
+            )
+        current_live_root = _path_merkle(
+            current_primary.payloads,
+            leaf_domain=b"p4.2a-rehearsal-v2.2-ledger-leaf-v1\0",
+        )
+        if current_live_root != replay.live_ledger_root_sha256:
+            raise RehearsalV22ValidationError(
+                "primary live-ledger root changed after independent history replay"
+            )
+        history_roots: list[str] = []
+        history_root = _history_empty_root()
+        for ordinal, record in enumerate(replay.records, 1):
+            _require_equal(
+                record.get("ordinal"),
+                ordinal,
+                "mirror primary record ordinal",
+            )
+            history_root = _history_step(
+                history_root,
+                _sha(record.get("record_root_sha256"), "mirror primary record root"),
+            )
+            history_roots.append(history_root)
+        _require_equal(
+            history_root,
+            replay.history_root_sha256,
+            "mirror primary final history root",
+        )
+        observed_snapshot_names: set[str] = set()
+        initial_snapshot_inventories: dict[str, _MirrorTreeInventory] = {}
+        receipts: list[JsonObject] = []
+        for ordinal, (filename, payload) in enumerate(primary_receipts, 1):
+            receipt = _strict_canonical_json_loads(
+                payload,
+                label=f"series-2 mirror receipt {ordinal}",
+            )
+            _require_exact_keys(
+                receipt,
+                _MIRROR_RECEIPT_FIELDS,
+                f"series-2 mirror receipt {ordinal}",
+            )
+            live_root = _sha(
+                receipt.get("live_ledger_root_sha256"),
+                f"series-2 mirror receipt {ordinal} live root",
+            )
+            _require_equal(
+                filename,
+                _mirror_receipt_filename(ordinal, live_root),
+                f"series-2 mirror receipt {ordinal} filename",
+            )
+            record = replay.records[ordinal - 1]
+            expected_outcome = _string(
+                record.get("outcome"),
+                f"series-2 primary record {ordinal} outcome",
+            )
+            snapshot_name = _mirror_snapshot_name(ordinal, live_root)
+            snapshot = snapshot_root / snapshot_name
+            expected_scalars: Mapping[str, object] = {
+                "schema_version": MIRROR_RECEIPT_SCHEMA,
+                "series_token_sha256": binding.series_token_sha256,
+                "ordinal": ordinal,
+                "attempt_outcome": expected_outcome,
+                "attempt_sealed": expected_outcome != "INCOMPLETE_UNTERMINALIZED",
+                "primary_ledger_root": binding.ledger_root.as_posix(),
+                "secondary_snapshot_root": snapshot.as_posix(),
+                "history_root_sha256": history_roots[ordinal - 1],
+                "second_copy_verified": True,
+            }
+            for key, expected in expected_scalars.items():
+                _require_equal(
+                    receipt.get(key),
+                    expected,
+                    f"series-2 mirror receipt {ordinal} {key}",
+                )
+            _require_equal(
+                receipt.get("verified_at_utc"),
+                FIXED_WALL_CLOCK_TEXT,
+                f"series-2 mirror receipt {ordinal} verified_at_utc",
+            )
+            snapshot_inventory = _strict_private_tree_inventory(
+                snapshot,
+                label=f"series-2 snapshot {ordinal}",
+                root_parent_descriptor=snapshot_descriptor,
+                root_entry_name=snapshot_name,
+            )
+            initial_snapshot_inventories[snapshot_name] = snapshot_inventory
+            primary_prefix = _mirror_inventory_through_ordinal(
+                current_primary,
+                ordinal=ordinal,
+            )
+            if (
+                snapshot_inventory.rows != primary_prefix.rows
+                or snapshot_inventory.payloads != primary_prefix.payloads
+            ):
+                raise RehearsalV22ValidationError(
+                    "mirror snapshot inventory differs from current primary prefix"
+                )
+            snapshot_live_root = _path_merkle(
+                snapshot_inventory.payloads,
+                leaf_domain=b"p4.2a-rehearsal-v2.2-ledger-leaf-v1\0",
+            )
+            inventory_expected: Mapping[str, object] = {
+                "live_ledger_root_sha256": snapshot_live_root,
+                "file_count": snapshot_inventory.file_count,
+                "total_bytes": snapshot_inventory.total_bytes,
+                "primary_inventory_sha256": primary_prefix.sha256,
+                "secondary_inventory_sha256": snapshot_inventory.sha256,
+            }
+            for key, expected in inventory_expected.items():
+                _require_equal(
+                    receipt.get(key),
+                    expected,
+                    f"series-2 mirror receipt {ordinal} {key}",
+                )
+            observed_snapshot_names.add(snapshot_name)
+            receipts.append(receipt)
+        if set(snapshot_names) != observed_snapshot_names:
+            raise RehearsalV22ValidationError(
+                "series-2 snapshot root contains a staging or extra artifact"
+            )
+        final_primary_receipt_inventory = _strict_receipt_inventory(
+            binding.primary_receipt_root,
+            label="series-2 final primary receipt root recheck",
+            root_descriptor=primary_receipt_descriptor,
+            root_before=primary_receipt_before,
+        )
+        if (
+            final_primary_receipt_inventory.rows != primary_receipt_inventory.rows
+            or final_primary_receipt_inventory.payloads != primary_receipt_inventory.payloads
+            or final_primary_receipt_inventory.identities != primary_receipt_inventory.identities
+        ):
+            raise RehearsalV22ValidationError(
+                "primary receipt root changed during mirror validation"
+            )
+        final_secondary_receipt_inventory = _strict_receipt_inventory(
+            binding.secondary_receipt_root,
+            label="series-2 final secondary receipt root recheck",
+            root_descriptor=secondary_receipt_descriptor,
+            root_before=secondary_receipt_before,
+        )
+        if (
+            final_secondary_receipt_inventory.rows != secondary_receipt_inventory.rows
+            or final_secondary_receipt_inventory.payloads != secondary_receipt_inventory.payloads
+            or final_secondary_receipt_inventory.identities
+            != secondary_receipt_inventory.identities
+        ):
+            raise RehearsalV22ValidationError(
+                "secondary receipt root changed during mirror validation"
+            )
+        final_snapshot_names = sorted(
+            _validator_os.listdir(snapshot_descriptor),
+            key=lambda value: value.encode("utf-8"),
+        )
+        if final_snapshot_names != snapshot_names:
+            raise RehearsalV22ValidationError("snapshot root changed during mirror validation")
+        for snapshot_name in snapshot_names:
+            initial_snapshot_inventory = initial_snapshot_inventories[snapshot_name]
+            final_snapshot_inventory = _strict_private_tree_inventory(
+                snapshot_root / snapshot_name,
+                label=f"series-2 final snapshot {snapshot_name} recheck",
+                root_parent_descriptor=snapshot_descriptor,
+                root_entry_name=snapshot_name,
+            )
+            if (
+                final_snapshot_inventory.rows != initial_snapshot_inventory.rows
+                or final_snapshot_inventory.payloads != initial_snapshot_inventory.payloads
+                or final_snapshot_inventory.identities != initial_snapshot_inventory.identities
+            ):
+                raise RehearsalV22ValidationError(
+                    "snapshot bytes or identity changed during mirror validation"
+                )
+        final_primary = _strict_private_tree_inventory(
+            binding.ledger_root,
+            label="series-2 final primary live-ledger recheck",
+            root_descriptor=primary_descriptor,
+            root_before=primary_before,
+        )
+        if (
+            final_primary.rows != current_primary.rows
+            or final_primary.payloads != current_primary.payloads
+            or final_primary.identities != current_primary.identities
+            or final_primary.sha256 != current_primary.sha256
+        ):
+            raise RehearsalV22ValidationError(
+                "primary live ledger changed during mirror validation"
+            )
+        latest = receipts[-1]
+        latest_expected: Mapping[str, object] = {
+            "history_root_sha256": replay.history_root_sha256,
+            "live_ledger_root_sha256": replay.live_ledger_root_sha256,
+            "primary_inventory_sha256": final_primary.sha256,
+            "file_count": final_primary.file_count,
+            "total_bytes": final_primary.total_bytes,
+        }
+        for key, expected in latest_expected.items():
+            _require_equal(
+                latest.get(key),
+                expected,
+                f"series-2 latest mirror {key}",
+            )
+        result = tuple(receipts)
+    except BaseException:
+        for descriptor, _path, _before, _label in held_roots:
+            with contextlib.suppress(OSError):
+                _validator_os.close(descriptor)
+        raise
+    close_error: BaseException | None = None
+    for descriptor, path, before, label in held_roots:
+        try:
+            _close_stable_directory_descriptor(
+                descriptor,
+                path,
+                before,
+                label=label,
+            )
+        except BaseException as exc:
+            if close_error is None:
+                close_error = exc
+    if close_error is not None:
+        raise close_error
+    if result is None:
+        raise RehearsalV22ValidationError("series-2 mirror validation produced no result")
+    return result
 
 
 @dataclass(frozen=True)
@@ -3573,9 +4777,10 @@ def _validate_materialization_manifest(
         raise RehearsalV22ValidationError("rehearsal materialization used real authority mode")
     if authority.get("implementation_commit") != pipeline_implementation_commit:
         raise RehearsalV22ValidationError("materialization implementation commit drifted")
-    if authority.get("rehearsal_bundle") is not None or authority.get(
-        "release_authorization"
-    ) is not None:
+    if (
+        authority.get("rehearsal_bundle") is not None
+        or authority.get("release_authorization") is not None
+    ):
         raise RehearsalV22ValidationError("offline manifest recursively binds a release")
     pacing = _object(manifest.get("request_pacing"), "manifest request pacing")
     _require_exact_keys(
@@ -3671,12 +4876,7 @@ def _validate_prediction_timing(
             prediction.get("recorded_at_utc"), f"prediction {index} recorded_at"
         )
         latency = prediction.get("latency_ms")
-        if (
-            recorded != fixed
-            or recorded < prior
-            or isinstance(latency, bool)
-            or latency != 0
-        ):
+        if recorded != fixed or recorded < prior or isinstance(latency, bool) or latency != 0:
             raise RehearsalV22ValidationError("prediction timing or latency drifted")
         prior = recorded
 
@@ -3803,9 +5003,7 @@ def _normalize_distribution_rows(
         names.append(name)
         rows.append({"name": name, "version": version})
     if len(names) != len(set(names)):
-        raise RehearsalV22ValidationError(
-            "package inventory contains duplicate normalized names"
-        )
+        raise RehearsalV22ValidationError("package inventory contains duplicate normalized names")
     rows.sort(key=lambda row: (cast(str, row["name"]), cast(str, row["version"])))
     return rows
 
@@ -3851,31 +5049,25 @@ def _independent_runtime_inventory() -> tuple[bytes, bytes]:
             or resolved != candidate
             or not resolved.is_relative_to(registered)
         ):
-            raise RehearsalV22ValidationError(
-                "fixed registered package metadata root is aliased"
-            )
+            raise RehearsalV22ValidationError("fixed registered package metadata root is aliased")
         if resolved not in selected:
             selected.append(resolved)
     projected: list[str] = []
     for package_root in selected:
         projected.append(package_root.relative_to(registered).as_posix())
-    if projected != [".venv/lib/python3.12/site-packages"] or _sha256(
-        _canonical_json_bytes(projected)
-    ) != "fae235892c0988d4093d1ad12b034a6126d116e436393e837a8b2f71601fbd12":
-        raise RehearsalV22ValidationError(
-            "fixed package metadata root binding drifted"
-        )
+    if (
+        projected != [".venv/lib/python3.12/site-packages"]
+        or _sha256(_canonical_json_bytes(projected))
+        != "fae235892c0988d4093d1ad12b034a6126d116e436393e837a8b2f71601fbd12"
+    ):
+        raise RehearsalV22ValidationError("fixed package metadata root binding drifted")
 
     try:
-        _normalize_distribution_rows(
-            [("validator_probe.pkg", "1"), ("validator-probe-pkg", "2")]
-        )
+        _normalize_distribution_rows([("validator_probe.pkg", "1"), ("validator-probe-pkg", "2")])
     except RehearsalV22ValidationError:
         pass
     else:
-        raise RehearsalV22ValidationError(
-            "duplicate package-name negative probe did not reject"
-        )
+        raise RehearsalV22ValidationError("duplicate package-name negative probe did not reject")
     distributions = list(
         importlib.metadata.distributions(path=[path.as_posix() for path in selected])
     )
@@ -3969,9 +5161,7 @@ def _validate_control_archive(
                     f"current control {relative}",
                 )
                 if current != payload:
-                    raise RehearsalV22ValidationError(
-                        f"current control bytes drifted: {relative}"
-                    )
+                    raise RehearsalV22ValidationError(f"current control bytes drifted: {relative}")
                 _validated_implementation_blob(
                     project_root=project_root,
                     implementation_commit=implementation_commit,
@@ -3987,11 +5177,15 @@ def _validate_control_archive(
                     "unique_a_history_verified": True,
                 }
                 if relative == INDEPENDENT_REVIEW_RELATIVE.as_posix():
-                    execution_head = _git_bytes(
-                        project_root,
-                        "rev-parse",
-                        "HEAD",
-                    ).decode("ascii", errors="strict").strip()
+                    execution_head = (
+                        _git_bytes(
+                            project_root,
+                            "rev-parse",
+                            "HEAD",
+                        )
+                        .decode("ascii", errors="strict")
+                        .strip()
+                    )
                     creating_payload = _validate_initial_sibling_authority(
                         project_root,
                         reference,
@@ -4054,9 +5248,7 @@ def _validate_control_archive(
         leaf_domain=b"p4.2a-rehearsal-leaf-v2.2\0",
     )
     _require_equal(control.get("merkle_root_sha256"), control_root, "control Merkle root")
-    referenced = _array(
-        control.get("referenced_pass_test_paths"), "referenced PASS test paths"
-    )
+    referenced = _array(control.get("referenced_pass_test_paths"), "referenced PASS test paths")
     if len(referenced) != _integer(
         control.get("referenced_pass_test_count"), "referenced PASS test count", minimum=1
     ):
@@ -4074,9 +5266,11 @@ def _validate_control_archive(
         True,
         "referenced PASS test archive",
     )
-    for relative, (digest, _creating_commit, _require_worktree) in (
-        _CONTROL_GOVERNANCE_AUTHORITIES.items()
-    ):
+    for relative, (
+        digest,
+        _creating_commit,
+        _require_worktree,
+    ) in _CONTROL_GOVERNANCE_AUTHORITIES.items():
         governance_payload = repository_payloads.get(relative)
         if governance_payload is None or _sha256(governance_payload) != digest:
             raise RehearsalV22ValidationError(
@@ -4103,8 +5297,7 @@ def _validate_control_archive(
             )
     independent_python, independent_packages = _independent_runtime_inventory()
     if (
-        tree_payloads.get("archive/control-surface/root/runtime/python.json")
-        != independent_python
+        tree_payloads.get("archive/control-surface/root/runtime/python.json") != independent_python
         or tree_payloads.get("archive/control-surface/root/runtime/packages.json")
         != independent_packages
     ):
@@ -4131,14 +5324,11 @@ def _validate_control_archive(
         != tree_payloads["archive/control-surface/root/runtime/python.json"]
         or implementation_surface.package_inventory
         != tree_payloads["archive/control-surface/root/runtime/packages.json"]
-        or tuple(implementation_surface.ast_closure_paths)
-        != tuple(independent_closure)
+        or tuple(implementation_surface.ast_closure_paths) != tuple(independent_closure)
         or not set(implementation_surface.loaded_repository_sources).issubset(
             implementation_surface.ast_closure_paths
         )
-        or not set(implementation_surface.ast_closure_paths).issubset(
-            repository_payloads
-        )
+        or not set(implementation_surface.ast_closure_paths).issubset(repository_payloads)
     ):
         raise RehearsalV22ValidationError(
             "independent control replay differs from the implementation control surface"
@@ -4217,11 +5407,17 @@ def _validate_lineage(
 ) -> str:
     lineage = _object(bundle.get("lineage"), "bundle lineage")
     expected_refs = {
-        "preregistration": (PREREGISTRATION_RELATIVE.as_posix(), PREREGISTRATION_SHA256),
-        "bundle_schema": (BUNDLE_SCHEMA_RELATIVE.as_posix(), BUNDLE_SCHEMA_SHA256),
+        "preregistration": (
+            SERIES_2_PREREGISTRATION_RELATIVE.as_posix(),
+            SERIES_2_PREREGISTRATION_SHA256,
+        ),
+        "bundle_schema": (
+            SERIES_2_BUNDLE_SCHEMA_RELATIVE.as_posix(),
+            SERIES_2_BUNDLE_SCHEMA_SHA256,
+        ),
         "release_authorization_schema": (
-            RELEASE_SCHEMA_RELATIVE.as_posix(),
-            RELEASE_SCHEMA_SHA256,
+            SERIES_2_RELEASE_SCHEMA_RELATIVE.as_posix(),
+            SERIES_2_RELEASE_SCHEMA_SHA256,
         ),
     }
     for key, (path, digest) in expected_refs.items():
@@ -4232,8 +5428,19 @@ def _validate_lineage(
     )
     _require_equal(
         preregistration_commit,
-        INITIAL_REVIEWED_COMMIT,
+        SERIES_2_PREREGISTRATION_COMMIT,
         "bundle preregistration commit",
+    )
+    execution_head = (
+        _git_bytes(project_root, "rev-parse", "HEAD").decode("ascii", errors="strict").strip()
+    )
+    _require_equal(
+        _validate_series_2_preregistration(
+            project_root=project_root,
+            execution_head=execution_head,
+        ),
+        preregistration_commit,
+        "series-2 preregistration lineage",
     )
     _require_equal(
         lineage.get("implementation_commit"),
@@ -4307,9 +5514,7 @@ def _validate_lineage(
             f"bundle lineage {key}",
         )
         _unique_a_authority(project_root, reference, require_worktree=True)
-    incident_commit = _CARRY_FORWARD_AUTHORITIES[
-        "v2_1_consumed_attempt_incident"
-    ][2]
+    incident_commit = _CARRY_FORWARD_AUTHORITIES["v2_1_consumed_attempt_incident"][2]
     for child, parent, path in (
         (
             _V2_2_REMEDIATION_AUTHORITY[2],
@@ -4325,17 +5530,14 @@ def _validate_lineage(
         if _git_parents(project_root, child) != (parent,) or set(
             _diff_name_status(project_root, parent, child)
         ) != {("A", path)}:
-            raise RehearsalV22ValidationError(
-                "v2.2 remediation/scope authority topology drifted"
-            )
+            raise RehearsalV22ValidationError("v2.2 remediation/scope authority topology drifted")
     _require_equal(
         lineage.get("v2_1_implementation_commit"),
         _V2_1_IMPLEMENTATION_COMMIT,
         "v2.1 implementation commit",
     )
     if (
-        _git_parents(project_root, _V2_1_IMPLEMENTATION_COMMIT)
-        != (_V2_1_IMPLEMENTATION_PARENT,)
+        _git_parents(project_root, _V2_1_IMPLEMENTATION_COMMIT) != (_V2_1_IMPLEMENTATION_PARENT,)
         or tuple(
             sorted(
                 _diff_name_status(
@@ -4349,36 +5551,41 @@ def _validate_lineage(
         != _V2_1_IMPLEMENTATION_SURFACE
     ):
         raise RehearsalV22ValidationError("v2.1 implementation exact surface drifted")
-    prereg_reference = {
+    historical_prereg_reference = {
         "path": PREREGISTRATION_RELATIVE.as_posix(),
         "sha256": PREREGISTRATION_SHA256,
-        "creating_commit": preregistration_commit,
+        "creating_commit": INITIAL_REVIEWED_COMMIT,
         "unique_a_history_verified": True,
     }
-    _unique_a_authority(project_root, prereg_reference, require_worktree=True)
-    preregistration_parent = _V2_2_SCOPE_AUTHORITY[2]
-    if _git_parents(project_root, preregistration_commit) != (
-        preregistration_parent,
-    ):
+    _unique_a_authority(
+        project_root,
+        historical_prereg_reference,
+        require_worktree=True,
+    )
+    historical_preregistration_parent = _V2_2_SCOPE_AUTHORITY[2]
+    if _git_parents(project_root, INITIAL_REVIEWED_COMMIT) != (historical_preregistration_parent,):
         raise RehearsalV22ValidationError("v2.2 preregistration parent drifted")
     prereg_surface = {
         ("A", PREREGISTRATION_RELATIVE.as_posix()),
         ("A", BUNDLE_SCHEMA_RELATIVE.as_posix()),
         ("A", RELEASE_SCHEMA_RELATIVE.as_posix()),
     }
-    if set(
-        _diff_name_status(
-            project_root,
-            preregistration_parent,
-            preregistration_commit,
+    if (
+        set(
+            _diff_name_status(
+                project_root,
+                historical_preregistration_parent,
+                INITIAL_REVIEWED_COMMIT,
+            )
         )
-    ) != prereg_surface:
+        != prereg_surface
+    ):
         raise RehearsalV22ValidationError("v2.2 preregistration is not exact 3A")
     for relative, digest in (
         (BUNDLE_SCHEMA_RELATIVE.as_posix(), BUNDLE_SCHEMA_SHA256),
         (RELEASE_SCHEMA_RELATIVE.as_posix(), RELEASE_SCHEMA_SHA256),
     ):
-        if _sha256(_git_blob(project_root, preregistration_commit, relative)) != digest:
+        if _sha256(_git_blob(project_root, INITIAL_REVIEWED_COMMIT, relative)) != digest:
             raise RehearsalV22ValidationError("v2.2 schema creation blob drifted")
     return preregistration_commit
 
@@ -4532,9 +5739,7 @@ def _validate_implementation_review_document(
         or not negative_tokens.isdisjoint(verdict_tokens)
         or document.get("blockers") not in (None, [])
     ):
-        raise RehearsalV22ValidationError(
-            f"{label} did not unambiguously approve implementation"
-        )
+        raise RehearsalV22ValidationError(f"{label} did not unambiguously approve implementation")
 
 
 def _validate_void_epoch_one(
@@ -4551,8 +5756,7 @@ def _validate_void_epoch_one(
         "void epoch implementation commit",
     )
     if (
-        _git_parents(project_root, implementation_commit)
-        != (VOID_EPOCH_ONE_IMPLEMENTATION_PARENT,)
+        _git_parents(project_root, implementation_commit) != (VOID_EPOCH_ONE_IMPLEMENTATION_PARENT,)
         or _diff_name_status(
             project_root,
             VOID_EPOCH_ONE_IMPLEMENTATION_PARENT,
@@ -4627,11 +5831,10 @@ def _validate_void_epoch_one(
         VOID_EPOCH_ONE_LANDING_COMMIT,
         "void epoch merge-only landing",
     )
-    if (
-        _git_parents(project_root, landing)
-        != (VOID_EPOCH_ONE_REVIEW_COMMIT, implementation_commit)
-        or not _git_is_ancestor(project_root, landing, execution_head)
-    ):
+    if _git_parents(project_root, landing) != (
+        VOID_EPOCH_ONE_REVIEW_COMMIT,
+        implementation_commit,
+    ) or not _git_is_ancestor(project_root, landing, execution_head):
         raise RehearsalV22ValidationError("void epoch merge-only landing drifted")
     control = implementation.build_control_surface(
         project_root,
@@ -4658,247 +5861,163 @@ def _validate_implementation_epochs(
     replay: HistoryReplay,
     archives: ArchiveReplay,
 ) -> None:
-    epochs = _array(bundle.get("implementation_epochs"), "implementation epochs")
-    execution_head = _git_bytes(project_root, "rev-parse", "HEAD").decode(
-        "ascii", errors="strict"
-    ).strip()
+    epochs = _epoch_map(bundle, epoch_origin=SERIES_2_EPOCH_ORIGIN)
+    execution_head = (
+        _git_bytes(project_root, "rev-parse", "HEAD").decode("ascii", errors="strict").strip()
+    )
     _git_commit(project_root, execution_head, "execution HEAD")
-    for index, raw in enumerate(epochs, 1):
-        epoch = _validate_epoch_shape(raw, f"implementation epoch {index}")
-        if index == 1 and _is_void_epoch_one(epoch):
-            _validate_void_epoch_one(
-                project_root=project_root,
-                epoch=epoch,
-                execution_head=execution_head,
-            )
-            continue
+    for epoch_number, epoch in epochs.items():
+        label = f"implementation epoch {epoch_number}"
         implementation_commit = _git_commit(
             project_root,
             epoch["implementation_commit"],
-            f"implementation epoch {index} commit",
+            f"{label} commit",
         )
         if not _git_is_ancestor(project_root, implementation_commit, execution_head):
-            raise RehearsalV22ValidationError(
-                f"implementation epoch {index} is not an execution-head ancestor"
-            )
+            raise RehearsalV22ValidationError(f"{label} is not an execution-head ancestor")
         owner = _validate_authority_ref(
             epoch["owner_exact_surface_authorization"],
-            f"implementation epoch {index} owner authority",
+            f"{label} owner authority",
         )
         review = _validate_authority_ref(
             epoch["independent_implementation_review"],
-            f"implementation epoch {index} independent review",
+            f"{label} independent review",
         )
-        if index == 1:
-            expected_owner = {
-                "path": INDEPENDENT_REVIEW_RELATIVE.as_posix(),
-                "sha256": INDEPENDENT_REVIEW_SHA256,
-                "creating_commit": INDEPENDENT_REVIEW_COMMIT,
-                "unique_a_history_verified": True,
-            }
-            _require_equal(owner, expected_owner, "initial owner surface authority")
-            owner_payload = _validate_initial_sibling_authority(
-                project_root,
-                owner,
-                execution_head=execution_head,
-            )
-        else:
-            owner_payload = _unique_a_authority(
-                project_root,
-                owner,
-                require_worktree=True,
-            )
+        owner_payload = _unique_a_authority(
+            project_root,
+            owner,
+            require_worktree=True,
+        )
         parents = _git_parents(project_root, implementation_commit)
         if len(parents) != 1:
             raise RehearsalV22ValidationError("implementation epoch commit is not single-parent")
-        if index == 1:
-            owner_document = _object(
-                strict_json_loads(owner_payload, label="initial sibling authority"),
-                "initial sibling authority",
+        if parents != (cast(str, owner["creating_commit"]),):
+            raise RehearsalV22ValidationError(f"{label} is not the direct child of its authority")
+        owner_document = _object(
+            strict_json_loads(owner_payload, label=f"{label} surface authorization"),
+            f"{label} surface authorization",
+        )
+        _require_exact_keys(
+            owner_document,
+            frozenset(
+                {
+                    "schema_version",
+                    "verdict",
+                    "owner",
+                    "implementation_epoch",
+                    "base_commit",
+                    "exact_surface",
+                }
+            ),
+            f"{label} surface authorization",
+        )
+        _require_equal(
+            owner_document["schema_version"],
+            "p4.2a-v2-2-implementation-epoch-surface-authorization-v1",
+            f"{label} surface authorization schema",
+        )
+        _require_equal(
+            owner_document["verdict"],
+            "APPROVE_EXACT_V2_2_IMPLEMENTATION_EPOCH_SURFACE",
+            f"{label} surface authorization verdict",
+        )
+        _require_equal(
+            owner_document["owner"],
+            {"identity": "ouyang", "approved": True},
+            f"{label} surface authorization owner",
+        )
+        _require_equal(
+            owner_document["implementation_epoch"],
+            epoch_number,
+            f"{label} surface authorization number",
+        )
+        base_commit = _git_commit(
+            project_root,
+            owner_document["base_commit"],
+            f"{label} surface base",
+        )
+        if _git_parents(project_root, cast(str, owner["creating_commit"])) != (base_commit,):
+            raise RehearsalV22ValidationError(
+                f"{label} authority is not the direct child of its base"
             )
-            _require_equal(
-                owner_document.get("reviewed_commit"),
-                INITIAL_REVIEWED_COMMIT,
-                "initial sibling reviewed commit",
+        if not _git_is_ancestor(
+            project_root,
+            SERIES_2_PREREGISTRATION_COMMIT,
+            base_commit,
+        ):
+            raise RehearsalV22ValidationError(
+                f"{label} authority base lost series-2 preregistration lineage"
             )
-            _require_equal(
-                owner_document.get("verdict"),
-                "APPROVE_V2_2_PREREGISTRATION_AND_AUTHORIZE_IMPLEMENTATION",
-                "initial sibling authority verdict",
-            )
-            _require_equal(
-                _object(
-                    owner_document.get("what_this_authorizes"),
-                    "initial sibling authorization scope",
-                ).get("granted"),
-                (
-                    "implement the v2.2 harness exactly as preregistered: the shim, "
-                    "the implementation module, the validator, the series ledger, "
-                    "and the registered tests"
-                ),
-                "initial sibling authorization grant",
-            )
-            if parents != (INITIAL_IMPLEMENTATION_PARENT,):
-                raise RehearsalV22ValidationError("initial implementation parent drifted")
-            initial_expected_surface = {("A", path) for path in IMPLEMENTATION_PATHS}
-            observed_surface = set(
-                _diff_name_status(
-                    project_root, INITIAL_IMPLEMENTATION_PARENT, implementation_commit
-                )
-            )
-            if observed_surface != initial_expected_surface:
-                raise RehearsalV22ValidationError("initial implementation is not exact 5A")
-        else:
-            if parents != (cast(str, owner["creating_commit"]),):
-                raise RehearsalV22ValidationError(
-                    "later implementation epoch is not direct child of its authority"
-                )
-            owner_document = _object(
-                strict_json_loads(
-                    owner_payload,
-                    label=f"epoch {index} surface authorization",
-                ),
-                f"epoch {index} surface authorization",
-            )
+        rows = _array(owner_document["exact_surface"], f"{label} exact surface")
+        if not rows:
+            raise RehearsalV22ValidationError("implementation epoch exact surface is empty")
+        expected_surface: dict[str, str] = {}
+        ordered_surface_paths: list[str] = []
+        for row_index, raw_row in enumerate(rows):
+            row = _object(raw_row, f"{label} surface row {row_index}")
             _require_exact_keys(
-                owner_document,
-                frozenset(
-                    {
-                        "schema_version",
-                        "verdict",
-                        "owner",
-                        "implementation_epoch",
-                        "base_commit",
-                        "exact_surface",
-                    }
-                ),
-                f"epoch {index} surface authorization",
+                row,
+                frozenset({"path", "status"}),
+                f"{label} surface row {row_index}",
             )
-            _require_equal(
-                owner_document["schema_version"],
-                "p4.2a-v2-2-implementation-epoch-surface-authorization-v1",
-                f"epoch {index} surface authorization schema",
-            )
-            _require_equal(
-                owner_document["verdict"],
-                "APPROVE_EXACT_V2_2_IMPLEMENTATION_EPOCH_SURFACE",
-                f"epoch {index} surface authorization verdict",
-            )
-            _require_equal(
-                owner_document["owner"],
-                {"identity": "ouyang", "approved": True},
-                f"epoch {index} surface authorization owner",
-            )
-            _require_equal(
-                owner_document["implementation_epoch"],
-                index,
-                f"epoch {index} surface authorization number",
-            )
-            base_commit = _git_commit(
-                project_root,
-                owner_document["base_commit"],
-                f"epoch {index} surface base",
-            )
-            if _git_parents(
-                project_root, cast(str, owner["creating_commit"])
-            ) != (base_commit,):
-                raise RehearsalV22ValidationError(
-                    "later epoch authority is not the direct child of its base"
-                )
-            if not _git_is_ancestor(
-                project_root,
-                INITIAL_REVIEWED_COMMIT,
-                base_commit,
+            relative = _relative(row["path"], f"{label} surface row path")
+            status_value = _string(row["status"], f"{label} surface row status")
+            if (
+                relative not in IMPLEMENTATION_PATHS
+                or status_value not in {"A", "M"}
+                or relative in expected_surface
             ):
                 raise RehearsalV22ValidationError(
-                    "later epoch authority base does not descend from preregistration"
+                    "implementation epoch exact surface escaped its five-path A/M allowlist"
                 )
-            rows = _array(
-                owner_document["exact_surface"],
-                f"epoch {index} exact surface",
+            expected_surface[relative] = status_value
+            ordered_surface_paths.append(relative)
+        if ordered_surface_paths != sorted(
+            ordered_surface_paths,
+            key=lambda value: value.encode("utf-8"),
+        ):
+            raise RehearsalV22ValidationError(
+                "implementation epoch exact surface is not byte-sorted"
             )
-            if not rows:
-                raise RehearsalV22ValidationError("later epoch exact surface is empty")
-            later_expected_surface: dict[str, str] = {}
-            ordered_surface_paths: list[str] = []
-            for row_index, raw_row in enumerate(rows):
-                row = _object(raw_row, f"epoch {index} surface row {row_index}")
-                _require_exact_keys(
-                    row,
-                    frozenset({"path", "status"}),
-                    f"epoch {index} surface row {row_index}",
-                )
-                relative = _relative(
-                    row["path"], f"epoch {index} surface row path"
-                )
-                status_value = _string(
-                    row["status"], f"epoch {index} surface row status"
-                )
-                if (
-                    relative not in IMPLEMENTATION_PATHS
-                    or status_value not in {"A", "M"}
-                    or relative in later_expected_surface
-                ):
-                    raise RehearsalV22ValidationError(
-                        "later epoch exact surface escaped its five-path A/M allowlist"
-                    )
-                later_expected_surface[relative] = status_value
-                ordered_surface_paths.append(relative)
-            if ordered_surface_paths != sorted(
-                ordered_surface_paths, key=lambda value: value.encode("utf-8")
-            ):
-                raise RehearsalV22ValidationError(
-                    "later epoch exact surface is not byte-sorted"
-                )
-            surface = _diff_name_status(project_root, parents[0], implementation_commit)
-            if len(surface) != len(later_expected_surface) or dict(
-                (path, status) for status, path in surface
-            ) != later_expected_surface:
-                raise RehearsalV22ValidationError(
-                    "later epoch implementation differs from owner exact surface"
-                )
-        review_payload = (
-            _unique_a_authority(
-                project_root,
-                review,
-                require_worktree=True,
+        surface = _diff_name_status(project_root, parents[0], implementation_commit)
+        if (
+            len(surface) != len(expected_surface)
+            or {path: status for status, path in surface} != expected_surface
+        ):
+            raise RehearsalV22ValidationError(
+                "implementation epoch differs from owner exact surface"
             )
-            if index == 1
-            else _validate_implementation_review_authority(
-                project_root,
-                review,
-                implementation_commit=implementation_commit,
-                execution_head=execution_head,
-                require_worktree=True,
-            )
+        review_payload = _validate_implementation_review_authority(
+            project_root,
+            review,
+            implementation_commit=implementation_commit,
+            execution_head=execution_head,
+            require_worktree=True,
         )
         review_document = _object(
-            strict_json_loads(review_payload, label=f"epoch {index} independent review"),
-            f"epoch {index} independent review",
+            strict_json_loads(review_payload, label=f"{label} independent review"),
+            f"{label} independent review",
         )
         _validate_implementation_review_document(
             document=review_document,
             implementation_commit=implementation_commit,
-            label=f"epoch {index} independent review",
+            label=f"{label} independent review",
         )
         review_commit = cast(str, review["creating_commit"])
-        if (
-            not _git_is_ancestor(project_root, implementation_commit, review_commit)
-            or not _git_is_ancestor(project_root, review_commit, execution_head)
-        ):
-            raise RehearsalV22ValidationError(
-                f"epoch {index} independent review topology drifted"
-            )
+        if not _git_is_ancestor(
+            project_root, implementation_commit, review_commit
+        ) or not _git_is_ancestor(project_root, review_commit, execution_head):
+            raise RehearsalV22ValidationError(f"{label} independent review topology drifted")
         for relative in IMPLEMENTATION_PATHS:
             blob = _git_blob(project_root, implementation_commit, relative)
-            if index == replay.selected_implementation_epoch:
+            if epoch_number == replay.selected_implementation_epoch:
                 current = _regular_bytes(
                     _safe_path(
                         project_root,
                         relative,
-                        f"epoch {index} implementation path",
+                        f"epoch {epoch_number} implementation path",
                     ),
-                    f"epoch {index} implementation path",
+                    f"epoch {epoch_number} implementation path",
                 )
                 if current != blob:
                     raise RehearsalV22ValidationError(
@@ -4911,8 +6030,7 @@ def _validate_implementation_epochs(
         )
         if (
             epoch_control.implementation_commit != implementation_commit
-            or epoch_control.merkle_root_sha256
-            != epoch["control_merkle_root_sha256"]
+            or epoch_control.merkle_root_sha256 != epoch["control_merkle_root_sha256"]
             or epoch_control.loaded_repository_sources
             or not set(epoch_control.ast_closure_paths).issubset(
                 record["repository_path"]
@@ -4921,32 +6039,34 @@ def _validate_implementation_epochs(
             )
         ):
             raise RehearsalV22ValidationError(
-                f"implementation epoch {index} control surface replay drifted"
+                f"implementation epoch {epoch_number} control surface replay drifted"
             )
         implementation.validate_implementation_epoch(
             project_root,
-            epoch=index,
+            epoch=epoch_number,
             implementation_commit=implementation_commit,
             owner_surface_authorization=_core_authority(owner),
             independent_review=_core_authority(review),
-            control_merkle_root_sha256=cast(
-                str, epoch["control_merkle_root_sha256"]
-            ),
+            control_merkle_root_sha256=cast(str, epoch["control_merkle_root_sha256"]),
             execution_head=execution_head,
-            require_current_bytes=(index == replay.selected_implementation_epoch),
+            require_current_bytes=(epoch_number == replay.selected_implementation_epoch),
         )
-    if _is_void_epoch_one(_object(epochs[0], "implementation epoch 1")):
-        if any(record.get("implementation_epoch") == 1 for record in replay.records):
-            raise RehearsalV22ValidationError(
-                "void epoch 1 unexpectedly owns a ledger attempt"
-            )
-        if not replay.records or replay.records[0].get("implementation_epoch") != 2:
-            raise RehearsalV22ValidationError(
-                "executed implementation history does not begin at epoch 2"
-            )
-    selected = _object(
-        epochs[replay.selected_implementation_epoch - 1], "selected implementation epoch"
-    )
+    if (
+        not replay.records
+        or replay.records[0].get("implementation_epoch") != SERIES_2_EPOCH_ORIGIN
+        or any(
+            record.get("implementation_epoch", 0) < SERIES_2_EPOCH_ORIGIN
+            for record in replay.records
+        )
+    ):
+        raise RehearsalV22ValidationError(
+            "series-2 executed history does not begin at explicit epoch 5"
+        )
+    selected = epochs.get(replay.selected_implementation_epoch)
+    if selected is None:
+        raise RehearsalV22ValidationError(
+            "selected implementation epoch is absent from explicit epoch map"
+        )
     _require_equal(
         selected["control_merkle_root_sha256"],
         archives.control_root_sha256,
@@ -4979,9 +6099,7 @@ def _bundle_filesystem_is_exact(
     if _tree_directory_relatives(bundle_directory, label="bundle directory") != (
         _directories_implied_by_files(tuple(expected))
     ):
-        raise RehearsalV22ValidationError(
-            "bundle directory contains a missing or extra directory"
-        )
+        raise RehearsalV22ValidationError("bundle directory contains a missing or extra directory")
 
 
 def _validate_pipeline_replay_result(
@@ -4998,9 +6116,7 @@ def _validate_pipeline_replay_result(
             f"{run_label} active replay artifacts differ from the archive"
         )
     if value.removed is not True or _validator_os.path.lexists(value.write_root):
-        raise RehearsalV22ValidationError(
-            f"{run_label} active replay temporary write root remains"
-        )
+        raise RehearsalV22ValidationError(f"{run_label} active replay temporary write root remains")
     common = {
         "status": "PASS",
         "run_label": run_label,
@@ -5045,9 +6161,7 @@ def _validate_pipeline_replay_result(
         },
     }
     if dict(value.probe_evidence) != expected_probes:
-        raise RehearsalV22ValidationError(
-            f"{run_label} active replay probe evidence drifted"
-        )
+        raise RehearsalV22ValidationError(f"{run_label} active replay probe evidence drifted")
 
 
 def _active_replay_selected_pipeline(
@@ -5114,31 +6228,53 @@ def _validate_bundle_once(
             "release-bound bundle SHA",
         )
     bundle = _object(strict_json_loads(bundle_payload, label="v2.2 bundle"), "v2.2 bundle")
-    schema_payload = _bound_control(
+    historical_schema_payload = _bound_control(
         root,
         BUNDLE_SCHEMA_RELATIVE,
         BUNDLE_SCHEMA_SHA256,
-        "v2.2 bundle schema",
+        "historical v2.2 bundle schema",
     )
-    schema = _object(strict_json_loads(schema_payload, label="bundle schema"), "bundle schema")
+    schema_payload = _bound_control(
+        root,
+        SERIES_2_BUNDLE_SCHEMA_RELATIVE,
+        SERIES_2_BUNDLE_SCHEMA_SHA256,
+        "series-2 bundle schema",
+    )
+    schema = _object(
+        strict_json_loads(schema_payload, label="series-2 bundle schema"),
+        "series-2 bundle schema",
+    )
     _schema_validate(bundle, schema, "v2.2 bundle")
     preregistration_payload = _bound_control(
         root,
         PREREGISTRATION_RELATIVE,
         PREREGISTRATION_SHA256,
-        "v2.2 preregistration",
+        "historical v2.2 preregistration",
     )
-    release_schema_payload = _bound_control(
+    historical_release_schema_payload = _bound_control(
         root,
         RELEASE_SCHEMA_RELATIVE,
         RELEASE_SCHEMA_SHA256,
-        "v2.2 release schema",
+        "historical v2.2 release schema",
+    )
+    release_schema_payload = _bound_control(
+        root,
+        SERIES_2_RELEASE_SCHEMA_RELATIVE,
+        SERIES_2_RELEASE_SCHEMA_SHA256,
+        "series-2 release schema",
     )
     _validate_contract_inheritance(
         project_root=root,
         preregistration_payload=preregistration_payload,
-        bundle_schema_payload=schema_payload,
-        release_schema_payload=release_schema_payload,
+        bundle_schema_payload=historical_schema_payload,
+        release_schema_payload=historical_release_schema_payload,
+    )
+    _validate_series_2_schema_profiles(
+        project_root=root,
+        historical_bundle_payload=historical_schema_payload,
+        historical_release_payload=historical_release_schema_payload,
+        active_bundle_payload=schema_payload,
+        active_release_payload=release_schema_payload,
     )
     _validate_binding_document(bundle.get("execution_binding"), binding, "bundle execution binding")
     history_stub = _object(bundle.get("attempt_history"), "bundle attempt history")
@@ -5169,6 +6305,10 @@ def _validate_bundle_once(
         archive_root=bundle_directory / "archive/attempt-history",
         binding=binding,
     )
+    # This passive re-read is intentionally inside the common bundle pass, so
+    # both bundle validation and release revalidation fail before any replay
+    # capability can run when a snapshot or either receipt is missing/drifted.
+    _validate_second_copy_history(binding=binding, replay=replay)
     _require_equal(
         implementation_commit,
         replay.selected_implementation_commit,
@@ -5216,6 +6356,10 @@ def _active_replay_validated_bundle(
     execution_context: object | None,
     published_release_revalidation: bool,
 ) -> None:
+    # Mirror state is mutable outside Git and can disappear after the common
+    # bundle pass.  Re-read it immediately before borrowing any active replay
+    # authority; failure here is still read-only and reaches no replay.
+    _validate_second_copy_history(binding=binding, replay=validated.history)
     bundle_directory = _authorized_bundle_directory(
         binding=binding,
         raw_binding=raw_binding,
@@ -5310,9 +6454,7 @@ def _cross_validate_release(
         history.get("selected_attempt_ordinal"), "bundle selected ordinal", minimum=1
     )
     if selected_ordinal > len(records):
-        raise RehearsalV22ValidationError(
-            "bundle selected ordinal is outside its attempt history"
-        )
+        raise RehearsalV22ValidationError("bundle selected ordinal is outside its attempt history")
     selected = _object(records[selected_ordinal - 1], "selected attempt record")
     if selected.get("outcome") != "CANDIDATE_VALIDATED_AND_SELECTED":
         raise RehearsalV22ValidationError("bundle selected ordinal is not success")
@@ -5358,9 +6500,7 @@ def _cross_validate_release(
         },
         "release series identity",
     )
-    acceptance = _object(
-        receipt.get("attempt_history_acceptance"), "release history acceptance"
-    )
+    acceptance = _object(receipt.get("attempt_history_acceptance"), "release history acceptance")
     expected_acceptance = {
         "policy": SERIES_POLICY,
         "series_closed": True,
@@ -5373,8 +6513,7 @@ def _cross_validate_release(
         "no_attempt_after_selected_success": True,
         "ordinals_contiguous": True,
         (
-            "all_started_candidate_terminal_action_authorization_"
-            "and_actual_evidence_bytes_archived"
+            "all_started_candidate_terminal_action_authorization_and_actual_evidence_bytes_archived"
         ): True,
         "all_failure_and_incomplete_disclosures_archived": True,
         "history_merkle_recomputed": True,
@@ -5387,33 +6526,33 @@ def _cross_validate_release(
         "history_and_live_roots_match_lineage_and_bundle": True,
     }
     _require_equal(acceptance, expected_acceptance, "release history acceptance")
-    bundle_epochs = _array(bundle.get("implementation_epochs"), "bundle epochs")
+    bundle_epoch_map = _epoch_map(bundle, epoch_origin=SERIES_2_EPOCH_ORIGIN)
     release_epochs = _array(receipt.get("implementation_epochs"), "release epochs")
     expected_epochs = []
-    for raw in bundle_epochs:
-        epoch = _object(raw, "bundle epoch")
-        expected_epochs.append(
-            {
-                "epoch": epoch["epoch"],
-                "implementation_commit": epoch["implementation_commit"],
-                "owner_surface_authorization": epoch["owner_exact_surface_authorization"],
-                "independent_implementation_review": epoch["independent_implementation_review"],
-                "control_merkle_root_sha256": epoch["control_merkle_root_sha256"],
-                "first_attempt_ordinal": epoch["first_attempt_ordinal"],
-                "last_attempt_ordinal": epoch["last_attempt_ordinal"],
-            }
-        )
+    expected_epoch_map: dict[int, JsonObject] = {}
+    for epoch_number, epoch in bundle_epoch_map.items():
+        projected = {
+            "epoch": epoch["epoch"],
+            "implementation_commit": epoch["implementation_commit"],
+            "owner_surface_authorization": epoch["owner_exact_surface_authorization"],
+            "independent_implementation_review": epoch["independent_implementation_review"],
+            "control_merkle_root_sha256": epoch["control_merkle_root_sha256"],
+            "first_attempt_ordinal": epoch["first_attempt_ordinal"],
+            "last_attempt_ordinal": epoch["last_attempt_ordinal"],
+        }
+        expected_epochs.append(projected)
+        expected_epoch_map[epoch_number] = projected
     _require_equal(release_epochs, expected_epochs, "release implementation epochs")
     selected_epoch_number = _integer(
         selected.get("implementation_epoch"),
         "selected attempt implementation epoch",
         minimum=1,
     )
-    if selected_epoch_number > len(expected_epochs):
+    selected_epoch = expected_epoch_map.get(selected_epoch_number)
+    if selected_epoch is None:
         raise RehearsalV22ValidationError(
             "selected attempt implementation epoch is outside the epoch table"
         )
-    selected_epoch = expected_epochs[selected_epoch_number - 1]
     lineage = _object(receipt.get("lineage"), "release lineage")
     bundle_lineage = _object(bundle.get("lineage"), "bundle lineage")
     bundle_merkle = _object(bundle.get("merkle"), "bundle Merkle")
@@ -5441,24 +6580,25 @@ def _cross_validate_release(
         )
     _require_equal(receipt.get("authorized_stages"), [], "release authorized stages")
     _require_equal(receipt.get("still_gated"), list(_REAL_STAGES), "release gated stages")
-    production = _object(
-        receipt.get("production_integration_gate"), "production integration gate"
-    )
+    production = _object(receipt.get("production_integration_gate"), "production integration gate")
     if production.get("this_receipt_unlocks_real_stages") is not False:
         raise RehearsalV22ValidationError("evidence receipt unlocks a real stage")
     locks = _object(receipt.get("locks"), "release locks")
-    if any(
-        locks.get(key) is not False
-        for key in (
-            "p4_2a_done",
-            "heldout_materialization_authorized_by_this_receipt",
-            "heldout_inference_authorized_by_this_receipt",
-            "heldout_evaluation_unlocked",
-            "p4_2b_unlocked",
-            "p4_3_unlocked",
-            "non_simulate_orders_allowed",
+    if (
+        any(
+            locks.get(key) is not False
+            for key in (
+                "p4_2a_done",
+                "heldout_materialization_authorized_by_this_receipt",
+                "heldout_inference_authorized_by_this_receipt",
+                "heldout_evaluation_unlocked",
+                "p4_2b_unlocked",
+                "p4_3_unlocked",
+                "non_simulate_orders_allowed",
+            )
         )
-    ) or locks.get("trading_mode") != "research":
+        or locks.get("trading_mode") != "research"
+    ):
         raise RehearsalV22ValidationError("release locks are not fail-closed")
 
 
@@ -5486,9 +6626,9 @@ def _validate_release_once(
     )
     schema_payload = _bound_control(
         root,
-        RELEASE_SCHEMA_RELATIVE,
-        RELEASE_SCHEMA_SHA256,
-        "v2.2 evidence acceptance schema",
+        SERIES_2_RELEASE_SCHEMA_RELATIVE,
+        SERIES_2_RELEASE_SCHEMA_SHA256,
+        "series-2 evidence acceptance schema",
     )
     schema = _object(strict_json_loads(schema_payload, label="release schema"), "release schema")
     _schema_validate(receipt, schema, "v2.2 evidence acceptance receipt")
@@ -5523,9 +6663,7 @@ def _validate_release_once(
         raise RehearsalV22ValidationError(
             "release receipt differs from its unique status-A creation blob"
         )
-    if receipt_commit == reviewed_head or not _git_is_ancestor(
-        root, reviewed_head, receipt_commit
-    ):
+    if receipt_commit == reviewed_head or not _git_is_ancestor(root, reviewed_head, receipt_commit):
         raise RehearsalV22ValidationError(
             "release receipt does not descend from the pre-receipt reviewed head"
         )
@@ -5554,9 +6692,7 @@ def _validate_release_once(
         authority = _validate_authority_ref(lineage.get(key), f"release lineage {key}")
         release_authorities[key] = authority
         _unique_a_authority(root, authority, require_worktree=True)
-        if not _git_is_ancestor(
-            root, cast(str, authority["creating_commit"]), reviewed_head
-        ):
+        if not _git_is_ancestor(root, cast(str, authority["creating_commit"]), reviewed_head):
             raise RehearsalV22ValidationError(
                 f"release lineage {key} is not contained by the reviewed head"
             )
@@ -5593,10 +6729,8 @@ def _validate_release_once(
         review_path = cast(str, review_request["path"])
         if (
             len(review_parents) != 1
-            or _diff_name_status(root, review_parents[0], review_commit)
-            != (("A", review_path),)
-            or _git_blob(root, review_parents[0], cast(str, bundle_ref["path"]))
-            != bundle_payload
+            or _diff_name_status(root, review_parents[0], review_commit) != (("A", review_path),)
+            or _git_blob(root, review_parents[0], cast(str, bundle_ref["path"])) != bundle_payload
         ):
             raise RehearsalV22ValidationError(
                 "disposable release did not commit the exact bundle before its "
@@ -5650,9 +6784,7 @@ def _assert_registered_validator_environment() -> None:
         and Path(sys.executable).absolute() == Path(_VALIDATOR_FIXED_PYTHON)
         and _sha256(_fixed_launcher_bytes())
         == "f4cd716d4b54f205398bec6932cc59361b087494ca2ddb157a5e8631d4d6f863"
-        and _sha256(
-            _regular_bytes(Path(sys.orig_argv[0]), "fixed Python orig-argv executable")
-        )
+        and _sha256(_regular_bytes(Path(sys.orig_argv[0]), "fixed Python orig-argv executable"))
         == "89c717ced41f6a395612366e5b038226d0d8fca36bbddd9321d385f5f370ebbe"
         and implementation._AUDIT_POLICY.get() is None
         and implementation._TEMP_AUTHORITY.get() is None
@@ -5669,9 +6801,7 @@ def _validator_result(bundle: Mapping[str, Any], *, bundle_sha256: str) -> JsonO
     return {
         "schema_version": VALIDATOR_RESULT_SCHEMA,
         "status": "PASS_REHEARSAL_V2_2_AWAITING_OWNER_EVIDENCE_ACCEPTANCE",
-        "bundle_path": (
-            REGISTERED_DESTINATION_RELATIVE / BUNDLE_FILENAME
-        ).as_posix(),
+        "bundle_path": (REGISTERED_DESTINATION_RELATIVE / BUNDLE_FILENAME).as_posix(),
         "bundle_sha256": bundle_sha256,
         "bundle_root_sha256": merkle["bundle_root_sha256"],
         "attempt_count": history["started_count"],
@@ -5696,9 +6826,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         )
         payload = _regular_bytes(bundle_path, "registered v2.2 bundle")
         sys.stdout.buffer.write(
-            _canonical_json_bytes(
-                _validator_result(bundle, bundle_sha256=_sha256(payload))
-            )
+            _canonical_json_bytes(_validator_result(bundle, bundle_sha256=_sha256(payload)))
         )
     except (OSError, RehearsalV22ValidationError, ValueError) as exc:
         print(f"ERROR: {exc}", file=sys.stderr)

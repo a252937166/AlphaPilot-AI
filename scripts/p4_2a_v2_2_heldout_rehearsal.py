@@ -26,11 +26,13 @@ if __name__ != MODULE_NAME or sys.modules.get(MODULE_NAME) is not sys.modules.ge
     raise RuntimeError("v2.2 authority module identity is not the package singleton")
 
 import argparse
+import builtins
 import contextvars
 import copy
 import ctypes
 import errno
 import fcntl
+import gc
 import hashlib
 import importlib.metadata
 import inspect
@@ -46,7 +48,7 @@ import sysconfig
 import tempfile
 import uuid
 from collections.abc import Callable, Iterator, Mapping, Sequence
-from contextlib import contextmanager
+from contextlib import contextmanager, suppress
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from pathlib import Path, PurePosixPath
@@ -83,6 +85,53 @@ class _AuditPolicy:
     ledger_write_phase: Literal["initialize", "active", "candidate", "frozen"] | None = None
     ledger_root: Path | None = None
     active_attempt_root: Path | None = None
+    mirror_write_phase: Literal["initialize", "staging", "publish", "receipt"] | None = None
+    mirror_snapshot_root: Path | None = None
+    primary_receipt_root: Path | None = None
+    secondary_receipt_root: Path | None = None
+    mirror_staging_root: Path | None = None
+    mirror_receipt_paths: tuple[Path, Path] | None = None
+    mirror_publish_paths: tuple[Path, Path] | None = None
+
+
+@dataclass(frozen=True)
+class _MirrorPhaseCapability:
+    _nonce: object
+    outer_policy_id: int
+    issued_policy_id: int
+    phase: Literal["initialize", "staging", "publish", "receipt"]
+
+
+@dataclass(frozen=True)
+class _NativeRenameCapability:
+    _nonce: object
+    policy_id: int
+    source: Path
+    destination: Path
+    symbol: Literal["renamex_np", "renameatx_np"]
+
+
+@dataclass(frozen=True)
+class _OpenAtWriteCapability:
+    _nonce: object
+    policy_id: int
+    parent_descriptor: int
+    parent_identity: tuple[int, int]
+    entry_name: str
+    absolute_path: Path
+    flags: int
+    mode: int
+    payload_bytes: int
+    payload_sha256: str
+
+
+@dataclass(frozen=True)
+class _MirrorCommitCapability:
+    _nonce: object
+    ledger_id: int
+    ordinal: int
+    history_root_sha256: str
+    reason: Literal["TERMINAL_SEAL", "CONTINUATION_FREEZE"]
 
 
 _AUDIT_POLICY: contextvars.ContextVar[_AuditPolicy | None] = contextvars.ContextVar(
@@ -92,6 +141,24 @@ _AUDIT_POLICY: contextvars.ContextVar[_AuditPolicy | None] = contextvars.Context
 _TEMP_AUTHORITY: contextvars.ContextVar[Path | None] = contextvars.ContextVar(
     "p4_2a_v2_2_rehearsal_temp_authority",
     default=None,
+)
+_MIRROR_PHASE_CAPABILITY: contextvars.ContextVar[_MirrorPhaseCapability | None] = (
+    contextvars.ContextVar(
+        "p4_2a_v2_2_mirror_phase_capability",
+        default=None,
+    )
+)
+_NATIVE_RENAME_CAPABILITY: contextvars.ContextVar[_NativeRenameCapability | None] = (
+    contextvars.ContextVar(
+        "p4_2a_v2_2_native_rename_capability",
+        default=None,
+    )
+)
+_OPENAT_WRITE_CAPABILITY: contextvars.ContextVar[_OpenAtWriteCapability | None] = (
+    contextvars.ContextVar(
+        "p4_2a_v2_2_openat_write_capability",
+        default=None,
+    )
 )
 
 
@@ -236,15 +303,11 @@ def _audited_mutation_path(
             value,
             (str, bytes, os.PathLike),
         ):
-            raise RehearsalV22Error(
-                "v2.2 mutation without dir_fd requires an absolute path"
-            )
+            raise RehearsalV22Error("v2.2 mutation without dir_fd requires an absolute path")
         lexical = _lexical_path(value)
         raw_path = Path(os.fsdecode(cast(str | bytes | os.PathLike[str], value)))
         if lexical is None or not raw_path.is_absolute():
-            raise RehearsalV22Error(
-                "v2.2 mutation without dir_fd requires an absolute path"
-            )
+            raise RehearsalV22Error("v2.2 mutation without dir_fd requires an absolute path")
         return _require_audited_write_path(lexical, policy)
     if isinstance(value, (bool, int)) or not isinstance(
         value,
@@ -329,6 +392,57 @@ def _ledger_create_is_authorized(
     return len(parts) >= 2 and parts[0] == "evidence"
 
 
+def _mirror_create_is_authorized(
+    path: Path,
+    *,
+    directory: bool,
+    policy: _AuditPolicy,
+) -> bool:
+    phase = policy.mirror_write_phase
+    roots = (
+        policy.mirror_snapshot_root,
+        policy.primary_receipt_root,
+        policy.secondary_receipt_root,
+    )
+    if phase is None or any(root is None for root in roots):
+        return False
+    mirror_snapshot_root, primary_receipt_root, secondary_receipt_root = cast(
+        tuple[Path, Path, Path], roots
+    )
+    if phase == "initialize":
+        return directory and path in {
+            mirror_snapshot_root,
+            primary_receipt_root,
+            secondary_receipt_root,
+        }
+    if phase == "staging":
+        staging = policy.mirror_staging_root
+        if staging is None or not (path == staging or path.is_relative_to(staging)):
+            return False
+        return directory or path != staging
+    if phase == "receipt":
+        receipt_paths = policy.mirror_receipt_paths
+        return not directory and receipt_paths is not None and path in receipt_paths
+    return False
+
+
+def _create_only_write_is_authorized(
+    path: Path,
+    *,
+    directory: bool,
+    policy: _AuditPolicy,
+) -> bool:
+    return _ledger_create_is_authorized(
+        path,
+        directory=directory,
+        policy=policy,
+    ) or _mirror_create_is_authorized(
+        path,
+        directory=directory,
+        policy=policy,
+    )
+
+
 def _require_audited_write_descriptor(value: object, policy: _AuditPolicy) -> None:
     if isinstance(value, bool) or not isinstance(value, int) or value < 0:
         raise RehearsalV22Error("v2.2 write descriptor is invalid")
@@ -353,6 +467,276 @@ def _require_audited_write_descriptor(value: object, policy: _AuditPolicy) -> No
         or flags & os.O_APPEND
     ):
         raise RehearsalV22Error("v2.2 write descriptor identity drifted")
+
+
+def _build_openat_write_state() -> tuple[Any, Any]:
+    nonce = object()
+    registry: tuple[_OpenAtWriteCapability, ...] = ()
+    capability_context = _OPENAT_WRITE_CAPABILITY
+    capability_type = _OpenAtWriteCapability
+    audit_policy_context = _AUDIT_POLICY
+    audit_policy_checker = _audit_policy_is_issued
+    audit_hook = _process_audit_hook
+    import_guard_checker = _import_guard_is_active
+    audited_directory_from_fd = _audited_directory_from_fd
+    require_write_path = _require_audited_write_path
+    python_id = id
+    python_type = type
+    python_str = str
+    python_int = int
+    python_str = str
+    python_len = len
+    path_type = type(Path("."))
+    os_open = os.open
+    os_close = os.close
+    os_fstat = os.fstat
+    os_fsdecode = os.fsdecode
+    lexists = os.path.lexists
+    fcntl_call = fcntl.fcntl
+    f_getpath = fcntl.F_GETPATH
+    pthread_sigmask = signal.pthread_sigmask
+    valid_signals = signal.valid_signals
+    signal_block = signal.SIG_BLOCK
+    signal_setmask = signal.SIG_SETMASK
+    signals_type = signal.Signals
+    sigkill = signal.SIGKILL
+    sigstop = signal.SIGSTOP
+    sys_gettrace = sys.gettrace
+    sys_getprofile = sys.getprofile
+    monitoring_module = sys.monitoring  # type: ignore[attr-defined]  # Python 3.12
+    monitoring_get_tool = monitoring_module.get_tool
+    monitoring_get_events = monitoring_module.get_events
+    monitoring_use_tool_id = monitoring_module.use_tool_id
+    monitoring_free_tool_id = monitoring_module.free_tool_id
+    monitoring_set_events = monitoring_module.set_events
+    monitoring_set_local_events = monitoring_module.set_local_events
+    monitoring_register_callback = monitoring_module.register_callback
+    monitoring_restart_events = monitoring_module.restart_events
+    monitoring_tool_ids = (0, 1, 2, 3, 4, 5)
+    gc_isenabled = gc.isenabled
+    gc_disable = gc.disable
+    gc_enable = gc.enable
+    registered_flags = (
+        os.O_WRONLY
+        | os.O_CREAT
+        | os.O_EXCL
+        | getattr(os, "O_NOFOLLOW", 0)
+        | getattr(os, "O_CLOEXEC", 0)
+    )
+    registered_mode = 0o600
+
+    def require_runtime_identity() -> None:
+        if (
+            _OPENAT_WRITE_CAPABILITY is not capability_context
+            or _OpenAtWriteCapability is not capability_type
+            or _AUDIT_POLICY is not audit_policy_context
+            or _audit_policy_is_issued is not audit_policy_checker
+            or _process_audit_hook is not audit_hook
+            or _import_guard_is_active is not import_guard_checker
+            or _audited_directory_from_fd is not audited_directory_from_fd
+            or _require_audited_write_path is not require_write_path
+            or globals().get("_openat_write_capability_path") is not capability_is_issued
+            or globals().get("_open_exclusive_at_issued") is not open_exclusive
+            or os.open is not os_open
+            or os.close is not os_close
+            or os.fstat is not os_fstat
+            or os.fsdecode is not os_fsdecode
+            or os.path.lexists is not lexists
+            or fcntl.fcntl is not fcntl_call
+            or f_getpath != fcntl.F_GETPATH
+            or signal.pthread_sigmask is not pthread_sigmask
+            or signal.valid_signals is not valid_signals
+            or signal.SIG_BLOCK is not signal_block
+            or signal.SIG_SETMASK is not signal_setmask
+            or signal.Signals is not signals_type
+            or signal.SIGKILL is not sigkill
+            or signal.SIGSTOP is not sigstop
+            or sys.gettrace is not sys_gettrace
+            or sys.getprofile is not sys_getprofile
+            or sys.monitoring is not monitoring_module  # type: ignore[attr-defined]
+            or monitoring_module.get_tool is not monitoring_get_tool
+            or monitoring_module.get_events is not monitoring_get_events
+            or monitoring_module.use_tool_id is not monitoring_use_tool_id
+            or monitoring_module.free_tool_id is not monitoring_free_tool_id
+            or monitoring_module.set_events is not monitoring_set_events
+            or monitoring_module.set_local_events is not monitoring_set_local_events
+            or monitoring_module.register_callback is not monitoring_register_callback
+            or monitoring_module.restart_events is not monitoring_restart_events
+            or gc.isenabled is not gc_isenabled
+            or gc.disable is not gc_disable
+            or gc.enable is not gc_enable
+            or sys_gettrace() is not None
+            or sys_getprofile() is not None
+        ):
+            raise RehearsalV22Error("openat runtime authority identity drifted")
+
+    def disable_runtime_callbacks() -> bool:
+        require_runtime_identity()
+        for tool_id in monitoring_tool_ids:
+            events = monitoring_get_events(tool_id)
+            if (
+                monitoring_get_tool(tool_id) is not None
+                or python_type(events) is not python_int
+                or events != 0
+            ):
+                raise RehearsalV22Error("openat refuses active Python monitoring callbacks")
+        was_enabled = gc_isenabled()
+        if was_enabled:
+            gc_disable()
+        if gc_isenabled():
+            raise RehearsalV22Error("openat could not disable cyclic GC callbacks")
+        return was_enabled
+
+    def capability_is_issued(
+        capability: _OpenAtWriteCapability | None,
+        *,
+        policy: _AuditPolicy,
+        raw_path: object,
+        raw_flags: object,
+    ) -> Path | None:
+        if (
+            capability is None
+            or python_type(capability) is not capability_type
+            or capability._nonce is not nonce
+            or capability.policy_id != python_id(policy)
+            or python_type(raw_path) is not python_str
+            or raw_path != capability.entry_name
+            or python_type(raw_flags) is not python_int
+            or raw_flags != capability.flags
+            or python_type(capability.parent_descriptor) is not python_int
+            or python_type(capability.entry_name) is not python_str
+            or python_type(capability.absolute_path) is not path_type
+            or python_type(capability.flags) is not python_int
+            or capability.flags != registered_flags
+            or python_type(capability.mode) is not python_int
+            or capability.mode != registered_mode
+            or python_type(capability.payload_bytes) is not python_int
+            or capability.payload_bytes < 0
+            or python_type(capability.payload_sha256) is not python_str
+            or python_len(capability.payload_sha256) != 64
+        ):
+            return None
+        for character in capability.payload_sha256:
+            if character not in "0123456789abcdef":
+                return None
+        for record in registry:
+            if record is capability:
+                return capability.absolute_path
+        return None
+
+    def open_exclusive(
+        policy: _AuditPolicy,
+        *,
+        parent_descriptor: int,
+        entry_name: str,
+        absolute_path: Path,
+        flags: int,
+        mode: int,
+        payload_bytes: int,
+        payload_sha256: str,
+    ) -> int:
+        nonlocal registry
+        require_runtime_identity()
+        invalid_payload_sha = False
+        if python_type(payload_sha256) is python_str:
+            for character in payload_sha256:
+                if character not in "0123456789abcdef":
+                    invalid_payload_sha = True
+                    break
+        if (
+            audit_policy_context.get() is not policy
+            or not audit_policy_checker(policy)
+            or import_guard_checker()
+            or python_type(parent_descriptor) is not python_int
+            or parent_descriptor < 0
+            or python_type(entry_name) is not python_str
+            or not entry_name
+            or entry_name in {".", ".."}
+            or "/" in entry_name
+            or python_type(absolute_path) is not path_type
+            or python_type(flags) is not python_int
+            or flags != registered_flags
+            or python_type(mode) is not python_int
+            or mode != registered_mode
+            or python_type(payload_bytes) is not python_int
+            or audited_directory_from_fd(parent_descriptor) / entry_name != absolute_path
+            or require_write_path(absolute_path, policy) != absolute_path
+            or payload_bytes < 0
+            or python_type(payload_sha256) is not python_str
+            or python_len(payload_sha256) != 64
+            or invalid_payload_sha
+        ):
+            raise RehearsalV22Error("openat write lacks exact issued parent authority")
+        parent_metadata = os_fstat(parent_descriptor)
+        capability = _OpenAtWriteCapability(
+            _nonce=nonce,
+            policy_id=python_id(policy),
+            parent_descriptor=parent_descriptor,
+            parent_identity=(parent_metadata.st_dev, parent_metadata.st_ino),
+            entry_name=entry_name,
+            absolute_path=absolute_path,
+            flags=flags,
+            mode=mode,
+            payload_bytes=payload_bytes,
+            payload_sha256=payload_sha256,
+        )
+        if registry or capability_context.get() is not None:
+            raise RehearsalV22Error("openat write capability is already active")
+        blocked = {item for item in valid_signals() if item not in {sigkill, sigstop}}
+        gc_was_enabled = disable_runtime_callbacks()
+        try:
+            prior_signal_mask = pthread_sigmask(signal_block, blocked)
+            prior_registry = registry
+            token: contextvars.Token[_OpenAtWriteCapability | None] | None = None
+            try:
+                registry = (*prior_registry, capability)
+                try:
+                    token = capability_context.set(capability)
+                    descriptor = os_open(
+                        entry_name,
+                        flags,
+                        mode,
+                        dir_fd=parent_descriptor,
+                    )
+                finally:
+                    registry = prior_registry
+            finally:
+                try:
+                    if token is not None:
+                        capability_context.reset(token)
+                finally:
+                    pthread_sigmask(signal_setmask, prior_signal_mask)
+        finally:
+            if gc_was_enabled:
+                gc_enable()
+        require_runtime_identity()
+        if gc_isenabled() is not gc_was_enabled:
+            raise RehearsalV22Error("openat cyclic GC state was not restored")
+        try:
+            opened = os_fstat(descriptor)
+            parent_after = os_fstat(parent_descriptor)
+            raw = fcntl_call(descriptor, f_getpath, b"\0" * 1024)
+            terminator = raw.find(b"\0")
+            descriptor_path = Path(os_fsdecode(raw[:terminator]))
+            if (
+                terminator <= 0
+                or descriptor_path.absolute() != absolute_path.absolute()
+                or (parent_after.st_dev, parent_after.st_ino) != capability.parent_identity
+                or not stat.S_ISREG(opened.st_mode)
+                or opened.st_nlink != 1
+                or stat.S_IMODE(opened.st_mode) != mode
+                or opened.st_size != 0
+                or fcntl_call(descriptor, fcntl.F_GETFL) & os.O_ACCMODE != os.O_WRONLY
+                or fcntl_call(descriptor, fcntl.F_GETFL) & os.O_APPEND
+                or fcntl_call(descriptor, fcntl.F_GETFD) & fcntl.FD_CLOEXEC == 0
+            ):
+                raise RehearsalV22Error("openat descriptor escaped its identity-bound target")
+        except BaseException:
+            os_close(descriptor)
+            raise
+        return descriptor
+
+    return capability_is_issued, open_exclusive
 
 
 GIT_CONFIG_PREFIX = (
@@ -442,10 +826,7 @@ def _git_audit_allowed(
             relative = _relative_text(operation[5], "audited Git ls-tree path")
         except RehearsalV22Error:
             return False
-        return (
-            relative == operation[5]
-            and policy.subprocess_mode in {"git-read", "synthetic-git"}
-        )
+        return relative == operation[5] and policy.subprocess_mode in {"git-read", "synthetic-git"}
     read_only = operation[0] in {
         "cat-file",
         "diff",
@@ -466,6 +847,12 @@ def _git_audit_allowed(
 
 
 def _process_audit_hook(event: str, arguments: tuple[object, ...]) -> None:
+    if event in {"sys.addaudithook", "sys.setprofile", "sys.settrace"} or event.startswith(
+        "sys.monitoring."
+    ):
+        raise RehearsalV22Error(
+            "v2.2 process forbids installing another runtime callback after bootstrap"
+        )
     policy = _AUDIT_POLICY.get()
     if policy is not None and not _audit_policy_is_issued(policy):
         raise RehearsalV22Error("v2.2 audit policy was forged outside its issued lifetime")
@@ -519,6 +906,20 @@ def _process_audit_hook(event: str, arguments: tuple[object, ...]) -> None:
     if policy is None:
         return
     if event == "open":
+        if _OPENAT_WRITE_CAPABILITY.get() is not None:
+            try:
+                path, mode, flags = arguments
+            except ValueError as exc:
+                raise RehearsalV22Error("v2.2 openat audit event shape drifted") from exc
+            issued_openat_path = _openat_write_capability_path(
+                _OPENAT_WRITE_CAPABILITY.get(),
+                policy=policy,
+                raw_path=path,
+                raw_flags=flags,
+            )
+            if issued_openat_path is None or mode is not None:
+                raise RehearsalV22Error("v2.2 openat write lacks exact audit authority")
+            return
         path = arguments[0] if arguments else None
         mode = arguments[1] if len(arguments) > 1 else None
         flags = arguments[2] if len(arguments) > 2 else 0
@@ -540,7 +941,7 @@ def _process_audit_hook(event: str, arguments: tuple[object, ...]) -> None:
                     or flags & os.O_CREAT == 0
                     or flags & (os.O_APPEND | os.O_TRUNC)
                     or os.path.lexists(audited_path)
-                    or not _ledger_create_is_authorized(
+                    or not _create_only_write_is_authorized(
                         audited_path,
                         directory=False,
                         policy=policy,
@@ -568,7 +969,7 @@ def _process_audit_hook(event: str, arguments: tuple[object, ...]) -> None:
         if _path_in_create_only_root(audited_path, policy) and (
             event != "os.mkdir"
             or os.path.lexists(audited_path)
-            or not _ledger_create_is_authorized(
+            or not _create_only_write_is_authorized(
                 audited_path,
                 directory=True,
                 policy=policy,
@@ -597,6 +998,20 @@ def _process_audit_hook(event: str, arguments: tuple[object, ...]) -> None:
         return
     if event == "os.symlink":
         raise RehearsalV22Error("v2.2 rehearsal forbids symlink creation")
+    if event in {"ctypes.dlopen", "ctypes.dlsym"}:
+        native_capability = _NATIVE_RENAME_CAPABILITY.get()
+        exact_symbol = (event == "ctypes.dlopen" and arguments == (None,)) or (
+            event == "ctypes.dlsym"
+            and arguments != ()
+            and native_capability is not None
+            and arguments[-1] == native_capability.symbol
+        )
+        if not exact_symbol or not _native_rename_capability_is_issued(
+            native_capability,
+            policy=policy,
+        ):
+            raise RehearsalV22Error("v2.2 native symbol access lacks rename authority")
+        return
     if event == "subprocess.Popen":
         if not _git_audit_allowed(
             arguments[1] if len(arguments) > 1 else None,
@@ -645,7 +1060,10 @@ def _build_audit_policy_issuer() -> tuple[Any, Any]:
     policy_registry: tuple[_AuditPolicy, ...] = ()
 
     def policy_is_issued(policy: _AuditPolicy) -> bool:
-        return any(record is policy for record in policy_registry)
+        for record in policy_registry:  # noqa: SIM110 - audit path avoids builtins.any
+            if record is policy:
+                return True
+        return False
 
     @contextmanager
     def audited_execution(
@@ -660,6 +1078,12 @@ def _build_audit_policy_issuer() -> tuple[Any, Any]:
         if current is not None:
             if not policy_is_issued(current):
                 raise RehearsalV22Error("outer audit policy is forged")
+            mirror_dynamic_changed = (
+                policy.mirror_write_phase != current.mirror_write_phase
+                or policy.mirror_staging_root != current.mirror_staging_root
+                or policy.mirror_receipt_paths != current.mirror_receipt_paths
+                or policy.mirror_publish_paths != current.mirror_publish_paths
+            )
             if (
                 policy.project_root != current.project_root
                 or policy.write_roots != current.write_roots
@@ -669,6 +1093,17 @@ def _build_audit_policy_issuer() -> tuple[Any, Any]:
                 or policy.git_roots != current.git_roots
                 or policy.subprocess_mode != current.subprocess_mode
                 or policy.synthetic_git_root != current.synthetic_git_root
+                or policy.mirror_snapshot_root != current.mirror_snapshot_root
+                or policy.primary_receipt_root != current.primary_receipt_root
+                or policy.secondary_receipt_root != current.secondary_receipt_root
+                or (
+                    mirror_dynamic_changed
+                    and not _mirror_phase_capability_is_issued(
+                        _MIRROR_PHASE_CAPABILITY.get(),
+                        outer=current,
+                        issued=policy,
+                    )
+                )
                 or execution_context is not None
                 or bootstrap is not None
                 or validator_replay_module is not None
@@ -716,6 +1151,701 @@ def _build_audit_policy_issuer() -> tuple[Any, Any]:
 
 
 _audit_policy_is_issued, _audited_execution = _build_audit_policy_issuer()
+
+(
+    _openat_write_capability_path,
+    _open_exclusive_at_issued,
+) = _build_openat_write_state()
+
+
+def _build_mirror_phase_state() -> tuple[Any, Any]:
+    nonce = object()
+    capabilities: tuple[_MirrorPhaseCapability, ...] = ()
+    sequences: tuple[object, ...] = ()
+
+    def capability_is_issued(
+        capability: _MirrorPhaseCapability | None,
+        *,
+        outer: _AuditPolicy | None,
+        issued: _AuditPolicy,
+    ) -> bool:
+        return bool(
+            capability is not None
+            and capability._nonce is nonce
+            and (outer is None or capability.outer_policy_id == id(outer))
+            and capability.issued_policy_id == id(issued)
+            and capability.phase == issued.mirror_write_phase
+            and any(record is capability for record in capabilities)
+        )
+
+    @contextmanager
+    def mirror_write_sequence(
+        ledger: SeriesLedger,
+        history: HistoryValidation,
+        *,
+        mirror_commit_capability: _MirrorCommitCapability,
+        staging: Path,
+        snapshot: Path,
+        receipt_paths: tuple[Path, Path],
+        initialize_roots: bool,
+    ) -> Iterator[Callable[[str], Any]]:
+        nonlocal capabilities, sequences
+        _validate_series_lock_held(ledger)
+        _consume_mirror_commit_capability(
+            mirror_commit_capability,
+            ledger=ledger,
+            history=history,
+        )
+        binding = ledger.binding
+        outer = _AUDIT_POLICY.get()
+        if (
+            outer is None
+            or not _audit_policy_is_issued(outer)
+            or history.binding != binding
+            or not history.records
+            or history.live_ledger_root_sha256 is None
+            or outer.ledger_root != binding.ledger_root
+            or outer.mirror_snapshot_root != binding.secondary_snapshot_root
+            or outer.primary_receipt_root != binding.primary_receipt_root
+            or outer.secondary_receipt_root != binding.secondary_receipt_root
+        ):
+            raise RehearsalV22Error("mirror sequence lacks held-lock live-history authority")
+        ordinal = len(history.records)
+        live_root = history.live_ledger_root_sha256
+        expected_snapshot = binding.secondary_snapshot_root / _mirror_snapshot_name(
+            ordinal, live_root
+        )
+        expected_receipt_name = _mirror_receipt_filename(ordinal, live_root)
+        expected_receipts = (
+            binding.primary_receipt_root / expected_receipt_name,
+            binding.secondary_receipt_root / expected_receipt_name,
+        )
+        if (
+            snapshot != expected_snapshot
+            or receipt_paths != expected_receipts
+            or staging.parent != binding.secondary_snapshot_root
+            or not staging.name.startswith(f".staging-{expected_snapshot.name}-")
+            or any(os.path.lexists(path) for path in (staging, snapshot, *receipt_paths))
+        ):
+            raise RehearsalV22Error("mirror sequence paths differ from the live ordinal")
+        last_record = history.records[-1]
+        primary_inventory: _TreeInventory | None = None
+        expected_receipt_payload: bytes | None = None
+        expected_phases = (
+            ("initialize", "staging", "publish", "receipt")
+            if initialize_roots
+            else ("staging", "publish", "receipt")
+        )
+        sequence_token = object()
+        if sequences:
+            raise RehearsalV22Error("a mirror write sequence is already active")
+        sequences = (*sequences, sequence_token)
+        next_index = 0
+
+        @contextmanager
+        def phase_scope(raw_phase: str) -> Iterator[None]:
+            nonlocal capabilities, expected_receipt_payload, next_index, primary_inventory
+            if (
+                sequence_token not in sequences
+                or next_index >= len(expected_phases)
+                or raw_phase != expected_phases[next_index]
+            ):
+                raise RehearsalV22Error("mirror phase is forged, repeated, or reordered")
+            phase = cast(
+                Literal["initialize", "staging", "publish", "receipt"],
+                raw_phase,
+            )
+            issued = replace(
+                outer,
+                mirror_write_phase=phase,
+                mirror_staging_root=(staging if phase in {"staging", "publish"} else None),
+                mirror_receipt_paths=(receipt_paths if phase == "receipt" else None),
+                mirror_publish_paths=((staging, snapshot) if phase == "publish" else None),
+            )
+            capability = _MirrorPhaseCapability(
+                _nonce=nonce,
+                outer_policy_id=id(outer),
+                issued_policy_id=id(issued),
+                phase=phase,
+            )
+            capabilities = (*capabilities, capability)
+            capability_token = _MIRROR_PHASE_CAPABILITY.set(capability)
+            completed = False
+            try:
+                with _audited_execution(issued):
+                    yield
+                if phase == "initialize":
+                    for root, label in (
+                        (binding.secondary_snapshot_root, "snapshot root"),
+                        (binding.primary_receipt_root, "primary receipt root"),
+                        (binding.secondary_receipt_root, "secondary receipt root"),
+                    ):
+                        _registered_storage_directory(root, f"mirror {label}")
+                        if any(root.iterdir()):
+                            raise RehearsalV22Error(
+                                "mirror initialization created an unexpected member"
+                            )
+                elif phase == "staging":
+                    current_primary_inventory = _strict_private_tree_inventory(
+                        binding.ledger_root,
+                        label="mirror-sequence primary ledger after durable claim",
+                    )
+                    staged_inventory = _strict_private_tree_inventory(
+                        staging,
+                        label="capability-bound staged mirror",
+                    )
+                    staged_history = validate_live_history(
+                        binding,
+                        ledger_root=staging,
+                    )
+                    if (
+                        staged_inventory.rows != current_primary_inventory.rows
+                        or staged_inventory.payloads != current_primary_inventory.payloads
+                        or staged_inventory.sha256 != current_primary_inventory.sha256
+                        or staged_history.history_root_sha256 != history.history_root_sha256
+                        or staged_history.live_ledger_root_sha256 != live_root
+                    ):
+                        raise RehearsalV22Error("mirror staging phase postcondition drifted")
+                    primary_inventory = current_primary_inventory
+                elif phase == "publish":
+                    if primary_inventory is None:
+                        raise RehearsalV22Error(
+                            "mirror publish preceded its exact staged inventory"
+                        )
+                    published_inventory = _strict_private_tree_inventory(
+                        snapshot,
+                        label="capability-bound published mirror",
+                    )
+                    published_history = validate_live_history(
+                        binding,
+                        ledger_root=snapshot,
+                    )
+                    if (
+                        os.path.lexists(staging)
+                        or published_inventory.rows != primary_inventory.rows
+                        or published_inventory.payloads != primary_inventory.payloads
+                        or published_inventory.sha256 != primary_inventory.sha256
+                        or published_history.history_root_sha256 != history.history_root_sha256
+                        or published_history.live_ledger_root_sha256 != live_root
+                    ):
+                        raise RehearsalV22Error("mirror publish phase postcondition drifted")
+                else:
+                    if primary_inventory is None:
+                        raise RehearsalV22Error(
+                            "mirror receipt preceded its exact staged inventory"
+                        )
+                    expected_receipt_payload = _canonical_json_bytes(
+                        {
+                            "schema_version": MIRROR_RECEIPT_SCHEMA,
+                            "series_token_sha256": binding.series_token_sha256,
+                            "ordinal": ordinal,
+                            "attempt_outcome": last_record.outcome,
+                            "attempt_sealed": (last_record.outcome != "INCOMPLETE_UNTERMINALIZED"),
+                            "primary_ledger_root": binding.ledger_root.as_posix(),
+                            "secondary_snapshot_root": snapshot.as_posix(),
+                            "history_root_sha256": history.history_root_sha256,
+                            "live_ledger_root_sha256": live_root,
+                            "file_count": primary_inventory.file_count,
+                            "total_bytes": primary_inventory.total_bytes,
+                            "primary_inventory_sha256": primary_inventory.sha256,
+                            "secondary_inventory_sha256": primary_inventory.sha256,
+                            "second_copy_verified": True,
+                            "verified_at_utc": FIXED_WALL_CLOCK_TEXT,
+                        }
+                    )
+                    if tuple(
+                        _regular_bytes(path, "capability-bound mirror receipt")
+                        for path in receipt_paths
+                    ) != (expected_receipt_payload, expected_receipt_payload):
+                        raise RehearsalV22Error("mirror receipt phase postcondition drifted")
+                completed = True
+            finally:
+                _MIRROR_PHASE_CAPABILITY.reset(capability_token)
+                capabilities = tuple(record for record in capabilities if record is not capability)
+            if completed:
+                next_index += 1
+
+        completed_sequence = False
+        body_failed = False
+        try:
+            yield phase_scope
+            completed_sequence = next_index == len(expected_phases)
+            if completed_sequence:
+                if primary_inventory is None or expected_receipt_payload is None:
+                    raise RehearsalV22Error(
+                        "mirror sequence completed without bound inventory and receipt"
+                    )
+                current_inventory = _strict_private_tree_inventory(
+                    binding.ledger_root,
+                    label="mirror-sequence final primary ledger",
+                )
+                current_history = validate_live_history(binding)
+                if (
+                    current_inventory.rows != primary_inventory.rows
+                    or current_inventory.payloads != primary_inventory.payloads
+                    or current_inventory.sha256 != primary_inventory.sha256
+                    or current_history != history
+                ):
+                    raise RehearsalV22Error(
+                        "primary ledger drifted during the mirror write sequence"
+                    )
+                _validate_second_copy_history(binding, current_history)
+        except BaseException:
+            body_failed = True
+            raise
+        finally:
+            sequences = tuple(record for record in sequences if record is not sequence_token)
+        if not body_failed and not completed_sequence:
+            raise RehearsalV22Error("mirror write sequence did not complete every exact phase")
+
+    return capability_is_issued, mirror_write_sequence
+
+
+(
+    _mirror_phase_capability_is_issued,
+    _mirror_write_sequence,
+) = _build_mirror_phase_state()
+
+
+def _build_native_rename_state() -> tuple[Any, Any, Any]:
+    nonce = object()
+    registry: tuple[_NativeRenameCapability, ...] = ()
+    capability_context = _NATIVE_RENAME_CAPABILITY
+    capability_type = _NativeRenameCapability
+    audit_policy_context = _AUDIT_POLICY
+    temp_authority_context = _TEMP_AUTHORITY
+    mirror_phase_context = _MIRROR_PHASE_CAPABILITY
+    audit_policy_checker = _audit_policy_is_issued
+    mirror_phase_checker = _mirror_phase_capability_is_issued
+    audit_hook = _process_audit_hook
+    import_guard_checker = _import_guard_is_active
+    require_write_path = _require_audited_write_path
+    path_in_roots = _path_in_roots
+    path_in_create_only_root = _path_in_create_only_root
+    python_id = id
+    python_type = type
+    python_str = str
+    builtins_build_class = builtins.__build_class__
+    builtins_isinstance = builtins.isinstance
+    builtins_setattr = builtins.setattr
+    builtins_int = builtins.int
+    ctypes_sys = ctypes._sys  # type: ignore[attr-defined]  # CPython private API
+    ctypes_os = ctypes._os  # type: ignore[attr-defined]  # CPython private API
+    ctypes_sys_platform = ctypes_sys.platform
+    ctypes_os_name = ctypes_os.name
+    cdll_factory = ctypes.CDLL
+    cdll_new = ctypes.CDLL.__new__
+    cdll_init = ctypes.CDLL.__init__
+    cdll_getattr = ctypes.CDLL.__getattr__
+    cdll_getattribute = ctypes.CDLL.__getattribute__
+    cdll_getitem = ctypes.CDLL.__getitem__
+    cdll_setattr = ctypes.CDLL.__setattr__
+    cdll_func_flags = ctypes.CDLL._func_flags_
+    cdll_func_restype = ctypes.CDLL._func_restype_
+    ctypes_dlopen = ctypes._dlopen  # type: ignore[attr-defined]  # CPython private API
+    cfuncptr_type = ctypes._CFuncPtr  # type: ignore[attr-defined]  # CPython private API
+    cfuncptr_call = cfuncptr_type.__call__
+    cfuncptr_setattr = cfuncptr_type.__setattr__
+    funcflag_use_errno = ctypes._FUNCFLAG_USE_ERRNO  # type: ignore[attr-defined]
+    set_errno = ctypes.set_errno
+    get_errno = ctypes.get_errno
+    fsencode = os.fsencode
+    c_int = ctypes.c_int
+    c_char_p = ctypes.c_char_p
+    c_uint = ctypes.c_uint
+    c_int_new = c_int.__new__
+    c_int_init = c_int.__init__
+    c_int_from_param_owner = c_int if "from_param" in c_int.__dict__ else type(c_int)
+    c_int_from_param = c_int_from_param_owner.__dict__["from_param"]
+    c_char_p_new = c_char_p.__new__
+    c_char_p_init = c_char_p.__init__
+    c_char_p_from_param_owner = c_char_p if "from_param" in c_char_p.__dict__ else type(c_char_p)
+    c_char_p_from_param = c_char_p_from_param_owner.__dict__["from_param"]
+    c_uint_new = c_uint.__new__
+    c_uint_init = c_uint.__init__
+    c_uint_from_param_owner = c_uint if "from_param" in c_uint.__dict__ else type(c_uint)
+    c_uint_from_param = c_uint_from_param_owner.__dict__["from_param"]
+    python_int = int
+    sys_gettrace = sys.gettrace
+    sys_getprofile = sys.getprofile
+    monitoring_module = sys.monitoring  # type: ignore[attr-defined]  # Python 3.12
+    monitoring_get_tool = monitoring_module.get_tool
+    monitoring_get_events = monitoring_module.get_events
+    monitoring_use_tool_id = monitoring_module.use_tool_id
+    monitoring_free_tool_id = monitoring_module.free_tool_id
+    monitoring_set_events = monitoring_module.set_events
+    monitoring_set_local_events = monitoring_module.set_local_events
+    monitoring_register_callback = monitoring_module.register_callback
+    monitoring_restart_events = monitoring_module.restart_events
+    monitoring_tool_ids = (0, 1, 2, 3, 4, 5)
+    gc_isenabled = gc.isenabled
+    gc_disable = gc.disable
+    gc_enable = gc.enable
+    pthread_sigmask = signal.pthread_sigmask
+    signal_valid_signals = signal.valid_signals
+    signal_block = signal.SIG_BLOCK
+    signal_setmask = signal.SIG_SETMASK
+    signals_type = signal.Signals
+    sigkill = signal.SIGKILL
+    sigstop = signal.SIGSTOP
+
+    def require_native_runtime_identity() -> None:
+        if (
+            _NATIVE_RENAME_CAPABILITY is not capability_context
+            or _NativeRenameCapability is not capability_type
+            or _AUDIT_POLICY is not audit_policy_context
+            or _TEMP_AUTHORITY is not temp_authority_context
+            or _MIRROR_PHASE_CAPABILITY is not mirror_phase_context
+            or _audit_policy_is_issued is not audit_policy_checker
+            or _mirror_phase_capability_is_issued is not mirror_phase_checker
+            or _process_audit_hook is not audit_hook
+            or _import_guard_is_active is not import_guard_checker
+            or _require_audited_write_path is not require_write_path
+            or _path_in_roots is not path_in_roots
+            or _path_in_create_only_root is not path_in_create_only_root
+            or globals().get("_native_rename_capability_is_issued") is not capability_is_issued
+            or builtins.__build_class__ is not builtins_build_class
+            or builtins.isinstance is not builtins_isinstance
+            or builtins.setattr is not builtins_setattr
+            or builtins.int is not builtins_int
+            or ctypes._sys is not ctypes_sys  # type: ignore[attr-defined]
+            or ctypes._os is not ctypes_os  # type: ignore[attr-defined]
+            or python_type(ctypes_sys.platform) is not python_str
+            or ctypes_sys.platform != ctypes_sys_platform
+            or python_type(ctypes_os.name) is not python_str
+            or ctypes_os.name != ctypes_os_name
+            or ctypes.CDLL is not cdll_factory
+            or ctypes.CDLL.__new__ is not cdll_new
+            or ctypes.CDLL.__init__ is not cdll_init
+            or ctypes.CDLL.__getattr__ is not cdll_getattr
+            or ctypes.CDLL.__getattribute__ is not cdll_getattribute
+            or ctypes.CDLL.__getitem__ is not cdll_getitem
+            or ctypes.CDLL.__setattr__ is not cdll_setattr
+            or python_type(ctypes.CDLL._func_flags_) is not python_int
+            or ctypes.CDLL._func_flags_ != cdll_func_flags
+            or ctypes.CDLL._func_restype_ is not cdll_func_restype
+            or ctypes._dlopen is not ctypes_dlopen  # type: ignore[attr-defined]
+            or ctypes._CFuncPtr is not cfuncptr_type  # type: ignore[attr-defined]
+            or cfuncptr_type.__call__ is not cfuncptr_call
+            or cfuncptr_type.__setattr__ is not cfuncptr_setattr
+            or python_type(ctypes._FUNCFLAG_USE_ERRNO)  # type: ignore[attr-defined]
+            is not python_int
+            or funcflag_use_errno != ctypes._FUNCFLAG_USE_ERRNO  # type: ignore[attr-defined]
+            or ctypes.set_errno is not set_errno
+            or ctypes.get_errno is not get_errno
+            or os.fsencode is not fsencode
+            or ctypes.c_int is not c_int
+            or ctypes.c_char_p is not c_char_p
+            or ctypes.c_uint is not c_uint
+            or c_int.__new__ is not c_int_new
+            or c_int.__init__ is not c_int_init
+            or c_int_from_param_owner.__dict__.get("from_param") is not c_int_from_param
+            or c_char_p.__new__ is not c_char_p_new
+            or c_char_p.__init__ is not c_char_p_init
+            or c_char_p_from_param_owner.__dict__.get("from_param") is not c_char_p_from_param
+            or c_uint.__new__ is not c_uint_new
+            or c_uint.__init__ is not c_uint_init
+            or c_uint_from_param_owner.__dict__.get("from_param") is not c_uint_from_param
+            or sys.gettrace is not sys_gettrace
+            or sys.getprofile is not sys_getprofile
+            or sys.monitoring is not monitoring_module  # type: ignore[attr-defined]
+            or monitoring_module.get_tool is not monitoring_get_tool
+            or monitoring_module.get_events is not monitoring_get_events
+            or monitoring_module.use_tool_id is not monitoring_use_tool_id
+            or monitoring_module.free_tool_id is not monitoring_free_tool_id
+            or monitoring_module.set_events is not monitoring_set_events
+            or monitoring_module.set_local_events is not monitoring_set_local_events
+            or monitoring_module.register_callback is not monitoring_register_callback
+            or monitoring_module.restart_events is not monitoring_restart_events
+            or gc.isenabled is not gc_isenabled
+            or gc.disable is not gc_disable
+            or gc.enable is not gc_enable
+            or signal.pthread_sigmask is not pthread_sigmask
+            or signal.valid_signals is not signal_valid_signals
+            or signal.SIG_BLOCK is not signal_block
+            or signal.SIG_SETMASK is not signal_setmask
+            or signal.Signals is not signals_type
+            or signal.SIGKILL is not sigkill
+            or signal.SIGSTOP is not sigstop
+            or sys_gettrace() is not None
+            or sys_getprofile() is not None
+        ):
+            raise RehearsalV22Error("native rename runtime factory identity drifted")
+
+    def disable_runtime_callbacks() -> bool:
+        require_native_runtime_identity()
+        for tool_id in monitoring_tool_ids:
+            events = monitoring_get_events(tool_id)
+            if (
+                monitoring_get_tool(tool_id) is not None
+                or python_type(events) is not python_int
+                or events != 0
+            ):
+                raise RehearsalV22Error("native rename refuses active Python monitoring callbacks")
+        was_enabled = gc_isenabled()
+        if was_enabled:
+            gc_disable()
+        if gc_isenabled():
+            raise RehearsalV22Error("native rename could not disable cyclic GC callbacks")
+        return was_enabled
+
+    def block_runtime_callbacks() -> set[signal.Signals]:
+        blocked = {item for item in signal_valid_signals() if item not in {sigkill, sigstop}}
+        return cast(
+            set[signal.Signals],
+            pthread_sigmask(signal_block, blocked),
+        )
+
+    def capability_is_issued(
+        capability: _NativeRenameCapability | None,
+        *,
+        policy: _AuditPolicy,
+    ) -> bool:
+        if (
+            capability is None
+            or python_type(capability) is not capability_type
+            or capability._nonce is not nonce
+            or capability.policy_id != python_id(policy)
+        ):
+            return False
+        for record in registry:  # noqa: SIM110 - audit path avoids dynamic builtins.any
+            if record is capability:
+                return True
+        return False
+
+    def native_rename_exclusive_call(
+        policy: _AuditPolicy,
+        source: Path,
+        destination: Path,
+    ) -> tuple[int, int]:
+        nonlocal registry
+        require_native_runtime_identity()
+        if (
+            audit_policy_context.get() is not policy
+            or not audit_policy_checker(policy)
+            or require_write_path(source, policy) != source
+            or require_write_path(destination, policy) != destination
+        ):
+            raise RehearsalV22Error("native rename scope lacks exact issued paths")
+        mirror_roots = tuple(
+            root
+            for root in (
+                policy.mirror_snapshot_root,
+                policy.primary_receipt_root,
+                policy.secondary_receipt_root,
+            )
+            if root is not None
+        )
+        mirror_path = path_in_roots(source, mirror_roots) or path_in_roots(
+            destination,
+            mirror_roots,
+        )
+        authority = temp_authority_context.get()
+        if (
+            path_in_create_only_root(source, policy)
+            or path_in_create_only_root(destination, policy)
+            or mirror_path
+            or authority is None
+            or source.parent != authority
+            or not source.is_relative_to(authority)
+            or not (
+                destination.parent == authority
+                or (
+                    destination in policy.exact_write_paths
+                    and not destination.is_relative_to(authority)
+                )
+            )
+        ):
+            raise RehearsalV22Error("native bundle rename escaped its active temporary authority")
+        if registry or capability_context.get() is not None:
+            raise RehearsalV22Error("native rename capability is non-reentrant")
+        capability = _NativeRenameCapability(
+            _nonce=nonce,
+            policy_id=python_id(policy),
+            source=source,
+            destination=destination,
+            symbol="renamex_np",
+        )
+        source_bytes = fsencode(source)
+        destination_bytes = fsencode(destination)
+        rename_flags = c_uint(0x00000004)
+        rename_argtypes: Any = [c_char_p, c_char_p, c_uint]
+        require_native_runtime_identity()
+        gc_was_enabled = disable_runtime_callbacks()
+        try:
+            prior_signal_mask = block_runtime_callbacks()
+            prior_registry = registry
+            token: contextvars.Token[_NativeRenameCapability | None] | None = None
+            try:
+                try:
+                    registry = (*prior_registry, capability)
+                    token = capability_context.set(capability)
+                    libc = cdll_factory(None, use_errno=True)
+                    renamex_np = libc.renamex_np
+                    renamex_np.argtypes = rename_argtypes
+                    renamex_np.restype = c_int
+                    set_errno(0)
+                    raw_return_code = renamex_np(
+                        source_bytes,
+                        destination_bytes,
+                        rename_flags,
+                    )
+                    observed_errno = get_errno()
+                finally:
+                    registry = prior_registry
+            finally:
+                try:
+                    if token is not None:
+                        capability_context.reset(token)
+                finally:
+                    pthread_sigmask(signal_setmask, prior_signal_mask)
+        finally:
+            if gc_was_enabled:
+                gc_enable()
+        require_native_runtime_identity()
+        if gc_isenabled() is not gc_was_enabled:
+            raise RehearsalV22Error("native rename cyclic GC state was not restored")
+        if (
+            python_type(raw_return_code) is not python_int
+            or python_type(observed_errno) is not python_int
+        ):
+            raise RehearsalV22Error("native rename returned a non-integer result")
+        return_code = raw_return_code
+        return return_code, observed_errno
+
+    def native_mirror_renameatx_exclusive_call(
+        policy: _AuditPolicy,
+        source: Path,
+        destination: Path,
+        *,
+        parent_descriptor: int,
+        expected_parent_identity: tuple[int, int],
+    ) -> tuple[int, int, bool]:
+        nonlocal registry
+        require_native_runtime_identity()
+        mirror_roots = tuple(
+            root
+            for root in (
+                policy.mirror_snapshot_root,
+                policy.primary_receipt_root,
+                policy.secondary_receipt_root,
+            )
+            if root is not None
+        )
+        if (
+            audit_policy_context.get() is not policy
+            or not audit_policy_checker(policy)
+            or require_write_path(source, policy) != source
+            or require_write_path(destination, policy) != destination
+            or not path_in_roots(source, mirror_roots)
+            or not path_in_roots(destination, mirror_roots)
+            or policy.mirror_write_phase != "publish"
+            or policy.mirror_publish_paths != (source, destination)
+            or policy.mirror_staging_root != source
+            or policy.mirror_snapshot_root is None
+            or source.parent != policy.mirror_snapshot_root
+            or destination.parent != policy.mirror_snapshot_root
+            or source.parent != destination.parent
+            or not mirror_phase_checker(
+                mirror_phase_context.get(),
+                outer=None,
+                issued=policy,
+            )
+        ):
+            raise RehearsalV22Error(
+                "native mirror rename escaped its exact issued publish capability"
+            )
+        if registry or capability_context.get() is not None:
+            raise RehearsalV22Error("native mirror rename capability is non-reentrant")
+        try:
+            raw = fcntl.fcntl(parent_descriptor, fcntl.F_GETPATH, b"\0" * 1024)
+            terminator = raw.find(b"\0")
+            descriptor_path = Path(os.fsdecode(raw[:terminator]))
+            descriptor_metadata = os.fstat(parent_descriptor)
+            parent_metadata = source.parent.lstat()
+            if (
+                terminator <= 0
+                or descriptor_path.resolve(strict=True) != source.parent.resolve(strict=True)
+                or (descriptor_metadata.st_dev, descriptor_metadata.st_ino)
+                != expected_parent_identity
+                or (parent_metadata.st_dev, parent_metadata.st_ino) != expected_parent_identity
+                or not stat.S_ISDIR(descriptor_metadata.st_mode)
+            ):
+                raise RehearsalV22Error("renameatx_np parent descriptor identity drifted")
+            source_name = fsencode(source.name)
+            destination_name = fsencode(destination.name)
+            rename_flags = c_uint(0x00000004)
+            rename_argtypes: Any = [c_int, c_char_p, c_int, c_char_p, c_uint]
+            capability = _NativeRenameCapability(
+                _nonce=nonce,
+                policy_id=python_id(policy),
+                source=source,
+                destination=destination,
+                symbol="renameatx_np",
+            )
+            require_native_runtime_identity()
+            gc_was_enabled = disable_runtime_callbacks()
+            try:
+                prior_signal_mask = block_runtime_callbacks()
+                prior_registry = registry
+                token: contextvars.Token[_NativeRenameCapability | None] | None = None
+                try:
+                    try:
+                        registry = (*prior_registry, capability)
+                        token = capability_context.set(capability)
+                        libc = cdll_factory(None, use_errno=True)
+                        renameatx_np = libc.renameatx_np
+                        renameatx_np.argtypes = rename_argtypes
+                        renameatx_np.restype = c_int
+                        set_errno(0)
+                        raw_return_code = renameatx_np(
+                            parent_descriptor,
+                            source_name,
+                            parent_descriptor,
+                            destination_name,
+                            rename_flags,
+                        )
+                        observed_errno = get_errno()
+                    finally:
+                        registry = prior_registry
+                finally:
+                    try:
+                        if token is not None:
+                            capability_context.reset(token)
+                    finally:
+                        pthread_sigmask(signal_setmask, prior_signal_mask)
+            finally:
+                if gc_was_enabled:
+                    gc_enable()
+            require_native_runtime_identity()
+            if gc_isenabled() is not gc_was_enabled:
+                raise RehearsalV22Error("native mirror rename cyclic GC state was not restored")
+            if (
+                python_type(raw_return_code) is not python_int
+                or python_type(observed_errno) is not python_int
+            ):
+                raise RehearsalV22Error("native mirror rename returned a non-integer result")
+            return_code = raw_return_code
+            parent_fsync_completed = False
+            if return_code == 0:
+                os.fsync(parent_descriptor)
+                parent_fsync_completed = True
+        finally:
+            pass
+        return return_code, observed_errno, parent_fsync_completed
+
+    return (
+        capability_is_issued,
+        native_rename_exclusive_call,
+        native_mirror_renameatx_exclusive_call,
+    )
+
+
+(
+    _native_rename_capability_is_issued,
+    _native_rename_exclusive_call,
+    _native_mirror_renameatx_exclusive_call,
+) = _build_native_rename_state()
 
 
 # Repository imports occur only after the import-time effect guard is installed.
@@ -765,13 +1895,38 @@ RELEASE_SCHEMA_RELATIVE = Path(
     "config/schemas/p4_2a_v2_2_heldout_release_authorization.schema.json"
 )
 RELEASE_SCHEMA_SHA256 = "098d213f510718aab0d9c6bfc950a30bb1c4841ca151631bea78c1bf0238e7ea"
+SERIES_2_PREREGISTRATION_RELATIVE = Path(
+    "docs/phase4/reports/P4.2a-v2-2-series-2-preregistration-amendment-20260823.json"
+)
+SERIES_2_PREREGISTRATION_SHA256 = "be98803a6b6cbe25a79242c23ee728d0ed687ac70e3f6990230bb1710886e91c"
+SERIES_2_PREREGISTRATION_COMMIT = "b6dfff08557fdbca1336f816b197cd6c8a0d5c41"
+SERIES_2_PREREGISTRATION_PARENT = "f21fa10babd9b300fae03c751ba038c7ebc77392"
+SERIES_2_TOKEN_SEED_SHA256 = "2deee3072c339d8e8993bbf8ca8ecbe9380576c1499835828064fb4aead43d30"
+SERIES_2_BUNDLE_SCHEMA_RELATIVE = Path(
+    "config/schemas/p4_2a_v2_2_series_2_heldout_rehearsal_bundle.schema.json"
+)
+SERIES_2_BUNDLE_SCHEMA_SHA256 = "252ad069ed300917989a97656b4c38e6ee2c74069b2bacd6c258b263b5684ec7"
+SERIES_2_RELEASE_SCHEMA_RELATIVE = Path(
+    "config/schemas/p4_2a_v2_2_series_2_heldout_release_authorization.schema.json"
+)
+SERIES_2_RELEASE_SCHEMA_SHA256 = "c7228bff2d4ec575bcdec024194ce2b53d37a27e05ba793bd4bdf145a97f63be"
+SERIES_2_LOSS_INCIDENT_RELATIVE = Path(
+    "docs/phase4/reports/P4.2a-v2-2-sealed-ledger-loss-incident-20260823.json"
+)
+SERIES_2_LOSS_INCIDENT_COMMIT = "a7cea63378a39702b1618895b3a7350febcb5da6"
+SERIES_2_OWNER_DECISION_RELATIVE = Path(
+    "docs/phase4/reports/P4.2a-owner-decision-rerun-rehearsal-series-2-20260823.json"
+)
+SERIES_2_OWNER_DECISION_SHA256 = "e0fc6a17c853be063632551b4b794091a6152324af7f7ec95262ed2af8538051"
+SERIES_2_OWNER_DECISION_COMMIT = "9a028855c73c4feba36125ed30cf5a7d4db5fff4"
+SERIES_2_EPOCH_ORIGIN = 5
+SERIES_2_SERIES_SCHEMA_VERSION = "p4.2a-v2-2-rehearsal-series-2-v1"
 RELEASE_REVIEW_REQUEST_RELATIVE = Path(
     "docs/phase4/reports/"
     "P4.2a-v2-heldout-rehearsal-v2-2-implementation-and-execution-review-request-20260811.json"
 )
 RELEASE_RELATIVE = Path(
-    "docs/phase4/reports/"
-    "P4.2a-v2-heldout-rehearsal-v2-2-release-authorization-20260811.json"
+    "docs/phase4/reports/P4.2a-v2-heldout-rehearsal-v2-2-release-authorization-20260811.json"
 )
 V2_1_BUNDLE_SCHEMA_RELATIVE = Path("config/schemas/p4_2a_v2_1_heldout_rehearsal_bundle.schema.json")
 V2_1_BUNDLE_SCHEMA_SHA256 = "ed827e29ce853f07a9110d44c98793a4cc3ef0634a12fe7e8bc64c7290d7d716"
@@ -807,9 +1962,7 @@ VOID_EPOCH_ONE_LANDING_COMMIT = "be7a2cedff1ad4bf523d88d83fa333126d502720"
 VOID_EPOCH_ONE_REVIEW_RELATIVE = Path(
     "docs/phase4/reports/P4.2a-v2-2-remediation-independent-review-20260812.json"
 )
-VOID_EPOCH_ONE_REVIEW_SHA256 = (
-    "e348bbc6c2976d473bf2b8e5b280784fd45ff7ae1ba7d7a4119309eb178b16cf"
-)
+VOID_EPOCH_ONE_REVIEW_SHA256 = "e348bbc6c2976d473bf2b8e5b280784fd45ff7ae1ba7d7a4119309eb178b16cf"
 VOID_EPOCH_ONE_REVIEW_COMMIT = "16f3e700c2ca9da997c8c0180e8b780aeae93346"
 VOID_EPOCH_ONE_ADJUDICATION_RELATIVE = Path(
     "docs/phase4/reports/P4.2a-attempt1-adjudication-and-epoch3-companion-20260813.json"
@@ -853,9 +2006,26 @@ SERIES_POLICY = "DISCLOSED_REPEATABLE_SERIES_V1"
 DESTINATION_RELATIVE = Path("docs/phase4/rehearsals/P4.2a-v2-calibration-v2-2")
 BUNDLE_FILENAME = "bundle.json"
 OFFICIAL_DESTINATION = REGISTERED_PROJECT_ROOT / DESTINATION_RELATIVE
-OFFICIAL_SERIES_TOKEN = "35ba1b83a9b187817d7a591758e1c131e867fcd37917cba0ab196799fff832ef"
-OFFICIAL_LEDGER_ROOT = REGISTERED_PROJECT_ROOT.parent / (
-    ".alphapilot-p4-2a-v2-2-execution-claim-" + OFFICIAL_SERIES_TOKEN
+LEGACY_OFFICIAL_SERIES_TOKEN = "35ba1b83a9b187817d7a591758e1c131e867fcd37917cba0ab196799fff832ef"
+LEGACY_OFFICIAL_LEDGER_ROOT = REGISTERED_PROJECT_ROOT.parent / (
+    ".alphapilot-p4-2a-v2-2-execution-claim-" + LEGACY_OFFICIAL_SERIES_TOKEN
+)
+OFFICIAL_SERIES_TOKEN = "2543d679819f96958baf747ef61dda2044013a0b00a9cb824c0d7675640d9f93"
+OFFICIAL_PRIMARY_SERIES_CONTAINER = Path(
+    "/Users/ouyangduning/AlphaPilot-EVIDENCE-DO-NOT-DELETE/P4.2a/v2.2/"
+    "SERIES-000002-" + OFFICIAL_SERIES_TOKEN
+)
+OFFICIAL_LEDGER_ROOT = OFFICIAL_PRIMARY_SERIES_CONTAINER / "PRIMARY-LEDGER-DO-NOT-DELETE"
+OFFICIAL_PRIMARY_RECEIPT_ROOT = OFFICIAL_PRIMARY_SERIES_CONTAINER / "MIRROR-RECEIPTS-DO-NOT-DELETE"
+OFFICIAL_SECONDARY_SERIES_CONTAINER = Path(
+    "/Users/ouyangduning/AlphaPilot-EVIDENCE-MIRROR-DO-NOT-DELETE/P4.2a/v2.2/"
+    "SERIES-000002-" + OFFICIAL_SERIES_TOKEN
+)
+OFFICIAL_SECONDARY_SNAPSHOT_ROOT = (
+    OFFICIAL_SECONDARY_SERIES_CONTAINER / "SEALED-LEDGER-SNAPSHOTS-DO-NOT-DELETE"
+)
+OFFICIAL_SECONDARY_RECEIPT_ROOT = (
+    OFFICIAL_SECONDARY_SERIES_CONTAINER / "MIRROR-RECEIPTS-DO-NOT-DELETE"
 )
 V2_1_DESTINATION = REGISTERED_PROJECT_ROOT / ("docs/phase4/rehearsals/P4.2a-v2-calibration-v2-1")
 V2_1_EMPTY_CLAIM = REGISTERED_PROJECT_ROOT.parent / (
@@ -1040,6 +2210,8 @@ EVIDENCE_NODE_PREFIX = b"p4.2a-rehearsal-v2.2-evidence-node-v1\0"
 MERKLE_LEAF_PREFIX = b"p4.2a-rehearsal-leaf-v2.2\0"
 MERKLE_NODE_PREFIX = b"p4.2a-rehearsal-node-v2.2\0"
 BUNDLE_ROOT_PREFIX = b"p4.2a-rehearsal-bundle-v2.2\0"
+MIRROR_INVENTORY_PREFIX = b"p4.2a-rehearsal-v2.2-mirror-inventory-v1\0"
+MIRROR_RECEIPT_SCHEMA = "p4.2a-v2-2-series-2-mirror-verification-v1"
 
 
 def _sha256(payload: bytes) -> str:
@@ -1125,20 +2297,114 @@ def _safe_path(root: Path, relative: object, label: str) -> Path:
     return path
 
 
+def _stat_identity(metadata: os.stat_result) -> tuple[int, ...]:
+    return (
+        metadata.st_dev,
+        metadata.st_ino,
+        metadata.st_mode,
+        metadata.st_uid,
+        metadata.st_gid,
+        metadata.st_nlink,
+        metadata.st_size,
+        metadata.st_mtime_ns,
+        metadata.st_ctime_ns,
+    )
+
+
+@contextmanager
+def _held_directory_identity(path: Path, label: str) -> Iterator[int]:
+    try:
+        before = path.lstat()
+    except OSError as exc:
+        raise RehearsalV22Error(f"{label} directory is unavailable") from exc
+    flags = (
+        os.O_RDONLY
+        | getattr(os, "O_DIRECTORY", 0)
+        | getattr(os, "O_NOFOLLOW", 0)
+        | getattr(os, "O_CLOEXEC", 0)
+    )
+    try:
+        descriptor = os.open(path, flags)
+    except OSError as exc:
+        raise RehearsalV22Error(f"{label} directory cannot be held without aliases") from exc
+    try:
+        opened = os.fstat(descriptor)
+        raw = fcntl.fcntl(descriptor, fcntl.F_GETPATH, b"\0" * 1024)
+        terminator = raw.find(b"\0")
+        descriptor_path = Path(os.fsdecode(raw[:terminator]))
+        if (
+            terminator <= 0
+            or descriptor_path != path.absolute()
+            or not stat.S_ISDIR(opened.st_mode)
+            or _stat_identity(opened) != _stat_identity(before)
+            or path.is_symlink()
+        ):
+            raise RehearsalV22Error(f"{label} held directory identity drifted")
+        yield descriptor
+        after_descriptor = os.fstat(descriptor)
+        after_path = path.lstat()
+        if (
+            _stat_identity(after_descriptor) != _stat_identity(before)
+            or _stat_identity(after_path) != _stat_identity(before)
+            or path.is_symlink()
+        ):
+            raise RehearsalV22Error(f"{label} directory changed while held")
+    except OSError as exc:
+        raise RehearsalV22Error(f"{label} held directory verification failed") from exc
+    finally:
+        os.close(descriptor)
+
+
 def _regular_bytes(path: Path, label: str, *, allow_zero: bool = True) -> bytes:
     try:
-        metadata = path.lstat()
+        before = path.lstat()
     except OSError as exc:
         raise RehearsalV22Error(f"{label} is unavailable") from exc
     if (
         path.is_symlink()
-        or not stat.S_ISREG(metadata.st_mode)
-        or metadata.st_nlink != 1
+        or not stat.S_ISREG(before.st_mode)
+        or before.st_nlink != 1
         or path.resolve(strict=True) != path.absolute()
-        or (not allow_zero and metadata.st_size == 0)
+        or (not allow_zero and before.st_size == 0)
     ):
         raise RehearsalV22Error(f"{label} is not one unaliased regular file")
-    return path.read_bytes()
+    flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_CLOEXEC", 0)
+    try:
+        descriptor = os.open(path, flags)
+    except OSError as exc:
+        raise RehearsalV22Error(f"{label} cannot be opened without following aliases") from exc
+    try:
+        opened = os.fstat(descriptor)
+        raw = fcntl.fcntl(descriptor, fcntl.F_GETPATH, b"\0" * 1024)
+        terminator = raw.find(b"\0")
+        descriptor_path = Path(os.fsdecode(raw[:terminator]))
+        if (
+            terminator <= 0
+            or descriptor_path != path.absolute()
+            or _stat_identity(opened) != _stat_identity(before)
+        ):
+            raise RehearsalV22Error(f"{label} descriptor identity drifted before read")
+        chunks: list[bytes] = []
+        while True:
+            chunk = os.read(descriptor, 1024 * 1024)
+            if not chunk:
+                break
+            chunks.append(chunk)
+        payload = b"".join(chunks)
+        after_descriptor = os.fstat(descriptor)
+        after_path = path.lstat()
+        if (
+            len(payload) != before.st_size
+            or _stat_identity(after_descriptor) != _stat_identity(before)
+            or _stat_identity(after_path) != _stat_identity(before)
+            or path.is_symlink()
+        ):
+            raise RehearsalV22Error(f"{label} identity or bytes drifted during read")
+    except OSError as exc:
+        raise RehearsalV22Error(f"{label} descriptor read failed") from exc
+    finally:
+        os.close(descriptor)
+    return payload
 
 
 def _fixed_launcher_bytes() -> bytes:
@@ -1151,17 +2417,12 @@ def _fixed_launcher_bytes() -> bytes:
     except OSError as exc:
         raise RehearsalV22Error("fixed Python launcher is unavailable") from exc
     if (
-        not (
-            stat.S_ISLNK(launcher_metadata.st_mode)
-            or stat.S_ISREG(launcher_metadata.st_mode)
-        )
+        not (stat.S_ISLNK(launcher_metadata.st_mode) or stat.S_ISREG(launcher_metadata.st_mode))
         or resolved.is_symlink()
         or not stat.S_ISREG(resolved_metadata.st_mode)
         or resolved_metadata.st_nlink != 1
     ):
-        raise RehearsalV22Error(
-            "fixed Python launcher chain is not one regular executable"
-        )
+        raise RehearsalV22Error("fixed Python launcher chain is not one regular executable")
     return FIXED_PYTHON_LAUNCHER.read_bytes()
 
 
@@ -1201,6 +2462,104 @@ def _write_exclusive(path: Path, payload: bytes, *, mode: int = 0o600) -> None:
     if stat.S_IMODE(path.lstat().st_mode) != mode:
         raise RehearsalV22Error("create-only file mode was changed by the process umask")
     _fsync_directory(path.parent)
+
+
+def _write_exclusive_at(
+    parent_descriptor: int,
+    path: Path,
+    payload: bytes,
+    *,
+    mode: int = 0o600,
+) -> None:
+    policy = _AUDIT_POLICY.get()
+    if policy is None or not _audit_policy_is_issued(policy):
+        raise RehearsalV22Error("create-only openat lacks an issued audit policy")
+    entry_name = path.name
+    if (
+        not entry_name
+        or entry_name in {".", ".."}
+        or "/" in entry_name
+        or _audited_directory_from_fd(parent_descriptor) / entry_name != path
+    ):
+        raise RehearsalV22Error("create-only openat target escaped its held parent")
+    flags = (
+        os.O_WRONLY
+        | os.O_CREAT
+        | os.O_EXCL
+        | getattr(os, "O_NOFOLLOW", 0)
+        | getattr(os, "O_CLOEXEC", 0)
+    )
+    descriptor = _open_exclusive_at_issued(
+        policy,
+        parent_descriptor=parent_descriptor,
+        entry_name=entry_name,
+        absolute_path=path,
+        flags=flags,
+        mode=mode,
+        payload_bytes=len(payload),
+        payload_sha256=_sha256(payload),
+    )
+    try:
+        opened = os.fstat(descriptor)
+        if (
+            not stat.S_ISREG(opened.st_mode)
+            or opened.st_nlink != 1
+            or stat.S_IMODE(opened.st_mode) != mode
+            or _descriptor_path(descriptor, label="create-only openat file") != path.absolute()
+        ):
+            raise RehearsalV22Error("create-only openat file identity or mode drifted")
+        written = 0
+        while written < len(payload):
+            written += os.write(descriptor, payload[written:])
+        os.fsync(descriptor)
+        after = os.fstat(descriptor)
+        path_after = os.stat(
+            entry_name,
+            dir_fd=parent_descriptor,
+            follow_symlinks=False,
+        )
+        if (
+            _stat_identity(after) != _stat_identity(path_after)
+            or (after.st_dev, after.st_ino) != (opened.st_dev, opened.st_ino)
+            or after.st_size != len(payload)
+        ):
+            raise RehearsalV22Error("create-only openat file changed during write")
+    finally:
+        os.close(descriptor)
+    read_flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_CLOEXEC", 0)
+    read_descriptor = os.open(
+        entry_name,
+        read_flags,
+        dir_fd=parent_descriptor,
+    )
+    try:
+        read_opened = os.fstat(read_descriptor)
+        if (
+            _stat_identity(read_opened) != _stat_identity(after)
+            or _descriptor_path(
+                read_descriptor,
+                label="create-only openat readback",
+            )
+            != path.absolute()
+        ):
+            raise RehearsalV22Error("create-only openat readback identity drifted")
+        observed_chunks: list[bytes] = []
+        while True:
+            chunk = os.read(read_descriptor, 1024 * 1024)
+            if not chunk:
+                break
+            observed_chunks.append(chunk)
+        observed_payload = b"".join(observed_chunks)
+        read_after = os.fstat(read_descriptor)
+        if (
+            _stat_identity(read_after) != _stat_identity(read_opened)
+            or observed_payload != payload
+            or _sha256(observed_payload) != _sha256(payload)
+        ):
+            raise RehearsalV22Error("create-only openat readback bytes drifted")
+    finally:
+        os.close(read_descriptor)
+    os.fsync(parent_descriptor)
 
 
 def _tree_fingerprint(root: Path) -> dict[str, str]:
@@ -1243,6 +2602,11 @@ class ExecutionBinding:
     destination: Path
     series_token_sha256: str
     ledger_root: Path
+    primary_series_container: Path
+    primary_receipt_root: Path
+    secondary_series_container: Path
+    secondary_snapshot_root: Path
+    secondary_receipt_root: Path
 
 
 @dataclass(frozen=True)
@@ -1432,6 +2796,18 @@ def _build_authority_state() -> tuple[Any, ...]:
         authorization = capability.action_authorization
         history = validate_live_history(binding)
         if authorization.ordinal == len(history.records) + 1:
+            if (
+                history.records
+                and history.records[-1].outcome == "INCOMPLETE_UNTERMINALIZED"
+                and history.records[-1].terminal_path is None
+            ):
+                _validate_continuation_mirror_state(
+                    binding,
+                    history,
+                    permit_unmirrored_final_incomplete=True,
+                )
+            else:
+                _validate_second_copy_history(binding, history)
             if history.series_closed:
                 raise RehearsalV22Error(
                     "capability action cannot start after the selected candidate"
@@ -1443,6 +2819,24 @@ def _build_authority_state() -> tuple[Any, ...]:
                 binding.project_root
             ):
                 raise RehearsalV22Error("capability action differs from its live attempt record")
+            if authorization.ordinal == len(history.records):
+                target_presence = tuple(
+                    os.path.lexists(path) for path in _final_mirror_targets(binding, history)
+                )
+                if target_presence == (True, True, True):
+                    _validate_second_copy_history(binding, history)
+                elif target_presence == (False, False, False):
+                    _validate_second_copy_history(
+                        binding,
+                        history,
+                        allow_unmirrored_final=True,
+                    )
+                else:
+                    raise RehearsalV22Error(
+                        "current capability attempt has partial mirror artifacts"
+                    )
+            else:
+                _validate_second_copy_history(binding, history)
             expected_previous = record.previous_history_root_sha256
         else:
             raise RehearsalV22Error("capability action ordinal is not live or next")
@@ -1767,11 +3161,7 @@ def _build_authority_state() -> tuple[Any, ...]:
         replay_observation_registry = (*replay_observation_registry, record)
 
         def snapshot() -> tuple[str, ...]:
-            matches = [
-                active
-                for active in replay_observation_registry
-                if active.token is token
-            ]
+            matches = [active for active in replay_observation_registry if active.token is token]
             if (
                 len(matches) != 1
                 or token._nonce is not replay_observation_nonce
@@ -1792,9 +3182,7 @@ def _build_authority_state() -> tuple[Any, ...]:
             yield snapshot
         finally:
             replay_observation_registry = tuple(
-                active
-                for active in replay_observation_registry
-                if active.token is not token
+                active for active in replay_observation_registry if active.token is not token
             )
 
     def record_replay_observation(
@@ -1828,8 +3216,7 @@ def _build_authority_state() -> tuple[Any, ...]:
         target = matches[0]
         replacement = replace(target, labels=(*target.labels, run_label))
         replay_observation_registry = tuple(
-            replacement if active is target else active
-            for active in replay_observation_registry
+            replacement if active is target else active for active in replay_observation_registry
         )
 
     @contextmanager
@@ -1923,9 +3310,41 @@ def _module_identity_observation() -> ModuleIdentityObservation:
 
 def _series_token(destination: Path) -> str:
     material = (
-        INCIDENT_SHA256.lower() + "\0" + REHEARSAL_ID + "\0" + destination.absolute().as_posix()
+        SERIES_2_TOKEN_SEED_SHA256.lower()
+        + "\0"
+        + REHEARSAL_ID
+        + "\0"
+        + destination.absolute().as_posix()
     ).encode("utf-8")
+    if destination == OFFICIAL_DESTINATION and len(material) != 232:
+        raise RehearsalV22Error("series-2 token material length drifted")
     return _sha256(material)
+
+
+def _disposable_storage_roots(
+    project_root: Path,
+    token: str,
+) -> tuple[Path, Path, Path, Path, Path]:
+    parent = project_root.parent
+    primary_container = (
+        parent
+        / f"{project_root.name}-EVIDENCE-DO-NOT-DELETE"
+        / "P4.2a/v2.2"
+        / f"SERIES-000002-{token}"
+    )
+    secondary_container = (
+        parent
+        / f"{project_root.name}-EVIDENCE-MIRROR-DO-NOT-DELETE"
+        / "P4.2a/v2.2"
+        / f"SERIES-000002-{token}"
+    )
+    return (
+        primary_container,
+        primary_container / "PRIMARY-LEDGER-DO-NOT-DELETE",
+        primary_container / "MIRROR-RECEIPTS-DO-NOT-DELETE",
+        secondary_container,
+        secondary_container / "SEALED-LEDGER-SNAPSHOTS-DO-NOT-DELETE",
+    )
 
 
 def _derive_binding_unchecked(
@@ -1939,9 +3358,14 @@ def _derive_binding_unchecked(
     shim_path = root / SHIM_RELATIVE
     destination = root / DESTINATION_RELATIVE
     token = _series_token(destination)
-    ledger = root.parent / f".alphapilot-p4-2a-v2-2-execution-claim-{token}"
     if root == REGISTERED_PROJECT_ROOT:
         mode: ExecutionMode = "REGISTERED_OFFICIAL"
+        primary_container = OFFICIAL_PRIMARY_SERIES_CONTAINER
+        ledger = OFFICIAL_LEDGER_ROOT
+        primary_receipts = OFFICIAL_PRIMARY_RECEIPT_ROOT
+        secondary_container = OFFICIAL_SECONDARY_SERIES_CONTAINER
+        secondary_snapshots = OFFICIAL_SECONDARY_SNAPSHOT_ROOT
+        secondary_receipts = OFFICIAL_SECONDARY_RECEIPT_ROOT
         if (
             destination != OFFICIAL_DESTINATION
             or token != OFFICIAL_SERIES_TOKEN
@@ -1951,11 +3375,37 @@ def _derive_binding_unchecked(
     else:
         mode = "DISPOSABLE_FULL_SHAPE_TEST"
         canonical = REGISTERED_PROJECT_ROOT
+        (
+            primary_container,
+            ledger,
+            primary_receipts,
+            secondary_container,
+            secondary_snapshots,
+        ) = _disposable_storage_roots(root, token)
+        secondary_receipts = secondary_container / "MIRROR-RECEIPTS-DO-NOT-DELETE"
         if (
             root.is_relative_to(canonical)
             or canonical.is_relative_to(root)
             or destination == OFFICIAL_DESTINATION
-            or ledger == OFFICIAL_LEDGER_ROOT
+            or any(
+                path
+                in {
+                    OFFICIAL_PRIMARY_SERIES_CONTAINER,
+                    OFFICIAL_LEDGER_ROOT,
+                    OFFICIAL_PRIMARY_RECEIPT_ROOT,
+                    OFFICIAL_SECONDARY_SERIES_CONTAINER,
+                    OFFICIAL_SECONDARY_SNAPSHOT_ROOT,
+                    OFFICIAL_SECONDARY_RECEIPT_ROOT,
+                }
+                for path in (
+                    primary_container,
+                    ledger,
+                    primary_receipts,
+                    secondary_container,
+                    secondary_snapshots,
+                    secondary_receipts,
+                )
+            )
         ):
             raise RehearsalV22Error("disposable v2.2 project root overlaps registered authority")
     return ExecutionBinding(
@@ -1966,6 +3416,11 @@ def _derive_binding_unchecked(
         destination=destination,
         series_token_sha256=token,
         ledger_root=ledger,
+        primary_series_container=primary_container,
+        primary_receipt_root=primary_receipts,
+        secondary_series_container=secondary_container,
+        secondary_snapshot_root=secondary_snapshots,
+        secondary_receipt_root=secondary_receipts,
     )
 
 
@@ -1991,6 +3446,194 @@ def derive_execution_binding(
         ExecutionBinding,
         _validate_disposable_capability(execution_context, project_root=root),
     )
+
+
+def _registered_storage_directory(path: Path, label: str) -> Path:
+    try:
+        metadata = path.lstat()
+        resolved = path.resolve(strict=True)
+    except OSError as exc:
+        raise RehearsalV22Error(f"{label} is not owner-provisioned") from exc
+    if (
+        path.is_symlink()
+        or not stat.S_ISDIR(metadata.st_mode)
+        or stat.S_IMODE(metadata.st_mode) != 0o700
+        or metadata.st_uid != os.getuid()
+        or resolved != path.absolute()
+    ):
+        raise RehearsalV22Error(f"{label} identity, owner, or mode drifted")
+    return resolved
+
+
+def _storage_directory_evidence(path: Path, label: str) -> JsonObject:
+    _registered_storage_directory(path, label)
+    metadata = path.lstat()
+    return {
+        "path": path.as_posix(),
+        "owner_uid": metadata.st_uid,
+        "device": metadata.st_dev,
+        "inode": metadata.st_ino,
+        "mode_octal": "0700",
+        "non_symlink": True,
+        "canonical_unaliased": True,
+    }
+
+
+def _validate_registered_storage_roots(binding: ExecutionBinding) -> None:
+    primary = _registered_storage_directory(
+        binding.primary_series_container,
+        "series-2 primary container",
+    )
+    secondary = _registered_storage_directory(
+        binding.secondary_series_container,
+        "series-2 secondary container",
+    )
+    expected = (
+        binding.primary_series_container / "PRIMARY-LEDGER-DO-NOT-DELETE",
+        binding.primary_series_container / "MIRROR-RECEIPTS-DO-NOT-DELETE",
+        binding.secondary_series_container / "SEALED-LEDGER-SNAPSHOTS-DO-NOT-DELETE",
+        binding.secondary_series_container / "MIRROR-RECEIPTS-DO-NOT-DELETE",
+    )
+    if expected != (
+        binding.ledger_root,
+        binding.primary_receipt_root,
+        binding.secondary_snapshot_root,
+        binding.secondary_receipt_root,
+    ):
+        raise RehearsalV22Error("series-2 storage leaf binding drifted")
+    protected = (
+        binding.project_root,
+        binding.destination,
+        PROTECTED_HELDOUT_ROOT,
+    )
+    if (
+        primary == secondary
+        or (primary.stat().st_dev, primary.stat().st_ino)
+        == (secondary.stat().st_dev, secondary.stat().st_ino)
+        or primary.is_relative_to(secondary)
+        or secondary.is_relative_to(primary)
+        or any(
+            primary == path
+            or secondary == path
+            or primary.is_relative_to(path)
+            or secondary.is_relative_to(path)
+            or path.is_relative_to(primary)
+            or path.is_relative_to(secondary)
+            for path in protected
+        )
+    ):
+        raise RehearsalV22Error("series-2 evidence roots overlap protected state")
+    if binding.mode == "REGISTERED_OFFICIAL" and (
+        binding.primary_series_container != OFFICIAL_PRIMARY_SERIES_CONTAINER
+        or binding.secondary_series_container != OFFICIAL_SECONDARY_SERIES_CONTAINER
+        or os.path.lexists(LEGACY_OFFICIAL_LEDGER_ROOT)
+        or os.path.lexists(V2_1_EMPTY_CLAIM)
+    ):
+        raise RehearsalV22Error(
+            "official series-2 storage binding drifted or a retired root reappeared"
+        )
+
+
+def _read_only_storage_preflight(binding: ExecutionBinding) -> JsonObject:
+    _validate_registered_storage_roots(binding)
+    leaves = {
+        "primary_ledger": binding.ledger_root,
+        "primary_receipts": binding.primary_receipt_root,
+        "secondary_snapshots": binding.secondary_snapshot_root,
+        "secondary_receipts": binding.secondary_receipt_root,
+    }
+    presence = {name: os.path.lexists(path) for name, path in leaves.items()}
+    mirrored_history: JsonObject | None = None
+    if not presence["primary_ledger"]:
+        present = [name for name, value in presence.items() if value]
+        if present:
+            raise RehearsalV22Error(
+                "series-2 fresh-root preflight found partial mirror leaves: "
+                + ", ".join(sorted(present))
+            )
+        storage_state = "FRESH_SERIES_ALL_REGISTERED_LEAVES_ABSENT"
+    else:
+        history = validate_live_history(binding)
+        if not history.records:
+            raise RehearsalV22Error("series-2 primary ledger exists without an allocated attempt")
+        final = history.records[-1]
+        pending_incomplete = (
+            final.outcome == "INCOMPLETE_UNTERMINALIZED" and final.terminal_path is None
+        )
+        observed_mirror_presence = (
+            presence["primary_receipts"],
+            presence["secondary_snapshots"],
+            presence["secondary_receipts"],
+        )
+        final_targets = _final_mirror_targets(binding, history)
+        final_target_presence = tuple(os.path.lexists(path) for path in final_targets)
+        if pending_incomplete and final_target_presence == (False, False, False):
+            expected_presence = (
+                (False, False, False) if len(history.records) == 1 else (True, True, True)
+            )
+            if observed_mirror_presence != expected_presence:
+                raise RehearsalV22Error(
+                    "series-2 pending-incomplete preflight found partial mirror leaves"
+                )
+            receipts = _validate_second_copy_history(
+                binding,
+                history,
+                allow_unmirrored_final=True,
+            )
+            storage_state = "EXISTING_FINAL_INCOMPLETE_PENDING_LOCKED_MIRROR"
+        else:
+            if observed_mirror_presence != (True, True, True) or final_target_presence != (
+                True,
+                True,
+                True,
+            ):
+                raise RehearsalV22Error(
+                    "series-2 established-root preflight found partial mirror artifacts"
+                )
+            receipts = _validate_second_copy_history(binding, history)
+            storage_state = "EXISTING_FULLY_MIRRORED"
+        mirrored_history = {
+            "attempt_count": len(history.records),
+            "history_root_sha256": history.history_root_sha256,
+            "live_ledger_root_sha256": history.live_ledger_root_sha256,
+            "receipt_count": len(receipts),
+            "series_closed": history.series_closed,
+        }
+    if os.path.lexists(binding.destination):
+        raise RehearsalV22Error("series-2 registered-root preflight destination exists")
+    if binding.mode == "REGISTERED_OFFICIAL" and (
+        os.path.lexists(LEGACY_OFFICIAL_LEDGER_ROOT) or os.path.lexists(V2_1_EMPTY_CLAIM)
+    ):
+        raise RehearsalV22Error(
+            "series-2 registered-root preflight found a lost ledger or retired claim"
+        )
+    return {
+        "primary_container": _storage_directory_evidence(
+            binding.primary_series_container,
+            "series-2 primary container",
+        ),
+        "secondary_container": _storage_directory_evidence(
+            binding.secondary_series_container,
+            "series-2 secondary container",
+        ),
+        "containers_non_overlapping": True,
+        "storage_state": storage_state,
+        "registered_leaf_state": {
+            name: ("PRESENT_VERIFIED" if presence[name] else "ABSENT")
+            for name in sorted(leaves, key=lambda value: value.encode("utf-8"))
+        },
+        "mirrored_history": mirrored_history,
+        "bundle_destination_absent": True,
+        "lost_series_ledger_absent": (
+            not os.path.lexists(LEGACY_OFFICIAL_LEDGER_ROOT)
+            if binding.mode == "REGISTERED_OFFICIAL"
+            else True
+        ),
+        "retired_v2_1_claim_absent": (
+            not os.path.lexists(V2_1_EMPTY_CLAIM) if binding.mode == "REGISTERED_OFFICIAL" else True
+        ),
+        "paths_created": 0,
+    }
 
 
 def _validate_git_metadata_authority(project_root: Path) -> None:
@@ -2298,9 +3941,12 @@ def _json_pointer_parts(pointer: object, label: str) -> tuple[str, ...]:
 def _json_pointer_value(document: object, pointer: object, label: str) -> object:
     current = document
     for part in _json_pointer_parts(pointer, label):
-        if not isinstance(current, dict) or part not in current:
+        if isinstance(current, dict) and part in current:
+            current = current[part]
+        elif isinstance(current, list) and part.isdecimal() and int(part) < len(current):
+            current = current[int(part)]
+        else:
             raise RehearsalV22Error(f"{label} does not resolve")
-        current = current[part]
     return current
 
 
@@ -2308,12 +3954,19 @@ def _delete_json_pointer_if_present(document: object, pointer: str) -> bool:
     parts = _json_pointer_parts(pointer, "schema delta pointer")
     current = document
     for part in parts[:-1]:
-        if not isinstance(current, dict) or part not in current:
+        if isinstance(current, dict) and part in current:
+            current = current[part]
+        elif isinstance(current, list) and part.isdecimal() and int(part) < len(current):
+            current = current[int(part)]
+        else:
             return False
-        current = current[part]
-    if not isinstance(current, dict) or parts[-1] not in current:
+    final = parts[-1]
+    if isinstance(current, dict) and final in current:
+        del current[final]
+    elif isinstance(current, list) and final.isdecimal() and int(final) < len(current):
+        del current[int(final)]
+    else:
         return False
-    del current[parts[-1]]
     return True
 
 
@@ -2478,6 +4131,298 @@ def validate_strict_v2_1_inheritance(project_root: Path) -> JsonObject:
         if not _typed_json_equal(old, new):
             raise RehearsalV22Error(f"{label} schema retained surface differs from v2.1")
     return copy.deepcopy(snapshot)
+
+
+SERIES_2_BUNDLE_SCHEMA_DELTA_POINTERS = (
+    "/$id",
+    "/$defs/lineage/properties/preregistration/allOf/1/properties/path/const",
+    "/$defs/lineage/properties/bundle_schema/allOf/1/properties/path/const",
+    "/$defs/lineage/properties/release_authorization_schema/allOf/1/properties/path/const",
+    "/$defs/lineage/properties/release_authorization_schema/allOf/1/properties/sha256/const",
+    "/$defs/executionBinding/oneOf/0/properties/series_token_sha256/const",
+    "/$defs/executionBinding/oneOf/0/properties/ledger_root/const",
+)
+SERIES_2_RELEASE_SCHEMA_DELTA_POINTERS = (
+    "/$id",
+    "/properties/lineage/properties/preregistration/allOf/1/properties/path/const",
+    "/properties/lineage/properties/bundle_schema/allOf/1/properties/path/const",
+    "/properties/lineage/properties/release_schema/allOf/1/properties/path/const",
+    "/$defs/executionBinding/oneOf/0/properties/series_token_sha256/const",
+    "/$defs/executionBinding/oneOf/0/properties/ledger_root/const",
+)
+
+
+def _validate_series_2_schema_profile(
+    root: Path,
+    *,
+    historical_path: Path,
+    historical_sha256: str,
+    active_path: Path,
+    active_sha256: str,
+    pointers: tuple[str, ...],
+    label: str,
+) -> None:
+    historical_payload = _regular_bytes(root / historical_path, f"historical {label}")
+    active_payload = _regular_bytes(root / active_path, f"series-2 {label}")
+    if _sha256(historical_payload) != historical_sha256 or _sha256(active_payload) != active_sha256:
+        raise RehearsalV22Error(f"series-2 {label} binding bytes drifted")
+    historical = copy.deepcopy(
+        _object(
+            strict_json_loads(historical_payload, source=f"historical {label}"),
+            f"historical {label}",
+        )
+    )
+    active = copy.deepcopy(
+        _object(
+            strict_json_loads(active_payload, source=f"series-2 {label}"),
+            f"series-2 {label}",
+        )
+    )
+    for pointer in pointers:
+        if not _delete_json_pointer_if_present(active, pointer):
+            raise RehearsalV22Error(f"series-2 {label} delta pointer is absent: {pointer}")
+        _delete_json_pointer_if_present(historical, pointer)
+    if not _typed_json_equal(historical, active):
+        raise RehearsalV22Error(f"series-2 {label} changes a non-binding pointer")
+
+
+def validate_series_2_preregistration(
+    project_root: Path,
+    *,
+    execution_head: str,
+) -> AuthorityReference:
+    """Revalidate the exact landed amendment, its loss chain, and binding profiles."""
+
+    root = project_root.absolute()
+    head = _git_commit(root, execution_head, "series-2 execution head")
+    amendment = AuthorityReference(
+        SERIES_2_PREREGISTRATION_RELATIVE.as_posix(),
+        SERIES_2_PREREGISTRATION_SHA256,
+        SERIES_2_PREREGISTRATION_COMMIT,
+    )
+    payload = validate_unique_a_authority(root, amendment, execution_head=head)
+    if _git_bytes(
+        root,
+        "rev-list",
+        "--parents",
+        "-n",
+        "1",
+        SERIES_2_PREREGISTRATION_COMMIT,
+        "--",
+    ).decode("ascii", errors="strict").strip().split() != [
+        SERIES_2_PREREGISTRATION_COMMIT,
+        SERIES_2_PREREGISTRATION_PARENT,
+    ]:
+        raise RehearsalV22Error("series-2 preregistration parent drifted")
+    expected_surface = {
+        SERIES_2_PREREGISTRATION_RELATIVE.as_posix(): "A",
+        SERIES_2_BUNDLE_SCHEMA_RELATIVE.as_posix(): "A",
+        SERIES_2_RELEASE_SCHEMA_RELATIVE.as_posix(): "A",
+    }
+    if (
+        _parse_name_status(
+            _git_bytes(
+                root,
+                "diff",
+                "--no-ext-diff",
+                "--no-textconv",
+                "--name-status",
+                "--no-renames",
+                SERIES_2_PREREGISTRATION_PARENT,
+                SERIES_2_PREREGISTRATION_COMMIT,
+                "--",
+            )
+        )
+        != expected_surface
+    ):
+        raise RehearsalV22Error("series-2 preregistration is not the exact three-A package")
+    document = _object(
+        strict_json_loads(payload, source="series-2 preregistration amendment"),
+        "series-2 preregistration amendment",
+    )
+    part_1 = _object(
+        document.get("part_1_authority_loss_and_owner_decision_bindings"),
+        "series-2 amendment authority bindings",
+    )
+    loss = _object(part_1.get("loss_incident"), "series-2 loss incident binding")
+    owner = _object(part_1.get("owner_decision"), "series-2 owner decision binding")
+    if not _typed_json_equal(
+        loss,
+        {
+            "commit": SERIES_2_LOSS_INCIDENT_COMMIT,
+            "path": SERIES_2_LOSS_INCIDENT_RELATIVE.as_posix(),
+            "sha256": SERIES_2_TOKEN_SEED_SHA256,
+            "bytes": 6422,
+            "verdict": "SEALED_LEDGER_BYTES_LOST_SERIES_SUCCESS_STANDS_BY_DIGEST",
+        },
+    ) or not _typed_json_equal(
+        owner,
+        {
+            "commit": SERIES_2_OWNER_DECISION_COMMIT,
+            "path": SERIES_2_OWNER_DECISION_RELATIVE.as_posix(),
+            "sha256": SERIES_2_OWNER_DECISION_SHA256,
+            "bytes": 2347,
+            "decision": "run it again",
+        },
+    ):
+        raise RehearsalV22Error("series-2 loss or owner-decision binding drifted")
+    lost_history = _object(
+        document.get("part_2_complete_lost_series_digest_history"),
+        "complete lost-series digest history",
+    )
+    if not _typed_json_equal(
+        lost_history,
+        {
+            "classification": "DIGEST_PROOF_CHAIN_NOT_RECONSTRUCTABLE_LEDGER_BYTES",
+            "old_series_token_sha256": (
+                "35ba1b83a9b187817d7a591758e1c131e867fcd37917cba0ab196799fff832ef"
+            ),
+            "old_ledger_root": (
+                "/Users/ouyangduning/Documents/project/interesting/"
+                ".alphapilot-p4-2a-v2-2-execution-claim-"
+                "35ba1b83a9b187817d7a591758e1c131e867fcd37917cba0ab196799fff832ef"
+            ),
+            "history_root_after_ordinal_1": (
+                "076ae961fc149ae271bf5a3724c1677abccfea7139589909ea717a7f4a38083a"
+            ),
+            "history_root_after_ordinal_2": (
+                "a466de7b349882f2bcd556a4b4d00bf38bace9adb593b0e3b6296c415a8c9ca1"
+            ),
+            "attempt_1": {
+                "ordinal": 1,
+                "outcome": "FAILED",
+                "implementation_epoch": 2,
+                "implementation_commit": "1b4e05c6acd513bb1bc11245911da97b6a128ca1",
+                "evidence_tree_root_sha256": (
+                    "deea0e81e3fd8a5c886cc4c757fb5485cb7f750718462489dea48d3deed2691c"
+                ),
+            },
+            "attempt_2": {
+                "ordinal": 2,
+                "outcome": "CANDIDATE_VALIDATED_AND_SELECTED",
+                "implementation_epoch": 4,
+                "implementation_commit": "890e9002116c625d41f6aa037975df15d1546c56",
+                "started_sha256": (
+                    "75771a37572fb9191a9db26f986b1e9d89c26843556b502866322a8f4bdaf42d"
+                ),
+                "candidate_sha256": (
+                    "92652f963b04b79e29580978cd6857c2154df0b429ac09502be6c0c0c5d84da5"
+                ),
+                "terminal_sha256": (
+                    "7ba4ed1b5d7e7abc462b312f08b131ff438cc524cecbdeea6b43dc199292e3dc"
+                ),
+                "evidence_tree_root_sha256": (
+                    "f38b18b972f14a170fc9bb4129f25ec77e8ad1c4e8a8f137b5853cc371b694c2"
+                ),
+                "run_a_and_run_b_root_sha256": (
+                    "5fb8edf3aa65cdcd0f54b82bdf6f240104fa8537c1004e640671910115f8f314"
+                ),
+                "candidate_content_root_sha256": (
+                    "5de4f74d1f73e5f90aa9c196c8fc6574bce2ecfa91abd750b22726c14c6a60b7"
+                ),
+                "selected_control_root_sha256": (
+                    "76076606d6e40cdd386b28cdd5bc40a8957693b8cfdc8b17a0a77410b4e082e8"
+                ),
+                "q_r_b_commits": [
+                    "f6f993d0e9f30b6f6c5250a94a4a49b179fc8ff1",
+                    "f004054c1797904206e5590f2b0f4751848665c1",
+                    "1832ed7c6130b71d5a99722721eaec83b2adabdd",
+                ],
+                "execution_authorization_sha256": (
+                    "8f5c0b31ef88922b8b44b202c729fad55a4d0cb172c000089991f1cd2c995461"
+                ),
+            },
+            "contemporaneous_verification_commits": [
+                "7fc122f575801ff43d2446a2c59491a086735e93",
+                "0548692480ff8325b69be92f01e0d42e11ad4eb0",
+                "7cf819d43d5b73f7b8f1469a556c79ece12587f0",
+            ],
+            "series_1_outcome_stands": True,
+            "series_1_bundle_cannot_be_reconstructed_or_released": True,
+            "series_1_digests_enter_series_2_amendment_lineage": True,
+            "series_1_digests_enter_series_2_attempt_history_root": False,
+            (
+                "series_1_digests_enter_series_2_control_surface_and_"
+                "bundle_lineage_through_the_amendment"
+            ): True,
+            "old_ledger_and_retired_v2_1_claim_must_remain_absent": True,
+        },
+    ):
+        raise RehearsalV22Error("complete lost-series digest history drifted")
+    for reference, expected_bytes in (
+        (
+            AuthorityReference(
+                SERIES_2_LOSS_INCIDENT_RELATIVE.as_posix(),
+                SERIES_2_TOKEN_SEED_SHA256,
+                SERIES_2_LOSS_INCIDENT_COMMIT,
+            ),
+            6422,
+        ),
+        (
+            AuthorityReference(
+                SERIES_2_OWNER_DECISION_RELATIVE.as_posix(),
+                SERIES_2_OWNER_DECISION_SHA256,
+                SERIES_2_OWNER_DECISION_COMMIT,
+            ),
+            2347,
+        ),
+    ):
+        observed = validate_unique_a_authority(root, reference, execution_head=head)
+        if len(observed) != expected_bytes:
+            raise RehearsalV22Error("series-2 lineage authority byte count drifted")
+    identity = _object(
+        document.get("part_4_fresh_series_identity_and_visible_primary_mirror_paths"),
+        "series-2 identity",
+    )
+    if (
+        identity.get("series_token_sha256") != OFFICIAL_SERIES_TOKEN
+        or identity.get("loss_incident_file_sha256") != SERIES_2_TOKEN_SEED_SHA256
+        or identity.get("primary_series_container") != OFFICIAL_PRIMARY_SERIES_CONTAINER.as_posix()
+        or identity.get("primary_ledger_root") != OFFICIAL_LEDGER_ROOT.as_posix()
+        or identity.get("primary_receipt_root") != OFFICIAL_PRIMARY_RECEIPT_ROOT.as_posix()
+        or identity.get("secondary_series_container")
+        != OFFICIAL_SECONDARY_SERIES_CONTAINER.as_posix()
+        or identity.get("secondary_snapshot_root") != OFFICIAL_SECONDARY_SNAPSHOT_ROOT.as_posix()
+        or identity.get("secondary_receipt_root") != OFFICIAL_SECONDARY_RECEIPT_ROOT.as_posix()
+    ):
+        raise RehearsalV22Error("series-2 visible storage binding drifted")
+    isolation = _object(identity.get("constant_isolation"), "series-2 constant isolation")
+    if (
+        isolation.get("new_token_seed_constant") != "SERIES_2_TOKEN_SEED_SHA256"
+        or isolation.get("new_token_seed_value") != SERIES_2_TOKEN_SEED_SHA256
+        or isolation.get("legacy_incident_sha256_constant_name") != "INCIDENT_SHA256"
+        or isolation.get("legacy_incident_sha256_value_unchanged") != INCIDENT_SHA256
+    ):
+        raise RehearsalV22Error("series-2 and historical incident constants are not isolated")
+    reset = _object(
+        document.get("part_3_non_reconstruction_and_independent_empty_history_reset"),
+        "series-2 history reset",
+    )
+    if (
+        reset.get("history_empty_root_sha256") != _history_empty_root_sha256()
+        or reset.get("ordinal_1_previous_history_root_sha256") != _history_empty_root_sha256()
+        or reset.get("old_history_root_must_not_seed_series_2") is not True
+    ):
+        raise RehearsalV22Error("series-2 independent empty-history reset drifted")
+    _validate_series_2_schema_profile(
+        root,
+        historical_path=BUNDLE_SCHEMA_RELATIVE,
+        historical_sha256=BUNDLE_SCHEMA_SHA256,
+        active_path=SERIES_2_BUNDLE_SCHEMA_RELATIVE,
+        active_sha256=SERIES_2_BUNDLE_SCHEMA_SHA256,
+        pointers=SERIES_2_BUNDLE_SCHEMA_DELTA_POINTERS,
+        label="bundle schema",
+    )
+    _validate_series_2_schema_profile(
+        root,
+        historical_path=RELEASE_SCHEMA_RELATIVE,
+        historical_sha256=RELEASE_SCHEMA_SHA256,
+        active_path=SERIES_2_RELEASE_SCHEMA_RELATIVE,
+        active_sha256=SERIES_2_RELEASE_SCHEMA_SHA256,
+        pointers=SERIES_2_RELEASE_SCHEMA_DELTA_POINTERS,
+        label="release schema",
+    )
+    return amendment
 
 
 def validate_carry_forward_lineage(
@@ -2767,6 +4712,13 @@ def _later_epoch_surface(
         raise RehearsalV22Error("later epoch base lost preregistration lineage")
     if not _git_is_ancestor(root, PREREGISTRATION_COMMIT, selected):
         raise RehearsalV22Error("later epoch implementation lost preregistration lineage")
+    if epoch >= SERIES_2_EPOCH_ORIGIN:
+        if not _git_is_ancestor(root, SERIES_2_PREREGISTRATION_COMMIT, base_commit):
+            raise RehearsalV22Error("later epoch base lost active series-2 preregistration lineage")
+        if not _git_is_ancestor(root, SERIES_2_PREREGISTRATION_COMMIT, selected):
+            raise RehearsalV22Error(
+                "later epoch implementation lost active series-2 preregistration lineage"
+            )
     return payload
 
 
@@ -3081,7 +5033,7 @@ def _bundle_root_sha256(
 
 def _series_document(binding: ExecutionBinding, *, created_at_utc: str) -> JsonObject:
     return {
-        "schema_version": "p4.2a-v2-2-rehearsal-series-v1",
+        "schema_version": SERIES_2_SERIES_SCHEMA_VERSION,
         "series_id": REHEARSAL_ID,
         "series_token_sha256": binding.series_token_sha256,
         "policy": SERIES_POLICY,
@@ -3090,19 +5042,20 @@ def _series_document(binding: ExecutionBinding, *, created_at_utc: str) -> JsonO
         "per_attempt_action_time_owner_authorization_required": True,
         "automatic_retry_count": 0,
         "first_validated_candidate_closes_series": True,
+        "implementation_epoch_origin": SERIES_2_EPOCH_ORIGIN,
         "preregistration": {
-            "path": PREREGISTRATION_RELATIVE.as_posix(),
-            "sha256": PREREGISTRATION_SHA256,
-            "creating_commit": PREREGISTRATION_COMMIT,
+            "path": SERIES_2_PREREGISTRATION_RELATIVE.as_posix(),
+            "sha256": SERIES_2_PREREGISTRATION_SHA256,
+            "creating_commit": SERIES_2_PREREGISTRATION_COMMIT,
             "unique_a_history_verified": True,
         },
         "bundle_schema": {
-            "path": BUNDLE_SCHEMA_RELATIVE.as_posix(),
-            "sha256": BUNDLE_SCHEMA_SHA256,
+            "path": SERIES_2_BUNDLE_SCHEMA_RELATIVE.as_posix(),
+            "sha256": SERIES_2_BUNDLE_SCHEMA_SHA256,
         },
         "release_schema": {
-            "path": RELEASE_SCHEMA_RELATIVE.as_posix(),
-            "sha256": RELEASE_SCHEMA_SHA256,
+            "path": SERIES_2_RELEASE_SCHEMA_RELATIVE.as_posix(),
+            "sha256": SERIES_2_RELEASE_SCHEMA_SHA256,
         },
         "created_at_utc": created_at_utc,
     }
@@ -3118,6 +5071,7 @@ SERIES_FIELDS = {
     "per_attempt_action_time_owner_authorization_required",
     "automatic_retry_count",
     "first_validated_candidate_closes_series",
+    "implementation_epoch_origin",
     "preregistration",
     "bundle_schema",
     "release_schema",
@@ -3277,12 +5231,1569 @@ class HistoryValidation:
     live_file_inventory: tuple[str, ...]
 
 
+MIRROR_RECEIPT_FIELDS = {
+    "schema_version",
+    "series_token_sha256",
+    "ordinal",
+    "attempt_outcome",
+    "attempt_sealed",
+    "primary_ledger_root",
+    "secondary_snapshot_root",
+    "history_root_sha256",
+    "live_ledger_root_sha256",
+    "file_count",
+    "total_bytes",
+    "primary_inventory_sha256",
+    "secondary_inventory_sha256",
+    "second_copy_verified",
+    "verified_at_utc",
+}
+
+
+@dataclass(frozen=True)
+class _TreeInventory:
+    rows: tuple[JsonObject, ...]
+    payloads: Mapping[str, bytes]
+    identities: Mapping[str, tuple[int, ...]]
+    sha256: str
+    file_count: int
+    total_bytes: int
+
+
+def _descriptor_path(descriptor: int, *, label: str) -> Path:
+    try:
+        raw = fcntl.fcntl(descriptor, fcntl.F_GETPATH, b"\0" * 1024)
+    except (OSError, TypeError, ValueError) as exc:
+        raise RehearsalV22Error(f"{label} descriptor path is unavailable") from exc
+    terminator = raw.find(b"\0")
+    if terminator <= 0:
+        raise RehearsalV22Error(f"{label} descriptor path is unavailable")
+    return Path(os.fsdecode(raw[:terminator])).absolute()
+
+
+def _open_stable_read_descriptor(
+    path: Path,
+    *,
+    label: str,
+    directory: bool,
+    parent_descriptor: int | None = None,
+    entry_name: str | None = None,
+) -> tuple[int, os.stat_result]:
+    if (parent_descriptor is None) != (entry_name is None):
+        raise RehearsalV22Error(f"{label} parent descriptor binding is incomplete")
+    try:
+        before = path.lstat()
+        flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_CLOEXEC", 0)
+        if directory:
+            flags |= getattr(os, "O_DIRECTORY", 0)
+        target: str | Path = cast(str, entry_name) if parent_descriptor is not None else path
+        descriptor = os.open(target, flags, dir_fd=parent_descriptor)
+    except OSError as exc:
+        raise RehearsalV22Error(f"{label} is unavailable or aliased") from exc
+    try:
+        opened = os.fstat(descriptor)
+        after_open = path.lstat()
+        descriptor_flags = fcntl.fcntl(descriptor, fcntl.F_GETFL)
+        descriptor_fd_flags = fcntl.fcntl(descriptor, fcntl.F_GETFD)
+        expected_kind = stat.S_ISDIR(opened.st_mode) if directory else stat.S_ISREG(opened.st_mode)
+        if (
+            len({_stat_identity(before), _stat_identity(opened), _stat_identity(after_open)}) != 1
+            or not expected_kind
+            or _descriptor_path(descriptor, label=label) != path.absolute()
+            or descriptor_flags & os.O_ACCMODE != os.O_RDONLY
+            or descriptor_fd_flags & fcntl.FD_CLOEXEC == 0
+        ):
+            raise RehearsalV22Error(f"{label} descriptor identity changed or escaped")
+    except BaseException:
+        os.close(descriptor)
+        raise
+    return descriptor, before
+
+
+def _verify_stable_directory_descriptor(
+    descriptor: int,
+    path: Path,
+    before: os.stat_result,
+    *,
+    label: str,
+) -> None:
+    descriptor_after = os.fstat(descriptor)
+    path_after = path.lstat()
+    if (
+        len(
+            {
+                _stat_identity(before),
+                _stat_identity(descriptor_after),
+                _stat_identity(path_after),
+            }
+        )
+        != 1
+        or _descriptor_path(descriptor, label=label) != path.absolute()
+    ):
+        raise RehearsalV22Error(f"{label} directory changed during descriptor read")
+
+
+def _close_stable_directory_descriptor(
+    descriptor: int,
+    path: Path,
+    before: os.stat_result,
+    *,
+    label: str,
+) -> None:
+    try:
+        _verify_stable_directory_descriptor(descriptor, path, before, label=label)
+    finally:
+        os.close(descriptor)
+
+
+def _read_stable_regular_descriptor(
+    path: Path,
+    *,
+    label: str,
+    parent_descriptor: int,
+    entry_name: str,
+) -> tuple[bytes, os.stat_result]:
+    descriptor, before = _open_stable_read_descriptor(
+        path,
+        label=label,
+        directory=False,
+        parent_descriptor=parent_descriptor,
+        entry_name=entry_name,
+    )
+    if (
+        stat.S_IMODE(before.st_mode) != 0o600
+        or before.st_uid != os.getuid()
+        or before.st_nlink != 1
+    ):
+        os.close(descriptor)
+        raise RehearsalV22Error(f"{label} is hardlinked, wrong-mode, or wrong-owner")
+    chunks: list[bytes] = []
+    try:
+        while True:
+            chunk = os.read(descriptor, 1024 * 1024)
+            if not chunk:
+                break
+            chunks.append(chunk)
+        descriptor_after = os.fstat(descriptor)
+        path_after = path.lstat()
+        descriptor_path = _descriptor_path(descriptor, label=label)
+    except BaseException:
+        os.close(descriptor)
+        raise
+    os.close(descriptor)
+    payload = b"".join(chunks)
+    if (
+        len(
+            {
+                _stat_identity(before),
+                _stat_identity(descriptor_after),
+                _stat_identity(path_after),
+            }
+        )
+        != 1
+        or descriptor_path != path.absolute()
+        or len(payload) != before.st_size
+    ):
+        raise RehearsalV22Error(f"{label} changed during descriptor read")
+    return payload, before
+
+
+def _strict_private_tree_inventory(
+    root: Path,
+    *,
+    label: str,
+    root_descriptor: int | None = None,
+    root_before: os.stat_result | None = None,
+    root_parent_descriptor: int | None = None,
+    root_entry_name: str | None = None,
+    maximum_attempt_ordinal: int | None = None,
+    expected_attempt_count: int | None = None,
+) -> _TreeInventory:
+    rows: list[JsonObject] = []
+    payloads: dict[str, bytes] = {}
+    identities: dict[str, tuple[int, ...]] = {}
+
+    def walk_directory(
+        path: Path,
+        *,
+        relative: str,
+        parent_descriptor: int | None,
+        entry_name: str | None,
+        supplied_descriptor: int | None = None,
+        supplied_before: os.stat_result | None = None,
+    ) -> None:
+        owns_descriptor = supplied_descriptor is None
+        if supplied_descriptor is None:
+            descriptor, before = _open_stable_read_descriptor(
+                path,
+                label=f"{label} directory {relative}",
+                directory=True,
+                parent_descriptor=parent_descriptor,
+                entry_name=entry_name,
+            )
+        else:
+            if supplied_before is None:
+                raise RehearsalV22Error(f"{label} supplied root lacks identity")
+            descriptor, before = supplied_descriptor, supplied_before
+            _verify_stable_directory_descriptor(
+                descriptor,
+                path,
+                before,
+                label=f"{label} directory {relative}",
+            )
+        if stat.S_IMODE(before.st_mode) != 0o700 or before.st_uid != os.getuid():
+            if owns_descriptor:
+                os.close(descriptor)
+            raise RehearsalV22Error(f"{label} directory mode or owner drifted")
+        rows.append(
+            {
+                "relative_path": relative,
+                "kind": "directory",
+                "mode": 0o700,
+                "bytes": 0,
+                "sha256": None,
+            }
+        )
+        identities[relative] = _stat_identity(before)
+        try:
+            names = sorted(os.listdir(descriptor), key=lambda value: value.encode("utf-8"))
+            if relative == "attempts" and expected_attempt_count is not None:
+                expected_names = [
+                    f"{ordinal:06d}" for ordinal in range(1, expected_attempt_count + 1)
+                ]
+                if names != expected_names:
+                    raise RehearsalV22Error(
+                        f"{label} attempt ordinals contain a gap, extra, or noncanonical member"
+                    )
+            for name in names:
+                if not isinstance(name, str) or name in {"", ".", ".."} or "/" in name:
+                    raise RehearsalV22Error(f"{label} contains an invalid member")
+                child = path / name
+                child_relative = name if relative == "." else f"{relative}/{name}"
+                _relative_text(child_relative, f"{label} member")
+                if (
+                    maximum_attempt_ordinal is not None
+                    and relative == "attempts"
+                    and re.fullmatch(r"[0-9]{6}", name) is not None
+                    and int(name) > maximum_attempt_ordinal
+                ):
+                    continue
+                child_metadata = os.stat(name, dir_fd=descriptor, follow_symlinks=False)
+                if stat.S_ISDIR(child_metadata.st_mode):
+                    walk_directory(
+                        child,
+                        relative=child_relative,
+                        parent_descriptor=descriptor,
+                        entry_name=name,
+                    )
+                    continue
+                if not stat.S_ISREG(child_metadata.st_mode):
+                    raise RehearsalV22Error(f"{label} contains an alias or special member")
+                payload, stable_metadata = _read_stable_regular_descriptor(
+                    child,
+                    label=f"{label} file {child_relative}",
+                    parent_descriptor=descriptor,
+                    entry_name=name,
+                )
+                payloads[child_relative] = payload
+                identities[child_relative] = _stat_identity(stable_metadata)
+                rows.append(
+                    {
+                        "relative_path": child_relative,
+                        "kind": "file",
+                        "mode": 0o600,
+                        "bytes": len(payload),
+                        "sha256": _sha256(payload),
+                    }
+                )
+        except BaseException:
+            if owns_descriptor:
+                os.close(descriptor)
+            raise
+        if owns_descriptor:
+            _close_stable_directory_descriptor(
+                descriptor,
+                path,
+                before,
+                label=f"{label} directory {relative}",
+            )
+        else:
+            _verify_stable_directory_descriptor(
+                descriptor,
+                path,
+                before,
+                label=f"{label} directory {relative}",
+            )
+
+    walk_directory(
+        root,
+        relative=".",
+        parent_descriptor=root_parent_descriptor,
+        entry_name=root_entry_name,
+        supplied_descriptor=root_descriptor,
+        supplied_before=root_before,
+    )
+    if expected_attempt_count is not None and "attempts" not in identities:
+        raise RehearsalV22Error(f"{label} omits the attempts directory")
+    root_rows = [row for row in rows if row["relative_path"] == "."]
+    if len(root_rows) != 1:
+        raise RehearsalV22Error(f"{label} root inventory drifted")
+    ordered_rows = tuple(
+        root_rows
+        + sorted(
+            (row for row in rows if row["relative_path"] != "."),
+            key=lambda row: cast(str, row["relative_path"]).encode("utf-8"),
+        )
+    )
+    ordered_payloads = dict(sorted(payloads.items(), key=lambda item: item[0].encode("utf-8")))
+    ordered_identities = dict(sorted(identities.items(), key=lambda item: item[0].encode("utf-8")))
+    return _TreeInventory(
+        rows=ordered_rows,
+        payloads=ordered_payloads,
+        identities=ordered_identities,
+        sha256=_sha256(MIRROR_INVENTORY_PREFIX + _canonical_json_bytes(list(ordered_rows))),
+        file_count=len(ordered_payloads),
+        total_bytes=sum(len(payload) for payload in ordered_payloads.values()),
+    )
+
+
+def _strict_primary_prefix_inventory(
+    root: Path,
+    ordinal: int,
+    *,
+    expected_attempt_count: int,
+    label: str,
+    root_descriptor: int | None = None,
+    root_before: os.stat_result | None = None,
+) -> _TreeInventory:
+    if ordinal < 1 or expected_attempt_count < ordinal:
+        raise RehearsalV22Error(f"{label} prefix ordinal is invalid")
+    return _strict_private_tree_inventory(
+        root,
+        label=label,
+        root_descriptor=root_descriptor,
+        root_before=root_before,
+        maximum_attempt_ordinal=ordinal,
+        expected_attempt_count=expected_attempt_count,
+    )
+
+
+def _mirror_receipt_filename(ordinal: int, live_root: str) -> str:
+    if ordinal < 1 or not _lower_hex(live_root, 64):
+        raise RehearsalV22Error("mirror receipt identity is invalid")
+    return f"through-ordinal-{ordinal:06d}-{live_root}.mirror-verification.json"
+
+
+def _inventory_through_ordinal(
+    inventory: _TreeInventory,
+    ordinal: int,
+) -> _TreeInventory:
+    def included(relative: str) -> bool:
+        if relative in {".", "series.json", ".series.lock", "attempts"}:
+            return True
+        parts = PurePosixPath(relative).parts
+        return (
+            len(parts) >= 2
+            and parts[0] == "attempts"
+            and re.fullmatch(r"[0-9]{6}", parts[1]) is not None
+            and int(parts[1]) <= ordinal
+        )
+
+    rows = tuple(
+        copy.deepcopy(row) for row in inventory.rows if included(cast(str, row["relative_path"]))
+    )
+    payloads = {
+        relative: payload for relative, payload in inventory.payloads.items() if included(relative)
+    }
+    identities = {
+        relative: identity
+        for relative, identity in inventory.identities.items()
+        if included(relative)
+    }
+    return _TreeInventory(
+        rows=rows,
+        payloads=payloads,
+        identities=identities,
+        sha256=_sha256(MIRROR_INVENTORY_PREFIX + _canonical_json_bytes(list(rows))),
+        file_count=len(payloads),
+        total_bytes=sum(len(payload) for payload in payloads.values()),
+    )
+
+
+def _attempt_record_mirror_signature(record: ValidatedAttemptRecord) -> tuple[object, ...]:
+    return (
+        record.ordinal,
+        record.outcome,
+        record.reached_stage,
+        record.attempt_token_sha256,
+        record.previous_history_root_sha256,
+        record.implementation_epoch,
+        record.implementation_commit,
+        record.owner_action_time_authorization,
+        record.command_sha256,
+        record.environment_sha256,
+        record.started_bytes,
+        record.started_sha256,
+        record.candidate_bytes,
+        record.candidate_sha256,
+        record.terminal_bytes,
+        record.terminal_sha256,
+        record.evidence_tree_root_sha256,
+        record.artifact_inventory,
+        record.error,
+        record.record_root_sha256,
+        record.history_root_sha256,
+    )
+
+
+def _mirror_snapshot_name(ordinal: int, live_root: str) -> str:
+    return f"through-ordinal-{ordinal:06d}-{live_root}"
+
+
+def _strict_receipt_inventory(
+    path: Path,
+    label: str,
+    *,
+    root_descriptor: int | None = None,
+    root_before: os.stat_result | None = None,
+) -> _TreeInventory:
+    inventory = _strict_private_tree_inventory(
+        path,
+        label=label,
+        root_descriptor=root_descriptor,
+        root_before=root_before,
+    )
+    if any(
+        row["kind"] != "file" or len(PurePosixPath(cast(str, row["relative_path"])).parts) != 1
+        for row in inventory.rows
+        if row["relative_path"] != "."
+    ):
+        raise RehearsalV22Error(f"{label} contains a noncanonical receipt member")
+    return inventory
+
+
+def _strict_receipt_root(
+    path: Path,
+    label: str,
+    *,
+    root_descriptor: int | None = None,
+    root_before: os.stat_result | None = None,
+) -> tuple[tuple[str, bytes], ...]:
+    inventory = _strict_receipt_inventory(
+        path,
+        label,
+        root_descriptor=root_descriptor,
+        root_before=root_before,
+    )
+    return tuple(inventory.payloads.items())
+
+
+def _validate_second_copy_history(
+    binding: ExecutionBinding,
+    history: HistoryValidation,
+    *,
+    allow_unmirrored_final: bool = False,
+) -> tuple[JsonObject, ...]:
+    """Descriptor-bind primary, snapshots, and both receipts for one full pass."""
+
+    _validate_registered_storage_roots(binding)
+    count = len(history.records)
+    leaves = (
+        binding.secondary_snapshot_root,
+        binding.primary_receipt_root,
+        binding.secondary_receipt_root,
+    )
+    present = tuple(os.path.lexists(path) for path in leaves)
+    if count == 0:
+        if any(present):
+            raise RehearsalV22Error("mirror leaves exist before the first sealed attempt")
+        return ()
+    expected_verified = count - (1 if allow_unmirrored_final else 0)
+    if expected_verified == 0:
+        if present == (False, False, False):
+            return ()
+        raise RehearsalV22Error(
+            "first unmirrored attempt has persistent mirror initialization residue"
+        )
+    if present != (True, True, True):
+        raise RehearsalV22Error("series-2 mirror leaves are partial or absent")
+
+    held_roots: list[tuple[int, Path, os.stat_result, str]] = []
+    held_snapshots: list[tuple[int, Path, os.stat_result, str, str]] = []
+
+    def open_root(
+        path: Path,
+        label: str,
+        *,
+        parent_descriptor: int | None = None,
+        entry_name: str | None = None,
+    ) -> tuple[int, Path, os.stat_result, str]:
+        descriptor, before = _open_stable_read_descriptor(
+            path,
+            label=label,
+            directory=True,
+            parent_descriptor=parent_descriptor,
+            entry_name=entry_name,
+        )
+        if stat.S_IMODE(before.st_mode) != 0o700 or before.st_uid != os.getuid():
+            os.close(descriptor)
+            raise RehearsalV22Error(f"{label} owner or mode drifted")
+        result = (descriptor, path, before, label)
+        held_roots.append(result)
+        return result
+
+    try:
+        primary_container = open_root(
+            binding.primary_series_container,
+            "series-2 primary owner container",
+        )
+        secondary_container = open_root(
+            binding.secondary_series_container,
+            "series-2 secondary owner container",
+        )
+        primary_root = open_root(
+            binding.ledger_root,
+            "series-2 primary live-ledger root",
+            parent_descriptor=primary_container[0],
+            entry_name=binding.ledger_root.name,
+        )
+        snapshot_root = open_root(
+            binding.secondary_snapshot_root,
+            "series-2 snapshot root",
+            parent_descriptor=secondary_container[0],
+            entry_name=binding.secondary_snapshot_root.name,
+        )
+        primary_receipt_root = open_root(
+            binding.primary_receipt_root,
+            "series-2 primary receipt root",
+            parent_descriptor=primary_container[0],
+            entry_name=binding.primary_receipt_root.name,
+        )
+        secondary_receipt_root = open_root(
+            binding.secondary_receipt_root,
+            "series-2 secondary receipt root",
+            parent_descriptor=secondary_container[0],
+            entry_name=binding.secondary_receipt_root.name,
+        )
+
+        primary_receipt_inventory = _strict_receipt_inventory(
+            binding.primary_receipt_root,
+            "series-2 primary receipt root",
+            root_descriptor=primary_receipt_root[0],
+            root_before=primary_receipt_root[2],
+        )
+        secondary_receipt_inventory = _strict_receipt_inventory(
+            binding.secondary_receipt_root,
+            "series-2 secondary receipt root",
+            root_descriptor=secondary_receipt_root[0],
+            root_before=secondary_receipt_root[2],
+        )
+        primary_receipts = tuple(primary_receipt_inventory.payloads.items())
+        if primary_receipts != tuple(secondary_receipt_inventory.payloads.items()):
+            raise RehearsalV22Error("series-2 paired mirror receipt bytes differ")
+        if len(primary_receipts) != expected_verified:
+            raise RehearsalV22Error("series-2 mirror receipt count blocks continuation")
+
+        snapshot_names = sorted(
+            os.listdir(snapshot_root[0]),
+            key=lambda value: value.encode("utf-8"),
+        )
+        if len(snapshot_names) != expected_verified or any(
+            not isinstance(name, str) or name in {"", ".", ".."} or "/" in name
+            for name in snapshot_names
+        ):
+            raise RehearsalV22Error("series-2 mirror snapshot count or name blocks continuation")
+        snapshot_handles: dict[str, tuple[int, Path, os.stat_result, str, str]] = {}
+        for name in snapshot_names:
+            path = binding.secondary_snapshot_root / name
+            descriptor, before = _open_stable_read_descriptor(
+                path,
+                label=f"series-2 held snapshot {name}",
+                directory=True,
+                parent_descriptor=snapshot_root[0],
+                entry_name=name,
+            )
+            if stat.S_IMODE(before.st_mode) != 0o700 or before.st_uid != os.getuid():
+                os.close(descriptor)
+                raise RehearsalV22Error("series-2 held snapshot owner or mode drifted")
+            handle = (descriptor, path, before, f"series-2 held snapshot {name}", name)
+            held_snapshots.append(handle)
+            snapshot_handles[name] = handle
+
+        prefix_mode = allow_unmirrored_final and expected_verified < count
+        current_primary_inventory = (
+            _strict_primary_prefix_inventory(
+                binding.ledger_root,
+                expected_verified,
+                expected_attempt_count=count,
+                label="series-2 already-mirrored primary prefix",
+                root_descriptor=primary_root[0],
+                root_before=primary_root[2],
+            )
+            if prefix_mode
+            else _strict_private_tree_inventory(
+                binding.ledger_root,
+                label="series-2 current primary live ledger",
+                root_descriptor=primary_root[0],
+                root_before=primary_root[2],
+            )
+        )
+        if not prefix_mode:
+            replayed_primary = validate_live_history(binding)
+            if replayed_primary != history:
+                raise RehearsalV22Error(
+                    "primary live history changed during second-copy validation"
+                )
+            replay_bound_primary = _strict_private_tree_inventory(
+                binding.ledger_root,
+                label="series-2 replay-bound primary live ledger",
+                root_descriptor=primary_root[0],
+                root_before=primary_root[2],
+            )
+            if (
+                replay_bound_primary.rows != current_primary_inventory.rows
+                or replay_bound_primary.payloads != current_primary_inventory.payloads
+                or replay_bound_primary.identities != current_primary_inventory.identities
+            ):
+                raise RehearsalV22Error("primary live ledger changed during history replay")
+
+        receipts: list[JsonObject] = []
+        observed_snapshot_names: set[str] = set()
+        initial_snapshot_inventories: dict[str, _TreeInventory] = {}
+        for expected_ordinal, (filename, payload) in enumerate(primary_receipts, 1):
+            document = _object(
+                strict_json_loads(payload, source=f"mirror receipt {expected_ordinal}"),
+                f"mirror receipt {expected_ordinal}",
+            )
+            if set(document) != MIRROR_RECEIPT_FIELDS or _canonical_json_bytes(document) != payload:
+                raise RehearsalV22Error("mirror receipt is not exact canonical JSON")
+            live_root = document.get("live_ledger_root_sha256")
+            if (
+                document.get("schema_version") != MIRROR_RECEIPT_SCHEMA
+                or document.get("series_token_sha256") != binding.series_token_sha256
+                or document.get("ordinal") != expected_ordinal
+                or document.get("primary_ledger_root") != binding.ledger_root.as_posix()
+                or not _lower_hex(live_root, 64)
+                or filename != _mirror_receipt_filename(expected_ordinal, cast(str, live_root))
+                or document.get("second_copy_verified") is not True
+                or document.get("verified_at_utc") != FIXED_WALL_CLOCK_TEXT
+            ):
+                raise RehearsalV22Error("mirror receipt identity or binding drifted")
+            snapshot_name = _mirror_snapshot_name(
+                expected_ordinal,
+                cast(str, live_root),
+            )
+            snapshot = binding.secondary_snapshot_root / snapshot_name
+            if (
+                document.get("secondary_snapshot_root") != snapshot.as_posix()
+                or snapshot_name not in snapshot_handles
+            ):
+                raise RehearsalV22Error("mirror receipt snapshot binding drifted")
+            snapshot_handle = snapshot_handles[snapshot_name]
+            snapshot_inventory = _strict_private_tree_inventory(
+                snapshot,
+                label=f"series-2 snapshot {expected_ordinal}",
+                root_descriptor=snapshot_handle[0],
+                root_before=snapshot_handle[2],
+            )
+            initial_snapshot_inventories[snapshot_name] = snapshot_inventory
+            snapshot_history = validate_live_history(binding, ledger_root=snapshot)
+            replay_bound_snapshot = _strict_private_tree_inventory(
+                snapshot,
+                label=f"series-2 replay-bound snapshot {expected_ordinal}",
+                root_descriptor=snapshot_handle[0],
+                root_before=snapshot_handle[2],
+            )
+            if (
+                replay_bound_snapshot.rows != snapshot_inventory.rows
+                or replay_bound_snapshot.payloads != snapshot_inventory.payloads
+                or replay_bound_snapshot.identities != snapshot_inventory.identities
+            ):
+                raise RehearsalV22Error("mirror snapshot changed during history replay")
+            record = snapshot_history.records[-1] if snapshot_history.records else None
+            expected_record = history.records[expected_ordinal - 1]
+            if (
+                len(snapshot_history.records) != expected_ordinal
+                or record is None
+                or record.outcome != expected_record.outcome
+                or tuple(
+                    _attempt_record_mirror_signature(item) for item in snapshot_history.records
+                )
+                != tuple(
+                    _attempt_record_mirror_signature(item)
+                    for item in history.records[:expected_ordinal]
+                )
+                or snapshot_history.history_root_sha256 != document.get("history_root_sha256")
+                or document.get("history_root_sha256")
+                != history.records[expected_ordinal - 1].history_root_sha256
+                or snapshot_history.live_ledger_root_sha256 != live_root
+                or document.get("attempt_outcome") != expected_record.outcome
+                or document.get("attempt_sealed")
+                is not (expected_record.outcome != "INCOMPLETE_UNTERMINALIZED")
+            ):
+                raise RehearsalV22Error("mirror snapshot history differs from its receipt")
+            primary_prefix_inventory = _inventory_through_ordinal(
+                current_primary_inventory,
+                expected_ordinal,
+            )
+            if (
+                snapshot_inventory.rows != primary_prefix_inventory.rows
+                or snapshot_inventory.payloads != primary_prefix_inventory.payloads
+                or document.get("file_count") != snapshot_inventory.file_count
+                or document.get("total_bytes") != snapshot_inventory.total_bytes
+                or document.get("primary_inventory_sha256") != snapshot_inventory.sha256
+                or document.get("primary_inventory_sha256") != primary_prefix_inventory.sha256
+                or document.get("secondary_inventory_sha256") != snapshot_inventory.sha256
+            ):
+                raise RehearsalV22Error("mirror snapshot inventory differs from its receipt")
+            observed_snapshot_names.add(snapshot_name)
+            receipts.append(document)
+        if set(snapshot_names) != observed_snapshot_names:
+            raise RehearsalV22Error("mirror snapshot root contains a staging or extra artifact")
+
+        final_primary_receipt_inventory = _strict_receipt_inventory(
+            binding.primary_receipt_root,
+            "series-2 final primary receipt root recheck",
+            root_descriptor=primary_receipt_root[0],
+            root_before=primary_receipt_root[2],
+        )
+        final_secondary_receipt_inventory = _strict_receipt_inventory(
+            binding.secondary_receipt_root,
+            "series-2 final secondary receipt root recheck",
+            root_descriptor=secondary_receipt_root[0],
+            root_before=secondary_receipt_root[2],
+        )
+        for initial, final, label in (
+            (
+                primary_receipt_inventory,
+                final_primary_receipt_inventory,
+                "primary receipt root",
+            ),
+            (
+                secondary_receipt_inventory,
+                final_secondary_receipt_inventory,
+                "secondary receipt root",
+            ),
+        ):
+            if (
+                final.rows != initial.rows
+                or final.payloads != initial.payloads
+                or final.identities != initial.identities
+            ):
+                raise RehearsalV22Error(f"{label} changed during cross-tree mirror validation")
+        final_snapshot_names = sorted(
+            os.listdir(snapshot_root[0]),
+            key=lambda value: value.encode("utf-8"),
+        )
+        if final_snapshot_names != snapshot_names:
+            raise RehearsalV22Error("snapshot root changed during cross-tree mirror validation")
+        for snapshot_name, initial_inventory in initial_snapshot_inventories.items():
+            handle = snapshot_handles[snapshot_name]
+            final_inventory = _strict_private_tree_inventory(
+                handle[1],
+                label=f"series-2 final snapshot {snapshot_name} recheck",
+                root_descriptor=handle[0],
+                root_before=handle[2],
+            )
+            if (
+                final_inventory.rows != initial_inventory.rows
+                or final_inventory.payloads != initial_inventory.payloads
+                or final_inventory.identities != initial_inventory.identities
+            ):
+                raise RehearsalV22Error(
+                    "snapshot bytes or identity changed during mirror validation"
+                )
+        final_primary_inventory = (
+            _strict_primary_prefix_inventory(
+                binding.ledger_root,
+                expected_verified,
+                expected_attempt_count=count,
+                label="series-2 final already-mirrored primary prefix recheck",
+                root_descriptor=primary_root[0],
+                root_before=primary_root[2],
+            )
+            if prefix_mode
+            else _strict_private_tree_inventory(
+                binding.ledger_root,
+                label="series-2 final primary live ledger recheck",
+                root_descriptor=primary_root[0],
+                root_before=primary_root[2],
+            )
+        )
+        if (
+            final_primary_inventory.rows != current_primary_inventory.rows
+            or final_primary_inventory.payloads != current_primary_inventory.payloads
+            or final_primary_inventory.identities != current_primary_inventory.identities
+        ):
+            raise RehearsalV22Error("primary live ledger changed during mirror validation")
+        if not prefix_mode:
+            latest = receipts[-1]
+            if (
+                latest.get("history_root_sha256") != history.history_root_sha256
+                or latest.get("live_ledger_root_sha256") != history.live_ledger_root_sha256
+                or latest.get("primary_inventory_sha256") != final_primary_inventory.sha256
+                or latest.get("file_count") != final_primary_inventory.file_count
+                or latest.get("total_bytes") != final_primary_inventory.total_bytes
+            ):
+                raise RehearsalV22Error("latest mirror does not bind the current live ledger")
+        result = tuple(receipts)
+    except BaseException:
+        for descriptor, _path, _before, _label, _name in held_snapshots:
+            with suppress(OSError):
+                os.close(descriptor)
+        for descriptor, _path, _before, _label in reversed(held_roots):
+            with suppress(OSError):
+                os.close(descriptor)
+        raise
+
+    close_error: BaseException | None = None
+    for descriptor, path, before, label, _name in reversed(held_snapshots):
+        try:
+            _close_stable_directory_descriptor(
+                descriptor,
+                path,
+                before,
+                label=label,
+            )
+        except BaseException as exc:
+            if close_error is None:
+                close_error = exc
+    for descriptor, path, before, label in reversed(held_roots):
+        try:
+            _close_stable_directory_descriptor(
+                descriptor,
+                path,
+                before,
+                label=label,
+            )
+        except BaseException as exc:
+            if close_error is None:
+                close_error = exc
+    if close_error is not None:
+        raise close_error
+    return result
+
+
+def _publish_mirror_snapshot_exclusive(
+    source: Path,
+    destination: Path,
+    *,
+    parent_descriptor: int,
+) -> JsonObject:
+    policy = _AUDIT_POLICY.get()
+    if (
+        policy is None
+        or not _audit_policy_is_issued(policy)
+        or policy.mirror_write_phase != "publish"
+        or policy.mirror_publish_paths != (source, destination)
+        or policy.mirror_staging_root != source
+        or policy.mirror_snapshot_root is None
+        or source.parent != policy.mirror_snapshot_root
+        or destination.parent != policy.mirror_snapshot_root
+        or source == destination
+        or not source.name.startswith(".staging-through-ordinal-")
+        or not destination.name.startswith("through-ordinal-")
+    ):
+        raise RehearsalV22Error("mirror publish lacks its exact issued same-parent authority")
+    return _rename_mirror_directory_exclusive(
+        source,
+        destination,
+        parent_descriptor=parent_descriptor,
+    )
+
+
+def _validate_series_lock_held(ledger: SeriesLedger) -> None:
+    binding = ledger.binding
+    descriptor = ledger.lock_descriptor
+    if not ledger.locked or descriptor is None or descriptor < 0:
+        raise RehearsalV22Error("mirror requires the held exclusive series lock")
+    lock_path = binding.ledger_root / ".series.lock"
+    try:
+        raw = fcntl.fcntl(descriptor, fcntl.F_GETPATH, b"\0" * 1024)
+        terminator = raw.find(b"\0")
+        descriptor_path = Path(os.fsdecode(raw[:terminator]))
+        descriptor_metadata = os.fstat(descriptor)
+        path_metadata = lock_path.lstat()
+        descriptor_flags = fcntl.fcntl(descriptor, fcntl.F_GETFL)
+    except (OSError, TypeError, ValueError) as exc:
+        raise RehearsalV22Error("exclusive series lock identity is unavailable") from exc
+    if (
+        terminator <= 0
+        or descriptor_path.resolve(strict=True) != lock_path.resolve(strict=True)
+        or (descriptor_metadata.st_dev, descriptor_metadata.st_ino)
+        != (path_metadata.st_dev, path_metadata.st_ino)
+        or not stat.S_ISREG(descriptor_metadata.st_mode)
+        or descriptor_flags & os.O_ACCMODE != os.O_RDONLY
+    ):
+        raise RehearsalV22Error("exclusive series lock descriptor identity drifted")
+
+
+def _verify_current_private_directory_descriptor(
+    descriptor: int,
+    path: Path,
+    *,
+    label: str,
+) -> None:
+    try:
+        opened = os.fstat(descriptor)
+        current = path.lstat()
+    except OSError as exc:
+        raise RehearsalV22Error(f"{label} identity is unavailable") from exc
+    if (
+        _stat_identity(opened) != _stat_identity(current)
+        or _descriptor_path(descriptor, label=label) != path.absolute()
+        or not stat.S_ISDIR(opened.st_mode)
+        or stat.S_IMODE(opened.st_mode) != 0o700
+        or opened.st_uid != os.getuid()
+    ):
+        raise RehearsalV22Error(f"{label} descriptor identity drifted")
+
+
+@contextmanager
+def _held_mirror_write_roots(
+    binding: ExecutionBinding,
+    *,
+    initialize_roots: bool,
+    mirror_phase: Callable[[str], Any],
+) -> Iterator[Mapping[str, int]]:
+    held: list[tuple[str, int, Path]] = []
+
+    def open_root(
+        key: str,
+        path: Path,
+        *,
+        parent_descriptor: int | None = None,
+        entry_name: str | None = None,
+    ) -> int:
+        descriptor, before = _open_stable_read_descriptor(
+            path,
+            label=f"held mirror {key}",
+            directory=True,
+            parent_descriptor=parent_descriptor,
+            entry_name=entry_name,
+        )
+        if stat.S_IMODE(before.st_mode) != 0o700 or before.st_uid != os.getuid():
+            os.close(descriptor)
+            raise RehearsalV22Error(f"held mirror {key} owner or mode drifted")
+        held.append((key, descriptor, path))
+        return descriptor
+
+    try:
+        primary_container_descriptor = open_root(
+            "primary owner container",
+            binding.primary_series_container,
+        )
+        secondary_container_descriptor = open_root(
+            "secondary owner container",
+            binding.secondary_series_container,
+        )
+        ledger_descriptor = open_root(
+            "primary ledger root",
+            binding.ledger_root,
+            parent_descriptor=primary_container_descriptor,
+            entry_name=binding.ledger_root.name,
+        )
+        if initialize_roots:
+            with mirror_phase("initialize"):
+                for parent_descriptor, path in (
+                    (secondary_container_descriptor, binding.secondary_snapshot_root),
+                    (primary_container_descriptor, binding.primary_receipt_root),
+                    (secondary_container_descriptor, binding.secondary_receipt_root),
+                ):
+                    os.mkdir(path.name, 0o700, dir_fd=parent_descriptor)
+                    os.fsync(parent_descriptor)
+        snapshot_descriptor = open_root(
+            "snapshot root",
+            binding.secondary_snapshot_root,
+            parent_descriptor=secondary_container_descriptor,
+            entry_name=binding.secondary_snapshot_root.name,
+        )
+        primary_receipt_descriptor = open_root(
+            "primary receipt root",
+            binding.primary_receipt_root,
+            parent_descriptor=primary_container_descriptor,
+            entry_name=binding.primary_receipt_root.name,
+        )
+        secondary_receipt_descriptor = open_root(
+            "secondary receipt root",
+            binding.secondary_receipt_root,
+            parent_descriptor=secondary_container_descriptor,
+            entry_name=binding.secondary_receipt_root.name,
+        )
+        yield {
+            "primary_container": primary_container_descriptor,
+            "secondary_container": secondary_container_descriptor,
+            "ledger": ledger_descriptor,
+            "snapshot": snapshot_descriptor,
+            "primary_receipt": primary_receipt_descriptor,
+            "secondary_receipt": secondary_receipt_descriptor,
+        }
+    except BaseException:
+        for _key, descriptor, _path in reversed(held):
+            with suppress(OSError):
+                os.close(descriptor)
+        raise
+    close_error: BaseException | None = None
+    for key, descriptor, path in reversed(held):
+        try:
+            _verify_current_private_directory_descriptor(
+                descriptor,
+                path,
+                label=f"held mirror {key}",
+            )
+        except BaseException as exc:
+            if close_error is None:
+                close_error = exc
+        finally:
+            os.close(descriptor)
+    if close_error is not None:
+        raise close_error
+
+
+def _mirror_live_ledger(
+    ledger: SeriesLedger,
+    history: HistoryValidation,
+    *,
+    mirror_commit_capability: _MirrorCommitCapability,
+) -> JsonObject:
+    binding = ledger.binding
+    _validate_series_lock_held(ledger)
+    if not _mirror_commit_capability_is_issued(
+        mirror_commit_capability,
+        ledger=ledger,
+        history=history,
+    ):
+        raise RehearsalV22Error(
+            "mirror publication lacks a one-use terminal or continuation trigger"
+        )
+    if not history.records or history.live_ledger_root_sha256 is None:
+        raise RehearsalV22Error("mirror requires one persisted live attempt")
+    ordinal = len(history.records)
+    _validate_second_copy_history(binding, history, allow_unmirrored_final=True)
+    policy = _AUDIT_POLICY.get()
+    if (
+        policy is None
+        or policy.ledger_root != binding.ledger_root
+        or policy.mirror_snapshot_root != binding.secondary_snapshot_root
+        or policy.primary_receipt_root != binding.primary_receipt_root
+        or policy.secondary_receipt_root != binding.secondary_receipt_root
+    ):
+        raise RehearsalV22Error("mirror lacks the registered held-lock write policy")
+    mirror_leaves = (
+        binding.secondary_snapshot_root,
+        binding.primary_receipt_root,
+        binding.secondary_receipt_root,
+    )
+    present = tuple(os.path.lexists(path) for path in mirror_leaves)
+    if present not in {(False, False, False), (True, True, True)}:
+        raise RehearsalV22Error("mirror leaf initialization is partial")
+    initialize_roots = present == (False, False, False)
+    live_root = history.live_ledger_root_sha256
+    snapshot_name = _mirror_snapshot_name(ordinal, live_root)
+    snapshot = binding.secondary_snapshot_root / snapshot_name
+    receipt_name = _mirror_receipt_filename(ordinal, live_root)
+    receipt_paths = (
+        binding.primary_receipt_root / receipt_name,
+        binding.secondary_receipt_root / receipt_name,
+    )
+    if os.path.lexists(snapshot) or any(os.path.lexists(path) for path in receipt_paths):
+        raise RehearsalV22Error("mirror publication target already exists")
+    staging = binding.secondary_snapshot_root / (f".staging-{snapshot_name}-{uuid.uuid4().hex}")
+    if os.path.lexists(staging):
+        raise RehearsalV22Error("mirror staging path already exists")
+    primary_inventory: _TreeInventory | None = None
+    receipt: JsonObject | None = None
+    with (
+        _mirror_write_sequence(
+            ledger,
+            history,
+            mirror_commit_capability=mirror_commit_capability,
+            staging=staging,
+            snapshot=snapshot,
+            receipt_paths=receipt_paths,
+            initialize_roots=initialize_roots,
+        ) as mirror_phase,
+        _held_mirror_write_roots(
+            binding,
+            initialize_roots=initialize_roots,
+            mirror_phase=mirror_phase,
+        ) as roots,
+    ):
+        staging_descriptor: int | None = None
+        staging_descriptor_path = staging
+        nested_descriptors: list[tuple[int, Path]] = []
+        try:
+            with mirror_phase("staging"):
+                os.mkdir(staging.name, 0o700, dir_fd=roots["snapshot"])
+                os.fsync(roots["snapshot"])
+                staging_descriptor, _staging_initial = _open_stable_read_descriptor(
+                    staging,
+                    label="durable mirror staging claim",
+                    directory=True,
+                    parent_descriptor=roots["snapshot"],
+                    entry_name=staging.name,
+                )
+                # The descriptor-bound, uniquely named empty staging
+                # directory is this ordinal's durable mirror-start claim.
+                primary_before = os.fstat(roots["ledger"])
+                primary_inventory = _strict_private_tree_inventory(
+                    binding.ledger_root,
+                    label=("series-2 primary live ledger after durable mirror claim"),
+                    root_descriptor=roots["ledger"],
+                    root_before=primary_before,
+                )
+                directory_rows = sorted(
+                    (
+                        row
+                        for row in primary_inventory.rows
+                        if row["kind"] == "directory" and row["relative_path"] != "."
+                    ),
+                    key=lambda row: (
+                        len(PurePosixPath(cast(str, row["relative_path"])).parts),
+                        cast(str, row["relative_path"]).encode("utf-8"),
+                    ),
+                )
+                directory_descriptors: dict[str, int] = {
+                    ".": staging_descriptor,
+                }
+                for row in directory_rows:
+                    relative = cast(str, row["relative_path"])
+                    relative_path = PurePosixPath(relative)
+                    parent_relative = relative_path.parent.as_posix()
+                    parent_descriptor = directory_descriptors.get(parent_relative)
+                    if parent_descriptor is None:
+                        raise RehearsalV22Error("mirror directory copy lost its held parent")
+                    directory = staging.joinpath(*relative_path.parts)
+                    os.mkdir(
+                        relative_path.name,
+                        0o700,
+                        dir_fd=parent_descriptor,
+                    )
+                    os.fsync(parent_descriptor)
+                    descriptor, _before = _open_stable_read_descriptor(
+                        directory,
+                        label=f"staged mirror directory {relative}",
+                        directory=True,
+                        parent_descriptor=parent_descriptor,
+                        entry_name=relative_path.name,
+                    )
+                    directory_descriptors[relative] = descriptor
+                    nested_descriptors.append((descriptor, directory))
+                for relative, payload in primary_inventory.payloads.items():
+                    relative_path = PurePosixPath(relative)
+                    parent_descriptor = directory_descriptors.get(relative_path.parent.as_posix())
+                    if parent_descriptor is None:
+                        raise RehearsalV22Error("mirror file copy lost its held parent")
+                    _write_exclusive_at(
+                        parent_descriptor,
+                        staging.joinpath(*relative_path.parts),
+                        payload,
+                        mode=0o600,
+                    )
+                for descriptor, directory in reversed(nested_descriptors):
+                    os.fsync(descriptor)
+                    _verify_current_private_directory_descriptor(
+                        descriptor,
+                        directory,
+                        label="staged mirror nested directory",
+                    )
+                    os.close(descriptor)
+                nested_descriptors.clear()
+                os.fsync(staging_descriptor)
+                os.fsync(roots["snapshot"])
+            if primary_inventory is None or staging_descriptor is None:
+                raise RehearsalV22Error("mirror staging omitted its durable primary inventory")
+            staged_before = os.fstat(staging_descriptor)
+            staged_inventory = _strict_private_tree_inventory(
+                staging,
+                label="series-2 staged mirror",
+                root_descriptor=staging_descriptor,
+                root_before=staged_before,
+            )
+            staged_history = validate_live_history(binding, ledger_root=staging)
+            staged_after_replay = _strict_private_tree_inventory(
+                staging,
+                label="series-2 replay-bound staged mirror",
+                root_descriptor=staging_descriptor,
+                root_before=staged_before,
+            )
+            if (
+                staged_inventory.rows != primary_inventory.rows
+                or staged_inventory.payloads != primary_inventory.payloads
+                or staged_inventory.sha256 != primary_inventory.sha256
+                or staged_after_replay.rows != staged_inventory.rows
+                or staged_after_replay.payloads != staged_inventory.payloads
+                or staged_after_replay.identities != staged_inventory.identities
+                or staged_history.history_root_sha256 != history.history_root_sha256
+                or staged_history.live_ledger_root_sha256 != live_root
+            ):
+                raise RehearsalV22Error("staged mirror differs from the primary ledger")
+            with mirror_phase("publish"):
+                _publish_mirror_snapshot_exclusive(
+                    staging,
+                    snapshot,
+                    parent_descriptor=roots["snapshot"],
+                )
+                staging_descriptor_path = snapshot
+            published_before = os.fstat(staging_descriptor)
+            published_inventory = _strict_private_tree_inventory(
+                snapshot,
+                label="series-2 published mirror",
+                root_descriptor=staging_descriptor,
+                root_before=published_before,
+            )
+            published_history = validate_live_history(
+                binding,
+                ledger_root=snapshot,
+            )
+            published_after_replay = _strict_private_tree_inventory(
+                snapshot,
+                label="series-2 replay-bound published mirror",
+                root_descriptor=staging_descriptor,
+                root_before=published_before,
+            )
+            if (
+                published_inventory.rows != primary_inventory.rows
+                or published_inventory.payloads != primary_inventory.payloads
+                or published_inventory.sha256 != primary_inventory.sha256
+                or published_after_replay.rows != published_inventory.rows
+                or published_after_replay.payloads != published_inventory.payloads
+                or published_after_replay.identities != published_inventory.identities
+                or published_history.history_root_sha256 != history.history_root_sha256
+                or published_history.live_ledger_root_sha256 != live_root
+            ):
+                raise RehearsalV22Error("published mirror differs from the primary ledger")
+            last = history.records[-1]
+            receipt = {
+                "schema_version": MIRROR_RECEIPT_SCHEMA,
+                "series_token_sha256": binding.series_token_sha256,
+                "ordinal": ordinal,
+                "attempt_outcome": last.outcome,
+                "attempt_sealed": last.outcome != "INCOMPLETE_UNTERMINALIZED",
+                "primary_ledger_root": binding.ledger_root.as_posix(),
+                "secondary_snapshot_root": snapshot.as_posix(),
+                "history_root_sha256": history.history_root_sha256,
+                "live_ledger_root_sha256": live_root,
+                "file_count": primary_inventory.file_count,
+                "total_bytes": primary_inventory.total_bytes,
+                "primary_inventory_sha256": primary_inventory.sha256,
+                "secondary_inventory_sha256": published_inventory.sha256,
+                "second_copy_verified": True,
+                "verified_at_utc": FIXED_WALL_CLOCK_TEXT,
+            }
+            receipt_payload = _canonical_json_bytes(receipt)
+            with mirror_phase("receipt"):
+                _write_exclusive_at(
+                    roots["primary_receipt"],
+                    receipt_paths[0],
+                    receipt_payload,
+                    mode=0o600,
+                )
+                _write_exclusive_at(
+                    roots["secondary_receipt"],
+                    receipt_paths[1],
+                    receipt_payload,
+                    mode=0o600,
+                )
+        finally:
+            for descriptor, _directory in reversed(nested_descriptors):
+                with suppress(OSError):
+                    os.close(descriptor)
+            if staging_descriptor is not None:
+                try:
+                    _verify_current_private_directory_descriptor(
+                        staging_descriptor,
+                        staging_descriptor_path,
+                        label="mirror staging or published snapshot",
+                    )
+                finally:
+                    os.close(staging_descriptor)
+    if receipt is None:
+        raise RehearsalV22Error("mirror publication produced no verification receipt")
+    receipt_payload = _canonical_json_bytes(receipt)
+    if tuple(_regular_bytes(path, "mirror verification receipt") for path in receipt_paths) != (
+        receipt_payload,
+        receipt_payload,
+    ):
+        raise RehearsalV22Error("paired mirror receipts differ after durable publication")
+    _validate_second_copy_history(binding, history)
+    return receipt
+
+
+def _build_mirror_commit_state() -> tuple[Any, Any, Any, Any]:
+    nonce = object()
+    registry: tuple[_MirrorCommitCapability, ...] = ()
+    consumed: tuple[tuple[Path, int, str, str], ...] = ()
+
+    def capability_is_issued(
+        capability: _MirrorCommitCapability,
+        *,
+        ledger: SeriesLedger,
+        history: HistoryValidation,
+    ) -> bool:
+        return bool(
+            isinstance(capability, _MirrorCommitCapability)
+            and capability._nonce is nonce
+            and capability.ledger_id == id(ledger)
+            and capability.ordinal == len(history.records)
+            and capability.history_root_sha256 == history.history_root_sha256
+            and capability.reason in {"TERMINAL_SEAL", "CONTINUATION_FREEZE"}
+            and any(record is capability for record in registry)
+        )
+
+    def consume_capability(
+        capability: _MirrorCommitCapability,
+        *,
+        ledger: SeriesLedger,
+        history: HistoryValidation,
+    ) -> None:
+        nonlocal registry
+        if not capability_is_issued(capability, ledger=ledger, history=history):
+            raise RehearsalV22Error("mirror sequence lacks an issued commit trigger")
+        registry = tuple(record for record in registry if record is not capability)
+
+    def validate_terminal_trigger(
+        ledger: SeriesLedger,
+        history: HistoryValidation,
+        lease: AttemptLease | None,
+    ) -> None:
+        policy = _AUDIT_POLICY.get()
+        if lease is None:
+            raise RehearsalV22Error("terminal mirror trigger has no active lease")
+        expected_terminal = lease.attempt_root / "terminal.json"
+        execution_action = getattr(
+            ledger.execution_context,
+            "action_authorization",
+            None,
+        )
+        if (
+            ledger.active_lease is not lease
+            or execution_action is not lease.action_authorization
+            or not lease.terminal_written
+            or not lease.frozen
+            or policy is None
+            or not _audit_policy_is_issued(policy)
+            or policy.ledger_write_phase != "frozen"
+            or policy.ledger_root != ledger.binding.ledger_root
+            or policy.active_attempt_root != lease.attempt_root
+            or len(history.records) != lease.ordinal
+            or history.binding != ledger.binding
+            or history != validate_live_history(ledger.binding)
+            or history.records[-1].terminal_path != expected_terminal
+            or history.records[-1].owner_action_time_authorization
+            != lease.action_authorization.authority_ref(ledger.binding.project_root)
+            or not expected_terminal.is_file()
+            or expected_terminal.is_symlink()
+        ):
+            raise RehearsalV22Error(
+                "terminal mirror trigger lacks the issued durable terminal state"
+            )
+        if (
+            _validate_execution_capability(
+                ledger.execution_context,
+                project_root=ledger.binding.project_root,
+            )
+            != ledger.binding
+        ):
+            raise RehearsalV22Error("terminal mirror trigger capability drifted")
+        _validate_second_copy_history(
+            ledger.binding,
+            history,
+            allow_unmirrored_final=True,
+        )
+
+    def validate_continuation_trigger(
+        ledger: SeriesLedger,
+        history: HistoryValidation,
+        action_authorization: ActionAuthorization | None,
+    ) -> None:
+        authorization = action_authorization
+        policy = _AUDIT_POLICY.get()
+        execution_action = getattr(
+            ledger.execution_context,
+            "action_authorization",
+            None,
+        )
+        if not isinstance(authorization, ActionAuthorization):
+            raise RehearsalV22Error("continuation mirror trigger lacks next action authorization")
+        authorization_exact: ActionAuthorization = authorization
+        if (
+            execution_action is not authorization_exact
+            or ledger.active_lease is not None
+            or policy is None
+            or not _audit_policy_is_issued(policy)
+            or policy.ledger_write_phase != "frozen"
+            or policy.ledger_root != ledger.binding.ledger_root
+            or policy.active_attempt_root is not None
+            or not history.records
+            or history.binding != ledger.binding
+            or history != validate_live_history(ledger.binding)
+            or history.records[-1].outcome != "INCOMPLETE_UNTERMINALIZED"
+            or history.records[-1].terminal_path is not None
+        ):
+            raise RehearsalV22Error(
+                "continuation mirror trigger is not one prior crash-incomplete history"
+            )
+        if (
+            _validate_execution_capability(
+                ledger.execution_context,
+                project_root=ledger.binding.project_root,
+            )
+            != ledger.binding
+        ):
+            raise RehearsalV22Error("continuation mirror trigger capability drifted")
+        expected_ordinal = len(history.records) + 1
+        revalidated_action = _validate_action_authorization(
+            ledger.binding,
+            authorization_exact.authority_ref(ledger.binding.project_root),
+            expected_ordinal=expected_ordinal,
+            expected_previous_history_root_sha256=history.history_root_sha256,
+            require_current_process=True,
+        )
+        if revalidated_action != authorization_exact:
+            raise RehearsalV22Error("continuation mirror trigger action authorization drifted")
+        _validate_next_series_2_epoch(
+            history,
+            authorization_exact.implementation_epoch,
+        )
+        _validate_second_copy_history(
+            ledger.binding,
+            history,
+            allow_unmirrored_final=True,
+        )
+
+    def publish(
+        ledger: SeriesLedger,
+        history: HistoryValidation,
+        *,
+        reason: Literal["TERMINAL_SEAL", "CONTINUATION_FREEZE"],
+        lease: AttemptLease | None = None,
+        action_authorization: ActionAuthorization | None = None,
+    ) -> JsonObject:
+        nonlocal consumed, registry
+        _validate_series_lock_held(ledger)
+        if reason == "TERMINAL_SEAL":
+            if action_authorization is not None:
+                raise RehearsalV22Error("terminal mirror trigger received a next action")
+            validate_terminal_trigger(ledger, history, lease)
+        else:
+            if lease is not None:
+                raise RehearsalV22Error("continuation mirror trigger received an active lease")
+            validate_continuation_trigger(ledger, history, action_authorization)
+        identity = (
+            ledger.binding.ledger_root,
+            len(history.records),
+            history.history_root_sha256,
+            reason,
+        )
+        if identity in consumed:
+            raise RehearsalV22Error("mirror trigger was already consumed in this process")
+        capability = _MirrorCommitCapability(
+            _nonce=nonce,
+            ledger_id=id(ledger),
+            ordinal=len(history.records),
+            history_root_sha256=history.history_root_sha256,
+            reason=reason,
+        )
+        consumed = (*consumed, identity)
+        registry = (*registry, capability)
+        try:
+            return _mirror_live_ledger(
+                ledger,
+                history,
+                mirror_commit_capability=capability,
+            )
+        finally:
+            registry = tuple(record for record in registry if record is not capability)
+
+    def mirror_after_terminal_seal(
+        lease: AttemptLease,
+        history: HistoryValidation,
+    ) -> JsonObject:
+        ledger = lease.ledger
+        return publish(
+            ledger,
+            history,
+            reason="TERMINAL_SEAL",
+            lease=lease,
+        )
+
+    def mirror_before_next_allocation(
+        ledger: SeriesLedger,
+        history: HistoryValidation,
+        action_authorization: ActionAuthorization,
+    ) -> JsonObject:
+        return publish(
+            ledger,
+            history,
+            reason="CONTINUATION_FREEZE",
+            action_authorization=action_authorization,
+        )
+
+    return (
+        capability_is_issued,
+        consume_capability,
+        mirror_after_terminal_seal,
+        mirror_before_next_allocation,
+    )
+
+
+(
+    _mirror_commit_capability_is_issued,
+    _consume_mirror_commit_capability,
+    _mirror_after_terminal_seal,
+    _mirror_before_next_allocation,
+) = _build_mirror_commit_state()
+
+
+def _final_mirror_targets(
+    binding: ExecutionBinding,
+    history: HistoryValidation,
+) -> tuple[Path, Path, Path]:
+    if not history.records or history.live_ledger_root_sha256 is None:
+        raise RehearsalV22Error("final mirror target requires persisted history")
+    ordinal = len(history.records)
+    live_root = history.live_ledger_root_sha256
+    receipt_name = _mirror_receipt_filename(ordinal, live_root)
+    return (
+        binding.secondary_snapshot_root / _mirror_snapshot_name(ordinal, live_root),
+        binding.primary_receipt_root / receipt_name,
+        binding.secondary_receipt_root / receipt_name,
+    )
+
+
+def _validate_continuation_mirror_state(
+    binding: ExecutionBinding,
+    history: HistoryValidation,
+    *,
+    permit_unmirrored_final_incomplete: bool,
+) -> bool:
+    if not history.records:
+        _validate_second_copy_history(binding, history)
+        return True
+    final = history.records[-1]
+    targets = _final_mirror_targets(binding, history)
+    if (
+        permit_unmirrored_final_incomplete
+        and final.outcome == "INCOMPLETE_UNTERMINALIZED"
+        and not any(os.path.lexists(path) for path in targets)
+    ):
+        _validate_second_copy_history(binding, history, allow_unmirrored_final=True)
+        return False
+    _validate_second_copy_history(binding, history)
+    return True
+
+
 def _validate_authority_ref_shape(value: object, label: str) -> AuthorityReference:
     return _authority_from_json(value, label)
 
 
-def _live_ledger_files(binding: ExecutionBinding) -> tuple[tuple[str, bytes], ...]:
-    root = binding.ledger_root
+def _live_ledger_files_unheld(
+    binding: ExecutionBinding,
+    *,
+    ledger_root: Path | None = None,
+) -> tuple[tuple[str, bytes], ...]:
+    root = binding.ledger_root if ledger_root is None else ledger_root
     observed_directories: set[str] = set()
     files: list[tuple[str, bytes]] = []
     for path in sorted(
@@ -3337,7 +6848,9 @@ def _live_ledger_files(binding: ExecutionBinding) -> tuple[tuple[str, bytes], ..
             or path.resolve(strict=True) != path.absolute()
         ):
             raise RehearsalV22Error(f"unexpected live ledger file: {relative}")
-        payload = path.read_bytes()
+        payload = _regular_bytes(path, f"live ledger file {relative}")
+        if _stat_identity(path.lstat()) != _stat_identity(metadata):
+            raise RehearsalV22Error(f"live ledger file changed during read: {relative}")
         if relative == ".series.lock" and payload:
             raise RehearsalV22Error("series lock file must remain empty")
         files.append((relative, payload))
@@ -3366,8 +6879,22 @@ def _live_ledger_files(binding: ExecutionBinding) -> tuple[tuple[str, bytes], ..
     return tuple(files)
 
 
-def _live_ledger_root(binding: ExecutionBinding) -> tuple[str, tuple[str, ...]]:
-    files = _live_ledger_files(binding)
+def _live_ledger_files(
+    binding: ExecutionBinding,
+    *,
+    ledger_root: Path | None = None,
+) -> tuple[tuple[str, bytes], ...]:
+    root = binding.ledger_root if ledger_root is None else ledger_root
+    with _held_directory_identity(root, "live ledger root"):
+        return _live_ledger_files_unheld(binding, ledger_root=root)
+
+
+def _live_ledger_root(
+    binding: ExecutionBinding,
+    *,
+    ledger_root: Path | None = None,
+) -> tuple[str, tuple[str, ...]]:
+    files = _live_ledger_files(binding, ledger_root=ledger_root)
     leaves = [
         hashlib.sha256(
             LEDGER_LEAF_PREFIX + relative.encode("utf-8") + b"\0" + hashlib.sha256(payload).digest()
@@ -3378,14 +6905,19 @@ def _live_ledger_root(binding: ExecutionBinding) -> tuple[str, tuple[str, ...]]:
     return root, tuple(relative for relative, _payload in files)
 
 
-def _validate_series_document(binding: ExecutionBinding) -> None:
+def _validate_series_document(
+    binding: ExecutionBinding,
+    *,
+    ledger_root: Path | None = None,
+) -> None:
+    root = binding.ledger_root if ledger_root is None else ledger_root
     document, payload, _digest = _canonical_object_file(
-        binding.ledger_root / "series.json",
+        root / "series.json",
         label="series.json",
         exact_fields=SERIES_FIELDS,
     )
     if (
-        document.get("schema_version") != "p4.2a-v2-2-rehearsal-series-v1"
+        document.get("schema_version") != SERIES_2_SERIES_SCHEMA_VERSION
         or document.get("series_id") != REHEARSAL_ID
         or document.get("series_token_sha256") != binding.series_token_sha256
         or document.get("policy") != SERIES_POLICY
@@ -3395,17 +6927,24 @@ def _validate_series_document(binding: ExecutionBinding) -> None:
         or document.get("per_attempt_action_time_owner_authorization_required") is not True
         or document.get("automatic_retry_count") != 0
         or document.get("first_validated_candidate_closes_series") is not True
+        or document.get("implementation_epoch_origin") != SERIES_2_EPOCH_ORIGIN
         or document.get("preregistration")
         != {
-            "path": PREREGISTRATION_RELATIVE.as_posix(),
-            "sha256": PREREGISTRATION_SHA256,
-            "creating_commit": PREREGISTRATION_COMMIT,
+            "path": SERIES_2_PREREGISTRATION_RELATIVE.as_posix(),
+            "sha256": SERIES_2_PREREGISTRATION_SHA256,
+            "creating_commit": SERIES_2_PREREGISTRATION_COMMIT,
             "unique_a_history_verified": True,
         }
         or document.get("bundle_schema")
-        != {"path": BUNDLE_SCHEMA_RELATIVE.as_posix(), "sha256": BUNDLE_SCHEMA_SHA256}
+        != {
+            "path": SERIES_2_BUNDLE_SCHEMA_RELATIVE.as_posix(),
+            "sha256": SERIES_2_BUNDLE_SCHEMA_SHA256,
+        }
         or document.get("release_schema")
-        != {"path": RELEASE_SCHEMA_RELATIVE.as_posix(), "sha256": RELEASE_SCHEMA_SHA256}
+        != {
+            "path": SERIES_2_RELEASE_SCHEMA_RELATIVE.as_posix(),
+            "sha256": SERIES_2_RELEASE_SCHEMA_SHA256,
+        }
         or not isinstance(document.get("created_at_utc"), str)
         or RFC3339_UTC_SECONDS.fullmatch(cast(str, document["created_at_utc"])) is None
         or payload != _canonical_json_bytes(document)
@@ -3584,8 +7123,10 @@ def _validated_attempt(
     *,
     ordinal: int,
     previous_history_root: str,
+    ledger_root: Path | None = None,
 ) -> ValidatedAttemptRecord:
-    attempt_root = binding.ledger_root / "attempts" / f"{ordinal:06d}"
+    root = binding.ledger_root if ledger_root is None else ledger_root
+    attempt_root = root / "attempts" / f"{ordinal:06d}"
     if not attempt_root.is_dir() or attempt_root.is_symlink():
         raise RehearsalV22Error("attempt directory is unavailable or aliased")
     started, started_bytes, started_sha = _canonical_object_file(
@@ -3672,13 +7213,11 @@ def _validated_attempt(
             label=f"attempt {ordinal} terminal.json",
             exact_fields=TERMINAL_FIELDS,
         )
-    if candidate is not None and terminal is None:
-        raise RehearsalV22Error(
-            "candidate receipt exists without terminal; owner recovery ruling is required"
-        )
     if terminal is None:
         outcome: AttemptOutcome = "INCOMPLETE_UNTERMINALIZED"
-        reached_stage = "started_without_terminal"
+        reached_stage = (
+            "candidate_without_terminal" if candidate is not None else "started_without_terminal"
+        )
         error: JsonObject | None = None
     else:
         outcome_value = terminal.get("outcome")
@@ -3786,10 +7325,14 @@ def _validated_attempt(
     )
 
 
-def validate_live_history(binding: ExecutionBinding) -> HistoryValidation:
+def validate_live_history(
+    binding: ExecutionBinding,
+    *,
+    ledger_root: Path | None = None,
+) -> HistoryValidation:
     """Strictly replay every live attempt byte and recompute both history roots."""
 
-    root = binding.ledger_root
+    root = binding.ledger_root if ledger_root is None else ledger_root
     if not os.path.lexists(root):
         return HistoryValidation(
             binding=binding,
@@ -3813,7 +7356,7 @@ def validate_live_history(binding: ExecutionBinding) -> HistoryValidation:
         or root.resolve(strict=True) != root.absolute()
     ):
         raise RehearsalV22Error("series ledger root is aliased or has wrong mode")
-    _validate_series_document(binding)
+    _validate_series_document(binding, ledger_root=root)
     attempts_root = root / "attempts"
     attempts_metadata = attempts_root.lstat()
     if (
@@ -3832,14 +7375,30 @@ def validate_live_history(binding: ExecutionBinding) -> HistoryValidation:
     previous = _history_empty_root_sha256()
     selected: int | None = None
     for ordinal in range(1, len(names) + 1):
-        record = _validated_attempt(binding, ordinal=ordinal, previous_history_root=previous)
+        record = _validated_attempt(
+            binding,
+            ordinal=ordinal,
+            previous_history_root=previous,
+            ledger_root=root,
+        )
         if selected is not None:
             raise RehearsalV22Error("attempt exists after first validated candidate")
         if record.outcome == "CANDIDATE_VALIDATED_AND_SELECTED":
             selected = ordinal
         records.append(record)
         previous = record.history_root_sha256
-    live_root, inventory = _live_ledger_root(binding)
+    if records:
+        used_epochs: list[int] = []
+        for record in records:
+            if not used_epochs or used_epochs[-1] != record.implementation_epoch:
+                used_epochs.append(record.implementation_epoch)
+        if used_epochs != list(
+            range(SERIES_2_EPOCH_ORIGIN, SERIES_2_EPOCH_ORIGIN + len(used_epochs))
+        ):
+            raise RehearsalV22Error(
+                "series-2 implementation epochs do not start at 5 and advance contiguously"
+            )
+    live_root, inventory = _live_ledger_root(binding, ledger_root=root)
     failed = sum(record.outcome == "FAILED" for record in records)
     incomplete = sum(record.outcome == "INCOMPLETE_UNTERMINALIZED" for record in records)
     return HistoryValidation(
@@ -3900,6 +7459,24 @@ def _candidate_content_root_sha256(
         b"p4.2a-rehearsal-v2.2-candidate-content-v1\0"
         + b"".join(bytes.fromhex(value) for value in values)
     )
+
+
+def _validate_next_series_2_epoch(
+    history: HistoryValidation,
+    implementation_epoch: int,
+) -> None:
+    permitted = (
+        {SERIES_2_EPOCH_ORIGIN}
+        if not history.records
+        else {
+            history.records[-1].implementation_epoch,
+            history.records[-1].implementation_epoch + 1,
+        }
+    )
+    if implementation_epoch not in permitted:
+        raise RehearsalV22Error(
+            "next series-2 action epoch is not origin 5, the current epoch, or its successor"
+        )
 
 
 @dataclass
@@ -4050,6 +7627,14 @@ class AttemptLease:
         self.terminal_written = True
         self.frozen = True
         self._set_write_phase("frozen")
+        history = validate_live_history(self.ledger.binding)
+        if (
+            len(history.records) != self.ordinal
+            or history.records[-1].terminal_path != path
+            or history.records[-1].outcome != outcome
+        ):
+            raise RehearsalV22Error("sealed terminal did not replay as the active attempt")
+        _mirror_after_terminal_seal(self, history)
         return path
 
 
@@ -4076,8 +7661,18 @@ class SeriesLedger:
         )
         if observed != binding:
             raise RehearsalV22Error("series ledger binding differs from capability")
+        _validate_registered_storage_roots(binding)
         root = binding.ledger_root
         if not os.path.lexists(root):
+            if any(
+                os.path.lexists(path)
+                for path in (
+                    binding.primary_receipt_root,
+                    binding.secondary_snapshot_root,
+                    binding.secondary_receipt_root,
+                )
+            ):
+                raise RehearsalV22Error("mirror leaf appeared before primary ledger initialization")
             policy = _AUDIT_POLICY.get()
             if policy is None:
                 raise RehearsalV22Error("series initialization lacks an audit policy")
@@ -4174,8 +7769,6 @@ class SeriesLedger:
         if self.active_lease is not None:
             raise RehearsalV22Error("one process may allocate only one attempt")
         history = validate_live_history(self.binding)
-        if history.series_closed:
-            raise RehearsalV22Error("first validated candidate already closed the series")
         ordinal = len(history.records) + 1
         if (
             action_authorization.ordinal != ordinal
@@ -4183,6 +7776,42 @@ class SeriesLedger:
             or action_authorization.path != self.binding.action_authorization_path
         ):
             raise RehearsalV22Error("action authorization does not bind the next live ordinal")
+        observed_action = _validate_action_authorization(
+            self.binding,
+            action_authorization.authority_ref(self.binding.project_root),
+            expected_ordinal=ordinal,
+            expected_previous_history_root_sha256=history.history_root_sha256,
+            require_current_process=True,
+        )
+        if observed_action != action_authorization:
+            raise RehearsalV22Error("locked allocation action authorization drifted")
+        _validate_next_series_2_epoch(
+            history,
+            action_authorization.implementation_epoch,
+        )
+        mirrored = _validate_continuation_mirror_state(
+            self.binding,
+            history,
+            permit_unmirrored_final_incomplete=True,
+        )
+        if not mirrored:
+            policy = _AUDIT_POLICY.get()
+            if policy is None:
+                raise RehearsalV22Error("incomplete-history mirror lacks an audit policy")
+            with _audited_execution(
+                replace(
+                    policy,
+                    ledger_write_phase="frozen",
+                    ledger_root=self.binding.ledger_root,
+                    active_attempt_root=None,
+                )
+            ):
+                _mirror_before_next_allocation(self, history, action_authorization)
+            history = validate_live_history(self.binding)
+            _validate_second_copy_history(self.binding, history)
+        if history.series_closed:
+            raise RehearsalV22Error("first validated candidate already closed the series")
+        ordinal = len(history.records) + 1
         attempt_token = _attempt_token_sha256(
             series_token_sha256=self.binding.series_token_sha256,
             ordinal=ordinal,
@@ -4592,9 +8221,7 @@ def _v2_2_package_inventory() -> bytes:
     for key in ("purelib", "platlib"):
         raw = sysconfig.get_path(key, scheme=scheme, vars=variables)
         if not isinstance(raw, str) or not raw:
-            raise RehearsalV22Error(
-                f"explicit registered package root is unavailable: {key}"
-            )
+            raise RehearsalV22Error(f"explicit registered package root is unavailable: {key}")
         candidate = Path(raw).absolute()
         if candidate not in selected:
             selected.append(candidate)
@@ -4612,18 +8239,13 @@ def _v2_2_package_inventory() -> bytes:
             or package_root.resolve(strict=True) != package_root
             or not package_root.is_relative_to(REGISTERED_PROJECT_ROOT)
         ):
-            raise RehearsalV22Error(
-                "fixed registered package inventory root is aliased"
-            )
-        projected.append(
-            package_root.relative_to(REGISTERED_PROJECT_ROOT).as_posix()
-        )
-    if projected != [PACKAGE_ROOT_RELATIVE.as_posix()] or _sha256(
-        _canonical_json_bytes(projected)
-    ) != PACKAGE_ROOTS_SHA256:
-        raise RehearsalV22Error(
-            "fixed registered package root projection drifted"
-        )
+            raise RehearsalV22Error("fixed registered package inventory root is aliased")
+        projected.append(package_root.relative_to(REGISTERED_PROJECT_ROOT).as_posix())
+    if (
+        projected != [PACKAGE_ROOT_RELATIVE.as_posix()]
+        or _sha256(_canonical_json_bytes(projected)) != PACKAGE_ROOTS_SHA256
+    ):
+        raise RehearsalV22Error("fixed registered package root projection drifted")
     rows: list[JsonObject] = []
     names: list[str] = []
     for distribution in importlib.metadata.distributions(
@@ -4631,22 +8253,16 @@ def _v2_2_package_inventory() -> bytes:
     ):
         raw_name = distribution.metadata["Name"]
         if not isinstance(raw_name, str) or not raw_name:
-            raise RehearsalV22Error(
-                "registered package inventory contains an unnamed distribution"
-            )
+            raise RehearsalV22Error("registered package inventory contains an unnamed distribution")
         name = _normalized_distribution_name(raw_name)
         names.append(name)
         rows.append({"name": name, "version": distribution.version})
     if len(names) != 84 or len(set(names)) != 84:
-        raise RehearsalV22Error(
-            "registered package inventory count or name uniqueness drifted"
-        )
+        raise RehearsalV22Error("registered package inventory count or name uniqueness drifted")
     rows.sort(key=lambda row: (cast(str, row["name"]), cast(str, row["version"])))
     payload = _canonical_json_bytes(rows)
     if _sha256(payload) != PACKAGE_INVENTORY_SHA256:
-        raise RehearsalV22Error(
-            "registered package inventory bytes drifted"
-        )
+        raise RehearsalV22Error("registered package inventory bytes drifted")
     return payload
 
 
@@ -4679,6 +8295,7 @@ def build_control_surface(
 
     root = project_root.absolute()
     commit = _git_commit(root, implementation_commit, "control implementation commit")
+    series_2_control = _git_is_ancestor(root, SERIES_2_PREREGISTRATION_COMMIT, commit)
     execution_head = _git_bytes(root, "rev-parse", "HEAD").decode("ascii", errors="strict").strip()
     validate_strict_v2_1_inheritance(root)
     validate_carry_forward_lineage(
@@ -4686,6 +8303,8 @@ def build_control_surface(
         execution_head=execution_head,
         require_current=True,
     )
+    if _git_is_ancestor(root, SERIES_2_PREREGISTRATION_COMMIT, execution_head):
+        validate_series_2_preregistration(root, execution_head=execution_head)
     validate_unique_a_authority(
         root,
         AuthorityReference(
@@ -4731,6 +8350,16 @@ def build_control_surface(
             V2_1_RELEASE_SCHEMA_RELATIVE.as_posix(),
         }
     )
+    if series_2_control:
+        controls.update(
+            {
+                SERIES_2_PREREGISTRATION_RELATIVE.as_posix(),
+                SERIES_2_BUNDLE_SCHEMA_RELATIVE.as_posix(),
+                SERIES_2_RELEASE_SCHEMA_RELATIVE.as_posix(),
+                SERIES_2_LOSS_INCIDENT_RELATIVE.as_posix(),
+                SERIES_2_OWNER_DECISION_RELATIVE.as_posix(),
+            }
+        )
     controls.update(CONTROL_GOVERNANCE_AUTHORITIES)
     controls.update(relative for _status, relative in V2_1_IMPLEMENTATION_SURFACE)
     controls.update(
@@ -4760,6 +8389,16 @@ def build_control_surface(
         V2_1_BUNDLE_SCHEMA_RELATIVE.as_posix(): V2_1_BUNDLE_SCHEMA_SHA256,
         V2_1_RELEASE_SCHEMA_RELATIVE.as_posix(): V2_1_RELEASE_SCHEMA_SHA256,
     }
+    if series_2_control:
+        frozen.update(
+            {
+                SERIES_2_PREREGISTRATION_RELATIVE.as_posix(): (SERIES_2_PREREGISTRATION_SHA256),
+                SERIES_2_BUNDLE_SCHEMA_RELATIVE.as_posix(): SERIES_2_BUNDLE_SCHEMA_SHA256,
+                SERIES_2_RELEASE_SCHEMA_RELATIVE.as_posix(): SERIES_2_RELEASE_SCHEMA_SHA256,
+                SERIES_2_LOSS_INCIDENT_RELATIVE.as_posix(): SERIES_2_TOKEN_SEED_SHA256,
+                SERIES_2_OWNER_DECISION_RELATIVE.as_posix(): SERIES_2_OWNER_DECISION_SHA256,
+            }
+        )
     for relative in sorted(controls, key=lambda value: value.encode("utf-8")):
         _relative_text(relative, "control repository path")
         governance = CONTROL_GOVERNANCE_AUTHORITIES.get(relative)
@@ -4878,9 +8517,7 @@ def _validate_post_run_control_surface(
     if not frozenset(preflight.loaded_repository_sources).issubset(
         observed.loaded_repository_sources
     ):
-        raise RehearsalV22Error(
-            "loaded repository sources regressed during selected runs"
-        )
+        raise RehearsalV22Error("loaded repository sources regressed during selected runs")
 
 
 def _validate_official_validator_candidate(
@@ -4972,6 +8609,7 @@ def _validate_published_validator_bundle(
         or bundle_path.resolve(strict=True) != bundle_path.absolute()
     ):
         raise RehearsalV22Error("published validator bundle is aliased or unavailable")
+    _validate_second_copy_history(binding, validate_live_history(binding))
     return directory
 
 
@@ -4990,14 +8628,16 @@ def _official_validator_replay_scope(
         validator_module.__name__ == package_validator_name
         and sys.modules.get(package_validator_name) is validator_module
     ):
+        capability = _active_validator_execution_context(
+            binding=binding,
+            validator_module=validator_module,
+        )
+        history = validate_live_history(binding)
+        _validate_second_copy_history(binding, history)
         candidate_root = _validate_official_validator_candidate(
             binding=binding,
             validator_module=validator_module,
             bundle_path=bundle_path,
-        )
-        capability = _active_validator_execution_context(
-            binding=binding,
-            validator_module=validator_module,
         )
         if candidate_root == binding.destination:
             raise RehearsalV22Error("in-process validator cannot consume published evidence")
@@ -5010,7 +8650,6 @@ def _official_validator_replay_scope(
             "in-process validator bundle",
         )
         merkle = _object(bundle_document.get("merkle"), "in-process validator Merkle")
-        history = validate_live_history(binding)
         control = build_control_surface(
             binding.project_root,
             implementation_commit,
@@ -5036,6 +8675,8 @@ def _official_validator_replay_scope(
     ):
         raise RehearsalV22Error("official replay scope binding drifted")
     _assert_locked_validator_bootstrap(binding.project_root)
+    history = validate_live_history(binding)
+    _validate_second_copy_history(binding, history)
     before = _real_path_fingerprints()
     bundle_payload = _regular_bytes(bundle_path, "official replay bundle")
     authority_digest = _sha256(
@@ -5057,6 +8698,10 @@ def _official_validator_replay_scope(
             for protected in (
                 binding.destination,
                 binding.ledger_root,
+                binding.primary_receipt_root,
+                binding.secondary_snapshot_root,
+                binding.secondary_receipt_root,
+                LEGACY_OFFICIAL_LEDGER_ROOT,
                 V2_1_DESTINATION,
                 V2_1_EMPTY_CLAIM,
                 PROTECTED_HELDOUT_ROOT,
@@ -5090,6 +8735,7 @@ def _official_validator_replay_scope(
             authority_token = _TEMP_AUTHORITY.set(authority)
             try:
                 history = validate_live_history(binding)
+                _validate_second_copy_history(binding, history)
                 control = build_control_surface(
                     binding.project_root,
                     implementation_commit,
@@ -5104,10 +8750,8 @@ def _official_validator_replay_scope(
                     "official replay Merkle",
                 )
                 if (
-                    merkle.get("attempt_history_root_sha256")
-                    != history.history_root_sha256
-                    or merkle.get("control_surface_root_sha256")
-                    != control.merkle_root_sha256
+                    merkle.get("attempt_history_root_sha256") != history.history_root_sha256
+                    or merkle.get("control_surface_root_sha256") != control.merkle_root_sha256
                 ):
                     raise RehearsalV22Error("official replay bundle roots drifted")
                 with _replay_capability_scope(
@@ -5148,14 +8792,58 @@ def _official_validator_replay_scope(
         raise RehearsalV22Error("official validator replay changed registered state")
 
 
+REGISTERED_FINGERPRINT_KEYS = frozenset(
+    {
+        "registered_v2_2_primary_container",
+        "registered_v2_2_secondary_container",
+        "registered_v2_2_destination",
+        "registered_v2_2_ledger",
+        "registered_v2_2_primary_receipts",
+        "registered_v2_2_secondary_snapshots",
+        "registered_v2_2_secondary_receipts",
+        "lost_v2_2_ledger",
+        "retired_v2_1_destination",
+        "consumed_v2_1_claim",
+        "real_heldout_root",
+    }
+)
+
+
 def _real_path_fingerprints() -> dict[str, Mapping[str, str]]:
-    return {
+    observed = {
+        "registered_v2_2_primary_container": {
+            **_tree_fingerprint(OFFICIAL_PRIMARY_SERIES_CONTAINER),
+            ".identity": (
+                f"device:{OFFICIAL_PRIMARY_SERIES_CONTAINER.lstat().st_dev}:"
+                f"inode:{OFFICIAL_PRIMARY_SERIES_CONTAINER.lstat().st_ino}:"
+                f"uid:{OFFICIAL_PRIMARY_SERIES_CONTAINER.lstat().st_uid}"
+                if os.path.lexists(OFFICIAL_PRIMARY_SERIES_CONTAINER)
+                else "absent"
+            ),
+        },
+        "registered_v2_2_secondary_container": {
+            **_tree_fingerprint(OFFICIAL_SECONDARY_SERIES_CONTAINER),
+            ".identity": (
+                f"device:{OFFICIAL_SECONDARY_SERIES_CONTAINER.lstat().st_dev}:"
+                f"inode:{OFFICIAL_SECONDARY_SERIES_CONTAINER.lstat().st_ino}:"
+                f"uid:{OFFICIAL_SECONDARY_SERIES_CONTAINER.lstat().st_uid}"
+                if os.path.lexists(OFFICIAL_SECONDARY_SERIES_CONTAINER)
+                else "absent"
+            ),
+        },
         "registered_v2_2_destination": _tree_fingerprint(OFFICIAL_DESTINATION),
         "registered_v2_2_ledger": _tree_fingerprint(OFFICIAL_LEDGER_ROOT),
+        "registered_v2_2_primary_receipts": _tree_fingerprint(OFFICIAL_PRIMARY_RECEIPT_ROOT),
+        "registered_v2_2_secondary_snapshots": _tree_fingerprint(OFFICIAL_SECONDARY_SNAPSHOT_ROOT),
+        "registered_v2_2_secondary_receipts": _tree_fingerprint(OFFICIAL_SECONDARY_RECEIPT_ROOT),
+        "lost_v2_2_ledger": _tree_fingerprint(LEGACY_OFFICIAL_LEDGER_ROOT),
         "retired_v2_1_destination": _tree_fingerprint(V2_1_DESTINATION),
         "consumed_v2_1_claim": _tree_fingerprint(V2_1_EMPTY_CLAIM),
         "real_heldout_root": _tree_fingerprint(PROTECTED_HELDOUT_ROOT),
     }
+    if frozenset(observed) != REGISTERED_FINGERPRINT_KEYS:
+        raise RehearsalV22Error("registered fingerprint implementation key set drifted")
+    return observed
 
 
 def _fake_boundary_ids() -> tuple[int, ...]:
@@ -5340,9 +9028,7 @@ def _copy_v2_1_mint_prerequisite_controls(
         or len({path.as_posix().casefold() for path in paths}) != 5
         or any(path in registered for path in paths)
     ):
-        raise RehearsalV22Error(
-            "v2.1 mint prerequisite control registry is duplicate or expanded"
-        )
+        raise RehearsalV22Error("v2.1 mint prerequisite control registry is duplicate or expanded")
     if (
         project_root.is_symlink()
         or not project_root.is_dir()
@@ -5381,18 +9067,19 @@ def _copy_v2_1_mint_prerequisite_controls(
             allow_zero=False,
         )
         if _sha256(payload) != expected_sha256:
-            raise RehearsalV22Error(
-                f"v2.1 mint prerequisite source bytes drifted: {relative}"
-            )
+            raise RehearsalV22Error(f"v2.1 mint prerequisite source bytes drifted: {relative}")
         payloads.append((target, payload))
         expected_by_target[target] = payload
     prepare._publish_create_only(tuple(payloads))
     for target, expected_payload in expected_by_target.items():
-        if _regular_bytes(
-            target,
-            f"copied v2.1 mint prerequisite {target.relative_to(workspace)}",
-            allow_zero=False,
-        ) != expected_payload:
+        if (
+            _regular_bytes(
+                target,
+                f"copied v2.1 mint prerequisite {target.relative_to(workspace)}",
+                allow_zero=False,
+            )
+            != expected_payload
+        ):
             raise RehearsalV22Error("v2.1 mint prerequisite copied bytes drifted")
 
 
@@ -6077,8 +9764,11 @@ def _schema_const_template(
 
 
 def _bundle_schema(project_root: Path) -> JsonObject:
-    payload = _regular_bytes(project_root / BUNDLE_SCHEMA_RELATIVE, "v2.2 bundle schema")
-    if _sha256(payload) != BUNDLE_SCHEMA_SHA256:
+    payload = _regular_bytes(
+        project_root / SERIES_2_BUNDLE_SCHEMA_RELATIVE,
+        "series-2 v2.2 bundle schema",
+    )
+    if _sha256(payload) != SERIES_2_BUNDLE_SCHEMA_SHA256:
         raise RehearsalV22Error("v2.2 bundle schema bytes drifted")
     return _object(strict_json_loads(payload, source="v2.2 bundle schema"), "bundle schema")
 
@@ -6179,21 +9869,21 @@ def _bundle_lineage(
     lineage: JsonObject = {
         "preregistration": _verified_file_ref(
             project_root,
-            PREREGISTRATION_RELATIVE.as_posix(),
-            PREREGISTRATION_SHA256,
+            SERIES_2_PREREGISTRATION_RELATIVE.as_posix(),
+            SERIES_2_PREREGISTRATION_SHA256,
         ),
         "bundle_schema": _verified_file_ref(
             project_root,
-            BUNDLE_SCHEMA_RELATIVE.as_posix(),
-            BUNDLE_SCHEMA_SHA256,
+            SERIES_2_BUNDLE_SCHEMA_RELATIVE.as_posix(),
+            SERIES_2_BUNDLE_SCHEMA_SHA256,
         ),
         "release_authorization_schema": _verified_file_ref(
             project_root,
-            RELEASE_SCHEMA_RELATIVE.as_posix(),
-            RELEASE_SCHEMA_SHA256,
+            SERIES_2_RELEASE_SCHEMA_RELATIVE.as_posix(),
+            SERIES_2_RELEASE_SCHEMA_SHA256,
         ),
         "v1_fail_close_commit": V1_FAIL_CLOSE_COMMIT,
-        "preregistration_commit": PREREGISTRATION_COMMIT,
+        "preregistration_commit": SERIES_2_PREREGISTRATION_COMMIT,
         "implementation_commit": implementation_commit,
         "retired_v1_artifacts": [
             _verified_file_ref(project_root, path, digest)
@@ -6339,11 +10029,12 @@ def _history_archive(
         if record.candidate_bytes is not None:
             candidate_archive = f"{archive_prefix}/candidate.json"
             payloads[candidate_archive] = record.candidate_bytes
-            candidate_evidence = _attempt_file_evidence(
-                live_relative=f"{prefix}/candidate.json",
-                archive_relative=candidate_archive,
-                payload=record.candidate_bytes,
-            )
+            if record.outcome == "CANDIDATE_VALIDATED_AND_SELECTED":
+                candidate_evidence = _attempt_file_evidence(
+                    live_relative=f"{prefix}/candidate.json",
+                    archive_relative=candidate_archive,
+                    payload=record.candidate_bytes,
+                )
         if record.terminal_bytes is not None:
             terminal_archive = f"{archive_prefix}/terminal.json"
             payloads[terminal_archive] = record.terminal_bytes
@@ -6479,14 +10170,11 @@ def _implementation_epochs(
         else:
             groups[-1].append(record)
     used_epochs = [group[0].implementation_epoch for group in groups]
-    if used_epochs not in (
-        list(range(1, len(groups) + 1)),
-        list(range(2, len(groups) + 2)),
-    ):
-        raise RehearsalV22Error("implementation epoch numbers are not contiguous")
+    if used_epochs != list(range(SERIES_2_EPOCH_ORIGIN, SERIES_2_EPOCH_ORIGIN + len(groups))):
+        raise RehearsalV22Error(
+            "series-2 implementation epoch keys do not start at 5 and remain contiguous"
+        )
     result: list[JsonObject] = []
-    if used_epochs[0] == 2:
-        result.append(_void_epoch_one(binding, execution_head=execution_head))
     for records in groups:
         expected_epoch = records[0].implementation_epoch
         first = records[0]
@@ -6741,6 +10429,7 @@ def _build_bundle(
     run_b: PipelineReplay,
     control: ControlSurface,
 ) -> _BundleAssembly:
+    _validate_second_copy_history(binding, history)
     if (
         run_a.run_label != "run-a"
         or run_b.run_label != "run-b"
@@ -6923,10 +10612,19 @@ def _stage_bundle(
 def _rename_directory_exclusive(source: Path, destination: Path) -> JsonObject:
     """Use Darwin's single-kernel-call no-replace directory rename."""
 
+    policy = _AUDIT_POLICY.get()
+    if policy is None or not _audit_policy_is_issued(policy):
+        raise RehearsalV22Error("exclusive rename lacks an issued audit policy")
+    source_absolute = _require_audited_write_path(source, policy)
+    destination_absolute = _require_audited_write_path(destination, policy)
+    mirror_path = _path_in_create_only_root(
+        source_absolute,
+        policy,
+    ) or _path_in_create_only_root(destination_absolute, policy)
+    if mirror_path:
+        raise RehearsalV22Error("bundle renamex_np primitive cannot publish a mirror snapshot")
     if platform.system() != "Darwin":
         raise RehearsalV22Error("v2.2 atomic publication requires Darwin renamex_np")
-    source_absolute = source.absolute()
-    destination_absolute = destination.absolute()
     source_metadata = source_absolute.lstat()
     parent_metadata = destination_absolute.parent.lstat()
     if (
@@ -6946,19 +10644,11 @@ def _rename_directory_exclusive(source: Path, destination: Path) -> JsonObject:
         "tree": _tree_fingerprint(source_absolute),
     }
     destination_before = _tree_fingerprint(destination_absolute)
-    libc = ctypes.CDLL(None, use_errno=True)
-    renamex_np = libc.renamex_np
-    renamex_np.argtypes = [ctypes.c_char_p, ctypes.c_char_p, ctypes.c_uint]
-    renamex_np.restype = ctypes.c_int
-    ctypes.set_errno(0)
-    return_code = int(
-        renamex_np(
-            os.fsencode(source_absolute),
-            os.fsencode(destination_absolute),
-            ctypes.c_uint(0x00000004),
-        )
+    return_code, observed_errno = _native_rename_exclusive_call(
+        policy,
+        source_absolute,
+        destination_absolute,
     )
-    observed_errno = ctypes.get_errno()
     if return_code != 0:
         source_after = source_absolute.lstat()
         destination_after = _tree_fingerprint(destination_absolute)
@@ -7005,6 +10695,105 @@ def _rename_directory_exclusive(source: Path, destination: Path) -> JsonObject:
     }
 
 
+def _rename_mirror_directory_exclusive(
+    source: Path,
+    destination: Path,
+    *,
+    parent_descriptor: int,
+) -> JsonObject:
+    """Publish one mirror snapshot with the registered parent-fd primitive."""
+
+    policy = _AUDIT_POLICY.get()
+    if policy is None or not _audit_policy_is_issued(policy):
+        raise RehearsalV22Error("mirror exclusive rename lacks an issued audit policy")
+    source_absolute = _require_audited_write_path(source, policy)
+    destination_absolute = _require_audited_write_path(destination, policy)
+    if (
+        policy.mirror_write_phase != "publish"
+        or policy.mirror_publish_paths != (source_absolute, destination_absolute)
+        or policy.mirror_staging_root != source_absolute
+        or policy.mirror_snapshot_root is None
+        or source_absolute.parent != policy.mirror_snapshot_root
+        or destination_absolute.parent != policy.mirror_snapshot_root
+        or source_absolute.parent != destination_absolute.parent
+    ):
+        raise RehearsalV22Error("exclusive mirror rename escaped its exact publish phase")
+    if platform.system() != "Darwin":
+        raise RehearsalV22Error("series-2 mirror publication requires Darwin renameatx_np")
+    source_metadata = source_absolute.lstat()
+    parent_metadata = destination_absolute.parent.lstat()
+    parent_identity = (parent_metadata.st_dev, parent_metadata.st_ino)
+    if (
+        source_absolute.is_symlink()
+        or not stat.S_ISDIR(source_metadata.st_mode)
+        or source_absolute.resolve(strict=True) != source_absolute
+        or destination_absolute.parent.is_symlink()
+        or not stat.S_ISDIR(parent_metadata.st_mode)
+        or destination_absolute.parent.resolve(strict=True)
+        != destination_absolute.parent.absolute()
+        or source_metadata.st_dev != parent_metadata.st_dev
+    ):
+        raise RehearsalV22Error("mirror rename source, parent, or device drifted")
+    source_before = {
+        "device": source_metadata.st_dev,
+        "inode": source_metadata.st_ino,
+        "tree": _tree_fingerprint(source_absolute),
+    }
+    destination_before = _tree_fingerprint(destination_absolute)
+    return_code, observed_errno, parent_fsync_completed = _native_mirror_renameatx_exclusive_call(
+        policy,
+        source_absolute,
+        destination_absolute,
+        parent_descriptor=parent_descriptor,
+        expected_parent_identity=parent_identity,
+    )
+    if return_code != 0:
+        source_after = source_absolute.lstat()
+        destination_after = _tree_fingerprint(destination_absolute)
+        if (
+            observed_errno != errno.EEXIST
+            or parent_fsync_completed
+            or source_after.st_dev != source_metadata.st_dev
+            or source_after.st_ino != source_metadata.st_ino
+            or _tree_fingerprint(source_absolute) != source_before["tree"]
+            or (destination_before != {".": "absent"} and destination_after != destination_before)
+        ):
+            raise RehearsalV22Error("mirror exclusive rename failed without preserving both paths")
+        raise RehearsalV22Error(
+            "mirror exclusive rename rejected an existing destination with EEXIST"
+        )
+    if observed_errno != 0 or destination_before != {".": "absent"} or not parent_fsync_completed:
+        raise RehearsalV22Error("mirror exclusive rename succeeded from invalid state")
+    destination_metadata = destination_absolute.lstat()
+    parent_after = destination_absolute.parent.lstat()
+    if (
+        os.path.lexists(source_absolute)
+        or destination_absolute.is_symlink()
+        or not stat.S_ISDIR(destination_metadata.st_mode)
+        or destination_absolute.resolve(strict=True) != destination_absolute
+        or destination_metadata.st_dev != source_metadata.st_dev
+        or destination_metadata.st_ino != source_metadata.st_ino
+        or (parent_after.st_dev, parent_after.st_ino) != parent_identity
+    ):
+        raise RehearsalV22Error("mirror exclusive rename result identity drifted")
+    return {
+        "syscall": "renameatx_np",
+        "flag": "RENAME_EXCL",
+        "flag_value": 4,
+        "return_code": 0,
+        "errno": 0,
+        "single_kernel_no_replace_rename": True,
+        "source_device": source_metadata.st_dev,
+        "source_inode": source_metadata.st_ino,
+        "destination_device": destination_metadata.st_dev,
+        "destination_inode": destination_metadata.st_ino,
+        "source_absent_after": True,
+        "destination_preserved_source_identity": True,
+        "destination_parent_fsync_completed": True,
+        "destination_parent_fsync_via_identity_bound_descriptor": True,
+    }
+
+
 def _publish_candidate(binding: ExecutionBinding, candidate: Path) -> JsonObject:
     authority = _TEMP_AUTHORITY.get()
     if (
@@ -7026,10 +10815,10 @@ def _publish_candidate(binding: ExecutionBinding, candidate: Path) -> JsonObject
 
 def _release_schema(project_root: Path) -> JsonObject:
     payload = _regular_bytes(
-        project_root / RELEASE_SCHEMA_RELATIVE,
-        "v2.2 release schema",
+        project_root / SERIES_2_RELEASE_SCHEMA_RELATIVE,
+        "series-2 v2.2 release schema",
     )
-    if _sha256(payload) != RELEASE_SCHEMA_SHA256:
+    if _sha256(payload) != SERIES_2_RELEASE_SCHEMA_SHA256:
         raise RehearsalV22Error("v2.2 release schema bytes drifted")
     return _object(
         strict_json_loads(payload, source="v2.2 release schema"),
@@ -7057,9 +10846,7 @@ def _synthetic_git_commit_exact_path(
         or absolute.is_symlink()
         or not absolute.is_file()
     ):
-        raise RehearsalV22Error(
-            "synthetic Git commit lacks issued disposable authority"
-        )
+        raise RehearsalV22Error("synthetic Git commit lacks issued disposable authority")
     before = _current_execution_head(binding.project_root)
     staged_before = _parse_name_status(
         _git_bytes(
@@ -7194,9 +10981,7 @@ def _release_review_request_payload(
 ) -> bytes:
     return _canonical_json_bytes(
         {
-            "schema_version": (
-                "p4.2a-v2-2-disposable-release-probe-review-request-v1"
-            ),
+            "schema_version": ("p4.2a-v2-2-disposable-release-probe-review-request-v1"),
             "status": "DISPOSABLE_FULL_SHAPE_TEST_ONLY",
             "mode": binding.mode,
             "bundle": {
@@ -7204,9 +10989,7 @@ def _release_review_request_payload(
                 "sha256": bundle_sha256,
                 "creating_commit": bundle_commit,
             },
-            "review_scope": (
-                "synthetic_rehearsal_evidence_and_complete_history_only"
-            ),
+            "review_scope": ("synthetic_rehearsal_evidence_and_complete_history_only"),
             "does_not_authorize_real_materialization_inference_or_evaluation": True,
             "registered_paths_untouched": True,
         }
@@ -7247,10 +11030,7 @@ def _release_receipt_document(
     ]
     selected_ordinal = cast(int, history["selected_attempt_ordinal"])
     failed_count = sum(record["outcome"] == "FAILED" for record in records)
-    incomplete_count = sum(
-        record["outcome"] == "INCOMPLETE_UNTERMINALIZED"
-        for record in records
-    )
+    incomplete_count = sum(record["outcome"] == "INCOMPLETE_UNTERMINALIZED" for record in records)
     outcomes = [
         {
             "ordinal": record["ordinal"],
@@ -7270,9 +11050,7 @@ def _release_receipt_document(
     selected_record = records[selected_ordinal - 1]
     selected_epoch_number = cast(int, selected_record["implementation_epoch"])
     selected_epoch = next(
-        epoch
-        for epoch in bundle_epochs
-        if epoch.get("epoch") == selected_epoch_number
+        epoch for epoch in bundle_epochs if epoch.get("epoch") == selected_epoch_number
     )
     bundle_lineage = _object(bundle.get("lineage"), "release source lineage")
     bundle_merkle = _object(bundle.get("merkle"), "release source Merkle")
@@ -7295,8 +11073,7 @@ def _release_receipt_document(
                 "owner": "ouyang",
                 "approved": True,
                 "approval_scope": (
-                    "rehearsal_evidence_and_complete_attempt_history_only_"
-                    "not_real_stage_release"
+                    "rehearsal_evidence_and_complete_attempt_history_only_not_real_stage_release"
                 ),
                 "accepts_disclosed_repeatability": True,
                 "acknowledged_attempt_count": len(records),
@@ -7321,16 +11098,10 @@ def _release_receipt_document(
                 "attempt_history_root_sha256": history["history_root_sha256"],
                 "live_ledger_root_sha256": history["live_ledger_root_sha256"],
                 "preregistration_commit": bundle_lineage["preregistration_commit"],
-                "selected_implementation_commit": selected_epoch[
-                    "implementation_commit"
-                ],
+                "selected_implementation_commit": selected_epoch["implementation_commit"],
                 "rehearsal_evidence_commit": reviewed_head,
-                "v2_1_incident": bundle_lineage[
-                    "v2_1_consumed_attempt_incident"
-                ],
-                "remediation_request": bundle_lineage[
-                    "v2_2_remediation_request"
-                ],
+                "v2_1_incident": bundle_lineage["v2_1_consumed_attempt_incident"],
+                "remediation_request": bundle_lineage["v2_2_remediation_request"],
                 "v2_2_scope_authorization": bundle_lineage[
                     "v2_2_preregistration_scope_authorization"
                 ],
@@ -7364,9 +11135,7 @@ def _release_receipt_document(
                 "live_ledger_matches_bundle_history": True,
                 "history_unchanged_after_bundle_publication": True,
                 "counts_equal_recomputed_records": True,
-                (
-                    "owner_acknowledged_outcomes_equal_ordered_bundle_records"
-                ): True,
+                ("owner_acknowledged_outcomes_equal_ordered_bundle_records"): True,
                 "selected_ordinal_is_the_unique_validated_candidate": True,
                 "selected_ordinal_and_epoch_match_lineage": True,
                 "history_and_live_roots_match_lineage_and_bundle": True,
@@ -7375,15 +11144,9 @@ def _release_receipt_document(
                 {
                     "epoch": epoch["epoch"],
                     "implementation_commit": epoch["implementation_commit"],
-                    "owner_surface_authorization": epoch[
-                        "owner_exact_surface_authorization"
-                    ],
-                    "independent_implementation_review": epoch[
-                        "independent_implementation_review"
-                    ],
-                    "control_merkle_root_sha256": epoch[
-                        "control_merkle_root_sha256"
-                    ],
+                    "owner_surface_authorization": epoch["owner_exact_surface_authorization"],
+                    "independent_implementation_review": epoch["independent_implementation_review"],
+                    "control_merkle_root_sha256": epoch["control_merkle_root_sha256"],
                     "first_attempt_ordinal": epoch["first_attempt_ordinal"],
                     "last_attempt_ordinal": epoch["last_attempt_ordinal"],
                 }
@@ -7458,9 +11221,7 @@ def _run_disposable_release_probe(
         "review_request": _tree_fingerprint(official_review),
     }
     bundle_path = binding.destination / BUNDLE_FILENAME
-    bundle_sha256 = _sha256(
-        _regular_bytes(bundle_path, "published disposable bundle")
-    )
+    bundle_sha256 = _sha256(_regular_bytes(bundle_path, "published disposable bundle"))
     if bundle_sha256 != _sha256(assembly.bundle_payload):
         raise RehearsalV22Error("published bundle differs before release probe")
     bundle_commit = _synthetic_git_commit_exact_path(
@@ -7527,21 +11288,14 @@ def _run_disposable_release_probe(
             )
         positive_replay_labels = replay_snapshot()
     positive_temp_after = _tree_fingerprint(authority)
-    if (
-        positive_replay_labels != ("run-a", "run-b")
-        or positive_temp_before != positive_temp_after
-    ):
+    if positive_replay_labels != ("run-a", "run-b") or positive_temp_before != positive_temp_after:
         raise RehearsalV22Error("positive release replay count or temp cleanup drifted")
     if validated != receipt_document:
-        raise RehearsalV22Error(
-            "independent release validator returned different receipt bytes"
-        )
+        raise RehearsalV22Error("independent release validator returned different receipt bytes")
 
     modified_receipt_document = copy.deepcopy(receipt_document)
     modified_receipt_document["created_at_utc"] = "2026-08-10T12:30:01Z"
-    modified_receipt_document["created_at_shanghai"] = (
-        "2026-08-10T20:30:01+08:00"
-    )
+    modified_receipt_document["created_at_shanghai"] = "2026-08-10T20:30:01+08:00"
     modified_receipt_payload = _canonical_json_bytes(modified_receipt_document)
     if modified_receipt_payload == receipt_payload:
         raise RehearsalV22Error("modified-after receipt did not change canonical bytes")
@@ -7607,8 +11361,7 @@ def _run_disposable_release_probe(
     if (
         before_real != after_real
         or before_official_release != after_official_release
-        or _regular_bytes(receipt_path, "modified disposable receipt")
-        != modified_receipt_payload
+        or _regular_bytes(receipt_path, "modified disposable receipt") != modified_receipt_payload
         or _git_bytes(
             binding.project_root,
             "status",
@@ -7644,8 +11397,7 @@ def _run_disposable_release_probe(
             "commit": modified_commit,
             "current_sha256": _sha256(modified_receipt_payload),
             "history": [
-                {"commit": commit, "status": status}
-                for commit, status in receipt_touch_history
+                {"commit": commit, "status": status} for commit, status in receipt_touch_history
             ],
             "history_statuses": [status for _, status in receipt_touch_history],
             "current_is_status_m_blob": True,
@@ -7887,34 +11639,27 @@ def _validate_active_ledger_positive_transition(
     after_active: Mapping[str, str],
     created: tuple[tuple[Path, bytes], ...],
 ) -> JsonObject:
-    if set(before_real) != set(after_real) or set(before_real) != {
-        "registered_v2_2_destination",
-        "registered_v2_2_ledger",
-        "retired_v2_1_destination",
-        "consumed_v2_1_claim",
-        "real_heldout_root",
-    }:
+    before_fingerprint_keys = frozenset(before_real)
+    after_fingerprint_keys = frozenset(after_real)
+    if (
+        before_fingerprint_keys != after_fingerprint_keys
+        or before_fingerprint_keys != REGISTERED_FINGERPRINT_KEYS
+    ):
         raise RehearsalV22Error("registered fingerprint key set drifted")
     expected_created: dict[str, str] = {}
     for path, payload in created:
         try:
             relative = path.relative_to(binding.ledger_root).as_posix()
         except ValueError as exc:
-            raise RehearsalV22Error(
-                "positive ledger evidence escaped the active ledger"
-            ) from exc
+            raise RehearsalV22Error("positive ledger evidence escaped the active ledger") from exc
         if relative in expected_created:
             raise RehearsalV22Error("positive ledger evidence path was duplicated")
         expected_created[relative] = f"file:{_sha256(payload)}:0600:1"
     changed_existing = {
-        relative
-        for relative, value in before_active.items()
-        if after_active.get(relative) != value
+        relative for relative, value in before_active.items() if after_active.get(relative) != value
     }
     created_active = {
-        relative: value
-        for relative, value in after_active.items()
-        if relative not in before_active
+        relative: value for relative, value in after_active.items() if relative not in before_active
     }
     removed_active = set(before_active).difference(after_active)
     if (
@@ -7936,9 +11681,7 @@ def _validate_active_ledger_positive_transition(
             raise RehearsalV22Error(
                 "official active ledger fingerprint is not the registered ledger fingerprint"
             )
-        changed_real = {
-            name for name in before_real if before_real[name] != after_real[name]
-        }
+        changed_real = {name for name in before_real if before_real[name] != after_real[name]}
         if changed_real != {"registered_v2_2_ledger"}:
             raise RehearsalV22Error(
                 "official positive ledger writes changed a non-ledger registered path"
@@ -8171,9 +11914,7 @@ def _action_reference(
     execution_head: str,
 ) -> AuthorityReference:
     try:
-        relative = binding.action_authorization_path.relative_to(
-            binding.project_root
-        ).as_posix()
+        relative = binding.action_authorization_path.relative_to(binding.project_root).as_posix()
     except ValueError as exc:
         raise RehearsalV22Error("action authorization path escapes project root") from exc
     normalized = _relative_text(relative, "action authorization path")
@@ -8240,6 +11981,15 @@ def _read_only_implementation_preflight(
         or policy.subprocess_mode != "git-read"
     ):
         raise RehearsalV22Error("read-only implementation preflight lacks a zero-write policy")
+    preflight_binding = _derive_binding_unchecked(
+        root,
+        action_authorization_path=root
+        / (
+            "docs/phase4/reports/P4.2a-v2-2-rehearsal-attempt-"
+            "000001-execution-authorization-19700101.json"
+        ),
+    )
+    storage_preflight = _read_only_storage_preflight(preflight_binding)
     git_directory = root / ".git"
     for forbidden in (
         git_directory / "shallow",
@@ -8254,11 +12004,7 @@ def _read_only_implementation_preflight(
         "read-only implementation preflight Git config",
         allow_zero=False,
     ).lower()
-    if (
-        b"promisor" in git_config
-        or b"partialclone" in git_config
-        or b"[include" in git_config
-    ):
+    if b"promisor" in git_config or b"partialclone" in git_config or b"[include" in git_config:
         raise RehearsalV22Error(
             "read-only implementation preflight rejects partial or included Git config"
         )
@@ -8320,6 +12066,7 @@ def _read_only_implementation_preflight(
             label="independent implementation review",
         )
         != independent_review
+        or _read_only_storage_preflight(preflight_binding) != storage_preflight
     ):
         raise RehearsalV22Error("read-only implementation preflight snapshot changed")
     return {
@@ -8338,12 +12085,15 @@ def _read_only_implementation_preflight(
         "control_merkle_root_sha256": control.merkle_root_sha256,
         "control_record_count": len(control.records),
         "registered_surface": registered_surface,
+        "series_2_registered_storage": storage_preflight,
         "effect_summary": {
             "action_receipt_required": False,
             "action_receipts_read": 0,
             "project_and_gate_state_writes_permitted": False,
             "temporary_authorities_created": 0,
             "ledgers_created": 0,
+            "storage_containers_created": 0,
+            "mirror_leaves_created": 0,
             "attempts_allocated": 0,
             "pipeline_starts": 0,
             "automatic_retries": 0,
@@ -8361,9 +12111,15 @@ def _preflight_action(
 ) -> tuple[HistoryValidation, ActionAuthorization, ControlSurface]:
     if os.path.lexists(binding.destination):
         raise RehearsalV22Error("v2.2 rehearsal destination already exists")
+    _validate_registered_storage_roots(binding)
     history = validate_live_history(binding)
     if history.series_closed:
         raise RehearsalV22Error("v2.2 rehearsal series is already closed")
+    _validate_continuation_mirror_state(
+        binding,
+        history,
+        permit_unmirrored_final_incomplete=True,
+    )
     next_ordinal = history.started_count + 1
     if expected_ordinal != next_ordinal:
         raise RehearsalV22Error("expected ordinal differs from disclosed live history")
@@ -8376,6 +12132,7 @@ def _preflight_action(
         expected_previous_history_root_sha256=history.history_root_sha256,
         require_current_process=True,
     )
+    _validate_next_series_2_epoch(history, action.implementation_epoch)
     control = build_control_surface(
         binding.project_root,
         action.implementation_commit,
@@ -8411,6 +12168,12 @@ def _temporary_authority_path(
         REGISTERED_PROJECT_ROOT,
         OFFICIAL_DESTINATION,
         OFFICIAL_LEDGER_ROOT,
+        OFFICIAL_PRIMARY_SERIES_CONTAINER,
+        OFFICIAL_PRIMARY_RECEIPT_ROOT,
+        OFFICIAL_SECONDARY_SERIES_CONTAINER,
+        OFFICIAL_SECONDARY_SNAPSHOT_ROOT,
+        OFFICIAL_SECONDARY_RECEIPT_ROOT,
+        LEGACY_OFFICIAL_LEDGER_ROOT,
         V2_1_DESTINATION,
         V2_1_EMPTY_CLAIM,
         PROTECTED_HELDOUT_ROOT,
@@ -8496,16 +12259,33 @@ def _execution_policy(binding: ExecutionBinding, authority: Path) -> _AuditPolic
         subprocess_mode = "synthetic-git"
     return _AuditPolicy(
         project_root=binding.project_root,
-        write_roots=(authority, binding.ledger_root),
+        write_roots=(
+            authority,
+            binding.ledger_root,
+            binding.primary_receipt_root,
+            binding.secondary_snapshot_root,
+            binding.secondary_receipt_root,
+        ),
         exact_write_paths=(
             binding.ledger_root,
+            binding.primary_receipt_root,
+            binding.secondary_snapshot_root,
+            binding.secondary_receipt_root,
             binding.destination,
             *disposable_release_paths,
         ),
-        create_only_roots=(binding.ledger_root,),
+        create_only_roots=(
+            binding.ledger_root,
+            binding.primary_receipt_root,
+            binding.secondary_snapshot_root,
+            binding.secondary_receipt_root,
+        ),
         sqlite_roots=(authority,),
         git_roots=(binding.project_root,),
         subprocess_mode=subprocess_mode,
+        mirror_snapshot_root=binding.secondary_snapshot_root,
+        primary_receipt_root=binding.primary_receipt_root,
+        secondary_receipt_root=binding.secondary_receipt_root,
     )
 
 
@@ -8600,9 +12380,7 @@ def _execute_authorized_attempt(
                 "probes/release-after-publication-plan.json",
                 _canonical_json_bytes(
                     {
-                        "schema_version": (
-                            "p4.2a-v2-2-release-after-publication-plan-v1"
-                        ),
+                        "schema_version": ("p4.2a-v2-2-release-after-publication-plan-v1"),
                         "mode": binding.mode,
                         "phase": "before_candidate_and_terminal",
                         "disposable_same_validator_release_probe_required": (
@@ -8646,16 +12424,50 @@ def _execute_authorized_attempt(
             )
             _validate_post_run_control_surface(control, observed_control)
             lease.reached_stage = "candidate_receipt"
-            lease.write_candidate(
-                run_a_root_sha256=_generic_merkle_root(
-                    {relative: run_a.artifacts[logical] for logical, relative in ARTIFACT_INVENTORY}
-                ),
-                run_b_root_sha256=_generic_merkle_root(
-                    {relative: run_b.artifacts[logical] for logical, relative in ARTIFACT_INVENTORY}
-                ),
+            run_a_root_sha256 = _generic_merkle_root(
+                {relative: run_a.artifacts[logical] for logical, relative in ARTIFACT_INVENTORY}
+            )
+            run_b_root_sha256 = _generic_merkle_root(
+                {relative: run_b.artifacts[logical] for logical, relative in ARTIFACT_INVENTORY}
+            )
+            candidate_path = lease.write_candidate(
+                run_a_root_sha256=run_a_root_sha256,
+                run_b_root_sha256=run_b_root_sha256,
                 control_surface_root_sha256=control.merkle_root_sha256,
                 validated_at_utc=FIXED_WALL_CLOCK_TEXT,
             )
+            if binding.mode == "DISPOSABLE_FULL_SHAPE_TEST":
+                observed_disposable = _validate_disposable_capability(
+                    execution_context,
+                    project_root=binding.project_root,
+                )
+                candidate_document, _candidate_bytes, _candidate_sha256 = _canonical_object_file(
+                    candidate_path,
+                    label="disposable candidate checkpoint",
+                    exact_fields=CANDIDATE_FIELDS,
+                )
+                if (
+                    observed_disposable != binding
+                    or not lease.candidate_written
+                    or not lease.frozen
+                    or lease.terminal_written
+                    or candidate_path != lease.attempt_root / "candidate.json"
+                    or candidate_document.get("ordinal") != lease.ordinal
+                    or candidate_document.get("attempt_token_sha256") != lease.attempt_token_sha256
+                    or candidate_document.get("implementation_epoch") != action.implementation_epoch
+                    or candidate_document.get("implementation_commit")
+                    != action.implementation_commit
+                    or candidate_document.get("run_a_root_sha256") != run_a_root_sha256
+                    or candidate_document.get("run_b_root_sha256") != run_b_root_sha256
+                    or candidate_document.get("control_surface_root_sha256")
+                    != control.merkle_root_sha256
+                    or os.path.lexists(lease.attempt_root / "terminal.json")
+                ):
+                    raise RehearsalV22Error(
+                        "disposable candidate checkpoint is not durable pre-terminal state"
+                    )
+                lease.reached_stage = "candidate_fsynced_before_terminal_checkpoint"
+                os.kill(os.getpid(), signal.SIGSTOP)
             lease.write_terminal(
                 outcome="CANDIDATE_VALIDATED_AND_SELECTED",
                 reached_stage="bundle_candidate_validated",
