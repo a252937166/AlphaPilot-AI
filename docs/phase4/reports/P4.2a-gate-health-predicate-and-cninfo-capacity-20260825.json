@@ -1,0 +1,38 @@
+{
+  "schema_version": "p4.2a-independent-adjudication-v1",
+  "adjudication_id": "p4.2a-gate-health-predicate-and-cninfo-capacity-20260825-r1",
+  "created_at_utc": "2026-08-25T06:58:45Z",
+  "created_at_shanghai": "2026-08-25T14:58:45+08:00",
+  "issued_by": {"identity": "independent_ai_architect_claude_code", "reviewer_type": "ai", "model": "Anthropic Claude Fable 5 (model id claude-fable-5)", "impersonation_disclaimer": "Not a human reviewer and not the owner."},
+  "part_1_finding_C12_gate_health_predicate_was_coupled_to_the_wrong_thing": {
+    "owner_of_the_error": "the reviewer",
+    "statement": "the gate's health precondition has now blocked three separate runs: first requiring the latest news_poll slot to be ok, then requiring zero failed and zero missing slots in a six-hour window, then requiring the same across the current scheduler process lifetime. Each form was written to protect a P4.1 observation window that closed on 2026-08-17. The registered gate runs read-only pytest modules in synthetic roots; it never reads the production database, never touches the scheduler and never writes outside its own basetemp. Production ingestion health and the gate's ability to complete are independent, and coupling them has cost three blocked runs without protecting anything.",
+    "corrected_predicate": [
+      "the scheduler process is alive, proving the host is not mid-maintenance",
+      "free disk is at least 40 GiB, enough for the run's temporary trees",
+      "the machine is on AC power",
+      "the projected finish time does not overlap the 22:00 CST backup window",
+      "the latest completed daily backup verifies, per the C-7 purpose form"
+    ],
+    "explicitly_not_a_precondition": "the success, degradation or completeness of production news_poll slots. Production faults are tracked and adjudicated on their own, never by blocking an unrelated read-only test run.",
+    "rule": "a precondition may only assert something the run actually depends on"
+  },
+  "part_2_production_state_recorded": {
+    "missing_slots_2026_08_25": "09:10, 09:20, 09:30 and 09:40 CST absent, with a 58-second transport_error at 09:49 and normal service from 10:00. Run durations before and after are 178 to 194 seconds, far inside the 10-minute spacing, so overlap and max_instances are excluded. The pattern with the transport error indicates a network interruption, an external environment fault.",
+    "cninfo_capacity_exhausted_again": "the daily checkpoint is held at 2026-08-24 and every slot since reports inserted=0 with cninfo_partition_pagination_incomplete for the sz partition on 2026-08-25. The interim-report season has again exceeded the per-partition capacity of 30 items by 80 pages, 2400 rows.",
+    "not_a_regression": "the v2.2 partition design is behaving as specified: it refuses to advance the checkpoint on an incomplete slice rather than silently losing announcements"
+  },
+  "part_3_cninfo_capacity_ruling": {
+    "authorized": "raise max_pages_per_partition from 80 to 100, the documented upgrade path already reviewed with the amendment, giving 3000 rows per partition and 9000 per day",
+    "budget_arithmetic": "1 aggregate probe plus 3 partitions times 100 pages equals 301 logical requests per run, at most 602 physical attempts, worst case about 10 minutes 2 seconds under the 1.0 second pacer",
+    "why_the_negative_headroom_is_acceptable": "the minus-two-second worst case assumes every partition fills every page, which the measured runs contradict: current runs complete in 178 to 194 seconds because most partitions end early. The worst case is a bound, not an expectation.",
+    "required_guardrails": [
+      "record per-run wall-clock duration in stats and treat any run exceeding 480 seconds as a reportable event, so approach to the spacing limit is visible before it causes a skip",
+      "keep page_cap_hit explicit; an exhausted 100-page partition must still refuse to advance the checkpoint rather than report completeness",
+      "if a run ever exceeds the spacing and causes a skipped slot, stop and report rather than absorbing it"
+    ],
+    "change_boundary": "config/p4_news_poll_v2_2.yaml is not a control-surface member and may be superseded by a new versioned file or amended per its own version rule; config/p4_news_poll_v2_1.yaml and src/alphapilot/core/config.py stay byte-identical; the 73 registered members stay frozen",
+    "ordering": "this production fix may proceed in parallel with the epoch-5 gate; it lands on main and therefore moves the landing base, which the operator re-snapshots before generating the landing report"
+  },
+  "part_4_boundaries": {"series_2_ledger": "does not exist", "heldout_evaluation_one_shot": "unconsumed", "trading": "zero non-SIMULATE", "phase_locks": {"p4_2a_done": false, "p4_2b_unlocked": false, "p4_3_unlocked": false}}
+}
