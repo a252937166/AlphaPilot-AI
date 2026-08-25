@@ -181,7 +181,7 @@ sources:
     aggregate_count_probe_per_date: 1
     aggregate_total_field: totalAnnouncement
     announcement_id_field: announcementId
-    max_pages_per_partition: 80
+    max_pages_per_partition: 100
     official_max_pages_per_partition: 100
     max_dates_per_run: 1
     sort_name: announcementTime

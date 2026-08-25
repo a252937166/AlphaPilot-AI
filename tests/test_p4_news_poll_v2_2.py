@@ -238,7 +238,7 @@ def _successful_batch(
     candidates: list[news_poll.NewsCandidate],
     *,
     slice_date: date,
-    page_cap: int = 80,
+    page_cap: int = 100,
     date_closed: bool = True,
     observed_hour_utc: int = 10,
     observed_minute_utc: int = 0,
@@ -464,7 +464,7 @@ def _terminal_job_stats(
 def _terminal_complete(
     source: dict[str, object],
     *,
-    expected_page_cap: int = 80,
+    expected_page_cap: int = 100,
     coverage_gap: bool = True,
 ) -> bool:
     config_sha256 = news_poll.EXPECTED_V2_2_CONFIG_SHA256_BY_PAGE_CAP[expected_page_cap]
@@ -528,7 +528,7 @@ def _noncritical_batch(source_id: str) -> news_poll.SourceBatch:
     return news_poll.SourceBatch(source_id=source_id, status="ok")
 
 
-def test_v2_2_config_is_frozen_and_the_100_page_upgrade_is_one_number(
+def test_v2_2_config_is_frozen_at_100_pages_and_retains_the_80_page_predecessor(
     tmp_path: Path,
 ) -> None:
     v2_1_bytes = V2_1_CONFIG_PATH.read_bytes()
@@ -548,33 +548,35 @@ def test_v2_2_config_is_frozen_and_the_100_page_upgrade_is_one_number(
     assert document["schema_version"] == "p4.1-news-poll-v2.2"
     assert document["sources"]["cninfo"]["partitions"] == PARTITIONS
     assert document["sources"]["cninfo"]["max_dates_per_run"] == 1
-    assert document["sources"]["cninfo"]["max_pages_per_partition"] == 80
+    cninfo = cast(dict[str, object], document["sources"]["cninfo"])
+    assert cninfo["max_pages_per_partition"] == 100
+    assert news_poll._v2_2_cninfo_request_budgets(cninfo) == (301, 602)
 
-    needle = b"max_pages_per_partition: 80"
-    upgraded = raw.replace(needle, b"max_pages_per_partition: 100")
+    needle = b"    max_pages_per_partition: 100\n"
+    predecessor = raw.replace(needle, b"    max_pages_per_partition: 80\n")
     assert raw.count(needle) == 1
     assert [
         (before, after)
-        for before, after in zip(raw.splitlines(), upgraded.splitlines(), strict=True)
+        for before, after in zip(raw.splitlines(), predecessor.splitlines(), strict=True)
         if before != after
     ] == [
         (
-            b"    max_pages_per_partition: 80",
             b"    max_pages_per_partition: 100",
+            b"    max_pages_per_partition: 80",
         )
     ]
-    upgraded_path = tmp_path / "p4_news_poll_v2_2-page-cap-100.yaml"
-    upgraded_path.write_bytes(upgraded)
-    upgraded_config = news_poll.load_news_poll_config(upgraded_path)
-    upgraded_sources = cast(dict[str, object], upgraded_config.document["sources"])
-    upgraded_cninfo = cast(dict[str, object], upgraded_sources["cninfo"])
+    predecessor_path = tmp_path / "p4_news_poll_v2_2-page-cap-80.yaml"
+    predecessor_path.write_bytes(predecessor)
+    predecessor_config = news_poll.load_news_poll_config(predecessor_path)
+    predecessor_sources = cast(dict[str, object], predecessor_config.document["sources"])
+    predecessor_cninfo = cast(dict[str, object], predecessor_sources["cninfo"])
 
     assert (
-        hashlib.sha256(upgraded).hexdigest()
-        == (news_poll.EXPECTED_V2_2_CONFIG_SHA256_BY_PAGE_CAP[100])
+        hashlib.sha256(predecessor).hexdigest()
+        == (news_poll.EXPECTED_V2_2_CONFIG_SHA256_BY_PAGE_CAP[80])
     )
-    assert upgraded_config.document["sources"]["cninfo"]["max_pages_per_partition"] == 100
-    assert news_poll._v2_2_cninfo_request_budgets(upgraded_cninfo) == (301, 602)
+    assert predecessor_cninfo["max_pages_per_partition"] == 80
+    assert news_poll._v2_2_cninfo_request_budgets(predecessor_cninfo) == (241, 482)
 
 
 def test_v2_2_default_registration_is_scheduler_only(
@@ -640,9 +642,7 @@ def test_v2_2_checkpoint_uses_v2_1_only_as_exact_predecessor() -> None:
     assert active.checkpoint_date_shanghai == date(2026, 8, 20)
 
 
-def test_v2_2_page_cap_upgrade_preserves_registered_v2_2_checkpoint(
-    tmp_path: Path,
-) -> None:
+def test_v2_2_page_cap_upgrade_preserves_registered_v2_2_checkpoint() -> None:
     _seed_v2_1(date(2026, 8, 19))
     for day in (20, 21):
         _seed_v2_2_terminal_source(
@@ -655,15 +655,11 @@ def test_v2_2_page_cap_upgrade_preserves_registered_v2_2_checkpoint(
                     )
                 ],
                 slice_date=date(2026, 8, day),
-            )
+                page_cap=80,
+            ),
+            config_sha256=news_poll.EXPECTED_V2_2_CONFIG_SHA256_BY_PAGE_CAP[80],
         )
-    upgraded = CONFIG_PATH.read_bytes().replace(
-        b"max_pages_per_partition: 80",
-        b"max_pages_per_partition: 100",
-    )
-    upgraded_path = tmp_path / "p4_news_poll_v2_2-page-cap-100.yaml"
-    upgraded_path.write_bytes(upgraded)
-    upgraded_config = news_poll.load_news_poll_config(upgraded_path)
+    upgraded_config = news_poll.load_news_poll_config(CONFIG_PATH)
     _seed_v2_2_terminal_source(
         _successful_batch(
             [
@@ -676,7 +672,7 @@ def test_v2_2_page_cap_upgrade_preserves_registered_v2_2_checkpoint(
             slice_date=date(2026, 8, 22),
             page_cap=100,
         ),
-        config_sha256=news_poll.EXPECTED_V2_2_CONFIG_SHA256_BY_PAGE_CAP[100],
+        config_sha256=news_poll.EXPECTED_V2_2_CONFIG_SHA256,
     )
 
     seed = news_poll._last_committed_daily_checkpoint(upgraded_config, "cninfo")
@@ -955,7 +951,7 @@ def test_v2_2_timestamp_checkpoint_history_revalidates_terminal_evidence(
         checkpoint["newest_observed_at_utc"] = cross_date
         checkpoint["latest_attempt_observed_at_utc"] = cross_date
     elif tamper == "page_cap_digest":
-        item["partition_page_cap"] = 100
+        item["partition_page_cap"] = 80
     else:  # pragma: no cover - parametrization is frozen immediately above.
         raise AssertionError(tamper)
     job_stats["sources"] = {"cninfo": source}
@@ -1564,15 +1560,15 @@ def test_v2_2_page_cap_is_explicit_degraded_and_never_requests_beyond_cap(
 ) -> None:
     _seed_v2_1(date(2026, 8, 19))
     if page_cap == 80:
-        config = _config()
-    else:
         raw = CONFIG_PATH.read_bytes().replace(
-            b"max_pages_per_partition: 80",
-            b"max_pages_per_partition: 100",
+            b"    max_pages_per_partition: 100\n",
+            b"    max_pages_per_partition: 80\n",
         )
-        path = tmp_path / "p4_news_poll_v2_2-page-cap-100.yaml"
+        path = tmp_path / "p4_news_poll_v2_2-page-cap-80.yaml"
         path.write_bytes(raw)
         config = _config(path)
+    else:
+        config = _config()
     target = date(2026, 8, 20)
     total = page_cap * 30 + 1
     pages = [
@@ -1656,8 +1652,8 @@ def test_v2_2_transport_retry_and_budget_accounting_are_bounded() -> None:
     assert batch.physical_attempt_count == 5
     assert batch.request_count == 5
     assert batch.retry_count == 1
-    assert budget["max_logical_requests_per_run"] == 241
-    assert budget["max_physical_attempts_per_run"] == 482
+    assert budget["max_logical_requests_per_run"] == 301
+    assert budget["max_physical_attempts_per_run"] == 602
     assert budget["logical_request_count"] == 4
     assert budget["physical_attempt_count"] == 5
     assert budget["page_101_requested"] is False
@@ -1778,6 +1774,17 @@ def test_v2_2_run_job_accepts_complete_closed_date_without_observed_high(
     assert checkpoint["closed_date_without_observed_high_aggregate_total"] == aggregate_total
     assert checkpoint["closed_date_without_observed_high_unique_rows"] == aggregate_total
     assert source["slices"][0]["disposition_identity_valid"] is True
+    assert isinstance(record.stats["wall_clock_seconds"], float)
+    assert record.stats["wall_clock_seconds"] >= 0.0
+    assert record.stats["wall_clock_guard"] == {
+        "clock": "monotonic_elapsed",
+        "reportable_threshold_seconds": 480,
+        "scheduler_spacing_seconds": 600,
+        "reportable_threshold_exceeded": False,
+        "scheduler_spacing_exceeded": False,
+        "skipped_slot_absorption_forbidden": True,
+    }
+    assert record.stats["reportable_events"] == []
 
 
 def test_v2_2_run_job_fails_closed_on_incomplete_terminal_slice(
@@ -1820,6 +1827,10 @@ def test_v2_2_run_job_fails_closed_on_incomplete_terminal_slice(
         "retry_suppressed": False,
     }
     assert record.stats["critical_failures"] == ["cninfo"]
+    assert isinstance(record.stats["wall_clock_seconds"], float)
+    assert record.stats["wall_clock_seconds"] >= 0.0
+    assert record.stats["wall_clock_guard"]["reportable_threshold_seconds"] == 480
+    assert record.stats["wall_clock_guard"]["skipped_slot_absorption_forbidden"] is True
 
 
 def test_v2_2_run_job_marks_capacity_catchup_pit_dedupe_and_zero_trading(
