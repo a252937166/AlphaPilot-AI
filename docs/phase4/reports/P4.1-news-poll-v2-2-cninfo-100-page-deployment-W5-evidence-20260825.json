@@ -1,0 +1,266 @@
+{
+  "schema_version": "p4.1-news-poll-v2-2-cninfo-100-page-deployment-w5-evidence-v1",
+  "evidence_id": "P4.1-NEWS-POLL-V2-2-CNINFO-100-PAGE-DEPLOYMENT-W5-EVIDENCE-20260825",
+  "status": "W5_RESTART_PASS_100_PAGE_GUARDRAILS_PASS_PRODUCTION_CAPACITY_STILL_BLOCKED",
+  "evidence_not_owner_verdict": true,
+  "created_at_shanghai": "2026-08-25T16:34:21+08:00",
+  "owner_authority": {
+    "commit": "3688ea74e3efe47a36674aa92fd5684c63a5c3f5",
+    "path": "docs/phase4/reports/P4.2a-gate-health-predicate-and-cninfo-capacity-20260825.json",
+    "sha256": "b2342b2da530ddfce9253acba91bb62b0bbca17bde16b5aff83e00e750e0f689",
+    "bytes": 4838,
+    "authorized_capacity_change": "CNInfo v2.2 max_pages_per_partition 80 to 100",
+    "required_guardrails": [
+      "Persist wall-clock duration and report strictly over 480 seconds.",
+      "A 100-page cap hit remains explicit and never advances the checkpoint.",
+      "A timeout-induced skipped slot must stop and be reported rather than absorbed."
+    ]
+  },
+  "implementation": {
+    "base_commit": "3688ea74e3efe47a36674aa92fd5684c63a5c3f5",
+    "commit": "bf2ac1c9a790247bfa0544a07456534f9bbe304e",
+    "parent": "3688ea74e3efe47a36674aa92fd5684c63a5c3f5",
+    "branch": "codex/p4-news-poll-v2-2-cninfo-100-page",
+    "landing_mode": "fast_forward_preserving_candidate_commit",
+    "normal_nonforce_push": true,
+    "main_and_origin_main_after_landing": "bf2ac1c9a790247bfa0544a07456534f9bbe304e",
+    "changed_paths": [
+      "config/p4_news_poll_v2_2.yaml",
+      "docs/phase4/reports/P4.1-news-poll-v2-2-cninfo-100-page-capacity-implementation-evidence-20260825.json",
+      "src/alphapilot/jobs/news_poll.py",
+      "tests/test_p4_news_poll.py",
+      "tests/test_p4_news_poll_v2_2.py"
+    ],
+    "implementation_evidence": {
+      "path": "docs/phase4/reports/P4.1-news-poll-v2-2-cninfo-100-page-capacity-implementation-evidence-20260825.json",
+      "sha256": "fb8e2d88a8e7b1a3221fb914b855f76b9ef7f417c247a52342d17419e618b4a3",
+      "bytes": 10972,
+      "tests": 175,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "registered_config": {
+      "path": "config/p4_news_poll_v2_2.yaml",
+      "sha256": "d6ce47f2f41156ec525eb2fabd2ac8f88a4f0ef830859aa3867fe9588347f11d",
+      "bytes": 21423,
+      "max_pages_per_partition": 100,
+      "max_logical_requests_per_run": 301,
+      "max_physical_attempts_per_run": 602
+    }
+  },
+  "W_5_restart": {
+    "mechanism": "/bin/launchctl kill SIGTERM gui/501/com.alphapilot.scheduler",
+    "signal_count": 1,
+    "signals_sent": [
+      "SIGTERM"
+    ],
+    "launchd_keepalive_respawn": true,
+    "old_pid": 60247,
+    "old_pid_started_at_shanghai": "2026-08-24T01:19:48+08:00",
+    "new_pid": 55097,
+    "new_pid_started_at_shanghai": "2026-08-25T15:34:45+08:00",
+    "old_pid_absent_after": true,
+    "launchd_state_after": "running",
+    "launchd_runs_after": 4,
+    "launchd_last_exit_code_after": 0,
+    "registered_job_count": 18,
+    "program": "/Users/ouyangduning/Documents/project/interesting/AlphaPilot-AI/.venv/bin/python -m alphapilot.scheduler_main",
+    "working_directory": "/Users/ouyangduning/Documents/project/interesting/AlphaPilot-AI",
+    "old_process_only_held_scheduler_wide_lock_at_signal": true,
+    "latest_contemporary_job_terminal_before_signal": true,
+    "historical_unterminalized_rows_preserved": [
+      {
+        "id": 77698,
+        "job_name": "sync_calendar"
+      },
+      {
+        "id": 77769,
+        "job_name": "sync_universe"
+      }
+    ],
+    "database_read_only_check": {
+      "mode": "ro",
+      "pragma_query_only": true,
+      "total_changes_before": 0,
+      "total_changes_after": 0,
+      "operator_database_writes": 0
+    },
+    "trading_safety": {
+      "trading_mode": "research",
+      "live_trading_enabled": false,
+      "paper_trading_enabled": false,
+      "paper_auto_trading_enabled": false,
+      "futu_enable_account_mutation": false,
+      "futu_enable_trade": false
+    }
+  },
+  "W_5_five_file_news_poll_scheduler_spine": {
+    "all_worktree_sha256_equal_head": true,
+    "all_bytes_unchanged_across_restart": true,
+    "all_mtime_before_new_pid_start": true,
+    "files": [
+      {
+        "path": "src/alphapilot/scheduler_main.py",
+        "sha256": "de42cb33baab65ea5212d03e990fa907a0fc342adc7474ca5b1ededbbfd995b9",
+        "bytes": 3872
+      },
+      {
+        "path": "src/alphapilot/jobs/__init__.py",
+        "sha256": "b2418506f51327073e9be738bd472ac6f4de2881b5ee1a747f93ced19fc31b72",
+        "bytes": 2472
+      },
+      {
+        "path": "src/alphapilot/jobs/scheduler.py",
+        "sha256": "a8a7c6de74d6480b7c009b7d921d592226063affc9a647369157152be5848b41",
+        "bytes": 2586
+      },
+      {
+        "path": "src/alphapilot/jobs/registry.py",
+        "sha256": "e1aefd98f33a66166bc345b9de473b2efa4888ce6168454e1206a324cb2e6aa6",
+        "bytes": 4560
+      },
+      {
+        "path": "src/alphapilot/jobs/news_poll.py",
+        "sha256": "ce8c32406a92c739d373b01534cf477c3b3cab2fd00cbd984a1f47288689c21c",
+        "bytes": 204385
+      }
+    ]
+  },
+  "natural_slot_sequence": [
+    {
+      "ordinal_after_restart": 1,
+      "job_run_id": 101583,
+      "scheduled_slot_shanghai": "2026-08-25T16:00:00+08:00",
+      "status": "failed",
+      "wall_clock_seconds": 9.501,
+      "config_sha256": "d6ce47f2f41156ec525eb2fabd2ac8f88a4f0ef830859aa3867fe9588347f11d",
+      "diagnostic": "partition_count_mismatch",
+      "bounded_cause": "The sz page-1 and page-2 totalAnnouncement values differed; the exact two values were not persisted.",
+      "page_cap_hit": false,
+      "timeout_or_overlap": false,
+      "checkpoint_before": "2026-08-24",
+      "checkpoint_after": "2026-08-24",
+      "checkpoint_committed": false,
+      "checkpoint_advanced": false,
+      "stats_sha256": "90a1e178c57b69c87c4dcb6bb6951476baac5ac304fb1b55a0416019257745e4",
+      "stats_bytes": 11369
+    },
+    {
+      "ordinal_after_restart": 2,
+      "job_run_id": 101614,
+      "scheduled_slot_shanghai": "2026-08-25T16:30:00+08:00",
+      "created_without_missing_slot": true,
+      "status": "degraded",
+      "wall_clock_seconds": 218.17,
+      "reportable_480_second_event": false,
+      "scheduler_spacing_exceeded": false,
+      "config_sha256": "d6ce47f2f41156ec525eb2fabd2ac8f88a4f0ef830859aa3867fe9588347f11d",
+      "request_budget": {
+        "logical_actual": 176,
+        "logical_max": 301,
+        "physical_actual": 176,
+        "physical_max": 602,
+        "page_101_requested": false
+      },
+      "aggregate_upstream_total": 5449,
+      "partition_upstream_totals": {
+        "sz": 3228,
+        "sh": 2220,
+        "bj": 1
+      },
+      "partition_rows_seen": {
+        "sz": 3000,
+        "sh": 2220,
+        "bj": 1
+      },
+      "partition_page_counts": {
+        "sz": 100,
+        "sh": 74,
+        "bj": 1
+      },
+      "page_cap_hit": true,
+      "page_cap_hit_partitions": [
+        "sz"
+      ],
+      "diagnostic": "cninfo_partition_pagination_incomplete",
+      "pagination_complete": false,
+      "coverage_proven": false,
+      "checkpoint_before": "2026-08-24",
+      "checkpoint_after": "2026-08-24",
+      "checkpoint_committed": false,
+      "checkpoint_advanced": false,
+      "inserted": 579,
+      "stats_sha256": "578caffe5f60578e19a7225fb69f0355c2ab358dece25aff6f020b531f488fd2",
+      "stats_bytes": 61832
+    }
+  ],
+  "guardrail_verdicts": {
+    "wall_clock_duration_persisted": true,
+    "strictly_over_480_seconds_would_be_reportable": true,
+    "observed_runs_over_480_seconds": 0,
+    "timeout_induced_missing_slots": 0,
+    "page_101_requested": false,
+    "100_page_hit_explicit": true,
+    "100_page_hit_not_reported_as_empty_or_complete": true,
+    "100_page_hit_refused_checkpoint_advance": true,
+    "result": "PASS_ALL_THREE_AUTHORIZED_GUARDRAILS"
+  },
+  "production_capacity_disposition": {
+    "closed": false,
+    "blocker": "The official 100-page sz partition capacity is 3000 rows while the observed upstream total is 3228.",
+    "observed_shortfall_rows": 228,
+    "checkpoint_remains_at": "2026-08-24",
+    "automatic_or_manual_retry_started_by_operator": 0,
+    "scheduler_stopped": false,
+    "next_capacity_design_selected_by_operator": false,
+    "owner_action_required": true,
+    "operator_boundary": "Do not raise the official limit, repartition sz, weaken the count predicate, or advance the checkpoint without a new owner decision."
+  },
+  "C_12_gate_independence": {
+    "production_news_poll_success_degradation_failure_or_missing_is_a_gate_precondition": false,
+    "production_incidents_affect_gate_verdict": false,
+    "p4_2a_gate_may_start_only_after_its_five_runtime_predicates_pass": true,
+    "five_runtime_predicates_not_prejudged_by_this_report": true,
+    "latest_2026_08_25_daily_backup_still_required_at_gate_time": true
+  },
+  "control_surface_freeze": {
+    "formal_series_2_repository_member_count": 78,
+    "production_change_and_this_report_intersection": [],
+    "registered_members_modified": false
+  },
+  "external_artifacts": [
+    {
+      "path": "/Users/ouyangduning/Documents/project/interesting/.alphapilot-cninfo100-deployment-evidence.20260825/pre-restart-snapshot.json",
+      "sha256": "e3bb4260267ee281a2e126ee42d3df4e0ec51a2e91c58afabfbcbd34978de23a",
+      "bytes": 3888
+    },
+    {
+      "path": "/Users/ouyangduning/Documents/project/interesting/.alphapilot-cninfo100-deployment-evidence.20260825/post-restart-snapshot.json",
+      "sha256": "b2de965438d85f16c9e340b88e41b0db8321557ed8273d2390c0196e9a7be656",
+      "bytes": 4375
+    },
+    {
+      "path": "/Users/ouyangduning/Documents/project/interesting/.alphapilot-cninfo100-deployment-evidence.20260825/first-natural-slot.json",
+      "sha256": "8855ff44e265fddd7984a5047a4ef7b548cfaec742c5510b2dd23f0916849921",
+      "bytes": 3443
+    },
+    {
+      "path": "/Users/ouyangduning/Documents/project/interesting/.alphapilot-cninfo100-deployment-evidence.20260825/partition-count-mismatch-diagnosis.json",
+      "sha256": "587472a2d007131a1beccf5721ad449607eb31ee4591119af3df4c5ca08ae220",
+      "bytes": 3437
+    },
+    {
+      "path": "/Users/ouyangduning/Documents/project/interesting/.alphapilot-cninfo100-deployment-evidence.20260825/second-natural-slot.json",
+      "sha256": "a58940d9b160ce03baeba6b237665fe896596e1eb3bafee158f687188b63bf17",
+      "bytes": 3272
+    }
+  ],
+  "report": {
+    "path": "docs/phase4/reports/P4.1-news-poll-v2-2-cninfo-100-page-deployment-W5-evidence-20260825.json",
+    "create_only": true,
+    "only_status_A_path_in_report_commit_required": true,
+    "self_sha256_embedded": false,
+    "reason": "The report cannot embed its own digest; the unique-A creating commit and external readback bind it."
+  }
+}
