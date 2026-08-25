@@ -1,0 +1,54 @@
+{
+  "schema_version": "p4.2a-independent-review-v1",
+  "review_id": "p4.2a-v2-2-series2-epoch5-implementation-review-20260825-r1",
+  "created_at_utc": "2026-08-25T02:04:32Z",
+  "created_at_shanghai": "2026-08-25T10:04:32+08:00",
+  "verdict": "APPROVE_EPOCH5_IMPLEMENTATION",
+  "blockers": [],
+  "reviewed_commit": "0cc3e4746693ebc6392cf3997874668551b2d6f3",
+  "reviewer": {
+    "identity": "independent_ai_architect_claude_code",
+    "reviewer_type": "ai",
+    "model": "Anthropic Claude Fable 5 (model id claude-fable-5)",
+    "impersonation_disclaimer": "Not a human reviewer. Issued under the owner governance amendment with requires_release_gate_amendment=true.",
+    "method": "structured review across three candidates; per F-12 both complete registered modules were run by the reviewer, with results carried forward across the final two candidates by proven runtime-byte identity"
+  },
+  "part_1_commit_shape": {
+    "parent": "5bea28957e873857e7bca6dd30f7226d8b09bbf7",
+    "parent_is_the_owner_surface_authority": true,
+    "single_parent": true,
+    "surface": "exactly the four authorized M paths",
+    "descends_from_series2_amendment": "b6dfff08557fdbca1336f816b197cd6c8a0d5c41",
+    "file_digests": {
+      "scripts/p4_2a_v2_2_heldout_rehearsal.py": "1d5b0a40409fb7b44415fd7d389f3dc4e43cf403487d121cd188156f50ed9582",
+      "scripts/validate_p4_2a_v2_2_heldout_rehearsal_bundle.py": "272b2d623561ba8c722225d9b1678db6c9944b1b164938c30f9d754f8a6e7863",
+      "tests/test_p4_2a_v2_2_heldout_rehearsal_runner.py": "77b07993aa466d261baf2432a6273e087c36e9a5fb91053192d4ccc9b53cab8a",
+      "tests/test_p4_2a_v2_2_heldout_rehearsal_validator.py": "79db0b5de846a03552ad0e2caf48bdddf070ff6e22ad77a7300e81ad0bce5499"
+    }
+  },
+  "part_2_candidate_history_disclosed": {
+    "f4abc5ba": "first candidate; the reviewer's F-12 found one failure, an exact-OS preflight test whose expected field set had not been updated after the implementation correctly added series_2_registered_storage to the preflight report. Validator passed 225 of 225.",
+    "733a758c": "second candidate; the expected set was corrected and the assertion extended to the field's contents. The reviewer re-ran the runner module in full: 186 of 186. The reviewer then found one newly introduced strict-mypy error at _real_path_fingerprints, absent from the landed epoch-4 baseline.",
+    "0cc3e474": "this candidate; a single local annotation fixes the type error.",
+    "operator_static_gate_provenance_correction": "the operator disclosed that an earlier strict-mypy PASS had been carried forward across a producer change without re-running it. The correction is recorded in their audit; the reviewer independently ran both static gates on this candidate."
+  },
+  "part_3_reviewer_run_evidence": {
+    "validator_module": "225 passed, 0 failed, 1958.82 seconds, run by the reviewer at f4abc5ba; the validator script and validator test file are byte-identical across all three candidates",
+    "runner_module": "186 passed, 0 failed, 10994.26 seconds, run by the reviewer at 733a758c",
+    "carry_forward_basis": "this candidate differs from 733a758c only by a local variable annotation. The reviewer independently recompiled both producer versions and compared the code object of _real_path_fingerprints: co_code identical at 922 bytes with SHA d999b69a0ba16dd5..., and co_consts, co_names, co_varnames and co_flags all equal. A local annotation emits no runtime bytecode, so every test input is unchanged in execution and the two module results bind this commit. co_linetable differs, which is debug line information only and was disclosed by the operator rather than hidden.",
+    "static": "ruff clean on all four files; strict mypy clean on both scripts, run by the reviewer on this candidate"
+  },
+  "part_4_content_verified": {
+    "monkeypatch_elimination": "the runner module contains zero ast.Name monkeypatch nodes, zero real setattr or delattr call nodes and no mock import; the added self-check also blocks renaming, unittest.mock.patch, functools.partial wrapping, type.__setattr__ and dynamic-import replacement, with negative source samples proving the check catches each",
+    "fingerprint_key_set": "REGISTERED_FINGERPRINT_KEYS is a single source of truth with eleven keys, self-checked inside _real_path_fingerprints before it returns, re-checked at the probe call site and pinned again in the tests, so any future registered path that is not synchronized fails immediately rather than at a nightly exact-OS run",
+    "candidate_without_terminal": "proven on a real filesystem by the operator's exact-OS run and covered by the reviewer's full runner module: an 833-byte canonical candidate at mode 0600, terminal genuinely absent, bundle record with candidate and terminal null, reached_stage candidate_without_terminal, archive bytes and SHA equal to live, registered schema clean, series closed by ordinal 3",
+    "identity_before_resource": "the ordering rule adjudicated earlier is implemented and asserted: identity and locked-bootstrap validation precede second-copy verification, which precedes any bundle read or temporary write",
+    "forbidden_changes_swept": "zero hits on gate, threshold, gold, heldout-sample and 24-field schema constants; the thin shim is unchanged; no recovery machinery from the abandoned epoch-5 candidates is present"
+  },
+  "part_5_merge_condition": {
+    "full_registered_gate": "unchanged: the complete registered gate must run to completion in the persistent gate clone at 0cc3e474 detached, output attached to the merge report",
+    "landing_rule": "merge only, preserving 0cc3e474 and this review commit byte-exact"
+  },
+  "part_6_after_landing": ["registered-root preflight", "owner provisions the two SERIES-000002 containers at mode 0700", "series-2 ordinal-1 Q with epoch 5 and previous history root 318b5c9ed06b2eed4ea55bf6f14da4c27e11b4cb2122e3f182847644aa549605, the 24-field R, the owner's in-person B", "one pipeline start, primary seal, mirror, then the bundle"],
+  "part_7_boundaries": {"ledger": "series-2 ledger does not yet exist", "heldout_evaluation_one_shot": "unconsumed", "trading": "zero non-SIMULATE", "phase_locks": {"p4_2a_done": false, "p4_2b_unlocked": false, "p4_3_unlocked": false}}
+}
