@@ -133,6 +133,7 @@ def test_config_is_hash_locked_and_keeps_excluded_sources_disabled(tmp_path: Pat
     assert config.sha256 == news_poll.EXPECTED_V2_2_CONFIG_SHA256
     assert config.document["schema_version"] == "p4.1-news-poll-v2.2"
     assert config.document["sources"]["cninfo"]["verify_tls"] is True
+    assert config.document["sources"]["cninfo"]["max_pages_per_partition"] == 100
     assert (
         config.document["sources"]["akshare_cls"][
             "max_attempts_per_logical_request"
@@ -147,6 +148,76 @@ def test_config_is_hash_locked_and_keeps_excluded_sources_disabled(tmp_path: Pat
     changed.write_bytes(config.path.read_bytes() + b"\n")
     with pytest.raises(ValueError, match="pre-registered SHA-256"):
         news_poll.load_news_poll_config(changed)
+
+
+@pytest.mark.parametrize(
+    ("elapsed", "reportable", "spacing_exceeded", "event_count"),
+    [
+        (480.0, False, False, 0),
+        (480.001, True, False, 1),
+        (600.0, True, True, 1),
+    ],
+)
+def test_news_poll_wall_clock_guard_is_persisted_in_success_stats(
+    monkeypatch: pytest.MonkeyPatch,
+    elapsed: float,
+    reportable: bool,
+    spacing_exceeded: bool,
+    event_count: int,
+) -> None:
+    readings = iter((100.0, 100.0 + elapsed))
+    monkeypatch.setattr(news_poll, "_news_poll_wall_clock", lambda: next(readings))
+    monkeypatch.setattr(
+        news_poll,
+        "_run_news_poll_once",
+        lambda **_kwargs: news_poll.JobOutcome(
+            status="ok",
+            stats={"config_version": "p4.1-news-poll-v2.2", "fixture": True},
+        ),
+    )
+
+    result = news_poll.run_news_poll()
+
+    assert isinstance(result, news_poll.JobOutcome)
+    assert result.stats["wall_clock_seconds"] == round(elapsed, 3)
+    assert result.stats["wall_clock_guard"] == {
+        "clock": "monotonic_elapsed",
+        "reportable_threshold_seconds": 480,
+        "scheduler_spacing_seconds": 600,
+        "reportable_threshold_exceeded": reportable,
+        "scheduler_spacing_exceeded": spacing_exceeded,
+        "skipped_slot_absorption_forbidden": True,
+    }
+    events = result.stats["reportable_events"]
+    assert isinstance(events, list)
+    assert len(events) == event_count
+    if reportable:
+        assert events[0]["code"] == "news_poll_wall_clock_exceeded_480_seconds"
+        assert "stop and do not absorb the gap" in events[0]["operator_action"]
+
+
+def test_news_poll_wall_clock_guard_is_persisted_in_failure_stats(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    readings = iter((100.0, 581.0))
+    monkeypatch.setattr(news_poll, "_news_poll_wall_clock", lambda: next(readings))
+
+    def fail(**_kwargs: object) -> None:
+        raise JobExecutionError(
+            "fixture",
+            stats={"config_version": "p4.1-news-poll-v2.2", "fixture": True},
+        )
+
+    monkeypatch.setattr(news_poll, "_run_news_poll_once", fail)
+
+    with pytest.raises(JobExecutionError) as caught:
+        news_poll.run_news_poll()
+
+    assert caught.value.stats["wall_clock_seconds"] == 481.0
+    assert caught.value.stats["wall_clock_guard"]["reportable_threshold_exceeded"] is True
+    assert caught.value.stats["reportable_events"][0]["code"] == (
+        "news_poll_wall_clock_exceeded_480_seconds"
+    )
 
 
 def test_config_loader_explicitly_accepts_all_hash_locked_versions(tmp_path: Path) -> None:

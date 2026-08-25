@@ -1,0 +1,235 @@
+{
+  "schema_version": "p4.1-news-poll-v2-2-cninfo-100-page-capacity-implementation-evidence-v1",
+  "evidence_id": "P4.1-NEWS-POLL-V2-2-CNINFO-100-PAGE-CAPACITY-IMPLEMENTATION-EVIDENCE-20260825",
+  "status": "PASS_OWNER_AUTHORIZED_IMPLEMENTATION_EVIDENCE_READY_TO_LAND",
+  "created_at_shanghai": "2026-08-25T15:25:21+08:00",
+  "created_at_utc": "2026-08-25T07:25:21Z",
+  "authority": {
+    "commit": "3688ea74e3efe47a36674aa92fd5684c63a5c3f5",
+    "path": "docs/phase4/reports/P4.2a-gate-health-predicate-and-cninfo-capacity-20260825.json",
+    "sha256": "b2342b2da530ddfce9253acba91bb62b0bbca17bde16b5aff83e00e750e0f689",
+    "bytes": 4838,
+    "adjudication_id": "p4.2a-gate-health-predicate-and-cninfo-capacity-20260825-r1",
+    "authorized_change": "Activate the registered v2.2 100-page CNInfo partition capacity and add the three runtime guardrails in part_3.",
+    "network_incident_disclosure": "The 2026-08-25 09:10 through 09:40 missing slots plus the 09:49 58-second transport error are an external network incident recorded in part_2; they neither block nor excuse this capacity change."
+  },
+  "candidate": {
+    "base_commit": "3688ea74e3efe47a36674aa92fd5684c63a5c3f5",
+    "branch": "codex/p4-news-poll-v2-2-cninfo-100-page",
+    "creating_commit_embedded": false,
+    "creating_commit_derivation": "Read the first Git commit that adds this report path on the named branch.",
+    "owner_review_required_before_landing": false,
+    "owner_authorization_is_already_bound_above": true
+  },
+  "authorized_surface": [
+    {
+      "status": "M",
+      "path": "config/p4_news_poll_v2_2.yaml",
+      "scope": "The single active max_pages_per_partition scalar changes from 80 to 100."
+    },
+    {
+      "status": "M",
+      "path": "src/alphapilot/jobs/news_poll.py",
+      "scope": "Select the registered 100-page digest, retain the immutable 80-page predecessor, and persist the wall-clock reporting guard on every v2.2 terminal result."
+    },
+    {
+      "status": "M",
+      "path": "tests/test_p4_news_poll.py",
+      "scope": "Register the 100-page default and prove the wall-clock boundary on success and failure."
+    },
+    {
+      "status": "M",
+      "path": "tests/test_p4_news_poll_v2_2.py",
+      "scope": "Prove 80-to-100 lineage, exact budgets, explicit cap behavior, and persisted real JobRun stats."
+    },
+    {
+      "status": "A",
+      "path": "docs/phase4/reports/P4.1-news-poll-v2-2-cninfo-100-page-capacity-implementation-evidence-20260825.json",
+      "scope": "Create-only implementation evidence."
+    }
+  ],
+  "registered_config_contract": {
+    "schema_version": "p4.1-news-poll-v2.2",
+    "path": "config/p4_news_poll_v2_2.yaml",
+    "historical_80_page_sha256": "72e4b83f98252d7e7e3d9fa54abc6a3430a04e8dc27d7ece3a36f3f8d5563378",
+    "historical_80_page_bytes": 21422,
+    "active_100_page_sha256": "d6ce47f2f41156ec525eb2fabd2ac8f88a4f0ef830859aa3867fe9588347f11d",
+    "active_100_page_bytes": 21423,
+    "exact_yaml_diff": "sources.cninfo.max_pages_per_partition: 80 -> 100",
+    "partitions": [
+      "sz",
+      "sh",
+      "bj"
+    ],
+    "page_size": 30,
+    "max_pages_per_partition": 100,
+    "page_101_forbidden": true,
+    "max_dates_per_run": 1,
+    "logical_budget_formula": "1 + (3 * 100)",
+    "max_logical_requests_per_run": 301,
+    "physical_budget_formula": "301 * 2",
+    "max_physical_attempts_per_run": 602,
+    "throttle_only_worst_case_seconds": 602,
+    "scheduler_spacing_seconds": 600,
+    "measured_pre_authority_runtime_seconds": {
+      "minimum": 178,
+      "maximum": 194
+    }
+  },
+  "guardrails": {
+    "wall_clock": {
+      "clock": "monotonic elapsed time around the public run_news_poll entry",
+      "stats_field": "wall_clock_seconds",
+      "reportable_threshold_seconds": 480,
+      "threshold_operator": "strictly greater than",
+      "event_code": "news_poll_wall_clock_exceeded_480_seconds",
+      "success_degraded_and_failure_stats_are_covered": true,
+      "event_does_not_silently_change_job_status": true
+    },
+    "capacity": {
+      "page_cap_hit_remains_explicit": true,
+      "cap_hit_diagnostic": "cninfo_partition_pagination_incomplete",
+      "cap_hit_terminal_status": "degraded",
+      "cap_hit_pagination_complete": false,
+      "cap_hit_coverage_proven": false,
+      "cap_hit_checkpoint_committed": false,
+      "cap_hit_checkpoint_advanced": false
+    },
+    "slot_overlap": {
+      "max_instances": 1,
+      "coalesce": true,
+      "skipped_slot_absorption_forbidden": true,
+      "automatic_durable_skip_listener_added": false,
+      "reason": "APScheduler rejects max-instances overlap before run_job and the owner did not authorize expanding this production repair into shared scheduler or registry semantics.",
+      "operational_rule": "If a natural run crosses the spacing and an expected slot is absent, stop and report immediately; a later success may not absorb the gap."
+    }
+  },
+  "control_surface_evidence": {
+    "implementation_commit": "0cc3e4746693ebc6392cf3997874668551b2d6f3",
+    "builder": "scripts/p4_2a_v2_2_heldout_rehearsal.py::build_control_surface",
+    "require_current": false,
+    "ast_closure_count": 36,
+    "repository_member_count": 78,
+    "repository_record_count": 80,
+    "control_root_sha256": "8c2b17f47469fa775eea9227d86484f219b909c7bc0b4d5d6d54c058a13e1c57",
+    "candidate_path_intersection": [],
+    "result": "PASS_ZERO_INTERSECTION",
+    "failed_diagnostic_not_reused": "An earlier stdin diagnostic with require_current=true was rejected because <stdin> is not the registered locked bootstrap. It produced no conclusion or state and is not cited as evidence."
+  },
+  "immutable_boundaries": {
+    "config/p4_news_poll_v2_1.yaml": {
+      "sha256_before_and_after": "9d56e137baf10bd0858723a93aff02c57bf7b35f8705f1817b16a89ec615183f",
+      "bytes": 17272,
+      "git_diff": "absent"
+    },
+    "src/alphapilot/core/config.py": {
+      "sha256_before_and_after": "6bdc24abbc943bb52ecc416fd72180e356fbcb3bc55eb6a96f98d5b0be8137cd",
+      "bytes": 3628,
+      "git_diff": "absent"
+    },
+    "tests/test_p4_news_acceptance.py": {
+      "sha256_before_and_after": "6ef790a84c23b1120e282b2733a7282d89ec278e755b080b8f718164814b7c5f",
+      "bytes": 70543,
+      "git_diff": "absent",
+      "v2_1_digest_assertion_preserved": true
+    }
+  },
+  "candidate_file_fingerprints": [
+    {
+      "path": "config/p4_news_poll_v2_2.yaml",
+      "sha256_before": "72e4b83f98252d7e7e3d9fa54abc6a3430a04e8dc27d7ece3a36f3f8d5563378",
+      "bytes_before": 21422,
+      "sha256_after": "d6ce47f2f41156ec525eb2fabd2ac8f88a4f0ef830859aa3867fe9588347f11d",
+      "bytes_after": 21423
+    },
+    {
+      "path": "src/alphapilot/jobs/news_poll.py",
+      "sha256_before": "4b629ca83632d022dae66114deda25141cfe7e3036ffb6981b5e7efedf38ae95",
+      "bytes_before": 201118,
+      "sha256_after": "ce8c32406a92c739d373b01534cf477c3b3cab2fd00cbd984a1f47288689c21c",
+      "bytes_after": 204385
+    },
+    {
+      "path": "tests/test_p4_news_poll.py",
+      "sha256_before": "9afaa2a8d27aa961a9979efff052aec2ca6048fb4ce4243390b8c64c049246e8",
+      "bytes_before": 73276,
+      "sha256_after": "a87b5e503c37314005fc86f03268ea4c688291a5a175cbbce090ed25ce56319b",
+      "bytes_after": 75802
+    },
+    {
+      "path": "tests/test_p4_news_poll_v2_2.py",
+      "sha256_before": "47df6c2677028fd8af048fa5cbf2d28667e4ea617ccd5234f41f0bd1a16a2673",
+      "bytes_before": 69157,
+      "sha256_after": "49d5cabbfc18b1b5055fc2722088be68e3955c8800228e6653bba4c9a4ac96a1",
+      "bytes_after": 69927
+    }
+  ],
+  "test_evidence": {
+    "command": "PYTHONDONTWRITEBYTECODE=1 /usr/bin/nice -n 0 /Users/ouyangduning/Documents/project/interesting/AlphaPilot-AI/.venv/bin/python -m pytest -q tests/test_p4_news_poll.py tests/test_p4_news_poll_v2_1.py tests/test_p4_news_poll_v2_2.py tests/test_p4_news_poll_v2_preregistration.py tests/test_p4_news_acceptance.py --basetemp /Users/ouyangduning/Documents/project/interesting/.alphapilot-cninfo100-implementation-evidence.20260825/basetemp --junitxml /Users/ouyangduning/Documents/project/interesting/.alphapilot-cninfo100-implementation-evidence.20260825/news-poll.junit.xml",
+    "return_code": 0,
+    "parallelism": false,
+    "totals": {
+      "tests": 175,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "disabled": 0,
+      "junit_time_seconds": 12.72
+    },
+    "module_counts": {
+      "tests.test_p4_news_acceptance": 23,
+      "tests.test_p4_news_poll": 52,
+      "tests.test_p4_news_poll_v2_1": 26,
+      "tests.test_p4_news_poll_v2_2": 70,
+      "tests.test_p4_news_poll_v2_preregistration": 4
+    },
+    "log": {
+      "path": "/Users/ouyangduning/Documents/project/interesting/.alphapilot-cninfo100-implementation-evidence.20260825/news-poll.log",
+      "sha256": "cf998785ddb0c291099ab31f70c853d22968fe039b69da5d62958f453118ce08",
+      "bytes": 883
+    },
+    "junit": {
+      "path": "/Users/ouyangduning/Documents/project/interesting/.alphapilot-cninfo100-implementation-evidence.20260825/news-poll.junit.xml",
+      "sha256": "d34c71364ccc9bd29aeefbbefe14e40bb1fc6cb8cef8229a7573804a4f98cd88",
+      "bytes": 25286
+    }
+  },
+  "static_evidence": {
+    "ruff_touched_python": "PASS",
+    "strict_mypy_source": "PASS",
+    "git_diff_check": "PASS",
+    "read_only_peer_review": {
+      "result": "PASS_NO_BLOCKER",
+      "scope": "wall-clock terminal-path coverage, v1/v2.1 non-interference, registered 80-to-100 digest lineage, 301/602 budgets, page-101 exclusion, explicit cap and no-checkpoint semantics",
+      "files_modified_by_peer": 0
+    },
+    "runtime": {
+      "os": "macOS 15.4.1 build 24E263",
+      "python": "3.12.0",
+      "pytest": "8.4.2"
+    }
+  },
+  "current_effects": {
+    "scheduler_restarted": false,
+    "production_news_poll_started_by_candidate_work": 0,
+    "production_database_writes_by_candidate_work": 0,
+    "p4_2a_gate_started": false,
+    "series_2_ledger_created": false,
+    "heldout_materialized": false,
+    "inference_started": false,
+    "evaluation_started": false,
+    "trading_unlocked": false
+  },
+  "post_landing_operations": {
+    "restart": "Wait for every contemporary job lock to clear, record the W-5 five-file scheduler spine, then use the established single SIGTERM launchd KeepAlive respawn path once.",
+    "first_natural_slot": "Bind config SHA d6ce47f2..., cap 100, budget 301/602, wall-clock stats and checkpoint/cap semantics from a read-only query.",
+    "incident_rule": "If wall_clock_seconds exceeds 480, report the event. If overlap causes a missing slot, stop and report without absorbing it.",
+    "p4_2a_landing_base": "Resnapshot origin/main only after this production fix lands."
+  },
+  "report_self_binding": {
+    "path": "docs/phase4/reports/P4.1-news-poll-v2-2-cninfo-100-page-capacity-implementation-evidence-20260825.json",
+    "create_only": true,
+    "self_sha256_embedded": false,
+    "reason": "A file cannot embed its own cryptographic digest; the Git creating commit and external readback bind it."
+  }
+}

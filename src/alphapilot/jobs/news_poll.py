@@ -52,10 +52,10 @@ DEFAULT_CONFIG_PATH = V2_2_CONFIG_PATH
 EXPECTED_CONFIG_SHA256 = "d0dcd665472b50092a1b4fa7f65f7115778e1b89ac11aca0ed49dc70beaa790b"
 EXPECTED_V2_CONFIG_SHA256 = "a76a1cd9f1afd021de4d343a6550a1eb05ddad1b14d8d39cbaae2659574a5834"
 EXPECTED_V2_1_CONFIG_SHA256 = "9d56e137baf10bd0858723a93aff02c57bf7b35f8705f1817b16a89ec615183f"
-EXPECTED_V2_2_CONFIG_SHA256 = "72e4b83f98252d7e7e3d9fa54abc6a3430a04e8dc27d7ece3a36f3f8d5563378"
+EXPECTED_V2_2_CONFIG_SHA256 = "d6ce47f2f41156ec525eb2fabd2ac8f88a4f0ef830859aa3867fe9588347f11d"
 EXPECTED_V2_2_CONFIG_SHA256_BY_PAGE_CAP = {
-    80: EXPECTED_V2_2_CONFIG_SHA256,
-    100: "d6ce47f2f41156ec525eb2fabd2ac8f88a4f0ef830859aa3867fe9588347f11d",
+    80: "72e4b83f98252d7e7e3d9fa54abc6a3430a04e8dc27d7ece3a36f3f8d5563378",
+    100: EXPECTED_V2_2_CONFIG_SHA256,
 }
 EXPECTED_CONFIG_SHA256_BY_VERSION = {
     "p4.1-news-poll-v1": EXPECTED_CONFIG_SHA256,
@@ -73,6 +73,8 @@ V2_2_CODE_READY = True
 V2_2_SCHEDULER_ACTIVATED = True
 MARKET_TIMEZONE = ZoneInfo("Asia/Shanghai")
 NEWS_POLL_ENABLED_ENV = "ALPHAPILOT_NEWS_POLL_ENABLED"
+NEWS_POLL_WALL_CLOCK_REPORTABLE_SECONDS = 480.0
+NEWS_POLL_SCHEDULER_SPACING_SECONDS = 600.0
 _TRACKING_QUERY_PREFIXES = ("utm_",)
 _TRACKING_QUERY_KEYS = {"from", "spm", "track", "source"}
 
@@ -4178,7 +4180,7 @@ def _v2_catchup_stats(
     }
 
 
-def run_news_poll(
+def _run_news_poll_once(
     *,
     config_path: Path = DEFAULT_CONFIG_PATH,
     now: datetime | None = None,
@@ -4583,6 +4585,93 @@ def run_news_poll(
         stats["critical_failures"] = critical_failures
         raise JobExecutionError("P4.1 critical news source failed", stats=stats)
     return cast(JsonObject, _json_safe(stats))
+
+
+def _news_poll_wall_clock() -> float:
+    return monotonic()
+
+
+def _with_news_poll_wall_clock(
+    stats: Mapping[str, object],
+    *,
+    started_monotonic: float,
+) -> JsonObject:
+    if stats.get("config_version") != "p4.1-news-poll-v2.2":
+        return cast(JsonObject, _json_safe(dict(stats)))
+    elapsed = max(0.0, _news_poll_wall_clock() - started_monotonic)
+    wall_clock_seconds = round(elapsed, 3)
+    reportable = elapsed > NEWS_POLL_WALL_CLOCK_REPORTABLE_SECONDS
+    spacing_exceeded = elapsed >= NEWS_POLL_SCHEDULER_SPACING_SECONDS
+    events: list[JsonObject] = []
+    if reportable:
+        events.append(
+            {
+                "code": "news_poll_wall_clock_exceeded_480_seconds",
+                "wall_clock_seconds": wall_clock_seconds,
+                "reportable_threshold_seconds": int(NEWS_POLL_WALL_CLOCK_REPORTABLE_SECONDS),
+                "scheduler_spacing_seconds": int(NEWS_POLL_SCHEDULER_SPACING_SECONDS),
+                "scheduler_spacing_exceeded": spacing_exceeded,
+                "operator_action": (
+                    "report_immediately; if a scheduled slot is skipped because of "
+                    "overlap, stop and do not absorb the gap"
+                ),
+            }
+        )
+    observed = dict(stats)
+    observed.update(
+        {
+            "wall_clock_seconds": wall_clock_seconds,
+            "wall_clock_guard": {
+                "clock": "monotonic_elapsed",
+                "reportable_threshold_seconds": int(NEWS_POLL_WALL_CLOCK_REPORTABLE_SECONDS),
+                "scheduler_spacing_seconds": int(NEWS_POLL_SCHEDULER_SPACING_SECONDS),
+                "reportable_threshold_exceeded": reportable,
+                "scheduler_spacing_exceeded": spacing_exceeded,
+                "skipped_slot_absorption_forbidden": True,
+            },
+            "reportable_events": events,
+        }
+    )
+    return cast(JsonObject, _json_safe(observed))
+
+
+def run_news_poll(
+    *,
+    config_path: Path = DEFAULT_CONFIG_PATH,
+    now: datetime | None = None,
+    http_client_factory: HttpClientFactory | None = None,
+    execution_mode: V2ExecutionMode = "scheduler",
+    authorization_receipt_path: Path | None = None,
+) -> JsonObject | JobOutcome:
+    """Run one poll and persist an explicit elapsed-time/reporting guard in stats."""
+
+    started_monotonic = _news_poll_wall_clock()
+    try:
+        result = _run_news_poll_once(
+            config_path=config_path,
+            now=now,
+            http_client_factory=http_client_factory,
+            execution_mode=execution_mode,
+            authorization_receipt_path=authorization_receipt_path,
+        )
+    except JobExecutionError as exc:
+        exc.stats = _with_news_poll_wall_clock(
+            exc.stats,
+            started_monotonic=started_monotonic,
+        )
+        raise
+    if isinstance(result, JobOutcome):
+        return JobOutcome(
+            status=result.status,
+            stats=_with_news_poll_wall_clock(
+                result.stats,
+                started_monotonic=started_monotonic,
+            ),
+        )
+    return _with_news_poll_wall_clock(
+        result,
+        started_monotonic=started_monotonic,
+    )
 
 
 def run_news_poll_v2_1_initial_migration(
