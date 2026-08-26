@@ -8808,6 +8808,175 @@ REGISTERED_FINGERPRINT_KEYS = frozenset(
     }
 )
 
+# There are sixteen AST Call nodes plus one FunctionDef: seventeen source-level
+# semantic occurrences.  Raw text search also sees the audit strings below, so it is
+# intentionally not the counting rule.  The table never drives the predicate.
+# Each row is (source occurrence, official reachability, legitimate changed keys,
+# paired-span explanation).
+REAL_PATH_FINGERPRINT_OCCURRENCE_AUDIT = (
+    (
+        "validate_disposable_capability.snapshot_compare",
+        "disposable_only",
+        (),
+        "Seeded by _run_cli; disposable state is outside all registered roots.",
+    ),
+    (
+        "validate_replay_capability.snapshot_compare",
+        "official",
+        (),
+        "Standalone validator replay is read-only; its authority is a sibling temp root.",
+    ),
+    (
+        "_official_validator_replay_scope.in_process_before",
+        "official",
+        (),
+        "Before borrowing validator authority for a staged, unpublished bundle.",
+    ),
+    (
+        "_official_validator_replay_scope.in_process_after",
+        "official",
+        (),
+        "In-process validation may not change any registered path.",
+    ),
+    (
+        "_official_validator_replay_scope.standalone_before",
+        "official",
+        (),
+        "Before creating a sibling validator-replay temp authority.",
+    ),
+    (
+        "_official_validator_replay_scope.standalone_after",
+        "official",
+        (),
+        "Replay authority creation, use and cleanup stay outside registered roots.",
+    ),
+    (
+        "_real_path_fingerprints.definition",
+        "definition_not_call",
+        (),
+        "The seventeenth semantic occurrence is the definition, not an AST Call node.",
+    ),
+    (
+        "_run_disposable_release_probe.before",
+        "disposable_only",
+        (),
+        "Registered official mode returns before this synthetic-release span.",
+    ),
+    (
+        "_run_disposable_release_probe.after",
+        "disposable_only",
+        (),
+        "Disposable release writes remain under the synthetic project root.",
+    ),
+    (
+        "_preallocation_authority_probes.before",
+        "official",
+        (),
+        "All hostile authority probes must reject before effect.",
+    ),
+    (
+        "_preallocation_authority_probes.forged_disposable_snapshot",
+        "disposable_only",
+        (),
+        "The official branch does not construct a disposable capability snapshot.",
+    ),
+    (
+        "_preallocation_authority_probes.wrong_disposable_snapshot",
+        "disposable_only",
+        (),
+        "The official branch does not construct a disposable capability snapshot.",
+    ),
+    (
+        "_preallocation_authority_probes.after",
+        "official",
+        (),
+        "Preallocation probes may not allocate or write registered state.",
+    ),
+    (
+        "_ledger_create_only_probes.positive_before",
+        "official",
+        (
+            "registered_v2_2_ledger",
+            "registered_v2_2_primary_container",
+        ),
+        "Begins the exact two-file active-ledger positive transition.",
+    ),
+    (
+        "_ledger_create_only_probes.positive_after_and_negative_baseline",
+        "official",
+        (
+            "registered_v2_2_ledger",
+            "registered_v2_2_primary_container",
+        ),
+        "Only ancestor-or-self views of the active ledger may reflect the two writes.",
+    ),
+    (
+        "_ledger_create_only_probes.negative_after",
+        "official",
+        (),
+        "All mutation probes after the positive baseline must reject before effect.",
+    ),
+    (
+        "_run_cli.disposable_capability_seed",
+        "disposable_only",
+        (),
+        "Official execution does not seed a disposable registered-path snapshot.",
+    ),
+)
+
+# Terminal sealing and second-copy publication are deliberately not bracketed by a
+# _real_path_fingerprints equality span.  Terminal persistence changes the active
+# ledger and its ancestor view.  Mirror-only publication changes five registered
+# views, and their union is six keys.
+TERMINAL_SEAL_REGISTERED_KEY_AUDIT = (
+    "registered_v2_2_ledger",
+    "registered_v2_2_primary_container",
+)
+MIRROR_ONLY_REGISTERED_KEY_AUDIT = (
+    "registered_v2_2_primary_container",
+    "registered_v2_2_primary_receipts",
+    "registered_v2_2_secondary_container",
+    "registered_v2_2_secondary_receipts",
+    "registered_v2_2_secondary_snapshots",
+)
+SEAL_THEN_MIRROR_REGISTERED_KEY_AUDIT = (
+    "registered_v2_2_ledger",
+    "registered_v2_2_primary_container",
+    "registered_v2_2_primary_receipts",
+    "registered_v2_2_secondary_container",
+    "registered_v2_2_secondary_receipts",
+    "registered_v2_2_secondary_snapshots",
+)
+SEAL_THEN_MIRROR_ATTEMPT_1_AUDIT_NOTE = (
+    "Attempt 1 raised inside the positive-ledger transition before the negative-after "
+    "snapshot. SeriesLedger.__exit__ then persisted the failure terminal and mirrored "
+    "it outside every _real_path_fingerprints equality span. Mirror safety came from "
+    "the dedicated capability, tree inventory, paired receipts and second-copy check."
+)
+
+
+def _registered_fingerprint_scopes(
+    *,
+    primary_series_container: Path,
+    ledger_root: Path,
+) -> dict[str, Path]:
+    scopes = {
+        "registered_v2_2_primary_container": primary_series_container,
+        "registered_v2_2_secondary_container": OFFICIAL_SECONDARY_SERIES_CONTAINER,
+        "registered_v2_2_destination": OFFICIAL_DESTINATION,
+        "registered_v2_2_ledger": ledger_root,
+        "registered_v2_2_primary_receipts": OFFICIAL_PRIMARY_RECEIPT_ROOT,
+        "registered_v2_2_secondary_snapshots": OFFICIAL_SECONDARY_SNAPSHOT_ROOT,
+        "registered_v2_2_secondary_receipts": OFFICIAL_SECONDARY_RECEIPT_ROOT,
+        "lost_v2_2_ledger": LEGACY_OFFICIAL_LEDGER_ROOT,
+        "retired_v2_1_destination": V2_1_DESTINATION,
+        "consumed_v2_1_claim": V2_1_EMPTY_CLAIM,
+        "real_heldout_root": PROTECTED_HELDOUT_ROOT,
+    }
+    if frozenset(scopes) != REGISTERED_FINGERPRINT_KEYS:
+        raise RehearsalV22Error("registered fingerprint scope key set drifted")
+    return scopes
+
 
 def _real_path_fingerprints() -> dict[str, Mapping[str, str]]:
     observed: dict[str, Mapping[str, str]] = {
@@ -11630,9 +11799,83 @@ def _preallocation_authority_probes(
     }
 
 
+def _validate_registered_ledger_fingerprint_projection(
+    *,
+    container_root: Path,
+    ledger_root: Path,
+    before_real: Mapping[str, Mapping[str, str]],
+    after_real: Mapping[str, Mapping[str, str]],
+    before_active: Mapping[str, str],
+    after_active: Mapping[str, str],
+) -> None:
+    before_fingerprint_keys = frozenset(before_real)
+    after_fingerprint_keys = frozenset(after_real)
+    if (
+        before_fingerprint_keys != after_fingerprint_keys
+        or before_fingerprint_keys != REGISTERED_FINGERPRINT_KEYS
+    ):
+        raise RehearsalV22Error("registered fingerprint key set drifted")
+    if ledger_root == container_root or not ledger_root.is_relative_to(container_root):
+        raise RehearsalV22Error("active ledger root is not nested below its container")
+    scopes = _registered_fingerprint_scopes(
+        primary_series_container=container_root,
+        ledger_root=ledger_root,
+    )
+    ledger_scope_keys = {name for name, scope in scopes.items() if scope == ledger_root}
+    if len(ledger_scope_keys) != 1:
+        raise RehearsalV22Error(
+            "official active ledger fingerprint is not the registered ledger fingerprint"
+        )
+    ledger_key = next(iter(ledger_scope_keys))
+    if before_real[ledger_key] != before_active or after_real[ledger_key] != after_active:
+        raise RehearsalV22Error(
+            "official active ledger fingerprint is not the registered ledger fingerprint"
+        )
+    changed_real = {name for name in before_real if before_real[name] != after_real[name]}
+    expected_changed_real = {
+        name
+        for name, scope in scopes.items()
+        if scope == ledger_root or ledger_root.is_relative_to(scope)
+    }
+    if changed_real != expected_changed_real:
+        raise RehearsalV22Error(
+            "official positive ledger writes changed outside active ledger ancestor scopes"
+        )
+    ledger_changes = {
+        relative: (before_active.get(relative), after_active.get(relative))
+        for relative in sorted(
+            set(before_active) | set(after_active), key=lambda value: value.encode("utf-8")
+        )
+        if before_active.get(relative) != after_active.get(relative)
+    }
+    for name in expected_changed_real.difference(ledger_scope_keys):
+        prefix = ledger_root.relative_to(scopes[name]).as_posix()
+        projected_changes = {
+            (prefix if relative == "." else f"{prefix}/{relative}"): values
+            for relative, values in ledger_changes.items()
+        }
+        ancestor_changes = {
+            relative: (
+                before_real[name].get(relative),
+                after_real[name].get(relative),
+            )
+            for relative in sorted(
+                set(before_real[name]) | set(after_real[name]),
+                key=lambda value: value.encode("utf-8"),
+            )
+            if before_real[name].get(relative) != after_real[name].get(relative)
+        }
+        if ancestor_changes != projected_changes:
+            raise RehearsalV22Error(
+                "official active ledger ancestor fingerprint projection drifted"
+            )
+
+
 def _validate_active_ledger_positive_transition(
     *,
-    binding: ExecutionBinding,
+    mode: ExecutionMode,
+    container_root: Path,
+    ledger_root: Path,
     before_real: Mapping[str, Mapping[str, str]],
     after_real: Mapping[str, Mapping[str, str]],
     before_active: Mapping[str, str],
@@ -11649,7 +11892,7 @@ def _validate_active_ledger_positive_transition(
     expected_created: dict[str, str] = {}
     for path, payload in created:
         try:
-            relative = path.relative_to(binding.ledger_root).as_posix()
+            relative = path.relative_to(ledger_root).as_posix()
         except ValueError as exc:
             raise RehearsalV22Error("positive ledger evidence escaped the active ledger") from exc
         if relative in expected_created:
@@ -11671,23 +11914,18 @@ def _validate_active_ledger_positive_transition(
         raise RehearsalV22Error(
             "active ledger positive create-only transition exceeded exact evidence writes"
         )
-    official = binding.mode == "REGISTERED_OFFICIAL"
+    official = mode == "REGISTERED_OFFICIAL"
     if official:
-        if (
-            binding.ledger_root != OFFICIAL_LEDGER_ROOT
-            or before_real["registered_v2_2_ledger"] != before_active
-            or after_real["registered_v2_2_ledger"] != after_active
-        ):
-            raise RehearsalV22Error(
-                "official active ledger fingerprint is not the registered ledger fingerprint"
-            )
-        changed_real = {name for name in before_real if before_real[name] != after_real[name]}
-        if changed_real != {"registered_v2_2_ledger"}:
-            raise RehearsalV22Error(
-                "official positive ledger writes changed a non-ledger registered path"
-            )
-    elif binding.mode == "DISPOSABLE_FULL_SHAPE_TEST":
-        if binding.ledger_root == OFFICIAL_LEDGER_ROOT or before_real != after_real:
+        _validate_registered_ledger_fingerprint_projection(
+            container_root=container_root,
+            ledger_root=ledger_root,
+            before_real=before_real,
+            after_real=after_real,
+            before_active=before_active,
+            after_active=after_active,
+        )
+    elif mode == "DISPOSABLE_FULL_SHAPE_TEST":
+        if ledger_root == OFFICIAL_LEDGER_ROOT or before_real != after_real:
             raise RehearsalV22Error(
                 "disposable positive ledger writes changed a real registered path"
             )
@@ -11723,7 +11961,9 @@ def _ledger_create_only_probes(
     positive_real = _real_path_fingerprints()
     positive_active = _tree_fingerprint(binding.ledger_root)
     fingerprint_discipline = _validate_active_ledger_positive_transition(
-        binding=binding,
+        mode=binding.mode,
+        container_root=binding.primary_series_container,
+        ledger_root=binding.ledger_root,
         before_real=before_real,
         after_real=positive_real,
         before_active=before_active,
