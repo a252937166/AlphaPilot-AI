@@ -1,0 +1,37 @@
+{
+  "schema_version": "p4.2a-independent-adjudication-v1",
+  "adjudication_id": "p4.2a-series2-attempt1-adjudication-and-epoch6-direction-20260826-r1",
+  "created_at_utc": "2026-08-26T06:25:16Z",
+  "created_at_shanghai": "2026-08-26T14:25:16+08:00",
+  "issued_by": {"identity": "independent_ai_architect_claude_code", "reviewer_type": "ai", "model": "Anthropic Claude Fable 5 (model id claude-fable-5)", "impersonation_disclaimer": "Not a human reviewer and not the owner."},
+  "part_1_attempt_1_adjudicated": {
+    "verdict": "VALID_RECORDED_FAILED_ATTEMPT",
+    "authority_chain": "Q 16753a9, R 911b6c5 (SHA 4cf5d393...), B f9de5b3 (SHA 77e9d258...)",
+    "independently_verified": {
+      "terminal": "FAILED at started_persisted, epoch 5, implementation 0cc3e474, automatic_retry_count 0, run-a never started, candidate absent",
+      "history_root": "f2232e4400ca54946b9247e9ec6807cce86af2f2f4ba40af2f5221eba3095d8e recomputed from raw ledger bytes; started.previous_history_root equals the empty root 318b5c9e...",
+      "durable_storage_worked": "primary ledger at the home-root container holds 9 files; the secondary snapshot through-ordinal-000001-adeee7e7... holds the same 9 files byte-identical; both mirror receipts carry SHA 1eab09e7.... The seal-then-mirror protocol passed its first real execution.",
+      "zero_side_effects": "bundle, destination and temporary authority absent; no pipeline work beyond the probe stage; heldout one-shot unconsumed"
+    },
+    "ordinal_1_consumed": "permanently; ordinal 2 must bind previous_history_root_sha256 f2232e4400ca54946b9247e9ec6807cce86af2f2f4ba40af2f5221eba3095d8e"
+  },
+  "part_2_root_cause_confirmed_from_source": {
+    "error": "message hash 632e0778... resolves to line 11686 of the epoch-5 producer: official positive ledger writes changed a non-ledger registered path",
+    "predicate": "line 11685 requires the set of changed registered keys to equal exactly {registered_v2_2_ledger}",
+    "layout": "OFFICIAL_LEDGER_ROOT is nested under OFFICIAL_PRIMARY_SERIES_CONTAINER, and the primary-container key is a recursive tree fingerprint that therefore contains the ledger subtree; every legitimate ledger write changes both keys",
+    "classification": "deterministic false positive from the interaction of the series-2 storage layout with the epoch-3 exact-key rule; not environmental"
+  },
+  "part_3_findings": {
+    "C-13": {"owner_of_the_error": "the reviewer", "statement": "the reviewer approved the eleven-key fingerprint set including a recursive container fingerprint that contains the ledger, and had separately reviewed the exact-key predicate at epoch 3, across three epoch-5 candidates, without connecting the two", "rule": "when a fingerprint key set changes, enumerate for every official-mode fingerprint span which keys a legitimate write in that span necessarily changes, and check each span's predicate against that enumeration before approval"},
+    "F-16": {"title": "The official branch's container-ledger nesting was never modeled in any test", "detail": "the injected unit test fed hand-written flat dictionaries to the transition predicate, and disposable exact-OS runs place the ledger where no fingerprinted ancestor contains it, so the official branch's real key interaction executed for the first time in the official attempt. Same class as F-11.", "rule": "the disposable layout must mirror the registered topology, ledger nested under a fingerprinted container, and the transition predicate must be parametrized on the container and ledger roots so the same branch runs in tests with real tree fingerprints"}
+  },
+  "part_4_epoch_6_direction": {
+    "fix": "in official mode the changed-key set must equal exactly the keys whose fingerprint scope is an ancestor-or-self of the active ledger root; for each ancestor key its changed entries, restricted to the ledger subtree prefix, must equal the ledger key's changed entries re-rooted, and no entry outside that prefix may change; every other key stays byte-identical. Expressed generically over the registered layout, not as a second hardcoded key pair.",
+    "audit": "all seventeen _real_path_fingerprints call sites tabled with the keys a legitimate write may change in each official-mode span, including seal-time mirror spans; the mirror succeeded in this attempt, and the table must show why",
+    "tests": "an exact-OS positive whose synthetic root nests the ledger under a fingerprinted container and drives the same predicate branch with real tree fingerprints; negatives for an extra file in the container outside the ledger, a container-only change, and a third changed key",
+    "surface": "scripts/p4_2a_v2_2_heldout_rehearsal.py and tests/test_p4_2a_v2_2_heldout_rehearsal_runner.py; the validator carries no such predicate",
+    "epoch_numbering": "series-2 history becomes [5, 6], contiguous under the origin-5 rule; ordinal 2 binds epoch 6",
+    "storage": "the sealed ordinal-1 primary ledger and its mirror are read-only inputs; nothing is reconstructed or rewritten"
+  },
+  "part_5_boundaries": {"heldout_evaluation_one_shot": "unconsumed", "trading": "zero non-SIMULATE", "seventy_three_member_freeze": "active until series-2 release", "phase_locks": {"p4_2a_done": false, "p4_2b_unlocked": false, "p4_3_unlocked": false}}
+}
