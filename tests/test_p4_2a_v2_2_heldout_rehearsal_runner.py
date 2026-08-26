@@ -52,6 +52,8 @@ SERIES_2_EPOCH_FIVE_COMPANION_COMMIT = "281ba10ee4aa2dd09f04b75804d78def3e405365
 SERIES_2_EPOCH_FIVE_SURFACE_AUTHORITY_RELATIVE = Path(
     "docs/phase4/reports/P4.2a-v2-2-series-2-epoch5-surface-authority-20260823.json"
 )
+SERIES_2_EPOCH_SIX_SURFACE_AUTHORITY_COMMIT = "3ccc2f267a05137edf86c5eb72f82e0057d74f98"
+SERIES_2_EPOCH_SIX_COMPANION_COMMIT = "d665e40d14f5de4671abc5c85dff220f3fb77247"
 INDEPENDENT_REVIEW_COMMIT = "b21e1bdbf865dfd9c7605ecc7794fc3f8701ed1f"
 INDEPENDENT_REVIEW_RELATIVE = Path(
     "docs/phase4/reports/P4.2a-v2-2-preregistration-independent-review-20260811.json"
@@ -413,6 +415,263 @@ def _synthetic_binding(tmp_path: Path, *, label: str = "series") -> Any:
         container.parent.mkdir(parents=True, mode=0o700)
         container.mkdir(mode=0o700)
     return binding
+
+
+def _run_exact_nested_fingerprint_probe(
+    tmp_path: Path,
+    *,
+    scenario: str,
+) -> dict[str, Any]:
+    implementation = importlib.import_module(IMPLEMENTATION_MODULE)
+    registered_before = implementation._real_path_fingerprints()
+    registered_project_root = Path(
+        str(_preregistration()["exact_os_bootstrap_contract"]["repository_root"])
+    )
+    fixed_site_packages = registered_project_root / ".venv/lib/python3.12/site-packages"
+    assert fixed_site_packages.is_dir()
+    probe_script = tmp_path / f"exact-nested-fingerprint-{scenario}.py"
+    work_root = tmp_path / f"exact-nested-fingerprint-{scenario}-state"
+    template = """
+from __future__ import annotations
+
+import os
+import sys
+from pathlib import Path
+
+PROJECT_ROOT = Path(__PROJECT_ROOT__)
+FIXED_LAUNCHER = Path(__FIXED_LAUNCHER__)
+FIXED_SITE_PACKAGES = Path(__FIXED_SITE_PACKAGES__)
+WORK_ROOT = Path(__WORK_ROOT__)
+SCENARIO = __SCENARIO__
+
+assert sys.version_info[:2] == (3, 12)
+assert sys.flags.hash_randomization == 0
+assert sys.flags.no_site == 1
+assert sys.flags.no_user_site == 1
+assert sys.flags.safe_path
+assert sys.dont_write_bytecode
+assert sys.pycache_prefix == "/dev/null"
+
+stdlib = Path(sys.base_prefix) / "lib/python3.12"
+sys.path[:] = [
+    (stdlib.parent / "python312.zip").as_posix(),
+    stdlib.as_posix(),
+    (stdlib / "lib-dynload").as_posix(),
+    FIXED_SITE_PACKAGES.as_posix(),
+    PROJECT_ROOT.as_posix(),
+    (PROJECT_ROOT / "src").as_posix(),
+]
+
+from scripts import p4_2a_v2_2_heldout_rehearsal as implementation
+
+assert dict(os.environ) == dict(implementation.EXACT_ENVIRONMENT)
+assert sys.executable == FIXED_LAUNCHER.as_posix()
+assert sys.orig_argv == [
+    implementation.FIXED_ORIG_ARGV_EXECUTABLE.as_posix(),
+    "-S",
+    "-P",
+    "-B",
+    Path(__file__).as_posix(),
+]
+
+container_root = WORK_ROOT / "primary-container"
+ledger_root = container_root / "PRIMARY-LEDGER-DO-NOT-DELETE"
+probes = ledger_root / "attempts/000001/evidence/probes"
+stable_receipts = container_root / "MIRROR-RECEIPTS-DO-NOT-DELETE"
+secondary_container = WORK_ROOT / "secondary-container"
+secondary_snapshots = secondary_container / "SEALED-LEDGER-SNAPSHOTS-DO-NOT-DELETE"
+secondary_receipts = secondary_container / "MIRROR-RECEIPTS-DO-NOT-DELETE"
+destination_root = WORK_ROOT / "registered-destination"
+lost_ledger_root = WORK_ROOT / "lost-ledger"
+retired_v2_1_destination = WORK_ROOT / "retired-v2-1-destination"
+consumed_v2_1_claim = WORK_ROOT / "consumed-v2-1-claim"
+third_root = WORK_ROOT / "third-registered-root"
+probes.mkdir(parents=True, mode=0o700)
+stable_receipts.mkdir(mode=0o700)
+secondary_container.mkdir(mode=0o700)
+for directory in (
+    WORK_ROOT,
+    container_root,
+    ledger_root,
+    ledger_root / "attempts",
+    ledger_root / "attempts/000001",
+    ledger_root / "attempts/000001/evidence",
+    probes,
+    stable_receipts,
+    secondary_container,
+):
+    directory.chmod(0o700)
+stable_receipt = stable_receipts / "preexisting.json"
+stable_receipt.write_bytes(implementation._canonical_json_bytes({"stable": True}))
+stable_receipt.chmod(0o600)
+
+
+def fingerprinted_container(path: Path) -> dict[str, str]:
+    metadata = path.lstat()
+    return {
+        **implementation._tree_fingerprint(path),
+        ".identity": (
+            f"device:{metadata.st_dev}:inode:{metadata.st_ino}:uid:{metadata.st_uid}"
+        ),
+    }
+
+
+def registered_view() -> dict[str, dict[str, str]]:
+    scopes = {
+        "registered_v2_2_primary_container": container_root,
+        "registered_v2_2_secondary_container": secondary_container,
+        "registered_v2_2_destination": destination_root,
+        "registered_v2_2_ledger": ledger_root,
+        "registered_v2_2_primary_receipts": stable_receipts,
+        "registered_v2_2_secondary_snapshots": secondary_snapshots,
+        "registered_v2_2_secondary_receipts": secondary_receipts,
+        "lost_v2_2_ledger": lost_ledger_root,
+        "retired_v2_1_destination": retired_v2_1_destination,
+        "consumed_v2_1_claim": consumed_v2_1_claim,
+        "real_heldout_root": third_root,
+    }
+    assert frozenset(scopes) == implementation.REGISTERED_FINGERPRINT_KEYS
+    observed = {
+        name: implementation._tree_fingerprint(path) for name, path in scopes.items()
+    }
+    observed["registered_v2_2_primary_container"] = fingerprinted_container(
+        container_root
+    )
+    observed["registered_v2_2_secondary_container"] = fingerprinted_container(
+        secondary_container
+    )
+    assert frozenset(observed) == implementation.REGISTERED_FINGERPRINT_KEYS
+    return observed
+
+
+first = probes / "same-parent-first.txt"
+second = probes / "same-parent-second.txt"
+before_active = implementation._tree_fingerprint(ledger_root)
+before_real = registered_view()
+if SCENARIO != "container-only":
+    for path, payload in ((first, b"first\\n"), (second, b"second\\n")):
+        path.write_bytes(payload)
+        path.chmod(0o600)
+if SCENARIO in {"outside-ledger-file", "container-only"}:
+    rogue = container_root / "outside-active-ledger.txt"
+    rogue.write_bytes(b"forbidden\\n")
+    rogue.chmod(0o600)
+elif SCENARIO == "third-key":
+    third_root.mkdir(mode=0o700)
+    third = third_root / "unexpected.txt"
+    third.write_bytes(b"forbidden\\n")
+    third.chmod(0o600)
+after_active = implementation._tree_fingerprint(ledger_root)
+after_real = registered_view()
+
+if SCENARIO == "positive":
+    result = implementation._validate_active_ledger_positive_transition(
+        mode="REGISTERED_OFFICIAL",
+        container_root=container_root,
+        ledger_root=ledger_root,
+        before_real=before_real,
+        after_real=after_real,
+        before_active=before_active,
+        after_active=after_active,
+        created=((first, b"first\\n"), (second, b"second\\n")),
+    )
+    assert result["active_ledger_is_registered_ledger"] is True
+else:
+    expected_message = {
+        "outside-ledger-file": "ancestor fingerprint projection drifted",
+        "container-only": "outside active ledger ancestor scopes",
+        "third-key": "outside active ledger ancestor scopes",
+    }[SCENARIO]
+    try:
+        implementation._validate_registered_ledger_fingerprint_projection(
+            container_root=container_root,
+            ledger_root=ledger_root,
+            before_real=before_real,
+            after_real=after_real,
+            before_active=before_active,
+            after_active=after_active,
+        )
+    except implementation.RehearsalV22Error as exc:
+        assert expected_message in str(exc)
+    else:
+        raise AssertionError(f"negative exact-OS probe was accepted: {SCENARIO}")
+
+changed_keys = sorted(
+    (
+        name
+        for name in before_real
+        if before_real[name] != after_real[name]
+    ),
+    key=lambda value: value.encode("utf-8"),
+)
+sys.stdout.buffer.write(
+    implementation._canonical_json_bytes(
+        {
+            "schema_version": "p4.2a-series2-epoch6-exact-os-nested-fingerprint-probe-v1",
+            "status": "PASS_EXACT_OS_NESTED_LEDGER_PROJECTION",
+            "scenario": SCENARIO,
+            "changed_registered_keys": changed_keys,
+            "registered_before": before_real,
+            "registered_after": after_real,
+            "locked_environment": True,
+            "no_site": True,
+            "safe_path": True,
+            "bytecode_disabled": True,
+        }
+    )
+)
+"""
+    probe_script.write_text(
+        template.replace("__PROJECT_ROOT__", repr(PROJECT_ROOT.as_posix()))
+        .replace("__FIXED_LAUNCHER__", repr(_fixed_interpreter().as_posix()))
+        .replace("__FIXED_SITE_PACKAGES__", repr(fixed_site_packages.as_posix()))
+        .replace("__WORK_ROOT__", repr(work_root.as_posix()))
+        .replace("__SCENARIO__", repr(scenario))
+    )
+    probe_script.chmod(0o600)
+    completed = subprocess.run(
+        [
+            _fixed_interpreter().as_posix(),
+            "-S",
+            "-P",
+            "-B",
+            probe_script.as_posix(),
+        ],
+        check=False,
+        capture_output=True,
+        env=_locked_environment(),
+    )
+    assert completed.returncode == 0, completed.stderr.decode("utf-8", errors="replace")
+    assert completed.stderr == b""
+    document = implementation.strict_json_loads(
+        completed.stdout,
+        source=f"exact-OS nested fingerprint probe {scenario}",
+    )
+    assert completed.stdout == implementation._canonical_json_bytes(document)
+    assert document["status"] == "PASS_EXACT_OS_NESTED_LEDGER_PROJECTION"
+    assert document["scenario"] == scenario
+    assert document["locked_environment"] is True
+    assert document["no_site"] is True
+    assert document["safe_path"] is True
+    assert document["bytecode_disabled"] is True
+    synthetic_before = document["registered_before"]
+    synthetic_after = document["registered_after"]
+    assert isinstance(synthetic_before, dict)
+    assert isinstance(synthetic_after, dict)
+    assert frozenset(synthetic_before) == implementation.REGISTERED_FINGERPRINT_KEYS
+    assert frozenset(synthetic_after) == implementation.REGISTERED_FINGERPRINT_KEYS
+    assert synthetic_before["registered_v2_2_primary_receipts"]["."] == ("directory:0700")
+    assert (
+        synthetic_before["registered_v2_2_primary_receipts"]
+        == synthetic_after["registered_v2_2_primary_receipts"]
+    )
+    assert "preexisting.json" in synthetic_before["registered_v2_2_primary_receipts"]
+    assert document["changed_registered_keys"] == sorted(
+        (name for name in synthetic_before if synthetic_before[name] != synthetic_after[name]),
+        key=lambda value: value.encode("utf-8"),
+    )
+    assert implementation._real_path_fingerprints() == registered_before
+    return document
 
 
 def _synthetic_release_receipt(
@@ -1584,6 +1843,58 @@ def exact_failed_epoch_then_incomplete_success_series(
     )
     third = _run_exact_attempt(binding, 3, requested_outcome="SUCCESS")
     history = implementation.validate_live_history(binding)
+    assert third["started"]["ordinal"] == 3
+    assert third["started"]["previous_history_root_sha256"] == (
+        incomplete_history.history_root_sha256
+    )
+    assert third["requested_outcome"] == "SUCCESS"
+    assert third["returncode"] == 0
+    assert third["stderr"] == ""
+    assert third["result"]["status"] == "PASS_REHEARSAL_V2_2_AWAITING_OWNER_REVIEW"
+    assert (binding.ledger_root / "attempts/000003/started.json").is_file()
+    assert (binding.ledger_root / "attempts/000003/terminal.json").is_file()
+    assert tuple(record.outcome for record in history.records) == (
+        "FAILED",
+        "INCOMPLETE_UNTERMINALIZED",
+        "CANDIDATE_VALIDATED_AND_SELECTED",
+    )
+    assert history.selected_attempt_ordinal == 3
+    assert history.series_closed is True
+    mirror_receipts = implementation._validate_second_copy_history(binding, history)
+    assert len(mirror_receipts) == 3
+    expected_snapshot_names = tuple(
+        sorted(
+            (
+                implementation._mirror_snapshot_name(
+                    int(receipt["ordinal"]),
+                    str(receipt["live_ledger_root_sha256"]),
+                )
+                for receipt in mirror_receipts
+            ),
+            key=os.fsencode,
+        )
+    )
+    assert (
+        tuple(
+            sorted(
+                (path.name for path in binding.secondary_snapshot_root.iterdir()),
+                key=os.fsencode,
+            )
+        )
+        == expected_snapshot_names
+    )
+    for receipt in mirror_receipts:
+        receipt_name = implementation._mirror_receipt_filename(
+            int(receipt["ordinal"]),
+            str(receipt["live_ledger_root_sha256"]),
+        )
+        expected_receipt_bytes = implementation._canonical_json_bytes(receipt)
+        assert (binding.primary_receipt_root / receipt_name).read_bytes() == (
+            expected_receipt_bytes
+        )
+        assert (binding.secondary_receipt_root / receipt_name).read_bytes() == (
+            expected_receipt_bytes
+        )
     assert _all_real_path_fingerprints() == before
     bundle_path = binding.destination / implementation.BUNDLE_FILENAME
     bundle_payload = bundle_path.read_bytes()
@@ -1593,12 +1904,18 @@ def exact_failed_epoch_then_incomplete_success_series(
     )
     assert isinstance(bundle, dict)
     assert implementation._canonical_json_bytes(bundle) == bundle_payload
+    schema = json.loads(
+        (binding.project_root / implementation.SERIES_2_BUNDLE_SCHEMA_RELATIVE).read_bytes()
+    )
+    assert not list(Draft202012Validator(schema).iter_errors(bundle))
     return {
         "binding": binding,
         "epoch_one": epoch_one,
         "epoch_two": epoch_two,
         "attempts": [first, second, third],
         "history": history,
+        "mirror_receipts": mirror_receipts,
+        "snapshot_names": expected_snapshot_names,
         "bundle_path": bundle_path,
         "bundle": bundle,
         "real_fingerprints": before,
@@ -2043,6 +2360,196 @@ def test_series_2_full_snapshot_and_paired_receipts_validate_each_outcome(
     )
     assert all(path.is_file() for path in installed["receipt_paths"])
     assert installed["snapshot"].is_dir()
+
+
+def test_registered_fingerprint_work_is_linear_and_never_rehashes_sealed_snapshot_payloads(
+    tmp_path: Path,
+    series_2_epoch_five_source: dict[str, Any],
+) -> None:
+    implementation = importlib.import_module(IMPLEMENTATION_MODULE)
+    binding = _synthetic_binding(tmp_path, label="hot-mirror-linear-work")
+    epoch = _clone_series_2_epoch_five_source(series_2_epoch_five_source, binding)
+    _initialize_synthetic_ledger(binding)
+
+    observations: list[dict[str, Any]] = []
+    histories: list[Any] = []
+    for ordinal in (1, 2, 3):
+        history = _append_synthetic_terminal_record(
+            binding,
+            outcome="FAILED",
+            epoch=epoch,
+        )
+        assert len(history.records) == ordinal
+        _install_synthetic_mirror(binding, history)
+        assert len(implementation._validate_second_copy_history(binding, history)) == ordinal
+        observation = implementation._validate_hot_second_copy_commitment(
+            binding,
+            history,
+        )
+        assert observation["schema_version"] == (implementation.HOT_SECOND_COPY_COMMITMENT_SCHEMA)
+        assert observation["sealed_snapshot_count"] == ordinal
+        assert len(observation["commitment_rows"]) == ordinal
+        assert [row["ordinal"] for row in observation["commitment_rows"]] == list(
+            range(1, ordinal + 1)
+        )
+        work = observation["work"]
+        assert work["root_directories_inspected"] == 5 + ordinal
+        assert work["container_entries_inspected"] == 4
+        assert work["snapshot_entries_inspected"] == ordinal
+        assert work["receipt_entries_inspected"] == 2 * ordinal
+        assert work["receipt_payloads_read"] == 2 * ordinal
+        assert work["snapshot_payload_files_hashed"] == 0
+        assert work["snapshot_payload_bytes_hashed"] == 0
+        assert work["work_units"] <= work["linear_work_unit_limit"]
+        assert work["linear_work_unit_limit"] == (
+            implementation.HOT_SECOND_COPY_FIXED_WORK_UNITS
+            + implementation.HOT_SECOND_COPY_PER_SNAPSHOT_WORK_UNITS * ordinal
+        )
+        assert work["receipt_payload_bytes_read"] <= work["receipt_payload_byte_limit"]
+        assert work["receipt_payload_byte_limit"] == (
+            2 * implementation.HOT_SECOND_COPY_MAX_RECEIPT_BYTES * ordinal
+        )
+        observations.append(observation)
+        histories.append(history)
+
+    primary_receipts, _primary_receipt_roots = implementation._receipt_commitment_fingerprint(
+        binding.primary_receipt_root
+    )
+    secondary_receipts, secondary_receipt_roots = implementation._receipt_commitment_fingerprint(
+        binding.secondary_receipt_root
+    )
+    snapshot_commitment_before = implementation._snapshot_commitment_fingerprint(
+        binding.secondary_snapshot_root,
+        receipt_roots=secondary_receipt_roots,
+    )
+    active_ledger = implementation._tree_fingerprint(binding.ledger_root)
+    primary_container_before = implementation._composed_registered_container_fingerprint(
+        binding.primary_series_container,
+        children={
+            binding.ledger_root.name: active_ledger,
+            binding.primary_receipt_root.name: primary_receipts,
+        },
+    )
+    secondary_container_before = implementation._composed_registered_container_fingerprint(
+        binding.secondary_series_container,
+        children={
+            binding.secondary_snapshot_root.name: snapshot_commitment_before,
+            binding.secondary_receipt_root.name: secondary_receipts,
+        },
+    )
+    for relative, value in active_ledger.items():
+        projected = (
+            binding.ledger_root.name
+            if relative == "."
+            else f"{binding.ledger_root.name}/{relative}"
+        )
+        assert primary_container_before[projected] == value
+
+    first_snapshot = binding.secondary_snapshot_root / str(
+        observations[-1]["commitment_rows"][0]["snapshot_name"]
+    )
+    amplification_sentinel = first_snapshot / "f17-amplification-sentinel.bin"
+    _write_test_file(
+        amplification_sentinel,
+        b"sealed snapshot payload bytes must stay off the hot path\n" * 8192,
+    )
+    after_amplification = implementation._validate_hot_second_copy_commitment(
+        binding,
+        histories[-1],
+    )
+    assert after_amplification == observations[-1]
+    snapshot_commitment_after = implementation._snapshot_commitment_fingerprint(
+        binding.secondary_snapshot_root,
+        receipt_roots=secondary_receipt_roots,
+    )
+    assert snapshot_commitment_after == snapshot_commitment_before
+    assert (
+        implementation._composed_registered_container_fingerprint(
+            binding.secondary_series_container,
+            children={
+                binding.secondary_snapshot_root.name: snapshot_commitment_after,
+                binding.secondary_receipt_root.name: secondary_receipts,
+            },
+        )
+        == secondary_container_before
+    )
+    with pytest.raises(implementation.RehearsalV22Error):
+        implementation._validate_second_copy_history(binding, histories[-1])
+
+    implementation_tree = ast.parse((PROJECT_ROOT / IMPLEMENTATION_RELATIVE).read_bytes())
+    functions = {
+        node.name: node
+        for node in ast.walk(implementation_tree)
+        if isinstance(node, (ast.AsyncFunctionDef, ast.FunctionDef))
+    }
+    hot_function = functions["_validate_hot_second_copy_commitment"]
+    revalidate_function = functions["revalidate_capability_action"]
+    full_function = functions["_validate_second_copy_history"]
+    shallow_function = functions["_shallow_registered_fingerprint"]
+    snapshot_function = functions["_snapshot_commitment_fingerprint"]
+    composed_function = functions["_composed_registered_container_fingerprint"]
+    real_function = functions["_real_path_fingerprints"]
+
+    def called_symbols(function: ast.AST) -> set[str]:
+        return {
+            node.func.id if isinstance(node.func, ast.Name) else node.func.attr
+            for node in ast.walk(function)
+            if isinstance(node, ast.Call) and isinstance(node.func, (ast.Attribute, ast.Name))
+        }
+
+    snapshot_recursive_scanners = {
+        "_strict_private_tree_inventory",
+        "_strict_primary_prefix_inventory",
+        "_strict_receipt_inventory",
+        "_strict_receipt_root",
+        "_tree_fingerprint",
+        "rglob",
+        "walk",
+    }
+    hot_calls = called_symbols(hot_function)
+    revalidate_calls = called_symbols(revalidate_function)
+    full_calls = called_symbols(full_function)
+    assert hot_calls.isdisjoint(
+        snapshot_recursive_scanners | {"_validate_second_copy_history", "validate_live_history"}
+    )
+    assert revalidate_calls.isdisjoint(
+        snapshot_recursive_scanners | {"_validate_second_copy_history"}
+    )
+    assert "validate_live_history" in revalidate_calls
+    assert "_validate_hot_second_copy_commitment" in revalidate_calls
+    assert "_strict_private_tree_inventory" in full_calls
+    assert called_symbols(shallow_function).isdisjoint({"rglob", "walk"})
+    assert called_symbols(snapshot_function).isdisjoint(
+        {"_tree_fingerprint", "_strict_private_tree_inventory", "read_bytes", "rglob", "walk"}
+    )
+    assert called_symbols(composed_function).isdisjoint(
+        {"_tree_fingerprint", "_strict_private_tree_inventory", "rglob", "walk"}
+    )
+    snapshot_shallow_calls = [
+        node
+        for node in ast.walk(snapshot_function)
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Name)
+        and node.func.id == "_shallow_registered_fingerprint"
+    ]
+    assert len(snapshot_shallow_calls) == 1
+    snapshot_shallow_keywords = {
+        keyword.arg: keyword.value for keyword in snapshot_shallow_calls[0].keywords
+    }
+    hash_payloads = snapshot_shallow_keywords["hash_regular_payloads"]
+    assert isinstance(hash_payloads, ast.Constant)
+    assert hash_payloads.value is False
+    recursive_real_arguments = {
+        ast.unparse(node.args[0])
+        for node in ast.walk(real_function)
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Name)
+        and node.func.id == "_tree_fingerprint"
+    }
+    assert "OFFICIAL_LEDGER_ROOT" in recursive_real_arguments
+    assert "OFFICIAL_PRIMARY_SERIES_CONTAINER" not in recursive_real_arguments
+    assert "OFFICIAL_SECONDARY_SERIES_CONTAINER" not in recursive_real_arguments
+    assert "OFFICIAL_SECONDARY_SNAPSHOT_ROOT" not in recursive_real_arguments
 
 
 def test_candidate_without_terminal_is_incomplete_mirrored_continuable_and_archived(
@@ -2951,6 +3458,36 @@ def test_preregistration_commit_shape_and_current_implementation_topology() -> N
                     RUNNER_TEST_RELATIVE,
                     VALIDATOR_TEST_RELATIVE,
                 ),
+                key=lambda path: os.fsencode(path.as_posix()),
+            )
+        ]
+    elif head == SERIES_2_EPOCH_SIX_SURFACE_AUTHORITY_COMMIT:
+        assert parents == [head, SERIES_2_EPOCH_SIX_COMPANION_COMMIT]
+        epoch_six_paths = sorted(
+            (IMPLEMENTATION_RELATIVE, RUNNER_TEST_RELATIVE),
+            key=lambda path: os.fsencode(path.as_posix()),
+        )
+        status = (
+            _git(
+                "status",
+                "--porcelain=v1",
+                "--untracked-files=all",
+                "--",
+                *(path.as_posix() for path in REGISTERED_SURFACE),
+            )
+            .decode()
+            .splitlines()
+        )
+        assert [line[3:] for line in status] == [path.as_posix() for path in epoch_six_paths]
+        assert all(line[:2] in {" M", "M "} for line in status)
+    elif parents == [head, SERIES_2_EPOCH_SIX_SURFACE_AUTHORITY_COMMIT]:
+        epoch_six_surface = (
+            _git("diff-tree", "--no-commit-id", "--name-status", "-r", head).decode().splitlines()
+        )
+        assert epoch_six_surface == [
+            f"M\t{path.as_posix()}"
+            for path in sorted(
+                (IMPLEMENTATION_RELATIVE, RUNNER_TEST_RELATIVE),
                 key=lambda path: os.fsencode(path.as_posix()),
             )
         ]
@@ -4692,14 +5229,11 @@ def test_exact_os_read_only_preflight_validates_epoch_control_and_registered_byt
         "secondary_receipts": binding.secondary_receipt_root,
     }
     assert registered_leaf_paths == {
-        "primary_ledger": binding.primary_series_container
-        / "PRIMARY-LEDGER-DO-NOT-DELETE",
-        "primary_receipts": binding.primary_series_container
-        / "MIRROR-RECEIPTS-DO-NOT-DELETE",
+        "primary_ledger": binding.primary_series_container / "PRIMARY-LEDGER-DO-NOT-DELETE",
+        "primary_receipts": binding.primary_series_container / "MIRROR-RECEIPTS-DO-NOT-DELETE",
         "secondary_snapshots": binding.secondary_series_container
         / "SEALED-LEDGER-SNAPSHOTS-DO-NOT-DELETE",
-        "secondary_receipts": binding.secondary_series_container
-        / "MIRROR-RECEIPTS-DO-NOT-DELETE",
+        "secondary_receipts": binding.secondary_series_container / "MIRROR-RECEIPTS-DO-NOT-DELETE",
     }
     assert all(not os.path.lexists(path) for path in registered_leaf_paths.values())
     assert storage == {
@@ -5550,6 +6084,8 @@ def test_candidate_checkpoint_crash_preserves_candidate_and_unique_next_history(
     assert incomplete.candidate_sha256 == _sha256(incomplete.candidate_bytes)
     assert incomplete.terminal_bytes is None
     selected = history.records[2]
+    assert selected.ordinal == 3
+    assert selected.outcome == "CANDIDATE_VALIDATED_AND_SELECTED"
     assert selected.previous_history_root_sha256 != (history.records[0].record_root_sha256)
     assert selected.previous_history_root_sha256 != (implementation._history_empty_root_sha256())
     assert selected.attempt_token_sha256 != incomplete.attempt_token_sha256
@@ -5561,6 +6097,13 @@ def test_candidate_checkpoint_crash_preserves_candidate_and_unique_next_history(
     assert checkpoint["external_parent_observed_stop"] is True
     assert checkpoint["external_parent_action"] == "SIGKILL"
     assert checkpoint["candidate_unchanged_after_external_kill"] is True
+    third = fixture["attempts"][2]
+    assert third["started"]["ordinal"] == 3
+    assert third["returncode"] == 0
+    assert third["stderr"] == ""
+    assert third["result"]["status"] == "PASS_REHEARSAL_V2_2_AWAITING_OWNER_REVIEW"
+    assert len(fixture["mirror_receipts"]) == 3
+    assert len(fixture["snapshot_names"]) == 3
     assert _all_real_path_fingerprints() == fixture["real_fingerprints"]
 
 
@@ -5583,6 +6126,13 @@ def test_failed_incomplete_success_history_keeps_every_evidence_subtree(
     assert history.records[1].terminal_bytes is None
     assert history.records[2].artifact_inventory
     assert tuple(record.implementation_epoch for record in history.records) == (5, 6, 6)
+    assert [receipt["ordinal"] for receipt in fixture["mirror_receipts"]] == [1, 2, 3]
+    assert [receipt["attempt_outcome"] for receipt in fixture["mirror_receipts"]] == [
+        "FAILED",
+        "INCOMPLETE_UNTERMINALIZED",
+        "CANDIDATE_VALIDATED_AND_SELECTED",
+    ]
+    assert len(fixture["snapshot_names"]) == 3
     bundle_history = fixture["bundle"]["attempt_history"]
     assert [record["outcome"] for record in bundle_history["records"]] == [
         "FAILED",
@@ -5826,11 +6376,9 @@ def test_active_official_ledger_fingerprint_allows_only_two_exact_positive_write
     tmp_path: Path,
 ) -> None:
     implementation = importlib.import_module(IMPLEMENTATION_MODULE)
-    binding = replace(
-        _synthetic_binding(tmp_path, label="official-ledger-fingerprint-injection"),
-        mode="REGISTERED_OFFICIAL",
-        ledger_root=implementation.OFFICIAL_LEDGER_ROOT,
-    )
+    container_root = (tmp_path / "fast-primary-container").absolute()
+    ledger_root = container_root / "PRIMARY-LEDGER-DO-NOT-DELETE"
+    prefix = ledger_root.relative_to(container_root).as_posix()
     before_active = {
         ".": "directory:0700",
         "attempts": "directory:0700",
@@ -5838,65 +6386,46 @@ def test_active_official_ledger_fingerprint_allows_only_two_exact_positive_write
         "attempts/000001/evidence": "directory:0700",
         "attempts/000001/evidence/probes": "directory:0700",
     }
-    first = binding.ledger_root / ("attempts/000001/evidence/probes/same-parent-first.txt")
-    second = binding.ledger_root / ("attempts/000001/evidence/probes/same-parent-second.txt")
+    first = ledger_root / "attempts/000001/evidence/probes/same-parent-first.txt"
+    second = ledger_root / "attempts/000001/evidence/probes/same-parent-second.txt"
     created = ((first, b"first\n"), (second, b"second\n"))
     first_fingerprint = f"file:{_sha256(b'first' + bytes([10]))}:0600:1"
     second_fingerprint = f"file:{_sha256(b'second' + bytes([10]))}:0600:1"
     after_active = {
         **before_active,
-        first.relative_to(binding.ledger_root).as_posix(): first_fingerprint,
-        second.relative_to(binding.ledger_root).as_posix(): second_fingerprint,
+        first.relative_to(ledger_root).as_posix(): first_fingerprint,
+        second.relative_to(ledger_root).as_posix(): second_fingerprint,
     }
-    expected_fingerprint_keys = frozenset(
-        {
-            "registered_v2_2_primary_container",
-            "registered_v2_2_secondary_container",
-            "registered_v2_2_destination",
-            "registered_v2_2_ledger",
-            "registered_v2_2_primary_receipts",
-            "registered_v2_2_secondary_snapshots",
-            "registered_v2_2_secondary_receipts",
-            "lost_v2_2_ledger",
-            "retired_v2_1_destination",
-            "consumed_v2_1_claim",
-            "real_heldout_root",
-        }
-    )
-    assert expected_fingerprint_keys == implementation.REGISTERED_FINGERPRINT_KEYS
-    actual_fingerprints = implementation._real_path_fingerprints()
-    assert frozenset(actual_fingerprints) == expected_fingerprint_keys
-    assert actual_fingerprints["registered_v2_2_primary_container"] == {
-        ".": "absent",
-        ".identity": "absent",
+    before_container = {
+        ".": "directory:0700",
+        ".identity": "device:1:inode:2:uid:3",
+        prefix: "directory:0700",
+        f"{prefix}/attempts": "directory:0700",
+        f"{prefix}/attempts/000001": "directory:0700",
+        f"{prefix}/attempts/000001/evidence": "directory:0700",
+        f"{prefix}/attempts/000001/evidence/probes": "directory:0700",
+        "MIRROR-RECEIPTS-DO-NOT-DELETE": "directory:0700",
+        "MIRROR-RECEIPTS-DO-NOT-DELETE/preexisting.json": (
+            f"file:{_sha256(b'preexisting')}:0600:1"
+        ),
     }
-    assert actual_fingerprints["registered_v2_2_secondary_container"] == {
-        ".": "absent",
-        ".identity": "absent",
+    after_container = {
+        **before_container,
+        f"{prefix}/{first.relative_to(ledger_root).as_posix()}": first_fingerprint,
+        f"{prefix}/{second.relative_to(ledger_root).as_posix()}": second_fingerprint,
     }
-    before_real = {
-        "registered_v2_2_primary_container": {
-            ".": "absent",
-            ".identity": "absent",
-        },
-        "registered_v2_2_secondary_container": {
-            ".": "absent",
-            ".identity": "absent",
-        },
-        "registered_v2_2_destination": {".": "absent"},
-        "registered_v2_2_ledger": before_active,
-        "registered_v2_2_primary_receipts": {".": "absent"},
-        "registered_v2_2_secondary_snapshots": {".": "absent"},
-        "registered_v2_2_secondary_receipts": {".": "absent"},
-        "lost_v2_2_ledger": {".": "absent"},
-        "retired_v2_1_destination": {".": "absent"},
-        "consumed_v2_1_claim": {".": "directory:0700"},
-        "real_heldout_root": {".": "absent"},
+    before_real = {name: {".": "absent"} for name in implementation.REGISTERED_FINGERPRINT_KEYS}
+    before_real["registered_v2_2_primary_container"] = before_container
+    before_real["registered_v2_2_ledger"] = before_active
+    after_real = {
+        **before_real,
+        "registered_v2_2_primary_container": after_container,
+        "registered_v2_2_ledger": after_active,
     }
-    assert frozenset(before_real) == expected_fingerprint_keys
-    after_real = {**before_real, "registered_v2_2_ledger": after_active}
     observed = implementation._validate_active_ledger_positive_transition(
-        binding=binding,
+        mode="REGISTERED_OFFICIAL",
+        container_root=container_root,
+        ledger_root=ledger_root,
         before_real=before_real,
         after_real=after_real,
         before_active=before_active,
@@ -5907,12 +6436,55 @@ def test_active_official_ledger_fingerprint_allows_only_two_exact_positive_write
         "active_ledger_fingerprinted": True,
         "active_ledger_is_registered_ledger": True,
         "exact_legal_create_only_paths": [
-            first.relative_to(binding.ledger_root).as_posix(),
-            second.relative_to(binding.ledger_root).as_posix(),
+            first.relative_to(ledger_root).as_posix(),
+            second.relative_to(ledger_root).as_posix(),
         ],
         "non_active_registered_paths_unchanged": True,
         "negative_probe_baseline_is_after_positive_writes": True,
     }
+
+    implementation_tree = ast.parse((PROJECT_ROOT / IMPLEMENTATION_RELATIVE).read_bytes())
+    calls = [
+        node
+        for node in ast.walk(implementation_tree)
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Name)
+        and node.func.id == "_real_path_fingerprints"
+    ]
+    definitions = [
+        node
+        for node in ast.walk(implementation_tree)
+        if isinstance(node, ast.FunctionDef) and node.name == "_real_path_fingerprints"
+    ]
+    occurrence_audit = implementation.REAL_PATH_FINGERPRINT_OCCURRENCE_AUDIT
+    assert len(calls) == 16
+    assert len(definitions) == 1
+    assert len(occurrence_audit) == 17
+    assert sum(row[1] == "definition_not_call" for row in occurrence_audit) == 1
+    assert implementation.SEAL_THEN_MIRROR_REGISTERED_KEY_AUDIT == (
+        "registered_v2_2_ledger",
+        "registered_v2_2_primary_container",
+        "registered_v2_2_primary_receipts",
+        "registered_v2_2_secondary_container",
+        "registered_v2_2_secondary_receipts",
+        "registered_v2_2_secondary_snapshots",
+    )
+    assert implementation.TERMINAL_SEAL_REGISTERED_KEY_AUDIT == (
+        "registered_v2_2_ledger",
+        "registered_v2_2_primary_container",
+    )
+    assert implementation.MIRROR_ONLY_REGISTERED_KEY_AUDIT == (
+        "registered_v2_2_primary_container",
+        "registered_v2_2_primary_receipts",
+        "registered_v2_2_secondary_container",
+        "registered_v2_2_secondary_receipts",
+        "registered_v2_2_secondary_snapshots",
+    )
+    assert set(implementation.SEAL_THEN_MIRROR_REGISTERED_KEY_AUDIT) == (
+        set(implementation.TERMINAL_SEAL_REGISTERED_KEY_AUDIT)
+        | set(implementation.MIRROR_ONLY_REGISTERED_KEY_AUDIT)
+    )
+    assert "SeriesLedger.__exit__" in (implementation.SEAL_THEN_MIRROR_ATTEMPT_1_AUDIT_NOTE)
 
     legacy_nine_before = {
         key: value
@@ -5950,7 +6522,9 @@ def test_active_official_ledger_fingerprint_allows_only_two_exact_positive_write
             match="registered fingerprint key set drifted",
         ):
             implementation._validate_active_ledger_positive_transition(
-                binding=binding,
+                mode="REGISTERED_OFFICIAL",
+                container_root=container_root,
+                ledger_root=ledger_root,
                 before_real=drifted_before,
                 after_real=drifted_after,
                 before_active=before_active,
@@ -5962,10 +6536,12 @@ def test_active_official_ledger_fingerprint_allows_only_two_exact_positive_write
     escaped_real["real_heldout_root"] = {".": "directory:0700"}
     with pytest.raises(
         implementation.RehearsalV22Error,
-        match="non-ledger registered path",
+        match="outside active ledger ancestor scopes",
     ):
         implementation._validate_active_ledger_positive_transition(
-            binding=binding,
+            mode="REGISTERED_OFFICIAL",
+            container_root=container_root,
+            ledger_root=ledger_root,
             before_real=before_real,
             after_real=escaped_real,
             before_active=before_active,
@@ -5973,24 +6549,73 @@ def test_active_official_ledger_fingerprint_allows_only_two_exact_positive_write
             created=created,
         )
 
+    extra_relative = "attempts/000001/evidence/probes/third.txt"
     extra_active = {
         **after_active,
-        "attempts/000001/evidence/probes/third.txt": (
-            f"file:{_sha256(b'third' + bytes([10]))}:0600:1"
-        ),
+        extra_relative: f"file:{_sha256(b'third' + bytes([10]))}:0600:1",
+    }
+    extra_real = {
+        **after_real,
+        "registered_v2_2_primary_container": {
+            **after_container,
+            f"{prefix}/{extra_relative}": extra_active[extra_relative],
+        },
+        "registered_v2_2_ledger": extra_active,
     }
     with pytest.raises(
         implementation.RehearsalV22Error,
         match="exceeded exact evidence writes",
     ):
         implementation._validate_active_ledger_positive_transition(
-            binding=binding,
+            mode="REGISTERED_OFFICIAL",
+            container_root=container_root,
+            ledger_root=ledger_root,
             before_real=before_real,
-            after_real={**before_real, "registered_v2_2_ledger": extra_active},
+            after_real=extra_real,
             before_active=before_active,
             after_active=extra_active,
             created=created,
         )
+
+
+def test_exact_os_active_ledger_accepts_real_nested_container_projection(
+    tmp_path: Path,
+) -> None:
+    document = _run_exact_nested_fingerprint_probe(tmp_path, scenario="positive")
+    assert document["changed_registered_keys"] == [
+        "registered_v2_2_ledger",
+        "registered_v2_2_primary_container",
+    ]
+
+
+@pytest.mark.parametrize(
+    ("drift_kind", "expected_changed"),
+    (
+        (
+            "outside-ledger-file",
+            [
+                "registered_v2_2_ledger",
+                "registered_v2_2_primary_container",
+            ],
+        ),
+        ("container-only", ["registered_v2_2_primary_container"]),
+        (
+            "third-key",
+            [
+                "real_heldout_root",
+                "registered_v2_2_ledger",
+                "registered_v2_2_primary_container",
+            ],
+        ),
+    ),
+)
+def test_exact_os_active_ledger_rejects_real_nested_projection_drift(
+    tmp_path: Path,
+    drift_kind: str,
+    expected_changed: list[str],
+) -> None:
+    document = _run_exact_nested_fingerprint_probe(tmp_path, scenario=drift_kind)
+    assert document["changed_registered_keys"] == expected_changed
 
 
 def test_exact_os_genuine_capability_rejects_stolen_closure_and_atomic_race_probes(

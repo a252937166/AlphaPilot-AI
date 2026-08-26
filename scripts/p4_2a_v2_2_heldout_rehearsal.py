@@ -2801,13 +2801,13 @@ def _build_authority_state() -> tuple[Any, ...]:
                 and history.records[-1].outcome == "INCOMPLETE_UNTERMINALIZED"
                 and history.records[-1].terminal_path is None
             ):
-                _validate_continuation_mirror_state(
+                _validate_hot_second_copy_commitment(
                     binding,
                     history,
-                    permit_unmirrored_final_incomplete=True,
+                    allow_unmirrored_final=True,
                 )
             else:
-                _validate_second_copy_history(binding, history)
+                _validate_hot_second_copy_commitment(binding, history)
             if history.series_closed:
                 raise RehearsalV22Error(
                     "capability action cannot start after the selected candidate"
@@ -2824,9 +2824,9 @@ def _build_authority_state() -> tuple[Any, ...]:
                     os.path.lexists(path) for path in _final_mirror_targets(binding, history)
                 )
                 if target_presence == (True, True, True):
-                    _validate_second_copy_history(binding, history)
+                    _validate_hot_second_copy_commitment(binding, history)
                 elif target_presence == (False, False, False):
-                    _validate_second_copy_history(
+                    _validate_hot_second_copy_commitment(
                         binding,
                         history,
                         allow_unmirrored_final=True,
@@ -2836,7 +2836,7 @@ def _build_authority_state() -> tuple[Any, ...]:
                         "current capability attempt has partial mirror artifacts"
                     )
             else:
-                _validate_second_copy_history(binding, history)
+                _validate_hot_second_copy_commitment(binding, history)
             expected_previous = record.previous_history_root_sha256
         else:
             raise RehearsalV22Error("capability action ordinal is not live or next")
@@ -5248,6 +5248,10 @@ MIRROR_RECEIPT_FIELDS = {
     "second_copy_verified",
     "verified_at_utc",
 }
+HOT_SECOND_COPY_COMMITMENT_SCHEMA = "p4.2a-v2-2-series-2-hot-second-copy-commitment-v1"
+HOT_SECOND_COPY_FIXED_WORK_UNITS = 10
+HOT_SECOND_COPY_PER_SNAPSHOT_WORK_UNITS = 6
+HOT_SECOND_COPY_MAX_RECEIPT_BYTES = 4096
 
 
 @dataclass(frozen=True)
@@ -5686,6 +5690,368 @@ def _strict_receipt_root(
         root_before=root_before,
     )
     return tuple(inventory.payloads.items())
+
+
+def _validate_hot_second_copy_commitment(
+    binding: ExecutionBinding,
+    history: HistoryValidation,
+    *,
+    allow_unmirrored_final: bool = False,
+) -> JsonObject:
+    """Bind immutable mirror descriptors without replaying snapshot payload trees.
+
+    ``validate_live_history`` remains the caller's full validation of the active
+    ledger.  The full recursive second-copy validator remains mandatory at
+    preflight, continuation, seal/mirror, bundle, and release boundaries.  In
+    between those boundaries, capability consumption needs only prove that the
+    same create-only snapshot names and paired, canonical seal receipts still
+    bind the already-validated history.  This keeps the hot work linear in the
+    number of sealed ordinals and independent of accumulated snapshot bytes.
+    """
+
+    _validate_registered_storage_roots(binding)
+    count = len(history.records)
+    if allow_unmirrored_final and count == 0:
+        raise RehearsalV22Error("empty history cannot permit an unmirrored final attempt")
+    expected_verified = count - (1 if allow_unmirrored_final else 0)
+    if expected_verified < 0:
+        raise RehearsalV22Error("hot mirror commitment count is invalid")
+    leaves = (
+        binding.secondary_snapshot_root,
+        binding.primary_receipt_root,
+        binding.secondary_receipt_root,
+    )
+    present = tuple(os.path.lexists(path) for path in leaves)
+    if expected_verified == 0:
+        if present != (False, False, False):
+            raise RehearsalV22Error(
+                "unmirrored history has persistent mirror initialization residue"
+            )
+    elif present != (True, True, True):
+        raise RehearsalV22Error("series-2 hot mirror leaves are partial or absent")
+
+    held_roots: list[tuple[int, Path, os.stat_result, str]] = []
+    held_snapshots: list[tuple[int, Path, os.stat_result, str]] = []
+    receipt_identities: list[tuple[int, str, tuple[int, ...], str]] = []
+
+    def open_root(
+        path: Path,
+        label: str,
+        *,
+        parent_descriptor: int | None = None,
+        entry_name: str | None = None,
+    ) -> tuple[int, Path, os.stat_result, str]:
+        descriptor, before = _open_stable_read_descriptor(
+            path,
+            label=label,
+            directory=True,
+            parent_descriptor=parent_descriptor,
+            entry_name=entry_name,
+        )
+        if stat.S_IMODE(before.st_mode) != 0o700 or before.st_uid != os.getuid():
+            os.close(descriptor)
+            raise RehearsalV22Error(f"{label} owner or mode drifted")
+        result = (descriptor, path, before, label)
+        held_roots.append(result)
+        return result
+
+    def direct_names(descriptor: int, label: str) -> list[str]:
+        names = sorted(os.listdir(descriptor), key=lambda value: value.encode("utf-8"))
+        if any(
+            not isinstance(name, str) or name in {"", ".", ".."} or "/" in name for name in names
+        ):
+            raise RehearsalV22Error(f"{label} contains an invalid direct member")
+        return names
+
+    def receipt_payloads(
+        root: tuple[int, Path, os.stat_result, str],
+    ) -> tuple[tuple[str, bytes], ...]:
+        descriptor, path, _before, label = root
+        result: list[tuple[str, bytes]] = []
+        for name in direct_names(descriptor, label):
+            child = path / name
+            payload, metadata = _read_stable_regular_descriptor(
+                child,
+                label=f"{label} receipt {name}",
+                parent_descriptor=descriptor,
+                entry_name=name,
+            )
+            if len(payload) > HOT_SECOND_COPY_MAX_RECEIPT_BYTES:
+                raise RehearsalV22Error("hot mirror receipt exceeds its registered byte bound")
+            receipt_identities.append(
+                (descriptor, name, _stat_identity(metadata), f"{label} receipt {name}")
+            )
+            result.append((name, payload))
+        return tuple(result)
+
+    result: JsonObject | None = None
+    try:
+        primary_container = open_root(
+            binding.primary_series_container,
+            "series-2 hot primary owner container",
+        )
+        secondary_container = open_root(
+            binding.secondary_series_container,
+            "series-2 hot secondary owner container",
+        )
+        primary_names = direct_names(primary_container[0], primary_container[3])
+        secondary_names = direct_names(secondary_container[0], secondary_container[3])
+        expected_primary_names = [binding.ledger_root.name] if history.ledger_exists else []
+        if expected_verified:
+            expected_primary_names.append(binding.primary_receipt_root.name)
+        expected_secondary_names = (
+            sorted(
+                [
+                    binding.secondary_snapshot_root.name,
+                    binding.secondary_receipt_root.name,
+                ],
+                key=lambda value: value.encode("utf-8"),
+            )
+            if expected_verified
+            else []
+        )
+        if (
+            primary_names
+            != sorted(
+                expected_primary_names,
+                key=lambda value: value.encode("utf-8"),
+            )
+            or secondary_names != expected_secondary_names
+        ):
+            raise RehearsalV22Error(
+                "series-2 owner container contains an unregistered direct member"
+            )
+
+        commitment_rows: list[JsonObject] = []
+        snapshot_names: list[str] = []
+        primary_receipts: tuple[tuple[str, bytes], ...] = ()
+        secondary_receipts: tuple[tuple[str, bytes], ...] = ()
+        if expected_verified:
+            snapshot_root = open_root(
+                binding.secondary_snapshot_root,
+                "series-2 hot snapshot root",
+                parent_descriptor=secondary_container[0],
+                entry_name=binding.secondary_snapshot_root.name,
+            )
+            primary_receipt_root = open_root(
+                binding.primary_receipt_root,
+                "series-2 hot primary receipt root",
+                parent_descriptor=primary_container[0],
+                entry_name=binding.primary_receipt_root.name,
+            )
+            secondary_receipt_root = open_root(
+                binding.secondary_receipt_root,
+                "series-2 hot secondary receipt root",
+                parent_descriptor=secondary_container[0],
+                entry_name=binding.secondary_receipt_root.name,
+            )
+            snapshot_names = direct_names(snapshot_root[0], snapshot_root[3])
+            if len(snapshot_names) != expected_verified:
+                raise RehearsalV22Error("hot mirror snapshot count blocks capability use")
+            for name in snapshot_names:
+                snapshot = binding.secondary_snapshot_root / name
+                descriptor, before = _open_stable_read_descriptor(
+                    snapshot,
+                    label=f"series-2 hot held snapshot {name}",
+                    directory=True,
+                    parent_descriptor=snapshot_root[0],
+                    entry_name=name,
+                )
+                if stat.S_IMODE(before.st_mode) != 0o700 or before.st_uid != os.getuid():
+                    os.close(descriptor)
+                    raise RehearsalV22Error("hot mirror snapshot owner or mode drifted")
+                held_snapshots.append(
+                    (descriptor, snapshot, before, f"series-2 hot held snapshot {name}")
+                )
+            primary_receipts = receipt_payloads(primary_receipt_root)
+            secondary_receipts = receipt_payloads(secondary_receipt_root)
+            if primary_receipts != secondary_receipts:
+                raise RehearsalV22Error("hot paired mirror receipt bytes differ")
+            if len(primary_receipts) != expected_verified:
+                raise RehearsalV22Error("hot mirror receipt count blocks capability use")
+
+            observed_snapshot_names: list[str] = []
+            for expected_ordinal, (filename, payload) in enumerate(primary_receipts, 1):
+                document = _object(
+                    strict_json_loads(
+                        payload,
+                        source=f"hot mirror receipt {expected_ordinal}",
+                    ),
+                    f"hot mirror receipt {expected_ordinal}",
+                )
+                if (
+                    set(document) != MIRROR_RECEIPT_FIELDS
+                    or _canonical_json_bytes(document) != payload
+                ):
+                    raise RehearsalV22Error("hot mirror receipt is not exact canonical JSON")
+                live_root = document.get("live_ledger_root_sha256")
+                history_root = document.get("history_root_sha256")
+                primary_inventory_root = document.get("primary_inventory_sha256")
+                secondary_inventory_root = document.get("secondary_inventory_sha256")
+                file_count = document.get("file_count")
+                total_bytes = document.get("total_bytes")
+                record = history.records[expected_ordinal - 1]
+                snapshot_name = (
+                    _mirror_snapshot_name(
+                        expected_ordinal,
+                        cast(str, live_root),
+                    )
+                    if _lower_hex(live_root, 64)
+                    else ""
+                )
+                snapshot_path = binding.secondary_snapshot_root / snapshot_name
+                if (
+                    document.get("schema_version") != MIRROR_RECEIPT_SCHEMA
+                    or document.get("series_token_sha256") != binding.series_token_sha256
+                    or type(document.get("ordinal")) is not int
+                    or document.get("ordinal") != expected_ordinal
+                    or document.get("attempt_outcome") != record.outcome
+                    or document.get("attempt_sealed")
+                    is not (record.outcome != "INCOMPLETE_UNTERMINALIZED")
+                    or document.get("primary_ledger_root") != binding.ledger_root.as_posix()
+                    or not _lower_hex(live_root, 64)
+                    or not _lower_hex(history_root, 64)
+                    or history_root != record.history_root_sha256
+                    or not _lower_hex(primary_inventory_root, 64)
+                    or primary_inventory_root != secondary_inventory_root
+                    or type(file_count) is not int
+                    or file_count < 1
+                    or type(total_bytes) is not int
+                    or total_bytes < 1
+                    or filename != _mirror_receipt_filename(expected_ordinal, cast(str, live_root))
+                    or document.get("secondary_snapshot_root") != snapshot_path.as_posix()
+                    or document.get("second_copy_verified") is not True
+                    or document.get("verified_at_utc") != FIXED_WALL_CLOCK_TEXT
+                ):
+                    raise RehearsalV22Error("hot mirror receipt binding drifted")
+                if (
+                    expected_ordinal == count
+                    and expected_verified == count
+                    and (
+                        history_root != history.history_root_sha256
+                        or live_root != history.live_ledger_root_sha256
+                    )
+                ):
+                    raise RehearsalV22Error(
+                        "latest hot mirror receipt does not bind the active ledger"
+                    )
+                observed_snapshot_names.append(snapshot_name)
+                commitment_rows.append(
+                    {
+                        "ordinal": expected_ordinal,
+                        "receipt_name": filename,
+                        "receipt_sha256": _sha256(payload),
+                        "snapshot_name": snapshot_name,
+                        "history_root_sha256": history_root,
+                        "live_ledger_root_sha256": live_root,
+                        "attempt_outcome": record.outcome,
+                        "attempt_sealed": document.get("attempt_sealed"),
+                        "file_count": file_count,
+                        "total_bytes": total_bytes,
+                        "primary_inventory_sha256": primary_inventory_root,
+                        "secondary_inventory_sha256": secondary_inventory_root,
+                    }
+                )
+            if snapshot_names != sorted(
+                observed_snapshot_names,
+                key=lambda value: value.encode("utf-8"),
+            ):
+                raise RehearsalV22Error("hot mirror snapshot names differ from receipts")
+
+            if (
+                direct_names(snapshot_root[0], snapshot_root[3]) != snapshot_names
+                or tuple(name for name, _payload in primary_receipts)
+                != tuple(direct_names(primary_receipt_root[0], primary_receipt_root[3]))
+                or tuple(name for name, _payload in secondary_receipts)
+                != tuple(direct_names(secondary_receipt_root[0], secondary_receipt_root[3]))
+            ):
+                raise RehearsalV22Error("hot mirror roots changed during commitment read")
+            for descriptor, name, identity, label in receipt_identities:
+                current = os.stat(name, dir_fd=descriptor, follow_symlinks=False)
+                if _stat_identity(current) != identity:
+                    raise RehearsalV22Error(f"{label} identity changed after read")
+
+        if (
+            direct_names(primary_container[0], primary_container[3]) != primary_names
+            or direct_names(secondary_container[0], secondary_container[3]) != secondary_names
+        ):
+            raise RehearsalV22Error("series-2 owner container changed during hot validation")
+
+        roots_inspected = 2 + (3 if expected_verified else 0) + len(snapshot_names)
+        container_entries_inspected = len(primary_names) + len(secondary_names)
+        snapshot_entries_inspected = len(snapshot_names)
+        receipt_entries_inspected = len(primary_receipts) + len(secondary_receipts)
+        receipt_payloads_read = len(primary_receipts) + len(secondary_receipts)
+        receipt_payload_bytes_read = sum(
+            len(payload) for _name, payload in (*primary_receipts, *secondary_receipts)
+        )
+        work_units = (
+            roots_inspected
+            + container_entries_inspected
+            + snapshot_entries_inspected
+            + receipt_entries_inspected
+            + receipt_payloads_read
+        )
+        work_limit = (
+            HOT_SECOND_COPY_FIXED_WORK_UNITS
+            + HOT_SECOND_COPY_PER_SNAPSHOT_WORK_UNITS * expected_verified
+        )
+        receipt_byte_limit = 2 * HOT_SECOND_COPY_MAX_RECEIPT_BYTES * expected_verified
+        snapshot_payload_files_hashed = 0
+        snapshot_payload_bytes_hashed = 0
+        if (
+            work_units > work_limit
+            or receipt_payload_bytes_read > receipt_byte_limit
+            or snapshot_payload_files_hashed != 0
+            or snapshot_payload_bytes_hashed != 0
+        ):
+            raise RehearsalV22Error("hot mirror commitment exceeded its linear work bound")
+        result = {
+            "schema_version": HOT_SECOND_COPY_COMMITMENT_SCHEMA,
+            "sealed_snapshot_count": expected_verified,
+            "commitment_sha256": _sha256(_canonical_json_bytes(commitment_rows)),
+            "commitment_rows": commitment_rows,
+            "work": {
+                "root_directories_inspected": roots_inspected,
+                "container_entries_inspected": container_entries_inspected,
+                "snapshot_entries_inspected": snapshot_entries_inspected,
+                "receipt_entries_inspected": receipt_entries_inspected,
+                "receipt_payloads_read": receipt_payloads_read,
+                "receipt_payload_bytes_read": receipt_payload_bytes_read,
+                "snapshot_payload_files_hashed": snapshot_payload_files_hashed,
+                "snapshot_payload_bytes_hashed": snapshot_payload_bytes_hashed,
+                "work_units": work_units,
+                "linear_work_unit_limit": work_limit,
+                "receipt_payload_byte_limit": receipt_byte_limit,
+            },
+        }
+    except BaseException:
+        for descriptor, _path, _before, _label in reversed(held_snapshots):
+            with suppress(OSError):
+                os.close(descriptor)
+        for descriptor, _path, _before, _label in reversed(held_roots):
+            with suppress(OSError):
+                os.close(descriptor)
+        raise
+
+    close_error: BaseException | None = None
+    for descriptor, path, before, label in reversed(held_snapshots):
+        try:
+            _close_stable_directory_descriptor(descriptor, path, before, label=label)
+        except BaseException as exc:
+            if close_error is None:
+                close_error = exc
+    for descriptor, path, before, label in reversed(held_roots):
+        try:
+            _close_stable_directory_descriptor(descriptor, path, before, label=label)
+        except BaseException as exc:
+            if close_error is None:
+                close_error = exc
+    if close_error is not None:
+        raise close_error
+    if result is None:
+        raise RehearsalV22Error("hot mirror commitment produced no observation")
+    return result
 
 
 def _validate_second_copy_history(
@@ -8808,34 +9174,309 @@ REGISTERED_FINGERPRINT_KEYS = frozenset(
     }
 )
 
+# There are sixteen AST Call nodes plus one FunctionDef: seventeen source-level
+# semantic occurrences.  Raw text search also sees the audit strings below, so it is
+# intentionally not the counting rule.  The table never drives the predicate.
+# Each row is (source occurrence, official reachability, legitimate changed keys,
+# paired-span explanation).
+REAL_PATH_FINGERPRINT_OCCURRENCE_AUDIT = (
+    (
+        "validate_disposable_capability.snapshot_compare",
+        "disposable_only",
+        (),
+        "Seeded by _run_cli; disposable state is outside all registered roots.",
+    ),
+    (
+        "validate_replay_capability.snapshot_compare",
+        "official",
+        (),
+        "Standalone validator replay is read-only; its authority is a sibling temp root.",
+    ),
+    (
+        "_official_validator_replay_scope.in_process_before",
+        "official",
+        (),
+        "Before borrowing validator authority for a staged, unpublished bundle.",
+    ),
+    (
+        "_official_validator_replay_scope.in_process_after",
+        "official",
+        (),
+        "In-process validation may not change any registered path.",
+    ),
+    (
+        "_official_validator_replay_scope.standalone_before",
+        "official",
+        (),
+        "Before creating a sibling validator-replay temp authority.",
+    ),
+    (
+        "_official_validator_replay_scope.standalone_after",
+        "official",
+        (),
+        "Replay authority creation, use and cleanup stay outside registered roots.",
+    ),
+    (
+        "_real_path_fingerprints.definition",
+        "definition_not_call",
+        (),
+        "The seventeenth semantic occurrence is the definition, not an AST Call node.",
+    ),
+    (
+        "_run_disposable_release_probe.before",
+        "disposable_only",
+        (),
+        "Registered official mode returns before this synthetic-release span.",
+    ),
+    (
+        "_run_disposable_release_probe.after",
+        "disposable_only",
+        (),
+        "Disposable release writes remain under the synthetic project root.",
+    ),
+    (
+        "_preallocation_authority_probes.before",
+        "official",
+        (),
+        "All hostile authority probes must reject before effect.",
+    ),
+    (
+        "_preallocation_authority_probes.forged_disposable_snapshot",
+        "disposable_only",
+        (),
+        "The official branch does not construct a disposable capability snapshot.",
+    ),
+    (
+        "_preallocation_authority_probes.wrong_disposable_snapshot",
+        "disposable_only",
+        (),
+        "The official branch does not construct a disposable capability snapshot.",
+    ),
+    (
+        "_preallocation_authority_probes.after",
+        "official",
+        (),
+        "Preallocation probes may not allocate or write registered state.",
+    ),
+    (
+        "_ledger_create_only_probes.positive_before",
+        "official",
+        (
+            "registered_v2_2_ledger",
+            "registered_v2_2_primary_container",
+        ),
+        "Begins the exact two-file active-ledger positive transition.",
+    ),
+    (
+        "_ledger_create_only_probes.positive_after_and_negative_baseline",
+        "official",
+        (
+            "registered_v2_2_ledger",
+            "registered_v2_2_primary_container",
+        ),
+        "Only ancestor-or-self views of the active ledger may reflect the two writes.",
+    ),
+    (
+        "_ledger_create_only_probes.negative_after",
+        "official",
+        (),
+        "All mutation probes after the positive baseline must reject before effect.",
+    ),
+    (
+        "_run_cli.disposable_capability_seed",
+        "disposable_only",
+        (),
+        "Official execution does not seed a disposable registered-path snapshot.",
+    ),
+)
+
+# Terminal sealing and second-copy publication are deliberately not bracketed by a
+# _real_path_fingerprints equality span.  Terminal persistence changes the active
+# ledger and its ancestor view.  Mirror-only publication changes five registered
+# views, and their union is six keys.
+TERMINAL_SEAL_REGISTERED_KEY_AUDIT = (
+    "registered_v2_2_ledger",
+    "registered_v2_2_primary_container",
+)
+MIRROR_ONLY_REGISTERED_KEY_AUDIT = (
+    "registered_v2_2_primary_container",
+    "registered_v2_2_primary_receipts",
+    "registered_v2_2_secondary_container",
+    "registered_v2_2_secondary_receipts",
+    "registered_v2_2_secondary_snapshots",
+)
+SEAL_THEN_MIRROR_REGISTERED_KEY_AUDIT = (
+    "registered_v2_2_ledger",
+    "registered_v2_2_primary_container",
+    "registered_v2_2_primary_receipts",
+    "registered_v2_2_secondary_container",
+    "registered_v2_2_secondary_receipts",
+    "registered_v2_2_secondary_snapshots",
+)
+SEAL_THEN_MIRROR_ATTEMPT_1_AUDIT_NOTE = (
+    "Attempt 1 raised inside the positive-ledger transition before the negative-after "
+    "snapshot. SeriesLedger.__exit__ then persisted the failure terminal and mirrored "
+    "it outside every _real_path_fingerprints equality span. Mirror safety came from "
+    "the dedicated capability, tree inventory, paired receipts and second-copy check."
+)
+
+
+def _registered_fingerprint_scopes(
+    *,
+    primary_series_container: Path,
+    ledger_root: Path,
+) -> dict[str, Path]:
+    scopes = {
+        "registered_v2_2_primary_container": primary_series_container,
+        "registered_v2_2_secondary_container": OFFICIAL_SECONDARY_SERIES_CONTAINER,
+        "registered_v2_2_destination": OFFICIAL_DESTINATION,
+        "registered_v2_2_ledger": ledger_root,
+        "registered_v2_2_primary_receipts": OFFICIAL_PRIMARY_RECEIPT_ROOT,
+        "registered_v2_2_secondary_snapshots": OFFICIAL_SECONDARY_SNAPSHOT_ROOT,
+        "registered_v2_2_secondary_receipts": OFFICIAL_SECONDARY_RECEIPT_ROOT,
+        "lost_v2_2_ledger": LEGACY_OFFICIAL_LEDGER_ROOT,
+        "retired_v2_1_destination": V2_1_DESTINATION,
+        "consumed_v2_1_claim": V2_1_EMPTY_CLAIM,
+        "real_heldout_root": PROTECTED_HELDOUT_ROOT,
+    }
+    if frozenset(scopes) != REGISTERED_FINGERPRINT_KEYS:
+        raise RehearsalV22Error("registered fingerprint scope key set drifted")
+    return scopes
+
+
+def _shallow_registered_fingerprint(
+    root: Path,
+    *,
+    hash_regular_payloads: bool,
+) -> dict[str, str]:
+    """Fingerprint one root and its direct members without recursive descent."""
+
+    if not os.path.lexists(root):
+        return {".": "absent"}
+    metadata = root.lstat()
+    if root.is_symlink():
+        return {".": f"symlink:{os.readlink(root)}"}
+    if root.is_file():
+        digest = _sha256(root.read_bytes()) if hash_regular_payloads else "not-read"
+        return {".": (f"file:{digest}:{stat.S_IMODE(metadata.st_mode):04o}:{metadata.st_nlink}")}
+    if not root.is_dir():
+        return {".": f"special:{metadata.st_mode:o}"}
+    observed = {".": f"directory:{stat.S_IMODE(metadata.st_mode):04o}"}
+    for path in sorted(root.iterdir(), key=lambda item: os.fsencode(item.name)):
+        member = path.lstat()
+        if path.is_symlink():
+            value = f"symlink:{os.readlink(path)}"
+        elif path.is_file():
+            digest = _sha256(path.read_bytes()) if hash_regular_payloads else "not-read"
+            value = f"file:{digest}:{stat.S_IMODE(member.st_mode):04o}:{member.st_nlink}"
+        elif path.is_dir():
+            value = (
+                f"directory:{stat.S_IMODE(member.st_mode):04o}:"
+                f"device:{member.st_dev}:inode:{member.st_ino}:uid:{member.st_uid}"
+            )
+        else:
+            value = f"special:{member.st_mode:o}"
+        observed[path.name] = value
+    return observed
+
+
+def _receipt_commitment_fingerprint(
+    root: Path,
+) -> tuple[dict[str, str], dict[str, str]]:
+    """Hash only the small, direct receipt files and expose their byte roots."""
+
+    fingerprint = _shallow_registered_fingerprint(
+        root,
+        hash_regular_payloads=True,
+    )
+    receipt_roots = {
+        name: value.split(":", 2)[1]
+        for name, value in fingerprint.items()
+        if name != "." and value.startswith("file:")
+    }
+    return fingerprint, receipt_roots
+
+
+def _snapshot_commitment_fingerprint(
+    root: Path,
+    *,
+    receipt_roots: Mapping[str, str],
+) -> dict[str, str]:
+    """Bind snapshot names to seal-time roots without reading snapshot payloads."""
+
+    observed = _shallow_registered_fingerprint(
+        root,
+        hash_regular_payloads=False,
+    )
+    for name, value in tuple(observed.items()):
+        if name == "." or not value.startswith("directory:"):
+            continue
+        receipt_name = f"{name}.mirror-verification.json"
+        observed[name] = f"{value}:receipt:{receipt_roots.get(receipt_name, 'absent')}"
+    return observed
+
+
+def _composed_registered_container_fingerprint(
+    root: Path,
+    *,
+    children: Mapping[str, Mapping[str, str]],
+) -> dict[str, str]:
+    """Compose direct registered children while retaining active-ledger detail."""
+
+    shallow = _shallow_registered_fingerprint(root, hash_regular_payloads=True)
+    if shallow.get(".", "").startswith("directory:"):
+        observed: dict[str, str] = {".": shallow["."]}
+        for name, value in shallow.items():
+            if name == ".":
+                continue
+            child = children.get(name)
+            if child is None:
+                observed[name] = value
+                continue
+            for relative, child_value in child.items():
+                observed[name if relative == "." else f"{name}/{relative}"] = child_value
+    else:
+        observed = shallow
+    observed[".identity"] = (
+        f"device:{root.lstat().st_dev}:inode:{root.lstat().st_ino}:uid:{root.lstat().st_uid}"
+        if os.path.lexists(root)
+        else "absent"
+    )
+    return observed
+
 
 def _real_path_fingerprints() -> dict[str, Mapping[str, str]]:
+    active_ledger = _tree_fingerprint(OFFICIAL_LEDGER_ROOT)
+    primary_receipts, _primary_receipt_roots = _receipt_commitment_fingerprint(
+        OFFICIAL_PRIMARY_RECEIPT_ROOT
+    )
+    secondary_receipts, secondary_receipt_roots = _receipt_commitment_fingerprint(
+        OFFICIAL_SECONDARY_RECEIPT_ROOT
+    )
+    secondary_snapshots = _snapshot_commitment_fingerprint(
+        OFFICIAL_SECONDARY_SNAPSHOT_ROOT,
+        receipt_roots=secondary_receipt_roots,
+    )
     observed: dict[str, Mapping[str, str]] = {
-        "registered_v2_2_primary_container": {
-            **_tree_fingerprint(OFFICIAL_PRIMARY_SERIES_CONTAINER),
-            ".identity": (
-                f"device:{OFFICIAL_PRIMARY_SERIES_CONTAINER.lstat().st_dev}:"
-                f"inode:{OFFICIAL_PRIMARY_SERIES_CONTAINER.lstat().st_ino}:"
-                f"uid:{OFFICIAL_PRIMARY_SERIES_CONTAINER.lstat().st_uid}"
-                if os.path.lexists(OFFICIAL_PRIMARY_SERIES_CONTAINER)
-                else "absent"
-            ),
-        },
-        "registered_v2_2_secondary_container": {
-            **_tree_fingerprint(OFFICIAL_SECONDARY_SERIES_CONTAINER),
-            ".identity": (
-                f"device:{OFFICIAL_SECONDARY_SERIES_CONTAINER.lstat().st_dev}:"
-                f"inode:{OFFICIAL_SECONDARY_SERIES_CONTAINER.lstat().st_ino}:"
-                f"uid:{OFFICIAL_SECONDARY_SERIES_CONTAINER.lstat().st_uid}"
-                if os.path.lexists(OFFICIAL_SECONDARY_SERIES_CONTAINER)
-                else "absent"
-            ),
-        },
+        "registered_v2_2_primary_container": _composed_registered_container_fingerprint(
+            OFFICIAL_PRIMARY_SERIES_CONTAINER,
+            children={
+                OFFICIAL_LEDGER_ROOT.name: active_ledger,
+                OFFICIAL_PRIMARY_RECEIPT_ROOT.name: primary_receipts,
+            },
+        ),
+        "registered_v2_2_secondary_container": _composed_registered_container_fingerprint(
+            OFFICIAL_SECONDARY_SERIES_CONTAINER,
+            children={
+                OFFICIAL_SECONDARY_SNAPSHOT_ROOT.name: secondary_snapshots,
+                OFFICIAL_SECONDARY_RECEIPT_ROOT.name: secondary_receipts,
+            },
+        ),
         "registered_v2_2_destination": _tree_fingerprint(OFFICIAL_DESTINATION),
-        "registered_v2_2_ledger": _tree_fingerprint(OFFICIAL_LEDGER_ROOT),
-        "registered_v2_2_primary_receipts": _tree_fingerprint(OFFICIAL_PRIMARY_RECEIPT_ROOT),
-        "registered_v2_2_secondary_snapshots": _tree_fingerprint(OFFICIAL_SECONDARY_SNAPSHOT_ROOT),
-        "registered_v2_2_secondary_receipts": _tree_fingerprint(OFFICIAL_SECONDARY_RECEIPT_ROOT),
+        "registered_v2_2_ledger": active_ledger,
+        "registered_v2_2_primary_receipts": primary_receipts,
+        "registered_v2_2_secondary_snapshots": secondary_snapshots,
+        "registered_v2_2_secondary_receipts": secondary_receipts,
         "lost_v2_2_ledger": _tree_fingerprint(LEGACY_OFFICIAL_LEDGER_ROOT),
         "retired_v2_1_destination": _tree_fingerprint(V2_1_DESTINATION),
         "consumed_v2_1_claim": _tree_fingerprint(V2_1_EMPTY_CLAIM),
@@ -11630,9 +12271,83 @@ def _preallocation_authority_probes(
     }
 
 
+def _validate_registered_ledger_fingerprint_projection(
+    *,
+    container_root: Path,
+    ledger_root: Path,
+    before_real: Mapping[str, Mapping[str, str]],
+    after_real: Mapping[str, Mapping[str, str]],
+    before_active: Mapping[str, str],
+    after_active: Mapping[str, str],
+) -> None:
+    before_fingerprint_keys = frozenset(before_real)
+    after_fingerprint_keys = frozenset(after_real)
+    if (
+        before_fingerprint_keys != after_fingerprint_keys
+        or before_fingerprint_keys != REGISTERED_FINGERPRINT_KEYS
+    ):
+        raise RehearsalV22Error("registered fingerprint key set drifted")
+    if ledger_root == container_root or not ledger_root.is_relative_to(container_root):
+        raise RehearsalV22Error("active ledger root is not nested below its container")
+    scopes = _registered_fingerprint_scopes(
+        primary_series_container=container_root,
+        ledger_root=ledger_root,
+    )
+    ledger_scope_keys = {name for name, scope in scopes.items() if scope == ledger_root}
+    if len(ledger_scope_keys) != 1:
+        raise RehearsalV22Error(
+            "official active ledger fingerprint is not the registered ledger fingerprint"
+        )
+    ledger_key = next(iter(ledger_scope_keys))
+    if before_real[ledger_key] != before_active or after_real[ledger_key] != after_active:
+        raise RehearsalV22Error(
+            "official active ledger fingerprint is not the registered ledger fingerprint"
+        )
+    changed_real = {name for name in before_real if before_real[name] != after_real[name]}
+    expected_changed_real = {
+        name
+        for name, scope in scopes.items()
+        if scope == ledger_root or ledger_root.is_relative_to(scope)
+    }
+    if changed_real != expected_changed_real:
+        raise RehearsalV22Error(
+            "official positive ledger writes changed outside active ledger ancestor scopes"
+        )
+    ledger_changes = {
+        relative: (before_active.get(relative), after_active.get(relative))
+        for relative in sorted(
+            set(before_active) | set(after_active), key=lambda value: value.encode("utf-8")
+        )
+        if before_active.get(relative) != after_active.get(relative)
+    }
+    for name in expected_changed_real.difference(ledger_scope_keys):
+        prefix = ledger_root.relative_to(scopes[name]).as_posix()
+        projected_changes = {
+            (prefix if relative == "." else f"{prefix}/{relative}"): values
+            for relative, values in ledger_changes.items()
+        }
+        ancestor_changes = {
+            relative: (
+                before_real[name].get(relative),
+                after_real[name].get(relative),
+            )
+            for relative in sorted(
+                set(before_real[name]) | set(after_real[name]),
+                key=lambda value: value.encode("utf-8"),
+            )
+            if before_real[name].get(relative) != after_real[name].get(relative)
+        }
+        if ancestor_changes != projected_changes:
+            raise RehearsalV22Error(
+                "official active ledger ancestor fingerprint projection drifted"
+            )
+
+
 def _validate_active_ledger_positive_transition(
     *,
-    binding: ExecutionBinding,
+    mode: ExecutionMode,
+    container_root: Path,
+    ledger_root: Path,
     before_real: Mapping[str, Mapping[str, str]],
     after_real: Mapping[str, Mapping[str, str]],
     before_active: Mapping[str, str],
@@ -11649,7 +12364,7 @@ def _validate_active_ledger_positive_transition(
     expected_created: dict[str, str] = {}
     for path, payload in created:
         try:
-            relative = path.relative_to(binding.ledger_root).as_posix()
+            relative = path.relative_to(ledger_root).as_posix()
         except ValueError as exc:
             raise RehearsalV22Error("positive ledger evidence escaped the active ledger") from exc
         if relative in expected_created:
@@ -11671,23 +12386,18 @@ def _validate_active_ledger_positive_transition(
         raise RehearsalV22Error(
             "active ledger positive create-only transition exceeded exact evidence writes"
         )
-    official = binding.mode == "REGISTERED_OFFICIAL"
+    official = mode == "REGISTERED_OFFICIAL"
     if official:
-        if (
-            binding.ledger_root != OFFICIAL_LEDGER_ROOT
-            or before_real["registered_v2_2_ledger"] != before_active
-            or after_real["registered_v2_2_ledger"] != after_active
-        ):
-            raise RehearsalV22Error(
-                "official active ledger fingerprint is not the registered ledger fingerprint"
-            )
-        changed_real = {name for name in before_real if before_real[name] != after_real[name]}
-        if changed_real != {"registered_v2_2_ledger"}:
-            raise RehearsalV22Error(
-                "official positive ledger writes changed a non-ledger registered path"
-            )
-    elif binding.mode == "DISPOSABLE_FULL_SHAPE_TEST":
-        if binding.ledger_root == OFFICIAL_LEDGER_ROOT or before_real != after_real:
+        _validate_registered_ledger_fingerprint_projection(
+            container_root=container_root,
+            ledger_root=ledger_root,
+            before_real=before_real,
+            after_real=after_real,
+            before_active=before_active,
+            after_active=after_active,
+        )
+    elif mode == "DISPOSABLE_FULL_SHAPE_TEST":
+        if ledger_root == OFFICIAL_LEDGER_ROOT or before_real != after_real:
             raise RehearsalV22Error(
                 "disposable positive ledger writes changed a real registered path"
             )
@@ -11723,7 +12433,9 @@ def _ledger_create_only_probes(
     positive_real = _real_path_fingerprints()
     positive_active = _tree_fingerprint(binding.ledger_root)
     fingerprint_discipline = _validate_active_ledger_positive_transition(
-        binding=binding,
+        mode=binding.mode,
+        container_root=binding.primary_series_container,
+        ledger_root=binding.ledger_root,
         before_real=before_real,
         after_real=positive_real,
         before_active=before_active,
