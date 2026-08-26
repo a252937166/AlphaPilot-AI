@@ -1,0 +1,33 @@
+{
+  "schema_version": "p4.2a-independent-adjudication-v1",
+  "adjudication_id": "p4.2a-series2-epoch6-f12-blocked-adjudication-20260826-r1",
+  "created_at_utc": "2026-08-26T15:06:43Z",
+  "created_at_shanghai": "2026-08-26T23:06:43+08:00",
+  "verdict": "BLOCKED_EPOCH6_IMPLEMENTATION",
+  "blocked_candidate": "fc156f07a443e5b5de7022b96caccd53a59f63e4",
+  "issued_by": {"identity": "independent_ai_architect_claude_code", "reviewer_type": "ai", "model": "Anthropic Claude Fable 5 (model id claude-fable-5)", "impersonation_disclaimer": "Not a human reviewer and not the owner."},
+  "part_1_f12_result": {
+    "validator_module": "225 passed, 0 failed",
+    "runner_module": "188 passed, 2 errors at test_failed_incomplete_success_history_keeps_every_evidence_subtree and test_candidate_checkpoint_crash_preserves_candidate_and_unique_next_history",
+    "not_load": "reproduced standalone at load 5.7 in 17m, and again under a widened 600s checkpoint timeout: ordinals 1 and 2 checkpoint instantly, ordinal 3 never checkpoints. The 10-second timeout is not the cause."
+  },
+  "part_2_root_cause_confirmed": {
+    "mechanism": "epoch-6 keeps the primary-container fingerprint as a recursive _tree_fingerprint (rglob plus per-file sha256) of the whole container, which nests PRIMARY-LEDGER and MIRROR-RECEIPTS, and keeps registered_v2_2_secondary_snapshots as a recursive fingerprint of the snapshot root. The snapshot root accumulates one full byte-for-byte ledger copy per sealed ordinal, and the container grows with the ledger. _real_path_fingerprints, which hashes all eleven scopes recursively, is called many times per attempt, several before the started checkpoint is persisted.",
+    "consequence": "per-attempt fingerprint cost grows with the number of prior sealed ordinals and the accumulating snapshot copies. By ordinal 3 the pre-checkpoint fingerprinting over two accumulated full-ledger snapshots plus the grown container exceeds even a 600-second window, so the child never reaches started_persisted.",
+    "evidence": "the ordinal-3 child spawned about 880 seconds into the fixture and sampled in module import then select_poll_poll, the signature of heavy sequential subprocess and filesystem work; two through-ordinal snapshots were present under the secondary snapshot root; _tree_fingerprint rglobs the entire subtree.",
+    "why_attempt_1_did_not_show_it": "the official attempt 1 sealed a single failed ordinal and stopped; only a multi-ordinal series, which exists solely in this fixture, accumulates enough snapshots to blow the budget. Same F-16 class: the cost interaction lives in a path only the multi-ordinal exact-OS test exercises."
+  },
+  "part_3_finding_F17": {"id": "F-17", "title": "Recursive fingerprints over accumulating snapshot copies make per-attempt cost superlinear in sealed ordinals", "detail": "durable-evidence mirroring copies the full ledger every ordinal and the epoch-6 scope set fingerprints those copies recursively on every _real_path_fingerprints call. Correctness is fine; cost is not.", "note": "the 10-second checkpoint timeout is a separate fragility (recorded but not the cause) and must not be treated as the fix"},
+  "part_4_fix_direction_for_r2": {
+    "principle": "the positive-transition and immutability checks care only about the ACTIVE ledger subtree and whether non-ledger scopes are unchanged; they do not need to re-hash immutable already-sealed snapshots on every call",
+    "options_for_the_operator_to_choose_and_justify": [
+      "fingerprint the accumulating snapshot and receipt scopes by a cheap stable summary, for example a directory-entry-name and per-immutable-snapshot recorded-root manifest, rather than a full recursive byte re-hash on every call, since each through-ordinal snapshot is create-only and its root is already recorded at mirror time",
+      "or scope the hot pre-checkpoint fingerprint to exactly the keys the transition predicate consumes, computing the full recursive form only where an equality span genuinely requires it",
+      "either way preserve every correctness property: key set self-check, ancestor-projection equality, seal-then-mirror, and tamper detection over the active ledger and its container"
+    ],
+    "must_not": "do not fix this by widening the test timeout or by trimming what the mirror copies; the mirror's full copy is the durability guarantee and stays",
+    "test_requirement": "the exact-OS multi-ordinal fixture must run to SUCCESS at ordinal 3 within a sane bound, and a registered assertion must bound per-attempt fingerprint work so a future superlinear regression fails fast rather than at F-12",
+    "surface": "scripts/p4_2a_v2_2_heldout_rehearsal.py and tests/test_p4_2a_v2_2_heldout_rehearsal_runner.py; r2 as a new direct child of the SAME authority 3ccc2f2; fc156f07 stays in history"
+  },
+  "part_5_boundaries": {"series_2_ledger": "ordinal 1 FAILED, sealed and mirrored, untouched", "heldout_evaluation_one_shot": "unconsumed", "trading": "zero non-SIMULATE", "phase_locks": {"p4_2a_done": false, "p4_2b_unlocked": false, "p4_3_unlocked": false}}
+}
