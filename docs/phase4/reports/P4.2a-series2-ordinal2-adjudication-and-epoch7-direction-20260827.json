@@ -1,0 +1,99 @@
+{
+  "schema_version": "p4.2a-independent-adjudication-v1",
+  "adjudication_id": "p4.2a-series2-ordinal2-adjudication-and-epoch7-direction-20260827-r1",
+  "created_at_utc": "2026-08-27T12:48:18Z",
+  "created_at_shanghai": "2026-08-27T20:48:18+08:00",
+  "issued_by": {
+    "identity": "independent_ai_architect_claude_code",
+    "reviewer_type": "ai",
+    "model": "Anthropic Claude Opus 5 (model id claude-opus-5)",
+    "impersonation_disclaimer": "Not a human reviewer and not the owner. Owner decisions below were given by the owner in person to this reviewer and are transcript-bound."
+  },
+  "part_0_bootstrap_false_start_ruling": {
+    "event": "before the successful run, the operator launched FIXED_ORIG_ARGV_EXECUTABLE (the Python.app framework binary) directly as the OS launcher; the registered bootstrap rejected the invocation rc=1 before any ledger allocation",
+    "ruling": "non-consuming: the authorized single pipeline start is counted at ledger attempt allocation, which never occurred; R 2877f24843c69ec295f7fcb5ffe19ffd81371144 (sha256 371d92b946bf9f1f2e3ea67bf5cd8a47bc73190df33b89b8d404f92c12c97138) and B 8c32ae08e7177d810fbad3fc9cd7f0d0f01baf85 (sha256 626cdf1aa5e8b55bdd3fee8b5af90a1542a74210e8e62870ebf79f0a24134936) remained live; relaunch with FIXED_PYTHON_LAUNCHER was authorized and executed",
+    "operator_stop_summary_sha256": "29d03dec81e5258b82eeb5e2b60056afd01ecc045eeeb56343a0a0ab9402ce61"
+  },
+  "part_1_ordinal_2_adjudicated": {
+    "verdict": "VALID_SERIES_CLOSING_SUCCESS_WITH_FAILED_BUNDLE_VALIDATION",
+    "independently_verified_by_reviewer": {
+      "terminal": "outcome CANDIDATE_VALIDATED_AND_SELECTED, reached_stage bundle_candidate_validated, implementation_epoch 6, read from raw sealed ledger bytes",
+      "artifact_digests": "candidate e1d67123469ce63739936b7db8a520f4f0cc8dda969455a7117246cda4485086, terminal 3f41d80d63214af379bd8423ab7e0c61d6508ab19339f9bc7bf9a1d9ac4e0bf5, both recomputed by the reviewer",
+      "history_root": "832559b59a8edc09c04b0f5a7c09cea71e5c3597c2bdc0831072a4122bf016e7 recomputed by the reviewer from raw bytes over both ordinals using the registered ATTEMPT_RECORD/HISTORY_STEP recipe",
+      "live_ledger_root": "ab08612ba2e11e45c3a3415ca7079117f2a739bf470719abf4f204958272574d",
+      "mirror": "through-ordinal-000002 snapshot present; paired receipts 1222 bytes byte-identical, sha256 b8da48fa759d7f5301dff63eed61c711d3fb01e2715fbc45ddd27a28545820f6",
+      "run_roots": "run A and run B evidence roots equal at 5fb8edf3aa65cdcd0f54b82bdf6f240104fa8537c1004e640671910115f8f314 per sealed terminal"
+    },
+    "what_succeeded": "the second end-to-end synthetic success of the v2.2 rehearsal, and the first under the durable visible storage design: multi-ordinal hash-chained ledger, seal-then-mirror with dual receipts, and the epoch [5,6] chain all held in production",
+    "what_failed": "bundle independent validation after sealing and mirroring, before publication: first wall at validator _unique_a_authority (line 1947), message sha256 2ebe478fe691a6679e2fcde6d7fcfcd3c6525f38ba62e646392594b0f21c1c59; the pipeline exited rc=1 with zero automatic retries, destination and bundle absent, temporary authority cleaned",
+    "consumption": "the registered pipeline start authorized by R was consumed by this run; the series is closed with selected ordinal 2; no further attempt can run in this series"
+  },
+  "part_2_root_cause": {
+    "predicate": "_unique_a_authority requires exactly one global status-A touch for each pinned authority document, scanning git log --all --diff-merges=first-parent over every ref",
+    "pollution_source": "stale remote branch origin/codex/fix-backend-ci-portability, tip 265735831ad9fb51939ce4959f3aba63515b43c7 (Merge origin/main into CI baseline fix, 2026-08-11); the branch forked before the 8/11 governance documents existed, and its merge (second parent b21e1bdbf865dfd9c7605ecc7794fc3f8701ed1f) projects every file main created up to that point as a fresh first-parent A touch",
+    "blast_radius": "census over all 138 docs/phase4/reports files on main: 8 non-unique-A; six are implementation reviews whose (original + landing merge) pairs are lawful under the projection-aware path _validate_implementation_review_authority; one is a P4.1 document outside v2.2 lineage; exactly two strict-path documents are polluted, both solely by 265735831ad9: the v2.2 preregistration (original A be6423506f59) and the preregistration independent review (original A b21e1bdbf865)",
+    "why_undetected": "bundle-stage predicates were exercised only against synthetic repository fixtures with clean single-A histories; the registered-root preflight never ran the bundle-lineage stage; recurrence of the real-versus-synthetic divergence class"
+  },
+  "part_3_findings": {
+    "C_14": {
+      "owner_of_the_error": "the reviewer",
+      "statement": "the global A-touch census for every git-validated authority reference was checkable by pure recomputation before the attempt authorization was signed; the reviewer verified all 24 R fields and the review-reference merge projection but never enumerated real-history touches for the strict-path documents",
+      "rule_tightened": "before signing any start or recovery authorization, the reviewer runs the real-lineage census over every git-validated authority reference and confirms each satisfies the exact predicate the run will apply"
+    },
+    "F_18": {
+      "statement": "every bundle-stage predicate that reads the real repository must also be exercised read-only against the real repository during preflight, and the registered test modules must include a real-lineage census; synthetic fixtures cannot witness ref pollution",
+      "consequence": "epoch-7 preflight gains a read-only real-lineage census stage; its registered tests gain a real-repository positive"
+    }
+  },
+  "part_4_owner_decisions_bound": {
+    "binding": "both decisions given by the owner in person to this reviewer on 2026-08-27 CST via the reviewer's decision prompt; transcript-bound",
+    "decision_1_stale_branch": {
+      "decision": "archive then delete origin/codex/fix-backend-ci-portability",
+      "archive": {
+        "primary": "/Users/ouyangduning/AlphaPilot-EVIDENCE-DO-NOT-DELETE/git-ref-archives/archived-branch-codex-fix-backend-ci-portability-20260827.bundle",
+        "mirror": "/Users/ouyangduning/AlphaPilot-EVIDENCE-MIRROR-DO-NOT-DELETE/git-ref-archives/archived-branch-codex-fix-backend-ci-portability-20260827.bundle",
+        "sha256": "79892841a00c45cdd84fddeb762c64bbb9bbc5e519a701e114237b6507d7cd1f",
+        "bytes": 7742,
+        "dual_copies_byte_identical": true,
+        "git_bundle_verify": "PASS",
+        "prerequisite_commit": "b21e1bdbf865dfd9c7605ecc7794fc3f8701ed1f (permanent on main)",
+        "archived_content": "commits ae4d304c, c80f03db, c8765476 and merge 26573583; the equivalent CI work landed separately on main (16843e0)"
+      },
+      "deletion_procedure": "after this record lands on main: delete the remote branch, prune the remote-tracking ref, re-run the census and confirm both documents return to a single A touch"
+    },
+    "decision_2_epoch_7_scope": {
+      "decision": "full scope: sealed-bundle recovery entry point, dual byte anchors, and unique-A merge-projection byte-identity tolerance",
+      "rejected_alternatives": [
+        "minimal scope without predicate tolerance: leaves release-time re-validation fragile to any future in-flight branch that merges main",
+        "abandoning the bundle for a new series 3: dominated for the same reasons as the 2026-08-19 ruling; the same class of code change is still required and the sealed successful candidate would sit unused"
+      ]
+    }
+  },
+  "part_5_epoch_7_design_requirements": [
+    "recovery entry point: refuses to run unless the series is closed with a selected validated candidate; zero pipeline starts; governed by its own authorization document routed Q to R to B per the ratified default; the sealed ledger and mirror are read-only inputs; publishes the destination bundle then mirrors it with paired receipts; fail-closed with zero automatic retry",
+    "dual byte anchors: enumerate every current-bytes hook (at minimum the control-archive current-bytes branch at validator line 5164 and the per-epoch require_current_bytes at line 6052); the historical anchor binds archived selected-epoch bytes to git blobs at the attempt's implementation_commit; the live anchor binds executing code to the latest landed epoch's reviewed bytes; the coverage-preservation argument must be made explicitly as in the 2026-08-20 design f9e9774c",
+    "unique-A tolerance: _unique_a_authority and every other --all history scanner accept exactly one pinned creating-commit A touch plus additional A touches only when each additional touch is a merge commit's first-parent projection whose blob bytes equal the pinned digest byte-exactly; every other shape still fails",
+    "preflight extension: a read-only real-lineage census over every git-validated authority reference against the real repository, run before any start or recovery authorization is signed",
+    "registered tests: both modules; a synthetic recovery positive that rebuilds and validates a bundle from a closed [5,6]-shaped series; a real-lineage census positive against the actual repository; exact-OS variants per the registry",
+    "disclosure: the series-2 amendment's legacy_and_absence_rules remain False forever as amendment-time facts; epoch-7's additions are disclosed through epoch-7's own contract surface; the exact schema is settled in the design proposal"
+  ],
+  "part_6_sequence": [
+    "operator drafts the epoch-7 design proposal",
+    "reviewer design review, companion adjudication, then the owner's six-field epoch-7 surface authority as its direct child",
+    "operator implements on a branch as the direct child of the authority commit; F-15 before delivery",
+    "reviewer F-12 runs both complete registered modules at the candidate",
+    "persistent full registered gate, then merge-only landing, then registered-root preflight including the new census",
+    "recovery authorization routed Q to R to B with the owner's in-person confirmation",
+    "one recovery start publishes the bundle; the bundle enters the reviewer's bundle review toward release"
+  ],
+  "part_7_boundaries": {
+    "ledger": "sealed and read-only; ordinal 1 FAILED, ordinal 2 CANDIDATE_VALIDATED_AND_SELECTED; series closed with selected ordinal 2; history root 832559b59a8edc09c04b0f5a7c09cea71e5c3597c2bdc0831072a4122bf016e7",
+    "heldout_evaluation_one_shot": "unconsumed",
+    "trading": "zero non-SIMULATE",
+    "phase_locks": {
+      "p4_2a_done": false,
+      "p4_2b_unlocked": false,
+      "p4_3_unlocked": false
+    }
+  }
+}
