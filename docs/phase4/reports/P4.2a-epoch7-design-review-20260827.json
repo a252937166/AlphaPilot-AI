@@ -1,0 +1,69 @@
+{
+  "schema_version": "p4.2a-independent-adjudication-v1",
+  "adjudication_id": "p4.2a-epoch7-design-review-20260827-r1",
+  "created_at_utc": "2026-08-27T15:21:37Z",
+  "created_at_shanghai": "2026-08-27T23:21:37+08:00",
+  "purpose": "independent design review of the epoch-7 sealed-bundle recovery design proposal r1",
+  "issued_by": {
+    "identity": "independent_ai_architect_claude_code",
+    "reviewer_type": "ai",
+    "model": "Anthropic Claude Opus 5 (model id claude-opus-5)",
+    "impersonation_disclaimer": "Not a human reviewer and not the owner."
+  },
+  "document_reviewed": {
+    "path": "docs/phase4/reports/P4.2a-v2-2-series2-epoch7-sealed-bundle-recovery-design-proposal-20260827.md",
+    "sha256": "c80f9219a1bd61aee0bbf143295b177926377dab570aae578785dec95f628e0f",
+    "bytes": 53608,
+    "creating_commit": "9cd424c292d658c1ddb1092f618049e6283aabaf",
+    "topology": "unique-A single-parent child of 2dd5d60121dab100c3b2000ec73dbc5ce1cd4aa0, verified"
+  },
+  "verdict": "REVISE_AND_RESUBMIT_DESIGN_REVIEW",
+  "part_1_independently_reverified": [
+    "all 14 section-1 sealed bindings recomputed from raw ledger and receipt bytes: started 4166a58d/2109, candidate e1d67123/833, terminal 3f41d80d/12206, evidence root eb44c7f3, candidate content root 520c371e (candidate.json), control root 5948fd29 (started.json and candidate.json), implementation commit e5aab977, history root 832559b5, live root ab08612b, receipt b8da48fa/1222, inventory 16689ab8 with 48 files and 50237638 bytes, run roots 5fb8edf3",
+    "all eight producer hook line claims resolve to the exact claimed host functions: 9019/9105 _official_validator_replay_scope, 10263 replay_selected_pipeline, 10831 _implementation_epochs, 11042 _harness_identity, 12736 _read_only_implementation_preflight, 12848 _preflight_action, 13132 _execute_authorized_attempt, 3895-3899 validate_unique_a_authority worktree comparison",
+    "the four all-ref scanners are exactly as tabled: validator 1922 _unique_a_authority, 2022 review all_touches, 2163 rev-list --all --children in the initial-sibling validator, 2227 _unique_a_unserialized; the producer contains zero --all scans",
+    "full hashes confirmed: review source 78b2b51c84ad8e755e5daa45cc4b8d95aaf3a69d, landing projection 0961b1a781c5618a8623155b3ea911de7e9717da, former stale merge 265735831ad9fb51939ce4959f3aba63515b43c7",
+    "registered constants confirmed: DESTINATION_RELATIVE docs/phase4/rehearsals/P4.2a-v2-calibration-v2-2, bundle status PASS_REHEARSAL_V2_2_AWAITING_OWNER_REVIEW, argv/env hash prefixes p4.2a-v2.2-argv-v1 and p4.2a-v2.2-env-v1 with real NUL separators"
+  ],
+  "part_2_accepted": [
+    "four-path implementation surface and epoch-7 numbering",
+    "12-field epoch_7_recovery_contract carried by the companion; no fifth file",
+    "Q 13-field, R 19-field, B 12-field schemas; B as machine-consumed bootstrap input that can narrow but never widen R; bootstrap validation order ending before any filesystem write",
+    "separate owner-provisioned 0700 recovery containers; sealed series containers strictly read-only with before/after fingerprints",
+    "CLAIM-<R_SHA256> mkdir linearization; consumed-on-mkdir semantics; no automatic retry; crash matrix with owner-reconciliation states that permit neither deletion nor rerun",
+    "destination-first, snapshot-second, paired-receipt publication; two distinct same-filesystem stages; receipts without self path/digest",
+    "dual typed anchors with the complete 8.2 hook disposition for attempt-history and control paths, and the section 8.3 coverage-preservation argument",
+    "shared four-role authority census classifier with raw-byte-before-digest comparison and the nine projection criteria; no allowlist and no HEAD-only shortcut",
+    "real-lineage census contract, preflight-and-start timing, and the Q/R/B-only ref delta rule",
+    "permanent false amendment absence facts; no ordinal 3; no held-out consumption; registered test plan sections 12.1-12.6 including the F-17 workload bound"
+  ],
+  "part_3_defect_requiring_revision": {
+    "id": "D-1",
+    "title": "the recovered bundle has no surviving release-consumption path after epoch-7 lands",
+    "evidence_chain": [
+      "validator _validate_release_once (6605, invoked at 6765) validates a published bundle with published_release_revalidation=True",
+      "that flag routes (2792) to producer _validate_published_validator_bundle (8934), which borrows _official_validator_replay_scope (8983) with require_current checks (9019, 9105, 9022)",
+      "the bundle validation tail unconditionally invokes _active_replay_selected_pipeline (6378), reaching producer replay_selected_pipeline whose validate_implementation_blob call at 10263 uses the default require_current=True (definition 3746-3752: current-byte equality)",
+      "after epoch-7 lands, the worktree carries epoch-7 bytes, so every current-byte check against the selected epoch-6 implementation fails",
+      "a pinned historical checkout cannot evade this: the release authorization is created only after recovery, so no pre-epoch-7 commit can contain it"
+    ],
+    "classification": "the one-wall-later class that consumed epochs 3 and 4; the 2026-08-20 design f9e9774c section 7.3.1 existed precisely for this wall and this proposal dropped it while marking the release rows unchanged in section 8.2",
+    "required_revision_alternatives": [
+      "extend the section 8.2 disposition and section 12 tests to the published-release revalidation path within the same four files: historical anchor for selected identity, live anchor for executing code, and a registered post-epoch-7 release-revalidation positive",
+      "or disclose the release wall explicitly as a deferred follow-up epoch with its own owner acknowledgment, stating that epoch-7 recovery publishes a bundle that cannot be released until that epoch lands"
+    ],
+    "reviewer_preference": "the first alternative: one surgery, no deferred wall, no additional epoch"
+  },
+  "part_4_operational_note": "the census ref-delta rule freezes main between preflight and recovery start except the Q/R/B commits; any unrelated landing forces a fresh preflight and fresh create-only Q/R/B, never a loosened delta rule; schedule other main landings around the recovery window",
+  "part_5_sequence": "operator revises the proposal as r2 on the same branch as a new create-only document or superseding commit; the reviewer re-reviews the delta; companion and owner authority follow only after a passing design review",
+  "part_6_boundaries": {
+    "ledger": "sealed; ordinal 2 selected; series closed; history root 832559b59a8edc09c04b0f5a7c09cea71e5c3597c2bdc0831072a4122bf016e7",
+    "heldout_evaluation_one_shot": "unconsumed",
+    "trading": "zero non-SIMULATE",
+    "phase_locks": {
+      "p4_2a_done": false,
+      "p4_2b_unlocked": false,
+      "p4_3_unlocked": false
+    }
+  }
+}
