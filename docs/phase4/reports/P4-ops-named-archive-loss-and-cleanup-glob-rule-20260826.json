@@ -1,0 +1,21 @@
+{
+  "schema_version": "p4.2a-independent-adjudication-v1",
+  "adjudication_id": "p4-ops-named-archive-loss-and-cleanup-glob-rule-20260826-r1",
+  "created_at_utc": "2026-08-27T02:24:51Z",
+  "created_at_shanghai": "2026-08-27T10:24:51+08:00",
+  "issued_by": {"identity": "independent_ai_architect_claude_code", "reviewer_type": "ai", "model": "Anthropic Claude Fable 5 (model id claude-fable-5)", "impersonation_disclaimer": "Not a human reviewer and not the owner."},
+  "part_1_what_was_lost_and_when": {
+    "files": ["alphapilot-pre-p4.1-20260802T034014-CST.db", "alphapilot-before-daily-screening-20260730T215331CST.db", "alphapilot-before-orphan-sina-adj-cleanup-20260725T205024Z.db"],
+    "proof_of_existence_digests": {"pre_p4_1": "12eabd0c...9b807", "before_daily_screening_0730": "d49a5827...cb271", "before_orphan_cleanup_0725": "fc1bebd4...c41e5"},
+    "deleted_at": "2026-08-23 10:57 CST",
+    "cause": "an operator disk-cleanup command collected the whole backups directory with a bare *.db glob, kept only the newest-mtime daily and unlinked the rest; the same command then emptied the Trash. Confirmed by the operator from its own session log. Not the production retention code, not the reviewer's named deletions, not the owner.",
+    "trash_note": "the Trash-emptying step ran minutes after the owner's manual deletion of the hidden evidence directories in the same login window; if any deleted item was still in the Trash then, that step destroyed the last copy. Recorded as aggravation of W-7; nothing is recoverable either way and the sealed-ledger incident a7cea63 stands as adjudicated."
+  },
+  "part_2_impact": "operationally nil, as adjudicated in conversation: the three archives insured operations completed and validated weeks ago, no governance record pins their digests as a dependency, and disaster recovery rests on the live database plus the current dailies. Their digests above remain the permanent proof they existed.",
+  "part_3_not_an_incident": "the 2026-08-22, 08-23 and 08-24 daily backups are not missing: the reviewer deleted them by exact name on 2026-08-26 under the owner's disk-cleanup request, keeping the newest two dailies with all manifests retained. No investigation is warranted.",
+  "part_4_standing_rule": {
+    "rule": "every cleanup command run by any agent uses an explicit allowlist of exact filenames or anchored patterns; bare wildcards over a directory are forbidden. A cleanup touching data/backups may match only the managed daily pattern alphapilot-full-[0-9]{8}T[0-9]{12}Z.db and never a named archive. No cleanup command ever empties the Trash: the Trash is the owner's undo buffer, not an agent's.",
+    "lineage": "extends the no-broad-glob rule from the evidence-cleanup authorization and the W-7 durable-evidence rule to all cleanup surfaces"
+  },
+  "part_5_forensics_declined": "APFS carving on a TRIM-enabled SSD has near-zero odds, would require halting all disk writes mid-review-run, and the impact is nil; the owner's earlier disposition of the archives already treated them as expendable. Declined."
+}
