@@ -1,0 +1,809 @@
+{
+  "schema_version": "p4.2a-independent-adjudication-v1",
+  "adjudication_id": "p4.2a-epoch7-design-review-r2-and-companion-20260827-r1",
+  "created_at_utc": "2026-08-27T16:46:45Z",
+  "created_at_shanghai": "2026-08-28T00:46:45+08:00",
+  "purpose": "incremental design-review verdict for the epoch-7 r2 revision and companion narrative for the machine-consumable epoch-7 surface authority committed immediately after this document",
+  "issued_by": {
+    "identity": "independent_ai_architect_claude_code",
+    "reviewer_type": "ai",
+    "model": "Anthropic Claude Opus 5 (model id claude-opus-5)",
+    "impersonation_disclaimer": "Not a human reviewer and not the owner. The six-field authority that follows asserts owner approval because the owner gave it explicitly; the transcript binding is recorded below."
+  },
+  "part_1_design_reviewed": {
+    "verdict": "PASS_DESIGN_REVIEW",
+    "normative_design": "the r1 proposal plus the exact r2 overrides; on conflict r2 wins; ambiguity fails closed to design review",
+    "documents": [
+      {
+        "path": "docs/phase4/reports/P4.2a-v2-2-series2-epoch7-sealed-bundle-recovery-design-proposal-20260827.md",
+        "sha256": "c80f9219a1bd61aee0bbf143295b177926377dab570aae578785dec95f628e0f",
+        "bytes": 53608,
+        "creating_commit": "9cd424c292d658c1ddb1092f618049e6283aabaf"
+      },
+      {
+        "path": "docs/phase4/reports/P4.2a-v2-2-series2-epoch7-sealed-bundle-recovery-design-proposal-r2-20260827.md",
+        "sha256": "46ea89f8edf838edcca6b6f34996be273c7ea73e04ee7e2b998293c83984f3e1",
+        "bytes": 27880,
+        "creating_commit": "1e2e23f8948aa88376dfba45b01b2666b5c9ddaf"
+      }
+    ],
+    "d1_resolution": "accepted: the reviewer's first alternative, realized as a capability-gated read-only --consume-recovered-release operation with a closed three-mode enum (ACTIVE_ATTEMPT_BUNDLE, PASSIVE_RECOVERED_BUNDLE, PASSIVE_RECOVERED_RELEASE), a 40-field process-local RecoveredPublicationCapability, mandatory recovered classification whenever recovery evidence names the destination or bundle digest, and no fallback between modes; ordinary attempt-built release keeps active replay",
+    "pinned_values_independently_reverified": [
+      "all r2 sealed bindings recomputed from raw ledger bytes: candidate e1d67123/833, terminal 3f41d80d/12206, terminal artifact inventory exactly 36 entries and 50213329 aggregate bytes, evidence root eb44c7f3, run-A/run-B probes c53e94d5 and 7552c2a8 at 1273 bytes each, run roots equal at 5fb8edf3, history root 832559b5, live root ab08612b, receipt b8da48fa/1222",
+      "RELEASE_RELATIVE is exactly docs/phase4/reports/P4.2a-v2-heldout-rehearsal-v2-2-release-authorization-20260811.json; the registered series-2 release schema at config/schemas/p4_2a_v2_2_series_2_heldout_release_authorization.schema.json carries the amendment-pinned digest c7228bff2d4ec575bcdec024194ce2b53d37a27e05ba793bd4bdf145a97f63be",
+      "independent_checks.full_downstream_replay_passed in that schema is a bare const-true boolean with no description asserting release-time re-execution, so the r2 section 8.1 past-tense truth condition bound to the sealed run-A/run-B evidence with nine mandatory recomputation steps is textually and substantively honest",
+      "the release call graph is exactly as r2 describes: validate_release_authorization (def 6749) -> _validate_release_once (def 6605, call 6765) -> _validate_bundle_once (def 6204, call 6705) then _active_replay_validated_bundle (def 6351, calls 6411 and 6739) -> _active_replay_selected_pipeline (def 6167) -> producer _official_validator_replay_scope (def 8983) -> replay_selected_pipeline (def 10234) with validate_implementation_blob require_current=True by default (def 3746-3752)",
+      "producer _validate_published_validator_bundle spans 8934-8979 and does not itself invoke replay; every r2 hook-table row resolves to the named function"
+    ],
+    "reviewer_corrections_owned": "the r1 review's D-1 evidence chain contained two imprecisions that r2 correctly refined: line 8983 is the definition of _official_validator_replay_scope, not a call borrowed inside _validate_published_validator_bundle; and the unconditional active replay lives in the separate _active_replay_validated_bundle rather than in the tail of _validate_bundle_once. The D-1 conclusion was unaffected. r2's 'definition 6363' for that function is actually 6351; the named-function disposition is unambiguous and tolerated",
+    "design_judgments": {
+      "mode_separation": "accepted; the closed enum plus non-serializable capability makes passive consumption unreachable without independently revalidated recovery evidence, and active replay remains mandatory for ordinary attempt-built bundles",
+      "release_truth_condition": "accepted; full_downstream_replay_passed is provable only from the sealed ordinal-2 run trees, probes, inventory and roots, recomputed at consume time with zero pipeline starts",
+      "orthogonal_controls": "accepted; release schema/receipt/lineage/reviewed-head/census checks remain strict and are never moved to the historical anchor",
+      "test_delta": "accepted; the exact-OS recovered-release positive, active-path regression, negative capability-and-anchor matrix, static call-graph proofs and the F-17 work bound close the gaps that consumed earlier epochs",
+      "timing_rule": "accepted; the Q/R/B-only ref delta with fresh-preflight-on-invalidation is fail-closed and operationally explicit"
+    }
+  },
+  "part_2_owner_approval": {
+    "approved_by": "owner (ouyang), in person",
+    "binding": "transcript-bound: the owner approved the epoch-7 four-path M surface under the r1+r2 composite design (digests c80f9219 and 46ea89f8) on 2026-08-27 CST via the reviewer's decision prompt, with the surface preview and the new CLI operations shown explicitly",
+    "approved_surface": [
+      {
+        "path": "scripts/p4_2a_v2_2_heldout_rehearsal.py",
+        "status": "M"
+      },
+      {
+        "path": "scripts/validate_p4_2a_v2_2_heldout_rehearsal_bundle.py",
+        "status": "M"
+      },
+      {
+        "path": "tests/test_p4_2a_v2_2_heldout_rehearsal_runner.py",
+        "status": "M"
+      },
+      {
+        "path": "tests/test_p4_2a_v2_2_heldout_rehearsal_validator.py",
+        "status": "M"
+      }
+    ],
+    "explicitly_out_of_scope": [
+      "any gate, threshold, sample, seed, model, prompt, contract, gold or schema change",
+      "any ledger or sealed-mirror mutation; both are read-only inputs",
+      "the shim and the 24-field attempt schema",
+      "ordinal-3 allocation, held-out consumption, phase unlocks, trading"
+    ]
+  },
+  "epoch_7_recovery_contract": {
+    "schema_version": "p4.2a-v2-2-series2-epoch7-recovery-contract-v1",
+    "governing_adjudication": {
+      "path": "docs/phase4/reports/P4.2a-series2-ordinal2-adjudication-and-epoch7-direction-20260827.json",
+      "sha256": "47d8a9bbd842b496352ba210952539cb8ad1e7ab36091ab0465b8bf4c0048119",
+      "creating_commit": "2dd5d60121dab100c3b2000ec73dbc5ce1cd4aa0",
+      "unique_a_history_verified": true
+    },
+    "implementation_epoch": 7,
+    "recovery_review_request_contract": {
+      "schema_version": "p4.2a-v2-2-series2-sealed-bundle-recovery-review-request-v1",
+      "path_pattern": "docs/phase4/reports/P4.2a-v2-2-series2-through-ordinal-000002-bundle-recovery-review-request-YYYYMMDD.json",
+      "topology": "unique-A single-parent child of the epoch-7 landed main",
+      "exact_top_level_fields": [
+        "schema_version",
+        "request_id",
+        "created_at_utc",
+        "created_at_shanghai",
+        "status",
+        "requester",
+        "landed_epoch_7",
+        "registered_read_only_recovery_preflight",
+        "preflight_before_after_equality",
+        "proposed_recovery_authorization",
+        "requested_owner_action_time_confirmation",
+        "post_confirmation_plan_not_yet_executed",
+        "current_locks"
+      ],
+      "status_value": "AWAITING_INDEPENDENT_REVIEW_AND_OWNER_CONFIRMATION",
+      "nested_exact_field_sets": {
+        "requester": [
+          "identity",
+          "role",
+          "scope"
+        ],
+        "landed_epoch_7": [
+          "epoch",
+          "implementation_commit",
+          "owner_exact_surface_authorization",
+          "independent_implementation_review",
+          "merge_commit",
+          "landing_report",
+          "control_merkle_root_sha256",
+          "control_record_count"
+        ],
+        "registered_read_only_recovery_preflight": [
+          "exact_argv",
+          "stdout_canonical_json",
+          "stdout_sha256",
+          "stdout_bytes",
+          "stderr_bytes",
+          "returncode",
+          "status",
+          "real_lineage_census"
+        ],
+        "preflight_before_after_equality": [
+          "head",
+          "control_surface",
+          "git_refs",
+          "official_ledger",
+          "sealed_mirror",
+          "destination",
+          "heldout",
+          "temporary_paths"
+        ],
+        "proposed_recovery_authorization": [
+          "path",
+          "document",
+          "canonical_json_sha256",
+          "bytes",
+          "currently_effective"
+        ],
+        "requested_owner_action_time_confirmation": [
+          "required_owner_identity",
+          "requested_exact_confirmation",
+          "delivery_channel",
+          "confirmation_not_yet_received"
+        ],
+        "post_confirmation_plan_not_yet_executed": [
+          "land_r",
+          "land_b",
+          "revalidate_start_census",
+          "one_recovery_start",
+          "zero_pipeline_start",
+          "zero_automatic_retry"
+        ],
+        "current_locks": [
+          "series_closed",
+          "attempts_allocated",
+          "selected_attempt_ordinal",
+          "ledger_and_sealed_mirror_read_only",
+          "destination_created",
+          "bundle_recovery_authorization_created",
+          "owner_confirmation_binding_created",
+          "bundle_recovery_starts",
+          "pipeline_starts_in_recovery",
+          "automatic_retries_in_recovery",
+          "recovery_claim_created",
+          "recovered_bundle_mirror_created",
+          "heldout_evaluation_attempts_consumed",
+          "p4_2a_done",
+          "p4_2b_unlocked",
+          "p4_3_unlocked",
+          "trading_unlocked"
+        ]
+      },
+      "rules": [
+        "canonical UTF-8 JSON, sorted keys, compact separators, one terminal LF",
+        "UTC and Shanghai timestamps same instant",
+        "preflight_before_after_equality values all true",
+        "proposed_recovery_authorization.currently_effective false",
+        "proposed R bytes/SHA/count must match the later landed R byte-identically"
+      ]
+    },
+    "recovery_authorization_contract": {
+      "schema_version": "p4.2a-v2-2-series2-sealed-bundle-recovery-authorization-v1",
+      "path_pattern": "docs/phase4/reports/P4.2a-v2-2-series2-through-ordinal-000002-bundle-recovery-authorization-YYYYMMDD.json",
+      "topology": "unique-A direct single-parent child of Q",
+      "exact_top_level_fields": [
+        "schema_version",
+        "authorization_id",
+        "created_at_utc",
+        "created_at_shanghai",
+        "verdict",
+        "owner",
+        "sealed_series",
+        "execution_epoch",
+        "destination",
+        "exact_argv",
+        "command_sha256",
+        "exact_environment",
+        "environment_sha256",
+        "authorized_bundle_recovery_starts",
+        "authorized_pipeline_starts",
+        "automatic_retry_count",
+        "effect_authorization",
+        "interpreter",
+        "locks"
+      ],
+      "verdict_value": "APPROVE_EXACTLY_ONE_SEALED_BUNDLE_RECOVERY_ZERO_PIPELINE_START_ZERO_AUTOMATIC_RETRY",
+      "counters": {
+        "authorized_bundle_recovery_starts": 1,
+        "authorized_pipeline_starts": 0,
+        "automatic_retry_count": 0
+      },
+      "nested_exact_field_sets": {
+        "owner": [
+          "identity",
+          "approved",
+          "scope"
+        ],
+        "sealed_series": [
+          "series_id",
+          "series_token_sha256",
+          "ledger_root",
+          "history_root_sha256",
+          "live_ledger_root_sha256",
+          "series_closed",
+          "started_count",
+          "failed_count",
+          "incomplete_count",
+          "validated_candidate_count",
+          "selected_attempt_ordinal",
+          "selected_implementation_epoch",
+          "selected_implementation_commit",
+          "selected_control_merkle_root_sha256",
+          "selected_evidence_tree_root_sha256",
+          "selected_candidate_content_root_sha256",
+          "selected_run_a_root_sha256",
+          "selected_run_b_root_sha256",
+          "selected_terminal_outcome",
+          "selected_reached_stage",
+          "automatic_retry_count",
+          "selected_files",
+          "sealed_mirror"
+        ],
+        "selected_files": [
+          "started",
+          "candidate",
+          "terminal"
+        ],
+        "selected_file_reference": [
+          "relative_path",
+          "sha256",
+          "bytes"
+        ],
+        "sealed_mirror": [
+          "snapshot_count",
+          "receipt_count",
+          "latest_ordinal",
+          "latest_snapshot_path",
+          "primary_receipt_path",
+          "secondary_receipt_path",
+          "receipt_sha256",
+          "receipt_bytes",
+          "inventory_sha256",
+          "file_count",
+          "total_bytes",
+          "paired_receipts_byte_identical"
+        ],
+        "execution_epoch": [
+          "epoch",
+          "implementation_commit",
+          "owner_exact_surface_authorization",
+          "independent_implementation_review",
+          "merge_commit",
+          "landing_report",
+          "control_merkle_root_sha256",
+          "control_record_count",
+          "real_lineage_census",
+          "latest_complete_landed_epoch_required",
+          "current_control_bytes_required",
+          "loaded_module_bytes_required"
+        ],
+        "real_lineage_census": [
+          "schema_version",
+          "execution_head",
+          "reference_count",
+          "row_count",
+          "projection_count",
+          "invalid_count",
+          "canonical_json_sha256",
+          "bytes",
+          "result",
+          "all_references_revalidated_at_start"
+        ],
+        "destination": [
+          "absolute_path",
+          "required_absent_before_start",
+          "publication_mode",
+          "bundle_schema_version",
+          "expected_bundle_status",
+          "recovery_storage"
+        ],
+        "recovery_storage": [
+          "primary_recovery_container",
+          "secondary_recovery_container",
+          "claim_name_derived_from_authorization_sha256",
+          "destination_stage_name_derived_from_authorization_sha256",
+          "secondary_snapshot_stage_name_derived_from_authorization_sha256",
+          "secondary_snapshot_name_derived_from_authorization_sha256_and_tree_root",
+          "receipt_name_derived_from_authorization_sha256_and_tree_root",
+          "destination_publication_mode",
+          "secondary_snapshot_publication_mode",
+          "primary_receipt_publication_mode",
+          "secondary_receipt_publication_mode",
+          "paired_receipts_required"
+        ],
+        "interpreter": [
+          "launcher_path",
+          "launcher_sha256",
+          "orig_argv_executable",
+          "orig_argv_executable_sha256",
+          "version"
+        ],
+        "locks": [
+          "p4_2a_done",
+          "p4_2b_unlocked",
+          "p4_3_unlocked",
+          "heldout_evaluation_unlocked",
+          "real_trading_unlocked",
+          "non_simulate_trading_unlocked"
+        ]
+      },
+      "effect_authorization_exact": {
+        "attempt_allocation": false,
+        "candidate_or_terminal_rewrite": false,
+        "destination_publish_once": true,
+        "git_metadata_or_tracked_worktree_write": false,
+        "git_object_read": true,
+        "heldout_materialization_inference_or_evaluation": false,
+        "ledger_read": true,
+        "ledger_write": false,
+        "model_access": false,
+        "network_access": false,
+        "paired_bundle_receipts_create_once": true,
+        "pipeline_execution": false,
+        "recovery_claim_create_once": true,
+        "sealed_ledger_mirror_read": true,
+        "sealed_ledger_mirror_write": false,
+        "secondary_bundle_mirror_publish_once": true,
+        "sqlite_or_production_database_access": false,
+        "destination_stage_create_once": true,
+        "secondary_snapshot_stage_create_once": true
+      },
+      "fixed_values": {
+        "destination_relative": "docs/phase4/rehearsals/P4.2a-v2-calibration-v2-2",
+        "publication_mode": "ATOMIC_DIRECTORY_NO_REPLACE",
+        "expected_bundle_status": "PASS_REHEARSAL_V2_2_AWAITING_OWNER_REVIEW",
+        "locks_all_false": true,
+        "sealed_series_values": "exactly the section-1 table of the r1 design",
+        "command_sha256_recipe": "SHA256(b'p4.2a-v2.2-argv-v1\\0' + NUL-joined UTF-8 argv)",
+        "environment_sha256_recipe": "SHA256(b'p4.2a-v2.2-env-v1\\0' + sorted key NUL value NUL sequence)",
+        "authority_reference_fields": [
+          "path",
+          "sha256",
+          "creating_commit",
+          "unique_a_history_verified"
+        ]
+      }
+    },
+    "recovery_owner_binding_contract": {
+      "schema_version": "p4.2a-v2-2-series2-sealed-bundle-recovery-owner-confirmation-binding-v1",
+      "path_pattern": "docs/phase4/reports/P4.2a-v2-2-series2-through-ordinal-000002-bundle-recovery-owner-confirmation-binding-YYYYMMDD.json",
+      "topology": "unique-A direct single-parent child of R",
+      "exact_top_level_fields": [
+        "schema_version",
+        "binding_id",
+        "created_at_utc",
+        "created_at_shanghai",
+        "status",
+        "review_request",
+        "recovery_authorization",
+        "owner_confirmation",
+        "authorized_scope",
+        "explicit_exclusions",
+        "registered_read_only_recovery_preflight",
+        "machine_boundary"
+      ],
+      "nested_exact_field_sets": {
+        "review_request_and_recovery_authorization": [
+          "path",
+          "sha256",
+          "bytes",
+          "creating_commit"
+        ],
+        "owner_confirmation": [
+          "identity",
+          "confirmation_text",
+          "observed_at_utc",
+          "observed_at_shanghai",
+          "source",
+          "authorization_sha256"
+        ],
+        "authorized_scope": [
+          "series_token_sha256",
+          "selected_attempt_ordinal",
+          "authorized_bundle_recovery_starts",
+          "authorized_pipeline_starts",
+          "automatic_retry_count",
+          "scope"
+        ],
+        "explicit_exclusions": [
+          "attempt_allocation",
+          "ledger_or_sealed_mirror_write",
+          "pipeline",
+          "heldout_materialization_inference_or_evaluation",
+          "p4_2b",
+          "p4_3",
+          "trading"
+        ],
+        "registered_read_only_recovery_preflight": [
+          "path",
+          "stdout_sha256",
+          "stdout_bytes",
+          "real_lineage_census_sha256",
+          "result"
+        ],
+        "machine_boundary": [
+          "consumed_by_recovery_runner",
+          "evidence_only",
+          "passed_as_bundle_recovery_confirmation_binding",
+          "machine_recovery_authorization_remains_exactly_19_fields",
+          "this_document_adds_no_field_to_the_19_field_authorization"
+        ]
+      },
+      "fixed_values": {
+        "owner_identity": "ouyang",
+        "source": "业主向复核方当面确认，由复核方转达",
+        "scope": "one_disclosed_sealed_bundle_recovery_only",
+        "machine_boundary_values": [
+          true,
+          false,
+          true,
+          true,
+          true
+        ],
+        "explicit_exclusions_all_true": true
+      },
+      "cli_operations": {
+        "recovery": [
+          "--recover-sealed-bundle",
+          "--bundle-recovery-authorization <absolute R path>",
+          "--bundle-recovery-owner-confirmation-binding <absolute B path>"
+        ],
+        "consume": [
+          "--consume-recovered-release",
+          "--bundle-recovery-authorization <absolute R path>",
+          "--bundle-recovery-owner-confirmation-binding <absolute B path>"
+        ],
+        "mutual_exclusion_group": [
+          "--execute",
+          "--preflight-only",
+          "--recover-sealed-bundle",
+          "--consume-recovered-release"
+        ],
+        "launcher": "FIXED_PYTHON_LAUNCHER is the OS launcher; FIXED_ORIG_ARGV_EXECUTABLE is only the registered sys.orig_argv[0] identity"
+      },
+      "bootstrap_order": [
+        "process/interpreter/environment and locked bootstrap",
+        "R canonical identity, topology and scope",
+        "B canonical identity, topology, owner text and R binding",
+        "epoch-7 live byte anchor",
+        "real-lineage census",
+        "recovery-container validation",
+        "sealed ledger and sealed-mirror validation",
+        "destination/claim/temp absence",
+        "any filesystem write"
+      ]
+    },
+    "recovery_claim_contract": {
+      "claim_name": "CLAIM-<R_SHA256> under the primary recovery container",
+      "linearization": "one atomic mkdir mode 0700 is the sole recovery-start point; failure before mkdir consumes nothing; success consumes the one start permanently; any pre-existing claim path rejects; a second invocation with the same R always rejects",
+      "started_schema_version": "p4.2a-v2-2-series2-bundle-recovery-started-v1",
+      "started_exact_fields": [
+        "schema_version",
+        "recovery_id",
+        "authorization",
+        "owner_confirmation_binding",
+        "created_at_utc",
+        "created_at_shanghai",
+        "execution_head",
+        "execution_epoch",
+        "sealed_history_root_sha256",
+        "sealed_live_ledger_root_sha256",
+        "sealed_mirror_receipt_sha256",
+        "destination",
+        "destination_stage",
+        "secondary_snapshot_stage",
+        "secondary_snapshot_target",
+        "state",
+        "authorized_bundle_recovery_starts",
+        "authorized_pipeline_starts",
+        "automatic_retry_count"
+      ],
+      "terminal_schema_version": "p4.2a-v2-2-series2-bundle-recovery-terminal-v1",
+      "terminal_exact_fields": [
+        "schema_version",
+        "recovery_id",
+        "authorization",
+        "owner_confirmation_binding",
+        "completed_at_utc",
+        "completed_at_shanghai",
+        "outcome",
+        "reached_stage",
+        "sealed_ledger_before_sha256",
+        "sealed_ledger_after_sha256",
+        "sealed_mirror_before_sha256",
+        "sealed_mirror_after_sha256",
+        "destination",
+        "published_bundle_sha256",
+        "published_tree_sha256",
+        "secondary_snapshot",
+        "secondary_snapshot_tree_sha256",
+        "primary_receipt",
+        "secondary_receipt",
+        "paired_receipts_byte_identical",
+        "destination_stage_absent",
+        "secondary_snapshot_stage_absent",
+        "pipeline_starts",
+        "automatic_retry_count",
+        "error"
+      ],
+      "outcomes": {
+        "success": "BUNDLE_RECOVERY_PUBLISHED_MIRRORED_AND_RECEIPTED",
+        "caught_failure": "FAILED_NO_AUTOMATIC_RETRY",
+        "partial_durable": "PUBLISHED_MIRROR_INCOMPLETE_OWNER_RECONCILIATION_REQUIRED"
+      },
+      "crash_states": "every durable state is classified per r1 section 7; no output is silently deleted; no consumed authority can restart; owner-reconciliation outcomes permit neither deletion nor rerun"
+    },
+    "bundle_mirror_receipt_contract": {
+      "schema_version": "p4.2a-v2-2-series2-bundle-recovery-mirror-receipt-v1",
+      "exact_fields": [
+        "schema_version",
+        "recovery_authorization_sha256",
+        "owner_confirmation_binding_sha256",
+        "recovery_id",
+        "series_id",
+        "series_token_sha256",
+        "sealed_history_root_sha256",
+        "sealed_live_ledger_root_sha256",
+        "selected_attempt_ordinal",
+        "selected_implementation_epoch",
+        "selected_implementation_commit",
+        "execution_epoch",
+        "execution_implementation_commit",
+        "execution_head",
+        "destination",
+        "published_bundle_sha256",
+        "published_tree_sha256",
+        "secondary_snapshot",
+        "secondary_snapshot_tree_sha256",
+        "destination_and_snapshot_byte_identical",
+        "pipeline_starts",
+        "automatic_retry_count",
+        "sealed_ledger_before_after_equal",
+        "sealed_mirror_before_after_equal",
+        "verified_at_utc"
+      ],
+      "filename_pattern": "recovery-<R_SHA256>-<PUBLISHED_TREE_SHA256>.bundle-mirror-verification.json",
+      "rules": [
+        "receipt contains neither its own path nor its own digest; primary and secondary copies byte-identical",
+        "publication order: claim -> started -> rehydrate -> stage bundle -> passive validation -> live-anchor and census recheck -> atomic destination publish -> snapshot stage -> atomic snapshot publish -> full inventory comparison -> sealed-input re-fingerprint -> paired receipts -> re-read equality -> final re-fingerprint -> stage-absence proof -> success terminal",
+        "two distinct same-filesystem stages named from R SHA-256; a successful rename consumes its stage"
+      ]
+    },
+    "dual_byte_anchor_contract": {
+      "historical_selected_anchor": {
+        "implementation_epoch": 6,
+        "implementation_commit": "e5aab9772793a7b0465f100cb48f99a1bc4e45dc",
+        "selected_control_merkle_root_sha256": "5948fd29a8c3f38399e6518699483f61094d577ae695bc7aa0b48c84e5b8829d",
+        "sources": "immutable Git blobs and sealed archive/evidence/history roots only",
+        "require_current": false
+      },
+      "live_execution_anchor": {
+        "implementation_epoch": 7,
+        "values": "the owner-authorized epoch-7 implementation commit, its independent review, exact landing first-parent projection, landing report and current control root, fixed at landing",
+        "coverage": "all current control-surface bytes and loaded producer/validator module origins/digests",
+        "require_current": true
+      },
+      "mode_enum": [
+        "ACTIVE_ATTEMPT_BUNDLE",
+        "PASSIVE_RECOVERED_BUNDLE",
+        "PASSIVE_RECOVERED_RELEASE"
+      ],
+      "recovered_publication_capability_exact_fields": [
+        "recovery_authorization_path",
+        "recovery_authorization_sha256",
+        "recovery_authorization_creating_commit",
+        "owner_binding_path",
+        "owner_binding_sha256",
+        "owner_binding_creating_commit",
+        "claim_root",
+        "claim_started_sha256",
+        "claim_terminal_sha256",
+        "series_token_sha256",
+        "selected_attempt_ordinal",
+        "selected_implementation_epoch",
+        "selected_implementation_commit",
+        "sealed_history_root_sha256",
+        "sealed_live_ledger_root_sha256",
+        "destination",
+        "published_bundle_sha256",
+        "published_tree_sha256",
+        "secondary_snapshot",
+        "secondary_snapshot_tree_sha256",
+        "primary_receipt_path",
+        "secondary_receipt_path",
+        "paired_receipt_sha256",
+        "paired_receipt_bytes",
+        "execution_epoch",
+        "execution_implementation_commit",
+        "execution_control_merkle_root_sha256",
+        "recovery_starts",
+        "pipeline_starts",
+        "automatic_retry_count",
+        "sealed_ledger_before_after_equal",
+        "sealed_mirror_before_after_equal",
+        "selected_candidate_sha256",
+        "selected_terminal_sha256",
+        "selected_evidence_tree_root_sha256",
+        "historical_run_a_root_sha256",
+        "historical_run_b_root_sha256",
+        "historical_run_a_probe_sha256",
+        "historical_run_b_probe_sha256",
+        "historical_full_downstream_replay_verified"
+      ],
+      "capability_required_values": {
+        "selected_attempt_ordinal": 2,
+        "selected_implementation_epoch": 6,
+        "execution_epoch": 7,
+        "recovery_starts": 1,
+        "pipeline_starts": 0,
+        "automatic_retry_count": 0,
+        "sealed_ledger_before_after_equal": true,
+        "sealed_mirror_before_after_equal": true,
+        "historical_run_roots_equal": "5fb8edf3aa65cdcd0f54b82bdf6f240104fa8537c1004e640671910115f8f314",
+        "historical_full_downstream_replay_verified": true
+      },
+      "hook_disposition_authority": "r1 section 8.2 for recovery construction plus r2 section 6 for published-release revalidation, bound by the two design digests above; static call-graph tests must prove historical paths receive only the historical anchor, live paths only the live anchor, orthogonal governance-current hooks remain HEAD/worktree-pinned, recovered modes cannot reach _active_replay_validated_bundle, _active_replay_selected_pipeline, _official_validator_replay_scope, replay_selected_pipeline or _execute_pipeline_inner, and no third route reaches bundle bytes",
+      "release_truth_condition": "independent_checks.full_downstream_replay_passed is a past-tense assertion provable only from the sealed ordinal-2 evidence: candidate e1d67123/833 with content root 520c371e, terminal 3f41d80d/12206 with exactly 36 inventory entries and 50213329 aggregate bytes, evidence root eb44c7f3, run-A/run-B roots both 5fb8edf3, probes c53e94d5 and 7552c2a8 at 1273 bytes, history root 832559b5, live root ab08612b, mirror receipt b8da48fa/1222; the consumer recomputes the nine steps of r2 section 8.1 and performs zero pipeline starts and zero active replay",
+      "no_fallback": "no mode may fall back to another; recovered evidence naming the destination or bundle digest forces recovered classification; invalid recovered evidence fails rather than falling through to active replay"
+    },
+    "unique_a_and_lineage_census_contract": {
+      "roles": [
+        "PINNED_SOURCE",
+        "PINNED_LANDING_PROJECTION",
+        "PINNED_SOURCE_WITH_DESCENDANT_GRAPH",
+        "DISCOVER_SOURCE_AFTER_PROJECTIONS"
+      ],
+      "scanner_role_map": {
+        "_unique_a_authority": "PINNED_SOURCE",
+        "_validate_implementation_review_authority.all_touches": "PINNED_LANDING_PROJECTION",
+        "_validate_initial_sibling_authority": "PINNED_SOURCE_WITH_DESCENDANT_GRAPH",
+        "_unique_a_unserialized": "DISCOVER_SOURCE_AFTER_PROJECTIONS"
+      },
+      "projection_criteria": [
+        "touch status A relative to first parent for the exact path",
+        "exactly two parents",
+        "first parent lacks the path",
+        "second parent contains the path with raw bytes exactly equal to the pinned payload",
+        "merge result contains the same raw bytes",
+        "second-parent-to-merge diff for the path is empty",
+        "pinned logical source is an ancestor of the second parent",
+        "recomputed SHA-256 of the pinned payload equals the registered digest",
+        "no rename, copy, deletion, type change, path substitution or conflict-written different payload"
+      ],
+      "rules": [
+        "raw bytes are compared before digests",
+        "global scanning remains global: no branch allowlist, no ignored refs, no HEAD-only shortcut, no evidence deletion to satisfy a predicate",
+        "every other touch shape fails",
+        "the registry is built from the actual authority references consumed by the implementation; same-path conflicting specs fail before traversal"
+      ],
+      "census_schema_version": "p4.2a-v2-2-real-lineage-census-v1",
+      "census_exact_fields": [
+        "schema_version",
+        "execution_head",
+        "authority_registry_sha256",
+        "ref_snapshot_before_sha256",
+        "ref_snapshot_after_sha256",
+        "reference_count",
+        "row_count",
+        "source_count",
+        "projection_count",
+        "invalid_count",
+        "rows",
+        "effects",
+        "status"
+      ],
+      "row_exact_fields": [
+        "path",
+        "pinned_sha256",
+        "pinned_creating_commit",
+        "mode",
+        "logical_source_commit",
+        "declared_landing_projection_commit",
+        "raw_touch_count",
+        "source_count",
+        "projection_count",
+        "touches",
+        "execution_head_contains_source",
+        "head_blob_sha256",
+        "worktree_sha256",
+        "verdict"
+      ],
+      "touch_exact_fields": [
+        "commit",
+        "parents",
+        "first_parent_status",
+        "classification",
+        "blob_sha256",
+        "raw_bytes_equal_pinned",
+        "source_is_ancestor_of_second_parent",
+        "second_parent_to_merge_path_diff_empty"
+      ],
+      "timing": "the registered-root preflight censuses the real repository before Q exists; Q embeds the preflight stdout byte-for-byte; from preflight to recovery start the only permitted ref delta is the exact linear Q then R then B single-file commits; any other ref movement invalidates the census and requires a fresh preflight and fresh create-only Q/R/B; the start-time census re-runs before any storage read; the validator independently recomputes and never trusts producer counts; after recovery, the release consumer performs a fresh current census"
+    },
+    "protected_inputs_and_permitted_outputs": {
+      "read_only_inputs": [
+        "sealed primary ledger",
+        "both sealed-ledger mirror trees and receipts",
+        "the Git repository objects",
+        "the registered release document at docs/phase4/reports/P4.2a-v2-heldout-rehearsal-v2-2-release-authorization-20260811.json when consuming"
+      ],
+      "permitted_recovery_writes": [
+        "one claim subtree in the primary recovery container",
+        "one destination stage in the official destination's persistent sibling",
+        "one secondary-snapshot stage in the secondary recovery container",
+        "one atomic no-replace official destination publication",
+        "one atomic no-replace secondary bundle snapshot",
+        "one create-only receipt in each recovery container, byte-identical",
+        "one terminal record inside the consumed claim"
+      ],
+      "recovery_containers": [
+        "/Users/ouyangduning/AlphaPilot-EVIDENCE-DO-NOT-DELETE/P4.2a/v2.2/BUNDLE-RECOVERY-SERIES-000002-2543d679819f96958baf747ef61dda2044013a0b00a9cb824c0d7675640d9f93",
+        "/Users/ouyangduning/AlphaPilot-EVIDENCE-MIRROR-DO-NOT-DELETE/P4.2a/v2.2/BUNDLE-RECOVERY-SERIES-000002-2543d679819f96958baf747ef61dda2044013a0b00a9cb824c0d7675640d9f93"
+      ],
+      "container_rules": "owner-provisioned empty 0700 directories created only after epoch-7 landing and before the registered-root recovery preflight; every component a real directory owned by the current uid, no symlink, strict resolve equal to absolute spelling; existing series containers never reused as recovery output parents",
+      "consume_mode_effects": "zero writes of any kind: no filesystem, Git, ledger, mirror, destination, temporary, model, network, database, held-out or trading write; one canonical JSON stdout line; status PASS_READ_ONLY_RECOVERED_RELEASE_REVALIDATION",
+      "forbidden_calls": [
+        "SeriesLedger.open in every mode",
+        "attempt allocation",
+        "candidate/terminal writers",
+        "replay_selected_pipeline",
+        "_execute_pipeline_inner",
+        "active bundle replay",
+        "active release replay",
+        "model, network, database, held-out readers",
+        "trading code"
+      ],
+      "sealed_input_invariance": "recursive byte-sensitive fingerprints of the sealed ledger, both mirror receipt roots and the through-ordinal-2 snapshot recorded before the claim must be equal after success or failure; no recovery cleanup may target any sealed input; work is bounded per r1 section 12.6 and r2 section 9.5"
+    },
+    "legacy_absence_and_locks": {
+      "amendment_time_facts_permanently_false": [
+        "official_series_2_bundle_emits_void_epoch_1",
+        "void_epoch_3_added",
+        "two_four_exception_added",
+        "sealed_bundle_recovery_added",
+        "recover_sealed_bundle_cli_added",
+        "consume_recovered_release_cli_added"
+      ],
+      "disclosure_rule": "the series-2 amendment remains byte-identical; epoch 7 discloses the recovery and consume operations only through its own design, companion, six-field authority, implementation review, landing report, registered-root preflight and Q/R/B chain",
+      "epoch_table": "the bundle implementation-epoch table remains exactly [5,6]; epoch 7 is recovery execution provenance, never a synthetic attempt row; no ordinal 3 may be allocated",
+      "locks": {
+        "p4_2a_done": false,
+        "p4_2b_unlocked": false,
+        "p4_3_unlocked": false,
+        "heldout_evaluation_one_shot": "unconsumed",
+        "trading": "zero non-SIMULATE"
+      }
+    }
+  },
+  "part_3_sequence": [
+    "commit this companion alone; the six-field epoch-7 authority follows as its direct child with base_commit set to this commit",
+    "operator implements the four-path surface on a new branch as the direct child of the authority commit",
+    "operator completes F-15 including targeted exact-OS recovery, recovered-release and real-census prechecks",
+    "independent reviewer completes F-12 over both complete registered modules at the candidate",
+    "persistent full registered gate at the detached candidate, landing report, then merge-only landing preserving implementation and review objects",
+    "owner provisions only the two empty recovery containers",
+    "registered-root preflight runs with the real-lineage census",
+    "recovery Q, R and B land in order with the owner's in-person confirmation routed through the reviewer",
+    "exactly one recovery start publishes and mirrors the bundle with paired receipts",
+    "the bundle enters independent review; the standard release governance and the read-only --consume-recovered-release revalidation follow toward the owner's release decision"
+  ],
+  "part_4_boundaries": {
+    "ledger": "sealed and read-only; ordinal 1 FAILED, ordinal 2 CANDIDATE_VALIDATED_AND_SELECTED; series closed; history root 832559b59a8edc09c04b0f5a7c09cea71e5c3597c2bdc0831072a4122bf016e7",
+    "heldout_evaluation_one_shot": "unconsumed",
+    "trading": "zero non-SIMULATE",
+    "phase_locks": {
+      "p4_2a_done": false,
+      "p4_2b_unlocked": false,
+      "p4_3_unlocked": false
+    }
+  }
+}
