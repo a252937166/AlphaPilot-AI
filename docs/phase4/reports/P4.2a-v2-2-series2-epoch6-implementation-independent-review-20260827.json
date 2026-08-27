@@ -1,0 +1,46 @@
+{
+  "schema_version": "p4.2a-independent-review-v1",
+  "review_id": "p4.2a-v2-2-series2-epoch6-implementation-review-20260827-r1",
+  "created_at_utc": "2026-08-27T04:12:39Z",
+  "created_at_shanghai": "2026-08-27T12:12:39+08:00",
+  "verdict": "APPROVE_EPOCH6_IMPLEMENTATION",
+  "blockers": [],
+  "reviewed_commit": "e5aab9772793a7b0465f100cb48f99a1bc4e45dc",
+  "supersession_context": "second epoch-6 candidate. fc156f07 was blocked at 56d3a65 for F-17, superlinear fingerprint cost over accumulating snapshot copies that hung the multi-ordinal fixture before its checkpoint; this candidate fixes the hot path. fc156f07 and its branch remain in history.",
+  "reviewer": {
+    "identity": "independent_ai_architect_claude_code",
+    "reviewer_type": "ai",
+    "model": "Anthropic Claude Fable 5 (model id claude-fable-5)",
+    "impersonation_disclaimer": "Not a human reviewer. Issued under the owner governance amendment with requires_release_gate_amendment=true.",
+    "method": "structured diff review of both candidates plus full F-12: both complete registered modules run by the reviewer at this commit"
+  },
+  "part_1_commit_shape": {
+    "parent": "3ccc2f267a05137edf86c5eb72f82e0057d74f98",
+    "parent_is_the_owner_surface_authority": true,
+    "single_parent": true,
+    "surface": "exactly the two authorized M paths",
+    "file_digests": {
+      "scripts/p4_2a_v2_2_heldout_rehearsal.py": "8f2214e2008c62aad318083b765fabcaac6b011327b6780f8ff674774dcfe5d2",
+      "scripts/validate_p4_2a_v2_2_heldout_rehearsal_bundle.py": "272b2d623561ba8c722225d9b1678db6c9944b1b164938c30f9d754f8a6e7863",
+      "tests/test_p4_2a_v2_2_heldout_rehearsal_runner.py": "af5f34bacceebe8b67152124b6c0ce5fe5ea8d58eacb6abc721c6353a2dcf2b3",
+      "tests/test_p4_2a_v2_2_heldout_rehearsal_validator.py": "79db0b5de846a03552ad0e2caf48bdddf070ff6e22ad77a7300e81ad0bce5499"
+    },
+    "validator_files_byte_identical_to_epoch5": true
+  },
+  "part_2_changes_reviewed": {
+    "layout_generic_projection": "carried from fc156f07 and re-verified: the changed-key set must equal exactly the keys whose scope is ancestor-or-self of the active ledger, each ancestor's changes must equal the ledger changes re-rooted, the predicate is parametrized on container and ledger roots, and the ledger must be strictly nested below its container",
+    "f17_fix": "the hot path represents each immutable through-ordinal snapshot as its directory identity bound to the seal-time recorded root from the paired canonical receipt, explicitly reading no snapshot payloads; the active ledger keeps full verification; complete second-copy validation remains at preflight, continuation, seal-mirror, bundle and release boundaries",
+    "fail_fast_bound": "a registered work-unit bound asserts the hot path hashed zero snapshot payload files and zero payload bytes, and caps entries inspected and receipt bytes read, so a future superlinear regression fails immediately",
+    "performance_effect_observed": "the reviewer's runner module dropped from over five hours at fc156f07, where it never finished the fixture, to 2 hours 45 minutes with the multi-ordinal fixture passing inside its original 10-second checkpoint timeout"
+  },
+  "part_3_reviewer_run_evidence": {
+    "validator_module": "225 passed, 0 failed, 1813.31 seconds",
+    "runner_module": "191 passed, 0 failed, 9900.80 seconds, including the exact-OS FAILED-INCOMPLETE-SUCCESS fixture to ordinal-3 SUCCESS and the four nested-projection nodes",
+    "junit_totals_independently_parsed": "failures, errors, skipped and disabled all zero in both",
+    "static": "ruff clean on both changed files; strict mypy clean on the producer",
+    "operator_f15_accepted": "2/2 multi-ordinal exact-OS, 4/4 nested projection, 168/168 runner non-exact, 225/225 validator, collect 416"
+  },
+  "part_4_merge_condition": {"full_registered_gate": "unchanged: complete registered gate at e5aab977 detached in the persistent clone, output into the merge report", "landing_rule": "merge only, preserving e5aab977 and this review commit"},
+  "part_5_after_landing": ["registered-root preflight", "series-2 ordinal-2 Q binding epoch 6 and previous history root f2232e4400ca54946b9247e9ec6807cce86af2f2f4ba40af2f5221eba3095d8e", "R, owner B, one pipeline start, seal, mirror, bundle"],
+  "part_6_boundaries": {"series_2_ledger": "ordinal 1 FAILED sealed and mirrored; next ordinal 2", "heldout_evaluation_one_shot": "unconsumed", "trading": "zero non-SIMULATE", "phase_locks": {"p4_2a_done": false, "p4_2b_unlocked": false, "p4_3_unlocked": false}}
+}
