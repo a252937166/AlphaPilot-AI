@@ -1,0 +1,96 @@
+{
+  "schema_version": "p4.2a-independent-adjudication-v1",
+  "adjudication_id": "p4.2a-epoch7-prestart-headroom-and-12-6-gap-20260829-r1",
+  "created_at_utc": "2026-08-29T10:01:58Z",
+  "created_at_shanghai": "2026-08-29T18:01:58+08:00",
+  "purpose": "adjudicate the epoch-7 pre-start performance headroom defect and the section-12.6 census-counter compliance gap, both inside the already authorized four-path surface",
+  "issued_by": {
+    "identity": "independent_ai_architect_claude_code",
+    "reviewer_type": "ai",
+    "model": "Anthropic Claude Opus 5 (model id claude-opus-5)",
+    "impersonation_disclaimer": "Not a human reviewer and not the owner."
+  },
+  "part_0_reviewer_error_owned": {
+    "id": "C-15",
+    "owner_of_the_error": "the reviewer",
+    "statement": "from the run-2 snapshots the reviewer proved that the 55.35 GiB drop in data-volume free space equalled the 53.96 GiB peak swap allocation, and then asserted that the ordinal-3 disposable child was the allocator and named the epoch-7 real-lineage census as the probable site. The arithmetic was sound; the attribution was not derivable from it. Standalone measurement refuted both claims: the child peaks at 1.17 GiB with zero swapouts, and the active ordinal-3 path does not reach _real_lineage_census before the first checkpoint at all.",
+    "rule_tightened": "system-wide swap growth may establish that memory was demanded somewhere, never by which process; naming a suspect site requires a per-process resident-set measurement or a call-graph proof before it is put in writing to the operator"
+  },
+  "part_1_evidence_independently_verified": {
+    "digests_recomputed_by_reviewer": [
+      "ordinal3-prestart-memory-and-census-localization-report.json f82acdf5c3c2a1774aa8471ae8f26c06862f4ac594a27297a0e3c864f188d920",
+      "ordinal3-premirror-full26.summary.json efbb4830ff8f8affd9fb9afcdde392f8c7c4ecfdb1134381d53863a91b8427ab",
+      "ordinal3-premirror-one1.summary.json 4c2086b7dc7d16cb0599818a686622e825615d1fa841b9c73ffc2ca32bd287ff",
+      "targeted-affected-fixture-run2.environment-after.json 9e4188797b02b8c50603cc93a784768ea1bf8d5053591347ffd20d8d68ec22fd"
+    ],
+    "measurements_accepted": {
+      "premirror_full_26_refs": "started.json at 175.181732s, margin 4.818268s, max RSS 1255784448 bytes, swapouts delta 0",
+      "premirror_one_ref": "started.json at 178.698682s, margin 1.301318s, max RSS 1245511680 bytes, swapouts delta 0",
+      "ref_count_verdict": "NO_MEMORY_OR_RUNTIME_IMPROVEMENT_FROM_26_TO_1_GIT_REFS; cost does not scale with reference count",
+      "census_standalone": "28 refs 49.84s at 124354560 bytes RSS; 1 ref 1.52s at 124878848 bytes RSS; runtime scales with reference count, resident set does not",
+      "started_json_identity": "both premirror runs produced started.json ffd15b310c1b72ac3a317240db1b7a2dd64005015bc2ef251e86b785cb4f2d1a, so the two measurements are of the same computation"
+    },
+    "preserved_state_accepted": "original run-2 root restored at inode 326178372 without byte rewrite, ordinal-3 absent, snapshot count 2, primary and secondary receipt counts 2 each; diagnostic clones retained separately; production code unmodified; no full runner started"
+  },
+  "part_2_classification_adjudicated": {
+    "accepted_classification": "BLOCKED_BY_IMPLEMENTATION_PRESTART_PERFORMANCE_HEADROOM",
+    "rejected_classifications": [
+      "BLOCKED_BY_NON_QUIET_HOST_DURING_TARGETED_FIXTURE, refuted because the host was eleven minutes from boot with zero swap files and 78.07 GiB free at start",
+      "BLOCKED_BY_IMPLEMENTATION_MEMORY_DEFECT_PENDING_LOCALIZATION, refuted by the 1.17 GiB standalone peak with zero swapouts"
+    ],
+    "root_cause_accepted": "SeriesLedger.allocate_attempt continuation mirror validation and second-copy history validation consume 175.18 of the registered 180-second pre-start budget. _strict_private_tree_inventory retains every file payload in memory and _validate_second_copy_history simultaneously holds the primary, the replay-bound primary and multiple snapshot inventories.",
+    "lineage_note": "the active ordinal-3 path executes epoch-6 semantics, so this is residual F-17-class cost that the epoch-6 r2 commitment-fingerprint remedy did not reach on the second-copy validation path, not an epoch-7 regression; it becomes blocking now because the remaining margin is 4.82 seconds and 1.30 seconds in the two measured rounds"
+  },
+  "part_3_ruling": {
+    "scope_ruling": "both repairs proceed inside the existing authorized surface under the six-field epoch-7 authority at commit 06336a9f593ede4132be73a8c8a087df18db904b; no new owner authorization is required",
+    "scope_reasoning": "epoch 7 has not landed and no candidate has been delivered, so this is pre-delivery iteration on the same four authorized M paths, exactly as epoch-5 r2 and r3 and epoch-6 r2 proceeded under their own surface authorities. The surface is unchanged, no capability is added, and no gate, threshold, sample, seed, model, prompt, contract, gold, schema, ledger or mirror byte is touched.",
+    "repair_1_prestart_performance": {
+      "verdict": "AUTHORIZED_SAME_SURFACE",
+      "binding_constraints": [
+        "the registered 180-second checkpoint limit must not be raised, relaxed, made configurable, or bypassed; raising it would mask the defect rather than remove it",
+        "no validation may be weakened: every fact proven today about the continuation mirror and the second-copy history must still be proven, with the same strictness and the same failure modes",
+        "follow the epoch-6 r2 precedent at implementation commit e5aab9772793a7b0465f100cb48f99a1bc4e45dc: bind names to seal-time commitment roots and stop reading payloads on the hot path, rather than caching or parallelising payload retention",
+        "output identity must be proven, not assumed: on identical inputs the repaired code must produce byte-identical started.json, candidate, terminal, evidence, control and history roots. The two premirror runs already pin started.json at ffd15b310c1b72ac3a317240db1b7a2dd64005015bc2ef251e86b785cb4f2d1a; the repaired build must reproduce that digest from the same premirror state.",
+        "the sealed ordinal-2 evidence is unaffected and must not be regenerated: it is bound to immutable epoch-6 Git blobs by the historical anchor, while the repaired bytes are covered by the epoch-7 live anchor"
+      ],
+      "acceptance_threshold": "the standalone premirror probe must show started.json produced within 60 seconds, giving at least a threefold margin against the 180-second limit, reported with maximum resident set size and swapouts delta from the same probe at digest afbced8ecc02d70ec61dcadb569c8a4d0f238e1131f00b7d17b581710be44ded. A margin measured in single-digit seconds is not acceptable at any host quietness."
+    },
+    "repair_2_section_12_6_counters": {
+      "verdict": "AUTHORIZED_SAME_SURFACE_AND_REQUIRED_IN_THE_SAME_ROUND",
+      "gap_accepted_as_reported": [
+        "real-lineage census Git operations are not incremented into deterministic counters",
+        "producer sealed counters initialize git_objects_read to zero",
+        "validator git_objects_read is a post-hoc raw-touch estimate rather than actual Git object or subprocess work",
+        "census completes before the current work-bound assertion, so it cannot fail fast",
+        "registered tests verify constants and direct over-limit dictionaries but not census work against the bound"
+      ],
+      "reasoning": "r1 section 12.6 is approved design that the reviewer passed. Landing epoch 7 with a work bound that cannot fail fast on the very path the design named would put a known non-compliant implementation on main and would leave the F-17 class undetected by the mechanism built to detect it. It is therefore closed in the same round, not deferred.",
+      "binding_constraints": [
+        "counters must record actual Git object and subprocess work performed by the census, not an estimate reconstructed from results",
+        "the bound must be evaluated incrementally so that it fails fast during the census, not after it completes",
+        "the validator must recompute the counters independently and must never accept producer-reported values",
+        "registered tests must exercise real census work against the bound, in both modules, including a positive that stays under the bound and a negative that trips it mid-census"
+      ]
+    }
+  },
+  "part_4_sequence": [
+    "operator implements both repairs on the same branch as the direct single-parent child of authority 06336a9f",
+    "operator re-runs the standalone premirror probe and reports elapsed, margin, maximum resident set size, swapouts delta and the started.json digest",
+    "operator re-runs the targeted affected fixture only after the probe shows the sixty-second threshold met",
+    "operator completes F-15 over both complete registered modules and delivers the candidate",
+    "independent reviewer completes F-12 over both complete registered modules at the candidate",
+    "persistent full registered gate, landing report, merge-only landing, then the registered-root preflight and the recovery Q/R/B chain per the epoch-7 companion"
+  ],
+  "part_5_boundaries": {
+    "f15_status": "BLOCKED until both repairs are made and the sixty-second pre-start threshold is measured",
+    "full_runner": "must not start before the targeted fixture passes",
+    "ledger": "sealed and read-only; ordinal 1 FAILED, ordinal 2 CANDIDATE_VALIDATED_AND_SELECTED; series closed; history root 832559b59a8edc09c04b0f5a7c09cea71e5c3597c2bdc0831072a4122bf016e7; no ordinal 3 in the official series",
+    "heldout_evaluation_one_shot": "unconsumed",
+    "trading": "zero non-SIMULATE",
+    "phase_locks": {
+      "p4_2a_done": false,
+      "p4_2b_unlocked": false,
+      "p4_3_unlocked": false
+    }
+  }
+}
