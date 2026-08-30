@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import ast
+import builtins
 import copy
 import ctypes
 import gc
@@ -9,6 +10,7 @@ import importlib
 import inspect
 import json
 import os
+import re
 import shutil
 import signal
 import stat
@@ -16,7 +18,7 @@ import subprocess
 import sys
 from collections.abc import Callable
 from contextlib import contextmanager
-from dataclasses import replace
+from dataclasses import MISSING, replace
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
@@ -1543,16 +1545,16 @@ def test_archive_semantics_keep_pipeline_producer_and_harness_commit_dataflows_s
     assert len(control_calls) == 1
     assert keyword_name(control_calls[0], "implementation_commit") == "implementation_commit"
     for callee_name in ("_validate_lineage", "_validate_harness_identity", "_validate_archives"):
-        selected_calls = calls("_validate_bundle_once", callee_name)
+        selected_calls = calls("_validate_common_bundle_once", callee_name)
         assert len(selected_calls) == 1
         assert keyword_name(selected_calls[0], "implementation_commit") == "implementation_commit"
-    epoch_calls = calls("_validate_bundle_once", "_validate_implementation_epochs")
+    epoch_calls = calls("_validate_common_bundle_once", "_validate_implementation_epochs")
     assert len(epoch_calls) == 1
     assert keyword_name(epoch_calls[0], "replay") == "replay"
     assert keyword_name(epoch_calls[0], "archives") == "archives"
     replay_selected_bindings = [
         node
-        for node in calls("_validate_bundle_once", "_require_equal")
+        for node in calls("_validate_common_bundle_once", "_require_equal")
         if len(node.args) >= 2
         and isinstance(node.args[0], ast.Name)
         and node.args[0].id == "implementation_commit"
@@ -1579,7 +1581,7 @@ def test_archive_semantics_keep_pipeline_producer_and_harness_commit_dataflows_s
     # Lineage and control replay legitimately verify the carried-forward v2.1
     # commit as historical evidence.  The selected harness extraction and its
     # epoch gate must never substitute that constant for their live value.
-    for function_name in ("_validate_bundle_once", "_validate_implementation_epochs"):
+    for function_name in ("_validate_common_bundle_once", "_validate_implementation_epochs"):
         assert not any(
             isinstance(node, ast.Name) and node.id == "_V2_1_IMPLEMENTATION_COMMIT"
             for node in ast.walk(functions[function_name])
@@ -1709,7 +1711,7 @@ def test_release_shape_identity_cross_and_topology_dominate_any_active_replay() 
     ordered_markers = (
         "_schema_validate(",
         "_unique_a_unserialized(",
-        "_validate_bundle_once(",
+        "_validate_active_bundle_once(",
         "_cross_validate_release(",
         "_git_blob(root, reviewed_head",
         "_active_replay_validated_bundle(",
@@ -1718,7 +1720,10 @@ def test_release_shape_identity_cross_and_topology_dominate_any_active_replay() 
     assert offsets == sorted(offsets)
     assert source.count("_active_replay_validated_bundle(") == 1
     assert "_active_replay_validated_bundle(" not in inspect.getsource(
-        validator._validate_bundle_once
+        validator._validate_active_bundle_once
+    )
+    assert "_active_replay_validated_bundle(" not in inspect.getsource(
+        validator._validate_common_bundle_once
     )
     active_source = inspect.getsource(validator._active_replay_validated_bundle)
     assert active_source.index("_authorized_bundle_directory(") < active_source.index(
@@ -1867,7 +1872,9 @@ def test_active_validator_rederives_the_frozen_typed_inheritance_contract() -> N
         bundle_schema_payload=(PROJECT_ROOT / BUNDLE_SCHEMA_RELATIVE).read_bytes(),
         release_schema_payload=(PROJECT_ROOT / RELEASE_SCHEMA_RELATIVE).read_bytes(),
     )
-    assert "_validate_contract_inheritance(" in inspect.getsource(validator._validate_bundle_once)
+    assert "_validate_contract_inheritance(" in inspect.getsource(
+        validator._validate_common_bundle_once
+    )
     assert _all_real_path_fingerprints() == before
 
 
@@ -2184,7 +2191,7 @@ def test_landed_epoch_two_review_projection_is_preserved_and_globally_double_see
     assert "@@d15bea522cfd892f6837772a2142b903e03a9436" in global_history
     with pytest.raises(
         validator.RehearsalV22ValidationError,
-        match="not one unique status-A Git touch",
+        match="non-source non-projection Git touch",
     ):
         validator._unique_a_authority(
             PROJECT_ROOT,
@@ -2712,7 +2719,7 @@ def _assert_initial_sibling_baseline_pass(
     return payload
 
 
-def test_initial_sibling_merge_projection_is_valid_but_generic_history_is_double_touch(
+def test_initial_sibling_merge_projection_is_valid_for_generic_lineage_census(
     initial_sibling_git_repository: dict[str, Any],
 ) -> None:
     validator = _validator_module()
@@ -2742,15 +2749,14 @@ def test_initial_sibling_merge_projection_is_valid_but_generic_history_is_double
     ).decode("utf-8")
     assert history.count(f"A\t{INITIAL_SIBLING_PATH.as_posix()}") == 2
     assert f"@@{INITIAL_SIBLING_COMMIT}" in history
-    with pytest.raises(
-        validator.RehearsalV22ValidationError,
-        match=r"authority is not one unique status-A Git touch",
-    ):
+    assert (
         validator._unique_a_authority(
             root,
             _initial_sibling_reference(),
             require_worktree=True,
         )
+        == payload
+    )
 
 
 @pytest.mark.parametrize(
@@ -2804,6 +2810,7 @@ def test_initial_sibling_graph_rejects_lineage_or_path_reintroduction_after_base
         initial_sibling_git_repository,
     )
     execution_head = initial_sibling_git_repository["execution_head"]
+    mutation_commit: str | None = None
     expected = r"initial sibling authority"
 
     if mutation == "not-execution-head-ancestor":
@@ -2831,7 +2838,8 @@ def test_initial_sibling_graph_rejects_lineage_or_path_reintroduction_after_base
             _fixture_git(validator, root, "rm", "--quiet", "--", INITIAL_SIBLING_PATH.as_posix())
         _fixture_git(validator, root, "commit", "--quiet", "-m", mutation)
         execution_head = _fixture_git(validator, root, "rev-parse", "HEAD").strip().decode("ascii")
-        expected = r"bytes drifted in its descendant lineage"
+        mutation_commit = execution_head
+        expected = r"authority has a non-source non-projection Git touch"
     elif mutation.startswith("non-descendant-duplicate"):
         _fixture_git(
             validator,
@@ -2850,8 +2858,9 @@ def test_initial_sibling_graph_rejects_lineage_or_path_reintroduction_after_base
         )
         _fixture_git(validator, root, "add", "--", INITIAL_SIBLING_PATH.as_posix())
         _fixture_git(validator, root, "commit", "--quiet", "-m", mutation)
+        mutation_commit = _fixture_git(validator, root, "rev-parse", "HEAD").strip().decode("ascii")
         _fixture_git(validator, root, "checkout", "--quiet", "synthetic-series")
-        expected = r"path exists outside its descendant lineage"
+        expected = r"authority has a non-source non-projection Git touch"
     else:
         _fixture_git(
             validator,
@@ -2903,7 +2912,48 @@ def test_initial_sibling_graph_rejects_lineage_or_path_reintroduction_after_base
             "--hard",
             execution_head,
         )
-        expected = r"bytes drifted in its descendant lineage"
+        mutation_commit = execution_head
+        expected = r"authority has a non-source non-projection Git touch"
+
+    if mutation_commit is not None:
+        expected_status = {
+            "descendant-modify": "M",
+            "descendant-delete": "D",
+            "non-descendant-duplicate-same-bytes": "A",
+            "non-descendant-duplicate-different-bytes": "A",
+            "merge-result-drift": "M",
+        }[mutation]
+        mutation_touches = tuple(
+            touch
+            for touch in validator._all_ref_path_touches(root, INITIAL_SIBLING_PATH.as_posix())
+            if touch[0] == mutation_commit
+        )
+        assert mutation_touches == (
+            (mutation_commit, expected_status, (INITIAL_SIBLING_PATH.as_posix(),)),
+        )
+        mutation_blob = validator._git_optional_blob(
+            root,
+            mutation_commit,
+            INITIAL_SIBLING_PATH.as_posix(),
+        )
+        mutation_parents = validator._git_parents(root, mutation_commit)
+        if mutation.startswith("descendant-"):
+            assert len(mutation_parents) == 1
+            assert validator._git_is_ancestor(root, INITIAL_SIBLING_COMMIT, mutation_commit)
+            if mutation.endswith("delete"):
+                assert mutation_blob is None
+            else:
+                assert mutation_blob != payload
+        elif mutation.startswith("non-descendant-"):
+            assert len(mutation_parents) == 1
+            assert not validator._git_is_ancestor(root, INITIAL_SIBLING_COMMIT, mutation_commit)
+            if mutation.endswith("same-bytes"):
+                assert mutation_blob == payload
+            else:
+                assert mutation_blob != payload
+        else:
+            assert len(mutation_parents) == 2
+            assert mutation_blob != payload
 
     with pytest.raises(validator.RehearsalV22ValidationError, match=expected):
         validator._validate_initial_sibling_authority(
@@ -2966,15 +3016,43 @@ def test_initial_sibling_worktree_is_optional_but_any_present_entry_is_exact_reg
 def test_initial_sibling_fixed_parent_diff_blob_and_callsite_partition_are_explicit() -> None:
     validator = _validator_module()
     helper_source = inspect.getsource(validator._validate_initial_sibling_authority)
-    assert "_git_parents(root, INDEPENDENT_REVIEW_COMMIT)" in helper_source
+    helper_tree = ast.parse(helper_source)
+    helper_calls = [node for node in ast.walk(helper_tree) if isinstance(node, ast.Call)]
+
+    def exact_call(name: str, second_argument: str) -> list[ast.Call]:
+        return [
+            node
+            for node in helper_calls
+            if isinstance(node.func, ast.Name)
+            and node.func.id == name
+            and len(node.args) >= 2
+            and isinstance(node.args[1], ast.Name)
+            and node.args[1].id == second_argument
+            and any(
+                keyword.arg == "work_tracker"
+                and isinstance(keyword.value, ast.Name)
+                and keyword.value.id == "tracker"
+                for keyword in node.keywords
+            )
+        ]
+
+    assert len(exact_call("_git_parents", "INDEPENDENT_REVIEW_COMMIT")) == 1
     assert "(INITIAL_REVIEWED_COMMIT,)" in helper_source
     assert "_diff_name_status(" in helper_source
     assert "INITIAL_REVIEWED_COMMIT," in helper_source
     assert "INDEPENDENT_REVIEW_COMMIT," in helper_source
     assert '(("A", path),)' in helper_source
-    assert "_git_blob(root, INDEPENDENT_REVIEW_COMMIT, path)" in helper_source
+    assert len(exact_call("_git_blob", "INDEPENDENT_REVIEW_COMMIT")) == 1
     assert "_sha256(payload) != INDEPENDENT_REVIEW_SHA256" in helper_source
-    assert "_git_optional_blob(root, head, path) != payload" in helper_source
+    assert any(
+        isinstance(node.func, ast.Name)
+        and node.func.id == "_git_optional_blob"
+        and len(node.args) >= 2
+        and isinstance(node.args[1], ast.Name)
+        and node.args[1].id == "head"
+        and any(keyword.arg == "work_tracker" for keyword in node.keywords)
+        for node in helper_calls
+    )
 
     control_source = inspect.getsource(validator._validate_control_archive)
     assert "if relative == INDEPENDENT_REVIEW_RELATIVE.as_posix():" in control_source
@@ -3011,7 +3089,7 @@ def test_generic_authority_keeps_unique_a_semantics_for_non_sibling_paths(
     _fixture_commit_file(validator, root, relative, payload + b"drift\n")
     with pytest.raises(
         validator.RehearsalV22ValidationError,
-        match=r"authority is not one unique status-A Git touch",
+        match=r"non-source non-projection|authority",
     ):
         validator._unique_a_authority(root, reference, require_worktree=True)
 
@@ -3973,8 +4051,15 @@ def test_series_2_owner_authority_epoch_must_match_explicit_epoch_key(
         validator._validate_implementation_epochs(
             project_root=tmp_path,
             bundle={"implementation_epochs": [epoch]},
-            replay=SimpleNamespace(selected_implementation_epoch=5),
+            replay=SimpleNamespace(
+                selected_implementation_epoch=5,
+                selected_implementation_commit=epoch["implementation_commit"],
+            ),
             archives=SimpleNamespace(control_root_sha256=epoch["control_merkle_root_sha256"]),
+            validation_context=validator.ActiveBundleValidationContext(
+                mode=validator.BundleValidationMode.ACTIVE_ATTEMPT_BUNDLE,
+            ),
+            control_pass_nonce=object(),
         )
 
 
@@ -4262,19 +4347,16 @@ def test_validator_second_copy_fault_matrix_blocks_every_continuation_surface(
         forbidden_automatic_repair,
     )
 
-    with pytest.raises(
-        implementation.RehearsalV22Error,
-        match=r"second-copy fault blocks continuation",
-    ):
+    rejection_messages: list[str] = []
+
+    with pytest.raises(implementation.RehearsalV22Error) as continuation_error:
         implementation._validate_continuation_mirror_state(
             binding,
             history,
             permit_unmirrored_final_incomplete=False,
         )
-    with pytest.raises(
-        implementation.RehearsalV22Error,
-        match=r"second-copy fault blocks continuation",
-    ):
+    rejection_messages.append(str(continuation_error.value))
+    with pytest.raises(implementation.RehearsalV22Error) as bundle_error:
         implementation._build_bundle(
             binding=binding,
             history=history,
@@ -4282,16 +4364,15 @@ def test_validator_second_copy_fault_matrix_blocks_every_continuation_surface(
             run_b=None,
             control=None,
         )
-    with pytest.raises(
-        implementation.RehearsalV22Error,
-        match=r"second-copy fault blocks continuation",
-    ):
+    rejection_messages.append(str(bundle_error.value))
+    with pytest.raises(implementation.RehearsalV22Error) as replay_error:
         implementation._official_validator_replay_scope(
             binding=binding,
             validator_module=validator,
             bundle_path=binding.destination / implementation.BUNDLE_FILENAME,
             implementation_commit=next_action.implementation_commit,
         ).__enter__()
+    rejection_messages.append(str(replay_error.value))
 
     ledger = implementation.SeriesLedger(
         binding=binding,
@@ -4299,16 +4380,26 @@ def test_validator_second_copy_fault_matrix_blocks_every_continuation_surface(
         lock_descriptor=1,
         locked=True,
     )
-    with pytest.raises(
-        implementation.RehearsalV22Error,
-        match=r"second-copy fault blocks continuation",
-    ):
+    with pytest.raises(implementation.RehearsalV22Error) as allocation_error:
         ledger.allocate_attempt(
             next_action,
             created_at_utc=implementation.FIXED_WALL_CLOCK_TEXT,
         )
+    rejection_messages.append(str(allocation_error.value))
 
-    assert len(guard_calls) == 4
+    assert len(rejection_messages) == 4
+    assert sum(
+        message == "validator-confirmed second-copy fault blocks continuation"
+        for message in rejection_messages
+    ) == 2
+    early_rejections = [
+        message
+        for message in rejection_messages
+        if message != "validator-confirmed second-copy fault blocks continuation"
+    ]
+    assert len(early_rejections) == 2
+    assert all(message for message in early_rejections)
+    assert len(guard_calls) == 2
     assert all(allow_unmirrored is False for _, _, allow_unmirrored in guard_calls)
     assert len(history_calls) == 2
     assert len(action_calls) == 1
@@ -4527,6 +4618,64 @@ def test_validator_openat_hostile_runtime_replacement_has_no_write_effect(
             assert closure["registry"] == ()
         finally:
             os.close(parent_descriptor)
+
+
+def test_validator_recovery_rename_stolen_nonce_rejects_hostile_any_replacement(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    implementation = importlib.import_module(IMPLEMENTATION_MODULE)
+    recovery_checker = implementation._recovery_rename_capability_is_issued
+    recovery_closure = inspect.getclosurevars(recovery_checker).nonlocals
+    recovery_nonce = recovery_closure["nonce"]
+    recovery_registry = recovery_closure["registry"]
+    assert recovery_registry == ()
+    assert recovery_closure["capability_type"] is implementation._RecoveryRenameCapability
+    assert recovery_closure["python_type"] is type
+    assert recovery_closure["python_id"] is id
+
+    stage = (tmp_path / "recovery-stage").absolute()
+    destination = (tmp_path / "recovery-destination").absolute()
+    unrelated = (tmp_path / "recovery-unrelated").absolute()
+    recovery_policy = implementation._AuditPolicy(
+        project_root=PROJECT_ROOT,
+        write_roots=(stage,),
+        exact_write_paths=(destination, unrelated),
+        create_only_roots=(),
+        sqlite_roots=(),
+        git_roots=(PROJECT_ROOT,),
+        subprocess_mode="git-read",
+        recovery_rename_pairs=((stage, destination),),
+    )
+    forged_recovery = implementation._RecoveryRenameCapability(
+        _nonce=recovery_nonce,
+        policy_id=id(recovery_policy),
+        source=stage,
+        destination=destination,
+    )
+    forged_cross_pair = implementation._RecoveryRenameCapability(
+        _nonce=recovery_nonce,
+        policy_id=id(recovery_policy),
+        source=stage,
+        destination=unrelated,
+    )
+    stale_recovery_snapshot = (*recovery_registry, forged_recovery)
+    assert stale_recovery_snapshot == (forged_recovery,)
+
+    with monkeypatch.context() as patcher:
+        patcher.setattr(builtins, "any", lambda *_args, **_kwargs: True)
+        assert not recovery_checker(
+            forged_recovery,
+            policy=recovery_policy,
+            source=stage,
+            destination=destination,
+        )
+        assert not recovery_checker(
+            forged_cross_pair,
+            policy=recovery_policy,
+            source=stage,
+            destination=unrelated,
+        )
 
 
 def test_validator_openat_reentrant_capability_is_rejected_and_cleared(
@@ -4842,16 +4991,19 @@ if rc != -1 or observed != errno.EEXIST:
 
 def test_bundle_and_release_common_pass_rechecks_mirror_before_any_active_replay() -> None:
     validator = _validator_module()
-    bundle_source = inspect.getsource(validator._validate_bundle_once)
+    bundle_source = inspect.getsource(validator._validate_common_bundle_once)
+    active_bundle_source = inspect.getsource(validator._validate_active_bundle_once)
     release_source = inspect.getsource(validator._validate_release_once)
     public_bundle_source = inspect.getsource(validator.validate_bundle)
     assert bundle_source.index("_validate_second_copy_history(") < bundle_source.index(
         "return ValidatedBundle("
     )
-    assert release_source.index("_validate_bundle_once(") < release_source.index(
+    assert "_validate_common_bundle_once(" in active_bundle_source
+    assert "_active_replay_validated_bundle(" not in active_bundle_source
+    assert release_source.index("_validate_active_bundle_once(") < release_source.index(
         "_active_replay_validated_bundle("
     )
-    assert public_bundle_source.index("_validate_bundle_once(") < public_bundle_source.index(
+    assert public_bundle_source.index("_validate_active_bundle_once(") < public_bundle_source.index(
         "_active_replay_validated_bundle("
     )
     active_replay_source = inspect.getsource(validator._active_replay_validated_bundle)
@@ -4879,6 +5031,7 @@ def test_post_bundle_mirror_deletion_blocks_release_replay_without_any_write(
         implementation_commit="3" * 40,
         archives=SimpleNamespace(),
         history=fixture["replay"],
+        mirror_receipts=(),
     )
     reached: list[str] = []
 
@@ -4929,21 +5082,26 @@ def test_post_bundle_mirror_deletion_blocks_release_replay_without_any_write(
     )
 
 
-def test_series_2_validator_has_no_recovery_void3_or_mirror_completion_surface() -> None:
+def test_series_2_epoch_seven_recovery_is_disclosed_without_void3_or_completion_surface() -> None:
     validator = _validator_module()
     implementation = importlib.import_module(IMPLEMENTATION_MODULE)
     for name in (
-        "recover_sealed_bundle",
-        "consume_recovered_release",
         "complete_mirror",
         "mirror_completion_authorization",
         "void_epoch_3",
     ):
         assert not hasattr(validator, name)
         assert not hasattr(implementation, name)
+    assert hasattr(validator, "validate_recovered_bundle")
+    assert hasattr(validator, "validate_recovered_release_authorization")
+    assert hasattr(implementation, "_execute_authorized_bundle_recovery")
+    assert hasattr(implementation, "consume_recovered_release_authorization")
     validator_source = inspect.getsource(validator)
-    assert "--recover-sealed-bundle" not in validator_source
-    assert "--consume-recovered-release" not in validator_source
+    implementation_source = inspect.getsource(implementation)
+    assert "--recover-sealed-bundle" in implementation_source
+    assert "--consume-recovered-release" in implementation_source
+    assert "PASSIVE_RECOVERED_BUNDLE" in validator_source
+    assert "PASSIVE_RECOVERED_RELEASE" in validator_source
 
 
 @pytest.mark.parametrize(
@@ -5521,3 +5679,1205 @@ def test_mirror_validation_rereads_snapshot_members_after_initial_validation(
             replay=fixture["replay"],
         )
     assert triggered is True
+
+
+EPOCH_7_COMPANION_RELATIVE = Path(
+    "docs/phase4/reports/P4.2a-epoch7-design-review-r2-and-companion-20260827.json"
+)
+EPOCH_7_COMPANION_SHA256 = "43651a31b24088b0ec676bdf2fee3c0f54629471ab29d5e5164e2b2e308e7c9d"
+EPOCH_7_CONTRACT_FIELDS = {
+    "schema_version",
+    "governing_adjudication",
+    "implementation_epoch",
+    "recovery_review_request_contract",
+    "recovery_authorization_contract",
+    "recovery_owner_binding_contract",
+    "recovery_claim_contract",
+    "bundle_mirror_receipt_contract",
+    "dual_byte_anchor_contract",
+    "unique_a_and_lineage_census_contract",
+    "protected_inputs_and_permitted_outputs",
+    "legacy_absence_and_locks",
+}
+RECOVERED_PUBLICATION_CAPABILITY_FIELDS = (
+    "recovery_authorization_path",
+    "recovery_authorization_sha256",
+    "recovery_authorization_creating_commit",
+    "owner_binding_path",
+    "owner_binding_sha256",
+    "owner_binding_creating_commit",
+    "claim_root",
+    "claim_started_sha256",
+    "claim_terminal_sha256",
+    "series_token_sha256",
+    "selected_attempt_ordinal",
+    "selected_implementation_epoch",
+    "selected_implementation_commit",
+    "sealed_history_root_sha256",
+    "sealed_live_ledger_root_sha256",
+    "destination",
+    "published_bundle_sha256",
+    "published_tree_sha256",
+    "secondary_snapshot",
+    "secondary_snapshot_tree_sha256",
+    "primary_receipt_path",
+    "secondary_receipt_path",
+    "paired_receipt_sha256",
+    "paired_receipt_bytes",
+    "execution_epoch",
+    "execution_implementation_commit",
+    "execution_control_merkle_root_sha256",
+    "recovery_starts",
+    "pipeline_starts",
+    "automatic_retry_count",
+    "sealed_ledger_before_after_equal",
+    "sealed_mirror_before_after_equal",
+    "selected_candidate_sha256",
+    "selected_terminal_sha256",
+    "selected_evidence_tree_root_sha256",
+    "historical_run_a_root_sha256",
+    "historical_run_b_root_sha256",
+    "historical_run_a_probe_sha256",
+    "historical_run_b_probe_sha256",
+    "historical_full_downstream_replay_verified",
+)
+RECOVERED_MODE_FORBIDDEN_ACTIVE_SYMBOLS = {
+    "_active_replay_validated_bundle",
+    "_active_replay_selected_pipeline",
+    "_official_validator_replay_scope",
+    "replay_selected_pipeline",
+    "_execute_pipeline_inner",
+}
+
+
+def _module_level_call_graph(payload: bytes) -> dict[str, set[str]]:
+    tree = ast.parse(payload)
+    graph: dict[str, set[str]] = {}
+    for node in tree.body:
+        if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            continue
+        calls: set[str] = set()
+        for child in ast.walk(node):
+            if not isinstance(child, ast.Call):
+                continue
+            if isinstance(child.func, ast.Name):
+                calls.add(child.func.id)
+            elif isinstance(child.func, ast.Attribute):
+                calls.add(child.func.attr)
+        graph[node.name] = calls
+    return graph
+
+
+def _reachable_calls(graph: dict[str, set[str]], root: str) -> set[str]:
+    assert root in graph
+    pending = [root]
+    reached: set[str] = set()
+    while pending:
+        current = pending.pop()
+        if current in reached:
+            continue
+        reached.add(current)
+        for child in graph.get(current, set()):
+            if child not in reached:
+                pending.append(child)
+    return reached
+
+
+def test_epoch_7_companion_and_contract_are_independently_byte_bound() -> None:
+    validator = _validator_module()
+    registered_root = Path(validator.REGISTERED_PROJECT_ROOT)
+    payload = (registered_root / EPOCH_7_COMPANION_RELATIVE).read_bytes()
+    assert hashlib.sha256(payload).hexdigest() == EPOCH_7_COMPANION_SHA256
+    document = json.loads(payload)
+    contract = document["epoch_7_recovery_contract"]
+    assert set(contract) == EPOCH_7_CONTRACT_FIELDS
+    assert contract["schema_version"] == "p4.2a-v2-2-series2-epoch7-recovery-contract-v1"
+    assert type(contract["implementation_epoch"]) is int
+    assert contract["implementation_epoch"] == 7
+    head = subprocess.run(
+        ["/usr/bin/git", "-C", registered_root.as_posix(), "rev-parse", "HEAD"],
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+    signature = inspect.signature(validator.validate_epoch_7_recovery_contract)
+    if "execution_head" in signature.parameters:
+        observed = validator.validate_epoch_7_recovery_contract(
+            registered_root,
+            execution_head=head,
+        )
+    else:
+        observed = validator.validate_epoch_7_recovery_contract(registered_root)
+    assert observed == contract
+
+
+def test_epoch_7_historical_anchor_is_recomputed_against_the_bound_sealed_root() -> None:
+    validator = _validator_module()
+    control_root = "11" * 32
+    history_root = "22" * 32
+    live_root = "33" * 32
+    implementation_commit = "44" * 20
+    replay = validator.HistoryReplay(
+        records=({}, {}),
+        source_records=(
+            ({}, None, {}),
+            ({}, {"control_surface_root_sha256": control_root}, {}),
+        ),
+        started_count=2,
+        failed_count=1,
+        incomplete_count=0,
+        selected_attempt_ordinal=2,
+        selected_implementation_epoch=6,
+        selected_implementation_commit=implementation_commit,
+        history_root_sha256=history_root,
+        live_ledger_root_sha256=live_root,
+        archive_merkle_root_sha256="55" * 32,
+        live_payloads={},
+        live_identities={},
+        archive_payloads={},
+    )
+    anchor = validator.HistoricalSelectedAnchor(
+        implementation_epoch=6,
+        implementation_commit=implementation_commit,
+        control_merkle_root_sha256=control_root,
+        history_root_sha256=history_root,
+        live_ledger_root_sha256=live_root,
+        selected_attempt_ordinal=2,
+        require_current=False,
+    )
+    assert validator._historical_selected_anchor(replay, anchor) == anchor
+    with pytest.raises(
+        validator.RehearsalV22ValidationError,
+        match="bound anchor",
+    ):
+        validator._historical_selected_anchor(
+            replay,
+            replace(anchor, history_root_sha256="66" * 32),
+        )
+    source = inspect.getsource(validator._historical_selected_anchor)
+    assert "HISTORICAL_SELECTED_EPOCH" not in source
+    assert "SEALED_SERIES_HISTORY_ROOT_SHA256" not in source
+    assert "SEALED_SERIES_LIVE_ROOT_SHA256" not in source
+    assert "HISTORICAL_SELECTED_IMPLEMENTATION_COMMIT" not in source
+
+
+def test_epoch_7_recovery_reuses_validated_mirror_receipts_and_one_initial_census(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    validator = _validator_module()
+    assert tuple(validator.ValidatedBundle.__dataclass_fields__)[-1] == "mirror_receipts"
+    common_source = inspect.getsource(validator._validate_common_bundle_once)
+    assert "mirror_receipts = _validate_second_copy_history(" in common_source
+    assert "mirror_receipts=mirror_receipts" in common_source
+    historical_source = inspect.getsource(
+        validator._validate_historical_full_downstream_replay_evidence
+    )
+    for token in (
+        'nested_fields.get("sealed_series")',
+        'nested_fields.get("selected_files")',
+        'nested_fields.get("selected_file_reference")',
+        'nested_fields.get("sealed_mirror")',
+        "validated.mirror_receipts[-1]",
+        '"receipt_sha256": _sha256(latest_receipt_payload)',
+        '"inventory_sha256": latest_receipt.get("primary_inventory_sha256")',
+        '_require_equal(sealed, expected_sealed_series, "recovery sealed series binding")',
+    ):
+        assert token in historical_source
+    initial_source = inspect.getsource(validator._live_anchor_from_recovery_governance)
+    assert initial_source.count("_real_lineage_census(") == 1
+    assert "_validate_live_execution_anchor_identity(" in initial_source
+    assert "_assert_git_census_state_unchanged(" in initial_source
+    assert "live_control" in initial_source
+    assert tuple(validator.ArchiveReplay.__dataclass_fields__)[-2] == ("selected_control_cache")
+    archive_source = inspect.getsource(validator._validate_archives)
+    epoch_source = inspect.getsource(validator._validate_implementation_epochs)
+    assert "selected_control_surface = _validate_control_archive(" in archive_source
+    assert "selected_control_cache=selected_control_cache" in archive_source
+    assert "archives.selected_control_cache" in epoch_source
+    assert "_historical_control_cache_for_epoch(" in epoch_source
+    selector_source = inspect.getsource(validator._historical_control_cache_for_epoch)
+    assert "replay.selected_implementation_epoch != 6" in selector_source
+    assert "epoch_number != 6" in selector_source
+    assert "selected_require_current" in selector_source
+    recovery_source = inspect.getsource(validator.validate_recovered_bundle)
+    release_source = inspect.getsource(validator.validate_recovered_release_authorization)
+    assert "_validate_live_execution_anchor(" in recovery_source
+    assert "final_census = _validate_live_execution_anchor(" in release_source
+    assert "cached_current_control=live_control" in recovery_source
+    assert "cached_current_control=live_control" in release_source
+    assert "control_pass_nonce=live_control_pass_nonce" in recovery_source
+    assert "control_pass_nonce=live_control_pass_nonce" in release_source
+    expected_refs = b"refs-unchanged\n"
+    expected_head = "a" * 40
+    observed_head = [expected_head]
+    monkeypatch.setattr(validator, "_git_ref_snapshot", lambda _root: expected_refs)
+    monkeypatch.setattr(
+        validator,
+        "_git_bytes",
+        lambda _root, *_args: (observed_head[0] + "\n").encode("ascii"),
+    )
+    monkeypatch.setattr(
+        validator,
+        "_git_commit",
+        lambda _root, value, _label: value,
+    )
+    validator._assert_git_census_state_unchanged(
+        PROJECT_ROOT,
+        expected_refs=expected_refs,
+        expected_head=expected_head,
+    )
+    observed_head[0] = "b" * 40
+    with pytest.raises(
+        validator.RehearsalV22ValidationError,
+        match="refs or HEAD changed",
+    ):
+        validator._assert_git_census_state_unchanged(
+            PROJECT_ROOT,
+            expected_refs=expected_refs,
+            expected_head=expected_head,
+        )
+
+
+def _valid_control_surface_for_cache(
+    producer: Any,
+    root: Path,
+    *,
+    loaded_sources: tuple[str, ...] = ("member.py",),
+) -> tuple[Any, Path, tuple[bytes, bytes]]:
+    member = root / "member.py"
+    member_payload = b"registered member\n"
+    member.write_bytes(member_payload)
+    python_payload = b'{"python":"registered"}\n'
+    package_payload = b'{"packages":"registered"}\n'
+    rows = [
+        {
+            "logical_name": "member.py",
+            "bundle_relative_path": "archive/control-surface/root/repository/member.py",
+            "source_kind": "frozen_control",
+            "repository_path": "member.py",
+            "bytes": len(member_payload),
+            "sha256": producer._sha256(member_payload),
+        },
+        {
+            "logical_name": "packages",
+            "bundle_relative_path": "archive/control-surface/root/runtime/packages.json",
+            "source_kind": "package_inventory",
+            "repository_path": None,
+            "bytes": len(package_payload),
+            "sha256": producer._sha256(package_payload),
+        },
+        {
+            "logical_name": "python",
+            "bundle_relative_path": "archive/control-surface/root/runtime/python.json",
+            "source_kind": "python_runtime",
+            "repository_path": None,
+            "bytes": len(python_payload),
+            "sha256": producer._sha256(python_payload),
+        },
+    ]
+    payloads = {
+        rows[0]["bundle_relative_path"]: member_payload,
+        rows[1]["bundle_relative_path"]: package_payload,
+        rows[2]["bundle_relative_path"]: python_payload,
+    }
+    manifest = producer._canonical_json_bytes(
+        {"schema_version": producer.CONTROL_MANIFEST_SCHEMA, "files": rows}
+    )
+    merkle_payloads = {**payloads, "archive/control-surface/manifest.json": manifest}
+    return (
+        producer.ControlSurface(
+            implementation_commit="a" * 40,
+            records=tuple(rows),
+            payloads=payloads,
+            manifest_payload=manifest,
+            merkle_root_sha256=producer._generic_merkle_root(merkle_payloads),
+            ast_closure_paths=("member.py",),
+            loaded_repository_sources=loaded_sources,
+            python_inventory=python_payload,
+            package_inventory=package_payload,
+        ),
+        member,
+        (python_payload, package_payload),
+    )
+
+
+def _freeze_live_control_cache(
+    module: Any,
+    *,
+    root: Path,
+    control: Any,
+    pass_nonce: object,
+    execution_head: str,
+    ref_snapshot_sha256: str,
+    census_sha256: str,
+) -> Any:
+    kwargs = {
+        "implementation_commit": control.implementation_commit,
+        "execution_head": execution_head,
+        "ref_snapshot_sha256": ref_snapshot_sha256,
+        "lineage_census_sha256": census_sha256,
+        "pass_nonce": pass_nonce,
+        "control": control,
+    }
+    if module.__name__ == VALIDATOR_MODULE:
+        kwargs.update(pass_kind="LIVE_CURRENT", selected_epoch=None)
+    return module._freeze_control_surface_cache(root, **kwargs)
+
+
+@pytest.mark.parametrize(
+    "drift",
+    (
+        "execution_epoch",
+        "refs",
+        "head",
+        "control_member",
+        "runtime_inventory",
+        "implementation_module",
+        "validator_module",
+        "authority_worktree",
+    ),
+)
+def test_epoch_7_publication_guard_rejects_every_mutable_live_span(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    drift: str,
+) -> None:
+    implementation = importlib.import_module(IMPLEMENTATION_MODULE)
+    refs = b"refs/heads/main\0" + b"a" * 40 + b"\n"
+    refs_state = [refs]
+    head = "a" * 40
+    head_state = [head]
+    authority_path = tmp_path / "authority.json"
+    authority_payload = b"authority\n"
+    authority_path.write_bytes(authority_payload)
+    control, member, runtime = _valid_control_surface_for_cache(implementation, tmp_path)
+    loaded_state = [("member.py",)]
+    runtime_state = [runtime]
+    module_payloads = {
+        implementation.IMPLEMENTATION_RELATIVE.as_posix(): b"producer",
+        implementation.VALIDATOR_RELATIVE.as_posix(): b"validator",
+    }
+    execution_epoch = {"epoch": 7, "binding": "registered"}
+    expected_execution_epoch_payload = implementation._canonical_json_bytes(execution_epoch)
+    authorization = SimpleNamespace(execution_epoch=execution_epoch)
+    start_census = {
+        "schema_version": "synthetic-census",
+        "execution_head": head,
+        "ref_snapshot_before_sha256": implementation._sha256(refs),
+        "ref_snapshot_after_sha256": implementation._sha256(refs),
+        "rows": [
+            {
+                "path": authority_path.relative_to(tmp_path).as_posix(),
+                "worktree_sha256": implementation._sha256(authority_payload),
+            }
+        ],
+    }
+    live_anchor = SimpleNamespace(
+        execution_head=head,
+        implementation_commit=control.implementation_commit,
+        real_lineage_census_sha256=implementation._census_reference(start_census)[
+            "canonical_json_sha256"
+        ],
+        control_surface=control,
+        loaded_module_sha256={
+            relative: implementation._sha256(payload)
+            for relative, payload in module_payloads.items()
+        },
+    )
+    control_pass_nonce = object()
+    control_cache = _freeze_live_control_cache(
+        implementation,
+        root=tmp_path,
+        control=control,
+        pass_nonce=control_pass_nonce,
+        execution_head=head,
+        ref_snapshot_sha256=implementation._sha256(refs),
+        census_sha256=live_anchor.real_lineage_census_sha256,
+    )
+    monkeypatch.setattr(
+        implementation,
+        "_git_ref_snapshot",
+        lambda _root: (
+            refs_state[0],
+            implementation._sha256(refs_state[0]),
+            len(refs_state[0].splitlines()),
+        ),
+    )
+    monkeypatch.setattr(
+        implementation,
+        "_current_execution_head",
+        lambda _root: head_state[0],
+    )
+    monkeypatch.setattr(
+        implementation,
+        "validate_epoch_7_recovery_contract",
+        lambda _root, **_kwargs: {},
+    )
+    monkeypatch.setattr(
+        implementation,
+        "_classify_loaded_module_origins",
+        lambda _root: frozenset(loaded_state[0]),
+    )
+    monkeypatch.setattr(
+        implementation,
+        "_runtime_inventory",
+        lambda _root: runtime_state[0],
+    )
+    monkeypatch.setattr(
+        implementation,
+        "validate_implementation_blob",
+        lambda _root, _commit, relative, **_kwargs: module_payloads[relative],
+    )
+    implementation._validate_live_execution_publication_guard(
+        SimpleNamespace(project_root=tmp_path),
+        authorization=authorization,
+        live_anchor=live_anchor,
+        start_census=start_census,
+        expected_execution_epoch_payload=expected_execution_epoch_payload,
+        control_pass_nonce=control_pass_nonce,
+        control_cache=control_cache,
+    )
+    if drift == "execution_epoch":
+        execution_epoch["binding"] = "changed"
+    elif drift == "refs":
+        refs_state[0] = b"refs/heads/main\0" + b"c" * 40 + b"\n"
+    elif drift == "head":
+        head_state[0] = "c" * 40
+    elif drift == "control_member":
+        member.write_bytes(b"changed member\n")
+    elif drift == "runtime_inventory":
+        runtime_state[0] = (b"changed python\n", runtime_state[0][1])
+    elif drift == "implementation_module":
+        module_payloads[implementation.IMPLEMENTATION_RELATIVE.as_posix()] = b"changed"
+    elif drift == "validator_module":
+        module_payloads[implementation.VALIDATOR_RELATIVE.as_posix()] = b"changed"
+    else:
+        authority_path.write_bytes(b"changed\n")
+    expected_message = {
+        "execution_epoch": "recovery execution epoch mutated before publication",
+        "refs": "Git refs, HEAD, or recovery census changed before publication",
+        "head": "Git refs, HEAD, or recovery census changed before publication",
+        "control_member": "cached current control bytes drifted: member.py",
+        "runtime_inventory": "cached live runtime inventory drifted",
+        "implementation_module": "loaded module bytes changed before recovery publication",
+        "validator_module": "loaded module bytes changed before recovery publication",
+        "authority_worktree": "authority worktree bytes changed before recovery publication",
+    }[drift]
+    with pytest.raises(
+        implementation.RehearsalV22Error,
+        match=re.escape(expected_message),
+    ):
+        implementation._validate_live_execution_publication_guard(
+            SimpleNamespace(project_root=tmp_path),
+            authorization=authorization,
+            live_anchor=live_anchor,
+            start_census=start_census,
+            expected_execution_epoch_payload=expected_execution_epoch_payload,
+            control_pass_nonce=control_pass_nonce,
+            control_cache=control_cache,
+        )
+    guard_source = inspect.getsource(implementation._validate_live_execution_publication_guard)
+    assert "_rename_directory_exclusive(" not in guard_source
+
+
+@pytest.mark.parametrize("implementation_name", ("producer", "validator"))
+@pytest.mark.parametrize(
+    "drift",
+    (
+        "commit",
+        "member",
+        "loaded_sources",
+        "runtime",
+        "cross_root",
+        "stale_pass",
+        "head",
+        "refs",
+        "census",
+        "integrity",
+        "current_scope",
+    ),
+)
+def test_epoch_7_cached_control_reuses_only_immutable_bytes_and_rereads_mutable_inputs(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    implementation_name: str,
+    drift: str,
+) -> None:
+    producer = importlib.import_module(IMPLEMENTATION_MODULE)
+    validator = _validator_module()
+    control, member, runtime = _valid_control_surface_for_cache(producer, tmp_path)
+    commit = "a" * 40
+    head = "b" * 40
+    refs_sha256 = "c" * 64
+    census_sha256 = "d" * 64
+    pass_nonce = object()
+    loaded_state = [("member.py",)]
+    runtime_state = [runtime]
+    monkeypatch.setattr(
+        producer,
+        "_classify_loaded_module_origins",
+        lambda _root: frozenset(loaded_state[0]),
+    )
+    if implementation_name == "producer":
+        monkeypatch.setattr(producer, "_runtime_inventory", lambda _root: runtime_state[0])
+        helper = producer._revalidate_cached_current_control_surface
+        error = producer.RehearsalV22Error
+    else:
+        monkeypatch.setattr(validator, "_independent_runtime_inventory", lambda: runtime_state[0])
+        helper = validator._revalidate_cached_current_control_surface
+        error = validator.RehearsalV22ValidationError
+    module = producer if implementation_name == "producer" else validator
+    cache = _freeze_live_control_cache(
+        module,
+        root=tmp_path,
+        control=control,
+        pass_nonce=pass_nonce,
+        execution_head=head,
+        ref_snapshot_sha256=refs_sha256,
+        census_sha256=census_sha256,
+    )
+    assert (
+        helper(
+            tmp_path,
+            implementation_commit=commit,
+            execution_head=head,
+            ref_snapshot_sha256=refs_sha256,
+            lineage_census_sha256=census_sha256,
+            pass_nonce=pass_nonce,
+            cache=cache,
+        )
+        is None
+    )
+    observed_commit = commit
+    observed_root = tmp_path
+    observed_pass_nonce = pass_nonce
+    observed_head = head
+    observed_refs = refs_sha256
+    observed_census = census_sha256
+    observed_cache = cache
+    if drift == "commit":
+        observed_commit = "b" * 40
+    elif drift == "member":
+        member.write_bytes(b"changed\n")
+    elif drift == "loaded_sources":
+        loaded_state[0] = ("scripts/other.py",)
+    elif drift == "runtime":
+        runtime_state[0] = (b"changed", b"packages")
+    elif drift == "cross_root":
+        observed_root = tmp_path / "other-root"
+        observed_root.mkdir()
+        (observed_root / "member.py").write_bytes(member.read_bytes())
+    elif drift == "stale_pass":
+        observed_pass_nonce = object()
+    elif drift == "head":
+        observed_head = "9" * 40
+    elif drift == "refs":
+        observed_refs = "e" * 64
+    elif drift == "census":
+        observed_census = "f" * 64
+    elif drift == "integrity":
+        observed_cache = replace(cache, records=cache.records[1:])
+    else:
+        tampered = replace(
+            cache,
+            records=(
+                replace(cache.records[0], current_byte_required=False),
+                *cache.records[1:],
+            ),
+        )
+        observed_cache = replace(
+            tampered,
+            integrity_sha256=module._sha256(
+                module._canonical_json_bytes(module._control_cache_descriptor(tampered))
+            ),
+        )
+    with pytest.raises(error):
+        helper(
+            observed_root,
+            implementation_commit=observed_commit,
+            execution_head=observed_head,
+            ref_snapshot_sha256=observed_refs,
+            lineage_census_sha256=observed_census,
+            pass_nonce=observed_pass_nonce,
+            cache=observed_cache,
+        )
+
+
+@pytest.mark.parametrize("implementation_name", ("producer", "validator"))
+@pytest.mark.parametrize("mutation", ("record", "payload", "manifest", "merkle"))
+def test_epoch_7_control_cache_freeze_rejects_inconsistent_surface(
+    tmp_path: Path,
+    implementation_name: str,
+    mutation: str,
+) -> None:
+    producer = importlib.import_module(IMPLEMENTATION_MODULE)
+    validator = _validator_module()
+    control, _member, _runtime = _valid_control_surface_for_cache(producer, tmp_path)
+    control = copy.deepcopy(control)
+    if mutation == "record":
+        control.records[0]["sha256"] = "0" * 64
+    elif mutation == "payload":
+        assert isinstance(control.payloads, dict)
+        control.payloads.pop(control.records[0]["bundle_relative_path"])
+    elif mutation == "manifest":
+        control = replace(control, manifest_payload=b"{}\n")
+    else:
+        control = replace(control, merkle_root_sha256="0" * 64)
+    module = producer if implementation_name == "producer" else validator
+    error = (
+        producer.RehearsalV22Error
+        if implementation_name == "producer"
+        else validator.RehearsalV22ValidationError
+    )
+    with pytest.raises(error):
+        _freeze_live_control_cache(
+            module,
+            root=tmp_path,
+            control=control,
+            pass_nonce=object(),
+            execution_head="b" * 40,
+            ref_snapshot_sha256="c" * 64,
+            census_sha256="d" * 64,
+        )
+
+
+@pytest.mark.parametrize("implementation_name", ("producer", "validator"))
+def test_epoch_7_control_cache_is_deep_and_alias_safe(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    implementation_name: str,
+) -> None:
+    producer = importlib.import_module(IMPLEMENTATION_MODULE)
+    validator = _validator_module()
+    control, member, runtime = _valid_control_surface_for_cache(producer, tmp_path)
+    nonce = object()
+    module = producer if implementation_name == "producer" else validator
+    cache = _freeze_live_control_cache(
+        module,
+        root=tmp_path,
+        control=control,
+        pass_nonce=nonce,
+        execution_head="b" * 40,
+        ref_snapshot_sha256="c" * 64,
+        census_sha256="d" * 64,
+    )
+    monkeypatch.setattr(
+        producer,
+        "_classify_loaded_module_origins",
+        lambda _root: frozenset(("member.py",)),
+    )
+    if implementation_name == "producer":
+        monkeypatch.setattr(producer, "_runtime_inventory", lambda _root: runtime)
+        helper = producer._revalidate_cached_current_control_surface
+        error = producer.RehearsalV22Error
+    else:
+        monkeypatch.setattr(validator, "_independent_runtime_inventory", lambda: runtime)
+        helper = validator._revalidate_cached_current_control_surface
+        error = validator.RehearsalV22ValidationError
+    control.records[0]["repository_path"] = None
+    assert isinstance(control.payloads, dict)
+    control.payloads.clear()
+    member.write_bytes(b"drift hidden by the mutable source alias\n")
+    with pytest.raises(error, match="bytes drifted"):
+        helper(
+            tmp_path,
+            implementation_commit="a" * 40,
+            execution_head="b" * 40,
+            ref_snapshot_sha256="c" * 64,
+            lineage_census_sha256="d" * 64,
+            pass_nonce=nonce,
+            cache=cache,
+        )
+
+
+def test_epoch_7_historical_cache_is_closed_to_passive_selected_epoch_six(
+    tmp_path: Path,
+) -> None:
+    producer = importlib.import_module(IMPLEMENTATION_MODULE)
+    validator = _validator_module()
+    control, _member, _runtime = _valid_control_surface_for_cache(
+        producer,
+        tmp_path,
+        loaded_sources=(),
+    )
+    nonce = object()
+    cache = validator._freeze_control_surface_cache(
+        tmp_path,
+        implementation_commit="a" * 40,
+        execution_head="b" * 40,
+        pass_kind="HISTORICAL_SELECTED_EPOCH_6",
+        selected_epoch=6,
+        ref_snapshot_sha256=None,
+        lineage_census_sha256=None,
+        pass_nonce=nonce,
+        control=control,
+    )
+    historical = validator.HistoricalSelectedAnchor(
+        implementation_epoch=6,
+        implementation_commit="a" * 40,
+        control_merkle_root_sha256=control.merkle_root_sha256,
+        history_root_sha256="c" * 64,
+        live_ledger_root_sha256="d" * 64,
+        selected_attempt_ordinal=2,
+        require_current=False,
+    )
+    live = validator.LiveExecutionAnchor(
+        implementation_epoch=7,
+        implementation_commit="e" * 40,
+        control_merkle_root_sha256="f" * 64,
+        execution_head="b" * 40,
+        owner_surface_authorization={},
+        independent_implementation_review={},
+        landing_commit="1" * 40,
+        landing_report={},
+        real_lineage_census_sha256="2" * 64,
+        require_current=True,
+    )
+    recovered = validator.RecoveredBundleValidationContext(
+        mode=validator.BundleValidationMode.PASSIVE_RECOVERED_BUNDLE,
+        historical_anchor=historical,
+        live_anchor=live,
+    )
+    replay = SimpleNamespace(
+        selected_implementation_epoch=6,
+        selected_implementation_commit="a" * 40,
+    )
+    assert (
+        validator._historical_control_cache_for_epoch(
+            project_root=tmp_path,
+            validation_context=recovered,
+            replay=replay,
+            epoch_number=6,
+            implementation_commit="a" * 40,
+            expected_merkle_root_sha256=control.merkle_root_sha256,
+            execution_head="b" * 40,
+            selected_require_current=False,
+            control_pass_nonce=nonce,
+            cache=cache,
+        )
+        is cache
+    )
+    assert (
+        validator._historical_control_cache_for_epoch(
+            project_root=tmp_path,
+            validation_context=recovered,
+            replay=replay,
+            epoch_number=5,
+            implementation_commit="9" * 40,
+            expected_merkle_root_sha256="8" * 64,
+            execution_head="b" * 40,
+            selected_require_current=False,
+            control_pass_nonce=nonce,
+            cache=cache,
+        )
+        is None
+    )
+    active = validator.ActiveBundleValidationContext(
+        mode=validator.BundleValidationMode.ACTIVE_ATTEMPT_BUNDLE,
+    )
+    assert (
+        validator._historical_control_cache_for_epoch(
+            project_root=tmp_path,
+            validation_context=active,
+            replay=replay,
+            epoch_number=6,
+            implementation_commit="a" * 40,
+            expected_merkle_root_sha256=control.merkle_root_sha256,
+            execution_head="b" * 40,
+            selected_require_current=True,
+            control_pass_nonce=nonce,
+            cache=cache,
+        )
+        is None
+    )
+    with pytest.raises(validator.RehearsalV22ValidationError, match="identity or integrity"):
+        validator._historical_control_cache_for_epoch(
+            project_root=tmp_path,
+            validation_context=recovered,
+            replay=replay,
+            epoch_number=6,
+            implementation_commit="a" * 40,
+            expected_merkle_root_sha256=control.merkle_root_sha256,
+            execution_head="b" * 40,
+            selected_require_current=False,
+            control_pass_nonce=object(),
+            cache=cache,
+        )
+
+
+def test_epoch_7_recovered_release_accepts_only_an_ancestor_recovery_started_head(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    validator = _validator_module()
+    started_head = "a" * 40
+    release_head = "b" * 40
+    observed: list[tuple[str, str]] = []
+
+    def is_ancestor(_root: Path, ancestor: str, descendant: str) -> bool:
+        observed.append((ancestor, descendant))
+        return ancestor == started_head and descendant == release_head
+
+    monkeypatch.setattr(validator, "_git_is_ancestor", is_ancestor)
+    assert (
+        validator._validated_recovery_started_execution_head(
+            PROJECT_ROOT,
+            started_head,
+            live_execution_head=release_head,
+        )
+        == started_head
+    )
+    assert observed == [(started_head, release_head)]
+    with pytest.raises(
+        validator.RehearsalV22ValidationError,
+        match="left the current live lineage",
+    ):
+        validator._validated_recovery_started_execution_head(
+            PROJECT_ROOT,
+            "c" * 40,
+            live_execution_head=release_head,
+        )
+
+
+def test_recovery_tree_fingerprint_commits_the_registered_empty_series_lock(
+    tmp_path: Path,
+) -> None:
+    implementation = importlib.import_module(IMPLEMENTATION_MODULE)
+    validator = _validator_module()
+    recovered = tmp_path / "recovered"
+    archive = recovered / "archive/attempt-history"
+    archive.mkdir(parents=True, mode=0o700)
+    lock = archive / ".series.lock"
+    lock.write_bytes(b"")
+    lock.chmod(0o600)
+    bundle = recovered / "bundle.json"
+    bundle.write_bytes(b"{}\n")
+    bundle.chmod(0o600)
+
+    observed = validator._recovery_tree_fingerprint(recovered)
+    assert observed == implementation._tree_fingerprint(recovered)
+    assert observed["archive/attempt-history/.series.lock"] == (
+        "file:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855:0600:1"
+    )
+
+    empty_evidence = archive / "attempts/000001/evidence/empty.bin"
+    empty_evidence.parent.mkdir(parents=True, mode=0o700)
+    empty_evidence.write_bytes(b"")
+    empty_evidence.chmod(0o600)
+    changed = validator._recovery_tree_fingerprint(recovered)
+    assert changed == implementation._tree_fingerprint(recovered)
+    assert changed != observed
+    assert (
+        changed["archive/attempt-history/attempts/000001/evidence/empty.bin"]
+        == observed["archive/attempt-history/.series.lock"]
+    )
+
+    alias = empty_evidence.with_name("empty-alias.bin")
+    os.link(empty_evidence, alias)
+    with pytest.raises(
+        validator.RehearsalV22ValidationError,
+        match="is not one unaliased regular file",
+    ):
+        validator._recovery_tree_fingerprint(recovered)
+
+
+def test_recovery_container_closed_member_checks_sort_observed_and_expected_names() -> None:
+    validator = _validator_module()
+    source = inspect.getsource(validator._validate_durable_recovery_evidence)
+    assert source.count("sorted(path.name for path in") == 2
+    assert "sorted(\n        (claim_root.name, receipt_name)\n    )" in source
+    assert "sorted(\n        (receipt_name, snapshot_name)\n    )" in source
+
+
+def test_epoch_7_validation_modes_and_publication_capability_are_closed() -> None:
+    implementation = importlib.import_module(IMPLEMENTATION_MODULE)
+    validator = _validator_module()
+    assert [member.value for member in validator.BundleValidationMode] == [
+        "ACTIVE_ATTEMPT_BUNDLE",
+        "PASSIVE_RECOVERED_BUNDLE",
+        "PASSIVE_RECOVERED_RELEASE",
+    ]
+    assert tuple(validator.RecoveredPublicationCapability.__dataclass_fields__) == (
+        RECOVERED_PUBLICATION_CAPABILITY_FIELDS
+    )
+    assert len(validator.RecoveredPublicationCapability.__dataclass_fields__) == 40
+    assert validator.RecoveredPublicationCapability.__dataclass_params__.frozen is True
+    assert validator.RecoveredPublicationCapability.__slots__ == (
+        RECOVERED_PUBLICATION_CAPABILITY_FIELDS
+    )
+    for anchor_type in (
+        validator.HistoricalSelectedAnchor,
+        validator.LiveExecutionAnchor,
+    ):
+        assert all(
+            field.default is MISSING and field.default_factory is MISSING
+            for field in anchor_type.__dataclass_fields__.values()
+        )
+    for capability_type in (
+        implementation.RecoveryExecutionCapability,
+        implementation.RecoveryValidatorDelegation,
+        implementation.RecoveredPublicationCapability,
+        implementation.RecoveredPublicationValidatorDelegation,
+    ):
+        assert "start_census" not in capability_type.__dataclass_fields__
+
+
+def test_both_recovered_modes_are_transitively_disjoint_from_active_symbols() -> None:
+    producer_graph = _module_level_call_graph((PROJECT_ROOT / IMPLEMENTATION_RELATIVE).read_bytes())
+    validator_graph = _module_level_call_graph((PROJECT_ROOT / VALIDATOR_RELATIVE).read_bytes())
+    producer_recovered_roots = (
+        "_execute_authorized_bundle_recovery",
+        "consume_recovered_release_authorization",
+    )
+    validator_recovered_roots = (
+        "validate_recovered_bundle",
+        "validate_recovered_release_authorization",
+    )
+    for root in producer_recovered_roots:
+        reachable = _reachable_calls(producer_graph, root)
+        assert RECOVERED_MODE_FORBIDDEN_ACTIVE_SYMBOLS.isdisjoint(reachable), (
+            root,
+            RECOVERED_MODE_FORBIDDEN_ACTIVE_SYMBOLS & reachable,
+        )
+    for root in validator_recovered_roots:
+        reachable = _reachable_calls(validator_graph, root)
+        assert RECOVERED_MODE_FORBIDDEN_ACTIVE_SYMBOLS.isdisjoint(reachable), (
+            root,
+            RECOVERED_MODE_FORBIDDEN_ACTIVE_SYMBOLS & reachable,
+        )
+        assert "_validate_common_bundle_once" in reachable
+    recovered_release_reachable = _reachable_calls(
+        validator_graph,
+        "validate_recovered_release_authorization",
+    )
+    assert {
+        "_validate_passive_release_receipt",
+        "_cross_validate_release",
+        "_git_blob",
+    } <= recovered_release_reachable
+    active_validator_reachable = _reachable_calls(
+        validator_graph,
+        "validate_release_authorization",
+    )
+    assert "_active_replay_validated_bundle" in active_validator_reachable
+    assert "_active_replay_selected_pipeline" in active_validator_reachable
+    active_producer_reachable = _reachable_calls(
+        producer_graph,
+        "_execute_authorized_attempt",
+    )
+    assert "replay_selected_pipeline" in active_producer_reachable
+    assert "_execute_pipeline_inner" in active_producer_reachable
+
+
+def test_epoch_7_recovery_does_not_reinterpret_amendment_absence_facts() -> None:
+    amendment = json.loads((PROJECT_ROOT / SERIES_2_PREREGISTRATION_RELATIVE).read_bytes())
+    rules = amendment["part_5_epoch_origin_5_and_explicit_epoch_key_rules"][
+        "legacy_and_absence_rules"
+    ]
+    assert {
+        key: rules[key]
+        for key in (
+            "official_series_2_bundle_emits_void_epoch_1",
+            "void_epoch_3_added",
+            "two_four_exception_added",
+            "sealed_bundle_recovery_added",
+            "recover_sealed_bundle_cli_added",
+            "consume_recovered_release_cli_added",
+        )
+    } == {
+        "official_series_2_bundle_emits_void_epoch_1": False,
+        "void_epoch_3_added": False,
+        "two_four_exception_added": False,
+        "sealed_bundle_recovery_added": False,
+        "recover_sealed_bundle_cli_added": False,
+        "consume_recovered_release_cli_added": False,
+    }
+
+
+def test_registered_closed_series_cannot_fall_back_to_active_when_recovery_state_is_deleted() -> (
+    None
+):
+    validator = _validator_module()
+    source = inspect.getsource(validator._validate_release_once)
+    registered_gate = 'if binding.mode == "REGISTERED_OFFICIAL":'
+    required_error = "registered closed series requires PASSIVE_RECOVERED_RELEASE"
+    assert registered_gate in source
+    assert required_error in source
+    assert source.index(registered_gate) < source.index("_validate_active_bundle_once(")
+    registered_block = source[
+        source.index(registered_gate) : source.index("_validate_active_bundle_once(")
+    ]
+    assert "raise RehearsalV22ValidationError(" in registered_block
+    assert "SERIES_2_PRIMARY_RECOVERY_CONTAINER" not in registered_block
+    assert "SERIES_2_SECONDARY_RECOVERY_CONTAINER" not in registered_block
+    assert "lexists" not in registered_block
+
+
+def test_epoch_7_real_lineage_census_is_independent_consistent_and_read_only() -> None:
+    validator = _validator_module()
+    implementation = importlib.import_module(IMPLEMENTATION_MODULE)
+    registered_root = Path(validator.REGISTERED_PROJECT_ROOT)
+    head = subprocess.run(
+        ["/usr/bin/git", "-C", registered_root.as_posix(), "rev-parse", "HEAD"],
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+    refs_before = subprocess.run(
+        [
+            "/usr/bin/git",
+            "-C",
+            registered_root.as_posix(),
+            "for-each-ref",
+            "--format=%(refname)%00%(objectname)",
+        ],
+        check=True,
+        capture_output=True,
+    ).stdout
+    status_before = subprocess.run(
+        [
+            "/usr/bin/git",
+            "-C",
+            registered_root.as_posix(),
+            "status",
+            "--porcelain=v1",
+            "-z",
+            "--untracked-files=all",
+        ],
+        check=True,
+        capture_output=True,
+    ).stdout
+    validator_tracker = validator._IndependentRecoveryWorkTracker()
+    validator_census = validator._real_lineage_census(
+        registered_root,
+        execution_head=head,
+        work_tracker=validator_tracker,
+    )
+    producer_tracker = implementation._RecoveryWorkTracker()
+    producer_census = implementation._real_lineage_census(
+        registered_root,
+        execution_head=head,
+        work_tracker=producer_tracker,
+    )
+    validator_git_work = validator_tracker.snapshot()["git_objects_read"]
+    assert 0 < validator_git_work <= validator.RECOVERY_WORK_LIMITS["git_objects_read"]
+    assert validator_tracker.git_subprocesses_started > 0
+    assert validator_tracker.git_object_read_occurrences > 0
+    assert (
+        validator_tracker.git_subprocesses_started
+        + validator_tracker.git_object_read_occurrences
+        == validator_git_work
+    )
+    assert producer_tracker.snapshot()["git_objects_read"] > 0
+    for census in (validator_census, producer_census):
+        assert census["schema_version"] == "p4.2a-v2-2-real-lineage-census-v1"
+        assert census["execution_head"] == head
+        assert census["reference_count"] == census["row_count"]
+        assert census["source_count"] == census["row_count"]
+        assert census["invalid_count"] == 0
+        assert census["ref_snapshot_before_sha256"] == (census["ref_snapshot_after_sha256"])
+        assert census["status"] == "PASS_REAL_LINEAGE_CENSUS"
+        assert census["effects"] == {
+            "git_ref_write": False,
+            "git_index_write": False,
+            "git_worktree_write": False,
+            "ledger_write": False,
+            "mirror_write": False,
+            "destination_write": False,
+            "temporary_write": False,
+            "network_access": False,
+            "database_access": False,
+            "pipeline_execution": False,
+            "heldout_access": False,
+        }
+    assert validator._canonical_json_bytes(validator_census) == (
+        implementation._canonical_json_bytes(producer_census)
+    )
+    assert (
+        subprocess.run(
+            [
+                "/usr/bin/git",
+                "-C",
+                registered_root.as_posix(),
+                "for-each-ref",
+                "--format=%(refname)%00%(objectname)",
+            ],
+            check=True,
+            capture_output=True,
+        ).stdout
+        == refs_before
+    )
+    assert (
+        subprocess.run(
+            [
+                "/usr/bin/git",
+                "-C",
+                registered_root.as_posix(),
+                "status",
+                "--porcelain=v1",
+                "-z",
+                "--untracked-files=all",
+            ],
+            check=True,
+            capture_output=True,
+        ).stdout
+        == status_before
+    )
+
+    edge_seed = dict.fromkeys(validator.RECOVERY_WORK_COUNTER_FIELDS, 0)
+    edge_seed["git_objects_read"] = (
+        validator.RECOVERY_WORK_LIMITS["git_objects_read"] - validator_git_work
+    )
+    edge_tracker = validator._IndependentRecoveryWorkTracker(edge_seed)
+    edge_census = validator._real_lineage_census(
+        registered_root,
+        execution_head=head,
+        work_tracker=edge_tracker,
+    )
+    assert validator._canonical_json_bytes(edge_census) == (
+        validator._canonical_json_bytes(validator_census)
+    )
+    assert edge_tracker.snapshot()["git_objects_read"] == (
+        validator.RECOVERY_WORK_LIMITS["git_objects_read"]
+    )
+    assert (
+        edge_tracker.git_subprocesses_started + edge_tracker.git_object_read_occurrences
+        == validator_git_work
+    )
+
+    negative_seed = dict(edge_seed)
+    negative_seed["git_objects_read"] = (
+        validator.RECOVERY_WORK_LIMITS["git_objects_read"]
+        - max(1, validator_git_work // 2)
+    )
+    negative_tracker = validator._IndependentRecoveryWorkTracker(negative_seed)
+    with pytest.raises(
+        validator._RecoveryWorkBoundExceeded,
+        match=r"recovery work bound exceeded: git_objects_read",
+    ):
+        validator._real_lineage_census(
+            registered_root,
+            execution_head=head,
+            work_tracker=negative_tracker,
+        )
+    assert 0 < negative_tracker.git_subprocesses_started < (
+        validator_tracker.git_subprocesses_started
+    )
+    assert negative_tracker.git_object_read_occurrences < (
+        validator_tracker.git_object_read_occurrences
+    )
+
+
+def test_epoch_7_lineage_registry_deduplicates_exact_refs_and_rejects_conflicts() -> None:
+    validator = _validator_module()
+    base = validator._base_authority_census_specs()[0]
+    baseline = validator._canonical_authority_registry(())
+    assert validator._canonical_authority_registry((base, base)) == baseline
+    conflicting = replace(
+        base,
+        pinned_sha256=("0" * 64 if base.pinned_sha256 != "0" * 64 else "1" * 64),
+    )
+    with pytest.raises(
+        validator.RehearsalV22ValidationError,
+        match="authority census registry has conflicting specs",
+    ):
+        validator._canonical_authority_registry((conflicting,))

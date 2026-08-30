@@ -130,10 +130,11 @@ import subprocess
 import sys
 import sysconfig
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import UTC, datetime
+from enum import StrEnum
 from pathlib import Path, PurePosixPath
-from typing import Any, NoReturn, cast
+from typing import Any, Literal, NoReturn, cast
 
 from jsonschema import Draft202012Validator, FormatChecker
 
@@ -183,6 +184,113 @@ SERIES_2_OWNER_DECISION_SHA256 = "e0fc6a17c853be063632551b4b794091a6152324af7f7e
 SERIES_2_OWNER_DECISION_COMMIT = "9a028855c73c4feba36125ed30cf5a7d4db5fff4"
 SERIES_2_EPOCH_ORIGIN = 5
 SERIES_2_SERIES_SCHEMA_VERSION = "p4.2a-v2-2-rehearsal-series-2-v1"
+EPOCH_7_ADJUDICATION_RELATIVE = Path(
+    "docs/phase4/reports/P4.2a-series2-ordinal2-adjudication-and-epoch7-direction-20260827.json"
+)
+EPOCH_7_ADJUDICATION_SHA256 = "47d8a9bbd842b496352ba210952539cb8ad1e7ab36091ab0465b8bf4c0048119"
+EPOCH_7_ADJUDICATION_COMMIT = "2dd5d60121dab100c3b2000ec73dbc5ce1cd4aa0"
+EPOCH_7_COMPANION_RELATIVE = Path(
+    "docs/phase4/reports/P4.2a-epoch7-design-review-r2-and-companion-20260827.json"
+)
+EPOCH_7_COMPANION_SHA256 = "43651a31b24088b0ec676bdf2fee3c0f54629471ab29d5e5164e2b2e308e7c9d"
+EPOCH_7_COMPANION_COMMIT = "c2aee25cd96296245d21b776974193172578dae3"
+EPOCH_7_CONTRACT_CANONICAL_SHA256 = (
+    "32149311d2e92f7b677e9d2097053b69505c893e293623c8cb7037352535508f"
+)
+EPOCH_7_SURFACE_AUTHORITY_RELATIVE = Path(
+    "docs/phase4/reports/P4.2a-v2-2-epoch7-surface-authority-20260827.json"
+)
+EPOCH_7_SURFACE_AUTHORITY_SHA256 = (
+    "eb2eb477165af6eb4493f3892328b73ba373a7bc83d8857514eb328f52a0430e"
+)
+EPOCH_7_SURFACE_AUTHORITY_COMMIT = "06336a9f593ede4132be73a8c8a087df18db904b"
+EPOCH_7_DESIGN_R1_RELATIVE = Path(
+    "docs/phase4/reports/"
+    "P4.2a-v2-2-series2-epoch7-sealed-bundle-recovery-design-proposal-20260827.md"
+)
+EPOCH_7_DESIGN_R1_SHA256 = "c80f9219a1bd61aee0bbf143295b177926377dab570aae578785dec95f628e0f"
+EPOCH_7_DESIGN_R1_BYTES = 53_608
+EPOCH_7_DESIGN_R1_COMMIT = "9cd424c292d658c1ddb1092f618049e6283aabaf"
+EPOCH_7_DESIGN_R2_RELATIVE = Path(
+    "docs/phase4/reports/"
+    "P4.2a-v2-2-series2-epoch7-sealed-bundle-recovery-design-proposal-r2-20260827.md"
+)
+EPOCH_7_DESIGN_R2_SHA256 = "46ea89f8edf838edcca6b6f34996be273c7ea73e04ee7e2b998293c83984f3e1"
+EPOCH_7_DESIGN_R2_BYTES = 27_880
+EPOCH_7_DESIGN_R2_COMMIT = "1e2e23f8948aa88376dfba45b01b2666b5c9ddaf"
+EPOCH_7_IMPLEMENTATION_EPOCH = 7
+EPOCH_7_RECOVERY_STARTED_SCHEMA = "p4.2a-v2-2-series2-bundle-recovery-started-v1"
+EPOCH_7_RECOVERY_TERMINAL_SCHEMA = "p4.2a-v2-2-series2-bundle-recovery-terminal-v1"
+EPOCH_7_RECOVERY_MIRROR_RECEIPT_SCHEMA = "p4.2a-v2-2-series2-bundle-recovery-mirror-receipt-v1"
+HISTORICAL_SELECTED_EPOCH = 6
+HISTORICAL_SELECTED_IMPLEMENTATION_COMMIT = "e5aab9772793a7b0465f100cb48f99a1bc4e45dc"
+HISTORICAL_SELECTED_CONTROL_ROOT_SHA256 = (
+    "5948fd29a8c3f38399e6518699483f61094d577ae695bc7aa0b48c84e5b8829d"
+)
+SEALED_SERIES_HISTORY_ROOT_SHA256 = (
+    "832559b59a8edc09c04b0f5a7c09cea71e5c3597c2bdc0831072a4122bf016e7"
+)
+SEALED_SERIES_LIVE_ROOT_SHA256 = "ab08612ba2e11e45c3a3415ca7079117f2a739bf470719abf4f204958272574d"
+SEALED_SELECTED_CANDIDATE_SHA256 = (
+    "e1d67123469ce63739936b7db8a520f4f0cc8dda969455a7117246cda4485086"
+)
+SEALED_SELECTED_TERMINAL_SHA256 = "3f41d80d63214af379bd8423ab7e0c61d6508ab19339f9bc7bf9a1d9ac4e0bf5"
+SEALED_SELECTED_EVIDENCE_ROOT_SHA256 = (
+    "eb44c7f3219e3f9ce92fbf17fd2da0e4b643ad0abc09f4008b2da1e35d426093"
+)
+SEALED_SELECTED_RUN_ROOT_SHA256 = "5fb8edf3aa65cdcd0f54b82bdf6f240104fa8537c1004e640671910115f8f314"
+SEALED_SELECTED_RUN_A_PROBE_SHA256 = (
+    "c53e94d513443399e2135c77fb6f556bc3359fb39f77ab0882755afe1a77628b"
+)
+SEALED_SELECTED_RUN_B_PROBE_SHA256 = (
+    "7552c2a86515adae7206423429bf8fb61f5ca0a2038ceccf0734be447c5ded0b"
+)
+SEALED_SELECTED_TERMINAL_INVENTORY_COUNT = 36
+SEALED_SELECTED_TERMINAL_INVENTORY_BYTES = 50_213_329
+SEALED_MIRROR_RECEIPT_SHA256 = "b8da48fa759d7f5301dff63eed61c711d3fb01e2715fbc45ddd27a28545820f6"
+SEALED_MIRROR_RECEIPT_BYTES = 1222
+SERIES_2_EPOCH_5_LANDING_RELATIVE = Path(
+    "docs/phase4/reports/P4.2a-v2-2-series2-epoch5-registered-gate-landing-report-20260826.json"
+)
+SERIES_2_EPOCH_5_LANDING_SHA256 = "cd3b0faf61d54824739f2f5263718aee455cd1ef59199ea8a7076ffe60f39ac9"
+SERIES_2_EPOCH_5_LANDING_COMMIT = "9094039a09034e279fb26f97d2830aa227fdcdad"
+SERIES_2_EPOCH_5_MERGE_COMMIT = "c41f333419a58731e85d23b74cffea0fca564c5d"
+SERIES_2_EPOCH_6_LANDING_RELATIVE = Path(
+    "docs/phase4/reports/P4.2a-v2-2-series2-epoch6-registered-gate-landing-report-20260827.json"
+)
+SERIES_2_EPOCH_6_LANDING_SHA256 = "ceffb325dc69f04a2158fe94bead7d841602613a1e2dc280d36bfced7e6ce6fc"
+SERIES_2_EPOCH_6_LANDING_COMMIT = "ef21ffe14fb6bdd90346ec3694cc986e46212e1d"
+SERIES_2_EPOCH_6_MERGE_COMMIT = "0961b1a781c5618a8623155b3ea911de7e9717da"
+SERIES_2_ATTEMPT_1_AUTHORITY = (
+    "docs/phase4/reports/P4.2a-v2-2-rehearsal-attempt-000001-execution-authorization-20260826.json",
+    "4cf5d3936754fabb155880b9936198b389efb7e167f61d6c42d4dcf75ae8f05b",
+    "911b6c5695a2e0014546edf9ce919d9d8922586e",
+)
+SERIES_2_ATTEMPT_2_AUTHORITY = (
+    "docs/phase4/reports/P4.2a-v2-2-rehearsal-attempt-000002-execution-authorization-20260827.json",
+    "371d92b946bf9f1f2e3ea67bf5cd8a47bc73190df33b89b8d404f92c12c97138",
+    "2877f24843c69ec295f7fcb5ffe19ffd81371144",
+)
+SERIES_2_EPOCH_5_SURFACE_AUTHORITY = (
+    "docs/phase4/reports/P4.2a-v2-2-series-2-epoch5-surface-authority-20260823.json",
+    "b97dce798eed5be8450e462cfdfccde949677c823c867ed35b6738dc5f3f4270",
+    "5bea28957e873857e7bca6dd30f7226d8b09bbf7",
+)
+SERIES_2_EPOCH_5_REVIEW = (
+    "docs/phase4/reports/P4.2a-v2-2-series2-epoch5-implementation-independent-review-20260825.json",
+    "cd220ea474e7e7f92e85b42411f03274352d4a6b7323a41d68eb8ca4626324f2",
+    SERIES_2_EPOCH_5_MERGE_COMMIT,
+)
+SERIES_2_EPOCH_6_SURFACE_AUTHORITY = (
+    "docs/phase4/reports/P4.2a-v2-2-series2-epoch6-surface-authority-20260826.json",
+    "b2a0e1c3aae4b6b826b522aa74472415b1b782990326301aa68e467eadc45a92",
+    "3ccc2f267a05137edf86c5eb72f82e0057d74f98",
+)
+SERIES_2_EPOCH_6_REVIEW = (
+    "docs/phase4/reports/P4.2a-v2-2-series2-epoch6-implementation-independent-review-20260827.json",
+    "84c6fab7ca36087b656cda17351da298a8bc4a7b4093a059f91a085b286d26e4",
+    SERIES_2_EPOCH_6_MERGE_COMMIT,
+)
 INDEPENDENT_REVIEW_RELATIVE = Path(
     "docs/phase4/reports/P4.2a-v2-2-preregistration-independent-review-20260811.json"
 )
@@ -259,6 +367,14 @@ SERIES_2_SECONDARY_SNAPSHOT_ROOT = (
 )
 SERIES_2_SECONDARY_RECEIPT_ROOT = (
     SERIES_2_SECONDARY_SERIES_CONTAINER / "MIRROR-RECEIPTS-DO-NOT-DELETE"
+)
+SERIES_2_PRIMARY_RECOVERY_CONTAINER = Path(
+    "/Users/ouyangduning/AlphaPilot-EVIDENCE-DO-NOT-DELETE/P4.2a/v2.2/"
+    f"BUNDLE-RECOVERY-SERIES-000002-{SERIES_2_REGISTERED_SERIES_TOKEN}"
+)
+SERIES_2_SECONDARY_RECOVERY_CONTAINER = Path(
+    "/Users/ouyangduning/AlphaPilot-EVIDENCE-MIRROR-DO-NOT-DELETE/P4.2a/v2.2/"
+    f"BUNDLE-RECOVERY-SERIES-000002-{SERIES_2_REGISTERED_SERIES_TOKEN}"
 )
 SERIES_2_LEGACY_LEDGER_ROOT = REGISTERED_PROJECT_ROOT.parent / (
     ".alphapilot-p4-2a-v2-2-execution-claim-" + REGISTERED_SERIES_TOKEN
@@ -608,6 +724,18 @@ _ACTION_ID_PATTERN = re.compile(
 _ACTION_PATH_PATTERN = re.compile(
     r"^docs/phase4/reports/P4\.2a-v2-2-rehearsal-attempt-([0-9]{6})-execution-authorization-([0-9]{8})\.json$"
 )
+_RECOVERY_Q_PATH_PATTERN = re.compile(
+    r"^docs/phase4/reports/P4\.2a-v2-2-series2-through-ordinal-000002-"
+    r"bundle-recovery-review-request-([0-9]{8})\.json$"
+)
+_RECOVERY_R_PATH_PATTERN = re.compile(
+    r"^docs/phase4/reports/P4\.2a-v2-2-series2-through-ordinal-000002-"
+    r"bundle-recovery-authorization-([0-9]{8})\.json$"
+)
+_RECOVERY_B_PATH_PATTERN = re.compile(
+    r"^docs/phase4/reports/P4\.2a-v2-2-series2-through-ordinal-000002-"
+    r"bundle-recovery-owner-confirmation-binding-([0-9]{8})\.json$"
+)
 _EVIDENCE_RELATIVE_PATTERN = re.compile(r"^[A-Za-z0-9._/-]+$")
 _ZERO32 = bytes(32)
 
@@ -745,6 +873,434 @@ _MIRROR_RECEIPT_FIELDS = frozenset(
         "verified_at_utc",
     }
 )
+EPOCH_7_RECOVERY_CONTRACT_FIELDS = frozenset(
+    {
+        "schema_version",
+        "governing_adjudication",
+        "implementation_epoch",
+        "recovery_review_request_contract",
+        "recovery_authorization_contract",
+        "recovery_owner_binding_contract",
+        "recovery_claim_contract",
+        "bundle_mirror_receipt_contract",
+        "dual_byte_anchor_contract",
+        "unique_a_and_lineage_census_contract",
+        "protected_inputs_and_permitted_outputs",
+        "legacy_absence_and_locks",
+    }
+)
+RECOVERY_REVIEW_REQUEST_FIELDS = frozenset(
+    {
+        "schema_version",
+        "request_id",
+        "created_at_utc",
+        "created_at_shanghai",
+        "status",
+        "requester",
+        "landed_epoch_7",
+        "registered_read_only_recovery_preflight",
+        "preflight_before_after_equality",
+        "proposed_recovery_authorization",
+        "requested_owner_action_time_confirmation",
+        "post_confirmation_plan_not_yet_executed",
+        "current_locks",
+    }
+)
+RECOVERY_AUTHORIZATION_FIELDS = frozenset(
+    {
+        "schema_version",
+        "authorization_id",
+        "created_at_utc",
+        "created_at_shanghai",
+        "verdict",
+        "owner",
+        "sealed_series",
+        "execution_epoch",
+        "destination",
+        "exact_argv",
+        "command_sha256",
+        "exact_environment",
+        "environment_sha256",
+        "authorized_bundle_recovery_starts",
+        "authorized_pipeline_starts",
+        "automatic_retry_count",
+        "effect_authorization",
+        "interpreter",
+        "locks",
+    }
+)
+RECOVERY_OWNER_BINDING_FIELDS = frozenset(
+    {
+        "schema_version",
+        "binding_id",
+        "created_at_utc",
+        "created_at_shanghai",
+        "status",
+        "review_request",
+        "recovery_authorization",
+        "owner_confirmation",
+        "authorized_scope",
+        "explicit_exclusions",
+        "registered_read_only_recovery_preflight",
+        "machine_boundary",
+    }
+)
+RECOVERY_STARTED_FIELDS = frozenset(
+    {
+        "schema_version",
+        "recovery_id",
+        "authorization",
+        "owner_confirmation_binding",
+        "created_at_utc",
+        "created_at_shanghai",
+        "execution_head",
+        "execution_epoch",
+        "sealed_history_root_sha256",
+        "sealed_live_ledger_root_sha256",
+        "sealed_mirror_receipt_sha256",
+        "destination",
+        "destination_stage",
+        "secondary_snapshot_stage",
+        "secondary_snapshot_target",
+        "state",
+        "authorized_bundle_recovery_starts",
+        "authorized_pipeline_starts",
+        "automatic_retry_count",
+    }
+)
+RECOVERY_TERMINAL_FIELDS = frozenset(
+    {
+        "schema_version",
+        "recovery_id",
+        "authorization",
+        "owner_confirmation_binding",
+        "completed_at_utc",
+        "completed_at_shanghai",
+        "outcome",
+        "reached_stage",
+        "sealed_ledger_before_sha256",
+        "sealed_ledger_after_sha256",
+        "sealed_mirror_before_sha256",
+        "sealed_mirror_after_sha256",
+        "destination",
+        "published_bundle_sha256",
+        "published_tree_sha256",
+        "secondary_snapshot",
+        "secondary_snapshot_tree_sha256",
+        "primary_receipt",
+        "secondary_receipt",
+        "paired_receipts_byte_identical",
+        "destination_stage_absent",
+        "secondary_snapshot_stage_absent",
+        "pipeline_starts",
+        "automatic_retry_count",
+        "error",
+    }
+)
+RECOVERY_MIRROR_RECEIPT_FIELDS = frozenset(
+    {
+        "schema_version",
+        "recovery_authorization_sha256",
+        "owner_confirmation_binding_sha256",
+        "recovery_id",
+        "series_id",
+        "series_token_sha256",
+        "sealed_history_root_sha256",
+        "sealed_live_ledger_root_sha256",
+        "selected_attempt_ordinal",
+        "selected_implementation_epoch",
+        "selected_implementation_commit",
+        "execution_epoch",
+        "execution_implementation_commit",
+        "execution_head",
+        "destination",
+        "published_bundle_sha256",
+        "published_tree_sha256",
+        "secondary_snapshot",
+        "secondary_snapshot_tree_sha256",
+        "destination_and_snapshot_byte_identical",
+        "pipeline_starts",
+        "automatic_retry_count",
+        "sealed_ledger_before_after_equal",
+        "sealed_mirror_before_after_equal",
+        "verified_at_utc",
+    }
+)
+REAL_LINEAGE_CENSUS_FIELDS = frozenset(
+    {
+        "schema_version",
+        "execution_head",
+        "authority_registry_sha256",
+        "ref_snapshot_before_sha256",
+        "ref_snapshot_after_sha256",
+        "reference_count",
+        "row_count",
+        "source_count",
+        "projection_count",
+        "invalid_count",
+        "rows",
+        "effects",
+        "status",
+    }
+)
+REAL_LINEAGE_ROW_FIELDS = frozenset(
+    {
+        "path",
+        "pinned_sha256",
+        "pinned_creating_commit",
+        "mode",
+        "logical_source_commit",
+        "declared_landing_projection_commit",
+        "raw_touch_count",
+        "source_count",
+        "projection_count",
+        "touches",
+        "execution_head_contains_source",
+        "head_blob_sha256",
+        "worktree_sha256",
+        "verdict",
+    }
+)
+REAL_LINEAGE_TOUCH_FIELDS = frozenset(
+    {
+        "commit",
+        "parents",
+        "first_parent_status",
+        "classification",
+        "blob_sha256",
+        "raw_bytes_equal_pinned",
+        "source_is_ancestor_of_second_parent",
+        "second_parent_to_merge_path_diff_empty",
+    }
+)
+LEGACY_AMENDMENT_ABSENCE_FIELDS = (
+    "official_series_2_bundle_emits_void_epoch_1",
+    "void_epoch_3_added",
+    "two_four_exception_added",
+    "sealed_bundle_recovery_added",
+    "recover_sealed_bundle_cli_added",
+    "consume_recovered_release_cli_added",
+)
+RECOVERED_PUBLICATION_CAPABILITY_FIELDS = (
+    "recovery_authorization_path",
+    "recovery_authorization_sha256",
+    "recovery_authorization_creating_commit",
+    "owner_binding_path",
+    "owner_binding_sha256",
+    "owner_binding_creating_commit",
+    "claim_root",
+    "claim_started_sha256",
+    "claim_terminal_sha256",
+    "series_token_sha256",
+    "selected_attempt_ordinal",
+    "selected_implementation_epoch",
+    "selected_implementation_commit",
+    "sealed_history_root_sha256",
+    "sealed_live_ledger_root_sha256",
+    "destination",
+    "published_bundle_sha256",
+    "published_tree_sha256",
+    "secondary_snapshot",
+    "secondary_snapshot_tree_sha256",
+    "primary_receipt_path",
+    "secondary_receipt_path",
+    "paired_receipt_sha256",
+    "paired_receipt_bytes",
+    "execution_epoch",
+    "execution_implementation_commit",
+    "execution_control_merkle_root_sha256",
+    "recovery_starts",
+    "pipeline_starts",
+    "automatic_retry_count",
+    "sealed_ledger_before_after_equal",
+    "sealed_mirror_before_after_equal",
+    "selected_candidate_sha256",
+    "selected_terminal_sha256",
+    "selected_evidence_tree_root_sha256",
+    "historical_run_a_root_sha256",
+    "historical_run_b_root_sha256",
+    "historical_run_a_probe_sha256",
+    "historical_run_b_probe_sha256",
+    "historical_full_downstream_replay_verified",
+)
+RECOVERY_REVIEW_REQUEST_FIELD_ORDER = (
+    "schema_version",
+    "request_id",
+    "created_at_utc",
+    "created_at_shanghai",
+    "status",
+    "requester",
+    "landed_epoch_7",
+    "registered_read_only_recovery_preflight",
+    "preflight_before_after_equality",
+    "proposed_recovery_authorization",
+    "requested_owner_action_time_confirmation",
+    "post_confirmation_plan_not_yet_executed",
+    "current_locks",
+)
+RECOVERY_AUTHORIZATION_FIELD_ORDER = (
+    "schema_version",
+    "authorization_id",
+    "created_at_utc",
+    "created_at_shanghai",
+    "verdict",
+    "owner",
+    "sealed_series",
+    "execution_epoch",
+    "destination",
+    "exact_argv",
+    "command_sha256",
+    "exact_environment",
+    "environment_sha256",
+    "authorized_bundle_recovery_starts",
+    "authorized_pipeline_starts",
+    "automatic_retry_count",
+    "effect_authorization",
+    "interpreter",
+    "locks",
+)
+RECOVERY_OWNER_BINDING_FIELD_ORDER = (
+    "schema_version",
+    "binding_id",
+    "created_at_utc",
+    "created_at_shanghai",
+    "status",
+    "review_request",
+    "recovery_authorization",
+    "owner_confirmation",
+    "authorized_scope",
+    "explicit_exclusions",
+    "registered_read_only_recovery_preflight",
+    "machine_boundary",
+)
+RECOVERY_STARTED_FIELD_ORDER = (
+    "schema_version",
+    "recovery_id",
+    "authorization",
+    "owner_confirmation_binding",
+    "created_at_utc",
+    "created_at_shanghai",
+    "execution_head",
+    "execution_epoch",
+    "sealed_history_root_sha256",
+    "sealed_live_ledger_root_sha256",
+    "sealed_mirror_receipt_sha256",
+    "destination",
+    "destination_stage",
+    "secondary_snapshot_stage",
+    "secondary_snapshot_target",
+    "state",
+    "authorized_bundle_recovery_starts",
+    "authorized_pipeline_starts",
+    "automatic_retry_count",
+)
+RECOVERY_TERMINAL_FIELD_ORDER = (
+    "schema_version",
+    "recovery_id",
+    "authorization",
+    "owner_confirmation_binding",
+    "completed_at_utc",
+    "completed_at_shanghai",
+    "outcome",
+    "reached_stage",
+    "sealed_ledger_before_sha256",
+    "sealed_ledger_after_sha256",
+    "sealed_mirror_before_sha256",
+    "sealed_mirror_after_sha256",
+    "destination",
+    "published_bundle_sha256",
+    "published_tree_sha256",
+    "secondary_snapshot",
+    "secondary_snapshot_tree_sha256",
+    "primary_receipt",
+    "secondary_receipt",
+    "paired_receipts_byte_identical",
+    "destination_stage_absent",
+    "secondary_snapshot_stage_absent",
+    "pipeline_starts",
+    "automatic_retry_count",
+    "error",
+)
+RECOVERY_MIRROR_RECEIPT_FIELD_ORDER = (
+    "schema_version",
+    "recovery_authorization_sha256",
+    "owner_confirmation_binding_sha256",
+    "recovery_id",
+    "series_id",
+    "series_token_sha256",
+    "sealed_history_root_sha256",
+    "sealed_live_ledger_root_sha256",
+    "selected_attempt_ordinal",
+    "selected_implementation_epoch",
+    "selected_implementation_commit",
+    "execution_epoch",
+    "execution_implementation_commit",
+    "execution_head",
+    "destination",
+    "published_bundle_sha256",
+    "published_tree_sha256",
+    "secondary_snapshot",
+    "secondary_snapshot_tree_sha256",
+    "destination_and_snapshot_byte_identical",
+    "pipeline_starts",
+    "automatic_retry_count",
+    "sealed_ledger_before_after_equal",
+    "sealed_mirror_before_after_equal",
+    "verified_at_utc",
+)
+REAL_LINEAGE_CENSUS_FIELD_ORDER = (
+    "schema_version",
+    "execution_head",
+    "authority_registry_sha256",
+    "ref_snapshot_before_sha256",
+    "ref_snapshot_after_sha256",
+    "reference_count",
+    "row_count",
+    "source_count",
+    "projection_count",
+    "invalid_count",
+    "rows",
+    "effects",
+    "status",
+)
+REAL_LINEAGE_ROW_FIELD_ORDER = (
+    "path",
+    "pinned_sha256",
+    "pinned_creating_commit",
+    "mode",
+    "logical_source_commit",
+    "declared_landing_projection_commit",
+    "raw_touch_count",
+    "source_count",
+    "projection_count",
+    "touches",
+    "execution_head_contains_source",
+    "head_blob_sha256",
+    "worktree_sha256",
+    "verdict",
+)
+REAL_LINEAGE_TOUCH_FIELD_ORDER = (
+    "commit",
+    "parents",
+    "first_parent_status",
+    "classification",
+    "blob_sha256",
+    "raw_bytes_equal_pinned",
+    "source_is_ancestor_of_second_parent",
+    "second_parent_to_merge_path_diff_empty",
+)
+RECOVERY_WORK_COUNTER_FIELDS = (
+    "git_objects_read",
+    "recursive_bytes_hashed",
+    "sealed_snapshot_files_visited",
+    "bundle_bytes_copied",
+)
+RECOVERY_WORK_LIMITS: Mapping[str, int] = {
+    "git_objects_read": 20_000,
+    "recursive_bytes_hashed": 768_000_000,
+    "sealed_snapshot_files_visited": 2_000,
+    "bundle_bytes_copied": 256_000_000,
+}
 _REAL_STAGES = (
     "materialize",
     "infer",
@@ -760,6 +1316,248 @@ _REAL_STAGES = (
 
 class RehearsalV22ValidationError(RuntimeError):
     """Fail-closed v2.2 bundle or evidence-acceptance validation error."""
+
+
+class _RecoveryWorkBoundExceeded(RehearsalV22ValidationError):
+    """A registered recovery work ceiling was reached before more work began."""
+
+
+class BundleValidationMode(StrEnum):
+    """Closed validation modes; recovered modes never fall back to active replay."""
+
+    ACTIVE_ATTEMPT_BUNDLE = "ACTIVE_ATTEMPT_BUNDLE"
+    PASSIVE_RECOVERED_BUNDLE = "PASSIVE_RECOVERED_BUNDLE"
+    PASSIVE_RECOVERED_RELEASE = "PASSIVE_RECOVERED_RELEASE"
+
+
+class AuthorityCensusRole(StrEnum):
+    PINNED_SOURCE = "PINNED_SOURCE"
+    PINNED_LANDING_PROJECTION = "PINNED_LANDING_PROJECTION"
+    PINNED_SOURCE_WITH_DESCENDANT_GRAPH = "PINNED_SOURCE_WITH_DESCENDANT_GRAPH"
+    DISCOVER_SOURCE_AFTER_PROJECTIONS = "DISCOVER_SOURCE_AFTER_PROJECTIONS"
+
+
+@dataclass(frozen=True, slots=True)
+class HistoricalSelectedAnchor:
+    implementation_epoch: int
+    implementation_commit: str
+    control_merkle_root_sha256: str
+    history_root_sha256: str
+    live_ledger_root_sha256: str
+    selected_attempt_ordinal: int
+    require_current: Literal[False]
+
+
+@dataclass(frozen=True, slots=True)
+class LiveExecutionAnchor:
+    implementation_epoch: int
+    implementation_commit: str
+    control_merkle_root_sha256: str
+    execution_head: str
+    owner_surface_authorization: Mapping[str, Any]
+    independent_implementation_review: Mapping[str, Any]
+    landing_commit: str
+    landing_report: Mapping[str, Any]
+    real_lineage_census_sha256: str
+    require_current: Literal[True]
+
+
+@dataclass(frozen=True, slots=True)
+class _FrozenControlRecord:
+    logical_name: str
+    bundle_relative_path: str
+    source_kind: str
+    repository_path: str | None
+    byte_count: int
+    sha256: str
+    current_byte_required: bool
+
+
+@dataclass(frozen=True, slots=True)
+class _FrozenPayloadFact:
+    bundle_relative_path: str
+    byte_count: int
+    sha256: str
+
+
+@dataclass(frozen=True, slots=True)
+class _ControlSurfaceCacheEnvelope:
+    """Independent deep-immutable cache scoped to one validation pass."""
+
+    _nonce: object
+    pass_kind: Literal["LIVE_CURRENT", "HISTORICAL_SELECTED_EPOCH_6"]
+    selected_epoch: int | None
+    resolved_project_root: str
+    root_st_dev: int
+    root_st_ino: int
+    execution_head: str
+    ref_snapshot_sha256: str | None
+    lineage_census_sha256: str | None
+    implementation_commit: str
+    records: tuple[_FrozenControlRecord, ...]
+    payload_facts: tuple[_FrozenPayloadFact, ...]
+    manifest_payload: bytes
+    manifest_sha256: str
+    merkle_root_sha256: str
+    ast_closure_paths: tuple[str, ...]
+    loaded_repository_sources: tuple[str, ...]
+    python_inventory_bytes: int
+    python_inventory_sha256: str
+    package_inventory_bytes: int
+    package_inventory_sha256: str
+    integrity_sha256: str
+
+
+@dataclass(frozen=True, slots=True)
+class ActiveBundleValidationContext:
+    mode: Literal[BundleValidationMode.ACTIVE_ATTEMPT_BUNDLE]
+
+
+@dataclass(frozen=True, slots=True)
+class RecoveredBundleValidationContext:
+    mode: Literal[
+        BundleValidationMode.PASSIVE_RECOVERED_BUNDLE,
+        BundleValidationMode.PASSIVE_RECOVERED_RELEASE,
+    ]
+    historical_anchor: HistoricalSelectedAnchor
+    live_anchor: LiveExecutionAnchor
+
+
+BundleValidationContext = ActiveBundleValidationContext | RecoveredBundleValidationContext
+
+
+def _validation_context_requires_current(
+    context: BundleValidationContext,
+    *,
+    implementation_commit: str,
+) -> bool:
+    """Close current-byte selection over the three registered modes.
+
+    Recovered callers cannot choose a boolean. They must supply both typed
+    anchors; the historical implementation determines selected bundle bytes,
+    while the live anchor is validated as an independent current-byte wall.
+    """
+
+    if isinstance(context, ActiveBundleValidationContext):
+        if context.mode is not BundleValidationMode.ACTIVE_ATTEMPT_BUNDLE:
+            raise RehearsalV22ValidationError("active validation context mode drifted")
+        return True
+    if isinstance(context, RecoveredBundleValidationContext):
+        if context.mode not in {
+            BundleValidationMode.PASSIVE_RECOVERED_BUNDLE,
+            BundleValidationMode.PASSIVE_RECOVERED_RELEASE,
+        }:
+            raise RehearsalV22ValidationError("recovered validation context mode drifted")
+        if (
+            context.historical_anchor.require_current is not False
+            or context.live_anchor.require_current is not True
+            or implementation_commit != context.historical_anchor.implementation_commit
+        ):
+            raise RehearsalV22ValidationError("recovered validation context anchor drifted")
+        return False
+    raise RehearsalV22ValidationError("bundle validation context type is unregistered")
+
+
+@dataclass(frozen=True, slots=True)
+class AuthorityCensusSpec:
+    path: str
+    pinned_sha256: str
+    pinned_creating_commit: str
+    role: AuthorityCensusRole
+    declared_landing_projection_commit: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class RecoveredPublicationCapability:
+    recovery_authorization_path: str
+    recovery_authorization_sha256: str
+    recovery_authorization_creating_commit: str
+    owner_binding_path: str
+    owner_binding_sha256: str
+    owner_binding_creating_commit: str
+    claim_root: str
+    claim_started_sha256: str
+    claim_terminal_sha256: str
+    series_token_sha256: str
+    selected_attempt_ordinal: int
+    selected_implementation_epoch: int
+    selected_implementation_commit: str
+    sealed_history_root_sha256: str
+    sealed_live_ledger_root_sha256: str
+    destination: str
+    published_bundle_sha256: str
+    published_tree_sha256: str
+    secondary_snapshot: str
+    secondary_snapshot_tree_sha256: str
+    primary_receipt_path: str
+    secondary_receipt_path: str
+    paired_receipt_sha256: str
+    paired_receipt_bytes: int
+    execution_epoch: int
+    execution_implementation_commit: str
+    execution_control_merkle_root_sha256: str
+    recovery_starts: int
+    pipeline_starts: int
+    automatic_retry_count: int
+    sealed_ledger_before_after_equal: bool
+    sealed_mirror_before_after_equal: bool
+    selected_candidate_sha256: str
+    selected_terminal_sha256: str
+    selected_evidence_tree_root_sha256: str
+    historical_run_a_root_sha256: str
+    historical_run_b_root_sha256: str
+    historical_run_a_probe_sha256: str
+    historical_run_b_probe_sha256: str
+    historical_full_downstream_replay_verified: bool
+
+
+@dataclass(frozen=True, slots=True)
+class _ValidatedRecoveryGovernance:
+    contract: JsonObject
+    q_path: Path
+    q_payload: bytes
+    q_document: JsonObject
+    q_commit: str
+    r_path: Path
+    r_payload: bytes
+    r_document: JsonObject
+    r_commit: str
+    b_path: Path
+    b_payload: bytes
+    b_document: JsonObject
+    b_commit: str
+    authority_specs: tuple[AuthorityCensusSpec, ...]
+
+
+def _build_recovered_publication_capability_issuer() -> tuple[Any, Any]:
+    issued: dict[int, RecoveredPublicationCapability] = {}
+
+    def issue(**values: object) -> RecoveredPublicationCapability:
+        if tuple(values) != RECOVERED_PUBLICATION_CAPABILITY_FIELDS:
+            raise RehearsalV22ValidationError(
+                "recovered-publication capability field order or set drifted"
+            )
+        capability = RecoveredPublicationCapability(**values)  # type: ignore[arg-type]
+        issued[id(capability)] = capability
+        return capability
+
+    def require(value: object) -> RecoveredPublicationCapability:
+        if (
+            not isinstance(value, RecoveredPublicationCapability)
+            or issued.get(id(value)) is not value
+        ):
+            raise RehearsalV22ValidationError(
+                "recovered-publication capability was not independently issued"
+            )
+        return value
+
+    return issue, require
+
+
+(
+    _issue_recovered_publication_capability,
+    _require_recovered_publication_capability,
+) = _build_recovered_publication_capability_issuer()
 
 
 def _reject_constant(value: str, *, label: str) -> NoReturn:
@@ -808,6 +1606,75 @@ def _canonical_json_bytes(value: object) -> bytes:
         )
     except (TypeError, ValueError) as exc:
         raise RehearsalV22ValidationError("value cannot be canonical JSON") from exc
+
+
+def _assert_recovery_work_bound(counters: Mapping[str, int]) -> None:
+    if tuple(counters) != RECOVERY_WORK_COUNTER_FIELDS:
+        raise RehearsalV22ValidationError("recovery work counters are not exact and ordered")
+    for field in RECOVERY_WORK_COUNTER_FIELDS:
+        observed = counters[field]
+        limit = RECOVERY_WORK_LIMITS[field]
+        if (
+            isinstance(observed, bool)
+            or not isinstance(observed, int)
+            or not 0 <= observed <= limit
+        ):
+            raise RehearsalV22ValidationError(f"recovery work bound exceeded: {field}")
+
+
+class _IndependentRecoveryWorkTracker:
+    """Validator-owned, incremental accounting of actual census Git work."""
+
+    def __init__(self, initial: Mapping[str, int] | None = None) -> None:
+        source = (
+            {field: 0 for field in RECOVERY_WORK_COUNTER_FIELDS}
+            if initial is None
+            else dict(initial)
+        )
+        _assert_recovery_work_bound(source)
+        self._counters = source
+        self.git_subprocesses_started = 0
+        self.git_object_read_occurrences = 0
+
+    def snapshot(self) -> dict[str, int]:
+        result = {
+            field: self._counters[field] for field in RECOVERY_WORK_COUNTER_FIELDS
+        }
+        _assert_recovery_work_bound(result)
+        return result
+
+    def charge_git(self, *, subprocesses: int = 0, object_reads: int = 0) -> None:
+        if (
+            isinstance(subprocesses, bool)
+            or not isinstance(subprocesses, int)
+            or subprocesses < 0
+            or isinstance(object_reads, bool)
+            or not isinstance(object_reads, int)
+            or object_reads < 0
+        ):
+            raise RehearsalV22ValidationError("validator Git work charge is invalid")
+        prospective = self.snapshot()
+        prospective["git_objects_read"] += subprocesses + object_reads
+        try:
+            _assert_recovery_work_bound(prospective)
+        except RehearsalV22ValidationError as exc:
+            raise _RecoveryWorkBoundExceeded(str(exc)) from exc
+        self._counters = prospective
+        self.git_subprocesses_started += subprocesses
+        self.git_object_read_occurrences += object_reads
+
+
+def _recovery_work_delta(
+    before: Mapping[str, int],
+    after: Mapping[str, int],
+) -> dict[str, int]:
+    _assert_recovery_work_bound(before)
+    _assert_recovery_work_bound(after)
+    result = {field: after[field] - before[field] for field in RECOVERY_WORK_COUNTER_FIELDS}
+    if any(value < 0 for value in result.values()):
+        raise RehearsalV22ValidationError("recovery work counters moved backwards")
+    _assert_recovery_work_bound(result)
+    return result
 
 
 def _strict_canonical_json_loads(payload: bytes, *, label: str) -> JsonObject:
@@ -1495,23 +2362,29 @@ def _validated_implementation_blob(
     implementation_commit: str,
     relative_path: str,
     expected_sha256: str,
+    require_current: bool,
 ) -> bytes:
     payload = _git_blob(project_root, implementation_commit, relative_path)
-    current = _regular_bytes(
-        _safe_path(
-            project_root,
-            relative_path,
+    current = (
+        _regular_bytes(
+            _safe_path(
+                project_root,
+                relative_path,
+                f"current implementation {relative_path}",
+            ),
             f"current implementation {relative_path}",
-        ),
-        f"current implementation {relative_path}",
+        )
+        if require_current
+        else None
     )
     if (
         _sha256(payload) != expected_sha256
-        or current != payload
+        or (require_current and current != payload)
         or implementation.validate_implementation_blob(
             project_root,
             implementation_commit,
             relative_path,
+            require_current=require_current,
         )
         != payload
     ):
@@ -1519,7 +2392,14 @@ def _validated_implementation_blob(
     return payload
 
 
-def _raw_hardened_git(root: Path, *arguments: str) -> bytes:
+def _raw_hardened_git(
+    root: Path,
+    *arguments: str,
+    work_tracker: _IndependentRecoveryWorkTracker | None = None,
+    object_reads: int = 0,
+) -> bytes:
+    if work_tracker is not None:
+        work_tracker.charge_git(subprocesses=1, object_reads=object_reads)
     completed = subprocess.run(
         [
             "/usr/bin/git",
@@ -1540,14 +2420,30 @@ def _raw_hardened_git(root: Path, *arguments: str) -> bytes:
     return completed.stdout
 
 
-def _git_metadata_roots(root: Path) -> tuple[Path, Path]:
+def _git_metadata_roots(
+    root: Path,
+    *,
+    work_tracker: _IndependentRecoveryWorkTracker | None = None,
+) -> tuple[Path, Path]:
     observed_git_dir = (
-        _raw_hardened_git(root, "rev-parse", "--path-format=absolute", "--git-dir")
+        _raw_hardened_git(
+            root,
+            "rev-parse",
+            "--path-format=absolute",
+            "--git-dir",
+            work_tracker=work_tracker,
+        )
         .decode("utf-8", errors="strict")
         .strip()
     )
     observed_common_dir = (
-        _raw_hardened_git(root, "rev-parse", "--path-format=absolute", "--git-common-dir")
+        _raw_hardened_git(
+            root,
+            "rev-parse",
+            "--path-format=absolute",
+            "--git-common-dir",
+            work_tracker=work_tracker,
+        )
         .decode("utf-8", errors="strict")
         .strip()
     )
@@ -1599,8 +2495,12 @@ def _git_metadata_roots(root: Path) -> tuple[Path, Path]:
     return git_dir, common_dir
 
 
-def _validate_git_metadata_authority(root: Path) -> None:
-    git_dir, common_dir = _git_metadata_roots(root)
+def _validate_git_metadata_authority(
+    root: Path,
+    *,
+    work_tracker: _IndependentRecoveryWorkTracker | None = None,
+) -> None:
+    git_dir, common_dir = _git_metadata_roots(root, work_tracker=work_tracker)
     forbidden = {
         git_dir / "shallow",
         git_dir / "info/grafts",
@@ -1618,22 +2518,45 @@ def _validate_git_metadata_authority(root: Path) -> None:
             raise RehearsalV22ValidationError("packed Git replace authority exists")
 
 
-def _git_bytes(root: Path, *arguments: str) -> bytes:
+def _git_bytes(
+    root: Path,
+    *arguments: str,
+    work_tracker: _IndependentRecoveryWorkTracker | None = None,
+    object_reads: int = 0,
+) -> bytes:
     """Run one independently selected, hardened, read-only Git operation."""
 
-    _validate_git_metadata_authority(root)
+    _validate_git_metadata_authority(root, work_tracker=work_tracker)
     if (
         tuple(implementation.GIT_CONFIG_PREFIX) != _GIT_CONFIG_PREFIX
         or implementation._git_environment() != _GIT_ENVIRONMENT
     ):
         raise RehearsalV22ValidationError("producer and validator Git policy drifted")
-    return _raw_hardened_git(root, *arguments)
+    return _raw_hardened_git(
+        root,
+        *arguments,
+        work_tracker=work_tracker,
+        object_reads=object_reads,
+    )
 
 
-def _git_commit(root: Path, value: object, label: str) -> str:
+def _git_commit(
+    root: Path,
+    value: object,
+    label: str,
+    *,
+    work_tracker: _IndependentRecoveryWorkTracker | None = None,
+) -> str:
     commit = _commit(value, label)
     observed = (
-        _git_bytes(root, "rev-parse", "--verify", f"{commit}^{{commit}}")
+        _git_bytes(
+            root,
+            "rev-parse",
+            "--verify",
+            f"{commit}^{{commit}}",
+            work_tracker=work_tracker,
+            object_reads=1,
+        )
         .decode("ascii", errors="strict")
         .strip()
     )
@@ -1642,9 +2565,23 @@ def _git_commit(root: Path, value: object, label: str) -> str:
     return commit
 
 
-def _git_parents(root: Path, commit: str) -> tuple[str, ...]:
+def _git_parents(
+    root: Path,
+    commit: str,
+    *,
+    work_tracker: _IndependentRecoveryWorkTracker | None = None,
+) -> tuple[str, ...]:
     line = (
-        _git_bytes(root, "rev-list", "--parents", "-n", "1", commit)
+        _git_bytes(
+            root,
+            "rev-list",
+            "--parents",
+            "-n",
+            "1",
+            commit,
+            work_tracker=work_tracker,
+            object_reads=1,
+        )
         .decode("ascii", errors="strict")
         .strip()
     )
@@ -1654,10 +2591,18 @@ def _git_parents(root: Path, commit: str) -> tuple[str, ...]:
     return tuple(_commit(value, "Git parent") for value in fields[1:])
 
 
-def _git_is_ancestor(root: Path, ancestor: str, descendant: str) -> bool:
+def _git_is_ancestor(
+    root: Path,
+    ancestor: str,
+    descendant: str,
+    *,
+    work_tracker: _IndependentRecoveryWorkTracker | None = None,
+) -> bool:
     # merge-base --is-ancestor uses exit 1 for a clean negative answer.  Use a
     # raw subprocess here so a false relation is not conflated with corruption.
-    _validate_git_metadata_authority(root)
+    _validate_git_metadata_authority(root, work_tracker=work_tracker)
+    if work_tracker is not None:
+        work_tracker.charge_git(subprocesses=1, object_reads=2)
     completed = subprocess.run(
         [
             "/usr/bin/git",
@@ -1678,19 +2623,54 @@ def _git_is_ancestor(root: Path, ancestor: str, descendant: str) -> bool:
     return completed.returncode == 0
 
 
-def _git_blob(root: Path, commit: str, relative: str) -> bytes:
+def _git_blob(
+    root: Path,
+    commit: str,
+    relative: str,
+    *,
+    work_tracker: _IndependentRecoveryWorkTracker | None = None,
+) -> bytes:
     _relative(relative, "Git blob path")
     target = f"{commit}:{relative}"
-    if _git_bytes(root, "cat-file", "-t", target).strip() != b"blob":
+    if _git_bytes(
+        root,
+        "cat-file",
+        "-t",
+        target,
+        work_tracker=work_tracker,
+        object_reads=1,
+    ).strip() != b"blob":
         raise RehearsalV22ValidationError("Git path does not identify one blob")
-    return _git_bytes(root, "show", target)
+    return _git_bytes(
+        root,
+        "show",
+        target,
+        work_tracker=work_tracker,
+        object_reads=1,
+    )
 
 
-def _git_optional_blob(root: Path, commit: str, relative: str) -> bytes | None:
+def _git_optional_blob(
+    root: Path,
+    commit: str,
+    relative: str,
+    *,
+    work_tracker: _IndependentRecoveryWorkTracker | None = None,
+) -> bytes | None:
     """Read an optional commit blob without translating other Git failures."""
 
     path = _relative(relative, "optional Git blob path")
-    observed = _git_bytes(root, "ls-tree", "-z", "--full-tree", commit, "--", path)
+    observed = _git_bytes(
+        root,
+        "ls-tree",
+        "-z",
+        "--full-tree",
+        commit,
+        "--",
+        path,
+        work_tracker=work_tracker,
+        object_reads=1,
+    )
     if observed == b"":
         return None
     records = observed.split(b"\0")
@@ -1712,9 +2692,16 @@ def _git_optional_blob(root: Path, commit: str, relative: str) -> bytes | None:
             "optional local-import candidate is not one exact regular Git blob"
         )
     target = f"{commit}:{path}"
-    if _git_bytes(root, "rev-parse", "--verify", target).strip() != fields[2]:
+    if _git_bytes(
+        root,
+        "rev-parse",
+        "--verify",
+        target,
+        work_tracker=work_tracker,
+        object_reads=1,
+    ).strip() != fields[2]:
         raise RehearsalV22ValidationError("optional local-import candidate object identity drifted")
-    return _git_blob(root, commit, path)
+    return _git_blob(root, commit, path, work_tracker=work_tracker)
 
 
 def _local_module_name(relative: str) -> tuple[str, str]:
@@ -1907,15 +2894,44 @@ def _independent_local_import_closure(
     return dict(sorted(payloads.items(), key=lambda item: item[0].encode("utf-8")))
 
 
-def _unique_a_authority(
+def _git_all_ref_commits(
     root: Path,
-    reference: Mapping[str, Any],
     *,
-    require_worktree: bool,
-) -> bytes:
-    path = _relative(reference.get("path"), "authority path")
-    creating_commit = _git_commit(root, reference.get("creating_commit"), "authority commit")
-    expected_sha = _sha(reference.get("sha256"), "authority SHA")
+    work_tracker: _IndependentRecoveryWorkTracker,
+) -> tuple[str, ...]:
+    commits = tuple(
+        line
+        for line in _git_bytes(
+            root,
+            "rev-list",
+            "--all",
+            work_tracker=work_tracker,
+        )
+        .decode("ascii", errors="strict")
+        .splitlines()
+        if line
+    )
+    if (
+        not commits
+        or len(commits) != len(set(commits))
+        or any(re.fullmatch(r"[0-9a-f]{40}", commit) is None for commit in commits)
+    ):
+        raise RehearsalV22ValidationError("validator all-ref commit snapshot is malformed")
+    work_tracker.charge_git(object_reads=len(commits))
+    return commits
+
+
+def _all_ref_path_touches(
+    root: Path,
+    path: str,
+    *,
+    all_ref_commit_count: int | None = None,
+    work_tracker: _IndependentRecoveryWorkTracker | None = None,
+) -> tuple[tuple[str, str, tuple[str, ...]], ...]:
+    tracker = _IndependentRecoveryWorkTracker() if work_tracker is None else work_tracker
+    if all_ref_commit_count is None:
+        all_ref_commit_count = len(_git_all_ref_commits(root, work_tracker=tracker))
+    relative = _relative(path, "authority census path")
     history = _git_bytes(
         root,
         "log",
@@ -1926,28 +2942,274 @@ def _unique_a_authority(
         "--find-renames",
         "--find-copies",
         "--",
-        path,
+        relative,
+        work_tracker=tracker,
     ).decode("utf-8", errors="strict")
     touches: list[tuple[str, str, tuple[str, ...]]] = []
     active: str | None = None
+    history_commit_count = 0
     for raw in history.splitlines():
         line = raw.strip()
         if not line:
             continue
         if line.startswith("@@"):
-            active = _commit(line[2:], "authority history commit")
+            history_commit_count += 1
+            if history_commit_count > all_ref_commit_count:
+                raise RehearsalV22ValidationError(
+                    "authority census history exceeds its all-ref commit snapshot"
+                )
+            tracker.charge_git(object_reads=1)
+            active = _commit(line[2:], "authority census history commit")
             continue
         if active is None:
-            raise RehearsalV22ValidationError("authority Git history is malformed")
+            raise RehearsalV22ValidationError("authority census Git history is malformed")
         fields = tuple(line.split("\t"))
         if len(fields) < 2:
-            raise RehearsalV22ValidationError("authority Git status is malformed")
+            raise RehearsalV22ValidationError("authority census Git status is malformed")
         touches.append((active, fields[0], fields[1:]))
-    if touches != [(creating_commit, "A", (path,))]:
-        raise RehearsalV22ValidationError("authority is not one unique status-A Git touch")
-    payload = _git_blob(root, creating_commit, path)
+    if len(set(touches)) != len(touches):
+        raise RehearsalV22ValidationError("authority census contains duplicate touch rows")
+    return tuple(touches)
+
+
+def _path_status_diff(
+    root: Path,
+    base: str,
+    commit: str,
+    path: str,
+    *,
+    work_tracker: _IndependentRecoveryWorkTracker | None = None,
+) -> tuple[str, ...]:
+    tracker = _IndependentRecoveryWorkTracker() if work_tracker is None else work_tracker
+    return tuple(
+        _git_bytes(
+            root,
+            "diff",
+            "--no-ext-diff",
+            "--no-textconv",
+            "--name-status",
+            "--no-renames",
+            base,
+            commit,
+            "--",
+            path,
+            work_tracker=tracker,
+            object_reads=2,
+        )
+        .decode("utf-8", errors="strict")
+        .splitlines()
+    )
+
+
+def _projection_touch_document(
+    root: Path,
+    *,
+    path: str,
+    pinned_payload: bytes,
+    source_commit: str,
+    touch: tuple[str, str, tuple[str, ...]],
+    work_tracker: _IndependentRecoveryWorkTracker | None = None,
+) -> JsonObject | None:
+    tracker = _IndependentRecoveryWorkTracker() if work_tracker is None else work_tracker
+    commit, status, paths = touch
+    if status != "A" or paths != (path,):
+        return None
+    parents = _git_parents(root, commit, work_tracker=tracker)
+    if len(parents) != 2:
+        return None
+    first_parent, second_parent = parents
+    source_in_second = _git_is_ancestor(
+        root,
+        source_commit,
+        second_parent,
+        work_tracker=tracker,
+    )
+    second_diff_empty = (
+        _path_status_diff(
+            root,
+            second_parent,
+            commit,
+            path,
+            work_tracker=tracker,
+        )
+        == ()
+    )
+    if not (
+        _git_optional_blob(root, first_parent, path, work_tracker=tracker) is None
+        and _git_optional_blob(root, second_parent, path, work_tracker=tracker)
+        == pinned_payload
+        and _git_optional_blob(root, commit, path, work_tracker=tracker) == pinned_payload
+        and _path_status_diff(
+            root,
+            first_parent,
+            commit,
+            path,
+            work_tracker=tracker,
+        )
+        == (f"A\t{path}",)
+        and second_diff_empty
+        and source_in_second
+    ):
+        return None
+    return {
+        "commit": commit,
+        "parents": list(parents),
+        "first_parent_status": "A",
+        "classification": "FIRST_PARENT_MERGE_PROJECTION",
+        "blob_sha256": _sha256(pinned_payload),
+        "raw_bytes_equal_pinned": True,
+        "source_is_ancestor_of_second_parent": True,
+        "second_parent_to_merge_path_diff_empty": True,
+    }
+
+
+def _source_touch_document(
+    root: Path,
+    *,
+    path: str,
+    pinned_payload: bytes,
+    source_commit: str,
+    touch: tuple[str, str, tuple[str, ...]],
+    work_tracker: _IndependentRecoveryWorkTracker | None = None,
+) -> JsonObject | None:
+    tracker = _IndependentRecoveryWorkTracker() if work_tracker is None else work_tracker
+    commit, status, paths = touch
+    if commit != source_commit or status != "A" or paths != (path,):
+        return None
+    parents = _git_parents(root, commit, work_tracker=tracker)
+    if len(parents) != 1 or _git_optional_blob(
+        root,
+        parents[0],
+        path,
+        work_tracker=tracker,
+    ) is not None:
+        return None
+    blob = _git_optional_blob(root, commit, path, work_tracker=tracker)
+    if blob != pinned_payload:
+        return None
+    return {
+        "commit": commit,
+        "parents": list(parents),
+        "first_parent_status": "A",
+        "classification": "PINNED_SOURCE",
+        "blob_sha256": _sha256(blob),
+        "raw_bytes_equal_pinned": True,
+        "source_is_ancestor_of_second_parent": False,
+        "second_parent_to_merge_path_diff_empty": False,
+    }
+
+
+def _classify_authority_touches(
+    root: Path,
+    *,
+    path: str,
+    pinned_payload: bytes,
+    source_commit: str,
+    touches: Sequence[tuple[str, str, tuple[str, ...]]],
+    work_tracker: _IndependentRecoveryWorkTracker | None = None,
+) -> tuple[JsonObject, ...]:
+    tracker = _IndependentRecoveryWorkTracker() if work_tracker is None else work_tracker
+    classified: list[JsonObject] = []
+    source_count = 0
+    for touch in touches:
+        source = _source_touch_document(
+            root,
+            path=path,
+            pinned_payload=pinned_payload,
+            source_commit=source_commit,
+            touch=touch,
+            work_tracker=tracker,
+        )
+        if source is not None:
+            source_count += 1
+            classified.append(source)
+            continue
+        projection = _projection_touch_document(
+            root,
+            path=path,
+            pinned_payload=pinned_payload,
+            source_commit=source_commit,
+            touch=touch,
+            work_tracker=tracker,
+        )
+        if projection is None:
+            raise RehearsalV22ValidationError(
+                f"authority has a non-source non-projection Git touch: {path}"
+            )
+        classified.append(projection)
+    if source_count != 1:
+        raise RehearsalV22ValidationError(
+            f"authority does not have exactly one logical source: {path}"
+        )
+    classified.sort(key=lambda row: cast(str, row["commit"]).encode("ascii"))
+    return tuple(classified)
+
+
+def _discover_authority_source(
+    root: Path,
+    *,
+    path: str,
+    touches: Sequence[tuple[str, str, tuple[str, ...]]],
+    work_tracker: _IndependentRecoveryWorkTracker | None = None,
+) -> tuple[str, bytes, tuple[JsonObject, ...]]:
+    tracker = _IndependentRecoveryWorkTracker() if work_tracker is None else work_tracker
+    candidates: list[tuple[str, bytes, tuple[JsonObject, ...]]] = []
+    for commit, status, paths in touches:
+        if status != "A" or paths != (path,) or len(
+            _git_parents(root, commit, work_tracker=tracker)
+        ) != 1:
+            continue
+        payload = _git_optional_blob(root, commit, path, work_tracker=tracker)
+        if payload is None:
+            continue
+        try:
+            classified = _classify_authority_touches(
+                root,
+                path=path,
+                pinned_payload=payload,
+                source_commit=commit,
+                touches=touches,
+                work_tracker=tracker,
+            )
+        except _RecoveryWorkBoundExceeded:
+            raise
+        except RehearsalV22ValidationError:
+            continue
+        candidates.append((commit, payload, classified))
+    if len(candidates) != 1:
+        raise RehearsalV22ValidationError(
+            "authority source is ambiguous after removing lawful projections"
+        )
+    return candidates[0]
+
+
+def _unique_a_authority(
+    root: Path,
+    reference: Mapping[str, Any],
+    *,
+    require_worktree: bool,
+    work_tracker: _IndependentRecoveryWorkTracker | None = None,
+) -> bytes:
+    tracker = _IndependentRecoveryWorkTracker() if work_tracker is None else work_tracker
+    path = _relative(reference.get("path"), "authority path")
+    creating_commit = _git_commit(
+        root,
+        reference.get("creating_commit"),
+        "authority commit",
+        work_tracker=tracker,
+    )
+    expected_sha = _sha(reference.get("sha256"), "authority SHA")
+    payload = _git_blob(root, creating_commit, path, work_tracker=tracker)
     if _sha256(payload) != expected_sha:
         raise RehearsalV22ValidationError("authority creation blob SHA drifted")
+    _classify_authority_touches(
+        root,
+        path=path,
+        pinned_payload=payload,
+        source_commit=creating_commit,
+        touches=_all_ref_path_touches(root, path, work_tracker=tracker),
+        work_tracker=tracker,
+    )
     if require_worktree:
         current = _regular_bytes(_safe_path(root, path, "authority worktree file"), "authority")
         if current != payload:
@@ -2108,15 +3370,20 @@ def _validate_implementation_review_authority(
         raise RehearsalV22ValidationError(
             "implementation review predates its reviewed implementation"
         )
-    expected_global_touches = {(creating_commit, "A", (path,))}
-    if source_review != creating_commit:
-        expected_global_touches.add((source_review, "A", (path,)))
-    global_touches = all_touches()
-    if len(global_touches) != len(expected_global_touches) or set(global_touches) != (
-        expected_global_touches
+    classified = _classify_authority_touches(
+        root,
+        path=path,
+        pinned_payload=payload,
+        source_commit=source_review,
+        touches=_all_ref_path_touches(root, path),
+    )
+    if len(parents) == 2 and not any(
+        row["commit"] == creating_commit
+        and row["classification"] == "FIRST_PARENT_MERGE_PROJECTION"
+        for row in classified
     ):
         raise RehearsalV22ValidationError(
-            "implementation review has a non-projection global Git touch"
+            "implementation review landing is not a lawful first-parent projection"
         )
     if require_worktree:
         current = _regular_bytes(
@@ -2135,9 +3402,17 @@ def _validate_initial_sibling_authority(
     reference: Mapping[str, Any],
     *,
     execution_head: str,
+    all_ref_commits: tuple[str, ...] | None = None,
+    work_tracker: _IndependentRecoveryWorkTracker | None = None,
 ) -> bytes:
     """Validate the fixed b21 sibling without counting its merge projection twice."""
 
+    tracker = _IndependentRecoveryWorkTracker() if work_tracker is None else work_tracker
+    commits = (
+        _git_all_ref_commits(root, work_tracker=tracker)
+        if all_ref_commits is None
+        else all_ref_commits
+    )
     path = INDEPENDENT_REVIEW_RELATIVE.as_posix()
     expected_reference = {
         "path": path,
@@ -2146,21 +3421,56 @@ def _validate_initial_sibling_authority(
         "unique_a_history_verified": True,
     }
     _require_equal(reference, expected_reference, "initial sibling authority reference")
-    head = _git_commit(root, execution_head, "initial sibling execution HEAD")
-    if _git_parents(root, INDEPENDENT_REVIEW_COMMIT) != (INITIAL_REVIEWED_COMMIT,):
+    head = _git_commit(
+        root,
+        execution_head,
+        "initial sibling execution HEAD",
+        work_tracker=tracker,
+    )
+    if _git_parents(
+        root,
+        INDEPENDENT_REVIEW_COMMIT,
+        work_tracker=tracker,
+    ) != (INITIAL_REVIEWED_COMMIT,):
         raise RehearsalV22ValidationError("initial sibling authority parent drifted")
     if _diff_name_status(
         root,
         INITIAL_REVIEWED_COMMIT,
         INDEPENDENT_REVIEW_COMMIT,
+        work_tracker=tracker,
     ) != (("A", path),):
         raise RehearsalV22ValidationError("initial sibling authority creation diff drifted")
-    payload = _git_blob(root, INDEPENDENT_REVIEW_COMMIT, path)
+    payload = _git_blob(
+        root,
+        INDEPENDENT_REVIEW_COMMIT,
+        path,
+        work_tracker=tracker,
+    )
     if _sha256(payload) != INDEPENDENT_REVIEW_SHA256:
         raise RehearsalV22ValidationError("initial sibling authority creation SHA drifted")
+    _classify_authority_touches(
+        root,
+        path=path,
+        pinned_payload=payload,
+        source_commit=INDEPENDENT_REVIEW_COMMIT,
+        touches=_all_ref_path_touches(
+            root,
+            path,
+            all_ref_commit_count=len(commits),
+            work_tracker=tracker,
+        ),
+        work_tracker=tracker,
+    )
 
     graph: dict[str, tuple[str, ...]] = {}
-    rows = _git_bytes(root, "rev-list", "--all", "--children").decode("ascii", errors="strict")
+    rows = _git_bytes(
+        root,
+        "rev-list",
+        "--all",
+        "--children",
+        work_tracker=tracker,
+        object_reads=len(commits),
+    ).decode("ascii", errors="strict")
     for raw in rows.splitlines():
         fields = tuple(raw.split())
         if not fields:
@@ -2188,7 +3498,7 @@ def _validate_initial_sibling_authority(
             "initial sibling authority is outside the execution-head lineage"
         )
     for commit in sorted(graph):
-        observed = _git_optional_blob(root, commit, path)
+        observed = _git_optional_blob(root, commit, path, work_tracker=tracker)
         if commit in descendants:
             if observed != payload:
                 raise RehearsalV22ValidationError(
@@ -2198,7 +3508,7 @@ def _validate_initial_sibling_authority(
             raise RehearsalV22ValidationError(
                 "initial sibling authority path exists outside its descendant lineage"
             )
-    if _git_optional_blob(root, head, path) != payload:
+    if _git_optional_blob(root, head, path, work_tracker=tracker) != payload:
         raise RehearsalV22ValidationError("initial sibling execution-head bytes drifted")
     worktree_path = root.joinpath(*PurePosixPath(path).parts)
     if _validator_os.path.lexists(worktree_path):
@@ -2216,46 +3526,34 @@ def _unique_a_unserialized(
     *,
     path: str,
     execution_head: str,
+    work_tracker: _IndependentRecoveryWorkTracker | None = None,
 ) -> tuple[str, bytes]:
     """Derive one globally unique create-only authority and bind it to HEAD."""
 
+    tracker = _IndependentRecoveryWorkTracker() if work_tracker is None else work_tracker
     relative = _relative(path, "first-parent authority path")
-    head = _git_commit(root, execution_head, "first-parent execution HEAD")
-    history = _git_bytes(
+    head = _git_commit(
         root,
-        "log",
-        "--all",
-        "--diff-merges=first-parent",
-        "--format=@@%H",
-        "--name-status",
-        "--find-renames",
-        "--find-copies",
-        "--",
-        relative,
-    ).decode("utf-8", errors="strict")
-    touches: list[tuple[str, str, tuple[str, ...]]] = []
-    active: str | None = None
-    for raw in history.splitlines():
-        line = raw.strip()
-        if not line:
-            continue
-        if line.startswith("@@"):
-            active = _commit(line[2:], "first-parent authority commit")
-            continue
-        if active is None:
-            raise RehearsalV22ValidationError("first-parent authority history is malformed")
-        fields = tuple(line.split("\t"))
-        if len(fields) < 2:
-            raise RehearsalV22ValidationError("first-parent authority status is malformed")
-        touches.append((active, fields[0], fields[1:]))
-    if len(touches) != 1 or touches[0][1:] != ("A", (relative,)):
-        raise RehearsalV22ValidationError("authority is not one globally unique status-A Git touch")
-    creating_commit = _git_commit(root, touches[0][0], "authority creating commit")
-    if not _git_is_ancestor(root, creating_commit, head):
+        execution_head,
+        "first-parent execution HEAD",
+        work_tracker=tracker,
+    )
+    creating_commit, payload, _classified = _discover_authority_source(
+        root,
+        path=relative,
+        touches=_all_ref_path_touches(root, relative, work_tracker=tracker),
+        work_tracker=tracker,
+    )
+    creating_commit = _git_commit(
+        root,
+        creating_commit,
+        "authority creating commit",
+        work_tracker=tracker,
+    )
+    if not _git_is_ancestor(root, creating_commit, head, work_tracker=tracker):
         raise RehearsalV22ValidationError(
             "authority creation commit is outside the execution-head lineage"
         )
-    payload = _git_blob(root, creating_commit, relative)
     current = _regular_bytes(
         _safe_path(root, relative, "first-parent authority worktree file"),
         "first-parent authority worktree file",
@@ -2267,7 +3565,13 @@ def _unique_a_unserialized(
     return creating_commit, payload
 
 
-def _diff_name_status(root: Path, base: str, commit: str) -> tuple[tuple[str, str], ...]:
+def _diff_name_status(
+    root: Path,
+    base: str,
+    commit: str,
+    *,
+    work_tracker: _IndependentRecoveryWorkTracker | None = None,
+) -> tuple[tuple[str, str], ...]:
     output = _git_bytes(
         root,
         "diff",
@@ -2278,6 +3582,8 @@ def _diff_name_status(root: Path, base: str, commit: str) -> tuple[tuple[str, st
         base,
         commit,
         "--",
+        work_tracker=work_tracker,
+        object_reads=(2 if work_tracker is not None else 0),
     ).decode("utf-8", errors="strict")
     result: list[tuple[str, str]] = []
     for raw in output.splitlines():
@@ -2286,6 +3592,1163 @@ def _diff_name_status(root: Path, base: str, commit: str) -> tuple[tuple[str, st
             raise RehearsalV22ValidationError("implementation Git surface is malformed")
         result.append((fields[0], _relative(fields[1], "implementation surface path")))
     return tuple(result)
+
+
+def _git_ref_snapshot(
+    root: Path,
+    *,
+    work_tracker: _IndependentRecoveryWorkTracker | None = None,
+) -> bytes:
+    payload = _git_bytes(
+        root,
+        "for-each-ref",
+        "--format=%(refname)%00%(objectname)",
+        work_tracker=work_tracker,
+    )
+    rows = payload.splitlines(keepends=True)
+    if rows != sorted(rows) or len(rows) != len(set(rows)):
+        raise RehearsalV22ValidationError("Git ref snapshot is not canonical and unique")
+    if work_tracker is not None:
+        work_tracker.charge_git(object_reads=len(rows))
+    return payload
+
+
+def _assert_git_census_state_unchanged(
+    project_root: Path,
+    *,
+    expected_refs: bytes,
+    expected_head: str,
+) -> None:
+    observed_head = _git_commit(
+        project_root,
+        _git_bytes(project_root, "rev-parse", "HEAD").decode("ascii", errors="strict").strip(),
+        "post-census execution HEAD",
+    )
+    if _git_ref_snapshot(project_root) != expected_refs or observed_head != expected_head:
+        raise RehearsalV22ValidationError(
+            "Git refs or HEAD changed between recovery census and live-anchor validation"
+        )
+
+
+def _base_authority_census_specs() -> tuple[AuthorityCensusSpec, ...]:
+    specs: list[AuthorityCensusSpec] = []
+    for path, (digest, creating_commit, _require_worktree) in sorted(
+        _CONTROL_GOVERNANCE_AUTHORITIES.items(),
+        key=lambda item: item[0].encode("utf-8"),
+    ):
+        role = (
+            AuthorityCensusRole.PINNED_SOURCE_WITH_DESCENDANT_GRAPH
+            if path == INDEPENDENT_REVIEW_RELATIVE.as_posix()
+            else AuthorityCensusRole.PINNED_SOURCE
+        )
+        specs.append(
+            AuthorityCensusSpec(
+                path=path,
+                pinned_sha256=digest,
+                pinned_creating_commit=creating_commit,
+                role=role,
+            )
+        )
+    specs.extend(
+        (
+            AuthorityCensusSpec(
+                path=PREREGISTRATION_RELATIVE.as_posix(),
+                pinned_sha256=PREREGISTRATION_SHA256,
+                pinned_creating_commit=INITIAL_REVIEWED_COMMIT,
+                role=AuthorityCensusRole.PINNED_SOURCE,
+            ),
+            AuthorityCensusSpec(
+                path=_V2_2_REMEDIATION_AUTHORITY[0],
+                pinned_sha256=_V2_2_REMEDIATION_AUTHORITY[1],
+                pinned_creating_commit=_V2_2_REMEDIATION_AUTHORITY[2],
+                role=AuthorityCensusRole.PINNED_SOURCE,
+            ),
+            AuthorityCensusSpec(
+                path=_V2_2_SCOPE_AUTHORITY[0],
+                pinned_sha256=_V2_2_SCOPE_AUTHORITY[1],
+                pinned_creating_commit=_V2_2_SCOPE_AUTHORITY[2],
+                role=AuthorityCensusRole.PINNED_SOURCE,
+            ),
+            AuthorityCensusSpec(
+                path=SERIES_2_PREREGISTRATION_RELATIVE.as_posix(),
+                pinned_sha256=SERIES_2_PREREGISTRATION_SHA256,
+                pinned_creating_commit=SERIES_2_PREREGISTRATION_COMMIT,
+                role=AuthorityCensusRole.PINNED_SOURCE,
+            ),
+            AuthorityCensusSpec(
+                path=SERIES_2_OWNER_DECISION_RELATIVE.as_posix(),
+                pinned_sha256=SERIES_2_OWNER_DECISION_SHA256,
+                pinned_creating_commit=SERIES_2_OWNER_DECISION_COMMIT,
+                role=AuthorityCensusRole.PINNED_SOURCE,
+            ),
+            AuthorityCensusSpec(
+                path=SERIES_2_LOSS_INCIDENT_RELATIVE.as_posix(),
+                pinned_sha256=SERIES_2_TOKEN_SEED_SHA256,
+                pinned_creating_commit=SERIES_2_LOSS_INCIDENT_COMMIT,
+                role=AuthorityCensusRole.PINNED_SOURCE,
+            ),
+            AuthorityCensusSpec(
+                path=VOID_EPOCH_ONE_ADJUDICATION_RELATIVE.as_posix(),
+                pinned_sha256=VOID_EPOCH_ONE_ADJUDICATION_SHA256,
+                pinned_creating_commit=VOID_EPOCH_ONE_ADJUDICATION_COMMIT,
+                role=AuthorityCensusRole.PINNED_SOURCE,
+            ),
+            AuthorityCensusSpec(
+                path=VOID_EPOCH_ONE_REVIEW_RELATIVE.as_posix(),
+                pinned_sha256=VOID_EPOCH_ONE_REVIEW_SHA256,
+                pinned_creating_commit=VOID_EPOCH_ONE_REVIEW_COMMIT,
+                role=AuthorityCensusRole.PINNED_SOURCE,
+            ),
+            AuthorityCensusSpec(
+                path=SERIES_2_EPOCH_5_LANDING_RELATIVE.as_posix(),
+                pinned_sha256=SERIES_2_EPOCH_5_LANDING_SHA256,
+                pinned_creating_commit=SERIES_2_EPOCH_5_LANDING_COMMIT,
+                role=AuthorityCensusRole.PINNED_SOURCE,
+            ),
+            *(
+                AuthorityCensusSpec(
+                    path=path,
+                    pinned_sha256=digest,
+                    pinned_creating_commit=commit,
+                    role=role,
+                    declared_landing_projection_commit=(
+                        commit if role is AuthorityCensusRole.PINNED_LANDING_PROJECTION else None
+                    ),
+                )
+                for (path, digest, commit), role in (
+                    (SERIES_2_ATTEMPT_1_AUTHORITY, AuthorityCensusRole.PINNED_SOURCE),
+                    (SERIES_2_ATTEMPT_2_AUTHORITY, AuthorityCensusRole.PINNED_SOURCE),
+                    (SERIES_2_EPOCH_5_SURFACE_AUTHORITY, AuthorityCensusRole.PINNED_SOURCE),
+                    (SERIES_2_EPOCH_5_REVIEW, AuthorityCensusRole.PINNED_LANDING_PROJECTION),
+                    (SERIES_2_EPOCH_6_SURFACE_AUTHORITY, AuthorityCensusRole.PINNED_SOURCE),
+                    (SERIES_2_EPOCH_6_REVIEW, AuthorityCensusRole.PINNED_LANDING_PROJECTION),
+                )
+            ),
+            AuthorityCensusSpec(
+                path=SERIES_2_EPOCH_6_LANDING_RELATIVE.as_posix(),
+                pinned_sha256=SERIES_2_EPOCH_6_LANDING_SHA256,
+                pinned_creating_commit=SERIES_2_EPOCH_6_LANDING_COMMIT,
+                role=AuthorityCensusRole.PINNED_SOURCE,
+            ),
+            AuthorityCensusSpec(
+                path=EPOCH_7_ADJUDICATION_RELATIVE.as_posix(),
+                pinned_sha256=EPOCH_7_ADJUDICATION_SHA256,
+                pinned_creating_commit=EPOCH_7_ADJUDICATION_COMMIT,
+                role=AuthorityCensusRole.PINNED_SOURCE,
+            ),
+            AuthorityCensusSpec(
+                path=EPOCH_7_COMPANION_RELATIVE.as_posix(),
+                pinned_sha256=EPOCH_7_COMPANION_SHA256,
+                pinned_creating_commit=EPOCH_7_COMPANION_COMMIT,
+                role=AuthorityCensusRole.PINNED_SOURCE,
+            ),
+            AuthorityCensusSpec(
+                path=EPOCH_7_SURFACE_AUTHORITY_RELATIVE.as_posix(),
+                pinned_sha256=EPOCH_7_SURFACE_AUTHORITY_SHA256,
+                pinned_creating_commit=EPOCH_7_SURFACE_AUTHORITY_COMMIT,
+                role=AuthorityCensusRole.PINNED_SOURCE,
+            ),
+        )
+    )
+    return tuple(specs)
+
+
+def _canonical_authority_registry(
+    additional_specs: Sequence[AuthorityCensusSpec],
+) -> tuple[AuthorityCensusSpec, ...]:
+    by_path: dict[str, AuthorityCensusSpec] = {}
+    for spec in (*_base_authority_census_specs(), *additional_specs):
+        path = _relative(spec.path, "authority census registry path")
+        normalized = AuthorityCensusSpec(
+            path=path,
+            pinned_sha256=_sha(spec.pinned_sha256, "authority census registry SHA"),
+            pinned_creating_commit=_commit(
+                spec.pinned_creating_commit,
+                "authority census registry commit",
+            ),
+            role=AuthorityCensusRole(spec.role),
+            declared_landing_projection_commit=(
+                _commit(
+                    spec.declared_landing_projection_commit,
+                    "authority census landing projection",
+                )
+                if spec.declared_landing_projection_commit is not None
+                else None
+            ),
+        )
+        prior = by_path.get(path)
+        if prior is not None and prior != normalized:
+            raise RehearsalV22ValidationError(
+                f"authority census registry has conflicting specs: {path}"
+            )
+        by_path[path] = normalized
+    return tuple(
+        sorted(
+            by_path.values(),
+            key=lambda row: (
+                row.path.encode("utf-8"),
+                row.pinned_creating_commit.encode("ascii"),
+                row.role.value.encode("ascii"),
+            ),
+        )
+    )
+
+
+def _authority_census_row(
+    root: Path,
+    *,
+    execution_head: str,
+    spec: AuthorityCensusSpec,
+    all_ref_commits: tuple[str, ...],
+    work_tracker: _IndependentRecoveryWorkTracker,
+) -> JsonObject:
+    touches = _all_ref_path_touches(
+        root,
+        spec.path,
+        all_ref_commit_count=len(all_ref_commits),
+        work_tracker=work_tracker,
+    )
+    source_commit = spec.pinned_creating_commit
+    if spec.role is AuthorityCensusRole.DISCOVER_SOURCE_AFTER_PROJECTIONS:
+        source_commit, payload, classified = _discover_authority_source(
+            root,
+            path=spec.path,
+            touches=touches,
+            work_tracker=work_tracker,
+        )
+        if _sha256(payload) != spec.pinned_sha256:
+            raise RehearsalV22ValidationError(
+                f"discovered authority payload differs from pinned SHA: {spec.path}"
+            )
+    else:
+        payload = _git_blob(
+            root,
+            spec.pinned_creating_commit,
+            spec.path,
+            work_tracker=work_tracker,
+        )
+        if _sha256(payload) != spec.pinned_sha256:
+            raise RehearsalV22ValidationError(f"authority census pinned bytes drifted: {spec.path}")
+    if spec.role is AuthorityCensusRole.PINNED_LANDING_PROJECTION:
+        landing = spec.declared_landing_projection_commit or spec.pinned_creating_commit
+        landing_parents = _git_parents(root, landing, work_tracker=work_tracker)
+        if len(landing_parents) != 2:
+            raise RehearsalV22ValidationError(
+                f"declared authority landing is not two-parent: {spec.path}"
+            )
+        candidates = [
+            commit
+            for commit, status, paths in touches
+            if status == "A"
+            and paths == (spec.path,)
+            and len(_git_parents(root, commit, work_tracker=work_tracker)) == 1
+            and _git_optional_blob(
+                root,
+                commit,
+                spec.path,
+                work_tracker=work_tracker,
+            )
+            == payload
+            and _git_is_ancestor(
+                root,
+                commit,
+                landing_parents[1],
+                work_tracker=work_tracker,
+            )
+        ]
+        if len(candidates) != 1:
+            raise RehearsalV22ValidationError(
+                f"declared authority landing source is ambiguous: {spec.path}"
+            )
+        source_commit = candidates[0]
+        classified = _classify_authority_touches(
+            root,
+            path=spec.path,
+            pinned_payload=payload,
+            source_commit=source_commit,
+            touches=touches,
+            work_tracker=work_tracker,
+        )
+        if not any(
+            row["commit"] == landing and row["classification"] == "FIRST_PARENT_MERGE_PROJECTION"
+            for row in classified
+        ):
+            raise RehearsalV22ValidationError(
+                f"declared authority landing is not the classified projection: {spec.path}"
+            )
+    elif spec.role is not AuthorityCensusRole.DISCOVER_SOURCE_AFTER_PROJECTIONS:
+        classified = _classify_authority_touches(
+            root,
+            path=spec.path,
+            pinned_payload=payload,
+            source_commit=source_commit,
+            touches=touches,
+            work_tracker=work_tracker,
+        )
+    if spec.role is AuthorityCensusRole.PINNED_SOURCE_WITH_DESCENDANT_GRAPH:
+        _validate_initial_sibling_authority(
+            root,
+            {
+                "path": spec.path,
+                "sha256": spec.pinned_sha256,
+                "creating_commit": spec.pinned_creating_commit,
+                "unique_a_history_verified": True,
+            },
+            execution_head=execution_head,
+            all_ref_commits=all_ref_commits,
+            work_tracker=work_tracker,
+        )
+    head_blob = _git_optional_blob(
+        root,
+        execution_head,
+        spec.path,
+        work_tracker=work_tracker,
+    )
+    if head_blob != payload or not _git_is_ancestor(
+        root,
+        source_commit,
+        execution_head,
+        work_tracker=work_tracker,
+    ):
+        raise RehearsalV22ValidationError(
+            f"authority census source or HEAD bytes drifted: {spec.path}"
+        )
+    worktree_payload = _regular_bytes(
+        _safe_path(root, spec.path, "authority census worktree file"),
+        "authority census worktree file",
+    )
+    if worktree_payload != payload:
+        raise RehearsalV22ValidationError(f"authority census worktree bytes drifted: {spec.path}")
+    projection_count = sum(
+        row["classification"] == "FIRST_PARENT_MERGE_PROJECTION" for row in classified
+    )
+    return {
+        "path": spec.path,
+        "pinned_sha256": spec.pinned_sha256,
+        "pinned_creating_commit": spec.pinned_creating_commit,
+        "mode": spec.role.value,
+        "logical_source_commit": source_commit,
+        "declared_landing_projection_commit": spec.declared_landing_projection_commit,
+        "raw_touch_count": len(touches),
+        "source_count": 1,
+        "projection_count": projection_count,
+        "touches": list(classified),
+        "execution_head_contains_source": True,
+        "head_blob_sha256": _sha256(head_blob),
+        "worktree_sha256": _sha256(worktree_payload),
+        "verdict": "PASS_ONE_LOGICAL_SOURCE_AND_ONLY_LAWFUL_PROJECTIONS",
+    }
+
+
+def _real_lineage_census(
+    project_root: Path,
+    *,
+    execution_head: str,
+    additional_specs: Sequence[AuthorityCensusSpec] = (),
+    work_tracker: _IndependentRecoveryWorkTracker | None = None,
+) -> JsonObject:
+    root = project_root.resolve(strict=True)
+    tracker = _IndependentRecoveryWorkTracker() if work_tracker is None else work_tracker
+    before = _git_ref_snapshot(root, work_tracker=tracker)
+    all_ref_commits = _git_all_ref_commits(root, work_tracker=tracker)
+    observed_head = _git_commit(
+        root,
+        _git_bytes(
+            root,
+            "rev-parse",
+            "HEAD",
+            work_tracker=tracker,
+            object_reads=1,
+        )
+        .decode("ascii", errors="strict")
+        .strip(),
+        "real-lineage execution HEAD",
+        work_tracker=tracker,
+    )
+    expected_head = _git_commit(
+        root,
+        execution_head,
+        "real-lineage requested HEAD",
+        work_tracker=tracker,
+    )
+    if observed_head != expected_head:
+        raise RehearsalV22ValidationError("real-lineage census is not at execution HEAD")
+    registry = _canonical_authority_registry(additional_specs)
+    registry_document = [
+        {
+            "path": spec.path,
+            "pinned_sha256": spec.pinned_sha256,
+            "pinned_creating_commit": spec.pinned_creating_commit,
+            "mode": spec.role.value,
+            "declared_landing_projection_commit": spec.declared_landing_projection_commit,
+        }
+        for spec in registry
+    ]
+    rows: list[JsonObject] = []
+    for spec in registry:
+        rows.append(
+            _authority_census_row(
+                root,
+                execution_head=observed_head,
+                spec=spec,
+                all_ref_commits=all_ref_commits,
+                work_tracker=tracker,
+            )
+        )
+        _assert_recovery_work_bound(tracker.snapshot())
+    after = _git_ref_snapshot(root, work_tracker=tracker)
+    if before != after:
+        raise RehearsalV22ValidationError("Git refs changed during real-lineage census")
+    projection_count = sum(cast(int, row["projection_count"]) for row in rows)
+    result = {
+        "schema_version": "p4.2a-v2-2-real-lineage-census-v1",
+        "execution_head": observed_head,
+        "authority_registry_sha256": _sha256(_canonical_json_bytes(registry_document)),
+        "ref_snapshot_before_sha256": _sha256(before),
+        "ref_snapshot_after_sha256": _sha256(after),
+        "reference_count": len(registry),
+        "row_count": len(rows),
+        "source_count": len(rows),
+        "projection_count": projection_count,
+        "invalid_count": 0,
+        "rows": rows,
+        "effects": {
+            "git_ref_write": False,
+            "git_index_write": False,
+            "git_worktree_write": False,
+            "ledger_write": False,
+            "mirror_write": False,
+            "destination_write": False,
+            "temporary_write": False,
+            "network_access": False,
+            "database_access": False,
+            "pipeline_execution": False,
+            "heldout_access": False,
+        },
+        "status": "PASS_REAL_LINEAGE_CENSUS",
+    }
+    _require_exact_keys(result, REAL_LINEAGE_CENSUS_FIELDS, "real-lineage census")
+    for row in rows:
+        _require_exact_keys(row, REAL_LINEAGE_ROW_FIELDS, "real-lineage census row")
+        for touch in cast(list[JsonObject], row["touches"]):
+            _require_exact_keys(
+                touch,
+                REAL_LINEAGE_TOUCH_FIELDS,
+                "real-lineage census touch",
+            )
+    return result
+
+
+def validate_epoch_7_recovery_contract(project_root: Path) -> JsonObject:
+    """Independently validate the companion's byte-authoritative 12-field contract."""
+
+    root = project_root.resolve(strict=True)
+    for relative, digest, expected_bytes, commit in (
+        (
+            EPOCH_7_DESIGN_R1_RELATIVE,
+            EPOCH_7_DESIGN_R1_SHA256,
+            EPOCH_7_DESIGN_R1_BYTES,
+            EPOCH_7_DESIGN_R1_COMMIT,
+        ),
+        (
+            EPOCH_7_DESIGN_R2_RELATIVE,
+            EPOCH_7_DESIGN_R2_SHA256,
+            EPOCH_7_DESIGN_R2_BYTES,
+            EPOCH_7_DESIGN_R2_COMMIT,
+        ),
+    ):
+        design_payload = _git_blob(root, commit, relative.as_posix())
+        if len(design_payload) != expected_bytes or _sha256(design_payload) != digest:
+            raise RehearsalV22ValidationError("epoch-7 design authority bytes drifted")
+    payload = _regular_bytes(
+        root / EPOCH_7_COMPANION_RELATIVE,
+        "epoch-7 recovery companion",
+    )
+    if (
+        _sha256(payload) != EPOCH_7_COMPANION_SHA256
+        or _git_blob(
+            root,
+            EPOCH_7_COMPANION_COMMIT,
+            EPOCH_7_COMPANION_RELATIVE.as_posix(),
+        )
+        != payload
+    ):
+        raise RehearsalV22ValidationError("epoch-7 recovery companion bytes drifted")
+    if (
+        _unique_a_authority(
+            root,
+            {
+                "path": EPOCH_7_COMPANION_RELATIVE.as_posix(),
+                "sha256": EPOCH_7_COMPANION_SHA256,
+                "creating_commit": EPOCH_7_COMPANION_COMMIT,
+                "unique_a_history_verified": True,
+            },
+            require_worktree=True,
+        )
+        != payload
+    ):
+        raise RehearsalV22ValidationError("epoch-7 companion authority drifted")
+    document = _object(
+        strict_json_loads(payload, label="epoch-7 recovery companion"),
+        "epoch-7 recovery companion",
+    )
+    contract = _object(document.get("epoch_7_recovery_contract"), "epoch-7 recovery contract")
+    _require_exact_keys(contract, EPOCH_7_RECOVERY_CONTRACT_FIELDS, "epoch-7 recovery contract")
+    if _sha256(_canonical_json_bytes(contract)) != EPOCH_7_CONTRACT_CANONICAL_SHA256:
+        raise RehearsalV22ValidationError("epoch-7 recovery contract canonical bytes drifted")
+    _require_equal(
+        contract.get("schema_version"),
+        "p4.2a-v2-2-series2-epoch7-recovery-contract-v1",
+        "epoch-7 contract schema",
+    )
+    _require_equal(contract.get("implementation_epoch"), 7, "epoch-7 contract epoch")
+    _require_equal(
+        contract.get("governing_adjudication"),
+        {
+            "path": EPOCH_7_ADJUDICATION_RELATIVE.as_posix(),
+            "sha256": EPOCH_7_ADJUDICATION_SHA256,
+            "creating_commit": EPOCH_7_ADJUDICATION_COMMIT,
+            "unique_a_history_verified": True,
+        },
+        "epoch-7 governing adjudication",
+    )
+    q = _object(contract.get("recovery_review_request_contract"), "epoch-7 Q contract")
+    r = _object(contract.get("recovery_authorization_contract"), "epoch-7 R contract")
+    b = _object(contract.get("recovery_owner_binding_contract"), "epoch-7 B contract")
+    claim = _object(contract.get("recovery_claim_contract"), "epoch-7 claim contract")
+    receipt = _object(
+        contract.get("bundle_mirror_receipt_contract"),
+        "epoch-7 mirror receipt contract",
+    )
+    anchors = _object(contract.get("dual_byte_anchor_contract"), "epoch-7 anchor contract")
+    census = _object(
+        contract.get("unique_a_and_lineage_census_contract"),
+        "epoch-7 census contract",
+    )
+    protected = _object(
+        contract.get("protected_inputs_and_permitted_outputs"),
+        "epoch-7 effect contract",
+    )
+    legacy = _object(contract.get("legacy_absence_and_locks"), "epoch-7 legacy contract")
+    for node, expected, label in (
+        (
+            q,
+            frozenset(
+                {
+                    "exact_top_level_fields",
+                    "nested_exact_field_sets",
+                    "path_pattern",
+                    "rules",
+                    "schema_version",
+                    "status_value",
+                    "topology",
+                }
+            ),
+            "Q contract",
+        ),
+        (
+            r,
+            frozenset(
+                {
+                    "counters",
+                    "effect_authorization_exact",
+                    "exact_top_level_fields",
+                    "fixed_values",
+                    "nested_exact_field_sets",
+                    "path_pattern",
+                    "schema_version",
+                    "topology",
+                    "verdict_value",
+                }
+            ),
+            "R contract",
+        ),
+        (
+            b,
+            frozenset(
+                {
+                    "bootstrap_order",
+                    "cli_operations",
+                    "exact_top_level_fields",
+                    "fixed_values",
+                    "nested_exact_field_sets",
+                    "path_pattern",
+                    "schema_version",
+                    "topology",
+                }
+            ),
+            "B contract",
+        ),
+        (
+            claim,
+            frozenset(
+                {
+                    "claim_name",
+                    "crash_states",
+                    "linearization",
+                    "outcomes",
+                    "started_exact_fields",
+                    "started_schema_version",
+                    "terminal_exact_fields",
+                    "terminal_schema_version",
+                }
+            ),
+            "claim contract",
+        ),
+        (
+            receipt,
+            frozenset({"exact_fields", "filename_pattern", "rules", "schema_version"}),
+            "mirror receipt contract",
+        ),
+        (
+            anchors,
+            frozenset(
+                {
+                    "capability_required_values",
+                    "historical_selected_anchor",
+                    "hook_disposition_authority",
+                    "live_execution_anchor",
+                    "mode_enum",
+                    "no_fallback",
+                    "recovered_publication_capability_exact_fields",
+                    "release_truth_condition",
+                }
+            ),
+            "dual-anchor contract",
+        ),
+        (
+            census,
+            frozenset(
+                {
+                    "census_exact_fields",
+                    "census_schema_version",
+                    "projection_criteria",
+                    "roles",
+                    "row_exact_fields",
+                    "rules",
+                    "scanner_role_map",
+                    "timing",
+                    "touch_exact_fields",
+                }
+            ),
+            "census contract",
+        ),
+        (
+            protected,
+            frozenset(
+                {
+                    "consume_mode_effects",
+                    "container_rules",
+                    "forbidden_calls",
+                    "permitted_recovery_writes",
+                    "read_only_inputs",
+                    "recovery_containers",
+                    "sealed_input_invariance",
+                }
+            ),
+            "effect contract",
+        ),
+        (
+            legacy,
+            frozenset(
+                {
+                    "amendment_time_facts_permanently_false",
+                    "disclosure_rule",
+                    "epoch_table",
+                    "locks",
+                }
+            ),
+            "legacy contract",
+        ),
+    ):
+        _require_exact_keys(node, expected, label)
+    for observed, expected_order, order_label in (
+        (q.get("exact_top_level_fields"), RECOVERY_REVIEW_REQUEST_FIELD_ORDER, "Q exact fields"),
+        (r.get("exact_top_level_fields"), RECOVERY_AUTHORIZATION_FIELD_ORDER, "R exact fields"),
+        (b.get("exact_top_level_fields"), RECOVERY_OWNER_BINDING_FIELD_ORDER, "B exact fields"),
+        (claim.get("started_exact_fields"), RECOVERY_STARTED_FIELD_ORDER, "claim started fields"),
+        (
+            claim.get("terminal_exact_fields"),
+            RECOVERY_TERMINAL_FIELD_ORDER,
+            "claim terminal fields",
+        ),
+        (receipt.get("exact_fields"), RECOVERY_MIRROR_RECEIPT_FIELD_ORDER, "mirror receipt fields"),
+        (census.get("census_exact_fields"), REAL_LINEAGE_CENSUS_FIELD_ORDER, "census fields"),
+        (census.get("row_exact_fields"), REAL_LINEAGE_ROW_FIELD_ORDER, "census row fields"),
+        (census.get("touch_exact_fields"), REAL_LINEAGE_TOUCH_FIELD_ORDER, "census touch fields"),
+    ):
+        values = tuple(cast(Sequence[object], observed))
+        if any(not isinstance(value, str) for value in values) or len(set(values)) != len(values):
+            raise RehearsalV22ValidationError(f"{order_label} are not unique strings")
+        _require_equal(values, expected_order, order_label)
+    _require_equal(
+        tuple(anchors.get("mode_enum", ())),
+        tuple(mode.value for mode in BundleValidationMode),
+        "bundle validation modes",
+    )
+    _require_equal(
+        tuple(anchors.get("recovered_publication_capability_exact_fields", ())),
+        RECOVERED_PUBLICATION_CAPABILITY_FIELDS,
+        "recovered-publication capability fields",
+    )
+    historical = _object(anchors.get("historical_selected_anchor"), "historical anchor")
+    if (
+        historical.get("implementation_epoch") != HISTORICAL_SELECTED_EPOCH
+        or historical.get("implementation_commit") != HISTORICAL_SELECTED_IMPLEMENTATION_COMMIT
+        or historical.get("selected_control_merkle_root_sha256")
+        != HISTORICAL_SELECTED_CONTROL_ROOT_SHA256
+        or historical.get("require_current") is not False
+    ):
+        raise RehearsalV22ValidationError("historical selected anchor contract drifted")
+    _require_equal(
+        tuple(census.get("roles", ())),
+        tuple(role.value for role in AuthorityCensusRole),
+        "authority census roles",
+    )
+    _require_equal(
+        tuple(protected.get("recovery_containers", ())),
+        (
+            SERIES_2_PRIMARY_RECOVERY_CONTAINER.as_posix(),
+            SERIES_2_SECONDARY_RECOVERY_CONTAINER.as_posix(),
+        ),
+        "registered recovery containers",
+    )
+    _require_equal(
+        tuple(legacy.get("amendment_time_facts_permanently_false", ())),
+        LEGACY_AMENDMENT_ABSENCE_FIELDS,
+        "legacy amendment absence fields",
+    )
+    _require_equal(
+        r.get("counters"),
+        {
+            "authorized_bundle_recovery_starts": 1,
+            "authorized_pipeline_starts": 0,
+            "automatic_retry_count": 0,
+        },
+        "recovery authorization counters",
+    )
+    _require_equal(
+        r.get("effect_authorization_exact"),
+        {
+            "attempt_allocation": False,
+            "candidate_or_terminal_rewrite": False,
+            "destination_publish_once": True,
+            "git_metadata_or_tracked_worktree_write": False,
+            "git_object_read": True,
+            "heldout_materialization_inference_or_evaluation": False,
+            "ledger_read": True,
+            "ledger_write": False,
+            "model_access": False,
+            "network_access": False,
+            "paired_bundle_receipts_create_once": True,
+            "pipeline_execution": False,
+            "recovery_claim_create_once": True,
+            "sealed_ledger_mirror_read": True,
+            "sealed_ledger_mirror_write": False,
+            "secondary_bundle_mirror_publish_once": True,
+            "sqlite_or_production_database_access": False,
+            "destination_stage_create_once": True,
+            "secondary_snapshot_stage_create_once": True,
+        },
+        "recovery effect authorization",
+    )
+    _require_equal(
+        b.get("bootstrap_order"),
+        [
+            "process/interpreter/environment and locked bootstrap",
+            "R canonical identity, topology and scope",
+            "B canonical identity, topology, owner text and R binding",
+            "epoch-7 live byte anchor",
+            "real-lineage census",
+            "recovery-container validation",
+            "sealed ledger and sealed-mirror validation",
+            "destination/claim/temp absence",
+            "any filesystem write",
+        ],
+        "recovery bootstrap order",
+    )
+    fixed_b = _object(b.get("fixed_values"), "recovery B fixed values")
+    _require_equal(fixed_b.get("owner_identity"), "ouyang", "recovery B owner")
+    _require_equal(
+        fixed_b.get("source"),
+        "业主向复核方当面确认，由复核方转达",
+        "recovery B source",
+    )
+    _require_equal(
+        fixed_b.get("machine_boundary_values"),
+        [True, False, True, True, True],
+        "recovery B machine boundary",
+    )
+    _require_equal(
+        census.get("scanner_role_map"),
+        {
+            "_unique_a_authority": "PINNED_SOURCE",
+            "_validate_implementation_review_authority.all_touches": ("PINNED_LANDING_PROJECTION"),
+            "_validate_initial_sibling_authority": "PINNED_SOURCE_WITH_DESCENDANT_GRAPH",
+            "_unique_a_unserialized": "DISCOVER_SOURCE_AFTER_PROJECTIONS",
+        },
+        "authority scanner role map",
+    )
+    _require_equal(
+        anchors.get("capability_required_values"),
+        {
+            "selected_attempt_ordinal": 2,
+            "selected_implementation_epoch": 6,
+            "execution_epoch": 7,
+            "recovery_starts": 1,
+            "pipeline_starts": 0,
+            "automatic_retry_count": 0,
+            "sealed_ledger_before_after_equal": True,
+            "sealed_mirror_before_after_equal": True,
+            "historical_run_roots_equal": SEALED_SELECTED_RUN_ROOT_SHA256,
+            "historical_full_downstream_replay_verified": True,
+        },
+        "recovered-publication capability fixed values",
+    )
+    _require_equal(
+        legacy.get("epoch_table"),
+        (
+            "the bundle implementation-epoch table remains exactly [5,6]; epoch 7 is "
+            "recovery execution provenance, never a synthetic attempt row; no ordinal 3 "
+            "may be allocated"
+        ),
+        "epoch table contract",
+    )
+    return contract
+
+
+def _canonical_committed_report(
+    root: Path,
+    path: Path,
+    *,
+    pattern: re.Pattern[str],
+    exact_fields: frozenset[str],
+    label: str,
+) -> tuple[JsonObject, bytes, str, str, str]:
+    absolute = path.absolute()
+    try:
+        relative = absolute.relative_to(root).as_posix()
+    except ValueError as exc:
+        raise RehearsalV22ValidationError(f"{label} path escaped the repository") from exc
+    if pattern.fullmatch(relative) is None:
+        raise RehearsalV22ValidationError(f"{label} path is not registered")
+    payload = _regular_bytes(absolute, label)
+    document = _strict_canonical_json_loads(payload, label=label)
+    _require_exact_keys(document, exact_fields, label)
+    creating_commit, creation_payload = _unique_a_unserialized(
+        root,
+        path=relative,
+        execution_head=_git_bytes(root, "rev-parse", "HEAD")
+        .decode("ascii", errors="strict")
+        .strip(),
+    )
+    if creation_payload != payload:
+        raise RehearsalV22ValidationError(f"{label} differs from its logical source bytes")
+    return document, payload, _sha256(payload), creating_commit, relative
+
+
+def _validate_timestamp_pair(document: Mapping[str, Any], label: str) -> None:
+    utc_text = _rfc3339_utc(document.get("created_at_utc"), f"{label} UTC timestamp")
+    shanghai_text = _rfc3339_shanghai(
+        document.get("created_at_shanghai"),
+        f"{label} Shanghai timestamp",
+    )
+    utc = datetime.fromisoformat(utc_text.replace("Z", "+00:00"))
+    shanghai = datetime.fromisoformat(shanghai_text)
+    if utc != shanghai:
+        raise RehearsalV22ValidationError(f"{label} timestamps disagree")
+
+
+def _validate_recovery_governance(
+    project_root: Path,
+    *,
+    recovery_authorization_path: Path,
+    owner_binding_path: Path,
+    expected_series_token_sha256: str,
+) -> _ValidatedRecoveryGovernance:
+    root = project_root.resolve(strict=True)
+    contract = validate_epoch_7_recovery_contract(root)
+    r, r_payload, r_sha, r_commit, r_relative = _canonical_committed_report(
+        root,
+        recovery_authorization_path,
+        pattern=_RECOVERY_R_PATH_PATTERN,
+        exact_fields=RECOVERY_AUTHORIZATION_FIELDS,
+        label="bundle recovery authorization",
+    )
+    b, b_payload, b_sha, b_commit, b_relative = _canonical_committed_report(
+        root,
+        owner_binding_path,
+        pattern=_RECOVERY_B_PATH_PATTERN,
+        exact_fields=RECOVERY_OWNER_BINDING_FIELDS,
+        label="bundle recovery owner binding",
+    )
+    _validate_timestamp_pair(r, "bundle recovery authorization")
+    _validate_timestamp_pair(b, "bundle recovery owner binding")
+    b_r = _object(b.get("recovery_authorization"), "owner binding R reference")
+    b_q = _object(b.get("review_request"), "owner binding Q reference")
+    for reference, expected_path, expected_sha, expected_bytes, expected_commit, label in (
+        (b_r, r_relative, r_sha, len(r_payload), r_commit, "owner binding R"),
+    ):
+        _require_exact_keys(
+            reference,
+            frozenset({"path", "sha256", "bytes", "creating_commit"}),
+            label,
+        )
+        _require_equal(
+            reference,
+            {
+                "path": expected_path,
+                "sha256": expected_sha,
+                "bytes": expected_bytes,
+                "creating_commit": expected_commit,
+            },
+            label,
+        )
+    q_path_text = _relative(b_q.get("path"), "owner binding Q path")
+    q, q_payload, q_sha, q_commit, q_relative = _canonical_committed_report(
+        root,
+        root / q_path_text,
+        pattern=_RECOVERY_Q_PATH_PATTERN,
+        exact_fields=RECOVERY_REVIEW_REQUEST_FIELDS,
+        label="bundle recovery review request",
+    )
+    _require_equal(
+        b_q,
+        {
+            "path": q_relative,
+            "sha256": q_sha,
+            "bytes": len(q_payload),
+            "creating_commit": q_commit,
+        },
+        "owner binding Q",
+    )
+    _validate_timestamp_pair(q, "bundle recovery review request")
+    if _git_parents(root, r_commit) != (q_commit,) or _git_parents(root, b_commit) != (r_commit,):
+        raise RehearsalV22ValidationError("recovery Q/R/B direct-parent order drifted")
+    proposed = _object(q.get("proposed_recovery_authorization"), "Q proposed R")
+    _require_exact_keys(
+        proposed,
+        frozenset({"path", "document", "canonical_json_sha256", "bytes", "currently_effective"}),
+        "Q proposed R",
+    )
+    if (
+        proposed.get("path") != r_relative
+        or proposed.get("document") != r
+        or proposed.get("canonical_json_sha256") != r_sha
+        or proposed.get("bytes") != len(r_payload)
+        or proposed.get("currently_effective") is not False
+    ):
+        raise RehearsalV22ValidationError("Q proposed R differs from landed authorization")
+    if (
+        r.get("schema_version") != "p4.2a-v2-2-series2-sealed-bundle-recovery-authorization-v1"
+        or r.get("verdict")
+        != "APPROVE_EXACTLY_ONE_SEALED_BUNDLE_RECOVERY_ZERO_PIPELINE_START_ZERO_AUTOMATIC_RETRY"
+        or r.get("authorized_bundle_recovery_starts") != 1
+        or r.get("authorized_pipeline_starts") != 0
+        or r.get("automatic_retry_count") != 0
+        or r.get("effect_authorization")
+        != _object(
+            _object(
+                contract.get("recovery_authorization_contract"),
+                "contract R",
+            ).get("effect_authorization_exact"),
+            "contract R effects",
+        )
+    ):
+        raise RehearsalV22ValidationError("recovery R scope or effects drifted")
+    exact_argv = _array(r.get("exact_argv"), "recovery R argv")
+    exact_environment = _object(r.get("exact_environment"), "recovery R environment")
+    if _command_sha256([_string(value, "recovery argv member") for value in exact_argv]) != r.get(
+        "command_sha256"
+    ) or _environment_sha256(
+        {
+            _string(key, "environment key"): _string(value, "environment value")
+            for key, value in exact_environment.items()
+        }
+    ) != r.get("environment_sha256"):
+        raise RehearsalV22ValidationError("recovery R argv or environment hash drifted")
+    owner_confirmation = _object(b.get("owner_confirmation"), "recovery owner confirmation")
+    authorized_scope = _object(b.get("authorized_scope"), "recovery authorized scope")
+    machine = _object(b.get("machine_boundary"), "recovery machine boundary")
+    if (
+        owner_confirmation.get("identity") != "ouyang"
+        or owner_confirmation.get("source") != "业主向复核方当面确认，由复核方转达"
+        or owner_confirmation.get("authorization_sha256") != r_sha
+        or authorized_scope
+        != {
+            "series_token_sha256": expected_series_token_sha256,
+            "selected_attempt_ordinal": 2,
+            "authorized_bundle_recovery_starts": 1,
+            "authorized_pipeline_starts": 0,
+            "automatic_retry_count": 0,
+            "scope": "one_disclosed_sealed_bundle_recovery_only",
+        }
+        or machine
+        != {
+            "consumed_by_recovery_runner": True,
+            "evidence_only": False,
+            "passed_as_bundle_recovery_confirmation_binding": True,
+            "machine_recovery_authorization_remains_exactly_19_fields": True,
+            "this_document_adds_no_field_to_the_19_field_authorization": True,
+        }
+    ):
+        raise RehearsalV22ValidationError("recovery B owner or machine scope drifted")
+    specs = (
+        AuthorityCensusSpec(q_relative, q_sha, q_commit, AuthorityCensusRole.PINNED_SOURCE),
+        AuthorityCensusSpec(r_relative, r_sha, r_commit, AuthorityCensusRole.PINNED_SOURCE),
+        AuthorityCensusSpec(b_relative, b_sha, b_commit, AuthorityCensusRole.PINNED_SOURCE),
+    )
+    return _ValidatedRecoveryGovernance(
+        contract=contract,
+        q_path=root / q_relative,
+        q_payload=q_payload,
+        q_document=q,
+        q_commit=q_commit,
+        r_path=root / r_relative,
+        r_payload=r_payload,
+        r_document=r,
+        r_commit=r_commit,
+        b_path=root / b_relative,
+        b_payload=b_payload,
+        b_document=b,
+        b_commit=b_commit,
+        authority_specs=specs,
+    )
+
+
+def _validate_delegated_recovery_governance(
+    governance: _ValidatedRecoveryGovernance,
+    authorization: implementation.BundleRecoveryAuthorization,
+    owner_binding: implementation.RecoveryOwnerBinding,
+) -> None:
+    if (
+        not isinstance(authorization, implementation.BundleRecoveryAuthorization)
+        or not isinstance(owner_binding, implementation.RecoveryOwnerBinding)
+        or authorization.path.absolute() != governance.r_path
+        or authorization.payload != governance.r_payload
+        or authorization.sha256 != _sha256(governance.r_payload)
+        or authorization.creating_commit != governance.r_commit
+        or owner_binding.path.absolute() != governance.b_path
+        or owner_binding.payload != governance.b_payload
+        or owner_binding.sha256 != _sha256(governance.b_payload)
+        or owner_binding.creating_commit != governance.b_commit
+    ):
+        raise RehearsalV22ValidationError("delegated recovery governance identity drifted")
+
+
+def _live_anchor_from_recovery_governance(
+    project_root: Path,
+    governance: _ValidatedRecoveryGovernance,
+    *,
+    additional_census_specs: Sequence[AuthorityCensusSpec] = (),
+    control_pass_nonce: object,
+    work_tracker: _IndependentRecoveryWorkTracker,
+) -> tuple[
+    LiveExecutionAnchor,
+    JsonObject,
+    tuple[AuthorityCensusSpec, ...],
+    _ControlSurfaceCacheEnvelope,
+]:
+    root = project_root.resolve(strict=True)
+    execution = _object(
+        governance.r_document.get("execution_epoch"),
+        "recovery execution epoch",
+    )
+    contract = validate_epoch_7_recovery_contract(root)
+    expected_execution_fields = tuple(
+        _object(
+            _object(
+                contract.get("recovery_authorization_contract"),
+                "contract recovery authorization",
+            ).get("nested_exact_field_sets"),
+            "contract R nested fields",
+        )["execution_epoch"]
+    )
+    _require_exact_keys(execution, frozenset(expected_execution_fields), "recovery execution epoch")
+    if execution.get("epoch") != 7:
+        raise RehearsalV22ValidationError("recovery execution epoch is not 7")
+    implementation_commit = _git_commit(
+        root,
+        execution.get("implementation_commit"),
+        "recovery execution implementation",
+    )
+    owner = _validate_authority_ref(
+        execution.get("owner_exact_surface_authorization"),
+        "recovery execution owner authority",
+    )
+    review = _validate_authority_ref(
+        execution.get("independent_implementation_review"),
+        "recovery execution review",
+    )
+    landing_report = _validate_authority_ref(
+        execution.get("landing_report"),
+        "recovery execution landing report",
+    )
+    merge_commit = _git_commit(root, execution.get("merge_commit"), "recovery merge commit")
+    execution_head = _git_commit(
+        root,
+        _git_bytes(root, "rev-parse", "HEAD").decode("ascii", errors="strict").strip(),
+        "recovery execution HEAD",
+    )
+    additional = (
+        *governance.authority_specs,
+        AuthorityCensusSpec(
+            path=cast(str, owner["path"]),
+            pinned_sha256=cast(str, owner["sha256"]),
+            pinned_creating_commit=cast(str, owner["creating_commit"]),
+            role=AuthorityCensusRole.PINNED_SOURCE,
+        ),
+        AuthorityCensusSpec(
+            path=cast(str, review["path"]),
+            pinned_sha256=cast(str, review["sha256"]),
+            pinned_creating_commit=cast(str, review["creating_commit"]),
+            role=AuthorityCensusRole.PINNED_LANDING_PROJECTION,
+            declared_landing_projection_commit=merge_commit,
+        ),
+        AuthorityCensusSpec(
+            path=cast(str, landing_report["path"]),
+            pinned_sha256=cast(str, landing_report["sha256"]),
+            pinned_creating_commit=cast(str, landing_report["creating_commit"]),
+            role=AuthorityCensusRole.PINNED_SOURCE,
+        ),
+        *additional_census_specs,
+    )
+    refs_before_census = _git_ref_snapshot(root)
+    census = _real_lineage_census(
+        root,
+        execution_head=execution_head,
+        additional_specs=additional,
+        work_tracker=work_tracker,
+    )
+    census_sha = _sha256(_canonical_json_bytes(census))
+    anchor = LiveExecutionAnchor(
+        implementation_epoch=7,
+        implementation_commit=implementation_commit,
+        control_merkle_root_sha256=_sha(
+            execution.get("control_merkle_root_sha256"),
+            "recovery execution control root",
+        ),
+        execution_head=execution_head,
+        owner_surface_authorization=owner,
+        independent_implementation_review=review,
+        landing_commit=merge_commit,
+        landing_report=landing_report,
+        real_lineage_census_sha256=census_sha,
+        require_current=True,
+    )
+    _root, _head, live_control = _validate_live_execution_anchor_identity(
+        root,
+        anchor,
+        control_pass_nonce=control_pass_nonce,
+        ref_snapshot_sha256=_sha256(refs_before_census),
+        lineage_census_sha256=census_sha,
+    )
+    _assert_git_census_state_unchanged(
+        root,
+        expected_refs=refs_before_census,
+        expected_head=execution_head,
+    )
+    return anchor, census, additional, live_control
 
 
 def _schema_validate(document: JsonObject, schema: JsonObject, label: str) -> None:
@@ -2520,6 +4983,575 @@ class HistoryReplay:
     live_payloads: Mapping[str, bytes]
     live_identities: Mapping[str, tuple[int, ...]]
     archive_payloads: Mapping[str, bytes]
+
+
+def _historical_selected_anchor(
+    replay: HistoryReplay,
+    expected: HistoricalSelectedAnchor,
+) -> HistoricalSelectedAnchor:
+    selected_candidate = replay.source_records[1][1] if len(replay.source_records) == 2 else None
+    if (
+        replay.started_count != 2
+        or replay.failed_count != 1
+        or replay.incomplete_count != 0
+        or replay.selected_attempt_ordinal != expected.selected_attempt_ordinal
+        or replay.selected_implementation_epoch != expected.implementation_epoch
+        or selected_candidate is None
+    ):
+        raise RehearsalV22ValidationError("sealed selected history does not match epoch-6 anchor")
+    observed = HistoricalSelectedAnchor(
+        implementation_epoch=replay.selected_implementation_epoch,
+        implementation_commit=replay.selected_implementation_commit,
+        control_merkle_root_sha256=_sha(
+            selected_candidate.get("control_surface_root_sha256"),
+            "selected candidate control root",
+        ),
+        history_root_sha256=replay.history_root_sha256,
+        live_ledger_root_sha256=replay.live_ledger_root_sha256,
+        selected_attempt_ordinal=expected.selected_attempt_ordinal,
+        require_current=False,
+    )
+    if observed != expected:
+        raise RehearsalV22ValidationError("sealed selected history does not match its bound anchor")
+    return observed
+
+
+_CONTROL_CACHE_RECORD_FIELDS = frozenset(
+    {
+        "logical_name",
+        "bundle_relative_path",
+        "source_kind",
+        "repository_path",
+        "bytes",
+        "sha256",
+    }
+)
+_CONTROL_CACHE_MANIFEST_RELATIVE = "archive/control-surface/manifest.json"
+_CONTROL_CACHE_PYTHON_RUNTIME_RELATIVE = "archive/control-surface/root/runtime/python.json"
+_CONTROL_CACHE_PACKAGE_RUNTIME_RELATIVE = "archive/control-surface/root/runtime/packages.json"
+
+
+def _control_cache_root_identity(project_root: Path) -> tuple[Path, int, int]:
+    absolute = project_root.absolute()
+    resolved = project_root.resolve(strict=True)
+    if absolute != resolved or project_root.is_symlink():
+        raise RehearsalV22ValidationError(
+            "control cache project root is not one resolved real directory"
+        )
+    status = resolved.stat()
+    if not stat.S_ISDIR(status.st_mode):
+        raise RehearsalV22ValidationError("control cache project root is not a directory")
+    return resolved, status.st_dev, status.st_ino
+
+
+def _frozen_control_record_document(record: _FrozenControlRecord) -> JsonObject:
+    return {
+        "logical_name": record.logical_name,
+        "bundle_relative_path": record.bundle_relative_path,
+        "source_kind": record.source_kind,
+        "repository_path": record.repository_path,
+        "bytes": record.byte_count,
+        "sha256": record.sha256,
+    }
+
+
+def _control_cache_descriptor(cache: _ControlSurfaceCacheEnvelope) -> JsonObject:
+    return {
+        "pass_kind": cache.pass_kind,
+        "selected_epoch": cache.selected_epoch,
+        "resolved_project_root": cache.resolved_project_root,
+        "root_st_dev": cache.root_st_dev,
+        "root_st_ino": cache.root_st_ino,
+        "execution_head": cache.execution_head,
+        "ref_snapshot_sha256": cache.ref_snapshot_sha256,
+        "lineage_census_sha256": cache.lineage_census_sha256,
+        "implementation_commit": cache.implementation_commit,
+        "records": [
+            {
+                **_frozen_control_record_document(record),
+                "current_byte_required": record.current_byte_required,
+            }
+            for record in cache.records
+        ],
+        "payload_facts": [
+            {
+                "bundle_relative_path": fact.bundle_relative_path,
+                "bytes": fact.byte_count,
+                "sha256": fact.sha256,
+            }
+            for fact in cache.payload_facts
+        ],
+        "manifest_bytes": len(cache.manifest_payload),
+        "manifest_sha256": cache.manifest_sha256,
+        "merkle_root_sha256": cache.merkle_root_sha256,
+        "ast_closure_paths": list(cache.ast_closure_paths),
+        "loaded_repository_sources": list(cache.loaded_repository_sources),
+        "python_inventory_bytes": cache.python_inventory_bytes,
+        "python_inventory_sha256": cache.python_inventory_sha256,
+        "package_inventory_bytes": cache.package_inventory_bytes,
+        "package_inventory_sha256": cache.package_inventory_sha256,
+    }
+
+
+def _control_cache_merkle_root(
+    payload_facts: Sequence[_FrozenPayloadFact],
+    *,
+    manifest_payload: bytes,
+) -> str:
+    facts = (
+        *payload_facts,
+        _FrozenPayloadFact(
+            bundle_relative_path=_CONTROL_CACHE_MANIFEST_RELATIVE,
+            byte_count=len(manifest_payload),
+            sha256=_sha256(manifest_payload),
+        ),
+    )
+    leaves = [
+        hashlib.sha256(
+            b"p4.2a-rehearsal-leaf-v2.2\0"
+            + fact.bundle_relative_path.encode("utf-8")
+            + b"\0"
+            + bytes.fromhex(fact.sha256)
+        ).digest()
+        for fact in sorted(facts, key=lambda item: item.bundle_relative_path.encode("utf-8"))
+    ]
+    return _merkle_from_digests(
+        leaves,
+        node_domain=b"p4.2a-rehearsal-node-v2.2\0",
+    )
+
+
+def _validate_control_surface_cache_integrity(
+    project_root: Path,
+    *,
+    implementation_commit: str,
+    execution_head: str,
+    pass_kind: Literal["LIVE_CURRENT", "HISTORICAL_SELECTED_EPOCH_6"],
+    selected_epoch: int | None,
+    ref_snapshot_sha256: str | None,
+    lineage_census_sha256: str | None,
+    pass_nonce: object,
+    cache: _ControlSurfaceCacheEnvelope,
+) -> None:
+    root, root_st_dev, root_st_ino = _control_cache_root_identity(project_root)
+    if (
+        type(cache) is not _ControlSurfaceCacheEnvelope
+        or cache._nonce is not pass_nonce
+        or cache.pass_kind != pass_kind
+        or cache.selected_epoch != selected_epoch
+        or cache.resolved_project_root != root.as_posix()
+        or cache.root_st_dev != root_st_dev
+        or cache.root_st_ino != root_st_ino
+        or cache.implementation_commit != implementation_commit
+        or cache.execution_head != execution_head
+        or _COMMIT_PATTERN.fullmatch(cache.execution_head) is None
+        or cache.ref_snapshot_sha256 != ref_snapshot_sha256
+        or cache.lineage_census_sha256 != lineage_census_sha256
+        or (
+            cache.pass_kind == "LIVE_CURRENT"
+            and (
+                cache.selected_epoch is not None
+                or cache.ref_snapshot_sha256 is None
+                or cache.lineage_census_sha256 is None
+            )
+        )
+        or (
+            cache.pass_kind == "HISTORICAL_SELECTED_EPOCH_6"
+            and (
+                cache.selected_epoch != 6
+                or cache.ref_snapshot_sha256 is not None
+                or cache.lineage_census_sha256 is not None
+            )
+        )
+        or (
+            cache.ref_snapshot_sha256 is not None
+            and _SHA256_PATTERN.fullmatch(cache.ref_snapshot_sha256) is None
+        )
+        or (
+            cache.lineage_census_sha256 is not None
+            and _SHA256_PATTERN.fullmatch(cache.lineage_census_sha256) is None
+        )
+        or not cache.records
+        or not _sha(cache.manifest_sha256, "cached control manifest SHA")
+        or not _sha(cache.merkle_root_sha256, "cached control Merkle root")
+        or cache.integrity_sha256
+        != _sha256(_canonical_json_bytes(_control_cache_descriptor(cache)))
+    ):
+        raise RehearsalV22ValidationError("control cache identity or integrity drifted")
+    manifest = _strict_canonical_json_loads(
+        cache.manifest_payload,
+        label="cached control manifest",
+    )
+    manifest_records = [_frozen_control_record_document(record) for record in cache.records]
+    if (
+        set(manifest) != {"schema_version", "files"}
+        or manifest.get("schema_version") != CONTROL_MANIFEST_SCHEMA
+        or manifest.get("files") != manifest_records
+        or _sha256(cache.manifest_payload) != cache.manifest_sha256
+    ):
+        raise RehearsalV22ValidationError("control cache manifest drifted")
+    record_paths = tuple(record.bundle_relative_path for record in cache.records)
+    fact_paths = tuple(fact.bundle_relative_path for fact in cache.payload_facts)
+    if (
+        record_paths != tuple(sorted(record_paths, key=lambda value: value.encode("utf-8")))
+        or len(set(record_paths)) != len(record_paths)
+        or fact_paths != record_paths
+        or len(set(fact_paths)) != len(fact_paths)
+        or any(
+            fact.byte_count != record.byte_count or fact.sha256 != record.sha256
+            for record, fact in zip(cache.records, cache.payload_facts, strict=True)
+        )
+        or any(
+            record.current_byte_required
+            is not (
+                record.repository_path is not None
+                and (
+                    _CONTROL_GOVERNANCE_AUTHORITIES.get(record.repository_path) is None
+                    or _CONTROL_GOVERNANCE_AUTHORITIES[record.repository_path][2] is True
+                )
+            )
+            for record in cache.records
+        )
+        or _control_cache_merkle_root(
+            cache.payload_facts,
+            manifest_payload=cache.manifest_payload,
+        )
+        != cache.merkle_root_sha256
+    ):
+        raise RehearsalV22ValidationError("control cache record, payload, or Merkle facts drifted")
+    repository_paths = {
+        record.repository_path for record in cache.records if record.repository_path is not None
+    }
+    if (
+        cache.ast_closure_paths != tuple(sorted(set(cache.ast_closure_paths)))
+        or cache.loaded_repository_sources != tuple(sorted(set(cache.loaded_repository_sources)))
+        or not set(cache.loaded_repository_sources).issubset(cache.ast_closure_paths)
+        or not set(cache.ast_closure_paths).issubset(repository_paths)
+    ):
+        raise RehearsalV22ValidationError("control cache closure facts drifted")
+    fact_by_path = {fact.bundle_relative_path: fact for fact in cache.payload_facts}
+    python_fact = fact_by_path.get(_CONTROL_CACHE_PYTHON_RUNTIME_RELATIVE)
+    package_fact = fact_by_path.get(_CONTROL_CACHE_PACKAGE_RUNTIME_RELATIVE)
+    if (
+        python_fact is None
+        or package_fact is None
+        or python_fact.byte_count != cache.python_inventory_bytes
+        or python_fact.sha256 != cache.python_inventory_sha256
+        or package_fact.byte_count != cache.package_inventory_bytes
+        or package_fact.sha256 != cache.package_inventory_sha256
+    ):
+        raise RehearsalV22ValidationError("control cache runtime facts drifted")
+
+
+def _freeze_control_surface_cache(
+    project_root: Path,
+    *,
+    implementation_commit: str,
+    execution_head: str,
+    pass_kind: Literal["LIVE_CURRENT", "HISTORICAL_SELECTED_EPOCH_6"],
+    selected_epoch: int | None,
+    ref_snapshot_sha256: str | None,
+    lineage_census_sha256: str | None,
+    pass_nonce: object,
+    control: implementation.ControlSurface,
+) -> _ControlSurfaceCacheEnvelope:
+    if (
+        type(control) is not implementation.ControlSurface
+        or control.implementation_commit != implementation_commit
+    ):
+        raise RehearsalV22ValidationError("control cache source is not its implementation")
+    if (pass_kind == "LIVE_CURRENT") != (selected_epoch is None):
+        raise RehearsalV22ValidationError("control cache pass kind or epoch is inconsistent")
+    if pass_kind == "HISTORICAL_SELECTED_EPOCH_6" and selected_epoch != 6:
+        raise RehearsalV22ValidationError("historical control cache is not selected epoch 6")
+    root, root_st_dev, root_st_ino = _control_cache_root_identity(project_root)
+    frozen_records: list[_FrozenControlRecord] = []
+    for raw_record in control.records:
+        record = _object(raw_record, "control cache source record")
+        if set(record) != _CONTROL_CACHE_RECORD_FIELDS:
+            raise RehearsalV22ValidationError("control cache source record fields drifted")
+        logical_name = record.get("logical_name")
+        source_kind = record.get("source_kind")
+        if not isinstance(logical_name, str) or not logical_name:
+            raise RehearsalV22ValidationError("control cache logical name is malformed")
+        if not isinstance(source_kind, str) or not source_kind:
+            raise RehearsalV22ValidationError("control cache source kind is malformed")
+        bundle_relative_path = _relative(
+            record.get("bundle_relative_path"),
+            "control cache bundle path",
+        )
+        repository_raw = record.get("repository_path")
+        repository_path = (
+            None
+            if repository_raw is None
+            else _relative(repository_raw, "control cache repository path")
+        )
+        byte_count = record.get("bytes")
+        digest = record.get("sha256")
+        if type(byte_count) is not int or byte_count < 0 or not isinstance(digest, str):
+            raise RehearsalV22ValidationError("control cache byte or SHA fact is malformed")
+        _sha(digest, "control cache source SHA")
+        governance = (
+            None
+            if repository_path is None
+            else _CONTROL_GOVERNANCE_AUTHORITIES.get(repository_path)
+        )
+        frozen_records.append(
+            _FrozenControlRecord(
+                logical_name=logical_name,
+                bundle_relative_path=bundle_relative_path,
+                source_kind=source_kind,
+                repository_path=repository_path,
+                byte_count=byte_count,
+                sha256=digest,
+                current_byte_required=(
+                    repository_path is not None and (governance is None or governance[2] is True)
+                ),
+            )
+        )
+    payload_items = tuple(
+        sorted(control.payloads.items(), key=lambda item: item[0].encode("utf-8"))
+    )
+    payload_facts: list[_FrozenPayloadFact] = []
+    for relative, payload in payload_items:
+        if not isinstance(relative, str) or type(payload) is not bytes:
+            raise RehearsalV22ValidationError("control cache payload is malformed")
+        payload_facts.append(
+            _FrozenPayloadFact(
+                bundle_relative_path=_relative(relative, "control cache payload path"),
+                byte_count=len(payload),
+                sha256=_sha256(payload),
+            )
+        )
+    draft = _ControlSurfaceCacheEnvelope(
+        _nonce=pass_nonce,
+        pass_kind=pass_kind,
+        selected_epoch=selected_epoch,
+        resolved_project_root=root.as_posix(),
+        root_st_dev=root_st_dev,
+        root_st_ino=root_st_ino,
+        execution_head=execution_head,
+        ref_snapshot_sha256=ref_snapshot_sha256,
+        lineage_census_sha256=lineage_census_sha256,
+        implementation_commit=implementation_commit,
+        records=tuple(frozen_records),
+        payload_facts=tuple(payload_facts),
+        manifest_payload=bytes(control.manifest_payload),
+        manifest_sha256=_sha256(control.manifest_payload),
+        merkle_root_sha256=control.merkle_root_sha256,
+        ast_closure_paths=tuple(control.ast_closure_paths),
+        loaded_repository_sources=tuple(control.loaded_repository_sources),
+        python_inventory_bytes=len(control.python_inventory),
+        python_inventory_sha256=_sha256(control.python_inventory),
+        package_inventory_bytes=len(control.package_inventory),
+        package_inventory_sha256=_sha256(control.package_inventory),
+        integrity_sha256="",
+    )
+    cache = replace(
+        draft,
+        integrity_sha256=_sha256(_canonical_json_bytes(_control_cache_descriptor(draft))),
+    )
+    raw_payloads = dict(payload_items)
+    if (
+        tuple(fact.bundle_relative_path for fact in cache.payload_facts)
+        != tuple(record.bundle_relative_path for record in cache.records)
+        or any(
+            len(raw_payloads[fact.bundle_relative_path]) != fact.byte_count
+            or _sha256(raw_payloads[fact.bundle_relative_path]) != fact.sha256
+            for fact in cache.payload_facts
+        )
+        or cache.merkle_root_sha256
+        != _generic_merkle_root(
+            {
+                **raw_payloads,
+                _CONTROL_CACHE_MANIFEST_RELATIVE: cache.manifest_payload,
+            }
+        )
+    ):
+        raise RehearsalV22ValidationError("control cache source payloads are inconsistent")
+    _validate_control_surface_cache_integrity(
+        root,
+        implementation_commit=implementation_commit,
+        execution_head=execution_head,
+        pass_kind=pass_kind,
+        selected_epoch=selected_epoch,
+        ref_snapshot_sha256=ref_snapshot_sha256,
+        lineage_census_sha256=lineage_census_sha256,
+        pass_nonce=pass_nonce,
+        cache=cache,
+    )
+    return cache
+
+
+def _revalidate_cached_current_control_surface(
+    project_root: Path,
+    *,
+    implementation_commit: str,
+    execution_head: str,
+    ref_snapshot_sha256: str,
+    lineage_census_sha256: str,
+    pass_nonce: object,
+    cache: _ControlSurfaceCacheEnvelope,
+) -> None:
+    """Recheck mutable inputs from an independently frozen fact set."""
+
+    root = project_root.resolve(strict=True)
+    _validate_control_surface_cache_integrity(
+        root,
+        implementation_commit=implementation_commit,
+        execution_head=execution_head,
+        pass_kind="LIVE_CURRENT",
+        selected_epoch=None,
+        ref_snapshot_sha256=ref_snapshot_sha256,
+        lineage_census_sha256=lineage_census_sha256,
+        pass_nonce=pass_nonce,
+        cache=cache,
+    )
+    for record in cache.records:
+        if not record.current_byte_required:
+            continue
+        relative = cast(str, record.repository_path)
+        payload = _regular_bytes(
+            _safe_path(root, relative, f"cached current control {relative}"),
+            f"cached current control {relative}",
+        )
+        if len(payload) != record.byte_count or _sha256(payload) != record.sha256:
+            raise RehearsalV22ValidationError(f"cached current control bytes drifted: {relative}")
+    observed_loaded_sources = tuple(sorted(implementation._classify_loaded_module_origins(root)))
+    if observed_loaded_sources != cache.loaded_repository_sources:
+        raise RehearsalV22ValidationError("cached live loaded-source inventory drifted")
+    python_payload, package_payload = _independent_runtime_inventory()
+    if (
+        len(python_payload) != cache.python_inventory_bytes
+        or _sha256(python_payload) != cache.python_inventory_sha256
+        or len(package_payload) != cache.package_inventory_bytes
+        or _sha256(package_payload) != cache.package_inventory_sha256
+    ):
+        raise RehearsalV22ValidationError("cached live runtime inventory drifted")
+
+
+def _validate_live_execution_anchor_identity(
+    project_root: Path,
+    anchor: LiveExecutionAnchor,
+    *,
+    control_pass_nonce: object,
+    ref_snapshot_sha256: str,
+    lineage_census_sha256: str,
+    cached_current_control: _ControlSurfaceCacheEnvelope | None = None,
+) -> tuple[Path, str, _ControlSurfaceCacheEnvelope]:
+    root = project_root.resolve(strict=True)
+    if (
+        anchor.implementation_epoch != EPOCH_7_IMPLEMENTATION_EPOCH
+        or anchor.require_current is not True
+    ):
+        raise RehearsalV22ValidationError("live execution anchor epoch or current policy drifted")
+    implementation_commit = _git_commit(
+        root,
+        anchor.implementation_commit,
+        "live epoch-7 implementation commit",
+    )
+    execution_head = _git_commit(root, anchor.execution_head, "live execution HEAD")
+    if not _git_is_ancestor(root, implementation_commit, execution_head):
+        raise RehearsalV22ValidationError("live implementation is outside execution HEAD")
+    owner = _validate_authority_ref(
+        anchor.owner_surface_authorization,
+        "live epoch-7 owner surface authority",
+    )
+    _require_equal(
+        owner,
+        {
+            "path": EPOCH_7_SURFACE_AUTHORITY_RELATIVE.as_posix(),
+            "sha256": EPOCH_7_SURFACE_AUTHORITY_SHA256,
+            "creating_commit": EPOCH_7_SURFACE_AUTHORITY_COMMIT,
+            "unique_a_history_verified": True,
+        },
+        "live epoch-7 owner surface authority",
+    )
+    _unique_a_authority(root, owner, require_worktree=True)
+    review = _validate_authority_ref(
+        anchor.independent_implementation_review,
+        "live epoch-7 implementation review",
+    )
+    _validate_implementation_review_authority(
+        root,
+        review,
+        implementation_commit=implementation_commit,
+        execution_head=execution_head,
+        require_worktree=True,
+    )
+    landing = _git_commit(root, anchor.landing_commit, "live epoch-7 landing commit")
+    if not _git_is_ancestor(root, implementation_commit, landing) or not _git_is_ancestor(
+        root,
+        landing,
+        execution_head,
+    ):
+        raise RehearsalV22ValidationError("live epoch-7 landing topology drifted")
+    landing_report = _validate_authority_ref(
+        anchor.landing_report,
+        "live epoch-7 landing report",
+    )
+    _unique_a_authority(root, landing_report, require_worktree=True)
+    if cached_current_control is None:
+        observed_control = implementation.build_control_surface(
+            root,
+            implementation_commit,
+            require_current=True,
+        )
+        control = _freeze_control_surface_cache(
+            root,
+            implementation_commit=implementation_commit,
+            execution_head=execution_head,
+            pass_kind="LIVE_CURRENT",
+            selected_epoch=None,
+            ref_snapshot_sha256=ref_snapshot_sha256,
+            lineage_census_sha256=lineage_census_sha256,
+            pass_nonce=control_pass_nonce,
+            control=observed_control,
+        )
+    else:
+        _revalidate_cached_current_control_surface(
+            root,
+            implementation_commit=implementation_commit,
+            execution_head=execution_head,
+            ref_snapshot_sha256=ref_snapshot_sha256,
+            lineage_census_sha256=lineage_census_sha256,
+            pass_nonce=control_pass_nonce,
+            cache=cached_current_control,
+        )
+        control = cached_current_control
+    if control.merkle_root_sha256 != anchor.control_merkle_root_sha256:
+        raise RehearsalV22ValidationError("live epoch-7 control root drifted")
+    _validate_live_module_identity(root, anchor)
+    return root, execution_head, control
+
+
+def _validate_live_execution_anchor(
+    project_root: Path,
+    anchor: LiveExecutionAnchor,
+    *,
+    additional_census_specs: Sequence[AuthorityCensusSpec] = (),
+    control_pass_nonce: object,
+    ref_snapshot_sha256: str,
+    cached_current_control: _ControlSurfaceCacheEnvelope | None = None,
+    work_tracker: _IndependentRecoveryWorkTracker,
+) -> JsonObject:
+    root, execution_head, _control = _validate_live_execution_anchor_identity(
+        project_root,
+        anchor,
+        control_pass_nonce=control_pass_nonce,
+        ref_snapshot_sha256=ref_snapshot_sha256,
+        lineage_census_sha256=anchor.real_lineage_census_sha256,
+        cached_current_control=cached_current_control,
+    )
+    census = _real_lineage_census(
+        root,
+        execution_head=execution_head,
+        additional_specs=additional_census_specs,
+        work_tracker=work_tracker,
+    )
+    if _sha256(_canonical_json_bytes(census)) != anchor.real_lineage_census_sha256:
+        raise RehearsalV22ValidationError("live epoch-7 census binding drifted")
+    return census
 
 
 def _binding_view(value: object) -> BindingView:
@@ -2934,7 +5966,66 @@ def _validate_module_identity(project_root: Path, implementation_commit: str) ->
         implementation_commit=implementation_commit,
         relative_path="scripts/p4_2a_v2_2_heldout_rehearsal.py",
         expected_sha256=digest,
+        require_current=True,
     )
+
+
+def _validate_historical_module_identity(
+    project_root: Path,
+    anchor: HistoricalSelectedAnchor,
+) -> None:
+    if (
+        anchor.implementation_epoch != HISTORICAL_SELECTED_EPOCH
+        or anchor.implementation_commit != HISTORICAL_SELECTED_IMPLEMENTATION_COMMIT
+        or anchor.require_current is not False
+    ):
+        raise RehearsalV22ValidationError("historical module anchor drifted")
+    authority_surface = _independent_local_import_closure(
+        project_root=project_root,
+        implementation_commit=anchor.implementation_commit,
+    )
+    for relative in IMPLEMENTATION_PATHS[3:]:
+        authority_surface[relative] = _git_blob(
+            project_root,
+            anchor.implementation_commit,
+            relative,
+        )
+    audit_hook_sources = _audit_hook_source_map(authority_surface)
+    historical_paths = frozenset(
+        relative for relative, _module_name, _count in _INERT_HISTORICAL_AUDIT_HOOK_SOURCES
+    )
+    expected_historical = {
+        relative: count for relative, _module_name, count in _INERT_HISTORICAL_AUDIT_HOOK_SOURCES
+    }
+    if {
+        relative: audit_hook_sources.get(relative, 0) for relative in historical_paths
+    } != expected_historical or {
+        relative: count
+        for relative, count in audit_hook_sources.items()
+        if relative not in historical_paths
+    } != {"scripts/p4_2a_v2_2_heldout_rehearsal.py": 1}:
+        raise RehearsalV22ValidationError("historical module audit-hook identity drifted")
+    for relative in historical_paths:
+        if authority_surface.get(relative) != _git_blob(
+            project_root,
+            _V2_1_IMPLEMENTATION_COMMIT,
+            relative,
+        ):
+            raise RehearsalV22ValidationError(
+                f"historical inert authority bytes drifted: {relative}"
+            )
+
+
+def _validate_live_module_identity(
+    project_root: Path,
+    anchor: LiveExecutionAnchor,
+) -> None:
+    if (
+        anchor.implementation_epoch != EPOCH_7_IMPLEMENTATION_EPOCH
+        or anchor.require_current is not True
+    ):
+        raise RehearsalV22ValidationError("live module anchor drifted")
+    _validate_module_identity(project_root, anchor.implementation_commit)
 
 
 def _validate_authority_ref(value: object, label: str) -> JsonObject:
@@ -4751,6 +7842,7 @@ class ArchiveReplay:
     run_b_root_sha256: str
     control_root_sha256: str
     control_repository_payloads: Mapping[str, bytes]
+    selected_control_cache: _ControlSurfaceCacheEnvelope | None
     all_payloads: Mapping[str, bytes]
 
 
@@ -4762,6 +7854,7 @@ class ValidatedBundle:
     implementation_commit: str
     archives: ArchiveReplay
     history: HistoryReplay
+    mirror_receipts: tuple[JsonObject, ...]
 
 
 def _validate_materialization_manifest(
@@ -4948,7 +8041,11 @@ def _validate_run_archive(
     row: Mapping[str, Any],
     expected_label: str,
     expected_root: str,
-) -> tuple[dict[str, bytes], dict[str, bytes], str]:
+) -> tuple[
+    dict[str, bytes],
+    dict[str, bytes],
+    str,
+]:
     _require_equal(row.get("run_label"), expected_label, f"{expected_label} label")
     _require_equal(row.get("archive_root"), expected_root, f"{expected_label} archive root")
     _require_equal(row.get("artifact_count"), 14, f"{expected_label} artifact count")
@@ -5102,7 +8199,17 @@ def _validate_control_archive(
     bundle_directory: Path,
     value: object,
     implementation_commit: str,
-) -> tuple[dict[str, bytes], dict[str, bytes], str]:
+    validation_context: BundleValidationContext,
+) -> tuple[
+    dict[str, bytes],
+    dict[str, bytes],
+    str,
+    implementation.ControlSurface,
+]:
+    require_current = _validation_context_requires_current(
+        validation_context,
+        implementation_commit=implementation_commit,
+    )
     control = _object(value, "control archive")
     _require_equal(control.get("archive_root"), "archive/control-surface/root", "control root")
     files = _array(control.get("files"), "control archive files")
@@ -5156,17 +8263,21 @@ def _validate_control_archive(
                 raise RehearsalV22ValidationError("control repository/archive mapping drifted")
             governance = _CONTROL_GOVERNANCE_AUTHORITIES.get(relative)
             if governance is None:
-                current = _regular_bytes(
-                    _safe_path(project_root, relative, f"current control {relative}"),
-                    f"current control {relative}",
-                )
-                if current != payload:
-                    raise RehearsalV22ValidationError(f"current control bytes drifted: {relative}")
+                if require_current:
+                    current = _regular_bytes(
+                        _safe_path(project_root, relative, f"current control {relative}"),
+                        f"current control {relative}",
+                    )
+                    if current != payload:
+                        raise RehearsalV22ValidationError(
+                            f"current control bytes drifted: {relative}"
+                        )
                 _validated_implementation_blob(
                     project_root=project_root,
                     implementation_commit=implementation_commit,
                     relative_path=relative,
                     expected_sha256=_sha256(payload),
+                    require_current=require_current,
                 )
             else:
                 digest, creating_commit, require_worktree = governance
@@ -5307,7 +8418,7 @@ def _validate_control_archive(
     implementation_surface = implementation.build_control_surface(
         project_root,
         implementation_commit,
-        require_current=True,
+        require_current=require_current,
     )
     if (
         implementation_surface.implementation_commit != implementation_commit
@@ -5333,7 +8444,7 @@ def _validate_control_archive(
         raise RehearsalV22ValidationError(
             "independent control replay differs from the implementation control surface"
         )
-    return repository_payloads, bundle_payloads, control_root
+    return repository_payloads, bundle_payloads, control_root, implementation_surface
 
 
 def _validate_archives(
@@ -5342,6 +8453,8 @@ def _validate_archives(
     bundle_directory: Path,
     bundle: Mapping[str, Any],
     implementation_commit: str,
+    validation_context: BundleValidationContext,
+    control_pass_nonce: object,
 ) -> ArchiveReplay:
     archive = _object(bundle.get("archive"), "bundle archive")
     runs = _array(archive.get("runs"), "bundle run archives")
@@ -5382,12 +8495,35 @@ def _validate_archives(
         run_a,
         pipeline_implementation_commit=_V2_1_IMPLEMENTATION_COMMIT,
     )
-    controls, control_files, control_root = _validate_control_archive(
+    controls, control_files, control_root, selected_control_surface = _validate_control_archive(
         project_root=project_root,
         bundle_directory=bundle_directory,
         value=archive.get("control_surface"),
         implementation_commit=implementation_commit,
+        validation_context=validation_context,
     )
+    selected_control_cache: _ControlSurfaceCacheEnvelope | None = None
+    if isinstance(validation_context, RecoveredBundleValidationContext):
+        if validation_context.historical_anchor.implementation_epoch != 6:
+            raise RehearsalV22ValidationError(
+                "passive recovery historical control cache is not selected epoch 6"
+            )
+        execution_head = _git_commit(
+            project_root,
+            _git_bytes(project_root, "rev-parse", "HEAD").decode("ascii", errors="strict").strip(),
+            "historical control cache execution HEAD",
+        )
+        selected_control_cache = _freeze_control_surface_cache(
+            project_root,
+            implementation_commit=implementation_commit,
+            execution_head=execution_head,
+            pass_kind="HISTORICAL_SELECTED_EPOCH_6",
+            selected_epoch=6,
+            ref_snapshot_sha256=None,
+            lineage_census_sha256=None,
+            pass_nonce=control_pass_nonce,
+            control=selected_control_surface,
+        )
     return ArchiveReplay(
         run_a=run_a,
         run_b=run_b,
@@ -5395,6 +8531,7 @@ def _validate_archives(
         run_b_root_sha256=run_b_root,
         control_root_sha256=control_root,
         control_repository_payloads=controls,
+        selected_control_cache=selected_control_cache,
         all_payloads={**run_a_files, **run_b_files, **control_files},
     )
 
@@ -5595,7 +8732,12 @@ def _validate_harness_identity(
     project_root: Path,
     bundle: Mapping[str, Any],
     implementation_commit: str,
+    validation_context: BundleValidationContext,
 ) -> None:
+    require_current = _validation_context_requires_current(
+        validation_context,
+        implementation_commit=implementation_commit,
+    )
     identity = _object(bundle.get("harness_identity"), "bundle harness identity")
     expected_paths = {
         "thin_main_shim": "scripts/rehearse_p4_2a_v2_2_heldout_full_path.py",
@@ -5605,15 +8747,23 @@ def _validate_harness_identity(
     for key, expected_path in expected_paths.items():
         reference = _validate_file_ref(identity.get(key), f"harness {key}")
         _require_equal(reference["path"], expected_path, f"harness {key} path")
-        payload = _regular_bytes(
-            _safe_path(project_root, expected_path, f"harness {key}"), f"harness {key}"
-        )
+        payload = _git_blob(project_root, implementation_commit, expected_path)
+        if (
+            require_current
+            and _regular_bytes(
+                _safe_path(project_root, expected_path, f"harness {key}"),
+                f"harness {key}",
+            )
+            != payload
+        ):
+            raise RehearsalV22ValidationError(f"current harness bytes drifted: {expected_path}")
         _require_equal(reference["sha256"], _sha256(payload), f"harness {key} SHA")
         _validated_implementation_blob(
             project_root=project_root,
             implementation_commit=implementation_commit,
             relative_path=expected_path,
             expected_sha256=_sha256(payload),
+            require_current=require_current,
         )
     expected_scalars = {
         "implementation_module_name": "scripts.p4_2a_v2_2_heldout_rehearsal",
@@ -5629,7 +8779,15 @@ def _validate_harness_identity(
     }
     for key, expected in expected_scalars.items():
         _require_equal(identity.get(key), expected, f"harness identity {key}")
-    _validate_module_identity(project_root, implementation_commit)
+    if require_current:
+        _validate_module_identity(project_root, implementation_commit)
+    else:
+        if not isinstance(validation_context, RecoveredBundleValidationContext):
+            raise RehearsalV22ValidationError("historical harness lacks recovered context")
+        _validate_historical_module_identity(
+            project_root,
+            validation_context.historical_anchor,
+        )
 
 
 def _validate_history_summary(
@@ -5854,13 +9012,64 @@ def _validate_void_epoch_one(
         raise RehearsalV22ValidationError("void epoch control surface replay drifted")
 
 
+def _historical_control_cache_for_epoch(
+    *,
+    project_root: Path,
+    validation_context: BundleValidationContext,
+    replay: HistoryReplay,
+    epoch_number: int,
+    implementation_commit: str,
+    expected_merkle_root_sha256: str,
+    execution_head: str,
+    selected_require_current: bool,
+    control_pass_nonce: object,
+    cache: _ControlSurfaceCacheEnvelope | None,
+) -> _ControlSurfaceCacheEnvelope | None:
+    if not isinstance(validation_context, RecoveredBundleValidationContext):
+        return None
+    if (
+        replay.selected_implementation_epoch != 6
+        or validation_context.historical_anchor.implementation_epoch != 6
+    ):
+        raise RehearsalV22ValidationError(
+            "passive recovery selected implementation epoch is not exactly 6"
+        )
+    if epoch_number != 6:
+        return None
+    if (
+        selected_require_current
+        or implementation_commit != replay.selected_implementation_commit
+        or cache is None
+        or cache.merkle_root_sha256 != expected_merkle_root_sha256
+    ):
+        raise RehearsalV22ValidationError("passive selected epoch-6 control cache binding drifted")
+    _validate_control_surface_cache_integrity(
+        project_root,
+        implementation_commit=implementation_commit,
+        execution_head=execution_head,
+        pass_kind="HISTORICAL_SELECTED_EPOCH_6",
+        selected_epoch=6,
+        ref_snapshot_sha256=None,
+        lineage_census_sha256=None,
+        pass_nonce=control_pass_nonce,
+        cache=cache,
+    )
+    return cache
+
+
 def _validate_implementation_epochs(
     *,
     project_root: Path,
     bundle: Mapping[str, Any],
     replay: HistoryReplay,
     archives: ArchiveReplay,
+    validation_context: BundleValidationContext,
+    control_pass_nonce: object,
 ) -> None:
+    selected_require_current = _validation_context_requires_current(
+        validation_context,
+        implementation_commit=replay.selected_implementation_commit,
+    )
     epochs = _epoch_map(bundle, epoch_origin=SERIES_2_EPOCH_ORIGIN)
     execution_head = (
         _git_bytes(project_root, "rev-parse", "HEAD").decode("ascii", errors="strict").strip()
@@ -6010,7 +9219,7 @@ def _validate_implementation_epochs(
             raise RehearsalV22ValidationError(f"{label} independent review topology drifted")
         for relative in IMPLEMENTATION_PATHS:
             blob = _git_blob(project_root, implementation_commit, relative)
-            if epoch_number == replay.selected_implementation_epoch:
+            if epoch_number == replay.selected_implementation_epoch and selected_require_current:
                 current = _regular_bytes(
                     _safe_path(
                         project_root,
@@ -6023,20 +9232,48 @@ def _validate_implementation_epochs(
                     raise RehearsalV22ValidationError(
                         f"selected implementation bytes drifted: {relative}"
                     )
-        epoch_control = implementation.build_control_surface(
-            project_root,
-            implementation_commit,
-            require_current=False,
+        historical_cache = _historical_control_cache_for_epoch(
+            project_root=project_root,
+            validation_context=validation_context,
+            replay=replay,
+            epoch_number=epoch_number,
+            implementation_commit=implementation_commit,
+            expected_merkle_root_sha256=cast(str, epoch["control_merkle_root_sha256"]),
+            execution_head=execution_head,
+            selected_require_current=selected_require_current,
+            control_pass_nonce=control_pass_nonce,
+            cache=archives.selected_control_cache,
         )
-        if (
-            epoch_control.implementation_commit != implementation_commit
-            or epoch_control.merkle_root_sha256 != epoch["control_merkle_root_sha256"]
-            or epoch_control.loaded_repository_sources
-            or not set(epoch_control.ast_closure_paths).issubset(
+        if historical_cache is None:
+            epoch_control = implementation.build_control_surface(
+                project_root,
+                implementation_commit,
+                require_current=False,
+            )
+            observed_commit = epoch_control.implementation_commit
+            observed_root = epoch_control.merkle_root_sha256
+            observed_loaded_sources = epoch_control.loaded_repository_sources
+            observed_closure = epoch_control.ast_closure_paths
+            observed_repository_paths = {
                 record["repository_path"]
                 for record in epoch_control.records
                 if record["repository_path"] is not None
-            )
+            }
+        else:
+            observed_commit = historical_cache.implementation_commit
+            observed_root = historical_cache.merkle_root_sha256
+            observed_loaded_sources = historical_cache.loaded_repository_sources
+            observed_closure = historical_cache.ast_closure_paths
+            observed_repository_paths = {
+                record.repository_path
+                for record in historical_cache.records
+                if record.repository_path is not None
+            }
+        if (
+            observed_commit != implementation_commit
+            or observed_root != epoch["control_merkle_root_sha256"]
+            or observed_loaded_sources
+            or not set(observed_closure).issubset(observed_repository_paths)
         ):
             raise RehearsalV22ValidationError(
                 f"implementation epoch {epoch_number} control surface replay drifted"
@@ -6049,7 +9286,9 @@ def _validate_implementation_epochs(
             independent_review=_core_authority(review),
             control_merkle_root_sha256=cast(str, epoch["control_merkle_root_sha256"]),
             execution_head=execution_head,
-            require_current_bytes=(epoch_number == replay.selected_implementation_epoch),
+            require_current_bytes=(
+                selected_require_current and epoch_number == replay.selected_implementation_epoch
+            ),
         )
     if (
         not replay.records
@@ -6201,22 +9440,20 @@ def _active_replay_selected_pipeline(
         replay(replay_context)
 
 
-def _validate_bundle_once(
+def _validate_common_bundle_once(
     *,
     project_root: Path,
     bundle_path: Path,
+    authorized_bundle_directory: Path,
     binding: BindingView,
-    raw_binding: implementation.ExecutionBinding,
-    published_release_revalidation: bool,
     expected_bundle_sha256: str | None,
+    validation_context: BundleValidationContext,
 ) -> ValidatedBundle:
     root = project_root.resolve(strict=True)
     candidate = bundle_path.absolute()
-    bundle_directory = _authorized_bundle_directory(
-        binding=binding,
-        raw_binding=raw_binding,
-        bundle_path=candidate,
-        published_release_revalidation=published_release_revalidation,
+    bundle_directory = _directory(
+        authorized_bundle_directory,
+        "mode-authorized bundle directory",
     )
     if candidate.parent != bundle_directory:
         raise RehearsalV22ValidationError("bundle path traverses an aliased directory")
@@ -6291,12 +9528,16 @@ def _validate_bundle_once(
         project_root=root,
         bundle=bundle,
         implementation_commit=implementation_commit,
+        validation_context=validation_context,
     )
+    archive_control_pass_nonce = object()
     archives = _validate_archives(
         project_root=root,
         bundle_directory=bundle_directory,
         bundle=bundle,
         implementation_commit=implementation_commit,
+        validation_context=validation_context,
+        control_pass_nonce=archive_control_pass_nonce,
     )
     replay = _validate_attempt_history_records(
         project_root=root,
@@ -6308,7 +9549,7 @@ def _validate_bundle_once(
     # This passive re-read is intentionally inside the common bundle pass, so
     # both bundle validation and release revalidation fail before any replay
     # capability can run when a snapshot or either receipt is missing/drifted.
-    _validate_second_copy_history(binding=binding, replay=replay)
+    mirror_receipts = _validate_second_copy_history(binding=binding, replay=replay)
     _require_equal(
         implementation_commit,
         replay.selected_implementation_commit,
@@ -6321,6 +9562,8 @@ def _validate_bundle_once(
         bundle=bundle,
         replay=replay,
         archives=archives,
+        validation_context=validation_context,
+        control_pass_nonce=archive_control_pass_nonce,
     )
     _bundle_filesystem_is_exact(
         bundle_directory=bundle_directory,
@@ -6345,7 +9588,488 @@ def _validate_bundle_once(
         implementation_commit=implementation_commit,
         archives=archives,
         history=replay,
+        mirror_receipts=mirror_receipts,
     )
+
+
+def _validate_historical_full_downstream_replay_evidence(
+    validated: ValidatedBundle,
+    anchor: HistoricalSelectedAnchor,
+    governance: _ValidatedRecoveryGovernance,
+    binding: BindingView,
+) -> Mapping[str, str]:
+    replay = validated.history
+    if _historical_selected_anchor(replay, anchor) != anchor:
+        raise RehearsalV22ValidationError("historical replay anchor substitution detected")
+    sealed = _object(governance.r_document.get("sealed_series"), "recovery sealed series")
+    authorization_contract = _object(
+        governance.contract.get("recovery_authorization_contract"),
+        "recovery authorization contract",
+    )
+    nested_fields = _object(
+        authorization_contract.get("nested_exact_field_sets"),
+        "recovery authorization nested fields",
+    )
+    _require_exact_keys(
+        sealed,
+        frozenset(cast(Sequence[str], nested_fields.get("sealed_series"))),
+        "recovery sealed series",
+    )
+    selected_files = _object(sealed.get("selected_files"), "recovery selected files")
+    _require_exact_keys(
+        selected_files,
+        frozenset(cast(Sequence[str], nested_fields.get("selected_files"))),
+        "recovery selected files",
+    )
+    started_reference = _object(
+        selected_files.get("started"),
+        "recovery selected started reference",
+    )
+    candidate_reference = _object(
+        selected_files.get("candidate"),
+        "recovery selected candidate reference",
+    )
+    terminal_reference = _object(
+        selected_files.get("terminal"),
+        "recovery selected terminal reference",
+    )
+    selected_reference_fields = frozenset(
+        cast(Sequence[str], nested_fields.get("selected_file_reference"))
+    )
+    for label, reference in (
+        ("started", started_reference),
+        ("candidate", candidate_reference),
+        ("terminal", terminal_reference),
+    ):
+        _require_exact_keys(
+            reference,
+            selected_reference_fields,
+            f"recovery selected {label} reference",
+        )
+    sealed_mirror = _object(sealed.get("sealed_mirror"), "recovery sealed mirror")
+    _require_exact_keys(
+        sealed_mirror,
+        frozenset(cast(Sequence[str], nested_fields.get("sealed_mirror"))),
+        "recovery sealed mirror",
+    )
+    started_payload = replay.live_payloads.get("attempts/000002/started.json")
+    candidate_payload = replay.live_payloads.get("attempts/000002/candidate.json")
+    terminal_payload = replay.live_payloads.get("attempts/000002/terminal.json")
+    if (
+        started_payload is None
+        or candidate_payload is None
+        or terminal_payload is None
+        or started_reference
+        != {
+            "relative_path": "attempts/000002/started.json",
+            "sha256": _sha256(started_payload),
+            "bytes": len(started_payload),
+        }
+        or candidate_reference
+        != {
+            "relative_path": "attempts/000002/candidate.json",
+            "sha256": _sha256(candidate_payload),
+            "bytes": len(candidate_payload),
+        }
+        or terminal_reference
+        != {
+            "relative_path": "attempts/000002/terminal.json",
+            "sha256": _sha256(terminal_payload),
+            "bytes": len(terminal_payload),
+        }
+    ):
+        raise RehearsalV22ValidationError("sealed selected candidate or terminal bytes drifted")
+    candidate = _object(
+        strict_json_loads(candidate_payload, label="sealed selected candidate"),
+        "sealed selected candidate",
+    )
+    terminal = _object(
+        strict_json_loads(terminal_payload, label="sealed selected terminal"),
+        "sealed selected terminal",
+    )
+    evidence_prefix = "attempts/000002/evidence/"
+    evidence_payloads = {
+        relative.removeprefix(evidence_prefix): payload
+        for relative, payload in replay.live_payloads.items()
+        if relative.startswith(evidence_prefix)
+    }
+    evidence_root = _evidence_root(evidence_payloads)
+    previous_history_root = _sha(
+        replay.records[1].get("previous_history_root_sha256"),
+        "selected previous history root",
+    )
+    candidate_content_root = _candidate_content_root(
+        previous_history_root=previous_history_root,
+        run_a_root=_sha(candidate.get("run_a_root_sha256"), "selected run A root"),
+        run_b_root=_sha(candidate.get("run_b_root_sha256"), "selected run B root"),
+        control_root=_sha(
+            candidate.get("control_surface_root_sha256"),
+            "selected control root",
+        ),
+        evidence_root=evidence_root,
+    )
+    validated_candidate_count = sum(
+        record.get("outcome") == "CANDIDATE_VALIDATED_AND_SELECTED" for record in replay.records
+    )
+    if not validated.mirror_receipts:
+        raise RehearsalV22ValidationError("recovery sealed mirror receipt history is empty")
+    latest_receipt = validated.mirror_receipts[-1]
+    latest_receipt_payload = _canonical_json_bytes(latest_receipt)
+    latest_ordinal = _integer(
+        latest_receipt.get("ordinal"),
+        "recovery latest sealed mirror ordinal",
+        minimum=1,
+    )
+    latest_live_root = _sha(
+        latest_receipt.get("live_ledger_root_sha256"),
+        "recovery latest sealed mirror live root",
+    )
+    latest_receipt_name = _mirror_receipt_filename(latest_ordinal, latest_live_root)
+    expected_selected_files = {
+        "started": {
+            "relative_path": "attempts/000002/started.json",
+            "sha256": _sha256(started_payload),
+            "bytes": len(started_payload),
+        },
+        "candidate": {
+            "relative_path": "attempts/000002/candidate.json",
+            "sha256": _sha256(candidate_payload),
+            "bytes": len(candidate_payload),
+        },
+        "terminal": {
+            "relative_path": "attempts/000002/terminal.json",
+            "sha256": _sha256(terminal_payload),
+            "bytes": len(terminal_payload),
+        },
+    }
+    expected_sealed_mirror = {
+        "snapshot_count": len(validated.mirror_receipts),
+        "receipt_count": len(validated.mirror_receipts),
+        "latest_ordinal": latest_ordinal,
+        "latest_snapshot_path": latest_receipt.get("secondary_snapshot_root"),
+        "primary_receipt_path": (binding.primary_receipt_root / latest_receipt_name).as_posix(),
+        "secondary_receipt_path": (binding.secondary_receipt_root / latest_receipt_name).as_posix(),
+        "receipt_sha256": _sha256(latest_receipt_payload),
+        "receipt_bytes": len(latest_receipt_payload),
+        "inventory_sha256": latest_receipt.get("primary_inventory_sha256"),
+        "file_count": latest_receipt.get("file_count"),
+        "total_bytes": latest_receipt.get("total_bytes"),
+        "paired_receipts_byte_identical": True,
+    }
+    expected_sealed_series = {
+        "series_id": REHEARSAL_ID,
+        "series_token_sha256": binding.series_token_sha256,
+        "ledger_root": binding.ledger_root.as_posix(),
+        "history_root_sha256": replay.history_root_sha256,
+        "live_ledger_root_sha256": replay.live_ledger_root_sha256,
+        "series_closed": (
+            validated_candidate_count == 1
+            and replay.selected_attempt_ordinal == len(replay.records)
+        ),
+        "started_count": replay.started_count,
+        "failed_count": replay.failed_count,
+        "incomplete_count": replay.incomplete_count,
+        "validated_candidate_count": validated_candidate_count,
+        "selected_attempt_ordinal": replay.selected_attempt_ordinal,
+        "selected_implementation_epoch": replay.selected_implementation_epoch,
+        "selected_implementation_commit": replay.selected_implementation_commit,
+        "selected_control_merkle_root_sha256": candidate.get("control_surface_root_sha256"),
+        "selected_evidence_tree_root_sha256": evidence_root,
+        "selected_candidate_content_root_sha256": candidate_content_root,
+        "selected_run_a_root_sha256": validated.archives.run_a_root_sha256,
+        "selected_run_b_root_sha256": validated.archives.run_b_root_sha256,
+        "selected_terminal_outcome": terminal.get("outcome"),
+        "selected_reached_stage": terminal.get("reached_stage"),
+        "automatic_retry_count": terminal.get("automatic_retry_count"),
+        "selected_files": expected_selected_files,
+        "sealed_mirror": expected_sealed_mirror,
+    }
+    if latest_receipt.get("primary_inventory_sha256") != latest_receipt.get(
+        "secondary_inventory_sha256"
+    ):
+        raise RehearsalV22ValidationError("recovery latest sealed mirror inventories differ")
+    _require_equal(sealed, expected_sealed_series, "recovery sealed series binding")
+    if (
+        sealed.get("selected_implementation_epoch") != anchor.implementation_epoch
+        or sealed.get("selected_implementation_commit") != anchor.implementation_commit
+        or sealed.get("selected_control_merkle_root_sha256") != anchor.control_merkle_root_sha256
+        or sealed.get("history_root_sha256") != anchor.history_root_sha256
+        or sealed.get("live_ledger_root_sha256") != anchor.live_ledger_root_sha256
+        or sealed.get("selected_attempt_ordinal") != anchor.selected_attempt_ordinal
+        or candidate.get("evidence_tree_root_sha256") != evidence_root
+        or terminal.get("evidence_tree_root_sha256") != evidence_root
+        or candidate.get("candidate_content_root_sha256") != candidate_content_root
+        or candidate.get("run_a_root_sha256") != sealed.get("selected_run_a_root_sha256")
+        or candidate.get("run_b_root_sha256") != sealed.get("selected_run_b_root_sha256")
+        or validated.archives.run_a_root_sha256 != sealed.get("selected_run_a_root_sha256")
+        or validated.archives.run_b_root_sha256 != sealed.get("selected_run_b_root_sha256")
+    ):
+        raise RehearsalV22ValidationError("historical full-downstream replay roots drifted")
+    probe_sha256: dict[str, str] = {}
+    for run_label in ("run-a", "run-b"):
+        relative = f"attempts/000002/evidence/probes/{run_label}.json"
+        archived_relative = f"archive/attempt-history/{relative}"
+        probe_payload = replay.live_payloads.get(relative)
+        if probe_payload is None or replay.archive_payloads.get(archived_relative) != probe_payload:
+            raise RehearsalV22ValidationError(f"historical {run_label} probe bytes drifted")
+        probe_sha256[run_label] = _sha256(probe_payload)
+        probe = _object(
+            strict_json_loads(probe_payload, label=f"historical {run_label} probe"),
+            f"historical {run_label} probe",
+        )
+        _require_exact_keys(
+            probe,
+            frozenset(
+                {
+                    "cninfo_one_second_pacing",
+                    "consumer_stage_gates",
+                    "deterministic_ineligible_zero_retry",
+                    "unexpected_failure_aborts",
+                    "zero_retry_model_contract",
+                }
+            ),
+            f"historical {run_label} probe",
+        )
+        for name, raw_gate in probe.items():
+            gate = _object(raw_gate, f"historical {run_label} probe {name}")
+            if (
+                gate.get("run_label") != run_label
+                or gate.get("status") != "PASS"
+                or gate.get("real_database_reads") != 0
+                or gate.get("real_model_calls") != 0
+                or gate.get("real_network_calls") != 0
+                or gate.get("retry_count", 0) != 0
+                or gate.get("max_retries", 0) != 0
+            ):
+                raise RehearsalV22ValidationError(
+                    f"historical {run_label} probe gate drifted: {name}"
+                )
+    epochs = _epoch_map(validated.document, epoch_origin=SERIES_2_EPOCH_ORIGIN)
+    if tuple(epochs) != (5, 6):
+        raise RehearsalV22ValidationError("recovered bundle epoch table is not exactly [5,6]")
+    return {
+        "selected_candidate_sha256": _sha256(candidate_payload),
+        "selected_terminal_sha256": _sha256(terminal_payload),
+        "selected_evidence_tree_root_sha256": _sha(
+            evidence_root,
+            "recovery selected evidence root",
+        ),
+        "historical_run_a_root_sha256": validated.archives.run_a_root_sha256,
+        "historical_run_b_root_sha256": validated.archives.run_b_root_sha256,
+        "historical_run_a_probe_sha256": probe_sha256["run-a"],
+        "historical_run_b_probe_sha256": probe_sha256["run-b"],
+    }
+
+
+def _independent_historical_anchor(
+    value: implementation.HistoricalSelectedAnchor,
+) -> HistoricalSelectedAnchor:
+    if not isinstance(value, implementation.HistoricalSelectedAnchor):
+        raise RehearsalV22ValidationError("producer historical anchor type drifted")
+    return HistoricalSelectedAnchor(
+        implementation_epoch=value.selected_epoch,
+        implementation_commit=value.selected_commit,
+        control_merkle_root_sha256=value.control_surface.merkle_root_sha256,
+        history_root_sha256=value.history_root_sha256,
+        live_ledger_root_sha256=value.live_ledger_root_sha256,
+        selected_attempt_ordinal=2,
+        require_current=False,
+    )
+
+
+def _independent_live_anchor(value: implementation.LiveExecutionAnchor) -> LiveExecutionAnchor:
+    if not isinstance(value, implementation.LiveExecutionAnchor):
+        raise RehearsalV22ValidationError("producer live anchor type drifted")
+    return LiveExecutionAnchor(
+        implementation_epoch=value.execution_epoch,
+        implementation_commit=value.implementation_commit,
+        control_merkle_root_sha256=value.control_surface.merkle_root_sha256,
+        execution_head=value.execution_head,
+        owner_surface_authorization=value.owner_surface_authorization.as_json(),
+        independent_implementation_review=value.independent_implementation_review.as_json(),
+        landing_commit=value.merge_commit,
+        landing_report=value.landing_report.as_json(),
+        real_lineage_census_sha256=value.real_lineage_census_sha256,
+        require_current=True,
+    )
+
+
+def _independent_recovery_work_counters(
+    *,
+    validated: ValidatedBundle,
+    census: Mapping[str, Any],
+    work_tracker: _IndependentRecoveryWorkTracker,
+) -> Mapping[str, int]:
+    """Bound this validator's actual read/hash surface from validated bytes.
+
+    No producer-supplied counter participates.  Git work is the validator's
+    incrementally measured census work; remaining fields are recomputed from
+    independently validated bytes.  Validator recovery is read-only, so it
+    copies zero bundle bytes.
+    """
+
+    measured_git_work = work_tracker.snapshot()["git_objects_read"]
+    recursive_payloads = (
+        validated.payload,
+        *validated.archives.all_payloads.values(),
+        *validated.history.live_payloads.values(),
+        *validated.history.archive_payloads.values(),
+        _canonical_json_bytes(census),
+    )
+    counters = {
+        "git_objects_read": measured_git_work,
+        "recursive_bytes_hashed": sum(len(payload) for payload in recursive_payloads),
+        "sealed_snapshot_files_visited": (
+            len(validated.archives.all_payloads)
+            + len(validated.history.live_payloads)
+            + len(validated.history.archive_payloads)
+        ),
+        "bundle_bytes_copied": 0,
+    }
+    _assert_recovery_work_bound(counters)
+    return counters
+
+
+def _validate_active_bundle_once(
+    *,
+    project_root: Path,
+    bundle_path: Path,
+    binding: BindingView,
+    raw_binding: implementation.ExecutionBinding,
+    published_release_revalidation: bool,
+    expected_bundle_sha256: str | None,
+) -> ValidatedBundle:
+    authorized = _authorized_bundle_directory(
+        binding=binding,
+        raw_binding=raw_binding,
+        bundle_path=bundle_path,
+        published_release_revalidation=published_release_revalidation,
+    )
+    return _validate_common_bundle_once(
+        project_root=project_root,
+        bundle_path=bundle_path,
+        authorized_bundle_directory=authorized,
+        binding=binding,
+        expected_bundle_sha256=expected_bundle_sha256,
+        validation_context=ActiveBundleValidationContext(
+            mode=BundleValidationMode.ACTIVE_ATTEMPT_BUNDLE,
+        ),
+    )
+
+
+def validate_recovered_bundle(
+    *,
+    project_root: Path,
+    bundle_path: Path,
+    execution_context: implementation.RecoveryExecutionCapability,
+    validator_delegation: implementation.RecoveryValidatorDelegation,
+) -> JsonObject:
+    """Passively validate one recovery-stage bundle with no replay capability."""
+
+    requested_root = project_root.absolute()
+    delegated = implementation._validate_recovery_validator_delegation(
+        execution_context,
+        validator_delegation,
+        sys.modules[__name__],
+        requested_root,
+        bundle_path,
+    )
+    raw_binding, authorization, owner_binding, producer_historical, producer_live = delegated
+    root = requested_root.resolve(strict=True)
+    historical_anchor = _independent_historical_anchor(producer_historical)
+    live_anchor = _independent_live_anchor(producer_live)
+    governance = _validate_recovery_governance(
+        root,
+        recovery_authorization_path=authorization.path,
+        owner_binding_path=owner_binding.path,
+        expected_series_token_sha256=raw_binding.series_token_sha256,
+    )
+    _validate_delegated_recovery_governance(governance, authorization, owner_binding)
+    live_control_pass_nonce = object()
+    work_tracker = _IndependentRecoveryWorkTracker()
+    first_census_before = work_tracker.snapshot()
+    first_components_before = (
+        work_tracker.git_subprocesses_started,
+        work_tracker.git_object_read_occurrences,
+    )
+    observed_live, _census, additional_specs, live_control = _live_anchor_from_recovery_governance(
+        root,
+        governance,
+        control_pass_nonce=live_control_pass_nonce,
+        work_tracker=work_tracker,
+    )
+    first_census_after = work_tracker.snapshot()
+    first_census_delta = _recovery_work_delta(first_census_before, first_census_after)
+    first_component_delta = (
+        work_tracker.git_subprocesses_started - first_components_before[0],
+        work_tracker.git_object_read_occurrences - first_components_before[1],
+    )
+    if observed_live != live_anchor:
+        raise RehearsalV22ValidationError("recovered-bundle live anchor substitution detected")
+    binding = _binding_view(raw_binding)
+    if binding.project_root != root:
+        raise RehearsalV22ValidationError("recovered-bundle binding root drifted")
+    candidate = bundle_path.absolute()
+    authorized_directory = _directory(candidate.parent, "recovery-stage bundle directory")
+    validation_context = RecoveredBundleValidationContext(
+        mode=BundleValidationMode.PASSIVE_RECOVERED_BUNDLE,
+        historical_anchor=historical_anchor,
+        live_anchor=live_anchor,
+    )
+    validated = _validate_common_bundle_once(
+        project_root=root,
+        bundle_path=candidate,
+        authorized_bundle_directory=authorized_directory,
+        binding=binding,
+        expected_bundle_sha256=None,
+        validation_context=validation_context,
+    )
+    observed_historical = _historical_selected_anchor(validated.history, historical_anchor)
+    if observed_historical != historical_anchor:
+        raise RehearsalV22ValidationError(
+            "recovered-bundle historical anchor substitution detected"
+        )
+    _validate_historical_full_downstream_replay_evidence(
+        validated,
+        historical_anchor,
+        governance,
+        binding,
+    )
+    final_census_before = work_tracker.snapshot()
+    final_components_before = (
+        work_tracker.git_subprocesses_started,
+        work_tracker.git_object_read_occurrences,
+    )
+    final_census = _validate_live_execution_anchor(
+        root,
+        live_anchor,
+        additional_census_specs=additional_specs,
+        control_pass_nonce=live_control_pass_nonce,
+        ref_snapshot_sha256=cast(str, _census.get("ref_snapshot_after_sha256")),
+        cached_current_control=live_control,
+        work_tracker=work_tracker,
+    )
+    final_census_delta = _recovery_work_delta(
+        final_census_before,
+        work_tracker.snapshot(),
+    )
+    final_component_delta = (
+        work_tracker.git_subprocesses_started - final_components_before[0],
+        work_tracker.git_object_read_occurrences - final_components_before[1],
+    )
+    if (
+        final_census_delta != first_census_delta
+        or final_component_delta != first_component_delta
+    ):
+        raise RehearsalV22ValidationError(
+            "recovered-bundle census work changed between identical passes"
+        )
+    _independent_recovery_work_counters(
+        validated=validated,
+        census=final_census,
+        work_tracker=work_tracker,
+    )
+    return validated.document
 
 
 def _active_replay_validated_bundle(
@@ -6400,7 +10124,7 @@ def validate_bundle(
     )
     # The context/delegation gate above deliberately precedes every bundle,
     # ledger, archive, database, network, model, or artifact read/write.
-    validated = _validate_bundle_once(
+    validated = _validate_active_bundle_once(
         project_root=resolved.view.project_root,
         bundle_path=bundle_path,
         binding=resolved.view,
@@ -6602,6 +10326,767 @@ def _cross_validate_release(
         raise RehearsalV22ValidationError("release locks are not fail-closed")
 
 
+def _validate_passive_release_receipt(
+    *,
+    project_root: Path,
+    receipt_path: Path,
+    binding: BindingView,
+    work_tracker: _IndependentRecoveryWorkTracker,
+) -> tuple[
+    JsonObject,
+    bytes,
+    JsonObject,
+    str,
+    str,
+    tuple[AuthorityCensusSpec, ...],
+]:
+    root = project_root.resolve(strict=True)
+    expected_receipt = root / RELEASE_RELATIVE
+    if receipt_path.absolute() != expected_receipt:
+        raise RehearsalV22ValidationError("recovered release receipt path is not fixed")
+    receipt_payload = _regular_bytes(expected_receipt, "recovered release receipt")
+    receipt = _object(
+        strict_json_loads(receipt_payload, label="recovered release receipt"),
+        "recovered release receipt",
+    )
+    schema_payload = _bound_control(
+        root,
+        SERIES_2_RELEASE_SCHEMA_RELATIVE,
+        SERIES_2_RELEASE_SCHEMA_SHA256,
+        "series-2 recovered release schema",
+    )
+    schema = _object(
+        strict_json_loads(schema_payload, label="recovered release schema"),
+        "recovered release schema",
+    )
+    _schema_validate(receipt, schema, "recovered release receipt")
+    _validate_binding_document(
+        receipt.get("execution_binding"),
+        binding,
+        "recovered release execution binding",
+    )
+    lineage = _object(receipt.get("lineage"), "recovered release lineage")
+    bundle_ref = _validate_file_ref(lineage.get("bundle"), "recovered release bundle")
+    _require_equal(
+        bundle_ref["path"],
+        f"{REGISTERED_DESTINATION_RELATIVE.as_posix()}/{BUNDLE_FILENAME}",
+        "recovered release bundle path",
+    )
+    reviewed_head = _git_commit(
+        root,
+        receipt.get("reviewed_repository_head"),
+        "recovered release reviewed HEAD",
+        work_tracker=work_tracker,
+    )
+    _require_equal(
+        lineage.get("rehearsal_evidence_commit"),
+        reviewed_head,
+        "recovered release reviewed/evidence HEAD",
+    )
+    receipt_commit, creation_payload = _unique_a_unserialized(
+        root,
+        path=RELEASE_RELATIVE.as_posix(),
+        execution_head=_git_bytes(root, "rev-parse", "HEAD", work_tracker=work_tracker)
+        .decode("ascii", errors="strict")
+        .strip(),
+        work_tracker=work_tracker,
+    )
+    if (
+        creation_payload != receipt_payload
+        or receipt_commit == reviewed_head
+        or not _git_is_ancestor(
+            root,
+            reviewed_head,
+            receipt_commit,
+            work_tracker=work_tracker,
+        )
+    ):
+        raise RehearsalV22ValidationError("recovered release receipt identity drifted")
+    authority_specs: list[AuthorityCensusSpec] = []
+    for key in (
+        "v2_1_incident",
+        "remediation_request",
+        "v2_2_scope_authorization",
+        "review_request",
+    ):
+        authority = _validate_authority_ref(lineage.get(key), f"recovered release {key}")
+        _unique_a_authority(
+            root,
+            authority,
+            require_worktree=True,
+            work_tracker=work_tracker,
+        )
+        if not _git_is_ancestor(
+            root,
+            cast(str, authority["creating_commit"]),
+            reviewed_head,
+            work_tracker=work_tracker,
+        ):
+            raise RehearsalV22ValidationError(
+                f"recovered release authority is outside reviewed HEAD: {key}"
+            )
+        authority_specs.append(
+            AuthorityCensusSpec(
+                path=cast(str, authority["path"]),
+                pinned_sha256=cast(str, authority["sha256"]),
+                pinned_creating_commit=cast(str, authority["creating_commit"]),
+                role=AuthorityCensusRole.PINNED_SOURCE,
+            )
+        )
+    release_specs = (
+        AuthorityCensusSpec(
+            path=RELEASE_RELATIVE.as_posix(),
+            pinned_sha256=_sha256(receipt_payload),
+            pinned_creating_commit=receipt_commit,
+            role=AuthorityCensusRole.DISCOVER_SOURCE_AFTER_PROJECTIONS,
+        ),
+        *authority_specs,
+    )
+    return (
+        receipt,
+        receipt_payload,
+        bundle_ref,
+        reviewed_head,
+        receipt_commit,
+        release_specs,
+    )
+
+
+def _recovery_tree_fingerprint(root: Path) -> dict[str, str]:
+    """Independently reproduce the registered recovery tree commitment."""
+
+    if not _validator_os.path.lexists(root):
+        return {".": "absent"}
+    metadata = root.lstat()
+    if root.is_symlink():
+        return {".": f"symlink:{_validator_os.readlink(root)}"}
+    if root.is_file():
+        payload = _regular_bytes(root, "recovery tree file", allow_empty=True)
+        return {".": f"file:{_sha256(payload)}:{metadata.st_mode:o}"}
+    if not root.is_dir():
+        return {".": f"special:{metadata.st_mode:o}"}
+    observed = {".": f"directory:{stat.S_IMODE(metadata.st_mode):04o}"}
+    for path in sorted(
+        root.rglob("*"),
+        key=lambda item: item.relative_to(root).as_posix().encode("utf-8"),
+    ):
+        relative = path.relative_to(root).as_posix()
+        member = path.lstat()
+        if path.is_symlink():
+            observed[relative] = f"symlink:{_validator_os.readlink(path)}"
+        elif path.is_file():
+            payload = _regular_bytes(
+                path,
+                f"recovery tree file {relative}",
+                allow_empty=True,
+            )
+            observed[relative] = (
+                f"file:{_sha256(payload)}:{stat.S_IMODE(member.st_mode):04o}:{member.st_nlink}"
+            )
+        elif path.is_dir():
+            observed[relative] = f"directory:{stat.S_IMODE(member.st_mode):04o}"
+        else:
+            observed[relative] = f"special:{member.st_mode:o}"
+    return observed
+
+
+def _validate_recovery_timestamp_values(
+    utc_value: object,
+    shanghai_value: object,
+    *,
+    label: str,
+) -> None:
+    utc_text = _rfc3339_utc(utc_value, f"{label} UTC timestamp")
+    shanghai_text = _rfc3339_shanghai(shanghai_value, f"{label} Shanghai timestamp")
+    if datetime.fromisoformat(utc_text.replace("Z", "+00:00")) != datetime.fromisoformat(
+        shanghai_text
+    ):
+        raise RehearsalV22ValidationError(f"{label} timestamps disagree")
+
+
+def _validated_recovery_started_execution_head(
+    project_root: Path,
+    value: object,
+    *,
+    live_execution_head: str,
+) -> str:
+    started_head = _commit(value, "recovery claim started execution HEAD")
+    if not _git_is_ancestor(project_root, started_head, live_execution_head):
+        raise RehearsalV22ValidationError(
+            "recovery claim started HEAD left the current live lineage"
+        )
+    return started_head
+
+
+def _validate_durable_recovery_evidence(
+    *,
+    root: Path,
+    binding: BindingView,
+    governance: _ValidatedRecoveryGovernance,
+    capability: RecoveredPublicationCapability,
+    live_anchor: LiveExecutionAnchor,
+    bundle_payload: bytes,
+) -> JsonObject:
+    """Re-read claim, mirror and paired receipts without trusting capability fields."""
+
+    destination_contract = _object(
+        governance.r_document.get("destination"),
+        "recovery durable destination contract",
+    )
+    storage_contract = _object(
+        destination_contract.get("recovery_storage"),
+        "recovery durable storage contract",
+    )
+    sealed_mirror = _object(
+        _object(
+            governance.r_document.get("sealed_series"),
+            "recovery durable sealed series",
+        ).get("sealed_mirror"),
+        "recovery durable sealed mirror",
+    )
+    expected_sealed_receipt_sha256 = _sha(
+        sealed_mirror.get("receipt_sha256"),
+        "recovery durable sealed mirror receipt",
+    )
+    primary_container = Path(
+        _string(
+            storage_contract.get("primary_recovery_container"),
+            "recovery primary container",
+        )
+    ).absolute()
+    secondary_container = Path(
+        _string(
+            storage_contract.get("secondary_recovery_container"),
+            "recovery secondary container",
+        )
+    ).absolute()
+    _strict_owner_directory_identity(primary_container, label="recovery primary container")
+    _strict_owner_directory_identity(secondary_container, label="recovery secondary container")
+    r_sha = _sha256(governance.r_payload)
+    claim_root = primary_container / f"CLAIM-{r_sha}"
+    _strict_owner_directory_identity(claim_root, label="recovery claim root")
+    if claim_root.as_posix() != capability.claim_root or sorted(
+        path.name for path in claim_root.iterdir()
+    ) != ["started.json", "terminal.json"]:
+        raise RehearsalV22ValidationError("recovery claim identity or inventory drifted")
+    started_payload = _regular_bytes(claim_root / "started.json", "recovery claim started")
+    terminal_payload = _regular_bytes(claim_root / "terminal.json", "recovery claim terminal")
+    started = _strict_canonical_json_loads(started_payload, label="recovery claim started")
+    terminal = _strict_canonical_json_loads(terminal_payload, label="recovery claim terminal")
+    _require_exact_keys(started, RECOVERY_STARTED_FIELDS, "recovery claim started")
+    _require_exact_keys(terminal, RECOVERY_TERMINAL_FIELDS, "recovery claim terminal")
+    _validate_recovery_timestamp_values(
+        started.get("created_at_utc"),
+        started.get("created_at_shanghai"),
+        label="recovery claim started",
+    )
+    _validate_recovery_timestamp_values(
+        terminal.get("completed_at_utc"),
+        terminal.get("completed_at_shanghai"),
+        label="recovery claim terminal",
+    )
+    r_reference = {
+        "path": governance.r_path.relative_to(root).as_posix(),
+        "sha256": r_sha,
+        "creating_commit": governance.r_commit,
+        "unique_a_history_verified": True,
+    }
+    b_reference = {
+        "path": governance.b_path.relative_to(root).as_posix(),
+        "sha256": _sha256(governance.b_payload),
+        "creating_commit": governance.b_commit,
+        "unique_a_history_verified": True,
+    }
+    recovery_id = _string(
+        governance.r_document.get("authorization_id"),
+        "recovery authorization id",
+    )
+    started_execution_head = _validated_recovery_started_execution_head(
+        root,
+        started.get("execution_head"),
+        live_execution_head=live_anchor.execution_head,
+    )
+    destination = binding.absolute_destination
+    destination_stage = destination.parent / f".{destination.name}.recovery-stage-{r_sha}"
+    secondary_stage = secondary_container / f".bundle-snapshot-stage-{r_sha}"
+    if (
+        started.get("schema_version") != EPOCH_7_RECOVERY_STARTED_SCHEMA
+        or started.get("recovery_id") != recovery_id
+        or started.get("authorization") != r_reference
+        or started.get("owner_confirmation_binding") != b_reference
+        or started.get("execution_epoch") != capability.execution_epoch
+        or started.get("sealed_history_root_sha256") != capability.sealed_history_root_sha256
+        or started.get("sealed_live_ledger_root_sha256")
+        != capability.sealed_live_ledger_root_sha256
+        or started.get("sealed_mirror_receipt_sha256") != expected_sealed_receipt_sha256
+        or started.get("destination") != destination.as_posix()
+        or started.get("destination_stage") != destination_stage.as_posix()
+        or started.get("secondary_snapshot_stage") != secondary_stage.as_posix()
+        or started.get("secondary_snapshot_target")
+        != (secondary_container / f"RECOVERED-BUNDLE-{r_sha}-<TREE_SHA256>").as_posix()
+        or started.get("state") != "STARTED"
+        or started.get("authorized_bundle_recovery_starts") != 1
+        or started.get("authorized_pipeline_starts") != 0
+        or started.get("automatic_retry_count") != 0
+    ):
+        raise RehearsalV22ValidationError("recovery claim started semantics drifted")
+    primary_receipt = Path(
+        _string(terminal.get("primary_receipt"), "recovery primary receipt")
+    ).absolute()
+    secondary_receipt = Path(
+        _string(terminal.get("secondary_receipt"), "recovery secondary receipt")
+    ).absolute()
+    secondary_snapshot = Path(
+        _string(terminal.get("secondary_snapshot"), "recovery secondary snapshot")
+    ).absolute()
+    published_tree_sha = _sha(
+        terminal.get("published_tree_sha256"),
+        "recovery published tree SHA",
+    )
+    receipt_name = f"recovery-{r_sha}-{published_tree_sha}.bundle-mirror-verification.json"
+    snapshot_name = f"RECOVERED-BUNDLE-{r_sha}-{published_tree_sha}"
+    if (
+        primary_receipt != primary_container / receipt_name
+        or secondary_receipt != secondary_container / receipt_name
+        or secondary_snapshot != secondary_container / snapshot_name
+        or capability.primary_receipt_path != primary_receipt.as_posix()
+        or capability.secondary_receipt_path != secondary_receipt.as_posix()
+        or capability.secondary_snapshot != secondary_snapshot.as_posix()
+    ):
+        raise RehearsalV22ValidationError("recovery durable output paths drifted")
+    _strict_owner_directory_identity(destination, label="recovery published destination")
+    _strict_owner_directory_identity(secondary_snapshot, label="recovery secondary snapshot")
+    destination_fingerprint = _recovery_tree_fingerprint(destination)
+    snapshot_fingerprint = _recovery_tree_fingerprint(secondary_snapshot)
+    destination_tree_sha = _sha256(_canonical_json_bytes(destination_fingerprint))
+    snapshot_tree_sha = _sha256(_canonical_json_bytes(snapshot_fingerprint))
+    primary_receipt_payload = _regular_bytes(primary_receipt, "recovery primary receipt")
+    secondary_receipt_payload = _regular_bytes(secondary_receipt, "recovery secondary receipt")
+    receipt = _strict_canonical_json_loads(
+        primary_receipt_payload,
+        label="recovery paired receipt",
+    )
+    _require_exact_keys(receipt, RECOVERY_MIRROR_RECEIPT_FIELDS, "recovery paired receipt")
+    _rfc3339_utc(receipt.get("verified_at_utc"), "recovery receipt verified timestamp")
+    if (
+        primary_receipt_payload != secondary_receipt_payload
+        or destination_fingerprint != snapshot_fingerprint
+        or destination_tree_sha != published_tree_sha
+        or snapshot_tree_sha != published_tree_sha
+        or capability.published_tree_sha256 != published_tree_sha
+        or capability.secondary_snapshot_tree_sha256 != snapshot_tree_sha
+        or _sha256(bundle_payload) != capability.published_bundle_sha256
+        or _sha256(primary_receipt_payload) != capability.paired_receipt_sha256
+        or len(primary_receipt_payload) != capability.paired_receipt_bytes
+        or _sha256(started_payload) != capability.claim_started_sha256
+        or _sha256(terminal_payload) != capability.claim_terminal_sha256
+    ):
+        raise RehearsalV22ValidationError("recovery durable bytes or tree roots drifted")
+    expected_receipt = {
+        "schema_version": EPOCH_7_RECOVERY_MIRROR_RECEIPT_SCHEMA,
+        "recovery_authorization_sha256": r_sha,
+        "owner_confirmation_binding_sha256": _sha256(governance.b_payload),
+        "recovery_id": recovery_id,
+        "series_id": REHEARSAL_ID,
+        "series_token_sha256": binding.series_token_sha256,
+        "sealed_history_root_sha256": capability.sealed_history_root_sha256,
+        "sealed_live_ledger_root_sha256": capability.sealed_live_ledger_root_sha256,
+        "selected_attempt_ordinal": capability.selected_attempt_ordinal,
+        "selected_implementation_epoch": capability.selected_implementation_epoch,
+        "selected_implementation_commit": capability.selected_implementation_commit,
+        "execution_epoch": capability.execution_epoch,
+        "execution_implementation_commit": capability.execution_implementation_commit,
+        "execution_head": started_execution_head,
+        "destination": destination.as_posix(),
+        "published_bundle_sha256": _sha256(bundle_payload),
+        "published_tree_sha256": published_tree_sha,
+        "secondary_snapshot": secondary_snapshot.as_posix(),
+        "secondary_snapshot_tree_sha256": snapshot_tree_sha,
+        "destination_and_snapshot_byte_identical": True,
+        "pipeline_starts": 0,
+        "automatic_retry_count": 0,
+        "sealed_ledger_before_after_equal": True,
+        "sealed_mirror_before_after_equal": True,
+        "verified_at_utc": receipt.get("verified_at_utc"),
+    }
+    _require_equal(receipt, expected_receipt, "recovery paired receipt semantics")
+    if (
+        terminal.get("schema_version") != EPOCH_7_RECOVERY_TERMINAL_SCHEMA
+        or terminal.get("recovery_id") != recovery_id
+        or terminal.get("authorization") != r_reference
+        or terminal.get("owner_confirmation_binding") != b_reference
+        or terminal.get("outcome") != "BUNDLE_RECOVERY_PUBLISHED_MIRRORED_AND_RECEIPTED"
+        or terminal.get("reached_stage") != "paired_receipts_verified"
+        or terminal.get("sealed_ledger_before_sha256") != terminal.get("sealed_ledger_after_sha256")
+        or terminal.get("sealed_mirror_before_sha256") != terminal.get("sealed_mirror_after_sha256")
+        or terminal.get("destination") != destination.as_posix()
+        or terminal.get("published_bundle_sha256") != _sha256(bundle_payload)
+        or terminal.get("published_tree_sha256") != published_tree_sha
+        or terminal.get("secondary_snapshot") != secondary_snapshot.as_posix()
+        or terminal.get("secondary_snapshot_tree_sha256") != snapshot_tree_sha
+        or terminal.get("primary_receipt") != primary_receipt.as_posix()
+        or terminal.get("secondary_receipt") != secondary_receipt.as_posix()
+        or terminal.get("paired_receipts_byte_identical") is not True
+        or terminal.get("destination_stage_absent") is not True
+        or terminal.get("secondary_snapshot_stage_absent") is not True
+        or terminal.get("pipeline_starts") != 0
+        or terminal.get("automatic_retry_count") != 0
+        or terminal.get("error") is not None
+        or _validator_os.path.lexists(destination_stage)
+        or _validator_os.path.lexists(secondary_stage)
+    ):
+        raise RehearsalV22ValidationError("recovery success terminal semantics drifted")
+    if sorted(path.name for path in primary_container.iterdir()) != sorted(
+        (claim_root.name, receipt_name)
+    ) or sorted(path.name for path in secondary_container.iterdir()) != sorted(
+        (receipt_name, snapshot_name)
+    ):
+        raise RehearsalV22ValidationError("recovery containers contain conflicting state")
+    return {
+        "claim_started_sha256": _sha256(started_payload),
+        "claim_terminal_sha256": _sha256(terminal_payload),
+        "published_tree_sha256": published_tree_sha,
+        "secondary_snapshot_tree_sha256": snapshot_tree_sha,
+        "paired_receipt_sha256": _sha256(primary_receipt_payload),
+        "paired_receipt_bytes": len(primary_receipt_payload),
+    }
+
+
+def _independent_publication_capability(
+    value: implementation.RecoveredPublicationCapability,
+    *,
+    root: Path,
+    binding: BindingView,
+    governance: _ValidatedRecoveryGovernance,
+    historical_anchor: HistoricalSelectedAnchor,
+    live_anchor: LiveExecutionAnchor,
+    bundle_payload: bytes,
+    historical_evidence: Mapping[str, str],
+) -> tuple[RecoveredPublicationCapability, JsonObject]:
+    if (
+        not isinstance(value, implementation.RecoveredPublicationCapability)
+        or tuple(value.__dataclass_fields__) != RECOVERED_PUBLICATION_CAPABILITY_FIELDS
+    ):
+        raise RehearsalV22ValidationError("producer recovered-publication capability drifted")
+    values = {field: getattr(value, field) for field in RECOVERED_PUBLICATION_CAPABILITY_FIELDS}
+    capability = _require_recovered_publication_capability(
+        _issue_recovered_publication_capability(**values)
+    )
+    for field in (
+        "recovery_authorization_sha256",
+        "owner_binding_sha256",
+        "claim_started_sha256",
+        "claim_terminal_sha256",
+        "series_token_sha256",
+        "sealed_history_root_sha256",
+        "sealed_live_ledger_root_sha256",
+        "published_bundle_sha256",
+        "published_tree_sha256",
+        "secondary_snapshot_tree_sha256",
+        "paired_receipt_sha256",
+        "execution_control_merkle_root_sha256",
+        "selected_candidate_sha256",
+        "selected_terminal_sha256",
+        "selected_evidence_tree_root_sha256",
+        "historical_run_a_root_sha256",
+        "historical_run_b_root_sha256",
+        "historical_run_a_probe_sha256",
+        "historical_run_b_probe_sha256",
+    ):
+        _sha(getattr(capability, field), f"recovered capability {field}")
+    for field in (
+        "recovery_authorization_path",
+        "owner_binding_path",
+        "claim_root",
+        "destination",
+        "secondary_snapshot",
+        "primary_receipt_path",
+        "secondary_receipt_path",
+    ):
+        _string(getattr(capability, field), f"recovered capability {field}")
+    expected_r_path = governance.r_path.relative_to(root).as_posix()
+    expected_b_path = governance.b_path.relative_to(root).as_posix()
+    recovery_storage = _object(
+        _object(
+            governance.r_document.get("destination"),
+            "recovery capability destination",
+        ).get("recovery_storage"),
+        "recovery capability storage",
+    )
+    primary_container = Path(
+        _string(
+            recovery_storage.get("primary_recovery_container"),
+            "recovery primary container",
+        )
+    ).absolute()
+    expected_claim_root = primary_container / f"CLAIM-{_sha256(governance.r_payload)}"
+    expected = {
+        "recovery_authorization_path": expected_r_path,
+        "recovery_authorization_sha256": _sha256(governance.r_payload),
+        "recovery_authorization_creating_commit": governance.r_commit,
+        "owner_binding_path": expected_b_path,
+        "owner_binding_sha256": _sha256(governance.b_payload),
+        "owner_binding_creating_commit": governance.b_commit,
+        "claim_root": expected_claim_root.as_posix(),
+        "series_token_sha256": binding.series_token_sha256,
+        "selected_attempt_ordinal": historical_anchor.selected_attempt_ordinal,
+        "selected_implementation_epoch": historical_anchor.implementation_epoch,
+        "selected_implementation_commit": historical_anchor.implementation_commit,
+        "sealed_history_root_sha256": historical_anchor.history_root_sha256,
+        "sealed_live_ledger_root_sha256": historical_anchor.live_ledger_root_sha256,
+        "destination": binding.absolute_destination.as_posix(),
+        "published_bundle_sha256": _sha256(bundle_payload),
+        "execution_epoch": live_anchor.implementation_epoch,
+        "execution_implementation_commit": live_anchor.implementation_commit,
+        "execution_control_merkle_root_sha256": live_anchor.control_merkle_root_sha256,
+        "recovery_starts": 1,
+        "pipeline_starts": 0,
+        "automatic_retry_count": 0,
+        "sealed_ledger_before_after_equal": True,
+        "sealed_mirror_before_after_equal": True,
+        "selected_candidate_sha256": historical_evidence["selected_candidate_sha256"],
+        "selected_terminal_sha256": historical_evidence["selected_terminal_sha256"],
+        "selected_evidence_tree_root_sha256": historical_evidence[
+            "selected_evidence_tree_root_sha256"
+        ],
+        "historical_run_a_root_sha256": historical_evidence["historical_run_a_root_sha256"],
+        "historical_run_b_root_sha256": historical_evidence["historical_run_b_root_sha256"],
+        "historical_run_a_probe_sha256": historical_evidence["historical_run_a_probe_sha256"],
+        "historical_run_b_probe_sha256": historical_evidence["historical_run_b_probe_sha256"],
+        "historical_full_downstream_replay_verified": True,
+    }
+    for field, expected_value in expected.items():
+        _require_equal(
+            getattr(capability, field),
+            expected_value,
+            f"recovered capability {field}",
+        )
+    if (
+        capability.paired_receipt_bytes < 1
+        or capability.secondary_snapshot == capability.destination
+        or capability.primary_receipt_path == capability.secondary_receipt_path
+    ):
+        raise RehearsalV22ValidationError("recovered capability durable-copy binding drifted")
+    durable = _validate_durable_recovery_evidence(
+        root=root,
+        binding=binding,
+        governance=governance,
+        capability=capability,
+        live_anchor=live_anchor,
+        bundle_payload=bundle_payload,
+    )
+    return capability, durable
+
+
+def validate_recovered_release_authorization(
+    *,
+    project_root: Path,
+    receipt_path: Path,
+    bundle_path: Path,
+    execution_context: implementation.RecoveredPublicationCapability,
+    validator_delegation: implementation.RecoveredPublicationValidatorDelegation,
+) -> JsonObject:
+    """Revalidate one recovered release without minting replay authority."""
+
+    requested_root = project_root.absolute()
+    delegated = implementation._validate_recovered_publication_validator_delegation(
+        execution_context,
+        validator_delegation,
+        sys.modules[__name__],
+        requested_root,
+        bundle_path,
+        receipt_path,
+    )
+    raw_binding, authorization, owner_binding, producer_historical, producer_live = delegated
+    if (
+        validator_delegation.validator_module_id != id(sys.modules[__name__])
+        or validator_delegation.bundle_path != bundle_path.absolute()
+        or validator_delegation.release_path != receipt_path.absolute()
+    ):
+        raise RehearsalV22ValidationError("recovered publication delegation identity drifted")
+    root = requested_root.resolve(strict=True)
+    refs_before = _git_ref_snapshot(root)
+    historical_anchor = _independent_historical_anchor(producer_historical)
+    live_anchor = _independent_live_anchor(producer_live)
+    governance = _validate_recovery_governance(
+        root,
+        recovery_authorization_path=authorization.path,
+        owner_binding_path=owner_binding.path,
+        expected_series_token_sha256=raw_binding.series_token_sha256,
+    )
+    _validate_delegated_recovery_governance(governance, authorization, owner_binding)
+    binding = _binding_view(raw_binding)
+    if (
+        binding.project_root != root
+        or bundle_path.absolute() != binding.absolute_destination / BUNDLE_FILENAME
+    ):
+        raise RehearsalV22ValidationError("recovered-release binding or bundle path drifted")
+    work_tracker = _IndependentRecoveryWorkTracker()
+    (
+        receipt,
+        receipt_payload,
+        bundle_ref,
+        reviewed_head,
+        _receipt_commit,
+        release_specs,
+    ) = _validate_passive_release_receipt(
+        project_root=root,
+        receipt_path=receipt_path,
+        binding=binding,
+        work_tracker=work_tracker,
+    )
+    live_control_pass_nonce = object()
+    first_census_before = work_tracker.snapshot()
+    first_components_before = (
+        work_tracker.git_subprocesses_started,
+        work_tracker.git_object_read_occurrences,
+    )
+    observed_live, census, additional_specs, live_control = _live_anchor_from_recovery_governance(
+        root,
+        governance,
+        additional_census_specs=release_specs,
+        control_pass_nonce=live_control_pass_nonce,
+        work_tracker=work_tracker,
+    )
+    first_census_after = work_tracker.snapshot()
+    first_census_delta = _recovery_work_delta(first_census_before, first_census_after)
+    first_component_delta = (
+        work_tracker.git_subprocesses_started - first_components_before[0],
+        work_tracker.git_object_read_occurrences - first_components_before[1],
+    )
+    if observed_live != live_anchor:
+        raise RehearsalV22ValidationError("recovered-release live anchor substitution detected")
+    validation_context = RecoveredBundleValidationContext(
+        mode=BundleValidationMode.PASSIVE_RECOVERED_RELEASE,
+        historical_anchor=historical_anchor,
+        live_anchor=live_anchor,
+    )
+    validated = _validate_common_bundle_once(
+        project_root=root,
+        bundle_path=bundle_path,
+        authorized_bundle_directory=_directory(
+            binding.absolute_destination,
+            "recovered published bundle directory",
+        ),
+        binding=binding,
+        expected_bundle_sha256=cast(str, bundle_ref["sha256"]),
+        validation_context=validation_context,
+    )
+    historical_evidence = _validate_historical_full_downstream_replay_evidence(
+        validated,
+        historical_anchor,
+        governance,
+        binding,
+    )
+    capability, durable = _independent_publication_capability(
+        execution_context,
+        root=root,
+        binding=binding,
+        governance=governance,
+        historical_anchor=historical_anchor,
+        live_anchor=live_anchor,
+        bundle_payload=validated.payload,
+        historical_evidence=historical_evidence,
+    )
+    _cross_validate_release(bundle=validated.document, receipt=receipt)
+    if (
+        _git_blob(root, reviewed_head, cast(str, bundle_ref["path"])) != validated.payload
+        or _object(
+            receipt.get("independent_checks"),
+            "recovered release independent checks",
+        ).get("full_downstream_replay_passed")
+        is not True
+    ):
+        raise RehearsalV22ValidationError(
+            "recovered release reviewed bundle or historical replay truth drifted"
+        )
+    final_census_before = work_tracker.snapshot()
+    final_components_before = (
+        work_tracker.git_subprocesses_started,
+        work_tracker.git_object_read_occurrences,
+    )
+    final_census = _validate_live_execution_anchor(
+        root,
+        live_anchor,
+        additional_census_specs=additional_specs,
+        control_pass_nonce=live_control_pass_nonce,
+        ref_snapshot_sha256=cast(str, census.get("ref_snapshot_after_sha256")),
+        cached_current_control=live_control,
+        work_tracker=work_tracker,
+    )
+    if _canonical_json_bytes(final_census) != _canonical_json_bytes(census):
+        raise RehearsalV22ValidationError(
+            "recovered release final census differs from its pre-storage census"
+        )
+    final_census_delta = _recovery_work_delta(
+        final_census_before,
+        work_tracker.snapshot(),
+    )
+    final_component_delta = (
+        work_tracker.git_subprocesses_started - final_components_before[0],
+        work_tracker.git_object_read_occurrences - final_components_before[1],
+    )
+    if (
+        final_census_delta != first_census_delta
+        or final_component_delta != first_component_delta
+    ):
+        raise RehearsalV22ValidationError(
+            "recovered-release census work changed between identical passes"
+        )
+    _independent_recovery_work_counters(
+        validated=validated,
+        census=final_census,
+        work_tracker=work_tracker,
+    )
+    if refs_before != _git_ref_snapshot(root):
+        raise RehearsalV22ValidationError("Git refs changed during recovered release validation")
+    effect_summary = {
+        "filesystem_writes": 0,
+        "git_writes": 0,
+        "ledger_writes": 0,
+        "sealed_mirror_writes": 0,
+        "destination_writes": 0,
+        "temporary_writes": 0,
+        "pipeline_starts": 0,
+        "automatic_retries": 0,
+        "heldout_evaluation_attempts_consumed": 0,
+        "model_calls": 0,
+        "network_calls": 0,
+        "database_accesses": 0,
+        "before_after_equal": True,
+    }
+    return {
+        "schema_version": ("p4.2a-v2-2-series2-read-only-recovered-release-revalidation-result-v1"),
+        "status": "PASS_READ_ONLY_RECOVERED_RELEASE_REVALIDATION",
+        "mode": BundleValidationMode.PASSIVE_RECOVERED_RELEASE.value,
+        "release_path": receipt_path.absolute().as_posix(),
+        "release_sha256": _sha256(receipt_payload),
+        "bundle_path": bundle_path.absolute().as_posix(),
+        "bundle_sha256": _sha256(validated.payload),
+        "recovery_authorization_sha256": _sha256(governance.r_payload),
+        "owner_binding_sha256": _sha256(governance.b_payload),
+        "claim_terminal_sha256": cast(str, durable["claim_terminal_sha256"]),
+        "paired_receipt_sha256": capability.paired_receipt_sha256,
+        "real_lineage_census_sha256": _sha256(_canonical_json_bytes(final_census)),
+        "historical_selected_anchor": {
+            "implementation_epoch": historical_anchor.implementation_epoch,
+            "implementation_commit": historical_anchor.implementation_commit,
+            "control_merkle_root_sha256": historical_anchor.control_merkle_root_sha256,
+            "history_root_sha256": historical_anchor.history_root_sha256,
+            "live_ledger_root_sha256": historical_anchor.live_ledger_root_sha256,
+            "require_current": False,
+        },
+        "live_execution_anchor": {
+            "implementation_epoch": live_anchor.implementation_epoch,
+            "implementation_commit": live_anchor.implementation_commit,
+            "control_merkle_root_sha256": live_anchor.control_merkle_root_sha256,
+            "real_lineage_census_sha256": live_anchor.real_lineage_census_sha256,
+            "require_current": True,
+        },
+        "effect_summary": effect_summary,
+    }
+
+
 def _validate_release_once(
     *,
     project_root: Path,
@@ -6697,12 +11182,24 @@ def _validate_release_once(
                 f"release lineage {key} is not contained by the reviewed head"
             )
 
+    if binding.mode == "REGISTERED_OFFICIAL":
+        # This registered series is already closed on selected ordinal 2 and the
+        # adjudication records that its attempt-built bundle validation failed.
+        # Consequently its only lawful publication provenance is epoch-7
+        # recovery.  Container presence is deliberately not consulted here:
+        # those external directories can be deleted, emptied, or partially
+        # damaged, and none of those states may downgrade the fixed series back
+        # to active replay.
+        raise RehearsalV22ValidationError(
+            "registered closed series requires PASSIVE_RECOVERED_RELEASE"
+        )
+
     # Receipt shape, immutable Git identity, lineage, and every authority above
     # must fail closed before bundle replay is allowed to create even temporary
     # artifacts.  The bundle pass below is read-only until all receipt/bundle
     # cross equalities have also succeeded.
     bundle_path = binding.absolute_destination / BUNDLE_FILENAME
-    validated = _validate_bundle_once(
+    validated = _validate_active_bundle_once(
         project_root=root,
         bundle_path=bundle_path,
         binding=binding,
