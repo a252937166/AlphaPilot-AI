@@ -1,0 +1,245 @@
+{
+  "schema_version": "p4.2a-operator-self-review-v1",
+  "review_id": "p4.2a-v2-2-series2-epoch7-r2-operator-self-review-20260831",
+  "created_at_utc": "2026-08-30T18:51:34Z",
+  "created_at_shanghai": "2026-08-31T02:51:34+08:00",
+  "verdict": "PASS_OPERATOR_SELF_REVIEW_FOR_OWNER_HARNESS_AUTHORIZATION",
+  "blockers": [],
+  "reviewed_commit": "c6e5bb81c44a5ea68b2421b12789c510450dea83",
+  "review_classification": {
+    "independent_review": false,
+    "f12_performed": false,
+    "reason": "no independent reviewer available since 2026-08-29",
+    "evidence_grade": "one level below independent F-12 under succession contract section 10C",
+    "prohibited_interpretation": "This document is not an independent implementation review and must not be represented as F-12."
+  },
+  "reviewer": {
+    "identity": "codex_root_with_operator_internal_subagents",
+    "reviewer_type": "operator_and_same-root-subagents",
+    "independent_from_implementer": false,
+    "owner_identity": "ouyang",
+    "method": "The operator ran both complete registered modules and three same-root subagents independently recalculated the code surface, evidence manifest and governance/security boundaries. Every conclusion remains operator-internal."
+  },
+  "governance_chain": {
+    "epoch7_design_review_and_companion_commit": "c2aee25cd96296245d21b776974193172578dae3",
+    "epoch7_surface_authority_path": "docs/phase4/reports/P4.2a-v2-2-epoch7-surface-authority-20260827.json",
+    "epoch7_surface_authority_commit": "06336a9f593ede4132be73a8c8a087df18db904b",
+    "epoch7_surface_authority_sha256": "eb2eb477165af6eb4493f3892328b73ba373a7bc83d8857514eb328f52a0430e",
+    "succession_contract_path": "docs/phase4/reports/P4.2a-independent-review-succession-contract-20260829.md",
+    "succession_contract_commit": "71ced21fb03bdfb8914c4dda90f52c60cae18806",
+    "succession_contract_sha256": "e9cb608330b46311b9bceb5fbbc9b3f7a6ab702c5444ff76840239e79c6f0f84",
+    "previous_candidate": "6a8adf81c015fb4581814540ad864aad3f928fd2",
+    "previous_independent_review_commit": "ca69c82d751c504dcb12e16a4e071fe4a422c345",
+    "previous_independent_review_sha256": "4a576e38fd26643735652416a1b9e6b137a38873f1b24067878545769b1af34a",
+    "previous_f12_scope": "The old independent F-12 remains historical evidence for 6a8adf81 only and is invalidated for the changed Runner test bytes in this candidate."
+  },
+  "part_1_candidate_shape": {
+    "parent": "06336a9f593ede4132be73a8c8a087df18db904b",
+    "single_parent": true,
+    "parent_is_owner_surface_authority": true,
+    "surface": [
+      ["M", "scripts/p4_2a_v2_2_heldout_rehearsal.py"],
+      ["M", "scripts/validate_p4_2a_v2_2_heldout_rehearsal_bundle.py"],
+      ["M", "tests/test_p4_2a_v2_2_heldout_rehearsal_runner.py"],
+      ["M", "tests/test_p4_2a_v2_2_heldout_rehearsal_validator.py"]
+    ],
+    "relative_to_previous_candidate": {
+      "surface": [
+        ["M", "tests/test_p4_2a_v2_2_heldout_rehearsal_runner.py"]
+      ],
+      "insertions": 128,
+      "deletions": 12,
+      "binary_diff_sha256": "13866b8e85896b2db71ebcfea848a0bb877e657acf4ba97ac70fd5c2d28f6c24"
+    },
+    "worktree_clean": true,
+    "remote_branch": "origin/codex/p4-2a-v2-2-series2-epoch7-r2",
+    "remote_branch_points_exactly_to_candidate": true,
+    "file_bindings": {
+      "scripts/p4_2a_v2_2_heldout_rehearsal.py": {
+        "bytes": 812723,
+        "sha256": "b4e60044dbf541ca080567c41d9113d4fec66ddf077a1f5cb14244683219a5fc",
+        "git_blob": "3db5fe25652e7fcd48025f293af59be754007e98"
+      },
+      "scripts/validate_p4_2a_v2_2_heldout_rehearsal_bundle.py": {
+        "bytes": 444426,
+        "sha256": "424ed9d2fcbdb2dc1d5388827540e308638479353ef0ab4400129ec2923291ca",
+        "git_blob": "c3749881fd00fc1fadd65595fde59feeaf2ca378"
+      },
+      "tests/test_p4_2a_v2_2_heldout_rehearsal_runner.py": {
+        "bytes": 415165,
+        "sha256": "9dfe03be8df43bf293387f3ce2ebd2c6cf25de75bc03f0de70de5cc89ba6fd81",
+        "git_blob": "5fef6729968e593c57e467e9bc227978f8ad2c89"
+      },
+      "tests/test_p4_2a_v2_2_heldout_rehearsal_validator.py": {
+        "bytes": 262205,
+        "sha256": "f3cd8f2079b232d7d6574341f08a3e47cb4c4e01a8b956fafab1accee610ffa6",
+        "git_blob": "1982a8557ed188eae89cb60c028a5dfafa0ce5db"
+      }
+    }
+  },
+  "part_2_persistent_gate_attempt2_failure_and_fix": {
+    "classification": "RUNNER_FIXTURE_PORTABILITY_DEFECT",
+    "failed_gate_candidate": "6a8adf81c015fb4581814540ad864aad3f928fd2",
+    "failed_node": "test_exact_os_epoch_seven_five_six_recovery_and_recovered_release_are_zero_pipeline",
+    "raw_error": "hardened Git operation failed: rev-parse --verify 9cd424c292d658c1ddb1092f618049e6283aabaf^{commit}",
+    "failed_runner_log_sha256": "57f63fdbbb4ad4553b7fe65d4f10b630e8063b8870432dc133154a7263740068",
+    "failed_runner_junit_sha256": "01d73b3982bf8d2814180072a8728d5a7aa2ee721d1728f7624d7ddf040488e0",
+    "failure_report_path": "docs/phase4/reports/P4.2a-series2-epoch7-persistent-gate-attempt2-runner-block-20260830.json",
+    "failure_report_commit": "da9192a5ee86b3ec1f713459b43017106b57a391",
+    "failure_report_sha256": "a4f704046bae4d60b6ee58744bc6c9e0a8ac723022804a307e0d7bbb6bbf3e77",
+    "official_state_effects": 0,
+    "fix": {
+      "summary": "The epoch-7 synthetic fixtures now import the three pinned governance commits by exact OID into fixed synthetic remote-tracking refs, after proving that the source remote is an absolute canonical local directory. The fixture no longer depends on an ambient local design branch.",
+      "source_repository_mutation": false,
+      "network_remote_allowed": false,
+      "wildcard_refs_heads_fetch_removed_from_two_epoch7_call_sites": true,
+      "new_registered_test": "test_epoch_seven_fixture_imports_pinned_commits_from_local_main_only_source",
+      "original_failed_exact_os_assertions_unchanged": true,
+      "threshold_or_contract_change": false
+    }
+  },
+  "part_3_operator_f15": {
+    "classification": "PASS_F15_OPERATOR_SELF_TEST",
+    "independent_review": false,
+    "primary_evidence_root": "/Users/ouyangduning/AlphaPilot-EVIDENCE-DO-NOT-DELETE/P4.2a-F15-epoch7-r2-c6e5bb81-20260831",
+    "mirror_evidence_root": "/Users/ouyangduning/AlphaPilot-EVIDENCE-MIRROR-DO-NOT-DELETE/P4.2a-F15-epoch7-r2-c6e5bb81-20260831",
+    "primary_and_mirror_byte_identical": true,
+    "final_manifest_sha256": "ad3fcab74a57bf8b005ce97973a3bf8cda4ce90f25f28621dc0859baa1b36443",
+    "summary_sha256": "0587b12f36610672455b6328ae0c9cda8cbd07aba4a250ed293cc0e39d6ecac5",
+    "execution_head_clarification_sha256": "e0280a1ec2a72f7f90c5a31309736a4f851bdb945897a0bb5e278d471342d437",
+    "execution_head_clarification_bytes": 2506,
+    "execution_head_during_tests": "06336a9f593ede4132be73a8c8a087df18db904b",
+    "tested_state": "the four registered candidate files were staged in the authority worktree",
+    "candidate_created_after_tests": true,
+    "candidate_tree_bytes_equal_tested_bytes": true,
+    "runner": {
+      "tests": 224,
+      "passed": 224,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "disabled": 0,
+      "wall_seconds": 9290,
+      "suite_seconds": 9289.572,
+      "log_sha256": "f590129188152d9187608da29946c872787816f48044bf0e16dfd912c7740233",
+      "junit_sha256": "0b95a0c28957531e2cc96b910964b7ec4e72d184d78b90865a88ba2d3eb1eb1d"
+    },
+    "validator": {
+      "tests": 279,
+      "passed": 279,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "disabled": 0,
+      "wall_seconds": 2475,
+      "suite_seconds": 2474.271,
+      "log_sha256": "aab96379b1d6be1c2bc114710be7b1ef81c1707ecc2082e50fd6bcdbef46a94a",
+      "junit_sha256": "f1e3db3ab35bf010af0680bcbf320d50caefa18d61be775e501e378304cb4311"
+    },
+    "total": {
+      "tests": 503,
+      "passed": 503,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "disabled": 0
+    },
+    "all_testcase_times_finite_and_nonnegative": true,
+    "source_before_after_identical": true,
+    "official_fingerprint_before_after_identical": true,
+    "successful_basetemps_removed_after_evidence_validation": true,
+    "automatic_retries": 0,
+    "signals_sent": 0
+  },
+  "part_4_targeted_and_static_evidence": {
+    "portability_regression": {
+      "tests": 1,
+      "passed": 1,
+      "seconds": 3.92,
+      "junit_sha256": "f3de8cb515cb5cb8521d6caa2be362f85291aafafa47301ad3b72d3572350f36"
+    },
+    "formerly_failed_exact_os_node": {
+      "tests": 1,
+      "passed": 1,
+      "seconds": 1774.41,
+      "log_sha256": "77371c89a0aec854ceb7f7083ccd8b7cbf392196826fc9def8f0f95e32cee38b",
+      "junit_sha256": "47d5c7e6e4aedee1ead211a7faa91039f0f23fa498f404cfc8aabdf0c1b2b992"
+    },
+    "collect": {
+      "runner": 224,
+      "validator": 279,
+      "total": 503
+    },
+    "diff_check": "PASS",
+    "four_file_compile": "PASS",
+    "four_file_ruff": "PASS",
+    "producer_and_validator_strict_mypy": "PASS",
+    "static_log_sha256": "437dc01ff77a3b8c1c6f8ac3b2b73fa98ec9207f049ae6c3691555728582ca46"
+  },
+  "part_5_operator_internal_subagent_reviews": [
+    {
+      "task": "epoch7_r2_candidate_code_review",
+      "verdict": "PASS_OPERATOR_INTERNAL_REVIEW",
+      "independent_review": false,
+      "focus": "commit topology, authorized four-file surface, test-only delta and assertion preservation"
+    },
+    {
+      "task": "epoch7_r2_f15_evidence_review",
+      "verdict": "PASS_OPERATOR_INTERNAL_EVIDENCE_REVIEW",
+      "independent_review": false,
+      "focus": "independent recalculation of JUnit, manifests, source identity and official fingerprints"
+    },
+    {
+      "task": "epoch7_r2_governance_security_review",
+      "verdict": "PASS_OPERATOR_INTERNAL_REVIEW",
+      "independent_review": false,
+      "focus": "local raw-OID transport boundary, synthetic-only mutations and zero official side effects"
+    }
+  ],
+  "part_6_conclusion_and_owner_authorization_request": {
+    "implementation": "PASS_OPERATOR_SELF_REVIEW",
+    "independent_f12": "NOT_PERFORMED",
+    "persistent_registered_gate": "NOT_YET_RUN_FOR_THIS_CANDIDATE",
+    "landing": "NOT_AUTHORIZED_BY_THIS_DOCUMENT",
+    "requested_owner_authorization": "Authorize construction and readback of one fresh epoch-7-r2 persistent-gate harness bound to this candidate and this operator self-review report. Gate execution remains conditional on the frozen precheck.",
+    "proposed_harness_surface": [
+      "backup_immutable_verify.py",
+      "collect_validate.py",
+      "gate_finalize.sh",
+      "gate_module.sh",
+      "harness_static_check.sh",
+      "junit_validate.py",
+      "landing_report_generator.py",
+      "postcheck.py",
+      "pre_registered_gate_readback.py",
+      "precheck_audit.py",
+      "precheck_run.sh",
+      "purpose_precheck.py"
+    ],
+    "proposed_harness_constraints": [
+      "Use brand-new persistent gate, evidence, Runner basetemp and Validator basetemp paths; all create-only.",
+      "Bind candidate c6e5bb81c44a5ea68b2421b12789c510450dea83, this report's creating commit and report SHA-256, and exact file hashes.",
+      "Set collect expectations to Runner 224 and Validator 279, total 503.",
+      "Keep collect_validate.py byte-identical to the last approved epoch-7 harness source.",
+      "Only adapt absolute paths, candidate/review/report constants, Runner test hash/bytes/count, and the latest immutable C-7 backup binding.",
+      "Do not change thresholds, registered test behavior, scientific contracts or the four candidate files.",
+      "Regenerate before/after/diff, change record, gate-time and final manifests, change manifest, PREARMED binding and armed static log.",
+      "Do not start Runner or Validator unless disk is at least 40 GiB, swap is stable, power is AC and projected completion precedes the next backup window.",
+      "On any failure, fail closed and preserve the complete fresh attempt.",
+      "On a green gate, generate only a create-only landing report and stop for owner review; do not merge main."
+    ]
+  },
+  "part_7_boundaries_and_disclosures": {
+    "official_ledger_writes": 0,
+    "official_mirror_writes": 0,
+    "persistent_gate_runs_for_candidate": 0,
+    "main_merges": 0,
+    "recovery_publications": 0,
+    "heldout_access": 0,
+    "heldout_evaluation_one_shot": "unconsumed",
+    "trading": "SIMULATE only",
+    "runner_power_disclosure": "Runner began on battery under the owner's latest transcript instruction; AC was observed later and at Runner completion. Snapshot evidence does not prove uninterrupted AC between observations, and power continuity is not used as a PASS predicate for this operator self-test.",
+    "external_load_disclosure": "ApplicationsStorageExtension and StorageManagementService were observed during Runner. No process was signaled or stopped by the operator.",
+    "operator_readback_disclosure": "The first post-Runner auxiliary comparison invoked nonexistent /bin/cmp and returned before comparison. It produced zero protected-state effects. The readback was completed once with /usr/bin/cmp; tests were not rerun."
+  }
+}
