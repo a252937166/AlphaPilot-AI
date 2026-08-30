@@ -1,0 +1,126 @@
+{
+  "schema_version": "p4.2a-independent-review-v1",
+  "review_id": "p4.2a-v2-2-series2-epoch7-implementation-review-20260830-r1",
+  "created_at_utc": "2026-08-30T09:32:02Z",
+  "created_at_shanghai": "2026-08-30T17:32:02+08:00",
+  "verdict": "APPROVE_EPOCH7_IMPLEMENTATION_FOR_PERSISTENT_REGISTERED_GATE",
+  "blockers": [],
+  "reviewed_commit": "6a8adf81c015fb4581814540ad864aad3f928fd2",
+  "reviewer": {
+    "identity": "independent_ai_architect_claude_code",
+    "reviewer_type": "ai",
+    "model": "Anthropic Claude Fable 5",
+    "impersonation_disclaimer": "Not a human reviewer and not the owner. The owner identity remains ouyang.",
+    "independent_from_implementer": true,
+    "method": "Independent F-12 execution by the reviewer at the frozen candidate: both complete registered modules were run sequentially from the candidate worktree with separate empty basetemps; pre-run and post-run candidate identity was recorded and independently compared."
+  },
+  "governance_chain": {
+    "epoch7_design_review_and_companion_commit": "c2aee25cd96296245d21b776974193172578dae3",
+    "epoch7_surface_authority_path": "docs/phase4/reports/P4.2a-v2-2-epoch7-surface-authority-20260827.json",
+    "epoch7_surface_authority_commit": "06336a9f593ede4132be73a8c8a087df18db904b",
+    "succession_contract_path": "docs/phase4/reports/P4.2a-independent-review-succession-contract-20260829.md",
+    "succession_contract_commit": "71ced21fb03bdfb8914c4dda90f52c60cae18806",
+    "succession_contract_sha256": "e9cb608330b46311b9bceb5fbbc9b3f7a6ab702c5444ff76840239e79c6f0f84"
+  },
+  "part_1_commit_shape": {
+    "parent": "06336a9f593ede4132be73a8c8a087df18db904b",
+    "parent_is_the_owner_surface_authority_commit": true,
+    "single_parent": true,
+    "surface": [
+      {"path": "scripts/p4_2a_v2_2_heldout_rehearsal.py", "status": "M"},
+      {"path": "scripts/validate_p4_2a_v2_2_heldout_rehearsal_bundle.py", "status": "M"},
+      {"path": "tests/test_p4_2a_v2_2_heldout_rehearsal_runner.py", "status": "M"},
+      {"path": "tests/test_p4_2a_v2_2_heldout_rehearsal_validator.py", "status": "M"}
+    ],
+    "file_bindings": {
+      "scripts/p4_2a_v2_2_heldout_rehearsal.py": {"sha256": "b4e60044dbf541ca080567c41d9113d4fec66ddf077a1f5cb14244683219a5fc", "bytes": 812723},
+      "scripts/validate_p4_2a_v2_2_heldout_rehearsal_bundle.py": {"sha256": "424ed9d2fcbdb2dc1d5388827540e308638479353ef0ab4400129ec2923291ca", "bytes": 444426},
+      "tests/test_p4_2a_v2_2_heldout_rehearsal_runner.py": {"sha256": "10d059592f3c3621fa57dac0fddc5efb18b9cd1ae09eed37021b20b51514d689", "bytes": 410923},
+      "tests/test_p4_2a_v2_2_heldout_rehearsal_validator.py": {"sha256": "f3cd8f2079b232d7d6574341f08a3e47cb4c4e01a8b956fafab1accee610ffa6", "bytes": 262205}
+    }
+  },
+  "part_2_operator_f15_accepted": {
+    "summary_path": "/Users/ouyangduning/Documents/project/interesting/.alphapilot-p42a-series2-epoch7-prestart-repair-evidence.mDH991/F15_PASS_SUMMARY.json",
+    "summary_sha256": "9a0a7ccaba51d058890e5fe6b0945af47eb6c3d771c584e9f6d1ddfbabf2ebd1",
+    "runner": "223 passed, 0 failed, 0 errors, 0 skipped, 10597.68 seconds",
+    "validator": "279 passed, 0 failed, 0 errors, 0 skipped, inherited only because producer, validator and validator-test bytes were unchanged after its successful full run",
+    "premirror_started_headroom": "59.94575619697571 seconds against the authorized 60-second acceptance line; maximum RSS 485490688 bytes; swapouts delta 0",
+    "output_identity_sha256": "b2f81fb19e5b498cb561baa87dc399cd1a4675d0976d4126be1e119f8f1554f6",
+    "threshold_change_made": false
+  },
+  "part_3_independent_f12": {
+    "classification": "PASS_INDEPENDENT_REVIEWER_F12",
+    "attempt_history": {
+      "r1": "Non-consuming bootstrap refusal before test collection: the candidate worktree had no local .venv launcher; exit 127; no test ran and Validator did not start.",
+      "r2": "Externally interrupted before completion by the background-task time limit; no PASS conclusion; Validator did not start.",
+      "r3": "Externally interrupted before completion by the background-task time limit; no PASS conclusion; Validator did not start.",
+      "r4": "Authoritative completed F-12. Detached execution process used the verified main-worktree Python launcher while the current working directory and tested bytes remained the frozen candidate worktree."
+    },
+    "primary_evidence_root": "/Users/ouyangduning/AlphaPilot-EVIDENCE-DO-NOT-DELETE/P4.2a-F12-epoch7-6a8adf81-20260830-r4",
+    "mirror_evidence_root": "/Users/ouyangduning/AlphaPilot-EVIDENCE-MIRROR-DO-NOT-DELETE/P4.2a-F12-epoch7-6a8adf81-20260830-r4",
+    "python_launcher": "/Users/ouyangduning/Documents/project/interesting/AlphaPilot-AI/.venv/bin/python",
+    "python_version": "3.12.0",
+    "pytest_version": "8.4.2",
+    "started_at_utc": "2026-08-30T03:40:20Z",
+    "finished_at_utc": "2026-08-30T07:26:10Z",
+    "pre_run_head": "6a8adf81c015fb4581814540ad864aad3f928fd2",
+    "post_run_head": "6a8adf81c015fb4581814540ad864aad3f928fd2",
+    "pre_run_worktree_clean": true,
+    "post_run_worktree_clean": true,
+    "pre_run_four_file_sha256_manifest": {"sha256": "fa2e8df013b7a21ee0e4a19cb515ed57d86f4070175902a14104d95078214166", "bytes": 463},
+    "post_run_four_file_sha256_manifest": {"sha256": "fa2e8df013b7a21ee0e4a19cb515ed57d86f4070175902a14104d95078214166", "bytes": 463},
+    "pre_post_candidate_byte_identity": true,
+    "runner": {
+      "result": "PASS",
+      "tests": 223,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "suite_time_seconds": 10323.058,
+      "exit_code": 0,
+      "exit_code_receipt": {"sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa", "bytes": 2},
+      "log": {"sha256": "1e36df14426909f216064594bee76b37581a696c7ae462763fe6c667e5e1c510", "bytes": 457},
+      "junit": {"sha256": "c005dd50ae68b3bd2b5576d2231df7840c3d4ff71234e07f148bd9577070c4a8", "bytes": 38963}
+    },
+    "validator": {
+      "result": "PASS",
+      "tests": 279,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "suite_time_seconds": 3225.258,
+      "exit_code": 0,
+      "exit_code_receipt": {"sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa", "bytes": 2},
+      "log": {"sha256": "1eda4aa97f6aae424f50199c72d67df8cd482ed845eaf8f2b51a0a046c136c5c", "bytes": 460},
+      "junit": {"sha256": "e8f08ee38439f9f004124edfbd8b5b0c864b5ffbde026f44d83d86cf961deea7", "bytes": 51558}
+    },
+    "total": {"tests": 502, "passed": 502, "failures": 0, "errors": 0, "skipped": 0},
+    "primary_manifest": {"sha256": "7d080c01dfc21a3d1e9555db7c9a388394afd92c32f2b71be8b174e981bf0cee", "bytes": 1819},
+    "mirror_manifest": {"sha256": "50af776ba2ddad95188230296840c477e77566a0d9a74afdbc9237afd6861c4c", "bytes": 2078},
+    "primary_and_mirror_common_files_byte_identical": true
+  },
+  "part_4_review_conclusion": {
+    "implementation": "APPROVED_FOR_EPOCH7_PERSISTENT_REGISTERED_GATE",
+    "f12": "PASS",
+    "full_registered_gate": "NOT_YET_RUN",
+    "gate_harness": "NOT_YET_AUTHORIZED_OR_FROZEN_FOR_EPOCH7",
+    "landing": "NOT_AUTHORIZED_BY_THIS_REPORT",
+    "conditions": [
+      "Obtain explicit owner authorization for a fresh epoch-7 harness adaptation bound to this review commit and report bytes.",
+      "Generate and independently verify a fresh epoch-7 HARNESS_SHA256SUMS; epoch-6 harness or manifest must not be reused.",
+      "Run the complete persistent registered gate only after disk is at least 40 GiB free and swap is stable, using fresh create-only basetemp and evidence paths.",
+      "Any candidate-byte change invalidates this review and F-12 conclusion."
+    ]
+  },
+  "part_5_boundaries": {
+    "official_ledger_writes": 0,
+    "official_mirror_writes": 0,
+    "persistent_gate_runs": 0,
+    "main_merges": 0,
+    "recovery_publications": 0,
+    "heldout_evaluation_one_shot": "unconsumed",
+    "trading": "SIMULATE only; zero non-SIMULATE",
+    "phase_locks": {"p4_2a_done": false, "p4_2b_unlocked": false, "p4_3_unlocked": false},
+    "residual_disclosure": "The registered work limits have no independent empty-directory fanout threshold. No threshold change is authorized or made by this review."
+  }
+}
