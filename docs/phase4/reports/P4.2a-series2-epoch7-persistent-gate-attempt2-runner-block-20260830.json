@@ -1,0 +1,204 @@
+{
+  "schema_version": "p4.2a-series2-epoch7-persistent-gate-attempt2-runner-block-v1",
+  "status": "STOPPED_FOR_OWNER_ADJUDICATION",
+  "evidence_not_owner_verdict": true,
+  "independent_review": false,
+  "independent_review_reason": "no independent reviewer available since 2026-08-29; all diagnoses in this document are operator-internal",
+  "recorded_at_utc": "2026-08-30T13:53:59Z",
+  "recorded_at_shanghai": "2026-08-30T21:53:59+08:00",
+  "succession_contract": {
+    "path": "docs/phase4/reports/P4.2a-independent-review-succession-contract-20260829.md",
+    "commit": "71ced21fb03bdfb8914c4dda90f52c60cae18806",
+    "sha256": "e9cb608330b46311b9bceb5fbbc9b3f7a6ab702c5444ff76840239e79c6f0f84",
+    "bytes": 19731,
+    "applied_rule": "section 9 requires a create-only state record and owner escalation before changing a frozen member or gate topology"
+  },
+  "frozen_candidate": {
+    "companion_commit": "c2aee25cd96296245d21b776974193172578dae3",
+    "surface_authority_commit": "06336a9f593ede4132be73a8c8a087df18db904b",
+    "candidate_commit": "6a8adf81c015fb4581814540ad864aad3f928fd2",
+    "independent_review_commit": "ca69c82d751c504dcb12e16a4e071fe4a422c345",
+    "independent_review_report_sha256": "4a576e38fd26643735652416a1b9e6b137a38873f1b24067878545769b1af34a",
+    "registered_file_sha256": {
+      "scripts/p4_2a_v2_2_heldout_rehearsal.py": "b4e60044dbf541ca080567c41d9113d4fec66ddf077a1f5cb14244683219a5fc",
+      "scripts/rehearse_p4_2a_v2_2_heldout_full_path.py": "660d6b6e820581eae792e6c04f35b15b30bdb2427d93c3a934af9146f0e044c0",
+      "scripts/validate_p4_2a_v2_2_heldout_rehearsal_bundle.py": "424ed9d2fcbdb2dc1d5388827540e308638479353ef0ab4400129ec2923291ca",
+      "tests/test_p4_2a_v2_2_heldout_rehearsal_runner.py": "10d059592f3c3621fa57dac0fddc5efb18b9cd1ae09eed37021b20b51514d689",
+      "tests/test_p4_2a_v2_2_heldout_rehearsal_validator.py": "f3cd8f2079b232d7d6574341f08a3e47cb4c4e01a8b956fafab1accee610ffa6"
+    },
+    "gate_head_and_worktree": "clean detached candidate; no candidate byte was edited"
+  },
+  "consumed_attempts": {
+    "attempt_1": {
+      "classification": "VALID_NON_TEST_PRECHECK_REFUSAL_BACKUP_WINDOW_OVERLAP",
+      "gate_path": "/Users/ouyangduning/Documents/project/interesting/.alphapilot-p42a-series2-epoch7-gate.TsDtCe",
+      "evidence_path": "/Users/ouyangduning/Documents/project/interesting/.alphapilot-p42a-series2-epoch7-gate-evidence.kOIADn",
+      "precheck_run_log_sha256": "bfabc5a7511a68660eeb6f3ae0778334c37c7b83e7f61f5e08464d585fac787a",
+      "tests_started": false,
+      "in_place_retry": false
+    },
+    "attempt_2": {
+      "gate_path": "/Users/ouyangduning/Documents/project/interesting/.alphapilot-p42a-series2-epoch7-gate-attempt2.itdZLr",
+      "evidence_path": "/Users/ouyangduning/Documents/project/interesting/.alphapilot-p42a-series2-epoch7-gate-evidence-attempt2.InuNlo",
+      "final_harness_manifest_sha256": "0536edb393933b16f3f960ee457d2d906285fcbb5e5b038114c9b82fec6bc485",
+      "precheck": {
+        "status": "PASS_ALL_PRECHECKS",
+        "log_sha256": "7db6ccacb7fb2b4a6c26096204cf65bb29da2dfc3fb062c159d449e5e3af22ba",
+        "backup_verify_sha256": "3fcb7783939cd9a9c9db732e644c78bed59e38bff6f35ad983f36bca4615cee5",
+        "purpose_precheck_sha256": "c7f6f505447de84136579842a6f595ca4c790108ee35d1ac98978c2e56a97426",
+        "audit_sha256": "240d35c471bae36659551ef14db93536ca4f4439bc63946264004c6d79a11a14",
+        "runner_collect": 223,
+        "validator_collect": 279
+      },
+      "runner": {
+        "exit_code": 1,
+        "tests": 223,
+        "passed": 222,
+        "failed": 1,
+        "errors": 0,
+        "skipped": 0,
+        "pytest_seconds": 7614.19,
+        "metadata_wall_seconds": 7615,
+        "log_path": "/Users/ouyangduning/Documents/project/interesting/.alphapilot-p42a-series2-epoch7-gate-evidence-attempt2.InuNlo/runner.log",
+        "log_sha256": "57f63fdbbb4ad4553b7fe65d4f10b630e8063b8870432dc133154a7263740068",
+        "log_bytes": 7774,
+        "junit_path": "/Users/ouyangduning/Documents/project/interesting/.alphapilot-p42a-series2-epoch7-gate-evidence-attempt2.InuNlo/runner.junit.xml",
+        "junit_sha256": "01d73b3982bf8d2814180072a8728d5a7aa2ee721d1728f7624d7ddf040488e0",
+        "junit_bytes": 44948,
+        "failed_node": "tests/test_p4_2a_v2_2_heldout_rehearsal_runner.py::test_exact_os_epoch_seven_five_six_recovery_and_recovered_release_are_zero_pipeline",
+        "failed_node_seconds": 124.03,
+        "runner_basetemp_path": "/Users/ouyangduning/Documents/project/interesting/.alphapilot-p42a-series2-epoch7-gate-evidence-attempt2.InuNlo.runner-basetemp",
+        "runner_basetemp_allocated_bytes_from_du_kib": 10537467904,
+        "现场保留": true
+      },
+      "not_started_after_failure": [
+        "validator",
+        "postcheck",
+        "postgate freeze",
+        "landing report",
+        "merge",
+        "recovery",
+        "heldout"
+      ],
+      "automatic_retry_count": 0
+    }
+  },
+  "deterministic_failure_observation": {
+    "child_stderr_status": "FAILED_NO_AUTOMATIC_RETRY",
+    "child_message_sha256": "a63788fcea732e0a0f306b04b461f9b405ba4273be0e8700a48aa77d738d70a2",
+    "reconstructed_message": "hardened Git operation failed: rev-parse --verify 9cd424c292d658c1ddb1092f618049e6283aabaf^{commit}",
+    "reconstructed_message_sha256": "a63788fcea732e0a0f306b04b461f9b405ba4273be0e8700a48aa77d738d70a2",
+    "message_hash_matches_child": true,
+    "missing_commit": {
+      "commit": "9cd424c292d658c1ddb1092f618049e6283aabaf",
+      "identity": "epoch-7 design proposal r1",
+      "document_sha256": "c80f9219a1bd61aee0bbf143295b177926377dab570aae578785dec95f628e0f",
+      "present_in_canonical_object_database": true,
+      "present_in_gate_object_database": true,
+      "present_in_retained_synthetic_repository": false
+    },
+    "failure_chain": [
+      "_preflight_bundle_recovery",
+      "_live_execution_anchor_with_census",
+      "validate_epoch_7_recovery_contract",
+      "_git_blob",
+      "_git_commit",
+      "git rev-parse --verify"
+    ],
+    "fixture_source_behavior": {
+      "runner_test_initialization": "fetches only +refs/heads/* from PROJECT_ROOT",
+      "gate_local_heads": {
+        "refs/heads/main": "71ced21fb03bdfb8914c4dda90f52c60cae18806"
+      },
+      "design_branch_location_in_gate": "refs/remotes/origin/codex/p4-2a-v2-2-series2-epoch7-design",
+      "missing_commit_is_ancestor_of_gate_main": false,
+      "retained_synthetic_local_heads": {
+        "refs/heads/main": "1637f04d879845770f77fb6162397ced6ee1c696",
+        "refs/heads/synthetic-epoch-seven-implementation": "10a9abc9b2576b6b48fdd1f5f3578395f85b511a"
+      }
+    },
+    "failure_stage": "synthetic recovery preflight before durable claim allocation",
+    "synthetic_primary_recovery_container_empty": true,
+    "synthetic_secondary_recovery_container_empty": true,
+    "synthetic_destination_absent": true
+  },
+  "read_only_cross_checks": {
+    "operator_internal_only": true,
+    "independent_review": false,
+    "current_control_surface_records": 80,
+    "current_control_drift_count": 0,
+    "real_lineage_census_rows": 33,
+    "real_lineage_census_invalid_count": 0,
+    "qrb_delta_check": "PASS",
+    "candidate_registered_bytes_match_gate": true,
+    "official_fingerprints_after_failure_equal_precheck_before": true,
+    "registered_absent_paths_still_absent": true,
+    "temporary_authorities_after_failure": [],
+    "qualification": "the official-state comparison is an operator read-only snapshot, not a successful registered postcheck"
+  },
+  "mutually_exclusive_dispositions_for_owner": [
+    {
+      "id": "A_NEW_GATE_WITH_EXACT_PINNED_LOCAL_REF_PROVISIONING",
+      "candidate_bytes_change": false,
+      "description": "Create a wholly new persistent gate/evidence attempt and provision an exact local ref that makes the pinned epoch-7 design commits reachable before freezing and precheck.",
+      "required_owner_authority": "authorize the exact ref name, exact commit, new-attempt disclosure, and harness assertions for the gate ref snapshot",
+      "evidence_required_before_runner": [
+        "fresh gate is clean and detached at 6a8adf81",
+        "9cd424c and 1e2e23f resolve in both gate and a disposable synthetic fetch from local refs/heads",
+        "no candidate or scientific-contract byte changed",
+        "new frozen manifests and fresh precheck pass"
+      ],
+      "residual_fact": "the registered runner fixture would continue to depend on a provisioned source-ref shape"
+    },
+    {
+      "id": "B_NEW_CANDIDATE_WITH_PORTABLE_FIXED_OBJECT_IMPORT",
+      "candidate_bytes_change": true,
+      "description": "Create a new direct child of the existing six-field authority whose runner fixture imports the exact pinned governance commits rather than ambient local refs/heads.",
+      "required_owner_authority": "authorize modification of the frozen runner-test member and the exact portability predicate; determine whether the existing four-path surface authority remains applicable",
+      "evidence_required_before_gate": [
+        "registered test proves a detached clone with only local main can construct the synthetic [5,6] recovery source",
+        "F-15 full Runner and Validator rerun",
+        "F-12 replacement selected under succession-contract section 10",
+        "new candidate review record states independent_review truthfully"
+      ],
+      "residual_fact": "all prior candidate, F-15, F-12, static-gate and persistent-gate conclusions become historical and cannot be inherited across the test-byte change"
+    },
+    {
+      "id": "C_HALT_WITHOUT_NEW_ATTEMPT",
+      "candidate_bytes_change": false,
+      "description": "Retain both consumed gate attempts and take no further packaging action.",
+      "required_owner_authority": "none",
+      "result": "P4.2a remains stopped before landing"
+    }
+  ],
+  "hypothesis_evidence_matrix": [
+    {
+      "hypothesis": "fixture source-ref portability defect",
+      "support": "the exact missing object and local-ref-only fetch chain are byte-for-byte reproduced",
+      "falsifier": "the same retained synthetic repository resolving 9cd424c without adding an object or ref"
+    },
+    {
+      "hypothesis": "recovery implementation semantic failure after authorization consumption",
+      "support": "none observed",
+      "falsifier": "already contradicted for this run because the failure precedes claim allocation and both synthetic recovery containers remain empty"
+    },
+    {
+      "hypothesis": "host resource pressure",
+      "support": "host load was nonzero",
+      "falsifier": "the child produced a deterministic missing-Git-object error rather than timeout, signal, OOM or crash"
+    },
+    {
+      "hypothesis": "the operator-triggered early daily backup changed Runner inputs",
+      "support": "none observed",
+      "falsifier": "the backup changed canonical data/backups and the success stamp, neither of which is in the retained synthetic project, the 80 current-byte controls, or the missing-object lookup"
+    }
+  ],
+  "frozen_until_owner_direction": [
+    "candidate and its four authorized implementation/test paths",
+    "both consumed gate and evidence trees",
+    "retained Runner basetemp",
+    "official ledger and mirror",
+    "real heldout",
+    "main merge and recovery"
+  ]
+}
