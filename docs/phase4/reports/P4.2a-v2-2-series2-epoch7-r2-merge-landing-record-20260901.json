@@ -1,0 +1,167 @@
+{
+  "schema_version": "p4.2a-v2-2-series2-epoch7-r2-merge-landing-record-v1",
+  "record_id": "p4.2a-v2-2-series2-epoch7-r2-merge-landing-record-20260901",
+  "created_at_utc": "2026-08-31T16:24:09Z",
+  "created_at_shanghai": "2026-09-01T00:24:09+08:00",
+  "status": "PASS_MERGE_ONLY_LANDING_RECORDED_STOP_FOR_REVIEW",
+  "scope": {
+    "owner_authorization_source": "OWNER_TRANSCRIPT_BOUND_CURRENT_TASK",
+    "authorized_actions": [
+      "ONE_NO_FF_MERGE_OF_REVIEWED_EPOCH7_R2_INTO_MAIN",
+      "ONE_CREATE_ONLY_POST_MERGE_LANDING_RECORD"
+    ],
+    "performed_actions": [
+      "NO_FF_MERGE_COMMIT_CREATED_IN_FRESH_ISOLATED_INTEGRATION_CLONE",
+      "CREATE_ONLY_POST_MERGE_LANDING_RECORD_CREATED"
+    ],
+    "further_actions_authorized": false
+  },
+  "authorization": {
+    "required_origin_main_before_merge_and_push": "a9bec3149ef97c97a321b6b5afdb52c392f8fa7f",
+    "merge_authorized": true,
+    "merge_method": "NO_FF_TRUE_MERGE",
+    "squash": false,
+    "rebase": false,
+    "amend": false,
+    "cherry_pick": false,
+    "force_push": false
+  },
+  "topology": {
+    "origin_main_before": "a9bec3149ef97c97a321b6b5afdb52c392f8fa7f",
+    "candidate_commit": "c6e5bb81c44a5ea68b2421b12789c510450dea83",
+    "independent_review_source_commit": "dc55b5c950a7685aa780dcebf829e1e53bae7b66",
+    "independent_review_source_parent": "c6e5bb81c44a5ea68b2421b12789c510450dea83",
+    "merge_commit": "6f150a31336fbb06cfbe0c42507806025b42daaa",
+    "merge_tree": "df22fb41f95d30bdcde382f4ec01e9ed890e7e67",
+    "merge_ordered_parents": [
+      "a9bec3149ef97c97a321b6b5afdb52c392f8fa7f",
+      "dc55b5c950a7685aa780dcebf829e1e53bae7b66"
+    ],
+    "candidate_reachable_from_merge": true,
+    "independent_review_reachable_from_merge": true,
+    "merge_commit_contains_this_landing_record": false
+  },
+  "projected_independent_review_authority": {
+    "path": "docs/phase4/reports/P4.2a-v2-2-series2-epoch7-r2-implementation-independent-review-20260831.json",
+    "source_creating_commit": "dc55b5c950a7685aa780dcebf829e1e53bae7b66",
+    "source_parent": "c6e5bb81c44a5ea68b2421b12789c510450dea83",
+    "projected_creating_commit": "6f150a31336fbb06cfbe0c42507806025b42daaa",
+    "projection_rule": "MERGE_FIRST_PARENT_PROJECTION",
+    "source_and_projected_blob_byte_identical": true,
+    "sha256": "5712cc01f088ba96e9f199e60e327f171e24b23a4b6c1ca972d147bba75a208f",
+    "bytes": 15546,
+    "verdict": "APPROVE_EPOCH7_R2_IMPLEMENTATION_FOR_MERGE_REVIEW",
+    "independent_review": true
+  },
+  "f12_evidence": {
+    "primary_root": "/Users/ouyangduning/AlphaPilot-EVIDENCE-DO-NOT-DELETE/P4.2a-F12-epoch7-r2-c6e5bb81-20260831-r4",
+    "mirror_root": "/Users/ouyangduning/AlphaPilot-EVIDENCE-MIRROR-DO-NOT-DELETE/P4.2a-F12-epoch7-r2-c6e5bb81-20260831-r4",
+    "sha256sums": {
+      "relative_path": "SHA256SUMS",
+      "sha256": "3b8560ed58c126b7bf554c63327c19d78baf554732f53ca5a920467331f1afa9",
+      "bytes": 1475,
+      "entries": 17,
+      "primary_verified": true,
+      "mirror_verified": true,
+      "primary_and_mirror_bytes_identical": true
+    },
+    "primary_summary": {
+      "relative_path": "primary-summary.json",
+      "sha256": "a911ba41ee014de5af9ecfb23d17211dc034d8b9e88617b422474cf120133855",
+      "bytes": 8499
+    },
+    "mirror_receipt": {
+      "relative_path": "mirror-receipt.json",
+      "sha256": "4309e2256f91367618bd98cd71fe1fccd9d37e57f4bbfd0c4dd30ee033839c66",
+      "bytes": 1074,
+      "status": "PASS_PRIMARY_MIRROR_BYTE_IDENTICAL"
+    },
+    "runner": {
+      "tests": 224,
+      "passed": 224,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "disabled": 0,
+      "natural_rc": 0,
+      "execution_count": 1,
+      "log_sha256": "a1420d03d1136e2123ab274fa49c4a2b43e740e05fefae608a950976bd42fa54",
+      "junit_sha256": "0aa2e89fc861aa1a1f7cd799dd81d52556576af89281f3f48f51212fcd77a320"
+    },
+    "validator": {
+      "tests": 279,
+      "passed": 279,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "disabled": 0,
+      "natural_rc": 0,
+      "execution_count": 1,
+      "log_sha256": "10c941322f2fdd2cca8bf314af4693d8fbf392eed908b972a513776e6ce92a24",
+      "junit_sha256": "eade26e889eb0a8b304f6b93bfbb15be53e62612665a7ec86dde5f4488b820a0"
+    },
+    "combined": {
+      "tests": 503,
+      "passed": 503,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "automatic_retries": 0
+    }
+  },
+  "succession_section_10_b": {
+    "path": "docs/phase4/reports/P4.2a-v2-2-series2-epoch7-r2-independent-review-succession-20260831.json",
+    "creating_commit": "a9bec3149ef97c97a321b6b5afdb52c392f8fa7f",
+    "sha256": "56a5c8d61702ce5fd288b98ba6ac1ca411698cadb0bc84c6e4fe03240bbca35a",
+    "bytes": 6441,
+    "route": "SECTION_10_B_NEW_INDEPENDENT_REVIEWER"
+  },
+  "candidate_registered_files": {
+    "scripts/p4_2a_v2_2_heldout_rehearsal.py": {
+      "sha256": "b4e60044dbf541ca080567c41d9113d4fec66ddf077a1f5cb14244683219a5fc",
+      "bytes": 812723,
+      "git_blob": "3db5fe25652e7fcd48025f293af59be754007e98"
+    },
+    "scripts/validate_p4_2a_v2_2_heldout_rehearsal_bundle.py": {
+      "sha256": "424ed9d2fcbdb2dc1d5388827540e308638479353ef0ab4400129ec2923291ca",
+      "bytes": 444426,
+      "git_blob": "c3749881fd00fc1fadd65595fde59feeaf2ca378"
+    },
+    "tests/test_p4_2a_v2_2_heldout_rehearsal_runner.py": {
+      "sha256": "9dfe03be8df43bf293387f3ce2ebd2c6cf25de75bc03f0de70de5cc89ba6fd81",
+      "bytes": 415165,
+      "git_blob": "5fef6729968e593c57e467e9bc227978f8ad2c89"
+    },
+    "tests/test_p4_2a_v2_2_heldout_rehearsal_validator.py": {
+      "sha256": "f3cd8f2079b232d7d6574341f08a3e47cb4c4e01a8b956fafab1accee610ffa6",
+      "bytes": 262205,
+      "git_blob": "1982a8557ed188eae89cb60c028a5dfafa0ce5db"
+    }
+  },
+  "boundaries": {
+    "registered_root_preflight_runs": 0,
+    "q_documents_created": 0,
+    "r_documents_created": 0,
+    "b_documents_created": 0,
+    "recovery_runs": 0,
+    "release_runs": 0,
+    "official_ledger_writes": 0,
+    "official_mirror_writes": 0,
+    "real_heldout_accesses": 0,
+    "candidate_or_test_or_threshold_or_harness_modifications": 0,
+    "stop_state": "STOP_FOR_REVIEW"
+  },
+  "self_binding": {
+    "path": "docs/phase4/reports/P4.2a-v2-2-series2-epoch7-r2-merge-landing-record-20260901.json",
+    "expected_parent": "6f150a31336fbb06cfbe0c42507806025b42daaa",
+    "expected_surface": [
+      {
+        "status": "A",
+        "path": "docs/phase4/reports/P4.2a-v2-2-series2-epoch7-r2-merge-landing-record-20260901.json"
+      }
+    ],
+    "self_sha256_embedded": false,
+    "creating_commit_embedded": false,
+    "origin_main_after_push_expected": "CREATING_COMMIT_OF_THIS_RECORD"
+  }
+}
