@@ -1,0 +1,242 @@
+{
+  "schema_version": "p4.2a-independent-adjudication-v1",
+  "adjudication_id": "p4.2a-series2-epoch7-recovery-preclaim-refusal-and-epoch8-direction-20260901-r1",
+  "created_at_utc": "2026-09-01T03:12:12Z",
+  "created_at_shanghai": "2026-09-01T11:12:12+08:00",
+  "purpose": "record the owner's transcript-bound adjudication of the non-consuming epoch-7 recovery preclaim refusal and authorize governance-only preparation for the epoch-8 census-symmetry repair",
+  "issued_by": {
+    "identity": "codex_primary_operator_recording_owner_transcript",
+    "reviewer_type": "ai_operator",
+    "impersonation_disclaimer": "Not the owner and not an independent implementation reviewer. The owner decision below is copied from the current Codex task transcript; no implementation, gate, merge, preflight, Q/R/B, recovery, release, ledger, mirror, held-out, or trading action is authorized by this recorder."
+  },
+  "part_0_owner_decision_bound": {
+    "owner_identity": "ouyang",
+    "source": "current Codex task transcript",
+    "binding": "transcript-bound",
+    "exact_text": "批准设计提案与独立复核中列明的全部 12 项 owner decisions，继续创建 governing adjudication、epoch-8 companion，并准备六字段 surface authority；尚不授权实现、门禁或 recovery。",
+    "interpretation": "all twelve and only the twelve owner_decisions_required in the pinned independent design review are ACCEPTED without reservation, substitution, default, alias, or best-effort semantics",
+    "authorized_now": [
+      "create-only governing adjudication",
+      "create-only epoch-8 companion",
+      "prepare but do not issue the six-field surface authority"
+    ],
+    "not_authorized_now": [
+      "implementation",
+      "F-15 or F-12",
+      "harness construction or persistent gate",
+      "merge to main",
+      "registered-root preflight",
+      "new Q, R, or B",
+      "recovery start or release",
+      "ledger, sealed-mirror, recovery-container, held-out, model, database, pipeline, P4.2b, P4.3, or trading writes"
+    ]
+  },
+  "part_1_incident_adjudicated": {
+    "verdict": "VALID_NON_CONSUMING_PRECLAIM_REFUSAL",
+    "execution_head": "7b9aa18372410baa5d96bd9560fa10a2c6a3d8ac",
+    "natural_returncode": 1,
+    "canonical_error": {
+      "schema_version": "p4.2a-v2-2-rehearsal-execution-error-v1",
+      "status": "FAILED_NO_AUTOMATIC_RETRY",
+      "exception_type": "RehearsalV22Error",
+      "message": "start census changed a baseline row or omitted Q/R/B",
+      "message_sha256": "1fc318ba1ba6f0c714771f00ccda2723a89d3d2ac34c2095dd841a7b755f9bbd"
+    },
+    "consumption_ruling": {
+      "claim_linearization_point": "os.mkdir(storage.claim_root, 0o700)",
+      "failure_preceded_claim_and_storage_probe": true,
+      "claim_created": false,
+      "authorization_consumed_at_registered_linearization_point": false,
+      "old_authorization_reusable": false,
+      "why_not_reusable": "the old bytes deterministically fail and any epoch-8 landing changes the live execution anchor and registered preflight baseline; a fresh preflight and fresh Q/R/B are mandatory"
+    },
+    "preserved_zero_state": {
+      "primary_recovery_container_empty": true,
+      "secondary_recovery_container_empty": true,
+      "bundle_destination_absent": true,
+      "destination_stage_absent": true,
+      "secondary_snapshot_stage_absent": true,
+      "attempt_ordinals": [
+        1,
+        2
+      ],
+      "attempt_implementation_epochs": [
+        5,
+        6
+      ],
+      "ordinal_3_absent": true,
+      "series_closed": true,
+      "selected_attempt_ordinal": 2,
+      "history_root_sha256": "832559b59a8edc09c04b0f5a7c09cea71e5c3597c2bdc0831072a4122bf016e7",
+      "live_ledger_root_sha256": "ab08612ba2e11e45c3a3415ca7079117f2a739bf470719abf4f204958272574d",
+      "ledger_and_existing_mirror_read_only": true,
+      "pipeline_starts_from_refused_recovery": 0,
+      "automatic_retries": 0,
+      "heldout_evaluation_attempts_consumed": 0
+    }
+  },
+  "part_2_normative_design_and_review": {
+    "design_proposal": {
+      "path": "docs/phase4/reports/P4.2a-v2-2-series2-epoch8-preclaim-census-symmetry-design-proposal-20260901.md",
+      "sha256": "0a0df03f853730e83b6963564035134538769c2e3db1ad07961379e3448a44b1",
+      "bytes": 30343,
+      "creating_commit": "45f486cb72a08e3520d863c86218c44ad1d5ce90",
+      "unique_a_history_verified": true
+    },
+    "independent_design_review": {
+      "path": "docs/phase4/reports/P4.2a-v2-2-series2-epoch8-preclaim-census-symmetry-independent-design-review-20260901.json",
+      "sha256": "e1b494d9ab76c704745cf7fbd00ec14269faf8f0a919343cc5244fd187a194a6",
+      "bytes": 9610,
+      "creating_commit": "a1dff7a8b9d093404272e57fe30b6f1ddb575516",
+      "verdict": "PASS_DESIGN_REVIEW_ONLY",
+      "unique_a_history_verified": true,
+      "reviewer_is_owner": false,
+      "reviewer_is_third_party_organization": false,
+      "actual_independent_read_only_design_and_evidence_recomputation_performed": true
+    },
+    "normative_rule": "the exact proposal bytes reviewed at the pinned digest, with every finding listed as closed in the independent design review; any ambiguity fails closed back to design review"
+  },
+  "part_3_owner_decisions_accepted": {
+    "accepted_count": 12,
+    "rejected_count": 0,
+    "decisions": [
+      {
+        "id": "accept_or_reject_VALID_NON_CONSUMING_PRECLAIM_REFUSAL",
+        "decision": "ACCEPT"
+      },
+      {
+        "id": "preserve_old_Q_R_B_and_never_reuse_them",
+        "decision": "ACCEPT"
+      },
+      {
+        "id": "use_implementation_epoch_8_while_bundle_attempt_epochs_remain_5_6",
+        "decision": "ACCEPT"
+      },
+      {
+        "id": "require_explicit_landing_report_for_epoch_8_preflight",
+        "decision": "ACCEPT"
+      },
+      {
+        "id": "require_baseline_owner_review_landing_and_start_baseline_plus_Q_R_B",
+        "decision": "ACCEPT"
+      },
+      {
+        "id": "retain_strict_delta_and_ref_freeze_predicates",
+        "decision": "ACCEPT"
+      },
+      {
+        "id": "adopt_Q_v2_landed_execution_epoch_with_R_B_claim_receipt_v1",
+        "decision": "ACCEPT"
+      },
+      {
+        "id": "adopt_registered_preflight_v2_registered_recovery_storage",
+        "decision": "ACCEPT"
+      },
+      {
+        "id": "require_validator_independent_recomputation",
+        "decision": "ACCEPT"
+      },
+      {
+        "id": "carry_forward_epoch_7_review_landing_refused_Q_R_B_and_epoch_8_governance",
+        "decision": "ACCEPT"
+      },
+      {
+        "id": "authorize_only_the_exact_four_path_M_surface_if_approved",
+        "decision": "ACCEPT_AS_FUTURE_SURFACE_LIMIT_NOT_CURRENT_IMPLEMENTATION_AUTHORIZATION"
+      },
+      {
+        "id": "require_full_F_15_independent_F_12_fresh_gate_merge_only_fresh_preflight_and_fresh_Q_R_B",
+        "decision": "ACCEPT"
+      }
+    ]
+  },
+  "part_4_epoch_8_direction": {
+    "implementation_epoch": 8,
+    "historical_selected_anchor": {
+      "implementation_epoch": 6,
+      "implementation_commit": "e5aab9772793a7b0465f100cb48f99a1bc4e45dc",
+      "attempt_epoch_table": [
+        5,
+        6
+      ],
+      "require_current": false
+    },
+    "live_execution_anchor": {
+      "implementation_epoch": 8,
+      "implementation_commit": "TBD_BY_FUTURE_IMPLEMENTATION",
+      "owner_surface_authority": "TBD_AFTER_SEPARATE_OWNER_APPROVAL",
+      "independent_implementation_review": "TBD",
+      "merge_and_landing": "TBD",
+      "require_current": true
+    },
+    "preflight_contract": {
+      "schema_version": "p4.2a-v2-2-read-only-implementation-preflight-v2",
+      "landing_cli": "--landing-report",
+      "storage_key": "registered_recovery_storage",
+      "baseline": "fixed historical authority registry plus epoch-8 owner authority, independent review, and landing",
+      "start_delta": "baseline plus exactly fresh Q/R/B",
+      "strict_delta_and_ref_freeze_unchanged": true
+    },
+    "recovery_document_versions": {
+      "Q": "p4.2a-v2-2-series2-sealed-bundle-recovery-review-request-v2 with landed_execution_epoch",
+      "R": "p4.2a-v2-2-series2-sealed-bundle-recovery-authorization-v1",
+      "B": "p4.2a-v2-2-series2-sealed-bundle-recovery-owner-confirmation-binding-v1",
+      "claim_terminal_and_receipt": "v1 unchanged",
+      "old_Q_R_B_accepted_by_epoch_8": false
+    },
+    "fixed_census_carry_forward": [
+      "epoch-7 independent review projection",
+      "epoch-7 landing record",
+      "refused recovery Q",
+      "refused recovery R",
+      "refused recovery B",
+      "this governing adjudication",
+      "epoch-8 companion",
+      "epoch-8 owner surface authority"
+    ],
+    "validator_independent_recomputation_required": true,
+    "future_implementation_surface_utf8_sorted": [
+      {
+        "path": "scripts/p4_2a_v2_2_heldout_rehearsal.py",
+        "status": "M"
+      },
+      {
+        "path": "scripts/validate_p4_2a_v2_2_heldout_rehearsal_bundle.py",
+        "status": "M"
+      },
+      {
+        "path": "tests/test_p4_2a_v2_2_heldout_rehearsal_runner.py",
+        "status": "M"
+      },
+      {
+        "path": "tests/test_p4_2a_v2_2_heldout_rehearsal_validator.py",
+        "status": "M"
+      }
+    ]
+  },
+  "part_5_next_governance_steps": [
+    "create and independently verify this governing adjudication as one unique-A commit",
+    "create and independently verify the epoch-8 companion as the direct single-parent unique-A child of this adjudication",
+    "prepare a canonical six-field surface-authority draft whose base_commit is that companion commit and whose exact_surface is the four M paths above",
+    "report the draft path, SHA-256, bytes, and exact owner approval sentence",
+    "do not issue or commit the surface authority until the owner separately approves its exact bytes or digest",
+    "do not implement, run tests or gates, merge main, run preflight, create new Q/R/B, or start recovery under the present authorization"
+  ],
+  "part_6_locks": {
+    "implementation_authorized": false,
+    "six_field_surface_authority_effective": false,
+    "gate_authorized": false,
+    "merge_authorized": false,
+    "registered_root_preflight_authorized": false,
+    "new_Q_R_B_authorized": false,
+    "recovery_authorized": false,
+    "release_authorized": false,
+    "official_ledger_and_existing_mirror_read_only": true,
+    "recovery_containers_must_remain_empty": true,
+    "heldout_materialization_inference_evaluation_locked": true,
+    "p4_2a_done": false,
+    "p4_2b_unlocked": false,
+    "p4_3_unlocked": false,
+    "trading_unlocked": false
+  }
+}
