@@ -87,6 +87,44 @@ EPOCH_SEVEN_RECOVERY_CONTRACT_CANONICAL_SHA256 = (
     "32149311d2e92f7b677e9d2097053b69505c893e293623c8cb7037352535508f"
 )
 EPOCH_SEVEN_RECOVERY_CONTRACT_CANONICAL_BYTES = 23_204
+EPOCH_EIGHT_COMPANION_RELATIVE = Path(
+    "docs/phase4/reports/P4.2a-series2-epoch8-companion-20260901.json"
+)
+EPOCH_EIGHT_COMPANION_SHA256 = "4d25ba645c81b3e0d6a3458a47d9e10c80b7cd61f9ad16a28404160af91226ed"
+EPOCH_EIGHT_COMPANION_COMMIT = "a39c0263fefcfbdb1886100fec1b71ec374b43a4"
+EPOCH_EIGHT_COMPANION_PARENT = "87896e9b2c42d6110968876d21f3b0f3963d2ac7"
+EPOCH_EIGHT_COMPANION_BYTES = 53_282
+EPOCH_EIGHT_SURFACE_AUTHORITY_RELATIVE = Path(
+    "docs/phase4/reports/P4.2a-v2-2-series2-epoch8-surface-authority-20260901.json"
+)
+EPOCH_EIGHT_SURFACE_AUTHORITY_SHA256 = (
+    "4547a2231c23a0fff96dced033028c279c4247c76130e79360e2ec602f8dd016"
+)
+EPOCH_EIGHT_SURFACE_AUTHORITY_COMMIT = "73a703a422b5209115f5b244490db36e06b1f15d"
+EPOCH_EIGHT_RECOVERY_CONTRACT_FIELDS = (
+    "schema_version",
+    "governing_adjudication",
+    "implementation_epoch",
+    "registered_preflight_contract",
+    "recovery_review_request_contract",
+    "recovery_authorization_contract",
+    "recovery_owner_binding_contract",
+    "recovery_claim_contract",
+    "bundle_mirror_receipt_contract",
+    "dual_byte_anchor_contract",
+    "unique_a_and_lineage_census_contract",
+    "protected_inputs_and_permitted_outputs",
+    "legacy_absence_and_locks",
+)
+EPOCH_EIGHT_RECOVERY_CONTRACT_SCHEMA = "p4.2a-v2-2-series2-epoch8-recovery-contract-v1"
+EPOCH_EIGHT_RECOVERY_CONTRACT_CANONICAL_SHA256 = (
+    "36b1ae714faf2746f677e3c5aa452d2dc1822234dd10d687aa11d804ac606dbf"
+)
+EPOCH_EIGHT_RECOVERY_CONTRACT_CANONICAL_BYTES = 36_715
+EPOCH_EIGHT_PREFLIGHT_SCHEMA = "p4.2a-v2-2-read-only-implementation-preflight-v2"
+EPOCH_EIGHT_RECOVERY_REVIEW_REQUEST_SCHEMA = (
+    "p4.2a-v2-2-series2-sealed-bundle-recovery-review-request-v2"
+)
 INDEPENDENT_REVIEW_COMMIT = "b21e1bdbf865dfd9c7605ecc7794fc3f8701ed1f"
 INDEPENDENT_REVIEW_RELATIVE = Path(
     "docs/phase4/reports/P4.2a-v2-2-preregistration-independent-review-20260811.json"
@@ -311,6 +349,38 @@ def _fetch_pinned_epoch_seven_fixture_commits(
         assert observed == commit
 
 
+def _fetch_pinned_epoch_eight_fixture_commits(
+    project_root: Path,
+    *,
+    remote: str,
+) -> None:
+    """Import the exact epoch-eight authority chain by object id, never branch tip."""
+
+    remote_url = (
+        _fixture_git(project_root, "remote", "get-url", remote)
+        .decode("utf-8", errors="strict")
+        .strip()
+    )
+    remote_path = Path(remote_url)
+    assert remote_path.is_absolute()
+    assert remote_path.resolve(strict=True) == remote_path
+    destination = f"refs/remotes/{remote}/pinned-surface-authority"
+    _fixture_git(
+        project_root,
+        "fetch",
+        "--quiet",
+        "--no-tags",
+        remote,
+        f"+{EPOCH_EIGHT_SURFACE_AUTHORITY_COMMIT}:{destination}",
+    )
+    observed = (
+        _fixture_git(project_root, "rev-parse", "--verify", f"{destination}^{{commit}}")
+        .decode("ascii", errors="strict")
+        .strip()
+    )
+    assert observed == EPOCH_EIGHT_SURFACE_AUTHORITY_COMMIT
+
+
 def _fixture_commit_file(project_root: Path, relative: Path, payload: bytes) -> str:
     path = project_root / relative
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -342,6 +412,15 @@ def _epoch_seven_companion() -> tuple[bytes, dict[str, Any], dict[str, Any]]:
     document = json.loads(payload)
     assert isinstance(document, dict)
     contract = document.get("epoch_7_recovery_contract")
+    assert isinstance(contract, dict)
+    return payload, document, contract
+
+
+def _epoch_eight_companion() -> tuple[bytes, dict[str, Any], dict[str, Any]]:
+    payload = (PROJECT_ROOT / EPOCH_EIGHT_COMPANION_RELATIVE).read_bytes()
+    document = json.loads(payload)
+    assert isinstance(document, dict)
+    contract = document.get("epoch_8_recovery_contract")
     assert isinstance(contract, dict)
     return payload, document, contract
 
@@ -1293,23 +1372,34 @@ def _advance_synthetic_series_2_epoch_six(
     )
 
 
-def _land_synthetic_epoch_seven(
+def _land_synthetic_epoch_eight(
     project_root: Path,
 ) -> tuple[str, Any, Any, str, Any, Any]:
     implementation = importlib.import_module(IMPLEMENTATION_MODULE)
-    live_base = _fixture_git(project_root, "rev-parse", "HEAD").decode().strip()
-    _fixture_git(project_root, "remote", "add", "epoch-seven-live", PROJECT_ROOT.as_posix())
-    _fetch_pinned_epoch_seven_fixture_commits(
+    prior_head = _fixture_git(project_root, "rev-parse", "HEAD").decode().strip()
+    _fixture_git(project_root, "remote", "add", "epoch-eight-live", PROJECT_ROOT.as_posix())
+    _fetch_pinned_epoch_eight_fixture_commits(
         project_root,
-        remote="epoch-seven-live",
+        remote="epoch-eight-live",
     )
+    assert (
+        _fixture_git(
+            project_root,
+            "merge-base",
+            "--is-ancestor",
+            prior_head,
+            EPOCH_EIGHT_SURFACE_AUTHORITY_COMMIT,
+        )
+        == b""
+    )
+    live_base = EPOCH_EIGHT_SURFACE_AUTHORITY_COMMIT
     _fixture_git(
         project_root,
         "switch",
         "--quiet",
         "-C",
-        "synthetic-epoch-seven-implementation",
-        EPOCH_SEVEN_SURFACE_AUTHORITY_COMMIT,
+        "synthetic-epoch-eight-implementation",
+        EPOCH_EIGHT_SURFACE_AUTHORITY_COMMIT,
     )
     changed = (
         IMPLEMENTATION_RELATIVE,
@@ -1326,15 +1416,15 @@ def _land_synthetic_epoch_seven(
         "--",
         *(relative.as_posix() for relative in changed),
     )
-    _fixture_git(project_root, "commit", "--quiet", "-m", "synthetic epoch-seven implementation")
+    _fixture_git(project_root, "commit", "--quiet", "-m", "synthetic epoch-eight implementation")
     implementation_commit = _fixture_git(project_root, "rev-parse", "HEAD").decode().strip()
     review_relative = Path(
-        "docs/phase4/reports/P4.2a-v2-2-synthetic-epoch-7-implementation-review.json"
+        "docs/phase4/reports/P4.2a-v2-2-synthetic-epoch-8-implementation-review.json"
     )
     review_payload = implementation._canonical_json_bytes(
         {
             "schema_version": "p4.2a-v2-2-synthetic-implementation-review-v1",
-            "verdict": "APPROVE_EPOCH_7_IMPLEMENTATION",
+            "verdict": "APPROVE_EPOCH_8_IMPLEMENTATION",
             "reviewed_implementation_commit": implementation_commit,
             "blockers": [],
         }
@@ -1356,7 +1446,7 @@ def _land_synthetic_epoch_seven(
         "--no-commit",
         "-X",
         "theirs",
-        "synthetic-epoch-seven-implementation",
+        "synthetic-epoch-eight-implementation",
     )
     for relative in changed:
         (project_root / relative).write_bytes(
@@ -1377,7 +1467,7 @@ def _land_synthetic_epoch_seven(
         "commit",
         "--quiet",
         "-m",
-        "synthetic epoch-seven merge-only landing",
+        "synthetic epoch-eight merge-only landing",
     )
     merge_commit = _fixture_git(project_root, "rev-parse", "HEAD").decode().strip()
     assert _fixture_git(project_root, "rev-parse", f"{merge_commit}^2").decode().strip() == (
@@ -1398,13 +1488,34 @@ def _land_synthetic_epoch_seven(
         _sha256(review_payload),
         merge_commit,
     )
-    landing_relative = Path("docs/phase4/reports/P4.2a-v2-2-synthetic-epoch-7-landing-report.json")
+    owner_payload = (project_root / EPOCH_EIGHT_SURFACE_AUTHORITY_RELATIVE).read_bytes()
+    owner = implementation.AuthorityReference(
+        EPOCH_EIGHT_SURFACE_AUTHORITY_RELATIVE.as_posix(),
+        _sha256(owner_payload),
+        EPOCH_EIGHT_SURFACE_AUTHORITY_COMMIT,
+    )
+    control = implementation.build_control_surface(
+        project_root,
+        implementation_commit,
+        require_current=False,
+    )
+    landing_relative = Path("docs/phase4/reports/P4.2a-v2-2-synthetic-epoch-8-landing-report.json")
     landing_payload = implementation._canonical_json_bytes(
         {
             "schema_version": "p4.2a-v2-2-synthetic-landing-report-v1",
+            "implementation_epoch": 8,
             "implementation_commit": implementation_commit,
+            "owner_exact_surface_authorization": owner.as_json(),
+            "independent_implementation_review": review.as_json(),
             "independent_review_projection_commit": merge_commit,
-            "status": "PASS_SYNTHETIC_EPOCH_7_LANDING",
+            "merge_commit": merge_commit,
+            "merge_parents": [
+                _fixture_git(project_root, "rev-parse", f"{merge_commit}^1").decode().strip(),
+                _fixture_git(project_root, "rev-parse", f"{merge_commit}^2").decode().strip(),
+            ],
+            "control_merkle_root_sha256": control.merkle_root_sha256,
+            "control_record_count": len(control.records),
+            "status": "PASS_SYNTHETIC_EPOCH_8_LANDING",
         }
     )
     landing_commit = _fixture_commit_file(project_root, landing_relative, landing_payload)
@@ -1414,28 +1525,15 @@ def _land_synthetic_epoch_seven(
         "refs/remotes/origin/main",
         landing_commit,
     )
-    owner_payload = (
-        project_root / "docs/phase4/reports/P4.2a-v2-2-epoch7-surface-authority-20260827.json"
-    ).read_bytes()
-    owner = implementation.AuthorityReference(
-        "docs/phase4/reports/P4.2a-v2-2-epoch7-surface-authority-20260827.json",
-        _sha256(owner_payload),
-        EPOCH_SEVEN_SURFACE_AUTHORITY_COMMIT,
-    )
     landing = implementation.AuthorityReference(
         landing_relative.as_posix(),
         _sha256(landing_payload),
         landing_commit,
     )
-    control = implementation.build_control_surface(
-        project_root,
-        implementation_commit,
-        require_current=False,
-    )
     return implementation_commit, owner, review, merge_commit, landing, control
 
 
-def _land_synthetic_recovery_qrb(
+def _land_synthetic_epoch_eight_recovery_qrb(
     binding: Any,
     *,
     history: Any,
@@ -1448,32 +1546,54 @@ def _land_synthetic_recovery_qrb(
     root = binding.project_root
     implementation_commit, owner, review, merge_commit, landing, control = live_epoch
     baseline_head = _fixture_git(root, "rev-parse", "HEAD").decode().strip()
-    census = implementation._real_lineage_census(
-        root,
-        execution_head=baseline_head,
-        additional_references=(
-            implementation.AuthorityCensusSpec(owner, "PINNED_SOURCE", None),
-            implementation.AuthorityCensusSpec(
-                review,
-                "PINNED_LANDING_PROJECTION",
-                merge_commit,
-            ),
-            implementation.AuthorityCensusSpec(landing, "PINNED_SOURCE", None),
-        ),
+    preflight_command = _exact_epoch_eight_read_only_preflight_command(
+        binding,
+        implementation_commit=implementation_commit,
+        owner_surface_authorization=owner,
+        independent_review=review,
+        landing_report=landing,
     )
+    preflight_completed = subprocess.run(
+        preflight_command,
+        check=False,
+        capture_output=True,
+        text=True,
+        env=_locked_environment(),
+        timeout=1_800,
+    )
+    assert preflight_completed.returncode == 0, preflight_completed.stderr
+    assert preflight_completed.stderr == ""
+    preflight_stdout = preflight_completed.stdout
+    preflight_document = implementation.strict_json_loads(
+        preflight_stdout,
+        source="synthetic epoch-eight registered preflight",
+    )
+    assert implementation._canonical_json_bytes(preflight_document).decode() == preflight_stdout
+    assert preflight_document["schema_version"] == EPOCH_EIGHT_PREFLIGHT_SCHEMA
+    assert preflight_document["implementation_epoch"] == 8
+    assert preflight_document["implementation_commit"] == implementation_commit
+    assert preflight_document["registered_recovery_storage"] is None
+    assert "epoch_7_recovery_storage" not in preflight_document
+    census = preflight_document["real_lineage_census"]
+    assert isinstance(census, dict)
+    assert baseline_head == census["execution_head"]
+    landing_rows = [row for row in census["rows"] if row["path"] == landing.path]
+    assert len(landing_rows) == 1
+    assert landing_rows[0]["pinned_sha256"] == landing.sha256
+    assert landing_rows[0]["pinned_creating_commit"] == landing.creating_commit
     census_reference = implementation._census_reference(census)
     census_reference["all_references_revalidated_at_start"] = True
     q_relative = Path(
         "docs/phase4/reports/P4.2a-v2-2-series2-through-ordinal-000002-"
-        "bundle-recovery-review-request-20260827.json"
+        "bundle-recovery-review-request-20260902.json"
     )
     r_relative = Path(
         "docs/phase4/reports/P4.2a-v2-2-series2-through-ordinal-000002-"
-        "bundle-recovery-authorization-20260827.json"
+        "bundle-recovery-authorization-20260902.json"
     )
     b_relative = Path(
         "docs/phase4/reports/P4.2a-v2-2-series2-through-ordinal-000002-"
-        "bundle-recovery-owner-confirmation-binding-20260827.json"
+        "bundle-recovery-owner-confirmation-binding-20260902.json"
     )
     q_path = root / q_relative
     r_path = root / r_relative
@@ -1543,7 +1663,7 @@ def _land_synthetic_recovery_qrb(
         },
     }
     execution_epoch = {
-        "epoch": 7,
+        "epoch": 8,
         "implementation_commit": implementation_commit,
         "owner_exact_surface_authorization": owner.as_json(),
         "independent_implementation_review": review.as_json(),
@@ -1583,10 +1703,10 @@ def _land_synthetic_recovery_qrb(
         b_path.as_posix(),
     ]
     recovery_authorization = {
-        "schema_version": implementation.EPOCH_7_RECOVERY_AUTHORIZATION_SCHEMA,
-        "authorization_id": "synthetic-series-2-epoch-7-recovery",
-        "created_at_utc": "2026-08-27T12:00:00Z",
-        "created_at_shanghai": "2026-08-27T20:00:00+08:00",
+        "schema_version": implementation.EPOCH_8_RECOVERY_AUTHORIZATION_SCHEMA,
+        "authorization_id": "synthetic-series-2-epoch-8-recovery",
+        "created_at_utc": "2026-09-02T12:00:00Z",
+        "created_at_shanghai": "2026-09-02T20:00:00+08:00",
         "verdict": (
             "APPROVE_EXACTLY_ONE_SEALED_BUNDLE_RECOVERY_ZERO_PIPELINE_START_ZERO_AUTOMATIC_RETRY"
         ),
@@ -1656,14 +1776,8 @@ def _land_synthetic_recovery_qrb(
         f"{r_sha} 所标识的 canonical bundle recovery authorization，仅授权一次恢复，"
         "pipeline start 0，automatic retry 0。"
     )
-    preflight_stdout = implementation._canonical_json_bytes(
-        {
-            "status": "PASS_READ_ONLY_IMPLEMENTATION_PREFLIGHT",
-            "real_lineage_census": census,
-        }
-    ).decode("utf-8")
     landed_epoch = {
-        "epoch": 7,
+        "epoch": 8,
         "implementation_commit": implementation_commit,
         "owner_exact_surface_authorization": owner.as_json(),
         "independent_implementation_review": review.as_json(),
@@ -1673,19 +1787,19 @@ def _land_synthetic_recovery_qrb(
         "control_record_count": len(control.records),
     }
     review_request = {
-        "schema_version": implementation.EPOCH_7_RECOVERY_REVIEW_REQUEST_SCHEMA,
-        "request_id": "synthetic-series-2-epoch-7-recovery-review",
-        "created_at_utc": "2026-08-27T12:00:00Z",
-        "created_at_shanghai": "2026-08-27T20:00:00+08:00",
+        "schema_version": implementation.EPOCH_8_RECOVERY_REVIEW_REQUEST_SCHEMA,
+        "request_id": "synthetic-series-2-epoch-8-recovery-review",
+        "created_at_utc": "2026-09-02T12:00:00Z",
+        "created_at_shanghai": "2026-09-02T20:00:00+08:00",
         "status": "AWAITING_INDEPENDENT_REVIEW_AND_OWNER_CONFIRMATION",
         "requester": {
             "identity": "codex",
             "role": "operator",
             "scope": "sealed_bundle_recovery_only",
         },
-        "landed_epoch_7": landed_epoch,
+        "landed_execution_epoch": landed_epoch,
         "registered_read_only_recovery_preflight": {
-            "exact_argv": ["synthetic-preflight"],
+            "exact_argv": preflight_command,
             "stdout_canonical_json": preflight_stdout,
             "stdout_sha256": _sha256(preflight_stdout.encode("utf-8")),
             "stdout_bytes": len(preflight_stdout.encode("utf-8")),
@@ -1755,10 +1869,10 @@ def _land_synthetic_recovery_qrb(
     q_commit = _fixture_commit_file(root, q_relative, q_payload)
     r_commit = _fixture_commit_file(root, r_relative, r_payload)
     owner_binding = {
-        "schema_version": implementation.EPOCH_7_RECOVERY_OWNER_BINDING_SCHEMA,
-        "binding_id": "synthetic-series-2-epoch-7-owner-binding",
-        "created_at_utc": "2026-08-27T12:01:00Z",
-        "created_at_shanghai": "2026-08-27T20:01:00+08:00",
+        "schema_version": implementation.EPOCH_8_RECOVERY_OWNER_BINDING_SCHEMA,
+        "binding_id": "synthetic-series-2-epoch-8-owner-binding",
+        "created_at_utc": "2026-09-02T12:01:00Z",
+        "created_at_shanghai": "2026-09-02T20:01:00+08:00",
         "status": "OWNER_CONFIRMATION_BOUND",
         "review_request": {
             "path": q_relative.as_posix(),
@@ -1775,8 +1889,8 @@ def _land_synthetic_recovery_qrb(
         "owner_confirmation": {
             "identity": "ouyang",
             "confirmation_text": owner_confirmation,
-            "observed_at_utc": "2026-08-27T12:01:00Z",
-            "observed_at_shanghai": "2026-08-27T20:01:00+08:00",
+            "observed_at_utc": "2026-09-02T12:01:00Z",
+            "observed_at_shanghai": "2026-09-02T20:01:00+08:00",
             "source": "业主向复核方当面确认，由复核方转达",
             "authorization_sha256": r_sha,
         },
@@ -1801,7 +1915,7 @@ def _land_synthetic_recovery_qrb(
             True,
         ),
         "registered_read_only_recovery_preflight": {
-            "path": "synthetic-preflight",
+            "path": q_relative.as_posix(),
             "stdout_sha256": _sha256(preflight_stdout.encode("utf-8")),
             "stdout_bytes": len(preflight_stdout.encode("utf-8")),
             "real_lineage_census_sha256": census_reference["canonical_json_sha256"],
@@ -1827,6 +1941,8 @@ def _land_synthetic_recovery_qrb(
         "b_path": b_path,
         "b_commit": b_commit,
         "baseline_census": census,
+        "preflight_command": preflight_command,
+        "preflight_stdout": preflight_stdout,
         "primary_recovery_container": primary_recovery_container,
         "secondary_recovery_container": secondary_recovery_container,
     }
@@ -2045,6 +2161,30 @@ def _exact_read_only_preflight_command(
         "--independent-implementation-review",
         (binding.project_root / independent_review.path).as_posix(),
     ]
+
+
+def _exact_epoch_eight_read_only_preflight_command(
+    binding: Any,
+    *,
+    implementation_commit: str,
+    owner_surface_authorization: Any,
+    independent_review: Any,
+    landing_report: Any,
+) -> list[str]:
+    command = _exact_read_only_preflight_command(
+        binding,
+        implementation_epoch=8,
+        implementation_commit=implementation_commit,
+        owner_surface_authorization=owner_surface_authorization,
+        independent_review=independent_review,
+    )
+    command.extend(
+        (
+            "--landing-report",
+            (binding.project_root / landing_report.path).as_posix(),
+        )
+    )
+    return command
 
 
 def _spawn_exact_attempt(binding: Any, ordinal: int) -> subprocess.Popen[str]:
@@ -3026,12 +3166,12 @@ def test_epoch_seven_fixture_imports_pinned_commits_from_local_main_only_source(
         )
 
 
-def test_exact_os_epoch_seven_five_six_recovery_and_recovered_release_are_zero_pipeline(
+def test_exact_os_epoch_eight_real_preflight_qrb_five_six_recovery_and_release_are_zero_pipeline(
     tmp_path: Path,
 ) -> None:
     implementation = importlib.import_module(IMPLEMENTATION_MODULE)
     real_before = _all_real_path_fingerprints()
-    binding = _synthetic_binding(tmp_path, label="epoch-seven-recovery-source")
+    binding = _synthetic_binding(tmp_path, label="epoch-eight-recovery-source")
     epoch_five, epoch_six = _initialize_epoch_seven_governed_five_six_source(
         binding,
     )
@@ -3067,12 +3207,12 @@ def test_exact_os_epoch_seven_five_six_recovery_and_recovered_release_are_zero_p
     assert not (binding.ledger_root / "attempts/000003").exists()
     assert not binding.destination.exists()
     assert _tree_fingerprint(implementation.OFFICIAL_LEDGER_ROOT) == registered_before
-    live_epoch = _land_synthetic_epoch_seven(binding.project_root)
+    live_epoch = _land_synthetic_epoch_eight(binding.project_root)
     primary_recovery = tmp_path / "owner-primary-recovery"
     secondary_recovery = tmp_path / "owner-secondary-recovery"
     primary_recovery.mkdir(mode=0o700)
     secondary_recovery.mkdir(mode=0o700)
-    qrb = _land_synthetic_recovery_qrb(
+    qrb = _land_synthetic_epoch_eight_recovery_qrb(
         binding,
         history=history,
         mirrors=mirrors,
@@ -3080,6 +3220,71 @@ def test_exact_os_epoch_seven_five_six_recovery_and_recovered_release_are_zero_p
         primary_recovery_container=primary_recovery,
         secondary_recovery_container=secondary_recovery,
     )
+    assert qrb["preflight_command"][-2:] == [
+        "--landing-report",
+        (binding.project_root / live_epoch[4].path).as_posix(),
+    ]
+    q_document = json.loads(qrb["q_path"].read_bytes())
+    assert q_document["schema_version"] == EPOCH_EIGHT_RECOVERY_REVIEW_REQUEST_SCHEMA
+    assert "landed_execution_epoch" in q_document
+    assert "landed_epoch_7" not in q_document
+    assert (
+        q_document["registered_read_only_recovery_preflight"]["stdout_canonical_json"]
+        == qrb["preflight_stdout"]
+    )
+    fixed_registry = {
+        spec.reference.path: spec for spec in implementation._authority_census_registry(())
+    }
+    old_qrb_paths = {
+        (
+            "docs/phase4/reports/P4.2a-v2-2-series2-through-ordinal-000002-"
+            "bundle-recovery-review-request-20260901.json"
+        ),
+        (
+            "docs/phase4/reports/P4.2a-v2-2-series2-through-ordinal-000002-"
+            "bundle-recovery-authorization-20260901.json"
+        ),
+        (
+            "docs/phase4/reports/P4.2a-v2-2-series2-through-ordinal-000002-"
+            "bundle-recovery-owner-confirmation-binding-20260901.json"
+        ),
+    }
+    assert old_qrb_paths <= set(fixed_registry)
+    baseline_rows = {row["path"]: row for row in qrb["baseline_census"]["rows"]}
+    for old_relative in old_qrb_paths:
+        fixed = fixed_registry[old_relative].reference
+        assert baseline_rows[old_relative]["pinned_sha256"] == fixed.sha256
+        assert baseline_rows[old_relative]["pinned_creating_commit"] == fixed.creating_commit
+        assert (
+            _fixture_git(
+                binding.project_root,
+                "merge-base",
+                "--is-ancestor",
+                fixed.creating_commit,
+                qrb["baseline_census"]["execution_head"],
+            )
+            == b""
+        )
+    for path_key, commit_key in (
+        ("q_path", "q_commit"),
+        ("r_path", "r_commit"),
+        ("b_path", "b_commit"),
+    ):
+        fresh_relative = qrb[path_key].relative_to(binding.project_root).as_posix()
+        assert fresh_relative.endswith("20260902.json")
+        assert (
+            _fixture_git(
+                binding.project_root,
+                "log",
+                "--all",
+                "--format=%H",
+                "--diff-filter=A",
+                "--",
+                fresh_relative,
+            )
+            .decode()
+            .splitlines()
+        ) == [qrb[commit_key]]
     recovery_binding = replace(binding, action_authorization_path=qrb["r_path"])
     r_reference = implementation.AuthorityReference(
         qrb["r_path"].relative_to(binding.project_root).as_posix(),
@@ -3347,7 +3552,7 @@ def test_exact_os_epoch_seven_five_six_recovery_and_recovered_release_are_zero_p
         "require_current": False,
     }
     assert consume_result["live_execution_anchor"] == {
-        "implementation_epoch": 7,
+        "implementation_epoch": 8,
         "implementation_commit": live_epoch[0],
         "control_merkle_root_sha256": live_epoch[5].merkle_root_sha256,
         "real_lineage_census_sha256": release_census_sha256,
@@ -3627,6 +3832,412 @@ def test_epoch_seven_companion_declares_exact_anchors_census_effects_and_legacy_
         "heldout_evaluation_one_shot": "unconsumed",
         "trading": "zero non-SIMULATE",
     }
+
+
+def test_epoch_eight_companion_is_the_exact_byte_authority_for_one_thirteen_field_contract() -> (
+    None
+):
+    implementation = importlib.import_module(IMPLEMENTATION_MODULE)
+    payload, document, contract = _epoch_eight_companion()
+    assert len(payload) == EPOCH_EIGHT_COMPANION_BYTES
+    assert _sha256(payload) == EPOCH_EIGHT_COMPANION_SHA256
+    assert (
+        _git(
+            "show",
+            f"{EPOCH_EIGHT_COMPANION_COMMIT}:{EPOCH_EIGHT_COMPANION_RELATIVE.as_posix()}",
+        )
+        == payload
+    )
+    assert _git("rev-parse", f"{EPOCH_EIGHT_COMPANION_COMMIT}^").decode().strip() == (
+        EPOCH_EIGHT_COMPANION_PARENT
+    )
+    assert _git(
+        "diff",
+        "--name-status",
+        "--no-renames",
+        EPOCH_EIGHT_COMPANION_PARENT,
+        EPOCH_EIGHT_COMPANION_COMMIT,
+        "--",
+    ).decode().splitlines() == [f"A\t{EPOCH_EIGHT_COMPANION_RELATIVE.as_posix()}"]
+    surface_payload = (PROJECT_ROOT / EPOCH_EIGHT_SURFACE_AUTHORITY_RELATIVE).read_bytes()
+    assert _sha256(surface_payload) == EPOCH_EIGHT_SURFACE_AUTHORITY_SHA256
+    assert (
+        _git(
+            "show",
+            (
+                f"{EPOCH_EIGHT_SURFACE_AUTHORITY_COMMIT}:"
+                f"{EPOCH_EIGHT_SURFACE_AUTHORITY_RELATIVE.as_posix()}"
+            ),
+        )
+        == surface_payload
+    )
+    assert _git("rev-parse", f"{EPOCH_EIGHT_SURFACE_AUTHORITY_COMMIT}^").decode().strip() == (
+        EPOCH_EIGHT_COMPANION_COMMIT
+    )
+    assert _git(
+        "diff",
+        "--name-status",
+        "--no-renames",
+        EPOCH_EIGHT_COMPANION_COMMIT,
+        EPOCH_EIGHT_SURFACE_AUTHORITY_COMMIT,
+        "--",
+    ).decode().splitlines() == [f"A\t{EPOCH_EIGHT_SURFACE_AUTHORITY_RELATIVE.as_posix()}"]
+    assert document["part_2_owner_approval"] == {
+        **document["part_2_owner_approval"],
+        "accepted_owner_decision_count": 12,
+        "rejected_owner_decision_count": 0,
+        "surface_authority_issuance_pending": True,
+        "implementation_authorized": False,
+        "gate_authorized": False,
+        "recovery_authorized": False,
+    }
+    assert document["part_4_boundaries"] == {
+        **document["part_4_boundaries"],
+        "implementation_authorized": False,
+        "F_15_authorized": False,
+        "independent_F_12_authorized": False,
+        "harness_or_gate_authorized": False,
+        "merge_main_authorized": False,
+        "registered_root_preflight_authorized": False,
+        "new_Q_R_B_authorized": False,
+        "recovery_or_release_authorized": False,
+        "surface_authority_effective": False,
+    }
+    assert set(contract) == set(EPOCH_EIGHT_RECOVERY_CONTRACT_FIELDS)
+    canonical_contract = _independent_canonical_json_bytes(contract)
+    assert len(canonical_contract) == EPOCH_EIGHT_RECOVERY_CONTRACT_CANONICAL_BYTES
+    assert _sha256(canonical_contract) == EPOCH_EIGHT_RECOVERY_CONTRACT_CANONICAL_SHA256
+    assert contract["schema_version"] == EPOCH_EIGHT_RECOVERY_CONTRACT_SCHEMA
+    assert type(contract["implementation_epoch"]) is int
+    assert contract["implementation_epoch"] == 8
+    observed = implementation.validate_epoch_8_recovery_contract(
+        PROJECT_ROOT,
+        execution_head=_fixture_git(
+            PROJECT_ROOT,
+            "rev-parse",
+            "HEAD",
+        )
+        .decode()
+        .strip(),
+    )
+    assert _typed_equal(observed, contract)
+    assert implementation.EPOCH_8_COMPANION_RELATIVE == EPOCH_EIGHT_COMPANION_RELATIVE
+    assert implementation.EPOCH_8_COMPANION_SHA256 == EPOCH_EIGHT_COMPANION_SHA256
+    assert implementation.EPOCH_8_COMPANION_COMMIT == EPOCH_EIGHT_COMPANION_COMMIT
+
+
+def test_epoch_eight_contract_separates_v2_live_documents_from_frozen_epoch_seven_history() -> (
+    None
+):
+    implementation = importlib.import_module(IMPLEMENTATION_MODULE)
+    _payload, _document, contract = _epoch_eight_companion()
+    preflight = contract["registered_preflight_contract"]
+    q = contract["recovery_review_request_contract"]
+    r = contract["recovery_authorization_contract"]
+    b = contract["recovery_owner_binding_contract"]
+    anchors = contract["dual_byte_anchor_contract"]
+    census = contract["unique_a_and_lineage_census_contract"]
+
+    assert preflight["schema_version"] == EPOCH_EIGHT_PREFLIGHT_SCHEMA
+    assert len(preflight["exact_top_level_fields"]) == 16
+    assert "registered_recovery_storage" in preflight["exact_top_level_fields"]
+    assert "epoch_7_recovery_storage" not in preflight["exact_top_level_fields"]
+    assert preflight["cli_contract"] == {
+        **preflight["cli_contract"],
+        "mode": "--preflight-only",
+        "landing_argument": "--landing-report",
+        "no_discovery_fallback": True,
+        "required_for_implementation_epoch_gte": 8,
+    }
+    assert preflight["cli_contract"]["bootstrap_order"] == [
+        "process, interpreter, exact environment, locked bootstrap and complete CLI shape",
+        (
+            "epoch-8 contract, owner surface authority, independent review and explicit "
+            "landing identity plus topology"
+        ),
+        (
+            "live implementation, loaded modules, current control surface and first "
+            "real-lineage census"
+        ),
+        "series storage, recovery containers, sealed ledger and sealed-mirror inputs",
+        "second identical census, complete before-after recheck and one canonical stdout result",
+    ]
+    assert preflight["cli_contract"]["exact_argv_order"][-2:] == [
+        "--landing-report",
+        "<absolute epoch-8 landing report path>",
+    ]
+
+    assert q["schema_version"] == EPOCH_EIGHT_RECOVERY_REVIEW_REQUEST_SCHEMA
+    assert len(q["exact_top_level_fields"]) == 13
+    assert set(q["exact_top_level_fields"]) == implementation.RECOVERY_REVIEW_REQUEST_FIELDS
+    assert "landed_execution_epoch" in q["exact_top_level_fields"]
+    assert "landed_epoch_7" not in q["exact_top_level_fields"]
+    assert r["schema_version"] == implementation.EPOCH_8_RECOVERY_AUTHORIZATION_SCHEMA
+    assert len(r["exact_top_level_fields"]) == 19
+    assert b["schema_version"] == implementation.EPOCH_8_RECOVERY_OWNER_BINDING_SCHEMA
+    assert len(b["exact_top_level_fields"]) == 12
+
+    assert anchors["historical_selected_anchor"] == {
+        "implementation_commit": "e5aab9772793a7b0465f100cb48f99a1bc4e45dc",
+        "implementation_epoch": 6,
+        "require_current": False,
+        "selected_control_merkle_root_sha256": (
+            "5948fd29a8c3f38399e6518699483f61094d577ae695bc7aa0b48c84e5b8829d"
+        ),
+        "sources": "immutable Git blobs and sealed archive/evidence/history roots only",
+    }
+    assert anchors["live_execution_anchor"]["implementation_epoch"] == 8
+    assert anchors["live_execution_anchor"]["require_current"] is True
+    assert anchors["capability_required_values"]["selected_implementation_epoch"] == 6
+    assert anchors["capability_required_values"]["execution_epoch"] == 8
+
+    fixed_rows = census["fixed_carry_forward_rows"]
+    assert len(fixed_rows) == 6
+    assert [row["path"] for row in fixed_rows] == [
+        (
+            "docs/phase4/reports/"
+            "P4.2a-v2-2-series2-epoch7-r2-implementation-independent-review-20260831.json"
+        ),
+        (
+            "docs/phase4/reports/"
+            "P4.2a-v2-2-series2-epoch7-r2-merge-landing-record-20260901.json"
+        ),
+        (
+            "docs/phase4/reports/P4.2a-v2-2-series2-through-ordinal-000002-"
+            "bundle-recovery-review-request-20260901.json"
+        ),
+        (
+            "docs/phase4/reports/P4.2a-v2-2-series2-through-ordinal-000002-"
+            "bundle-recovery-authorization-20260901.json"
+        ),
+        (
+            "docs/phase4/reports/P4.2a-v2-2-series2-through-ordinal-000002-"
+            "bundle-recovery-owner-confirmation-binding-20260901.json"
+        ),
+        (
+            "docs/phase4/reports/"
+            "P4.2a-series2-epoch7-recovery-preclaim-refusal-and-epoch8-direction-20260901.json"
+        ),
+    ]
+    assert census["baseline_and_start_contract"]["runtime_fixed_rows_after_creation"] == [
+        "this epoch-8 companion with actual path/SHA/bytes/commit",
+        "the issued epoch-8 surface authority with actual path/SHA/bytes/commit",
+    ]
+    expected_fixed_paths = [
+        row["path"] for row in fixed_rows
+    ] + [
+        EPOCH_EIGHT_COMPANION_RELATIVE.as_posix(),
+        EPOCH_EIGHT_SURFACE_AUTHORITY_RELATIVE.as_posix(),
+    ]
+    registered_specs = {
+        spec.reference.path: spec for spec in implementation._authority_census_registry(())
+    }
+    assert set(expected_fixed_paths) <= set(registered_specs)
+    for row in fixed_rows:
+        spec = registered_specs[row["path"]]
+        assert spec.reference == implementation.AuthorityReference(
+            row["path"],
+            row["sha256"],
+            row["creating_commit"],
+        )
+        assert spec.role == row["role"]
+        assert spec.declared_landing_projection_commit == row[
+            "declared_landing_projection_commit"
+        ]
+    for relative, digest, commit in (
+        (
+            EPOCH_EIGHT_COMPANION_RELATIVE,
+            EPOCH_EIGHT_COMPANION_SHA256,
+            EPOCH_EIGHT_COMPANION_COMMIT,
+        ),
+        (
+            EPOCH_EIGHT_SURFACE_AUTHORITY_RELATIVE,
+            EPOCH_EIGHT_SURFACE_AUTHORITY_SHA256,
+            EPOCH_EIGHT_SURFACE_AUTHORITY_COMMIT,
+        ),
+    ):
+        spec = registered_specs[relative.as_posix()]
+        assert spec.reference == implementation.AuthorityReference(
+            relative.as_posix(),
+            digest,
+            commit,
+        )
+        assert spec.role == "PINNED_SOURCE"
+        assert spec.declared_landing_projection_commit is None
+
+    _epoch_seven_payload, _epoch_seven_document, epoch_seven_contract = (
+        _epoch_seven_companion()
+    )
+    assert epoch_seven_contract["schema_version"] == EPOCH_SEVEN_RECOVERY_CONTRACT_SCHEMA
+    assert "registered_preflight_contract" not in epoch_seven_contract
+    assert (
+        epoch_seven_contract["recovery_review_request_contract"]["schema_version"]
+        == implementation.EPOCH_7_RECOVERY_REVIEW_REQUEST_SCHEMA
+    )
+    assert set(
+        epoch_seven_contract["recovery_review_request_contract"]["exact_top_level_fields"]
+    ) == implementation.EPOCH_7_RECOVERY_REVIEW_REQUEST_FIELDS
+
+
+def test_epoch_eight_real_git_baseline_plus_qrb_is_exact_and_one_extra_row_fails(
+    tmp_path: Path,
+) -> None:
+    implementation = importlib.import_module(IMPLEMENTATION_MODULE)
+    repository = tmp_path / "epoch-eight-qrb-delta"
+    repository.mkdir(mode=0o700)
+    _fixture_git(repository, "init", "--quiet")
+    _fixture_git(repository, "remote", "add", "baseline", PROJECT_ROOT.as_posix())
+    refused_b_commit = implementation.EPOCH_7_REFUSED_B_CARRY_FORWARD[2]
+    _fixture_git(
+        repository,
+        "fetch",
+        "--quiet",
+        "--no-tags",
+        "baseline",
+        f"+{refused_b_commit}:refs/remotes/baseline/main",
+    )
+    _fixture_git(
+        repository,
+        "checkout",
+        "--quiet",
+        "-b",
+        "main",
+        "refs/remotes/baseline/main",
+    )
+    live_epoch = _land_synthetic_epoch_eight(repository)
+    implementation_commit, owner, review, merge_commit, landing, _control = live_epoch
+    extra_relative = Path("docs/phase4/reports/synthetic-unrelated-census-authority.json")
+    extra_payload = _independent_canonical_json_bytes({"authority": "unrelated"})
+    extra_commit = _fixture_commit_file(repository, extra_relative, extra_payload)
+    _fixture_git(repository, "update-ref", "refs/remotes/origin/main", extra_commit)
+    baseline_head = extra_commit
+    live_specs = (
+        implementation.AuthorityCensusSpec(owner, "PINNED_SOURCE", None),
+        implementation.AuthorityCensusSpec(
+            review,
+            "PINNED_LANDING_PROJECTION",
+            merge_commit,
+        ),
+        implementation.AuthorityCensusSpec(landing, "PINNED_SOURCE", None),
+    )
+    baseline = implementation._real_lineage_census(
+        repository,
+        execution_head=baseline_head,
+        additional_references=live_specs,
+    )
+    baseline_reference = implementation._census_reference(baseline)
+    baseline_reference["all_references_revalidated_at_start"] = True
+    preflight_stdout = implementation._canonical_json_bytes(
+        {
+            "schema_version": EPOCH_EIGHT_PREFLIGHT_SCHEMA,
+            "status": "PASS_READ_ONLY_IMPLEMENTATION_PREFLIGHT",
+            "real_lineage_census": baseline,
+        }
+    ).decode("utf-8")
+    q_relative = Path("docs/phase4/reports/synthetic-epoch-eight-q.json")
+    r_relative = Path("docs/phase4/reports/synthetic-epoch-eight-r.json")
+    b_relative = Path("docs/phase4/reports/synthetic-epoch-eight-b.json")
+    q_payload = implementation._canonical_json_bytes(
+        {
+            "registered_read_only_recovery_preflight": {
+                "stdout_canonical_json": preflight_stdout,
+                "stdout_sha256": _sha256(preflight_stdout.encode("utf-8")),
+                "stdout_bytes": len(preflight_stdout.encode("utf-8")),
+            }
+        }
+    )
+    r_payload = implementation._canonical_json_bytes({"authorization": "synthetic-r"})
+    b_payload = implementation._canonical_json_bytes({"binding": "synthetic-b"})
+    q_commit = _fixture_commit_file(repository, q_relative, q_payload)
+    r_commit = _fixture_commit_file(repository, r_relative, r_payload)
+    b_commit = _fixture_commit_file(repository, b_relative, b_payload)
+    _fixture_git(repository, "update-ref", "refs/remotes/origin/main", b_commit)
+    q_reference = implementation.AuthorityReference(
+        q_relative.as_posix(),
+        _sha256(q_payload),
+        q_commit,
+    )
+    r_reference = implementation.AuthorityReference(
+        r_relative.as_posix(),
+        _sha256(r_payload),
+        r_commit,
+    )
+    b_reference = implementation.AuthorityReference(
+        b_relative.as_posix(),
+        _sha256(b_payload),
+        b_commit,
+    )
+    qrb_specs = (
+        implementation.AuthorityCensusSpec(q_reference, "PINNED_SOURCE", None),
+        implementation.AuthorityCensusSpec(r_reference, "PINNED_SOURCE", None),
+        implementation.AuthorityCensusSpec(b_reference, "PINNED_SOURCE", None),
+    )
+    start = implementation._real_lineage_census(
+        repository,
+        execution_head=b_commit,
+        additional_references=(*live_specs, *qrb_specs),
+    )
+    authorization = implementation.BundleRecoveryAuthorization(
+        path=repository / r_relative,
+        payload=r_payload,
+        sha256=_sha256(r_payload),
+        creating_commit=r_commit,
+        authorization_id="synthetic-r",
+        sealed_series={},
+        execution_epoch={
+            "epoch": 8,
+            "implementation_commit": implementation_commit,
+            "real_lineage_census": baseline_reference,
+        },
+        destination={},
+        exact_argv=(),
+        command_sha256="0" * 64,
+        exact_environment={},
+        environment_sha256="0" * 64,
+        effect_authorization={},
+        interpreter={},
+        locks={},
+    )
+    owner_binding = implementation.RecoveryOwnerBinding(
+        path=repository / b_relative,
+        payload=b_payload,
+        sha256=_sha256(b_payload),
+        creating_commit=b_commit,
+        review_request=q_reference,
+        recovery_authorization=r_reference,
+        owner_confirmation={},
+    )
+    implementation._validate_recovery_qrb_census_delta(
+        repository,
+        authorization,
+        owner_binding,
+        start,
+    )
+
+    extra_reference = implementation.AuthorityReference(
+        extra_relative.as_posix(),
+        _sha256(extra_payload),
+        extra_commit,
+    )
+    start_with_extra = implementation._real_lineage_census(
+        repository,
+        execution_head=b_commit,
+        additional_references=(
+            *live_specs,
+            *qrb_specs,
+            implementation.AuthorityCensusSpec(extra_reference, "PINNED_SOURCE", None),
+        ),
+    )
+    with pytest.raises(
+        implementation.RehearsalV22Error,
+        match=r"start census changed a baseline row or omitted Q/R/B",
+    ):
+        implementation._validate_recovery_qrb_census_delta(
+            repository,
+            authorization,
+            owner_binding,
+            start_with_extra,
+        )
 
 
 def test_epoch_seven_unique_a_accepts_only_a_byte_identical_first_parent_projection(
@@ -4705,7 +5316,7 @@ def test_active_started_lease_cannot_forge_a_mirror_commit_capability(
     )
 
 
-def test_series_2_amendment_absence_facts_stay_false_while_epoch_seven_owns_recovery() -> None:
+def test_series_2_amendment_absence_facts_stay_false_while_epoch_eight_owns_recovery() -> None:
     implementation = importlib.import_module(IMPLEMENTATION_MODULE)
     source = (PROJECT_ROOT / IMPLEMENTATION_RELATIVE).read_text()
     amendment = json.loads(
@@ -7169,6 +7780,61 @@ def test_exact_os_read_only_preflight_validates_epoch_control_and_registered_byt
     assert _all_real_path_fingerprints() == before_real
 
 
+def test_epoch_eight_landing_cli_is_mode_exact_and_identity_census_precede_storage() -> None:
+    implementation = importlib.import_module(IMPLEMENTATION_MODULE)
+    parser = implementation._parser()
+    actions = {action.dest: action for action in parser._actions}
+    assert "landing_report" in actions
+    assert actions["landing_report"].default is None
+    with pytest.raises(SystemExit):
+        parser.parse_args(
+            [
+                "--preflight-only",
+                "--recover-sealed-bundle",
+                "--landing-report",
+                "/absolute/landing.json",
+            ]
+        )
+
+    run_source = inspect.getsource(implementation._run_cli)
+    assert run_source.count("arguments.landing_report") >= 4
+    assert run_source.count('"--landing-report"') == 2
+    preidentity_cli = run_source[: run_source.index("project_root = _main_project_root()")]
+    assert preidentity_cli.count("arguments.landing_report") >= 4
+    assert "v2.2 read-only preflight arguments are not exact" in preidentity_cli
+    assert "v2.2 recovered-mode arguments are not exact" in preidentity_cli
+    assert "v2.2 execution arguments are not exact" in preidentity_cli
+    assert "_derive_binding_unchecked(" not in preidentity_cli
+    assert "_read_only_storage_preflight(" not in preidentity_cli
+    assert run_source.index("if arguments.preflight_only is True:") < run_source.index(
+        "owner_surface_path ="
+    )
+    assert run_source.index("if arguments.recover_sealed_bundle is True") < run_source.index(
+        "binding = _derive_binding_unchecked("
+    )
+    assert run_source.rindex("if (") < run_source.rindex(
+        "binding = _derive_binding_unchecked("
+    )
+
+    preflight_source = inspect.getsource(implementation._read_only_implementation_preflight)
+    identity_and_census_tokens = (
+        "owner_surface = _authority_reference_for_path(",
+        "independent_review = _authority_reference_for_path(",
+        "landing_report = (",
+        "control = build_control_surface(",
+        "epoch = validate_implementation_epoch(",
+        "validate_epoch_8_recovery_contract(",
+        "merge_commit = _validate_epoch_8_landing_authority(",
+        "real_lineage_census = _real_lineage_census(",
+    )
+    positions = [preflight_source.index(token) for token in identity_and_census_tokens]
+    assert positions == sorted(positions)
+    storage_position = preflight_source.index("_read_only_storage_preflight(")
+    assert positions[-1] < storage_position
+    assert preflight_source.rindex("_real_lineage_census(") > storage_position
+    assert preflight_source.index("landing_report_path") < storage_position
+
+
 def test_exact_os_read_only_preflight_reports_every_current_control_drift(
     tmp_path: Path,
 ) -> None:
@@ -8615,7 +9281,7 @@ def test_bundle_publication_uses_one_kernel_noreplace_rename_and_parent_fsync() 
     )
 
 
-def test_epoch_seven_recovered_modes_bootstrap_before_storage_and_cannot_reach_active_graph() -> (
+def test_epoch_eight_recovered_modes_bootstrap_before_storage_and_cannot_reach_active_graph() -> (
     None
 ):
     implementation = importlib.import_module(IMPLEMENTATION_MODULE)
@@ -8712,7 +9378,7 @@ def test_epoch_seven_recovered_modes_bootstrap_before_storage_and_cannot_reach_a
     assert validator is not None
 
 
-def test_epoch_seven_historical_and_live_anchors_are_explicit_non_substitutable_types() -> None:
+def test_epoch_eight_historical_and_live_anchors_are_explicit_non_substitutable_types() -> None:
     implementation = importlib.import_module(IMPLEMENTATION_MODULE)
     historical_source = inspect.getsource(implementation._validate_sealed_recovery_inputs)
     live_source = inspect.getsource(implementation._live_execution_anchor_with_census)
@@ -8720,7 +9386,7 @@ def test_epoch_seven_historical_and_live_anchors_are_explicit_non_substitutable_
     assert "require_current=False" in historical_source
     assert "LiveExecutionAnchor(" in live_source
     assert "require_current=True" in live_source
-    assert "EPOCH_7_IMPLEMENTATION_EPOCH" in live_source
+    assert "EPOCH_8_IMPLEMENTATION_EPOCH" in live_source
     recovered_source = inspect.getsource(implementation._execute_authorized_bundle_recovery)
     for anchor_parameter in ("historical_anchor", "live_anchor"):
         assert anchor_parameter in recovered_source
@@ -8735,7 +9401,7 @@ def test_epoch_seven_historical_and_live_anchors_are_explicit_non_substitutable_
         assert "live_anchor or" not in entry_source
 
 
-def test_epoch_seven_claim_and_started_are_durable_before_rehydrate_or_bundle_build(
+def test_epoch_eight_claim_and_started_are_durable_before_rehydrate_or_bundle_build(
     tmp_path: Path,
 ) -> None:
     implementation = importlib.import_module(IMPLEMENTATION_MODULE)
@@ -8836,7 +9502,7 @@ def test_epoch_seven_claim_and_started_are_durable_before_rehydrate_or_bundle_bu
             )
 
 
-def test_epoch_seven_recovery_and_consume_work_is_bounded_by_registered_counters() -> None:
+def test_epoch_eight_recovery_and_consume_work_is_bounded_by_registered_counters() -> None:
     implementation = importlib.import_module(IMPLEMENTATION_MODULE)
     expected_fields = (
         "git_objects_read",
@@ -8945,7 +9611,7 @@ def test_epoch_seven_recovery_and_consume_work_is_bounded_by_registered_counters
         "extra",
     ),
 )
-def test_epoch_seven_recovery_work_bound_rejects_every_nonregistered_shape_or_value(
+def test_epoch_eight_recovery_work_bound_rejects_every_nonregistered_shape_or_value(
     mutation: str,
 ) -> None:
     implementation = importlib.import_module(IMPLEMENTATION_MODULE)
@@ -9020,6 +9686,7 @@ def test_cli_surface_and_disposable_only_started_checkpoint_are_exact() -> None:
         "implementation_commit",
         "owner_surface_authorization",
         "independent_implementation_review",
+        "landing_report",
         "bundle_recovery_authorization",
         "bundle_recovery_owner_confirmation_binding",
     }
@@ -9043,6 +9710,7 @@ def test_cli_surface_and_disposable_only_started_checkpoint_are_exact() -> None:
     assert actions["implementation_commit"].default is None
     assert actions["owner_surface_authorization"].default is None
     assert actions["independent_implementation_review"].default is None
+    assert actions["landing_report"].default is None
     assert actions["bundle_recovery_authorization"].default is None
     assert actions["bundle_recovery_owner_confirmation_binding"].default is None
     with pytest.raises(SystemExit):
