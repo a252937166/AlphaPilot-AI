@@ -66,6 +66,13 @@ AttemptOutcome = Literal[
     "CANDIDATE_VALIDATED_AND_SELECTED",
 ]
 ExecutionMode = Literal["REGISTERED_OFFICIAL", "DISPOSABLE_FULL_SHAPE_TEST"]
+AuthorityCensusRole = Literal[
+    "PINNED_SOURCE",
+    "PINNED_LANDING_PROJECTION",
+    "PINNED_SOURCE_WITH_DESCENDANT_GRAPH",
+    "DISCOVER_SOURCE_AFTER_PROJECTIONS",
+]
+FixedCarryForwardBinding = tuple[str, str, str, AuthorityCensusRole, str | None, int]
 
 
 class RehearsalV22Error(RuntimeError):
@@ -2107,6 +2114,175 @@ EPOCH_7_RECOVERY_STARTED_SCHEMA = "p4.2a-v2-2-series2-bundle-recovery-started-v1
 EPOCH_7_RECOVERY_TERMINAL_SCHEMA = "p4.2a-v2-2-series2-bundle-recovery-terminal-v1"
 EPOCH_7_RECOVERY_MIRROR_RECEIPT_SCHEMA = "p4.2a-v2-2-series2-bundle-recovery-mirror-receipt-v1"
 EPOCH_7_LINEAGE_CENSUS_SCHEMA = "p4.2a-v2-2-real-lineage-census-v1"
+EPOCH_8_DESIGN_PROPOSAL_RELATIVE = Path(
+    "docs/phase4/reports/"
+    "P4.2a-v2-2-series2-epoch8-preclaim-census-symmetry-design-proposal-20260901.md"
+)
+EPOCH_8_DESIGN_PROPOSAL_SHA256 = (
+    "0a0df03f853730e83b6963564035134538769c2e3db1ad07961379e3448a44b1"
+)
+EPOCH_8_DESIGN_PROPOSAL_BYTES = 30_343
+EPOCH_8_DESIGN_PROPOSAL_COMMIT = "45f486cb72a08e3520d863c86218c44ad1d5ce90"
+EPOCH_8_DESIGN_REVIEW_RELATIVE = Path(
+    "docs/phase4/reports/"
+    "P4.2a-v2-2-series2-epoch8-preclaim-census-symmetry-"
+    "independent-design-review-20260901.json"
+)
+EPOCH_8_DESIGN_REVIEW_SHA256 = (
+    "e1b494d9ab76c704745cf7fbd00ec14269faf8f0a919343cc5244fd187a194a6"
+)
+EPOCH_8_DESIGN_REVIEW_BYTES = 9_610
+EPOCH_8_DESIGN_REVIEW_COMMIT = "a1dff7a8b9d093404272e57fe30b6f1ddb575516"
+EPOCH_8_ADJUDICATION_RELATIVE = Path(
+    "docs/phase4/reports/"
+    "P4.2a-series2-epoch7-recovery-preclaim-refusal-and-epoch8-direction-20260901.json"
+)
+EPOCH_8_ADJUDICATION_SHA256 = (
+    "673d74ac6229f891fa517ec6dadf4cdd2c2093edf110c7c4c8a277d1b425252c"
+)
+EPOCH_8_ADJUDICATION_BYTES = 10_520
+EPOCH_8_ADJUDICATION_COMMIT = "87896e9b2c42d6110968876d21f3b0f3963d2ac7"
+EPOCH_8_COMPANION_RELATIVE = Path(
+    "docs/phase4/reports/P4.2a-series2-epoch8-companion-20260901.json"
+)
+EPOCH_8_COMPANION_SHA256 = "4d25ba645c81b3e0d6a3458a47d9e10c80b7cd61f9ad16a28404160af91226ed"
+EPOCH_8_COMPANION_BYTES = 53_282
+EPOCH_8_COMPANION_COMMIT = "a39c0263fefcfbdb1886100fec1b71ec374b43a4"
+EPOCH_8_SURFACE_AUTHORITY_RELATIVE = Path(
+    "docs/phase4/reports/P4.2a-v2-2-series2-epoch8-surface-authority-20260901.json"
+)
+EPOCH_8_SURFACE_AUTHORITY_SHA256 = (
+    "4547a2231c23a0fff96dced033028c279c4247c76130e79360e2ec602f8dd016"
+)
+EPOCH_8_SURFACE_AUTHORITY_BYTES = 726
+EPOCH_8_SURFACE_AUTHORITY_COMMIT = "73a703a422b5209115f5b244490db36e06b1f15d"
+EPOCH_8_RECOVERY_CONTRACT_SCHEMA = "p4.2a-v2-2-series2-epoch8-recovery-contract-v1"
+EPOCH_8_RECOVERY_CONTRACT_FIELDS = frozenset(
+    {
+        "schema_version",
+        "governing_adjudication",
+        "implementation_epoch",
+        "registered_preflight_contract",
+        "recovery_review_request_contract",
+        "recovery_authorization_contract",
+        "recovery_owner_binding_contract",
+        "recovery_claim_contract",
+        "bundle_mirror_receipt_contract",
+        "dual_byte_anchor_contract",
+        "unique_a_and_lineage_census_contract",
+        "protected_inputs_and_permitted_outputs",
+        "legacy_absence_and_locks",
+    }
+)
+EPOCH_8_RECOVERY_CONTRACT_CANONICAL_SHA256 = (
+    "36b1ae714faf2746f677e3c5aa452d2dc1822234dd10d687aa11d804ac606dbf"
+)
+EPOCH_8_IMPLEMENTATION_EPOCH = 8
+EPOCH_8_HISTORICAL_SELECTED_EPOCH = 6
+EPOCH_8_HISTORICAL_SELECTED_COMMIT = "e5aab9772793a7b0465f100cb48f99a1bc4e45dc"
+EPOCH_8_HISTORICAL_CONTROL_ROOT_SHA256 = (
+    "5948fd29a8c3f38399e6518699483f61094d577ae695bc7aa0b48c84e5b8829d"
+)
+EPOCH_8_SEALED_HISTORY_ROOT_SHA256 = (
+    "832559b59a8edc09c04b0f5a7c09cea71e5c3597c2bdc0831072a4122bf016e7"
+)
+EPOCH_8_SEALED_LIVE_LEDGER_ROOT_SHA256 = (
+    "ab08612ba2e11e45c3a3415ca7079117f2a739bf470719abf4f204958272574d"
+)
+EPOCH_8_SELECTED_EVIDENCE_ROOT_SHA256 = (
+    "eb44c7f3219e3f9ce92fbf17fd2da0e4b643ad0abc09f4008b2da1e35d426093"
+)
+EPOCH_8_SELECTED_CANDIDATE_CONTENT_ROOT_SHA256 = (
+    "520c371eeceac62ee7fb567d91bd6aba094e04f9bfa297108f8b850d72f45f2b"
+)
+EPOCH_8_SELECTED_RUN_ROOT_SHA256 = (
+    "5fb8edf3aa65cdcd0f54b82bdf6f240104fa8537c1004e640671910115f8f314"
+)
+EPOCH_8_SELECTED_STARTED_SHA256 = "4166a58d1c4b118d74ca402ef6f1635f98aab7cd0402dfda918e1e30bebd246c"
+EPOCH_8_SELECTED_CANDIDATE_SHA256 = (
+    "e1d67123469ce63739936b7db8a520f4f0cc8dda969455a7117246cda4485086"
+)
+EPOCH_8_SELECTED_TERMINAL_SHA256 = (
+    "3f41d80d63214af379bd8423ab7e0c61d6508ab19339f9bc7bf9a1d9ac4e0bf5"
+)
+EPOCH_8_SELECTED_STARTED_BYTES = 2_109
+EPOCH_8_SELECTED_CANDIDATE_BYTES = 833
+EPOCH_8_SELECTED_TERMINAL_BYTES = 12_206
+EPOCH_8_SELECTED_TERMINAL_INVENTORY_COUNT = 36
+EPOCH_8_SELECTED_TERMINAL_INVENTORY_BYTES = 50_213_329
+EPOCH_8_SELECTED_RUN_A_PROBE_SHA256 = (
+    "c53e94d513443399e2135c77fb6f556bc3359fb39f77ab0882755afe1a77628b"
+)
+EPOCH_8_SELECTED_RUN_B_PROBE_SHA256 = (
+    "7552c2a86515adae7206423429bf8fb61f5ca0a2038ceccf0734be447c5ded0b"
+)
+EPOCH_8_SELECTED_PROBE_BYTES = 1_273
+EPOCH_8_SEALED_MIRROR_RECEIPT_SHA256 = (
+    "b8da48fa759d7f5301dff63eed61c711d3fb01e2715fbc45ddd27a28545820f6"
+)
+EPOCH_8_SEALED_MIRROR_RECEIPT_BYTES = 1_222
+EPOCH_8_RECOVERY_REVIEW_REQUEST_SCHEMA = (
+    "p4.2a-v2-2-series2-sealed-bundle-recovery-review-request-v2"
+)
+EPOCH_8_RECOVERY_AUTHORIZATION_SCHEMA = (
+    "p4.2a-v2-2-series2-sealed-bundle-recovery-authorization-v1"
+)
+EPOCH_8_RECOVERY_OWNER_BINDING_SCHEMA = (
+    "p4.2a-v2-2-series2-sealed-bundle-recovery-owner-confirmation-binding-v1"
+)
+EPOCH_8_RECOVERY_STARTED_SCHEMA = "p4.2a-v2-2-series2-bundle-recovery-started-v1"
+EPOCH_8_RECOVERY_TERMINAL_SCHEMA = "p4.2a-v2-2-series2-bundle-recovery-terminal-v1"
+EPOCH_8_RECOVERY_MIRROR_RECEIPT_SCHEMA = (
+    "p4.2a-v2-2-series2-bundle-recovery-mirror-receipt-v1"
+)
+EPOCH_8_LINEAGE_CENSUS_SCHEMA = "p4.2a-v2-2-real-lineage-census-v1"
+EPOCH_8_READ_ONLY_PREFLIGHT_SCHEMA = "p4.2a-v2-2-read-only-implementation-preflight-v2"
+EPOCH_7_LIVE_REVIEW_CARRY_FORWARD: FixedCarryForwardBinding = (
+    "docs/phase4/reports/"
+    "P4.2a-v2-2-series2-epoch7-r2-implementation-independent-review-20260831.json",
+    "5712cc01f088ba96e9f199e60e327f171e24b23a4b6c1ca972d147bba75a208f",
+    "6f150a31336fbb06cfbe0c42507806025b42daaa",
+    "PINNED_LANDING_PROJECTION",
+    "6f150a31336fbb06cfbe0c42507806025b42daaa",
+    15_546,
+)
+EPOCH_7_LANDING_CARRY_FORWARD: FixedCarryForwardBinding = (
+    "docs/phase4/reports/"
+    "P4.2a-v2-2-series2-epoch7-r2-merge-landing-record-20260901.json",
+    "03ba42262592c67df605021ee4f2ec5dfc495301f28f7ceb2aa514697f010fb6",
+    "dcd749f4707f6b806249e842e1402d0c12df2fbf",
+    "PINNED_SOURCE",
+    None,
+    6_625,
+)
+EPOCH_7_REFUSED_Q_CARRY_FORWARD: FixedCarryForwardBinding = (
+    "docs/phase4/reports/"
+    "P4.2a-v2-2-series2-through-ordinal-000002-bundle-recovery-review-request-20260901.json",
+    "fbd9df2346090a4ac23a1957f7367103229316b38a3a3c76d2392657f0a2938f",
+    "f9743fdfce5d503c975a8fae3b32e95501b86db2",
+    "PINNED_SOURCE",
+    None,
+    55_722,
+)
+EPOCH_7_REFUSED_R_CARRY_FORWARD: FixedCarryForwardBinding = (
+    "docs/phase4/reports/"
+    "P4.2a-v2-2-series2-through-ordinal-000002-bundle-recovery-authorization-20260901.json",
+    "0eba7d27441e83547a0052d1fc184e9bee3df03dda447942cf351e765121d890",
+    "88de28884f33ec4beba2dd4c42880fdb9c9ae9a8",
+    "PINNED_SOURCE",
+    None,
+    9_272,
+)
+EPOCH_7_REFUSED_B_CARRY_FORWARD: FixedCarryForwardBinding = (
+    "docs/phase4/reports/"
+    "P4.2a-v2-2-series2-through-ordinal-000002-"
+    "bundle-recovery-owner-confirmation-binding-20260901.json",
+    "34b50becd377c65dc5ef17e83b7794be1c9800a0e263a653f30338dbdad29cc2",
+    "7b9aa18372410baa5d96bd9560fa10a2c6a3d8ac",
+    "PINNED_SOURCE",
+    None,
+    2_841,
+)
 RECOVERY_WORK_COUNTER_FIELDS = (
     "git_objects_read",
     "recursive_bytes_hashed",
@@ -2975,12 +3151,7 @@ class AuthorityReference:
 @dataclass(frozen=True)
 class AuthorityCensusSpec:
     reference: AuthorityReference
-    role: Literal[
-        "PINNED_SOURCE",
-        "PINNED_LANDING_PROJECTION",
-        "PINNED_SOURCE_WITH_DESCENDANT_GRAPH",
-        "DISCOVER_SOURCE_AFTER_PROJECTIONS",
-    ]
+    role: AuthorityCensusRole
     declared_landing_projection_commit: str | None
 
 
@@ -4719,6 +4890,58 @@ def _authority_census_registry(
                 "PINNED_SOURCE",
                 None,
             ),
+            AuthorityCensusSpec(
+                AuthorityReference(*EPOCH_7_LIVE_REVIEW_CARRY_FORWARD[:3]),
+                EPOCH_7_LIVE_REVIEW_CARRY_FORWARD[3],
+                EPOCH_7_LIVE_REVIEW_CARRY_FORWARD[4],
+            ),
+            AuthorityCensusSpec(
+                AuthorityReference(*EPOCH_7_LANDING_CARRY_FORWARD[:3]),
+                EPOCH_7_LANDING_CARRY_FORWARD[3],
+                EPOCH_7_LANDING_CARRY_FORWARD[4],
+            ),
+            AuthorityCensusSpec(
+                AuthorityReference(*EPOCH_7_REFUSED_Q_CARRY_FORWARD[:3]),
+                EPOCH_7_REFUSED_Q_CARRY_FORWARD[3],
+                EPOCH_7_REFUSED_Q_CARRY_FORWARD[4],
+            ),
+            AuthorityCensusSpec(
+                AuthorityReference(*EPOCH_7_REFUSED_R_CARRY_FORWARD[:3]),
+                EPOCH_7_REFUSED_R_CARRY_FORWARD[3],
+                EPOCH_7_REFUSED_R_CARRY_FORWARD[4],
+            ),
+            AuthorityCensusSpec(
+                AuthorityReference(*EPOCH_7_REFUSED_B_CARRY_FORWARD[:3]),
+                EPOCH_7_REFUSED_B_CARRY_FORWARD[3],
+                EPOCH_7_REFUSED_B_CARRY_FORWARD[4],
+            ),
+            AuthorityCensusSpec(
+                AuthorityReference(
+                    EPOCH_8_ADJUDICATION_RELATIVE.as_posix(),
+                    EPOCH_8_ADJUDICATION_SHA256,
+                    EPOCH_8_ADJUDICATION_COMMIT,
+                ),
+                "PINNED_SOURCE",
+                None,
+            ),
+            AuthorityCensusSpec(
+                AuthorityReference(
+                    EPOCH_8_COMPANION_RELATIVE.as_posix(),
+                    EPOCH_8_COMPANION_SHA256,
+                    EPOCH_8_COMPANION_COMMIT,
+                ),
+                "PINNED_SOURCE",
+                None,
+            ),
+            AuthorityCensusSpec(
+                AuthorityReference(
+                    EPOCH_8_SURFACE_AUTHORITY_RELATIVE.as_posix(),
+                    EPOCH_8_SURFACE_AUTHORITY_SHA256,
+                    EPOCH_8_SURFACE_AUTHORITY_COMMIT,
+                ),
+                "PINNED_SOURCE",
+                None,
+            ),
         )
     )
     entries.extend(
@@ -4783,7 +5006,7 @@ def _real_lineage_census(
         raise RehearsalV22Error("Git refs changed during the real-lineage census")
     projection_count = sum(cast(int, row["projection_count"]) for row in rows)
     return {
-        "schema_version": EPOCH_7_LINEAGE_CENSUS_SCHEMA,
+        "schema_version": EPOCH_8_LINEAGE_CENSUS_SCHEMA,
         "execution_head": _git_commit(
             root,
             execution_head,
@@ -5046,7 +5269,7 @@ def validate_epoch_7_recovery_contract(
 
     _exact_contract_string_sequence(
         q.get("exact_top_level_fields"),
-        RECOVERY_REVIEW_REQUEST_FIELD_ORDER,
+        EPOCH_7_RECOVERY_REVIEW_REQUEST_FIELD_ORDER,
         "epoch-7 Q top-level fields",
     )
     _exact_contract_string_sequence(
@@ -5450,6 +5673,509 @@ def validate_epoch_7_recovery_contract(
             "PINNED_SOURCE",
             None,
         ),
+        execution_head=execution_head,
+    )
+    return contract
+
+
+def validate_epoch_8_recovery_contract(
+    project_root: Path,
+    *,
+    execution_head: str,
+) -> JsonObject:
+    """Validate the owner-issued epoch-8 contract without reusing epoch-7 authority."""
+
+    root = project_root.absolute()
+    proposal = AuthorityReference(
+        EPOCH_8_DESIGN_PROPOSAL_RELATIVE.as_posix(),
+        EPOCH_8_DESIGN_PROPOSAL_SHA256,
+        EPOCH_8_DESIGN_PROPOSAL_COMMIT,
+    )
+    design_review = AuthorityReference(
+        EPOCH_8_DESIGN_REVIEW_RELATIVE.as_posix(),
+        EPOCH_8_DESIGN_REVIEW_SHA256,
+        EPOCH_8_DESIGN_REVIEW_COMMIT,
+    )
+    adjudication = AuthorityReference(
+        EPOCH_8_ADJUDICATION_RELATIVE.as_posix(),
+        EPOCH_8_ADJUDICATION_SHA256,
+        EPOCH_8_ADJUDICATION_COMMIT,
+    )
+    companion = AuthorityReference(
+        EPOCH_8_COMPANION_RELATIVE.as_posix(),
+        EPOCH_8_COMPANION_SHA256,
+        EPOCH_8_COMPANION_COMMIT,
+    )
+    surface_authority = AuthorityReference(
+        EPOCH_8_SURFACE_AUTHORITY_RELATIVE.as_posix(),
+        EPOCH_8_SURFACE_AUTHORITY_SHA256,
+        EPOCH_8_SURFACE_AUTHORITY_COMMIT,
+    )
+    governance = (
+        (proposal, EPOCH_8_DESIGN_PROPOSAL_BYTES, "epoch-8 design proposal"),
+        (design_review, EPOCH_8_DESIGN_REVIEW_BYTES, "epoch-8 independent design review"),
+        (adjudication, EPOCH_8_ADJUDICATION_BYTES, "epoch-8 governing adjudication"),
+        (companion, EPOCH_8_COMPANION_BYTES, "epoch-8 recovery companion"),
+        (surface_authority, EPOCH_8_SURFACE_AUTHORITY_BYTES, "epoch-8 surface authority"),
+    )
+    payloads: dict[str, bytes] = {}
+    for reference, expected_bytes, label in governance:
+        payload = validate_unique_a_authority(
+            root,
+            reference,
+            execution_head=execution_head,
+        )
+        if len(payload) != expected_bytes:
+            raise RehearsalV22Error(f"{label} byte count drifted")
+        payloads[reference.path] = payload
+    if (
+        _git_parents_epoch_7(root, EPOCH_8_DESIGN_PROPOSAL_COMMIT)
+        != (EPOCH_7_REFUSED_B_CARRY_FORWARD[2],)
+        or _git_parents_epoch_7(root, EPOCH_8_DESIGN_REVIEW_COMMIT)
+        != (EPOCH_8_DESIGN_PROPOSAL_COMMIT,)
+        or _git_parents_epoch_7(root, EPOCH_8_ADJUDICATION_COMMIT)
+        != (EPOCH_8_DESIGN_REVIEW_COMMIT,)
+        or _git_parents_epoch_7(root, EPOCH_8_COMPANION_COMMIT)
+        != (EPOCH_8_ADJUDICATION_COMMIT,)
+        or _git_parents_epoch_7(root, EPOCH_8_SURFACE_AUTHORITY_COMMIT)
+        != (EPOCH_8_COMPANION_COMMIT,)
+    ):
+        raise RehearsalV22Error("epoch-8 governance is not the exact linear authority chain")
+
+    design_review_document = _object(
+        strict_json_loads(
+            payloads[design_review.path],
+            source="epoch-8 independent design review",
+        ),
+        "epoch-8 independent design review",
+    )
+    adjudication_document = _object(
+        strict_json_loads(
+            payloads[adjudication.path],
+            source="epoch-8 governing adjudication",
+        ),
+        "epoch-8 governing adjudication",
+    )
+    if (
+        design_review_document.get("verdict") != "PASS_DESIGN_REVIEW_ONLY"
+        or _object(
+            adjudication_document.get("part_1_incident_adjudicated"),
+            "epoch-8 adjudicated incident",
+        ).get("verdict")
+        != "VALID_NON_CONSUMING_PRECLAIM_REFUSAL"
+    ):
+        raise RehearsalV22Error("epoch-8 design review or incident adjudication drifted")
+
+    companion_document = _object(
+        strict_json_loads(
+            payloads[companion.path],
+            source="epoch-8 recovery companion",
+        ),
+        "epoch-8 recovery companion",
+    )
+    reviewed = _object(
+        companion_document.get("part_1_design_reviewed"),
+        "epoch-8 design review binding",
+    )
+    owner = _object(
+        companion_document.get("part_2_owner_approval"),
+        "epoch-8 owner approval binding",
+    )
+    contract = _object(
+        companion_document.get("epoch_8_recovery_contract"),
+        "epoch-8 recovery contract",
+    )
+    expected_surface = [
+        {"path": relative.as_posix(), "status": "M"}
+        for relative in sorted(
+            (
+                IMPLEMENTATION_RELATIVE,
+                VALIDATOR_RELATIVE,
+                RUNNER_TEST_RELATIVE,
+                VALIDATOR_TEST_RELATIVE,
+            ),
+            key=lambda value: value.as_posix().encode("utf-8"),
+        )
+    ]
+    if (
+        reviewed.get("verdict") != "PASS_DESIGN_REVIEW"
+        or owner.get("accepted_owner_decision_count") != 12
+        or owner.get("rejected_owner_decision_count") != 0
+        or owner.get("future_surface_limit") != expected_surface
+        or set(contract) != EPOCH_8_RECOVERY_CONTRACT_FIELDS
+        or contract.get("schema_version") != EPOCH_8_RECOVERY_CONTRACT_SCHEMA
+        or contract.get("implementation_epoch") != EPOCH_8_IMPLEMENTATION_EPOCH
+        or _sha256(_canonical_json_bytes(contract))
+        != EPOCH_8_RECOVERY_CONTRACT_CANONICAL_SHA256
+    ):
+        raise RehearsalV22Error("epoch-8 recovery contract or approved surface drifted")
+
+    expected_reviewed_references = {
+        "proposal": (
+            proposal,
+            EPOCH_8_DESIGN_PROPOSAL_BYTES,
+        ),
+        "independent_review": (
+            design_review,
+            EPOCH_8_DESIGN_REVIEW_BYTES,
+        ),
+        "governing_adjudication": (
+            adjudication,
+            EPOCH_8_ADJUDICATION_BYTES,
+        ),
+    }
+    for key, (reference, expected_bytes) in expected_reviewed_references.items():
+        observed = _object(reviewed.get(key), f"epoch-8 {key} binding")
+        if (
+            observed.get("path") != reference.path
+            or observed.get("sha256") != reference.sha256
+            or observed.get("creating_commit") != reference.creating_commit
+            or observed.get("bytes") != expected_bytes
+            or observed.get("unique_a_history_verified") is not True
+        ):
+            raise RehearsalV22Error(f"epoch-8 {key} binding drifted")
+
+    governing = _exact_contract_object(
+        contract.get("governing_adjudication"),
+        frozenset({"path", "sha256", "creating_commit", "unique_a_history_verified"}),
+        "epoch-8 governing adjudication",
+    )
+    if governing != adjudication.as_json():
+        raise RehearsalV22Error("epoch-8 governing adjudication contract drifted")
+
+    preflight = _exact_contract_object(
+        contract.get("registered_preflight_contract"),
+        frozenset(
+            {
+                "schema_version",
+                "exact_top_level_fields",
+                "nested_exact_field_sets",
+                "cli_contract",
+                "landing_authority_contract",
+                "baseline_contract",
+                "fixed_values",
+                "rules",
+            }
+        ),
+        "epoch-8 registered preflight contract",
+    )
+    q = _exact_contract_object(
+        contract.get("recovery_review_request_contract"),
+        frozenset(
+            {
+                "schema_version",
+                "path_pattern",
+                "topology",
+                "exact_top_level_fields",
+                "status_value",
+                "nested_exact_field_sets",
+                "rules",
+            }
+        ),
+        "epoch-8 recovery Q contract",
+    )
+    r = _exact_contract_object(
+        contract.get("recovery_authorization_contract"),
+        frozenset(
+            {
+                "schema_version",
+                "path_pattern",
+                "topology",
+                "exact_top_level_fields",
+                "verdict_value",
+                "counters",
+                "nested_exact_field_sets",
+                "effect_authorization_exact",
+                "fixed_values",
+            }
+        ),
+        "epoch-8 recovery R contract",
+    )
+    b = _exact_contract_object(
+        contract.get("recovery_owner_binding_contract"),
+        frozenset(
+            {
+                "schema_version",
+                "path_pattern",
+                "topology",
+                "exact_top_level_fields",
+                "nested_exact_field_sets",
+                "fixed_values",
+                "cli_operations",
+                "bootstrap_order",
+            }
+        ),
+        "epoch-8 recovery B contract",
+    )
+    claim = _exact_contract_object(
+        contract.get("recovery_claim_contract"),
+        frozenset(
+            {
+                "claim_name",
+                "linearization",
+                "started_schema_version",
+                "started_exact_fields",
+                "terminal_schema_version",
+                "terminal_exact_fields",
+                "outcomes",
+                "crash_states",
+            }
+        ),
+        "epoch-8 recovery claim contract",
+    )
+    receipt = _exact_contract_object(
+        contract.get("bundle_mirror_receipt_contract"),
+        frozenset({"schema_version", "exact_fields", "filename_pattern", "rules"}),
+        "epoch-8 recovery receipt contract",
+    )
+    anchors = _exact_contract_object(
+        contract.get("dual_byte_anchor_contract"),
+        frozenset(
+            {
+                "historical_selected_anchor",
+                "live_execution_anchor",
+                "mode_enum",
+                "recovered_publication_capability_exact_fields",
+                "capability_required_values",
+                "hook_disposition_authority",
+                "release_truth_condition",
+                "no_fallback",
+            }
+        ),
+        "epoch-8 dual-anchor contract",
+    )
+    census = _exact_contract_object(
+        contract.get("unique_a_and_lineage_census_contract"),
+        frozenset(
+            {
+                "roles",
+                "scanner_role_map",
+                "projection_criteria",
+                "rules",
+                "census_schema_version",
+                "census_exact_fields",
+                "row_exact_fields",
+                "touch_exact_fields",
+                "timing",
+                "fixed_carry_forward_row_fields",
+                "fixed_carry_forward_rows",
+                "baseline_and_start_contract",
+            }
+        ),
+        "epoch-8 lineage census contract",
+    )
+    protected = _exact_contract_object(
+        contract.get("protected_inputs_and_permitted_outputs"),
+        frozenset(
+            {
+                "read_only_inputs",
+                "permitted_recovery_writes",
+                "recovery_containers",
+                "container_rules",
+                "consume_mode_effects",
+                "forbidden_calls",
+                "sealed_input_invariance",
+            }
+        ),
+        "epoch-8 protected-input contract",
+    )
+    legacy = _exact_contract_object(
+        contract.get("legacy_absence_and_locks"),
+        frozenset(
+            {"amendment_time_facts_permanently_false", "disclosure_rule", "epoch_table", "locks"}
+        ),
+        "epoch-8 legacy locks",
+    )
+
+    _exact_contract_string_sequence(
+        preflight.get("exact_top_level_fields"),
+        EPOCH_8_READ_ONLY_PREFLIGHT_FIELD_ORDER,
+        "epoch-8 preflight top-level fields",
+    )
+    _exact_contract_string_sequence(
+        q.get("exact_top_level_fields"),
+        RECOVERY_REVIEW_REQUEST_FIELD_ORDER,
+        "epoch-8 Q top-level fields",
+    )
+    _exact_contract_string_sequence(
+        r.get("exact_top_level_fields"),
+        RECOVERY_AUTHORIZATION_FIELD_ORDER,
+        "epoch-8 R top-level fields",
+    )
+    _exact_contract_string_sequence(
+        b.get("exact_top_level_fields"),
+        RECOVERY_OWNER_BINDING_FIELD_ORDER,
+        "epoch-8 B top-level fields",
+    )
+    _exact_contract_string_sequence(
+        claim.get("started_exact_fields"),
+        RECOVERY_STARTED_FIELD_ORDER,
+        "epoch-8 started fields",
+    )
+    _exact_contract_string_sequence(
+        claim.get("terminal_exact_fields"),
+        RECOVERY_TERMINAL_FIELD_ORDER,
+        "epoch-8 terminal fields",
+    )
+    _exact_contract_string_sequence(
+        receipt.get("exact_fields"),
+        RECOVERY_MIRROR_RECEIPT_FIELD_ORDER,
+        "epoch-8 receipt fields",
+    )
+    _exact_contract_string_sequence(
+        anchors.get("recovered_publication_capability_exact_fields"),
+        RECOVERED_PUBLICATION_CAPABILITY_FIELD_ORDER,
+        "epoch-8 recovered-publication fields",
+    )
+    _exact_contract_string_sequence(
+        census.get("census_exact_fields"),
+        RECOVERY_CENSUS_FIELD_ORDER,
+        "epoch-8 census fields",
+    )
+    _exact_contract_string_sequence(
+        census.get("row_exact_fields"),
+        RECOVERY_CENSUS_ROW_FIELD_ORDER,
+        "epoch-8 census row fields",
+    )
+    _exact_contract_string_sequence(
+        census.get("touch_exact_fields"),
+        RECOVERY_CENSUS_TOUCH_FIELD_ORDER,
+        "epoch-8 census touch fields",
+    )
+
+    q_nested = _object(q.get("nested_exact_field_sets"), "epoch-8 Q nested fields")
+    landed_fields = (
+        "epoch",
+        "implementation_commit",
+        "owner_exact_surface_authorization",
+        "independent_implementation_review",
+        "merge_commit",
+        "landing_report",
+        "control_merkle_root_sha256",
+        "control_record_count",
+    )
+    if "landed_epoch_7" in q_nested or set(q_nested) != {
+        "requester",
+        "landed_execution_epoch",
+        "registered_read_only_recovery_preflight",
+        "preflight_before_after_equality",
+        "proposed_recovery_authorization",
+        "requested_owner_action_time_confirmation",
+        "post_confirmation_plan_not_yet_executed",
+        "current_locks",
+    }:
+        raise RehearsalV22Error("epoch-8 Q nested field registry drifted")
+    _exact_contract_string_sequence(
+        q_nested.get("landed_execution_epoch"),
+        landed_fields,
+        "epoch-8 landed execution epoch fields",
+    )
+    preflight_nested = _object(
+        preflight.get("nested_exact_field_sets"),
+        "epoch-8 preflight nested fields",
+    )
+    if (
+        preflight.get("schema_version") != EPOCH_8_READ_ONLY_PREFLIGHT_SCHEMA
+        or q.get("schema_version") != EPOCH_8_RECOVERY_REVIEW_REQUEST_SCHEMA
+        or r.get("schema_version") != EPOCH_8_RECOVERY_AUTHORIZATION_SCHEMA
+        or b.get("schema_version") != EPOCH_8_RECOVERY_OWNER_BINDING_SCHEMA
+        or claim.get("started_schema_version") != EPOCH_8_RECOVERY_STARTED_SCHEMA
+        or claim.get("terminal_schema_version") != EPOCH_8_RECOVERY_TERMINAL_SCHEMA
+        or receipt.get("schema_version") != EPOCH_8_RECOVERY_MIRROR_RECEIPT_SCHEMA
+        or "registered_recovery_storage" not in preflight_nested
+        or "epoch_7_recovery_storage" in preflight_nested
+    ):
+        raise RehearsalV22Error("epoch-8 exact schema set drifted")
+
+    expected_carry_forward_rows = []
+    for path, digest, commit, role, projection, size in (
+        EPOCH_7_LIVE_REVIEW_CARRY_FORWARD,
+        EPOCH_7_LANDING_CARRY_FORWARD,
+        EPOCH_7_REFUSED_Q_CARRY_FORWARD,
+        EPOCH_7_REFUSED_R_CARRY_FORWARD,
+        EPOCH_7_REFUSED_B_CARRY_FORWARD,
+        (
+            EPOCH_8_ADJUDICATION_RELATIVE.as_posix(),
+            EPOCH_8_ADJUDICATION_SHA256,
+            EPOCH_8_ADJUDICATION_COMMIT,
+            "PINNED_SOURCE",
+            None,
+            EPOCH_8_ADJUDICATION_BYTES,
+        ),
+    ):
+        expected_carry_forward_rows.append(
+            {
+                "path": path,
+                "sha256": digest,
+                "bytes": size,
+                "creating_commit": commit,
+                "role": role,
+                "declared_landing_projection_commit": projection,
+            }
+        )
+    if (
+        census.get("fixed_carry_forward_rows") != expected_carry_forward_rows
+        or census.get("census_schema_version") != EPOCH_8_LINEAGE_CENSUS_SCHEMA
+        or census.get("roles")
+        != [
+            "PINNED_SOURCE",
+            "PINNED_LANDING_PROJECTION",
+            "PINNED_SOURCE_WITH_DESCENDANT_GRAPH",
+            "DISCOVER_SOURCE_AFTER_PROJECTIONS",
+        ]
+        or protected.get("recovery_containers")
+        != [
+            OFFICIAL_PRIMARY_RECOVERY_CONTAINER.as_posix(),
+            OFFICIAL_SECONDARY_RECOVERY_CONTAINER.as_posix(),
+        ]
+        or anchors.get("mode_enum")
+        != ["ACTIVE_ATTEMPT_BUNDLE", "PASSIVE_RECOVERED_BUNDLE", "PASSIVE_RECOVERED_RELEASE"]
+        or legacy.get("amendment_time_facts_permanently_false")
+        != [
+            "official_series_2_bundle_emits_void_epoch_1",
+            "void_epoch_3_added",
+            "two_four_exception_added",
+            "sealed_bundle_recovery_added",
+            "recover_sealed_bundle_cli_added",
+            "consume_recovered_release_cli_added",
+        ]
+    ):
+        raise RehearsalV22Error("epoch-8 carry-forward, anchor, or legacy contract drifted")
+
+    authority_payload = payloads[surface_authority.path]
+    authority_document = _object(
+        strict_json_loads(authority_payload, source="epoch-8 surface authority"),
+        "epoch-8 surface authority",
+    )
+    if (
+        set(authority_document)
+        != {
+            "schema_version",
+            "verdict",
+            "owner",
+            "implementation_epoch",
+            "base_commit",
+            "exact_surface",
+        }
+        or authority_document.get("schema_version")
+        != "p4.2a-v2-2-implementation-epoch-surface-authorization-v1"
+        or authority_document.get("verdict")
+        != "APPROVE_EXACT_V2_2_IMPLEMENTATION_EPOCH_SURFACE"
+        or authority_document.get("implementation_epoch") != EPOCH_8_IMPLEMENTATION_EPOCH
+        or authority_document.get("base_commit") != EPOCH_8_COMPANION_COMMIT
+        or authority_document.get("exact_surface") != expected_surface
+        or _object(authority_document.get("owner"), "epoch-8 surface authority owner")
+        != {"identity": "ouyang", "approved": True}
+    ):
+        raise RehearsalV22Error("epoch-8 surface authority bytes or semantics drifted")
+    _classify_unique_a_lineage(
+        root,
+        AuthorityCensusSpec(companion, "PINNED_SOURCE", None),
+        execution_head=execution_head,
+    )
+    _classify_unique_a_lineage(
+        root,
+        AuthorityCensusSpec(surface_authority, "PINNED_SOURCE", None),
         execution_head=execution_head,
     )
     return contract
@@ -6434,7 +7160,7 @@ def _later_epoch_surface(
     return payload
 
 
-def _document_mentions_commit(value: object, commit: str) -> bool:
+def _document_mentions_commit(value: object, commit: object) -> bool:
     if value == commit:
         return True
     if isinstance(value, Mapping):
@@ -6442,6 +7168,106 @@ def _document_mentions_commit(value: object, commit: str) -> bool:
     if isinstance(value, list):
         return any(_document_mentions_commit(item, commit) for item in value)
     return False
+
+
+def _validate_epoch_8_landing_document_bindings(
+    document: Mapping[str, Any],
+    *,
+    implementation_commit: str,
+    owner: AuthorityReference,
+    review: AuthorityReference,
+    merge_commit: str,
+    merge_parents: Sequence[str],
+    control_root: str,
+    control_count: int,
+) -> None:
+    """Reject semantic landing-field drift hidden by duplicate values elsewhere."""
+
+    topology_value = document.get("topology")
+    if "topology" in document and not isinstance(topology_value, Mapping):
+        raise RehearsalV22Error(
+            "epoch-8 review/merge/landing topology or binding drifted"
+        )
+    topology = cast(Mapping[str, Any] | None, topology_value)
+
+    implementation_declarations: list[object] = []
+    merge_declarations: list[object] = []
+    parent_declarations: list[object] = []
+    if "implementation_commit" in document:
+        implementation_declarations.append(document["implementation_commit"])
+    if "merge_commit" in document:
+        merge_declarations.append(document["merge_commit"])
+    if "merge_parents" in document:
+        parent_declarations.append(document["merge_parents"])
+    if topology is not None:
+        if "candidate_commit" in topology:
+            implementation_declarations.append(topology["candidate_commit"])
+        if "merge_commit" in topology:
+            merge_declarations.append(topology["merge_commit"])
+        if "merge_ordered_parents" in topology:
+            parent_declarations.append(topology["merge_ordered_parents"])
+
+    expected_parents = list(merge_parents)
+    if (
+        len(expected_parents) != 2
+        or not implementation_declarations
+        or any(value != implementation_commit for value in implementation_declarations)
+        or not merge_declarations
+        or any(value != merge_commit for value in merge_declarations)
+        or not parent_declarations
+        or any(value != expected_parents for value in parent_declarations)
+    ):
+        raise RehearsalV22Error(
+            "epoch-8 review/merge/landing topology or binding drifted"
+        )
+
+    required_root_bindings: tuple[tuple[str, object], ...] = (
+        ("owner_exact_surface_authorization", owner.as_json()),
+        ("independent_implementation_review", review.as_json()),
+        ("control_merkle_root_sha256", control_root),
+    )
+    if any(
+        key not in document or document[key] != expected
+        for key, expected in required_root_bindings
+    ):
+        raise RehearsalV22Error(
+            "epoch-8 review/merge/landing topology or binding drifted"
+        )
+    if (
+        type(document.get("implementation_epoch")) is not int
+        or document["implementation_epoch"] != 8
+    ):
+        raise RehearsalV22Error(
+            "epoch-8 review/merge/landing topology or binding drifted"
+        )
+    if (
+        type(control_count) is not int
+        or type(document.get("control_record_count")) is not int
+        or document["control_record_count"] != control_count
+    ):
+        raise RehearsalV22Error(
+            "epoch-8 review/merge/landing topology or binding drifted"
+        )
+    if (
+        "independent_review_projection_commit" in document
+        and document["independent_review_projection_commit"] != merge_commit
+    ):
+        raise RehearsalV22Error(
+            "epoch-8 review/merge/landing topology or binding drifted"
+        )
+    if topology is not None and (
+        (
+            "independent_review_source_commit" in topology
+            and topology["independent_review_source_commit"] != expected_parents[1]
+        )
+        or (
+            "independent_review_source_parent" in topology
+            and topology["independent_review_source_parent"] != implementation_commit
+        )
+    ):
+        raise RehearsalV22Error(
+            "epoch-8 review/merge/landing topology or binding drifted"
+        )
 
 
 def validate_implementation_epoch(
@@ -6871,7 +7697,7 @@ RECOVERY_REVIEW_REQUEST_FIELDS = frozenset(
         "created_at_shanghai",
         "status",
         "requester",
-        "landed_epoch_7",
+        "landed_execution_epoch",
         "registered_read_only_recovery_preflight",
         "preflight_before_after_equality",
         "proposed_recovery_authorization",
@@ -6879,6 +7705,9 @@ RECOVERY_REVIEW_REQUEST_FIELDS = frozenset(
         "post_confirmation_plan_not_yet_executed",
         "current_locks",
     }
+)
+EPOCH_7_RECOVERY_REVIEW_REQUEST_FIELDS = frozenset(
+    (RECOVERY_REVIEW_REQUEST_FIELDS - {"landed_execution_epoch"}) | {"landed_epoch_7"}
 )
 RECOVERY_AUTHORIZATION_FIELDS = frozenset(
     {
@@ -7134,13 +7963,35 @@ RECOVERY_REVIEW_REQUEST_FIELD_ORDER = (
     "created_at_shanghai",
     "status",
     "requester",
-    "landed_epoch_7",
+    "landed_execution_epoch",
     "registered_read_only_recovery_preflight",
     "preflight_before_after_equality",
     "proposed_recovery_authorization",
     "requested_owner_action_time_confirmation",
     "post_confirmation_plan_not_yet_executed",
     "current_locks",
+)
+EPOCH_7_RECOVERY_REVIEW_REQUEST_FIELD_ORDER = tuple(
+    "landed_epoch_7" if field == "landed_execution_epoch" else field
+    for field in RECOVERY_REVIEW_REQUEST_FIELD_ORDER
+)
+EPOCH_8_READ_ONLY_PREFLIGHT_FIELD_ORDER = (
+    "schema_version",
+    "status",
+    "mode",
+    "execution_head",
+    "implementation_epoch",
+    "implementation_commit",
+    "owner_exact_surface_authorization",
+    "independent_implementation_review",
+    "control_merkle_root_sha256",
+    "control_record_count",
+    "registered_surface",
+    "series_2_registered_storage",
+    "real_lineage_census",
+    "registered_recovery_storage",
+    "sealed_recovery_inputs",
+    "effect_summary",
 )
 RECOVERY_AUTHORIZATION_FIELD_ORDER = (
     "schema_version",
@@ -9913,6 +10764,340 @@ def _validate_recovery_timestamp_pair(
     return utc_value, shanghai_value
 
 
+def _validate_embedded_storage_directory_evidence(
+    value: object,
+    *,
+    expected_path: Path,
+    label: str,
+) -> JsonObject:
+    """Validate recorded directory identity without observing the directory yet."""
+
+    evidence = _exact_contract_object(
+        value,
+        frozenset(
+            {
+                "path",
+                "owner_uid",
+                "device",
+                "inode",
+                "mode_octal",
+                "non_symlink",
+                "canonical_unaliased",
+            }
+        ),
+        label,
+    )
+    if (
+        evidence.get("path") != expected_path.as_posix()
+        or type(evidence.get("owner_uid")) is not int
+        or evidence.get("owner_uid") != os.getuid()
+        or type(evidence.get("device")) is not int
+        or cast(int, evidence.get("device")) < 0
+        or type(evidence.get("inode")) is not int
+        or cast(int, evidence.get("inode")) <= 0
+        or evidence.get("mode_octal") != "0700"
+        or evidence.get("non_symlink") is not True
+        or evidence.get("canonical_unaliased") is not True
+    ):
+        raise RehearsalV22Error(f"{label} identity semantics drifted")
+    return evidence
+
+
+def _validate_epoch_8_embedded_preflight_semantics(
+    binding: ExecutionBinding,
+    authorization: BundleRecoveryAuthorization,
+    stdout_document: Mapping[str, Any],
+    *,
+    execution_landing: AuthorityReference,
+) -> tuple[JsonObject, JsonObject | None, JsonObject]:
+    """Validate the complete Q-embedded preflight before live storage is read."""
+
+    root = binding.project_root.absolute()
+    expected_mode = (
+        "REGISTERED_OFFICIAL"
+        if binding.mode == "REGISTERED_OFFICIAL"
+        else "NONREGISTERED_READ_ONLY_TEST"
+    )
+    if (
+        stdout_document.get("execution_head") != execution_landing.creating_commit
+        or stdout_document.get("mode") != expected_mode
+        or (
+            binding.mode == "REGISTERED_OFFICIAL"
+            and root != REGISTERED_PROJECT_ROOT
+        )
+        or (
+            binding.mode == "DISPOSABLE_FULL_SHAPE_TEST"
+            and root == REGISTERED_PROJECT_ROOT
+        )
+    ):
+        raise RehearsalV22Error("Q preflight execution-head or root classification drifted")
+
+    implementation_commit = cast(
+        str,
+        authorization.execution_epoch.get("implementation_commit"),
+    )
+    registered_surface = _array(
+        stdout_document.get("registered_surface"),
+        "bundle recovery Q registered surface",
+    )
+    expected_surface = [
+        {
+            "path": relative.as_posix(),
+            "sha256": _sha256(
+                _git_blob(root, implementation_commit, relative.as_posix())
+            ),
+        }
+        for relative in IMPLEMENTATION_SURFACE
+    ]
+    if registered_surface != expected_surface or any(
+        set(_object(row, "bundle recovery Q registered surface row"))
+        != {"path", "sha256"}
+        for row in registered_surface
+    ):
+        raise RehearsalV22Error("Q preflight registered surface drifted")
+
+    sealed = _object(authorization.sealed_series, "bundle recovery sealed series")
+    sealed_mirror = _exact_contract_object(
+        sealed.get("sealed_mirror"),
+        frozenset(
+            {
+                "snapshot_count",
+                "receipt_count",
+                "latest_ordinal",
+                "latest_snapshot_path",
+                "primary_receipt_path",
+                "secondary_receipt_path",
+                "receipt_sha256",
+                "receipt_bytes",
+                "inventory_sha256",
+                "file_count",
+                "total_bytes",
+                "paired_receipts_byte_identical",
+            }
+        ),
+        "bundle recovery sealed mirror",
+    )
+    series_storage = _exact_contract_object(
+        stdout_document.get("series_2_registered_storage"),
+        frozenset(
+            {
+                "primary_container",
+                "secondary_container",
+                "containers_non_overlapping",
+                "storage_state",
+                "registered_leaf_state",
+                "mirrored_history",
+                "bundle_destination_absent",
+                "lost_series_ledger_absent",
+                "retired_v2_1_claim_absent",
+                "paths_created",
+            }
+        ),
+        "bundle recovery Q series-2 registered storage",
+    )
+    _validate_embedded_storage_directory_evidence(
+        series_storage.get("primary_container"),
+        expected_path=binding.primary_series_container,
+        label="bundle recovery Q primary series container",
+    )
+    _validate_embedded_storage_directory_evidence(
+        series_storage.get("secondary_container"),
+        expected_path=binding.secondary_series_container,
+        label="bundle recovery Q secondary series container",
+    )
+    leaf_state = _exact_contract_object(
+        series_storage.get("registered_leaf_state"),
+        frozenset(
+            {
+                "primary_ledger",
+                "primary_receipts",
+                "secondary_snapshots",
+                "secondary_receipts",
+            }
+        ),
+        "bundle recovery Q registered leaf state",
+    )
+    mirrored_history = _exact_contract_object(
+        series_storage.get("mirrored_history"),
+        frozenset(
+            {
+                "attempt_count",
+                "history_root_sha256",
+                "live_ledger_root_sha256",
+                "receipt_count",
+                "series_closed",
+            }
+        ),
+        "bundle recovery Q mirrored history",
+    )
+    if (
+        series_storage.get("containers_non_overlapping") is not True
+        or series_storage.get("storage_state") != "EXISTING_FULLY_MIRRORED"
+        or any(value != "PRESENT_VERIFIED" for value in leaf_state.values())
+        or mirrored_history
+        != {
+            "attempt_count": sealed.get("started_count"),
+            "history_root_sha256": sealed.get("history_root_sha256"),
+            "live_ledger_root_sha256": sealed.get("live_ledger_root_sha256"),
+            "receipt_count": sealed_mirror.get("receipt_count"),
+            "series_closed": sealed.get("series_closed"),
+        }
+        or series_storage.get("bundle_destination_absent") is not True
+        or series_storage.get("lost_series_ledger_absent") is not True
+        or series_storage.get("retired_v2_1_claim_absent") is not True
+        or series_storage.get("paths_created") != 0
+    ):
+        raise RehearsalV22Error("Q preflight series-2 storage semantics drifted")
+
+    preflight_storage_value = stdout_document.get("registered_recovery_storage")
+    registered_preflight_storage: JsonObject | None
+    if binding.mode == "REGISTERED_OFFICIAL":
+        registered_preflight_storage = _exact_contract_object(
+            preflight_storage_value,
+            frozenset(
+                {
+                    "primary_container",
+                    "secondary_container",
+                    "both_owner_provisioned_empty",
+                    "leaf_paths_created",
+                }
+            ),
+            "bundle recovery Q registered recovery storage",
+        )
+        destination_storage = _exact_contract_object(
+            _object(authorization.destination, "bundle recovery destination").get(
+                "recovery_storage"
+            ),
+            RECOVERY_STORAGE_FIELDS,
+            "bundle recovery R storage contract",
+        )
+        _validate_embedded_storage_directory_evidence(
+            registered_preflight_storage.get("primary_container"),
+            expected_path=Path(
+                cast(str, destination_storage.get("primary_recovery_container"))
+            ),
+            label="bundle recovery Q primary recovery container",
+        )
+        _validate_embedded_storage_directory_evidence(
+            registered_preflight_storage.get("secondary_container"),
+            expected_path=Path(
+                cast(str, destination_storage.get("secondary_recovery_container"))
+            ),
+            label="bundle recovery Q secondary recovery container",
+        )
+        if (
+            registered_preflight_storage.get("both_owner_provisioned_empty") is not True
+            or registered_preflight_storage.get("leaf_paths_created") != 0
+        ):
+            raise RehearsalV22Error("Q preflight recovery storage is not exactly empty")
+    else:
+        if preflight_storage_value is not None:
+            raise RehearsalV22Error("synthetic Q preflight exposed registered recovery storage")
+        registered_preflight_storage = None
+
+    sealed_inputs = _exact_contract_object(
+        stdout_document.get("sealed_recovery_inputs"),
+        frozenset(
+            {
+                "series_closed",
+                "record_count",
+                "selected_attempt_ordinal",
+                "selected_implementation_epoch",
+                "selected_implementation_commit",
+                "history_root_sha256",
+                "live_ledger_root_sha256",
+                "mirror_receipt_count",
+                "sealed_input_fingerprints",
+                "work_counters",
+                "ledger_and_mirror_read_only",
+            }
+        ),
+        "bundle recovery Q sealed recovery inputs",
+    )
+    fingerprints = _exact_contract_object(
+        sealed_inputs.get("sealed_input_fingerprints"),
+        frozenset(
+            {
+                "active_ledger",
+                "primary_seal_receipt",
+                "secondary_seal_receipt",
+                "through_ordinal_2_snapshot",
+            }
+        ),
+        "bundle recovery Q sealed input fingerprints",
+    )
+    counters = _exact_contract_object(
+        sealed_inputs.get("work_counters"),
+        frozenset(RECOVERY_WORK_COUNTER_FIELDS),
+        "bundle recovery Q sealed input work counters",
+    )
+    typed_counters: dict[str, int] = {}
+    for name in RECOVERY_WORK_COUNTER_FIELDS:
+        value = counters.get(name)
+        if type(value) is not int or value < 0:
+            raise RehearsalV22Error("Q preflight work counters are malformed")
+        typed_counters[name] = value
+    _assert_recovery_work_bound(typed_counters)
+    if (
+        any(not _lower_hex(value, 64) for value in fingerprints.values())
+        or typed_counters["git_objects_read"] != 0
+        or typed_counters["bundle_bytes_copied"] != 0
+        or sealed_inputs.get("series_closed") != sealed.get("series_closed")
+        or sealed_inputs.get("record_count") != sealed.get("started_count")
+        or sealed_inputs.get("selected_attempt_ordinal")
+        != sealed.get("selected_attempt_ordinal")
+        or sealed_inputs.get("selected_implementation_epoch")
+        != sealed.get("selected_implementation_epoch")
+        or sealed_inputs.get("selected_implementation_commit")
+        != sealed.get("selected_implementation_commit")
+        or sealed_inputs.get("history_root_sha256") != sealed.get("history_root_sha256")
+        or sealed_inputs.get("live_ledger_root_sha256")
+        != sealed.get("live_ledger_root_sha256")
+        or sealed_inputs.get("mirror_receipt_count") != sealed_mirror.get("receipt_count")
+        or sealed_inputs.get("ledger_and_mirror_read_only") is not True
+    ):
+        raise RehearsalV22Error("Q preflight sealed recovery inputs drifted")
+
+    effects = _exact_contract_object(
+        stdout_document.get("effect_summary"),
+        frozenset(
+            {
+                "action_receipt_required",
+                "action_receipts_read",
+                "project_and_gate_state_writes_permitted",
+                "temporary_authorities_created",
+                "ledgers_created",
+                "storage_containers_created",
+                "mirror_leaves_created",
+                "attempts_allocated",
+                "pipeline_starts",
+                "automatic_retries",
+                "heldout_evaluation_attempts_consumed",
+                "shallow_alternate_partial_and_included_git_config_rejected",
+                "stdout_persistence_controlled_by_caller",
+            }
+        ),
+        "bundle recovery Q preflight effects",
+    )
+    if effects != {
+        "action_receipt_required": False,
+        "action_receipts_read": 0,
+        "project_and_gate_state_writes_permitted": False,
+        "temporary_authorities_created": 0,
+        "ledgers_created": 0,
+        "storage_containers_created": 0,
+        "mirror_leaves_created": 0,
+        "attempts_allocated": 0,
+        "pipeline_starts": 0,
+        "automatic_retries": 0,
+        "heldout_evaluation_attempts_consumed": 0,
+        "shallow_alternate_partial_and_included_git_config_rejected": True,
+        "stdout_persistence_controlled_by_caller": True,
+    }:
+        raise RehearsalV22Error("Q preflight effects are not exactly zero")
+    return series_storage, registered_preflight_storage, sealed_inputs
+
+
 def _validate_bundle_recovery_authorization(
     binding: ExecutionBinding,
     authority: AuthorityReference,
@@ -9935,7 +11120,7 @@ def _validate_bundle_recovery_authorization(
     if (
         set(document) != RECOVERY_AUTHORIZATION_FIELDS
         or _canonical_json_bytes(document) != payload
-        or document.get("schema_version") != EPOCH_7_RECOVERY_AUTHORIZATION_SCHEMA
+        or document.get("schema_version") != EPOCH_8_RECOVERY_AUTHORIZATION_SCHEMA
         or document.get("verdict")
         != "APPROVE_EXACTLY_ONE_SEALED_BUNDLE_RECOVERY_ZERO_PIPELINE_START_ZERO_AUTOMATIC_RETRY"
     ):
@@ -10034,11 +11219,12 @@ def _validate_bundle_recovery_authorization(
         or expected_path != binding.action_authorization_path
         or not isinstance(document.get("authorization_id"), str)
         or not cast(str, document["authorization_id"])
-        or owner.get("identity") != "ouyang"
-        or owner.get("approved") is not True
-        or not isinstance(owner.get("scope"), str)
-        or not owner.get("scope")
-        or type(owner.get("approved")) is not bool
+        or owner
+        != {
+            "identity": "ouyang",
+            "approved": True,
+            "scope": "one_disclosed_sealed_bundle_recovery_only",
+        }
         or not isinstance(exact_argv_raw, list)
         or any(not isinstance(value, str) or not value for value in exact_argv_raw)
         or len(exact_argv_raw) != 10
@@ -10076,18 +11262,18 @@ def _validate_bundle_recovery_authorization(
     expected_selected_files = {
         "started": {
             "relative_path": "attempts/000002/started.json",
-            "sha256": EPOCH_7_SELECTED_STARTED_SHA256,
-            "bytes": EPOCH_7_SELECTED_STARTED_BYTES,
+            "sha256": EPOCH_8_SELECTED_STARTED_SHA256,
+            "bytes": EPOCH_8_SELECTED_STARTED_BYTES,
         },
         "candidate": {
             "relative_path": "attempts/000002/candidate.json",
-            "sha256": EPOCH_7_SELECTED_CANDIDATE_SHA256,
-            "bytes": EPOCH_7_SELECTED_CANDIDATE_BYTES,
+            "sha256": EPOCH_8_SELECTED_CANDIDATE_SHA256,
+            "bytes": EPOCH_8_SELECTED_CANDIDATE_BYTES,
         },
         "terminal": {
             "relative_path": "attempts/000002/terminal.json",
-            "sha256": EPOCH_7_SELECTED_TERMINAL_SHA256,
-            "bytes": EPOCH_7_SELECTED_TERMINAL_BYTES,
+            "sha256": EPOCH_8_SELECTED_TERMINAL_SHA256,
+            "bytes": EPOCH_8_SELECTED_TERMINAL_BYTES,
         },
     }
     expected_sealed_scalars: dict[str, object] = {
@@ -10100,7 +11286,7 @@ def _validate_bundle_recovery_authorization(
         "incomplete_count": 0,
         "validated_candidate_count": 1,
         "selected_attempt_ordinal": 2,
-        "selected_implementation_epoch": EPOCH_7_HISTORICAL_SELECTED_EPOCH,
+        "selected_implementation_epoch": EPOCH_8_HISTORICAL_SELECTED_EPOCH,
         "selected_terminal_outcome": "CANDIDATE_VALIDATED_AND_SELECTED",
         "selected_reached_stage": "bundle_candidate_validated",
         "automatic_retry_count": 0,
@@ -10108,16 +11294,16 @@ def _validate_bundle_recovery_authorization(
     if binding.mode == "REGISTERED_OFFICIAL":
         expected_sealed_scalars.update(
             {
-                "history_root_sha256": EPOCH_7_SEALED_HISTORY_ROOT_SHA256,
-                "live_ledger_root_sha256": EPOCH_7_SEALED_LIVE_LEDGER_ROOT_SHA256,
-                "selected_implementation_commit": EPOCH_7_HISTORICAL_SELECTED_COMMIT,
-                "selected_control_merkle_root_sha256": EPOCH_7_HISTORICAL_CONTROL_ROOT_SHA256,
-                "selected_evidence_tree_root_sha256": EPOCH_7_SELECTED_EVIDENCE_ROOT_SHA256,
+                "history_root_sha256": EPOCH_8_SEALED_HISTORY_ROOT_SHA256,
+                "live_ledger_root_sha256": EPOCH_8_SEALED_LIVE_LEDGER_ROOT_SHA256,
+                "selected_implementation_commit": EPOCH_8_HISTORICAL_SELECTED_COMMIT,
+                "selected_control_merkle_root_sha256": EPOCH_8_HISTORICAL_CONTROL_ROOT_SHA256,
+                "selected_evidence_tree_root_sha256": EPOCH_8_SELECTED_EVIDENCE_ROOT_SHA256,
                 "selected_candidate_content_root_sha256": (
-                    EPOCH_7_SELECTED_CANDIDATE_CONTENT_ROOT_SHA256
+                    EPOCH_8_SELECTED_CANDIDATE_CONTENT_ROOT_SHA256
                 ),
-                "selected_run_a_root_sha256": EPOCH_7_SELECTED_RUN_ROOT_SHA256,
-                "selected_run_b_root_sha256": EPOCH_7_SELECTED_RUN_ROOT_SHA256,
+                "selected_run_a_root_sha256": EPOCH_8_SELECTED_RUN_ROOT_SHA256,
+                "selected_run_b_root_sha256": EPOCH_8_SELECTED_RUN_ROOT_SHA256,
             }
         )
     if (
@@ -10148,8 +11334,8 @@ def _validate_bundle_recovery_authorization(
         or (
             binding.mode == "REGISTERED_OFFICIAL"
             and (
-                sealed_mirror.get("receipt_sha256") != EPOCH_7_SEALED_MIRROR_RECEIPT_SHA256
-                or sealed_mirror.get("receipt_bytes") != EPOCH_7_SEALED_MIRROR_RECEIPT_BYTES
+                sealed_mirror.get("receipt_sha256") != EPOCH_8_SEALED_MIRROR_RECEIPT_SHA256
+                or sealed_mirror.get("receipt_bytes") != EPOCH_8_SEALED_MIRROR_RECEIPT_BYTES
                 or sealed_mirror.get("inventory_sha256")
                 != "16689ab8e8fb3933d5c912adda098ec0b1b83866b0ce0f32f07b17fdb234ebdb"
                 or sealed_mirror.get("file_count") != 48
@@ -10225,11 +11411,11 @@ def _validate_bundle_recovery_authorization(
             "orig_argv_executable_sha256": FIXED_ORIG_ARGV_EXECUTABLE_SHA256,
             "version": platform.python_version(),
         }
-        or execution.get("epoch") != EPOCH_7_IMPLEMENTATION_EPOCH
+        or execution.get("epoch") != EPOCH_8_IMPLEMENTATION_EPOCH
         or execution.get("latest_complete_landed_epoch_required") is not True
         or execution.get("current_control_bytes_required") is not True
         or execution.get("loaded_module_bytes_required") is not True
-        or census_reference.get("schema_version") != EPOCH_7_LINEAGE_CENSUS_SCHEMA
+        or census_reference.get("schema_version") != EPOCH_8_LINEAGE_CENSUS_SCHEMA
         or census_reference.get("result") != "PASS_REAL_LINEAGE_CENSUS"
         or census_reference.get("all_references_revalidated_at_start") is not True
         or census_reference.get("invalid_count") != 0
@@ -10279,16 +11465,28 @@ def _validate_recovery_owner_binding(
     if (
         set(document) != RECOVERY_OWNER_BINDING_FIELDS
         or _canonical_json_bytes(document) != payload
-        or document.get("schema_version") != EPOCH_7_RECOVERY_OWNER_BINDING_SCHEMA
+        or document.get("schema_version") != EPOCH_8_RECOVERY_OWNER_BINDING_SCHEMA
         or not isinstance(document.get("status"), str)
         or not document.get("status")
     ):
         raise RehearsalV22Error("recovery owner confirmation binding is not exact canonical B")
-    _validate_recovery_timestamp_pair(
+    _created_utc, created_shanghai = _validate_recovery_timestamp_pair(
         document.get("created_at_utc"),
         document.get("created_at_shanghai"),
         "recovery owner binding",
     )
+    date_token = created_shanghai[:10].replace("-", "")
+    expected_relative = (
+        "docs/phase4/reports/P4.2a-v2-2-series2-through-ordinal-000002-"
+        f"bundle-recovery-owner-confirmation-binding-{date_token}.json"
+    )
+    if (
+        owner_binding_authority.path != expected_relative
+        or not isinstance(document.get("binding_id"), str)
+        or not document.get("binding_id")
+        or document.get("status") != "OWNER_CONFIRMATION_BOUND"
+    ):
+        raise RehearsalV22Error("recovery owner confirmation binding identity drifted")
     review_row = _exact_contract_object(
         document.get("review_request"),
         frozenset({"path", "sha256", "bytes", "creating_commit"}),
@@ -10384,6 +11582,11 @@ def _validate_recovery_owner_binding(
         strict_json_loads(q_payload, source="bundle recovery Q"),
         "bundle recovery Q",
     )
+    _q_created_utc, _q_created_shanghai = _validate_recovery_timestamp_pair(
+        q_document.get("created_at_utc"),
+        q_document.get("created_at_shanghai"),
+        "bundle recovery Q",
+    )
     proposed = _exact_contract_object(
         q_document.get("proposed_recovery_authorization"),
         frozenset({"path", "document", "canonical_json_sha256", "bytes", "currently_effective"}),
@@ -10395,7 +11598,7 @@ def _validate_recovery_owner_binding(
         "bundle recovery Q requester",
     )
     landed_epoch = _exact_contract_object(
-        q_document.get("landed_epoch_7"),
+        q_document.get("landed_execution_epoch"),
         frozenset(
             {
                 "epoch",
@@ -10504,6 +11707,46 @@ def _validate_recovery_owner_binding(
     if _canonical_json_bytes(stdout_document) != stdout_payload:
         raise RehearsalV22Error("bundle recovery Q preflight stdout is not canonical JSON")
     r_reference = authorization.authority_ref(root)
+    execution_owner = _validate_authority_ref_shape(
+        authorization.execution_epoch.get("owner_exact_surface_authorization"),
+        "bundle recovery Q execution owner",
+    )
+    execution_review = _validate_authority_ref_shape(
+        authorization.execution_epoch.get("independent_implementation_review"),
+        "bundle recovery Q execution review",
+    )
+    execution_landing = _validate_authority_ref_shape(
+        authorization.execution_epoch.get("landing_report"),
+        "bundle recovery Q execution landing",
+    )
+    (
+        series_storage_preflight,
+        registered_preflight_storage,
+        sealed_inputs_preflight,
+    ) = _validate_epoch_8_embedded_preflight_semantics(
+        binding,
+        authorization,
+        stdout_document,
+        execution_landing=execution_landing,
+    )
+    expected_preflight_argv = [
+        FIXED_PYTHON_LAUNCHER.as_posix(),
+        "-S",
+        "-P",
+        "-B",
+        (root / SHIM_RELATIVE).as_posix(),
+        "--preflight-only",
+        "--implementation-epoch",
+        str(EPOCH_8_IMPLEMENTATION_EPOCH),
+        "--implementation-commit",
+        cast(str, authorization.execution_epoch.get("implementation_commit")),
+        "--owner-surface-authorization",
+        root.joinpath(*PurePosixPath(execution_owner.path).parts).as_posix(),
+        "--independent-implementation-review",
+        root.joinpath(*PurePosixPath(execution_review.path).parts).as_posix(),
+        "--landing-report",
+        root.joinpath(*PurePosixPath(execution_landing.path).parts).as_posix(),
+    ]
     expected_r_row = {
         "path": r_reference.path,
         "sha256": r_reference.sha256,
@@ -10513,11 +11756,16 @@ def _validate_recovery_owner_binding(
     if (
         set(q_document) != RECOVERY_REVIEW_REQUEST_FIELDS
         or _canonical_json_bytes(q_document) != q_payload
-        or q_document.get("schema_version") != EPOCH_7_RECOVERY_REVIEW_REQUEST_SCHEMA
+        or q_document.get("schema_version") != EPOCH_8_RECOVERY_REVIEW_REQUEST_SCHEMA
+        or not isinstance(q_document.get("request_id"), str)
+        or not q_document.get("request_id")
         or q_document.get("status") != "AWAITING_INDEPENDENT_REVIEW_AND_OWNER_CONFIRMATION"
-        or requester.get("identity") != "codex"
-        or not isinstance(requester.get("role"), str)
-        or not isinstance(requester.get("scope"), str)
+        or requester
+        != {
+            "identity": "codex",
+            "role": "operator",
+            "scope": "sealed_bundle_recovery_only",
+        }
         or landed_epoch
         != {
             key: authorization.execution_epoch[key]
@@ -10533,6 +11781,7 @@ def _validate_recovery_owner_binding(
             )
         }
         or q_preflight.get("stdout_sha256") != _sha256(stdout_payload)
+        or q_preflight.get("exact_argv") != expected_preflight_argv
         or q_preflight.get("stdout_bytes") != len(stdout_payload)
         or q_preflight.get("stderr_bytes") != 0
         or q_preflight.get("returncode") != 0
@@ -10540,12 +11789,35 @@ def _validate_recovery_owner_binding(
         or q_preflight.get("real_lineage_census")
         != authorization.execution_epoch.get("real_lineage_census")
         or stdout_document.get("status") != "PASS_READ_ONLY_IMPLEMENTATION_PREFLIGHT"
+        or set(stdout_document) != set(EPOCH_8_READ_ONLY_PREFLIGHT_FIELD_ORDER)
+        or stdout_document.get("schema_version") != EPOCH_8_READ_ONLY_PREFLIGHT_SCHEMA
+        or "epoch_7_recovery_storage" in stdout_document
+        or stdout_document.get("implementation_epoch") != EPOCH_8_IMPLEMENTATION_EPOCH
+        or stdout_document.get("implementation_commit")
+        != authorization.execution_epoch.get("implementation_commit")
+        or stdout_document.get("owner_exact_surface_authorization")
+        != execution_owner.as_json()
+        or stdout_document.get("independent_implementation_review")
+        != execution_review.as_json()
+        or stdout_document.get("control_merkle_root_sha256")
+        != authorization.execution_epoch.get("control_merkle_root_sha256")
+        or stdout_document.get("control_record_count")
+        != authorization.execution_epoch.get("control_record_count")
+        or _census_reference(
+            _object(
+                stdout_document.get("real_lineage_census"),
+                "bundle recovery Q full preflight census",
+            )
+        )
+        != q_preflight.get("real_lineage_census")
         or stdout_document.get("real_lineage_census") is None
         or any(value is not True for value in equality.values())
         or any(value is not True for value in post_plan.values())
         or requested.get("required_owner_identity") != "ouyang"
+        or requested.get("delivery_channel") != "in_person_via_independent_reviewer"
         or requested.get("confirmation_not_yet_received") is not True
         or not isinstance(requested.get("requested_exact_confirmation"), str)
+        or not requested.get("requested_exact_confirmation")
         or confirmation.get("confirmation_text") != requested.get("requested_exact_confirmation")
         or current_locks
         != {
@@ -10584,8 +11856,9 @@ def _validate_recovery_owner_binding(
         or confirmation.get("identity") != "ouyang"
         or confirmation.get("source") != "业主向复核方当面确认，由复核方转达"
         or confirmation.get("authorization_sha256") != authorization.sha256
-        or not isinstance(confirmation.get("confirmation_text"), str)
         or authorization.sha256 not in cast(str, confirmation.get("confirmation_text"))
+        or "pipeline start 0" not in cast(str, confirmation.get("confirmation_text"))
+        or "automatic retry 0" not in cast(str, confirmation.get("confirmation_text"))
         or scope
         != {
             "series_token_sha256": binding.series_token_sha256,
@@ -10605,6 +11878,8 @@ def _validate_recovery_owner_binding(
             "this_document_adds_no_field_to_the_19_field_authorization": True,
         }
         or preflight.get("result") != "PASS_READ_ONLY_IMPLEMENTATION_PREFLIGHT"
+        or preflight.get("stdout_sha256") != q_preflight.get("stdout_sha256")
+        or preflight.get("stdout_bytes") != q_preflight.get("stdout_bytes")
         or preflight.get("real_lineage_census_sha256")
         != _object(
             authorization.execution_epoch.get("real_lineage_census"),
@@ -10620,6 +11895,9 @@ def _validate_recovery_owner_binding(
         review_request=q_reference,
         recovery_authorization=r_reference,
         owner_confirmation=dict(confirmation),
+        series_2_registered_storage_preflight=series_storage_preflight,
+        registered_recovery_storage_preflight=registered_preflight_storage,
+        sealed_recovery_inputs_preflight=sealed_inputs_preflight,
     )
 
 
@@ -11556,6 +12834,9 @@ class RecoveryOwnerBinding:
     review_request: AuthorityReference
     recovery_authorization: AuthorityReference
     owner_confirmation: Mapping[str, Any]
+    series_2_registered_storage_preflight: Mapping[str, Any] | None = None
+    registered_recovery_storage_preflight: Mapping[str, Any] | None = None
+    sealed_recovery_inputs_preflight: Mapping[str, Any] | None = None
 
     def authority_ref(self, project_root: Path) -> AuthorityReference:
         return AuthorityReference(
@@ -12682,22 +13963,22 @@ def _historical_selected_anchor(
         or history.failed_count != 1
         or history.incomplete_count != 0
         or selected.ordinal != 2
-        or selected.implementation_epoch != EPOCH_7_HISTORICAL_SELECTED_EPOCH
-        or selected.implementation_commit != EPOCH_7_HISTORICAL_SELECTED_COMMIT
-        or selected.started_sha256 != EPOCH_7_SELECTED_STARTED_SHA256
-        or len(selected.started_bytes) != EPOCH_7_SELECTED_STARTED_BYTES
-        or selected.candidate_sha256 != EPOCH_7_SELECTED_CANDIDATE_SHA256
-        or len(selected.candidate_bytes) != EPOCH_7_SELECTED_CANDIDATE_BYTES
-        or selected.terminal_sha256 != EPOCH_7_SELECTED_TERMINAL_SHA256
-        or len(selected.terminal_bytes) != EPOCH_7_SELECTED_TERMINAL_BYTES
-        or history.history_root_sha256 != EPOCH_7_SEALED_HISTORY_ROOT_SHA256
-        or history.live_ledger_root_sha256 != EPOCH_7_SEALED_LIVE_LEDGER_ROOT_SHA256
-        or selected.evidence_tree_root_sha256 != EPOCH_7_SELECTED_EVIDENCE_ROOT_SHA256
-        or control.merkle_root_sha256 != EPOCH_7_HISTORICAL_CONTROL_ROOT_SHA256
+        or selected.implementation_epoch != EPOCH_8_HISTORICAL_SELECTED_EPOCH
+        or selected.implementation_commit != EPOCH_8_HISTORICAL_SELECTED_COMMIT
+        or selected.started_sha256 != EPOCH_8_SELECTED_STARTED_SHA256
+        or len(selected.started_bytes) != EPOCH_8_SELECTED_STARTED_BYTES
+        or selected.candidate_sha256 != EPOCH_8_SELECTED_CANDIDATE_SHA256
+        or len(selected.candidate_bytes) != EPOCH_8_SELECTED_CANDIDATE_BYTES
+        or selected.terminal_sha256 != EPOCH_8_SELECTED_TERMINAL_SHA256
+        or len(selected.terminal_bytes) != EPOCH_8_SELECTED_TERMINAL_BYTES
+        or history.history_root_sha256 != EPOCH_8_SEALED_HISTORY_ROOT_SHA256
+        or history.live_ledger_root_sha256 != EPOCH_8_SEALED_LIVE_LEDGER_ROOT_SHA256
+        or selected.evidence_tree_root_sha256 != EPOCH_8_SELECTED_EVIDENCE_ROOT_SHA256
+        or control.merkle_root_sha256 != EPOCH_8_HISTORICAL_CONTROL_ROOT_SHA256
         or candidate.get("candidate_content_root_sha256")
-        != EPOCH_7_SELECTED_CANDIDATE_CONTENT_ROOT_SHA256
-        or candidate.get("run_a_root_sha256") != EPOCH_7_SELECTED_RUN_ROOT_SHA256
-        or candidate.get("run_b_root_sha256") != EPOCH_7_SELECTED_RUN_ROOT_SHA256
+        != EPOCH_8_SELECTED_CANDIDATE_CONTENT_ROOT_SHA256
+        or candidate.get("run_a_root_sha256") != EPOCH_8_SELECTED_RUN_ROOT_SHA256
+        or candidate.get("run_b_root_sha256") != EPOCH_8_SELECTED_RUN_ROOT_SHA256
     ):
         raise RehearsalV22Error("registered historical selected anchor drifted")
     return HistoricalSelectedAnchor(
@@ -12815,85 +14096,60 @@ def _live_execution_census_specs(
     )
 
 
-def _live_execution_anchor_with_census(
-    binding: ExecutionBinding,
-    execution_epoch: Mapping[str, Any],
+def _validate_epoch_8_landing_authority(
+    project_root: Path,
     *,
-    additional_references: Sequence[AuthorityCensusSpec | AuthorityReference] = (),
-    work_tracker: _RecoveryWorkTracker | None = None,
-) -> tuple[LiveExecutionAnchor, JsonObject]:
-    """Prove latest landed epoch-7 governance and every current executing byte."""
+    execution_head: str,
+    implementation_commit: str,
+    owner: AuthorityReference,
+    review: AuthorityReference,
+    landing_report: AuthorityReference,
+    control: ControlSurface,
+) -> str:
+    """Prove the explicit epoch-8 review projection and landing authority."""
 
-    root = binding.project_root.absolute()
-    execution_head = _current_execution_head(root)
-    validate_epoch_7_recovery_contract(root, execution_head=execution_head)
-    epoch = execution_epoch.get("epoch")
-    implementation_commit = execution_epoch.get("implementation_commit")
-    if epoch != EPOCH_7_IMPLEMENTATION_EPOCH or isinstance(epoch, bool):
-        raise RehearsalV22Error("live execution epoch is not exact epoch 7")
-    commit = _git_commit(root, implementation_commit, "live execution implementation")
-    owner = _validate_authority_ref_shape(
-        execution_epoch.get("owner_exact_surface_authorization"),
-        "live execution owner authority",
-    )
-    review = _validate_authority_ref_shape(
-        execution_epoch.get("independent_implementation_review"),
-        "live execution independent review",
-    )
-    landing_report = _validate_authority_ref_shape(
-        execution_epoch.get("landing_report"),
-        "live execution landing report",
-    )
-    merge_commit = _git_commit(
-        root,
-        execution_epoch.get("merge_commit"),
-        "live execution merge commit",
-    )
-    control = build_control_surface(root, commit, require_current=True)
+    root = project_root.absolute()
     if (
         owner
         != AuthorityReference(
-            EPOCH_7_SURFACE_AUTHORITY_RELATIVE.as_posix(),
-            EPOCH_7_SURFACE_AUTHORITY_SHA256,
-            EPOCH_7_SURFACE_AUTHORITY_COMMIT,
+            EPOCH_8_SURFACE_AUTHORITY_RELATIVE.as_posix(),
+            EPOCH_8_SURFACE_AUTHORITY_SHA256,
+            EPOCH_8_SURFACE_AUTHORITY_COMMIT,
         )
-        or execution_epoch.get("control_merkle_root_sha256") != control.merkle_root_sha256
-        or execution_epoch.get("control_record_count") != len(control.records)
-        or execution_epoch.get("latest_complete_landed_epoch_required") is not True
-        or execution_epoch.get("current_control_bytes_required") is not True
-        or execution_epoch.get("loaded_module_bytes_required") is not True
+        or not landing_report.path.startswith("docs/phase4/reports/")
+        or not landing_report.path.endswith(".json")
     ):
-        raise RehearsalV22Error("live execution control or authority binding drifted")
-    validated = validate_implementation_epoch(
+        raise RehearsalV22Error("epoch-8 landing owner or registered path drifted")
+    merge_commit = _git_commit(
         root,
-        epoch=7,
-        implementation_commit=commit,
-        owner_surface_authorization=owner,
-        independent_review=review,
-        control_merkle_root_sha256=control.merkle_root_sha256,
-        execution_head=execution_head,
-        require_current_bytes=True,
+        review.creating_commit,
+        "epoch-8 landing merge commit",
     )
-    if validated.implementation_commit != commit:
-        raise RehearsalV22Error("live execution epoch validation returned another commit")
     review_parents = _git_parents_epoch_7(root, review.creating_commit)
-    review_payload = _git_blob(root, review.creating_commit, review.path)
-    review_document = _object(
-        strict_json_loads(review_payload, source="live execution independent review"),
-        "live execution independent review",
-    )
-    merge_parents = _git_parents_epoch_7(root, merge_commit)
     landing_parents = _git_parents_epoch_7(root, landing_report.creating_commit)
+    review_payload = _git_blob(root, review.creating_commit, review.path)
     landing_payload = _git_blob(root, landing_report.creating_commit, landing_report.path)
+    review_document = _object(
+        strict_json_loads(review_payload, source="epoch-8 independent implementation review"),
+        "epoch-8 independent implementation review",
+    )
     landing_document = _object(
-        strict_json_loads(landing_payload, source="live execution landing report"),
-        "live execution landing report",
+        strict_json_loads(landing_payload, source="epoch-8 landing report"),
+        "epoch-8 landing report",
+    )
+    _validate_epoch_8_landing_document_bindings(
+        landing_document,
+        implementation_commit=implementation_commit,
+        owner=owner,
+        review=review,
+        merge_commit=merge_commit,
+        merge_parents=review_parents,
+        control_root=control.merkle_root_sha256,
+        control_count=len(control.records),
     )
     if (
-        review.creating_commit != merge_commit
-        or len(review_parents) != 2
-        or merge_parents != review_parents
-        or _git_parents_epoch_7(root, review_parents[1]) != (commit,)
+        len(review_parents) != 2
+        or _git_parents_epoch_7(root, review_parents[1]) != (implementation_commit,)
         or _git_blob(root, review_parents[1], review.path) != review_payload
         or _git_bytes(
             root,
@@ -12912,11 +14168,93 @@ def _live_execution_anchor_with_census(
         or not cast(str, review_document["verdict"]).startswith("APPROVE")
         or landing_parents != (merge_commit,)
         or _sha256(landing_payload) != landing_report.sha256
-        or not _document_mentions_commit(landing_document, commit)
+        or not _document_mentions_commit(landing_document, implementation_commit)
         or not _document_mentions_commit(landing_document, review.creating_commit)
+        or not _document_mentions_commit(landing_document, review_parents[0])
+        or not _document_mentions_commit(landing_document, review_parents[1])
+        or not _document_mentions_commit(landing_document, owner.creating_commit)
+        or not _document_mentions_commit(landing_document, owner.sha256)
+        or not _document_mentions_commit(landing_document, review.sha256)
+        or not _document_mentions_commit(landing_document, control.merkle_root_sha256)
+        or not _document_mentions_commit(landing_document, len(control.records))
         or not _git_is_ancestor(root, landing_report.creating_commit, execution_head)
     ):
-        raise RehearsalV22Error("live execution review/merge/landing topology drifted")
+        raise RehearsalV22Error("epoch-8 review/merge/landing topology or binding drifted")
+    return merge_commit
+
+
+def _live_execution_anchor_with_census(
+    binding: ExecutionBinding,
+    execution_epoch: Mapping[str, Any],
+    *,
+    additional_references: Sequence[AuthorityCensusSpec | AuthorityReference] = (),
+    work_tracker: _RecoveryWorkTracker | None = None,
+) -> tuple[LiveExecutionAnchor, JsonObject]:
+    """Prove latest landed epoch-8 governance and every current executing byte."""
+
+    root = binding.project_root.absolute()
+    execution_head = _current_execution_head(root)
+    validate_epoch_8_recovery_contract(root, execution_head=execution_head)
+    epoch = execution_epoch.get("epoch")
+    implementation_commit = execution_epoch.get("implementation_commit")
+    if epoch != EPOCH_8_IMPLEMENTATION_EPOCH or isinstance(epoch, bool):
+        raise RehearsalV22Error("live execution epoch is not exact epoch 8")
+    commit = _git_commit(root, implementation_commit, "live execution implementation")
+    owner = _validate_authority_ref_shape(
+        execution_epoch.get("owner_exact_surface_authorization"),
+        "live execution owner authority",
+    )
+    review = _validate_authority_ref_shape(
+        execution_epoch.get("independent_implementation_review"),
+        "live execution independent review",
+    )
+    landing_report = _validate_authority_ref_shape(
+        execution_epoch.get("landing_report"),
+        "live execution landing report",
+    )
+    declared_merge_commit = _git_commit(
+        root,
+        execution_epoch.get("merge_commit"),
+        "live execution merge commit",
+    )
+    control = build_control_surface(root, commit, require_current=True)
+    if (
+        owner
+        != AuthorityReference(
+            EPOCH_8_SURFACE_AUTHORITY_RELATIVE.as_posix(),
+            EPOCH_8_SURFACE_AUTHORITY_SHA256,
+            EPOCH_8_SURFACE_AUTHORITY_COMMIT,
+        )
+        or execution_epoch.get("control_merkle_root_sha256") != control.merkle_root_sha256
+        or execution_epoch.get("control_record_count") != len(control.records)
+        or execution_epoch.get("latest_complete_landed_epoch_required") is not True
+        or execution_epoch.get("current_control_bytes_required") is not True
+        or execution_epoch.get("loaded_module_bytes_required") is not True
+    ):
+        raise RehearsalV22Error("live execution control or authority binding drifted")
+    validated = validate_implementation_epoch(
+        root,
+        epoch=EPOCH_8_IMPLEMENTATION_EPOCH,
+        implementation_commit=commit,
+        owner_surface_authorization=owner,
+        independent_review=review,
+        control_merkle_root_sha256=control.merkle_root_sha256,
+        execution_head=execution_head,
+        require_current_bytes=True,
+    )
+    if validated.implementation_commit != commit:
+        raise RehearsalV22Error("live execution epoch validation returned another commit")
+    merge_commit = _validate_epoch_8_landing_authority(
+        root,
+        execution_head=execution_head,
+        implementation_commit=commit,
+        owner=owner,
+        review=review,
+        landing_report=landing_report,
+        control=control,
+    )
+    if merge_commit != declared_merge_commit:
+        raise RehearsalV22Error("live execution landing merge declaration drifted")
     refs_before_census, _refs_sha, _refs_count = _git_ref_snapshot(root)
     tracker = _RecoveryWorkTracker() if work_tracker is None else work_tracker
     census = _real_lineage_census(
@@ -12934,7 +14272,7 @@ def _live_execution_anchor_with_census(
     )
     if (
         set(census_reference) != RECOVERY_CENSUS_REFERENCE_FIELDS
-        or census_reference.get("schema_version") != EPOCH_7_LINEAGE_CENSUS_SCHEMA
+        or census_reference.get("schema_version") != EPOCH_8_LINEAGE_CENSUS_SCHEMA
         or census_reference.get("result") != "PASS_REAL_LINEAGE_CENSUS"
         or census_reference.get("invalid_count") != 0
         or census_reference.get("all_references_revalidated_at_start") is not True
@@ -12956,7 +14294,7 @@ def _live_execution_anchor_with_census(
         )
         loaded_module_sha256[relative.as_posix()] = _sha256(payload)
     anchor = LiveExecutionAnchor(
-        execution_epoch=EPOCH_7_IMPLEMENTATION_EPOCH,
+        execution_epoch=EPOCH_8_IMPLEMENTATION_EPOCH,
         implementation_commit=commit,
         owner_surface_authorization=owner,
         independent_implementation_review=review,
@@ -13062,7 +14400,7 @@ def _validate_live_execution_publication_guard(
         or census_reference.get("canonical_json_sha256") != live_anchor.real_lineage_census_sha256
     ):
         raise RehearsalV22Error("Git refs, HEAD, or recovery census changed before publication")
-    validate_epoch_7_recovery_contract(root, execution_head=live_anchor.execution_head)
+    validate_epoch_8_recovery_contract(root, execution_head=live_anchor.execution_head)
     _revalidate_cached_current_control_surface(
         root,
         implementation_commit=live_anchor.implementation_commit,
@@ -13116,6 +14454,7 @@ def _registered_recovery_storage(
     authorization: BundleRecoveryAuthorization,
     *,
     expected_state: Literal["PRECLAIM_EMPTY", "PUBLISHED_SUCCESS"],
+    preflight_storage: Mapping[str, Any] | None = None,
 ) -> _RecoveryStoragePaths:
     """Validate the owner containers in one explicit, non-fallback state."""
 
@@ -13127,6 +14466,46 @@ def _registered_recovery_storage(
     secondary = Path(cast(str, storage.get("secondary_recovery_container"))).absolute()
     _registered_storage_directory(primary, "primary bundle-recovery container")
     _registered_storage_directory(secondary, "secondary bundle-recovery container")
+    if preflight_storage is not None:
+        recorded_primary = _exact_contract_object(
+            preflight_storage.get("primary_container"),
+            frozenset(
+                {
+                    "path",
+                    "owner_uid",
+                    "device",
+                    "inode",
+                    "mode_octal",
+                    "non_symlink",
+                    "canonical_unaliased",
+                }
+            ),
+            "recorded primary recovery container",
+        )
+        recorded_secondary = _exact_contract_object(
+            preflight_storage.get("secondary_container"),
+            frozenset(
+                {
+                    "path",
+                    "owner_uid",
+                    "device",
+                    "inode",
+                    "mode_octal",
+                    "non_symlink",
+                    "canonical_unaliased",
+                }
+            ),
+            "recorded secondary recovery container",
+        )
+        if (
+            recorded_primary
+            != _storage_directory_evidence(primary, "primary bundle-recovery container")
+            or recorded_secondary
+            != _storage_directory_evidence(secondary, "secondary bundle-recovery container")
+        ):
+            raise RehearsalV22Error(
+                "recovery container identity differs from the registered preflight"
+            )
     protected = (
         binding.project_root,
         binding.destination,
@@ -13358,6 +14737,73 @@ def _validate_sealed_recovery_inputs(
         raise RehearsalV22Error("R sealed mirror paths or bytes differ from the final snapshot")
     fingerprints, counters = _sealed_recovery_fingerprints(binding, history)
     return history, historical, fingerprints, counters
+
+
+def _cross_bind_epoch_8_preflight_inputs_live(
+    binding: ExecutionBinding,
+    owner_binding: RecoveryOwnerBinding,
+    *,
+    history: HistoryValidation,
+    fingerprints: Mapping[str, str],
+    counters: Mapping[str, int],
+) -> None:
+    """Re-measure immutable preflight inputs only after identity and census checks."""
+
+    if (
+        owner_binding.series_2_registered_storage_preflight is None
+        or owner_binding.sealed_recovery_inputs_preflight is None
+    ):
+        raise RehearsalV22Error("recovery owner binding omitted Q preflight input records")
+    recorded_series = _object(
+        owner_binding.series_2_registered_storage_preflight,
+        "recorded Q series-2 storage",
+    )
+    if (
+        recorded_series.get("primary_container")
+        != _storage_directory_evidence(
+            binding.primary_series_container,
+            "series-2 primary container",
+        )
+        or recorded_series.get("secondary_container")
+        != _storage_directory_evidence(
+            binding.secondary_series_container,
+            "series-2 secondary container",
+        )
+        or recorded_series.get("registered_leaf_state")
+        != {
+            "primary_ledger": "PRESENT_VERIFIED",
+            "primary_receipts": "PRESENT_VERIFIED",
+            "secondary_receipts": "PRESENT_VERIFIED",
+            "secondary_snapshots": "PRESENT_VERIFIED",
+        }
+        or recorded_series.get("mirrored_history")
+        != {
+            "attempt_count": len(history.records),
+            "history_root_sha256": history.history_root_sha256,
+            "live_ledger_root_sha256": history.live_ledger_root_sha256,
+            "receipt_count": 2,
+            "series_closed": history.series_closed,
+        }
+    ):
+        raise RehearsalV22Error("live series-2 storage differs from the Q preflight")
+    recorded_sealed = _object(
+        owner_binding.sealed_recovery_inputs_preflight,
+        "recorded Q sealed recovery inputs",
+    )
+    if (
+        recorded_sealed.get("series_closed") != history.series_closed
+        or recorded_sealed.get("record_count") != len(history.records)
+        or recorded_sealed.get("selected_attempt_ordinal")
+        != history.selected_attempt_ordinal
+        or recorded_sealed.get("history_root_sha256") != history.history_root_sha256
+        or recorded_sealed.get("live_ledger_root_sha256")
+        != history.live_ledger_root_sha256
+        or recorded_sealed.get("mirror_receipt_count") != 2
+        or recorded_sealed.get("sealed_input_fingerprints") != dict(fingerprints)
+        or recorded_sealed.get("work_counters") != dict(counters)
+        or recorded_sealed.get("ledger_and_mirror_read_only") is not True
+    ):
+        raise RehearsalV22Error("live sealed inputs differ from the Q preflight")
 
 
 def _validate_recovery_qrb_census_delta(
@@ -13688,12 +15134,20 @@ def _preflight_bundle_recovery(
         binding,
         authorization,
         expected_state=("PRECLAIM_EMPTY" if operation == "RECOVERY_START" else "PUBLISHED_SUCCESS"),
+        preflight_storage=owner_binding.registered_recovery_storage_preflight,
     )
     history, historical_anchor, fingerprints, counters = _validate_sealed_recovery_inputs(
         binding,
         authorization,
         owner_binding,
         storage,
+    )
+    _cross_bind_epoch_8_preflight_inputs_live(
+        binding,
+        owner_binding,
+        history=history,
+        fingerprints=fingerprints,
+        counters=counters,
     )
     work_tracker.add_registered(counters)
     observed_work = work_tracker.snapshot()
@@ -13711,7 +15165,7 @@ def _preflight_bundle_recovery(
     )
 
 
-def _build_epoch_7_recovery_authority_state() -> tuple[Any, ...]:
+def _build_epoch_8_recovery_authority_state() -> tuple[Any, ...]:
     recovery_nonce = object()
     recovery_delegation_nonce = object()
     publication_delegation_nonce = object()
@@ -13984,7 +15438,7 @@ def _build_epoch_7_recovery_authority_state() -> tuple[Any, ...]:
     _validate_recovery_validator_delegation,
     _recovered_publication_validation_scope,
     _validate_recovered_publication_validator_delegation,
-) = _build_epoch_7_recovery_authority_state()
+) = _build_epoch_8_recovery_authority_state()
 
 
 def _validate_post_run_control_surface(
@@ -16367,12 +17821,12 @@ def _rehydrate_sealed_pipeline_replays(
         if _canonical_json_bytes(probes) != probe_payload:
             raise RehearsalV22Error("sealed pipeline probe is not canonical JSON")
         if binding.mode == "REGISTERED_OFFICIAL" and (
-            len(probe_payload) != EPOCH_7_SELECTED_PROBE_BYTES
+            len(probe_payload) != EPOCH_8_SELECTED_PROBE_BYTES
             or _sha256(probe_payload)
             != (
-                EPOCH_7_SELECTED_RUN_A_PROBE_SHA256
+                EPOCH_8_SELECTED_RUN_A_PROBE_SHA256
                 if run_label == "run-a"
-                else EPOCH_7_SELECTED_RUN_B_PROBE_SHA256
+                else EPOCH_8_SELECTED_RUN_B_PROBE_SHA256
             )
         ):
             raise RehearsalV22Error("registered sealed pipeline probe bytes drifted")
@@ -17101,7 +18555,7 @@ def _write_recovery_failure_terminal(
     completed_utc, completed_shanghai = _recovery_timestamp_pair()
     partial = os.path.lexists(binding.destination)
     failure_terminal = {
-        "schema_version": EPOCH_7_RECOVERY_TERMINAL_SCHEMA,
+        "schema_version": EPOCH_8_RECOVERY_TERMINAL_SCHEMA,
         "recovery_id": authorization.authorization_id,
         "authorization": authorization.authority_ref(binding.project_root).as_json(),
         "owner_confirmation_binding": owner_binding.authority_ref(binding.project_root).as_json(),
@@ -17208,7 +18662,7 @@ def _execute_authorized_bundle_recovery(
             _fsync_directory(storage.primary_container)
             created_utc, created_shanghai = _recovery_timestamp_pair()
             started = {
-                "schema_version": EPOCH_7_RECOVERY_STARTED_SCHEMA,
+                "schema_version": EPOCH_8_RECOVERY_STARTED_SCHEMA,
                 "recovery_id": authorization.authorization_id,
                 "authorization": authorization.authority_ref(binding.project_root).as_json(),
                 "owner_confirmation_binding": owner_binding.authority_ref(
@@ -17470,7 +18924,7 @@ def _execute_authorized_bundle_recovery(
                 raise RehearsalV22Error("recovered mirror or sealed inputs changed")
             verified_utc, _verified_shanghai = _recovery_timestamp_pair()
             receipt = {
-                "schema_version": EPOCH_7_RECOVERY_MIRROR_RECEIPT_SCHEMA,
+                "schema_version": EPOCH_8_RECOVERY_MIRROR_RECEIPT_SCHEMA,
                 "recovery_authorization_sha256": authorization.sha256,
                 "owner_confirmation_binding_sha256": owner_binding.sha256,
                 "recovery_id": authorization.authorization_id,
@@ -17529,7 +18983,7 @@ def _execute_authorized_bundle_recovery(
             _assert_recovery_work_bound(work)
             completed_utc, completed_shanghai = _recovery_timestamp_pair()
             terminal = {
-                "schema_version": EPOCH_7_RECOVERY_TERMINAL_SCHEMA,
+                "schema_version": EPOCH_8_RECOVERY_TERMINAL_SCHEMA,
                 "recovery_id": authorization.authorization_id,
                 "authorization": authorization.authority_ref(binding.project_root).as_json(),
                 "owner_confirmation_binding": owner_binding.authority_ref(
@@ -17696,11 +19150,11 @@ def _recovered_publication_capability(
         "recovered publication sealed mirror",
     ).get("receipt_sha256")
     if (
-        started.get("schema_version") != EPOCH_7_RECOVERY_STARTED_SCHEMA
+        started.get("schema_version") != EPOCH_8_RECOVERY_STARTED_SCHEMA
         or started.get("recovery_id") != authorization.authorization_id
         or started.get("authorization") != reference
         or started.get("owner_confirmation_binding") != owner_reference
-        or started.get("execution_epoch") != EPOCH_7_IMPLEMENTATION_EPOCH
+        or started.get("execution_epoch") != EPOCH_8_IMPLEMENTATION_EPOCH
         or started.get("sealed_history_root_sha256") != historical_anchor.history_root_sha256
         or started.get("sealed_live_ledger_root_sha256")
         != historical_anchor.live_ledger_root_sha256
@@ -17713,7 +19167,7 @@ def _recovered_publication_capability(
         or started.get("authorized_bundle_recovery_starts") != 1
         or started.get("authorized_pipeline_starts") != 0
         or started.get("automatic_retry_count") != 0
-        or terminal.get("schema_version") != EPOCH_7_RECOVERY_TERMINAL_SCHEMA
+        or terminal.get("schema_version") != EPOCH_8_RECOVERY_TERMINAL_SCHEMA
         or terminal.get("recovery_id") != authorization.authorization_id
         or terminal.get("authorization") != reference
         or terminal.get("owner_confirmation_binding") != owner_reference
@@ -17733,7 +19187,7 @@ def _recovered_publication_capability(
         or terminal.get("automatic_retry_count") != 0
         or terminal.get("error") is not None
         or receipt_payload != secondary_receipt_payload
-        or receipt.get("schema_version") != EPOCH_7_RECOVERY_MIRROR_RECEIPT_SCHEMA
+        or receipt.get("schema_version") != EPOCH_8_RECOVERY_MIRROR_RECEIPT_SCHEMA
         or receipt.get("recovery_authorization_sha256") != authorization.sha256
         or receipt.get("owner_confirmation_binding_sha256") != owner_binding.sha256
         or receipt.get("recovery_id") != authorization.authorization_id
@@ -17745,7 +19199,7 @@ def _recovered_publication_capability(
         or receipt.get("selected_attempt_ordinal") != 2
         or receipt.get("selected_implementation_epoch") != historical_anchor.selected_epoch
         or receipt.get("selected_implementation_commit") != historical_anchor.selected_commit
-        or receipt.get("execution_epoch") != EPOCH_7_IMPLEMENTATION_EPOCH
+        or receipt.get("execution_epoch") != EPOCH_8_IMPLEMENTATION_EPOCH
         or receipt.get("execution_implementation_commit") != live_anchor.implementation_commit
         or receipt.get("execution_head") != started_execution_head
         or receipt.get("destination") != binding.destination.as_posix()
@@ -19266,6 +20720,7 @@ def _read_only_implementation_preflight(
     implementation_commit: str,
     owner_surface_authorization_path: Path,
     independent_review_path: Path,
+    landing_report_path: Path | None = None,
 ) -> JsonObject:
     """Validate the real implementation lineage and bytes without an attempt receipt."""
 
@@ -19291,7 +20746,7 @@ def _read_only_implementation_preflight(
             "000001-execution-authorization-19700101.json"
         ),
     )
-    storage_preflight = _read_only_storage_preflight(preflight_binding)
+    storage_preflight: JsonObject | None = None
     git_directory = root / ".git"
     for forbidden in (
         git_directory / "shallow",
@@ -19323,6 +20778,16 @@ def _read_only_implementation_preflight(
         execution_head=execution_head,
         label="independent implementation review",
     )
+    landing_report = (
+        _authority_reference_for_path(
+            root,
+            landing_report_path,
+            execution_head=execution_head,
+            label="epoch-8 landing report",
+        )
+        if landing_report_path is not None
+        else None
+    )
     control = build_control_surface(
         root,
         implementation_commit,
@@ -19344,7 +20809,32 @@ def _read_only_implementation_preflight(
     real_lineage_recheck_work: Mapping[str, int] | None = None
     recovery_storage_preflight: JsonObject | None = None
     sealed_recovery_preflight: JsonObject | None = None
-    if epoch.epoch == EPOCH_7_IMPLEMENTATION_EPOCH:
+    census_specs: tuple[AuthorityCensusSpec | AuthorityReference, ...] = ()
+    if epoch.epoch == EPOCH_8_IMPLEMENTATION_EPOCH:
+        if landing_report is None:
+            raise RehearsalV22Error("epoch-8 preflight requires an explicit landing report")
+        validate_epoch_8_recovery_contract(root, execution_head=execution_head)
+        merge_commit = _validate_epoch_8_landing_authority(
+            root,
+            execution_head=execution_head,
+            implementation_commit=epoch.implementation_commit,
+            owner=owner_surface,
+            review=independent_review,
+            landing_report=landing_report,
+            control=control,
+        )
+        census_specs = _live_execution_census_specs(
+            {
+                "owner_exact_surface_authorization": owner_surface.as_json(),
+                "independent_implementation_review": independent_review.as_json(),
+                "landing_report": landing_report.as_json(),
+                "merge_commit": merge_commit,
+            },
+            (),
+        )
+    elif epoch.epoch == EPOCH_7_IMPLEMENTATION_EPOCH:
+        if landing_report is not None:
+            raise RehearsalV22Error("historical epoch-7 preflight rejects a landing argument")
         validate_epoch_7_recovery_contract(root, execution_head=execution_head)
         census_specs = (
             AuthorityCensusSpec(owner_surface, "PINNED_SOURCE", None),
@@ -19354,6 +20844,9 @@ def _read_only_implementation_preflight(
                 independent_review.creating_commit,
             ),
         )
+    elif landing_report is not None:
+        raise RehearsalV22Error("historical preflight rejects an epoch-8 landing argument")
+    if census_specs:
         first_census_tracker = _RecoveryWorkTracker()
         real_lineage_census = _real_lineage_census(
             root,
@@ -19362,17 +20855,19 @@ def _read_only_implementation_preflight(
             work_tracker=first_census_tracker,
         )
         real_lineage_work = first_census_tracker.snapshot()
+        storage_preflight = _read_only_storage_preflight(preflight_binding)
         if root == REGISTERED_PROJECT_ROOT:
             primary_recovery = _registered_storage_directory(
                 OFFICIAL_PRIMARY_RECOVERY_CONTAINER,
-                "epoch-7 primary recovery container",
+                "registered primary recovery container",
             )
             secondary_recovery = _registered_storage_directory(
                 OFFICIAL_SECONDARY_RECOVERY_CONTAINER,
-                "epoch-7 secondary recovery container",
+                "registered secondary recovery container",
             )
             if tuple(primary_recovery.iterdir()) or tuple(secondary_recovery.iterdir()):
-                raise RehearsalV22Error("epoch-7 recovery containers are not empty at preflight")
+                raise RehearsalV22Error("registered recovery containers are not empty at preflight")
+        if root == REGISTERED_PROJECT_ROOT or epoch.epoch == EPOCH_8_IMPLEMENTATION_EPOCH:
             history = validate_live_history(preflight_binding)
             receipts = _validate_second_copy_history(preflight_binding, history)
             historical = _historical_selected_anchor(preflight_binding, history)
@@ -19380,18 +20875,19 @@ def _read_only_implementation_preflight(
                 preflight_binding,
                 history,
             )
-            recovery_storage_preflight = {
-                "primary_container": _storage_directory_evidence(
-                    primary_recovery,
-                    "epoch-7 primary recovery container",
-                ),
-                "secondary_container": _storage_directory_evidence(
-                    secondary_recovery,
-                    "epoch-7 secondary recovery container",
-                ),
-                "both_owner_provisioned_empty": True,
-                "leaf_paths_created": 0,
-            }
+            if root == REGISTERED_PROJECT_ROOT:
+                recovery_storage_preflight = {
+                    "primary_container": _storage_directory_evidence(
+                        primary_recovery,
+                        "registered primary recovery container",
+                    ),
+                    "secondary_container": _storage_directory_evidence(
+                        secondary_recovery,
+                        "registered secondary recovery container",
+                    ),
+                    "both_owner_provisioned_empty": True,
+                    "leaf_paths_created": 0,
+                }
             sealed_recovery_preflight = {
                 "series_closed": history.series_closed,
                 "record_count": len(history.records),
@@ -19413,6 +20909,8 @@ def _read_only_implementation_preflight(
             work_tracker=second_census_tracker,
         )
         real_lineage_recheck_work = second_census_tracker.snapshot()
+    else:
+        storage_preflight = _read_only_storage_preflight(preflight_binding)
     registered_surface = [
         {
             "path": relative.as_posix(),
@@ -19443,6 +20941,16 @@ def _read_only_implementation_preflight(
             label="independent implementation review",
         )
         != independent_review
+        or (
+            landing_report is not None
+            and _authority_reference_for_path(
+                root,
+                cast(Path, landing_report_path),
+                execution_head=execution_head,
+                label="epoch-8 landing report",
+            )
+            != landing_report
+        )
         or _read_only_storage_preflight(preflight_binding) != storage_preflight
         or (
             real_lineage_census is not None
@@ -19453,8 +20961,12 @@ def _read_only_implementation_preflight(
         )
     ):
         raise RehearsalV22Error("read-only implementation preflight snapshot changed")
-    return {
-        "schema_version": "p4.2a-v2-2-read-only-implementation-preflight-v1",
+    result: JsonObject = {
+        "schema_version": (
+            EPOCH_8_READ_ONLY_PREFLIGHT_SCHEMA
+            if epoch.epoch >= EPOCH_8_IMPLEMENTATION_EPOCH
+            else "p4.2a-v2-2-read-only-implementation-preflight-v1"
+        ),
         "status": "PASS_READ_ONLY_IMPLEMENTATION_PREFLIGHT",
         "mode": (
             "REGISTERED_OFFICIAL"
@@ -19471,7 +20983,6 @@ def _read_only_implementation_preflight(
         "registered_surface": registered_surface,
         "series_2_registered_storage": storage_preflight,
         "real_lineage_census": real_lineage_census,
-        "epoch_7_recovery_storage": recovery_storage_preflight,
         "sealed_recovery_inputs": sealed_recovery_preflight,
         "effect_summary": {
             "action_receipt_required": False,
@@ -19489,6 +21000,15 @@ def _read_only_implementation_preflight(
             "stdout_persistence_controlled_by_caller": True,
         },
     }
+    if epoch.epoch >= EPOCH_8_IMPLEMENTATION_EPOCH:
+        result["registered_recovery_storage"] = recovery_storage_preflight
+    else:
+        result["epoch_7_recovery_storage"] = recovery_storage_preflight
+    if epoch.epoch == EPOCH_8_IMPLEMENTATION_EPOCH and set(result) != set(
+        EPOCH_8_READ_ONLY_PREFLIGHT_FIELD_ORDER
+    ):
+        raise RehearsalV22Error("epoch-8 preflight output field set drifted")
+    return result
 
 
 def _preflight_action(
@@ -19926,6 +21446,7 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--implementation-commit")
     parser.add_argument("--owner-surface-authorization", type=Path)
     parser.add_argument("--independent-implementation-review", type=Path)
+    parser.add_argument("--landing-report", type=Path)
     parser.add_argument("--bundle-recovery-authorization", type=Path)
     parser.add_argument("--bundle-recovery-owner-confirmation-binding", type=Path)
     return parser
@@ -19941,7 +21462,6 @@ def _normalize_cli_interrupt_handler() -> None:
 
 def _run_cli() -> JsonObject:
     arguments = _parser().parse_args()
-    project_root = _main_project_root()
     preflight_values = (
         arguments.implementation_epoch,
         arguments.implementation_commit,
@@ -19961,6 +21481,71 @@ def _run_cli() -> JsonObject:
             or arguments.expected_ordinal is not None
             or any(value is None for value in preflight_values)
             or any(value is not None for value in recovery_values)
+            or (
+                cast(int, arguments.implementation_epoch) >= EPOCH_8_IMPLEMENTATION_EPOCH
+                and arguments.landing_report is None
+            )
+            or (
+                cast(int, arguments.implementation_epoch) < EPOCH_8_IMPLEMENTATION_EPOCH
+                and arguments.landing_report is not None
+            )
+        ):
+            raise RehearsalV22Error("v2.2 read-only preflight arguments are not exact")
+    elif arguments.recover_sealed_bundle is True or arguments.consume_recovered_release is True:
+        if (
+            arguments.execute is True
+            or arguments.attempt_authorization is not None
+            or arguments.expected_ordinal is not None
+            or arguments.landing_report is not None
+            or any(value is not None for value in preflight_values)
+            or any(value is None for value in recovery_values)
+        ):
+            raise RehearsalV22Error("v2.2 recovered-mode arguments are not exact")
+    elif (
+        arguments.execute is not True
+        or arguments.attempt_authorization is None
+        or arguments.expected_ordinal is None
+        or arguments.landing_report is not None
+        or any(value is not None for value in preflight_values)
+        or any(value is not None for value in recovery_values)
+    ):
+        raise RehearsalV22Error("v2.2 execution arguments are not exact")
+    if arguments.preflight_only is True:
+        preidentity_owner_path = cast(Path, arguments.owner_surface_authorization).absolute()
+        preidentity_review_path = cast(Path, arguments.independent_implementation_review).absolute()
+        preidentity_landing_path = (
+            cast(Path, arguments.landing_report).absolute()
+            if arguments.landing_report is not None
+            else None
+        )
+        preidentity_preflight_argv = (
+            "--preflight-only",
+            "--implementation-epoch",
+            str(cast(int, arguments.implementation_epoch)),
+            "--implementation-commit",
+            cast(str, arguments.implementation_commit),
+            "--owner-surface-authorization",
+            preidentity_owner_path.as_posix(),
+            "--independent-implementation-review",
+            preidentity_review_path.as_posix(),
+            *(
+                ("--landing-report", preidentity_landing_path.as_posix())
+                if preidentity_landing_path is not None
+                else ()
+            ),
+        )
+        if tuple(sys.argv[1:]) != preidentity_preflight_argv:
+            raise RehearsalV22Error("v2.2 read-only preflight CLI shape is not exact")
+    project_root = _main_project_root()
+    if arguments.preflight_only is True:
+        if (
+            arguments.execute is True
+            or arguments.recover_sealed_bundle is True
+            or arguments.consume_recovered_release is True
+            or arguments.attempt_authorization is not None
+            or arguments.expected_ordinal is not None
+            or any(value is None for value in preflight_values)
+            or any(value is not None for value in recovery_values)
         ):
             raise RehearsalV22Error("v2.2 read-only preflight arguments are not exact")
         owner_surface_path = cast(Path, arguments.owner_surface_authorization).absolute()
@@ -19968,6 +21553,11 @@ def _run_cli() -> JsonObject:
             Path,
             arguments.independent_implementation_review,
         ).absolute()
+        landing_path = (
+            cast(Path, arguments.landing_report).absolute()
+            if arguments.landing_report is not None
+            else None
+        )
         recovered_expected_argv = (
             (project_root / SHIM_RELATIVE).as_posix(),
             "--preflight-only",
@@ -19979,6 +21569,11 @@ def _run_cli() -> JsonObject:
             owner_surface_path.as_posix(),
             "--independent-implementation-review",
             independent_review_path.as_posix(),
+            *(
+                ("--landing-report", landing_path.as_posix())
+                if landing_path is not None
+                else ()
+            ),
         )
         if tuple(sys.argv) != recovered_expected_argv:
             raise RehearsalV22Error("v2.2 read-only preflight argv is not exact")
@@ -20001,6 +21596,7 @@ def _run_cli() -> JsonObject:
                 implementation_commit=cast(str, arguments.implementation_commit),
                 owner_surface_authorization_path=owner_surface_path,
                 independent_review_path=independent_review_path,
+                landing_report_path=landing_path,
             )
     if arguments.recover_sealed_bundle is True or arguments.consume_recovered_release is True:
         if (
@@ -20008,6 +21604,7 @@ def _run_cli() -> JsonObject:
             or arguments.preflight_only is True
             or arguments.attempt_authorization is not None
             or arguments.expected_ordinal is not None
+            or arguments.landing_report is not None
             or any(value is not None for value in preflight_values)
             or any(value is None for value in recovery_values)
         ):
@@ -20117,6 +21714,7 @@ def _run_cli() -> JsonObject:
         arguments.execute is not True
         or arguments.attempt_authorization is None
         or arguments.expected_ordinal is None
+        or arguments.landing_report is not None
         or any(value is not None for value in preflight_values)
         or any(value is not None for value in recovery_values)
     ):
