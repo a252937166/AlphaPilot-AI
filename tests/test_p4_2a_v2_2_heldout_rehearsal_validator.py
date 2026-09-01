@@ -86,6 +86,9 @@ V2_1_CONSUMED_CLAIM = Path(
     ".alphapilot-p4-2a-v2-1-execution-claim-"
     "52378ddcda558a8489795c62a5c4d290687700801320508c03c51589c202e962"
 )
+_GIT_NO_COMMIT_SUCCESS_NOTICE = (
+    b"Automatic merge went well; stopped before committing as requested\n"
+)
 
 
 def _preregistration() -> dict[str, Any]:
@@ -123,8 +126,68 @@ def _fixture_git(
         env=environment,
     )
     assert completed.returncode == 0, completed.stderr.decode("utf-8", errors="replace")
-    assert completed.stderr == b""
+    allowed_stderr = (
+        (b"", _GIT_NO_COMMIT_SUCCESS_NOTICE)
+        if arguments
+        == (
+            "merge",
+            "--quiet",
+            "--no-ff",
+            "--no-commit",
+            "epoch-eight-candidate",
+        )
+        else (b"",)
+    )
+    assert completed.stderr in allowed_stderr
     return completed.stdout
+
+
+@pytest.mark.parametrize(
+    ("arguments", "returncode", "stderr", "accepted"),
+    (
+        (
+            ("merge", "--quiet", "--no-ff", "--no-commit", "epoch-eight-candidate"),
+            0,
+            _GIT_NO_COMMIT_SUCCESS_NOTICE,
+            True,
+        ),
+        (
+            ("merge", "--quiet", "--no-ff", "--no-commit", "epoch-eight-candidate"),
+            1,
+            _GIT_NO_COMMIT_SUCCESS_NOTICE,
+            False,
+        ),
+        (
+            ("merge", "--quiet", "--no-ff", "--no-commit", "epoch-eight-candidate"),
+            0,
+            _GIT_NO_COMMIT_SUCCESS_NOTICE + b"unexpected",
+            False,
+        ),
+        (("status", "--porcelain=v1"), 0, _GIT_NO_COMMIT_SUCCESS_NOTICE, False),
+    ),
+    ids=("exact-notice", "nonzero-returncode", "extra-stderr", "wrong-command"),
+)
+def test_fixture_git_stderr_contract_is_exact(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    arguments: tuple[str, ...],
+    returncode: int,
+    stderr: bytes,
+    accepted: bool,
+) -> None:
+    completed = subprocess.CompletedProcess(
+        args=["/usr/bin/git", *arguments],
+        returncode=returncode,
+        stdout=b"fixture-output",
+        stderr=stderr,
+    )
+    monkeypatch.setattr(subprocess, "run", lambda *_args, **_kwargs: completed)
+    validator = SimpleNamespace(_GIT_ENVIRONMENT={}, _GIT_CONFIG_PREFIX=())
+    if accepted:
+        assert _fixture_git(validator, tmp_path, *arguments) == b"fixture-output"
+    else:
+        with pytest.raises(AssertionError):
+            _fixture_git(validator, tmp_path, *arguments)
 
 
 def _fixture_commit_file(
@@ -5699,6 +5762,54 @@ EPOCH_7_CONTRACT_FIELDS = {
     "protected_inputs_and_permitted_outputs",
     "legacy_absence_and_locks",
 }
+EPOCH_8_ADJUDICATION_RELATIVE = Path(
+    "docs/phase4/reports/"
+    "P4.2a-series2-epoch7-recovery-preclaim-refusal-and-epoch8-direction-20260901.json"
+)
+EPOCH_8_ADJUDICATION_SHA256 = (
+    "673d74ac6229f891fa517ec6dadf4cdd2c2093edf110c7c4c8a277d1b425252c"
+)
+EPOCH_8_ADJUDICATION_COMMIT = "87896e9b2c42d6110968876d21f3b0f3963d2ac7"
+EPOCH_8_COMPANION_RELATIVE = Path(
+    "docs/phase4/reports/P4.2a-series2-epoch8-companion-20260901.json"
+)
+EPOCH_8_COMPANION_SHA256 = "4d25ba645c81b3e0d6a3458a47d9e10c80b7cd61f9ad16a28404160af91226ed"
+EPOCH_8_COMPANION_COMMIT = "a39c0263fefcfbdb1886100fec1b71ec374b43a4"
+EPOCH_8_AUTHORITY_RELATIVE = Path(
+    "docs/phase4/reports/P4.2a-v2-2-series2-epoch8-surface-authority-20260901.json"
+)
+EPOCH_8_AUTHORITY_SHA256 = "4547a2231c23a0fff96dced033028c279c4247c76130e79360e2ec602f8dd016"
+EPOCH_8_AUTHORITY_COMMIT = "73a703a422b5209115f5b244490db36e06b1f15d"
+EPOCH_8_CONTRACT_FIELDS = {
+    "schema_version",
+    "governing_adjudication",
+    "implementation_epoch",
+    "registered_preflight_contract",
+    "recovery_review_request_contract",
+    "recovery_authorization_contract",
+    "recovery_owner_binding_contract",
+    "recovery_claim_contract",
+    "bundle_mirror_receipt_contract",
+    "dual_byte_anchor_contract",
+    "unique_a_and_lineage_census_contract",
+    "protected_inputs_and_permitted_outputs",
+    "legacy_absence_and_locks",
+}
+EPOCH_8_EXACT_SURFACE = [
+    {"path": "scripts/p4_2a_v2_2_heldout_rehearsal.py", "status": "M"},
+    {
+        "path": "scripts/validate_p4_2a_v2_2_heldout_rehearsal_bundle.py",
+        "status": "M",
+    },
+    {
+        "path": "tests/test_p4_2a_v2_2_heldout_rehearsal_runner.py",
+        "status": "M",
+    },
+    {
+        "path": "tests/test_p4_2a_v2_2_heldout_rehearsal_validator.py",
+        "status": "M",
+    },
+]
 RECOVERED_PUBLICATION_CAPABILITY_FIELDS = (
     "recovery_authorization_path",
     "recovery_authorization_sha256",
@@ -5783,6 +5894,690 @@ def _reachable_calls(graph: dict[str, set[str]], root: str) -> set[str]:
     return reached
 
 
+def _epoch_eight_json_bytes(value: object) -> bytes:
+    return (
+        json.dumps(
+            value,
+            sort_keys=True,
+            separators=(",", ":"),
+            ensure_ascii=False,
+            allow_nan=False,
+        )
+        + "\n"
+    ).encode("utf-8")
+
+
+def _epoch_eight_storage_evidence(path: Path) -> dict[str, object]:
+    metadata = path.lstat()
+    return {
+        "path": path.as_posix(),
+        "owner_uid": metadata.st_uid,
+        "device": metadata.st_dev,
+        "inode": metadata.st_ino,
+        "mode_octal": "0700",
+        "non_symlink": True,
+        "canonical_unaliased": True,
+    }
+
+
+def _epoch_eight_validator_governance_fixture(
+    tmp_path: Path,
+    *,
+    mutation: str | None = None,
+) -> dict[str, Any]:
+    validator = _validator_module()
+    producer = importlib.import_module(IMPLEMENTATION_MODULE)
+    root = tmp_path / f"epoch-eight-validator-{mutation or 'positive'}"
+    root.mkdir(mode=0o700)
+    _fixture_git(validator, root, "init", "--quiet")
+    _fixture_git(validator, root, "remote", "add", "source", PROJECT_ROOT.as_posix())
+    _fixture_git(
+        validator,
+        root,
+        "fetch",
+        "--quiet",
+        "--no-tags",
+        "source",
+        f"+{EPOCH_8_AUTHORITY_COMMIT}:refs/remotes/source/epoch-eight-authority",
+    )
+    _fixture_git(
+        validator,
+        root,
+        "checkout",
+        "--quiet",
+        "-b",
+        "main",
+        "refs/remotes/source/epoch-eight-authority",
+    )
+    _fixture_git(validator, root, "switch", "--quiet", "-c", "epoch-eight-candidate")
+    changed = (
+        IMPLEMENTATION_RELATIVE,
+        VALIDATOR_RELATIVE,
+        RUNNER_TEST_RELATIVE,
+        VALIDATOR_TEST_RELATIVE,
+    )
+    for relative in changed:
+        (root / relative).write_bytes((PROJECT_ROOT / relative).read_bytes())
+    _fixture_git(validator, root, "add", "--", *(path.as_posix() for path in changed))
+    _fixture_git(validator, root, "commit", "--quiet", "-m", "synthetic epoch eight")
+    implementation_commit = (
+        _fixture_git(validator, root, "rev-parse", "HEAD").decode().strip()
+    )
+    review_relative = Path(
+        "docs/phase4/reports/P4.2a-v2-2-synthetic-epoch8-independent-review.json"
+    )
+    review_payload = _epoch_eight_json_bytes(
+        {
+            "schema_version": "p4.2a-v2-2-synthetic-review-v1",
+            "verdict": "APPROVE_EPOCH_8_IMPLEMENTATION",
+            "reviewed_implementation_commit": implementation_commit,
+            "blockers": [],
+        }
+    )
+    source_review_commit = _fixture_commit_file(
+        validator,
+        root,
+        review_relative,
+        review_payload,
+    )
+    _fixture_git(
+        validator,
+        root,
+        "switch",
+        "--quiet",
+        "-C",
+        "main",
+        EPOCH_8_AUTHORITY_COMMIT,
+    )
+    _fixture_git(
+        validator,
+        root,
+        "merge",
+        "--quiet",
+        "--no-ff",
+        "--no-commit",
+        "epoch-eight-candidate",
+    )
+    _fixture_git(validator, root, "commit", "--quiet", "-m", "merge epoch eight")
+    merge_commit = _fixture_git(validator, root, "rev-parse", "HEAD").decode().strip()
+    merge_parents = [
+        _fixture_git(validator, root, "rev-parse", f"{merge_commit}^{index}")
+        .decode()
+        .strip()
+        for index in (1, 2)
+    ]
+    assert merge_parents == [EPOCH_8_AUTHORITY_COMMIT, source_review_commit]
+    owner = {
+        "path": EPOCH_8_AUTHORITY_RELATIVE.as_posix(),
+        "sha256": EPOCH_8_AUTHORITY_SHA256,
+        "creating_commit": EPOCH_8_AUTHORITY_COMMIT,
+        "unique_a_history_verified": True,
+    }
+    review = {
+        "path": review_relative.as_posix(),
+        "sha256": hashlib.sha256(review_payload).hexdigest(),
+        "creating_commit": merge_commit,
+        "unique_a_history_verified": True,
+    }
+    control_root = "ab" * 32
+    control_count = 73
+    if mutation == "landing-parent-gap":
+        _fixture_commit_file(
+            validator,
+            root,
+            Path("docs/phase4/reports/synthetic-unrelated-before-landing.json"),
+            _epoch_eight_json_bytes({"unrelated": True}),
+        )
+    landing_relative = (
+        Path("synthetic-epoch8-landing-record.json")
+        if mutation == "landing-outside-reports"
+        else Path(
+            "docs/phase4/reports/P4.2a-v2-2-synthetic-epoch8-landing-record.json"
+        )
+    )
+    landing_document = {
+        "schema_version": "p4.2a-v2-2-synthetic-epoch8-landing-v1",
+        "status": "PASS_SYNTHETIC_EPOCH_8_LANDING",
+        "implementation_epoch": 8,
+        "implementation_commit": implementation_commit,
+        "owner_exact_surface_authorization": owner,
+        "independent_implementation_review": review,
+        "merge_commit": merge_commit,
+        "merge_parents": merge_parents,
+        "control_merkle_root_sha256": control_root,
+        "control_record_count": control_count,
+    }
+    if mutation == "landing-document-merge":
+        landing_document["merge_commit"] = implementation_commit
+    landing_payload = (
+        (json.dumps(landing_document, ensure_ascii=False, indent=2) + "\n").encode("utf-8")
+        if mutation == "landing-noncanonical"
+        else _epoch_eight_json_bytes(landing_document)
+    )
+    landing_commit = _fixture_commit_file(
+        validator,
+        root,
+        landing_relative,
+        landing_payload,
+    )
+    landing = {
+        "path": landing_relative.as_posix(),
+        "sha256": hashlib.sha256(landing_payload).hexdigest(),
+        "creating_commit": landing_commit,
+        "unique_a_history_verified": True,
+    }
+    _fixture_git(validator, root, "update-ref", "refs/remotes/origin/main", landing_commit)
+
+    live_specs = (
+        validator.AuthorityCensusSpec(
+            owner["path"],
+            owner["sha256"],
+            owner["creating_commit"],
+            validator.AuthorityCensusRole.PINNED_SOURCE,
+        ),
+        validator.AuthorityCensusSpec(
+            review["path"],
+            review["sha256"],
+            review["creating_commit"],
+            validator.AuthorityCensusRole.PINNED_LANDING_PROJECTION,
+            merge_commit,
+        ),
+        validator.AuthorityCensusSpec(
+            landing["path"],
+            landing["sha256"],
+            landing["creating_commit"],
+            validator.AuthorityCensusRole.PINNED_SOURCE,
+        ),
+    )
+    census = validator._real_lineage_census(
+        root,
+        execution_head=landing_commit,
+        additional_specs=live_specs,
+    )
+    contract = json.loads((root / EPOCH_8_COMPANION_RELATIVE).read_bytes())[
+        "epoch_8_recovery_contract"
+    ]
+    fixed = contract["registered_preflight_contract"]["fixed_values"]
+    r_fixed = contract["recovery_authorization_contract"]["fixed_values"]
+    sealed_series = copy.deepcopy(r_fixed["sealed_series_values"])
+
+    primary_series = validator.registered_series_ledger(root).parent
+    secondary_series = (
+        root.parent
+        / f"{root.name}-EVIDENCE-MIRROR-DO-NOT-DELETE"
+        / "P4.2a/v2.2"
+        / primary_series.name
+    )
+    primary_recovery = tmp_path / f"primary-recovery-{mutation or 'positive'}"
+    secondary_recovery = tmp_path / f"secondary-recovery-{mutation or 'positive'}"
+    for directory in (
+        primary_series,
+        secondary_series,
+        primary_recovery,
+        secondary_recovery,
+    ):
+        directory.mkdir(mode=0o700, parents=True)
+    for directory in (
+        primary_series / "PRIMARY-LEDGER-DO-NOT-DELETE",
+        primary_series / "MIRROR-RECEIPTS-DO-NOT-DELETE",
+        secondary_series / "SEALED-LEDGER-SNAPSHOTS-DO-NOT-DELETE",
+        secondary_series / "MIRROR-RECEIPTS-DO-NOT-DELETE",
+    ):
+        directory.mkdir(mode=0o700)
+    series_storage = {
+        "primary_container": _epoch_eight_storage_evidence(primary_series),
+        "secondary_container": _epoch_eight_storage_evidence(secondary_series),
+        "containers_non_overlapping": True,
+        "storage_state": "EXISTING_FULLY_MIRRORED",
+        "registered_leaf_state": {
+            "primary_ledger": "PRESENT_VERIFIED",
+            "primary_receipts": "PRESENT_VERIFIED",
+            "secondary_receipts": "PRESENT_VERIFIED",
+            "secondary_snapshots": "PRESENT_VERIFIED",
+        },
+        "mirrored_history": {
+            "attempt_count": 2,
+            "history_root_sha256": fixed["history_root_sha256"],
+            "live_ledger_root_sha256": fixed["live_ledger_root_sha256"],
+            "receipt_count": 2,
+            "series_closed": True,
+        },
+        "bundle_destination_absent": True,
+        "lost_series_ledger_absent": True,
+        "retired_v2_1_claim_absent": True,
+        "paths_created": 0,
+    }
+    registered_surface = []
+    for relative in producer.IMPLEMENTATION_SURFACE:
+        payload = _fixture_git(
+            validator,
+            root,
+            "show",
+            f"{implementation_commit}:{relative.as_posix()}",
+        )
+        registered_surface.append(
+            {"path": relative.as_posix(), "sha256": hashlib.sha256(payload).hexdigest()}
+        )
+    sealed_inputs = {
+        "series_closed": True,
+        "record_count": 2,
+        "selected_attempt_ordinal": 2,
+        "selected_implementation_epoch": 6,
+        "selected_implementation_commit": sealed_series["selected_implementation_commit"],
+        "history_root_sha256": sealed_series["history_root_sha256"],
+        "live_ledger_root_sha256": sealed_series["live_ledger_root_sha256"],
+        "mirror_receipt_count": 2,
+        "sealed_input_fingerprints": {
+            "active_ledger": "11" * 32,
+            "primary_seal_receipt": "22" * 32,
+            "secondary_seal_receipt": "33" * 32,
+            "through_ordinal_2_snapshot": "44" * 32,
+        },
+        "work_counters": {
+            "bundle_bytes_copied": 0,
+            "git_objects_read": 0,
+            "recursive_bytes_hashed": 0,
+            "sealed_snapshot_files_visited": 0,
+        },
+        "ledger_and_mirror_read_only": True,
+    }
+    effect_summary = {
+        "action_receipt_required": False,
+        "action_receipts_read": 0,
+        "project_and_gate_state_writes_permitted": False,
+        "temporary_authorities_created": 0,
+        "ledgers_created": 0,
+        "storage_containers_created": 0,
+        "mirror_leaves_created": 0,
+        "attempts_allocated": 0,
+        "pipeline_starts": 0,
+        "automatic_retries": 0,
+        "heldout_evaluation_attempts_consumed": 0,
+        "shallow_alternate_partial_and_included_git_config_rejected": True,
+        "stdout_persistence_controlled_by_caller": True,
+    }
+    preflight = {
+        "schema_version": validator.EPOCH_8_READ_ONLY_PREFLIGHT_SCHEMA,
+        "status": "PASS_READ_ONLY_IMPLEMENTATION_PREFLIGHT",
+        "mode": "NONREGISTERED_READ_ONLY_TEST",
+        "execution_head": landing_commit,
+        "implementation_epoch": 8,
+        "implementation_commit": implementation_commit,
+        "owner_exact_surface_authorization": owner,
+        "independent_implementation_review": review,
+        "control_merkle_root_sha256": control_root,
+        "control_record_count": control_count,
+        "registered_surface": registered_surface,
+        "series_2_registered_storage": series_storage,
+        "real_lineage_census": census,
+        "registered_recovery_storage": None,
+        "sealed_recovery_inputs": sealed_inputs,
+        "effect_summary": effect_summary,
+    }
+    if mutation == "preflight-v1":
+        preflight["schema_version"] = "p4.2a-v2-2-read-only-implementation-preflight-v1"
+    elif mutation == "preflight-old-storage":
+        preflight["epoch_7_recovery_storage"] = preflight.pop(
+            "registered_recovery_storage"
+        )
+    elif mutation == "preflight-surface-extra":
+        registered_surface.append({"path": "extra.py", "sha256": "55" * 32})
+    elif mutation == "preflight-series-storage-extra":
+        series_storage["unregistered"] = True
+    elif mutation == "preflight-sealed-work-extra":
+        sealed_inputs["work_counters"]["unregistered"] = 0
+    elif mutation == "preflight-official-on-synthetic":
+        preflight["mode"] = "REGISTERED_OFFICIAL"
+        preflight["registered_recovery_storage"] = {
+            "primary_container": _epoch_eight_storage_evidence(primary_recovery),
+            "secondary_container": _epoch_eight_storage_evidence(secondary_recovery),
+            "both_owner_provisioned_empty": True,
+            "leaf_paths_created": 0,
+        }
+
+    q_relative = Path(
+        "docs/phase4/reports/P4.2a-v2-2-series2-through-ordinal-000002-"
+        "bundle-recovery-review-request-20260902.json"
+    )
+    r_relative = Path(
+        "docs/phase4/reports/P4.2a-v2-2-series2-through-ordinal-000002-"
+        "bundle-recovery-authorization-20260902.json"
+    )
+    b_relative = Path(
+        "docs/phase4/reports/P4.2a-v2-2-series2-through-ordinal-000002-"
+        "bundle-recovery-owner-confirmation-binding-20260902.json"
+    )
+    preflight_argv = [
+        validator._VALIDATOR_FIXED_PYTHON,
+        "-S",
+        "-P",
+        "-B",
+        (root / SHIM_RELATIVE).as_posix(),
+        "--preflight-only",
+        "--implementation-epoch",
+        "8",
+        "--implementation-commit",
+        implementation_commit,
+        "--owner-surface-authorization",
+        (root / owner["path"]).as_posix(),
+        "--independent-implementation-review",
+        (root / review["path"]).as_posix(),
+        "--landing-report",
+        (root / landing["path"]).as_posix(),
+    ]
+    census_summary = validator._census_summary(census)
+    execution_epoch = {
+        "epoch": 8,
+        "implementation_commit": implementation_commit,
+        "owner_exact_surface_authorization": owner,
+        "independent_implementation_review": review,
+        "merge_commit": merge_commit,
+        "landing_report": landing,
+        "control_merkle_root_sha256": control_root,
+        "control_record_count": control_count,
+        "real_lineage_census": census_summary,
+        "latest_complete_landed_epoch_required": True,
+        "current_control_bytes_required": True,
+        "loaded_module_bytes_required": True,
+    }
+    recovery_argv = [
+        validator._VALIDATOR_FIXED_PYTHON,
+        "-S",
+        "-P",
+        "-B",
+        (root / SHIM_RELATIVE).as_posix(),
+        "--recover-sealed-bundle",
+        "--bundle-recovery-authorization",
+        (root / r_relative).as_posix(),
+        "--bundle-recovery-owner-confirmation-binding",
+        (root / b_relative).as_posix(),
+    ]
+    recovery_storage = {
+        "primary_recovery_container": primary_recovery.as_posix(),
+        "secondary_recovery_container": secondary_recovery.as_posix(),
+        "claim_name_derived_from_authorization_sha256": True,
+        "destination_stage_name_derived_from_authorization_sha256": True,
+        "secondary_snapshot_stage_name_derived_from_authorization_sha256": True,
+        "secondary_snapshot_name_derived_from_authorization_sha256_and_tree_root": True,
+        "receipt_name_derived_from_authorization_sha256_and_tree_root": True,
+        "destination_publication_mode": "ATOMIC_DIRECTORY_NO_REPLACE",
+        "secondary_snapshot_publication_mode": "ATOMIC_DIRECTORY_NO_REPLACE",
+        "primary_receipt_publication_mode": "CREATE_ONLY",
+        "secondary_receipt_publication_mode": "CREATE_ONLY",
+        "paired_receipts_required": True,
+    }
+    r_document = {
+        "schema_version": validator.EPOCH_8_RECOVERY_AUTHORIZATION_SCHEMA,
+        "authorization_id": "synthetic-validator-epoch-eight-recovery",
+        "created_at_utc": "2026-09-02T12:00:00Z",
+        "created_at_shanghai": "2026-09-02T20:00:00+08:00",
+        "verdict": (
+            "APPROVE_EXACTLY_ONE_SEALED_BUNDLE_RECOVERY_ZERO_PIPELINE_START_"
+            "ZERO_AUTOMATIC_RETRY"
+        ),
+        "owner": {
+            "identity": "ouyang",
+            "approved": True,
+            "scope": "one_disclosed_sealed_bundle_recovery_only",
+        },
+        "sealed_series": sealed_series,
+        "execution_epoch": execution_epoch,
+        "destination": {
+            "absolute_path": (
+                root / "docs/phase4/rehearsals/P4.2a-v2-calibration-v2-2"
+            ).as_posix(),
+            "required_absent_before_start": True,
+            "publication_mode": "ATOMIC_DIRECTORY_NO_REPLACE",
+            "bundle_schema_version": producer.BUNDLE_SCHEMA_VERSION,
+            "expected_bundle_status": "PASS_REHEARSAL_V2_2_AWAITING_OWNER_REVIEW",
+            "recovery_storage": recovery_storage,
+        },
+        "exact_argv": recovery_argv,
+        "command_sha256": validator._command_sha256(recovery_argv),
+        "exact_environment": dict(validator._EXACT_ENVIRONMENT),
+        "environment_sha256": validator._environment_sha256(validator._EXACT_ENVIRONMENT),
+        "authorized_bundle_recovery_starts": 1,
+        "authorized_pipeline_starts": 0,
+        "automatic_retry_count": 0,
+        "effect_authorization": copy.deepcopy(
+            contract["recovery_authorization_contract"]["effect_authorization_exact"]
+        ),
+        "interpreter": {
+            "launcher_path": validator._VALIDATOR_FIXED_PYTHON,
+            "launcher_sha256": hashlib.sha256(
+                Path(validator._VALIDATOR_FIXED_PYTHON).read_bytes()
+            ).hexdigest(),
+            "orig_argv_executable": validator._VALIDATOR_FIXED_ORIG_PYTHON,
+            "orig_argv_executable_sha256": hashlib.sha256(
+                Path(validator._VALIDATOR_FIXED_ORIG_PYTHON).read_bytes()
+            ).hexdigest(),
+            "version": validator.platform.python_version(),
+        },
+        "locks": {
+            "p4_2a_done": False,
+            "p4_2b_unlocked": False,
+            "p4_3_unlocked": False,
+            "heldout_evaluation_unlocked": False,
+            "real_trading_unlocked": False,
+            "non_simulate_trading_unlocked": False,
+        },
+    }
+    if mutation == "r-owner-extra":
+        r_document["owner"]["unregistered"] = True
+    elif mutation == "r-destination-extra":
+        r_document["destination"]["unregistered"] = True
+    elif mutation == "r-interpreter-extra":
+        r_document["interpreter"]["unregistered"] = True
+    elif mutation == "r-locks-true":
+        r_document["locks"]["p4_2a_done"] = True
+    r_payload = _epoch_eight_json_bytes(r_document)
+    r_sha = hashlib.sha256(r_payload).hexdigest()
+    confirmation = (
+        "本人 ouyang 确认并批准 SHA-256 "
+        f"{r_sha} 所标识的 canonical bundle recovery authorization；"
+        "pipeline start 0，automatic retry 0。"
+    )
+    preflight_payload = _epoch_eight_json_bytes(preflight)
+    q_document = {
+        "schema_version": validator.EPOCH_8_RECOVERY_REVIEW_REQUEST_SCHEMA,
+        "request_id": "synthetic-validator-epoch-eight-review",
+        "created_at_utc": "2026-09-02T12:00:00Z",
+        "created_at_shanghai": "2026-09-02T20:00:00+08:00",
+        "status": "AWAITING_INDEPENDENT_REVIEW_AND_OWNER_CONFIRMATION",
+        "requester": {
+            "identity": "codex",
+            "role": "operator",
+            "scope": "sealed_bundle_recovery_only",
+        },
+        "landed_execution_epoch": {
+            key: execution_epoch[key]
+            for key in (
+                "epoch",
+                "implementation_commit",
+                "owner_exact_surface_authorization",
+                "independent_implementation_review",
+                "merge_commit",
+                "landing_report",
+                "control_merkle_root_sha256",
+                "control_record_count",
+            )
+        },
+        "registered_read_only_recovery_preflight": {
+            "exact_argv": preflight_argv,
+            "stdout_canonical_json": preflight_payload.decode(),
+            "stdout_sha256": hashlib.sha256(preflight_payload).hexdigest(),
+            "stdout_bytes": len(preflight_payload),
+            "stderr_bytes": 0,
+            "returncode": 0,
+            "status": "PASS_READ_ONLY_IMPLEMENTATION_PREFLIGHT",
+            "real_lineage_census": census_summary,
+        },
+        "preflight_before_after_equality": dict.fromkeys(
+            (
+                "head",
+                "control_surface",
+                "git_refs",
+                "official_ledger",
+                "sealed_mirror",
+                "destination",
+                "heldout",
+                "temporary_paths",
+            ),
+            True,
+        ),
+        "proposed_recovery_authorization": {
+            "path": r_relative.as_posix(),
+            "document": r_document,
+            "canonical_json_sha256": r_sha,
+            "bytes": len(r_payload),
+            "currently_effective": False,
+        },
+        "requested_owner_action_time_confirmation": {
+            "required_owner_identity": "ouyang",
+            "requested_exact_confirmation": confirmation,
+            "delivery_channel": "in_person_via_independent_reviewer",
+            "confirmation_not_yet_received": True,
+        },
+        "post_confirmation_plan_not_yet_executed": dict.fromkeys(
+            (
+                "land_r",
+                "land_b",
+                "revalidate_start_census",
+                "one_recovery_start",
+                "zero_pipeline_start",
+                "zero_automatic_retry",
+            ),
+            True,
+        ),
+        "current_locks": {
+            "series_closed": True,
+            "attempts_allocated": 2,
+            "selected_attempt_ordinal": 2,
+            "ledger_and_sealed_mirror_read_only": True,
+            "destination_created": False,
+            "bundle_recovery_authorization_created": False,
+            "owner_confirmation_binding_created": False,
+            "bundle_recovery_starts": 0,
+            "pipeline_starts_in_recovery": 0,
+            "automatic_retries_in_recovery": 0,
+            "recovery_claim_created": False,
+            "recovered_bundle_mirror_created": False,
+            "heldout_evaluation_attempts_consumed": 0,
+            "p4_2a_done": False,
+            "p4_2b_unlocked": False,
+            "p4_3_unlocked": False,
+            "trading_unlocked": False,
+        },
+    }
+    if mutation == "q-v1-alias":
+        q_document["schema_version"] = (
+            "p4.2a-v2-2-series2-sealed-bundle-recovery-review-request-v1"
+        )
+        q_document["landed_epoch_7"] = q_document.pop("landed_execution_epoch")
+    elif mutation == "q-requester-extra":
+        q_document["requester"]["unregistered"] = True
+    elif mutation == "q-confirmation-extra":
+        q_document["requested_owner_action_time_confirmation"]["unregistered"] = True
+    elif mutation == "q-locks-drift":
+        q_document["current_locks"]["p4_2a_done"] = True
+    q_payload = _epoch_eight_json_bytes(q_document)
+    q_commit = _fixture_commit_file(validator, root, q_relative, q_payload)
+    r_commit = _fixture_commit_file(validator, root, r_relative, r_payload)
+    b_document = {
+        "schema_version": validator.EPOCH_8_RECOVERY_OWNER_BINDING_SCHEMA,
+        "binding_id": "synthetic-validator-epoch-eight-binding",
+        "created_at_utc": "2026-09-02T12:01:00Z",
+        "created_at_shanghai": "2026-09-02T20:01:00+08:00",
+        "status": "OWNER_CONFIRMATION_BOUND",
+        "review_request": {
+            "path": q_relative.as_posix(),
+            "sha256": hashlib.sha256(q_payload).hexdigest(),
+            "bytes": len(q_payload),
+            "creating_commit": q_commit,
+        },
+        "recovery_authorization": {
+            "path": r_relative.as_posix(),
+            "sha256": r_sha,
+            "bytes": len(r_payload),
+            "creating_commit": r_commit,
+        },
+        "owner_confirmation": {
+            "identity": "ouyang",
+            "confirmation_text": confirmation,
+            "observed_at_utc": "2026-09-02T12:01:00Z",
+            "observed_at_shanghai": "2026-09-02T20:01:00+08:00",
+            "source": "业主向复核方当面确认，由复核方转达",
+            "authorization_sha256": r_sha,
+        },
+        "authorized_scope": {
+            "series_token_sha256": sealed_series["series_token_sha256"],
+            "selected_attempt_ordinal": 2,
+            "authorized_bundle_recovery_starts": 1,
+            "authorized_pipeline_starts": 0,
+            "automatic_retry_count": 0,
+            "scope": "one_disclosed_sealed_bundle_recovery_only",
+        },
+        "explicit_exclusions": dict.fromkeys(
+            (
+                "attempt_allocation",
+                "ledger_or_sealed_mirror_write",
+                "pipeline",
+                "heldout_materialization_inference_or_evaluation",
+                "p4_2b",
+                "p4_3",
+                "trading",
+            ),
+            True,
+        ),
+        "registered_read_only_recovery_preflight": {
+            "path": q_relative.as_posix(),
+            "stdout_sha256": hashlib.sha256(preflight_payload).hexdigest(),
+            "stdout_bytes": len(preflight_payload),
+            "real_lineage_census_sha256": hashlib.sha256(
+                _epoch_eight_json_bytes(census)
+            ).hexdigest(),
+            "result": "PASS_READ_ONLY_IMPLEMENTATION_PREFLIGHT",
+        },
+        "machine_boundary": {
+            "consumed_by_recovery_runner": True,
+            "evidence_only": False,
+            "passed_as_bundle_recovery_confirmation_binding": True,
+            "machine_recovery_authorization_remains_exactly_19_fields": True,
+            "this_document_adds_no_field_to_the_19_field_authorization": True,
+        },
+    }
+    if mutation == "b-confirmation-extra":
+        b_document["owner_confirmation"]["unregistered"] = True
+    elif mutation == "b-exclusions-false":
+        b_document["explicit_exclusions"]["pipeline"] = False
+    b_payload = _epoch_eight_json_bytes(b_document)
+    b_commit = _fixture_commit_file(validator, root, b_relative, b_payload)
+    _fixture_git(validator, root, "update-ref", "refs/remotes/origin/main", b_commit)
+    return {
+        "root": root,
+        "contract": contract,
+        "implementation_commit": implementation_commit,
+        "owner": owner,
+        "review": review,
+        "merge_commit": merge_commit,
+        "landing": landing,
+        "control_root": control_root,
+        "control_count": control_count,
+        "census": census,
+        "q_document": q_document,
+        "q_commit": q_commit,
+        "r_document": r_document,
+        "r_path": root / r_relative,
+        "b_document": b_document,
+        "b_path": root / b_relative,
+        "series_token_sha256": sealed_series["series_token_sha256"],
+        "primary_series": primary_series,
+        "secondary_series": secondary_series,
+        "primary_recovery": primary_recovery,
+        "secondary_recovery": secondary_recovery,
+    }
+
+
 def test_epoch_7_companion_and_contract_are_independently_byte_bound() -> None:
     validator = _validator_module()
     registered_root = Path(validator.REGISTERED_PROJECT_ROOT)
@@ -5809,6 +6604,786 @@ def test_epoch_7_companion_and_contract_are_independently_byte_bound() -> None:
     else:
         observed = validator.validate_epoch_7_recovery_contract(registered_root)
     assert observed == contract
+
+
+def test_epoch_8_governance_chain_companion_and_authority_are_byte_bound() -> None:
+    validator = _validator_module()
+    expected = (
+        (
+            EPOCH_8_ADJUDICATION_RELATIVE,
+            EPOCH_8_ADJUDICATION_SHA256,
+            EPOCH_8_ADJUDICATION_COMMIT,
+            "a1dff7a8b9d093404272e57fe30b6f1ddb575516",
+        ),
+        (
+            EPOCH_8_COMPANION_RELATIVE,
+            EPOCH_8_COMPANION_SHA256,
+            EPOCH_8_COMPANION_COMMIT,
+            EPOCH_8_ADJUDICATION_COMMIT,
+        ),
+        (
+            EPOCH_8_AUTHORITY_RELATIVE,
+            EPOCH_8_AUTHORITY_SHA256,
+            EPOCH_8_AUTHORITY_COMMIT,
+            EPOCH_8_COMPANION_COMMIT,
+        ),
+    )
+    for relative, digest, commit, parent in expected:
+        payload = (PROJECT_ROOT / relative).read_bytes()
+        assert hashlib.sha256(payload).hexdigest() == digest
+        assert (
+            subprocess.run(
+                [
+                    "/usr/bin/git",
+                    "-C",
+                    PROJECT_ROOT.as_posix(),
+                    "show",
+                    f"{commit}:{relative.as_posix()}",
+                ],
+                check=True,
+                capture_output=True,
+            ).stdout
+            == payload
+        )
+        assert (
+            subprocess.run(
+                [
+                    "/usr/bin/git",
+                    "-C",
+                    PROJECT_ROOT.as_posix(),
+                    "rev-parse",
+                    f"{commit}^",
+                ],
+                check=True,
+                capture_output=True,
+                text=True,
+            ).stdout.strip()
+            == parent
+        )
+        assert (
+            subprocess.run(
+                [
+                    "/usr/bin/git",
+                    "-C",
+                    PROJECT_ROOT.as_posix(),
+                    "diff-tree",
+                    "--no-commit-id",
+                    "--name-status",
+                    "-r",
+                    commit,
+                ],
+                check=True,
+                capture_output=True,
+                text=True,
+            ).stdout.splitlines()
+            == [f"A\t{relative.as_posix()}"]
+        )
+
+    companion = json.loads((PROJECT_ROOT / EPOCH_8_COMPANION_RELATIVE).read_bytes())
+    contract = companion["epoch_8_recovery_contract"]
+    assert set(contract) == EPOCH_8_CONTRACT_FIELDS
+    assert contract["schema_version"] == "p4.2a-v2-2-series2-epoch8-recovery-contract-v1"
+    assert type(contract["implementation_epoch"]) is int
+    assert contract["implementation_epoch"] == 8
+    assert companion["part_2_owner_approval"]["implementation_authorized"] is False
+    assert companion["part_4_boundaries"]["surface_authority_effective"] is False
+
+    authority = json.loads((PROJECT_ROOT / EPOCH_8_AUTHORITY_RELATIVE).read_bytes())
+    assert set(authority) == {
+        "schema_version",
+        "verdict",
+        "owner",
+        "implementation_epoch",
+        "base_commit",
+        "exact_surface",
+    }
+    assert authority == {
+        "schema_version": "p4.2a-v2-2-implementation-epoch-surface-authorization-v1",
+        "verdict": "APPROVE_EXACT_V2_2_IMPLEMENTATION_EPOCH_SURFACE",
+        "owner": {"identity": "ouyang", "approved": True},
+        "implementation_epoch": 8,
+        "base_commit": EPOCH_8_COMPANION_COMMIT,
+        "exact_surface": EPOCH_8_EXACT_SURFACE,
+    }
+    head = subprocess.run(
+        ["/usr/bin/git", "-C", PROJECT_ROOT.as_posix(), "rev-parse", "HEAD"],
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+    assert validator.validate_epoch_8_recovery_contract(
+        PROJECT_ROOT,
+        execution_head=head,
+    ) == contract
+
+
+def test_epoch_8_preflight_q_and_fixed_lineage_contract_are_closed() -> None:
+    validator = _validator_module()
+    companion = json.loads((PROJECT_ROOT / EPOCH_8_COMPANION_RELATIVE).read_bytes())
+    contract = companion["epoch_8_recovery_contract"]
+    preflight = contract["registered_preflight_contract"]
+    assert preflight["schema_version"] == "p4.2a-v2-2-read-only-implementation-preflight-v2"
+    assert preflight["exact_top_level_fields"] == [
+        "schema_version",
+        "status",
+        "mode",
+        "execution_head",
+        "implementation_epoch",
+        "implementation_commit",
+        "owner_exact_surface_authorization",
+        "independent_implementation_review",
+        "control_merkle_root_sha256",
+        "control_record_count",
+        "registered_surface",
+        "series_2_registered_storage",
+        "real_lineage_census",
+        "registered_recovery_storage",
+        "sealed_recovery_inputs",
+        "effect_summary",
+    ]
+    assert preflight["cli_contract"]["bootstrap_order"].index(
+        "epoch-8 contract, owner surface authority, independent review and explicit "
+        "landing identity plus topology"
+    ) < preflight["cli_contract"]["bootstrap_order"].index(
+        "series storage, recovery containers, sealed ledger and sealed-mirror inputs"
+    )
+
+    q_contract = contract["recovery_review_request_contract"]
+    assert q_contract["schema_version"] == (
+        "p4.2a-v2-2-series2-sealed-bundle-recovery-review-request-v2"
+    )
+    assert q_contract["exact_top_level_fields"] == [
+        "schema_version",
+        "request_id",
+        "created_at_utc",
+        "created_at_shanghai",
+        "status",
+        "requester",
+        "landed_execution_epoch",
+        "registered_read_only_recovery_preflight",
+        "preflight_before_after_equality",
+        "proposed_recovery_authorization",
+        "requested_owner_action_time_confirmation",
+        "post_confirmation_plan_not_yet_executed",
+        "current_locks",
+    ]
+    assert contract["recovery_authorization_contract"]["schema_version"].endswith(
+        "authorization-v1"
+    )
+    assert len(contract["recovery_authorization_contract"]["exact_top_level_fields"]) == 19
+    assert contract["recovery_owner_binding_contract"]["schema_version"].endswith(
+        "binding-v1"
+    )
+    assert len(contract["recovery_owner_binding_contract"]["exact_top_level_fields"]) == 12
+
+    lineage = contract["unique_a_and_lineage_census_contract"]
+    rows = lineage["fixed_carry_forward_rows"]
+    assert len(rows) == 6
+    base_specs = {spec.path: spec for spec in validator._base_authority_census_specs()}
+    for row in rows:
+        assert set(row) == {
+            "path",
+            "sha256",
+            "bytes",
+            "creating_commit",
+            "role",
+            "declared_landing_projection_commit",
+        }
+        payload = subprocess.run(
+            [
+                "/usr/bin/git",
+                "-C",
+                PROJECT_ROOT.as_posix(),
+                "show",
+                f"{row['creating_commit']}:{row['path']}",
+            ],
+            check=True,
+            capture_output=True,
+        ).stdout
+        assert len(payload) == row["bytes"]
+        assert hashlib.sha256(payload).hexdigest() == row["sha256"]
+        spec = base_specs[row["path"]]
+        assert spec.pinned_sha256 == row["sha256"]
+        assert spec.pinned_creating_commit == row["creating_commit"]
+        assert spec.role.value == row["role"]
+        assert spec.declared_landing_projection_commit == row[
+            "declared_landing_projection_commit"
+        ]
+    for relative in (EPOCH_8_COMPANION_RELATIVE, EPOCH_8_AUTHORITY_RELATIVE):
+        assert relative.as_posix() in base_specs
+
+    legacy = contract["legacy_absence_and_locks"]
+    assert legacy["amendment_time_facts_permanently_false"] == [
+        "official_series_2_bundle_emits_void_epoch_1",
+        "void_epoch_3_added",
+        "two_four_exception_added",
+        "sealed_bundle_recovery_added",
+        "recover_sealed_bundle_cli_added",
+        "consume_recovered_release_cli_added",
+    ]
+    assert legacy["locks"] == {
+        "p4_2a_done": False,
+        "p4_2b_unlocked": False,
+        "p4_3_unlocked": False,
+        "heldout_evaluation_one_shot": "unconsumed",
+        "trading": "zero non-SIMULATE",
+    }
+
+
+_EPOCH_EIGHT_LIVE_ANCHOR_PROBE = r"""
+import json
+import sys
+from dataclasses import replace
+from pathlib import Path
+
+request = json.loads(sys.stdin.buffer.read())
+root = Path(request["root"]).resolve(strict=True)
+stdlib = Path(sys.base_prefix) / "lib/python3.12"
+runtime_paths = (
+    stdlib,
+    stdlib / "lib-dynload",
+    Path(request["site_packages"]),
+    root,
+    root / "src",
+)
+sys.path[:] = list(
+    dict.fromkeys(path.absolute().as_posix() for path in runtime_paths)
+)
+
+import scripts.p4_2a_v2_2_heldout_rehearsal as producer
+import scripts.validate_p4_2a_v2_2_heldout_rehearsal_bundle as validator
+
+validator_path = (root / request["validator_relative"]).resolve(strict=True)
+main_module = sys.modules["__main__"]
+main_module.__file__ = validator_path.as_posix()
+sys.argv[:] = [validator_path.as_posix()]
+sys.orig_argv[:] = [
+    request["fixed_orig_argv_executable"],
+    "-S",
+    "-P",
+    "-B",
+    validator_path.as_posix(),
+]
+
+expected_control = producer.build_control_surface(
+    root,
+    request["implementation_commit"],
+    require_current=True,
+)
+anchor = validator.LiveExecutionAnchor(
+    implementation_epoch=producer.EPOCH_8_IMPLEMENTATION_EPOCH,
+    implementation_commit=request["implementation_commit"],
+    control_merkle_root_sha256=expected_control.merkle_root_sha256,
+    control_record_count=len(expected_control.records),
+    execution_head=request["execution_head"],
+    owner_surface_authorization=request["owner"],
+    independent_implementation_review=request["review"],
+    landing_commit=request["landing_commit"],
+    landing_report=request["landing_report"],
+    real_lineage_census_sha256=request["lineage_census_sha256"],
+    require_current=True,
+)
+observed_root, observed_head, observed_control = (
+    validator._validate_live_execution_anchor_identity(
+        root,
+        anchor,
+        control_pass_nonce=object(),
+        ref_snapshot_sha256=request["ref_snapshot_sha256"],
+        lineage_census_sha256=request["lineage_census_sha256"],
+    )
+)
+if (
+    observed_control.merkle_root_sha256 != expected_control.merkle_root_sha256
+    or len(observed_control.records) != len(expected_control.records)
+):
+    raise AssertionError("independent live control disagrees with producer control")
+try:
+    validator._validate_live_execution_anchor_identity(
+        root,
+        replace(anchor, control_record_count=len(expected_control.records) + 1),
+        control_pass_nonce=object(),
+        ref_snapshot_sha256=request["ref_snapshot_sha256"],
+        lineage_census_sha256=request["lineage_census_sha256"],
+    )
+except validator.RehearsalV22ValidationError as exc:
+    negative_error = str(exc)
+else:
+    raise AssertionError("live control count negative probe did not reject")
+sys.stdout.buffer.write(
+    validator._canonical_json_bytes(
+        {
+            "schema_version": "p4.2a-v2.2-epoch8-live-anchor-probe-v1",
+            "status": "PASS_LOCKED_LIVE_ANCHOR_PROBE",
+            "bootstrap_main_path": validator_path.as_posix(),
+            "observed_root": observed_root.as_posix(),
+            "observed_execution_head": observed_head,
+            "control_merkle_root_sha256": observed_control.merkle_root_sha256,
+            "control_record_count": len(observed_control.records),
+            "loaded_repository_sources": list(observed_control.loaded_repository_sources),
+            "negative_error": negative_error,
+        }
+    )
+)
+"""
+
+
+def _epoch_eight_locked_live_anchor_probe(fixture: dict[str, Any]) -> dict[str, Any]:
+    producer = importlib.import_module(IMPLEMENTATION_MODULE)
+    request = {
+        "root": fixture["root"].as_posix(),
+        "site_packages": (
+            producer.REGISTERED_PROJECT_ROOT / ".venv/lib/python3.12/site-packages"
+        ).as_posix(),
+        "validator_relative": VALIDATOR_RELATIVE.as_posix(),
+        "fixed_orig_argv_executable": producer.FIXED_ORIG_ARGV_EXECUTABLE.as_posix(),
+        "implementation_commit": fixture["implementation_commit"],
+        "execution_head": fixture["q_commit"],
+        "owner": fixture["owner"],
+        "review": fixture["review"],
+        "landing_commit": fixture["merge_commit"],
+        "landing_report": fixture["landing"],
+        "lineage_census_sha256": hashlib.sha256(
+            _epoch_eight_json_bytes(fixture["census"])
+        ).hexdigest(),
+        "ref_snapshot_sha256": "33" * 32,
+    }
+    completed = subprocess.run(
+        [
+            producer.FIXED_PYTHON_LAUNCHER.as_posix(),
+            "-S",
+            "-P",
+            "-B",
+            "-c",
+            _EPOCH_EIGHT_LIVE_ANCHOR_PROBE,
+        ],
+        input=_epoch_eight_json_bytes(request),
+        check=False,
+        capture_output=True,
+        cwd=fixture["root"],
+        env=dict(producer.EXACT_ENVIRONMENT),
+    )
+    assert completed.returncode == 0, completed.stderr.decode("utf-8", errors="replace")
+    assert completed.stderr == b""
+    document = json.loads(completed.stdout)
+    assert completed.stdout == _epoch_eight_json_bytes(document)
+    assert set(document) == {
+        "schema_version",
+        "status",
+        "bootstrap_main_path",
+        "observed_root",
+        "observed_execution_head",
+        "control_merkle_root_sha256",
+        "control_record_count",
+        "loaded_repository_sources",
+        "negative_error",
+    }
+    return document
+
+
+def test_epoch_8_validator_independently_accepts_complete_synthetic_preflight_qrb(
+    tmp_path: Path,
+) -> None:
+    validator = _validator_module()
+    fixture = _epoch_eight_validator_governance_fixture(tmp_path)
+    before_root = _tree_fingerprint(fixture["root"])
+    before_real = _all_real_path_fingerprints()
+    observed = validator._validate_recovery_governance(
+        fixture["root"],
+        recovery_authorization_path=fixture["r_path"],
+        owner_binding_path=fixture["b_path"],
+        expected_series_token_sha256=fixture["series_token_sha256"],
+    )
+    assert observed.preflight_document == json.loads(
+        fixture["q_document"]["registered_read_only_recovery_preflight"][
+            "stdout_canonical_json"
+        ]
+    )
+    assert observed.preflight_census == fixture["census"]
+    assert observed.landed_execution_epoch == fixture["q_document"][
+        "landed_execution_epoch"
+    ]
+    assert observed.q_document == fixture["q_document"]
+    assert observed.r_document == fixture["r_document"]
+    assert observed.b_document == fixture["b_document"]
+    probe = _epoch_eight_locked_live_anchor_probe(fixture)
+    assert probe["schema_version"] == "p4.2a-v2.2-epoch8-live-anchor-probe-v1"
+    assert probe["status"] == "PASS_LOCKED_LIVE_ANCHOR_PROBE"
+    assert probe["bootstrap_main_path"] == (fixture["root"] / VALIDATOR_RELATIVE).as_posix()
+    assert probe["observed_root"] == fixture["root"].as_posix()
+    assert probe["observed_execution_head"] == fixture["q_commit"]
+    assert isinstance(probe["control_merkle_root_sha256"], str)
+    assert re.fullmatch(r"[0-9a-f]{64}", probe["control_merkle_root_sha256"])
+    assert isinstance(probe["control_record_count"], int)
+    assert probe["control_record_count"] > 0
+    assert IMPLEMENTATION_RELATIVE.as_posix() in probe["loaded_repository_sources"]
+    assert VALIDATOR_RELATIVE.as_posix() in probe["loaded_repository_sources"]
+    assert probe["negative_error"] == "live epoch-8 control root or count drifted"
+    assert _tree_fingerprint(fixture["root"]) == before_root
+    assert _all_real_path_fingerprints() == before_real
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    (
+        "landing-parent-gap",
+        "landing-document-merge",
+        "landing-reference-sha",
+        "landing-declared-merge",
+        "landing-control-root",
+        "landing-control-count",
+        "landing-outside-reports",
+        "landing-noncanonical",
+    ),
+)
+def test_epoch_8_validator_rejects_every_landing_topology_or_binding_drift(
+    tmp_path: Path,
+    mutation: str,
+) -> None:
+    validator = _validator_module()
+    fixture_mutation = mutation if mutation in {
+        "landing-parent-gap",
+        "landing-document-merge",
+        "landing-outside-reports",
+        "landing-noncanonical",
+    } else None
+    fixture = _epoch_eight_validator_governance_fixture(
+        tmp_path,
+        mutation=fixture_mutation,
+    )
+    landing = copy.deepcopy(fixture["landing"])
+    declared_merge = fixture["merge_commit"]
+    control_root = fixture["control_root"]
+    control_count = fixture["control_count"]
+    if mutation == "landing-reference-sha":
+        landing["sha256"] = "00" * 32
+    elif mutation == "landing-declared-merge":
+        declared_merge = fixture["implementation_commit"]
+    elif mutation == "landing-control-root":
+        control_root = "00" * 32
+    elif mutation == "landing-control-count":
+        control_count += 1
+    with pytest.raises(
+        validator.RehearsalV22ValidationError,
+        match=r"(?:epoch-8 landing authority|authority creation blob SHA) drifted",
+    ):
+        validator._validate_epoch_8_landing_authority(
+            fixture["root"],
+            execution_head=(
+                _fixture_git(validator, fixture["root"], "rev-parse", "HEAD")
+                .decode()
+                .strip()
+            ),
+            implementation_commit=fixture["implementation_commit"],
+            owner=fixture["owner"],
+            review=fixture["review"],
+            landing=landing,
+            declared_merge_commit=declared_merge,
+            control_root=control_root,
+            control_count=control_count,
+        )
+
+
+@pytest.mark.parametrize(
+    ("mutation", "message"),
+    (
+        ("preflight-v1", r"(?:Q registered preflight|epoch-8 preflight)"),
+        ("preflight-old-storage", r"epoch-8 preflight"),
+        ("preflight-surface-extra", r"preflight registered surface drifted"),
+        ("preflight-series-storage-extra", r"preflight series-2"),
+        ("preflight-sealed-work-extra", r"preflight (?:work counters|sealed inputs)"),
+        (
+            "preflight-official-on-synthetic",
+            r"official/synthetic preflight root classification drifted",
+        ),
+    ),
+)
+def test_epoch_8_validator_rejects_noncanonical_or_cross_mode_preflight_stdout(
+    tmp_path: Path,
+    mutation: str,
+    message: str,
+) -> None:
+    validator = _validator_module()
+    fixture = _epoch_eight_validator_governance_fixture(tmp_path, mutation=mutation)
+    with pytest.raises(validator.RehearsalV22ValidationError, match=message):
+        validator._validate_recovery_governance(
+            fixture["root"],
+            recovery_authorization_path=fixture["r_path"],
+            owner_binding_path=fixture["b_path"],
+            expected_series_token_sha256=fixture["series_token_sha256"],
+        )
+
+
+def test_epoch_8_validator_rejects_synthetic_mode_at_the_registered_root(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    validator = _validator_module()
+    fixture = _epoch_eight_validator_governance_fixture(tmp_path)
+    synthetic_token = fixture["primary_series"].name.removeprefix("SERIES-000002-")
+    monkeypatch.setattr(validator, "REGISTERED_PROJECT_ROOT", fixture["root"])
+    monkeypatch.setattr(validator, "SERIES_2_REGISTERED_SERIES_TOKEN", synthetic_token)
+    monkeypatch.setattr(
+        validator,
+        "SERIES_2_PRIMARY_SERIES_CONTAINER",
+        fixture["primary_series"],
+    )
+    monkeypatch.setattr(
+        validator,
+        "SERIES_2_PRIMARY_LEDGER_ROOT",
+        fixture["primary_series"] / "PRIMARY-LEDGER-DO-NOT-DELETE",
+    )
+    monkeypatch.setattr(
+        validator,
+        "SERIES_2_SECONDARY_SERIES_CONTAINER",
+        fixture["secondary_series"],
+    )
+    with pytest.raises(
+        validator.RehearsalV22ValidationError,
+        match=r"official/synthetic preflight root classification drifted",
+    ):
+        validator._validate_epoch_8_q_preflight(
+            fixture["root"],
+            contract=fixture["contract"],
+            q=fixture["q_document"],
+            q_commit=fixture["q_commit"],
+        )
+
+
+@pytest.mark.parametrize(
+    ("mutation", "message"),
+    (
+        ("q-v1-alias", r"bundle recovery review request"),
+        ("q-requester-extra", r"Q requester"),
+        ("q-confirmation-extra", r"Q requested owner confirmation"),
+        ("q-locks-drift", r"recovery Q requester/confirmation/locks drifted"),
+        ("r-owner-extra", r"recovery R owner"),
+        ("r-destination-extra", r"recovery R destination"),
+        ("r-interpreter-extra", r"recovery R interpreter"),
+        ("r-locks-true", r"recovery R nested identity or registered values drifted"),
+        ("b-confirmation-extra", r"recovery owner confirmation"),
+        ("b-exclusions-false", r"recovery B owner or machine scope drifted"),
+    ),
+)
+def test_epoch_8_validator_rejects_every_qrb_nested_shape_or_registered_value_drift(
+    tmp_path: Path,
+    mutation: str,
+    message: str,
+) -> None:
+    validator = _validator_module()
+    fixture = _epoch_eight_validator_governance_fixture(tmp_path, mutation=mutation)
+    with pytest.raises(validator.RehearsalV22ValidationError, match=message):
+        validator._validate_recovery_governance(
+            fixture["root"],
+            recovery_authorization_path=fixture["r_path"],
+            owner_binding_path=fixture["b_path"],
+            expected_series_token_sha256=fixture["series_token_sha256"],
+        )
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    ("path", "owner", "mode", "symlink", "alias"),
+)
+def test_epoch_8_registered_recovery_storage_directory_identity_is_exact(
+    tmp_path: Path,
+    mutation: str,
+) -> None:
+    validator = _validator_module()
+    directory = tmp_path / "registered-recovery-container"
+    directory.mkdir(mode=0o700)
+    evidence = _epoch_eight_storage_evidence(directory)
+    if mutation == "path":
+        evidence["path"] = (tmp_path / "another").as_posix()
+    elif mutation == "owner":
+        evidence["owner_uid"] = int(evidence["owner_uid"]) + 1
+    elif mutation == "mode":
+        evidence["mode_octal"] = "0755"
+    elif mutation == "symlink":
+        evidence["non_symlink"] = False
+    elif mutation == "alias":
+        evidence["canonical_unaliased"] = False
+    with pytest.raises(
+        validator.RehearsalV22ValidationError,
+        match=r"identity semantics drifted",
+    ):
+        validator._validate_epoch_8_preflight_storage_directory(
+            evidence,
+            expected_path=directory,
+            label="synthetic registered recovery container",
+        )
+
+
+def test_epoch_8_registered_recovery_storage_directory_identity_positive(
+    tmp_path: Path,
+) -> None:
+    validator = _validator_module()
+    directory = tmp_path / "registered-recovery-container-positive"
+    directory.mkdir(mode=0o700)
+    evidence = _epoch_eight_storage_evidence(directory)
+    assert validator._validate_epoch_8_preflight_storage_directory(
+        evidence,
+        expected_path=directory,
+        label="synthetic registered recovery container",
+    ) == evidence
+
+
+@pytest.mark.parametrize("field", ("device", "inode"))
+def test_epoch_8_live_storage_stage_recomputes_recorded_filesystem_identity(
+    tmp_path: Path,
+    field: str,
+) -> None:
+    validator = _validator_module()
+    primary_series = tmp_path / "live-primary-series"
+    secondary_series = tmp_path / "live-secondary-series"
+    primary_recovery = tmp_path / "live-primary-recovery"
+    secondary_recovery = tmp_path / "live-secondary-recovery"
+    for directory in (
+        primary_series,
+        secondary_series,
+        primary_recovery,
+        secondary_recovery,
+    ):
+        directory.mkdir(mode=0o700)
+    ledger = primary_series / "PRIMARY-LEDGER-DO-NOT-DELETE"
+    primary_receipts = primary_series / "MIRROR-RECEIPTS-DO-NOT-DELETE"
+    secondary_snapshots = secondary_series / "SEALED-LEDGER-SNAPSHOTS-DO-NOT-DELETE"
+    secondary_receipts = secondary_series / "MIRROR-RECEIPTS-DO-NOT-DELETE"
+    for directory in (ledger, primary_receipts, secondary_snapshots, secondary_receipts):
+        directory.mkdir(mode=0o700)
+    primary_receipt = primary_receipts / "receipt.json"
+    secondary_receipt = secondary_receipts / "receipt.json"
+    snapshot = secondary_snapshots / "through-ordinal-000002"
+    snapshot.mkdir(mode=0o700)
+    primary_receipt.write_bytes(b'{"receipt":true}\n')
+    secondary_receipt.write_bytes(primary_receipt.read_bytes())
+    (ledger / "series.json").write_bytes(b'{"closed":true}\n')
+    (snapshot / "series.json").write_bytes(b'{"closed":true}\n')
+    roots = {
+        "active_ledger": ledger,
+        "primary_seal_receipt": primary_receipt,
+        "secondary_seal_receipt": secondary_receipt,
+        "through_ordinal_2_snapshot": snapshot,
+    }
+    fingerprints: dict[str, str] = {}
+    recursive_bytes = 0
+    files_visited = 0
+    for name, path in roots.items():
+        tree, byte_count, file_count = validator._recovery_tree_fingerprint_with_work(path)
+        fingerprints[name] = hashlib.sha256(_epoch_eight_json_bytes(tree)).hexdigest()
+        recursive_bytes += byte_count
+        files_visited += file_count
+    counters = {
+        "git_objects_read": 0,
+        "recursive_bytes_hashed": recursive_bytes,
+        "sealed_snapshot_files_visited": files_visited,
+        "bundle_bytes_copied": 0,
+    }
+    preflight = {
+        "mode": "REGISTERED_OFFICIAL",
+        "series_2_registered_storage": {
+            "primary_container": _epoch_eight_storage_evidence(primary_series),
+            "secondary_container": _epoch_eight_storage_evidence(secondary_series),
+            "registered_leaf_state": {
+                "primary_ledger": "PRESENT_VERIFIED",
+                "primary_receipts": "PRESENT_VERIFIED",
+                "secondary_receipts": "PRESENT_VERIFIED",
+                "secondary_snapshots": "PRESENT_VERIFIED",
+            },
+            "mirrored_history": {
+                "attempt_count": 2,
+                "history_root_sha256": "11" * 32,
+                "live_ledger_root_sha256": "22" * 32,
+                "receipt_count": 2,
+                "series_closed": True,
+            },
+        },
+        "sealed_recovery_inputs": {
+            "sealed_input_fingerprints": fingerprints,
+            "work_counters": counters,
+        },
+        "registered_recovery_storage": {
+            "primary_container": _epoch_eight_storage_evidence(primary_recovery),
+            "secondary_container": _epoch_eight_storage_evidence(secondary_recovery),
+        },
+    }
+    governance = SimpleNamespace(
+        preflight_document=preflight,
+        r_document={
+            "sealed_series": {
+                "started_count": 2,
+                "history_root_sha256": "11" * 32,
+                "live_ledger_root_sha256": "22" * 32,
+                "series_closed": True,
+                "sealed_mirror": {
+                    "receipt_count": 2,
+                    "primary_receipt_path": primary_receipt.as_posix(),
+                    "secondary_receipt_path": secondary_receipt.as_posix(),
+                    "latest_snapshot_path": snapshot.as_posix(),
+                },
+            }
+        },
+    )
+    binding = SimpleNamespace(
+        primary_series_container=primary_series,
+        secondary_series_container=secondary_series,
+        ledger_root=ledger,
+        primary_receipt_root=primary_receipts,
+        secondary_snapshot_root=secondary_snapshots,
+        secondary_receipt_root=secondary_receipts,
+    )
+    validator._validate_epoch_8_preflight_recovery_storage_live(
+        governance,
+        binding=binding,
+        primary_container=primary_recovery,
+        secondary_container=secondary_recovery,
+    )
+    preflight["registered_recovery_storage"]["primary_container"][field] = (
+        int(preflight["registered_recovery_storage"]["primary_container"][field]) + 1
+    )
+    with pytest.raises(
+        validator.RehearsalV22ValidationError,
+        match=r"primary recovery container identity differs from the registered preflight",
+    ):
+        validator._validate_epoch_8_preflight_recovery_storage_live(
+            governance,
+            binding=binding,
+            primary_container=primary_recovery,
+            secondary_container=secondary_recovery,
+        )
+
+
+@pytest.mark.parametrize("mutation", ("delete", "role", "conflicting-duplicate"))
+def test_epoch_8_fixed_carry_forward_registry_rejects_every_mutation(
+    mutation: str,
+) -> None:
+    validator = _validator_module()
+    contract = json.loads((PROJECT_ROOT / EPOCH_8_COMPANION_RELATIVE).read_bytes())[
+        "epoch_8_recovery_contract"
+    ]
+    fixed_rows = contract["unique_a_and_lineage_census_contract"][
+        "fixed_carry_forward_rows"
+    ]
+    specs = list(validator._base_authority_census_specs())
+    target_path = fixed_rows[0]["path"]
+    target = next(spec for spec in specs if spec.path == target_path)
+    if mutation == "delete":
+        specs.remove(target)
+    elif mutation == "role":
+        specs[specs.index(target)] = replace(
+            target,
+            role=validator.AuthorityCensusRole.PINNED_SOURCE,
+            declared_landing_projection_commit=None,
+        )
+    else:
+        specs.append(replace(target, pinned_sha256="00" * 32))
+    with pytest.raises(
+        validator.RehearsalV22ValidationError,
+        match=r"epoch-8 (?:fixed census|runtime carry-forward)",
+    ):
+        validator._validate_epoch_8_fixed_carry_forward_registry(
+            fixed_rows,
+            base_specs=tuple(specs),
+        )
 
 
 def test_epoch_7_historical_anchor_is_recomputed_against_the_bound_sealed_root() -> None:
@@ -6037,7 +7612,7 @@ def _freeze_live_control_cache(
         "authority_worktree",
     ),
 )
-def test_epoch_7_publication_guard_rejects_every_mutable_live_span(
+def test_epoch_8_publication_guard_rejects_every_mutable_live_span(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
     drift: str,
@@ -6057,7 +7632,10 @@ def test_epoch_7_publication_guard_rejects_every_mutable_live_span(
         implementation.IMPLEMENTATION_RELATIVE.as_posix(): b"producer",
         implementation.VALIDATOR_RELATIVE.as_posix(): b"validator",
     }
-    execution_epoch = {"epoch": 7, "binding": "registered"}
+    execution_epoch = {
+        "epoch": implementation.EPOCH_8_IMPLEMENTATION_EPOCH,
+        "binding": "registered",
+    }
     expected_execution_epoch_payload = implementation._canonical_json_bytes(execution_epoch)
     authorization = SimpleNamespace(execution_epoch=execution_epoch)
     start_census = {
@@ -6110,7 +7688,7 @@ def test_epoch_7_publication_guard_rejects_every_mutable_live_span(
     )
     monkeypatch.setattr(
         implementation,
-        "validate_epoch_7_recovery_contract",
+        "validate_epoch_8_recovery_contract",
         lambda _root, **_kwargs: {},
     )
     monkeypatch.setattr(
@@ -6425,6 +8003,7 @@ def test_epoch_7_historical_cache_is_closed_to_passive_selected_epoch_six(
         implementation_epoch=7,
         implementation_commit="e" * 40,
         control_merkle_root_sha256="f" * 64,
+        control_record_count=len(control.records),
         execution_head="b" * 40,
         owner_surface_authorization={},
         independent_implementation_review={},
@@ -6715,7 +8294,8 @@ def test_registered_closed_series_cannot_fall_back_to_active_when_recovery_state
 def test_epoch_7_real_lineage_census_is_independent_consistent_and_read_only() -> None:
     validator = _validator_module()
     implementation = importlib.import_module(IMPLEMENTATION_MODULE)
-    registered_root = Path(validator.REGISTERED_PROJECT_ROOT)
+    real_before = _all_real_path_fingerprints()
+    registered_root = PROJECT_ROOT
     head = subprocess.run(
         ["/usr/bin/git", "-C", registered_root.as_posix(), "rev-parse", "HEAD"],
         check=True,
@@ -6865,6 +8445,7 @@ def test_epoch_7_real_lineage_census_is_independent_consistent_and_read_only() -
     assert negative_tracker.git_object_read_occurrences < (
         validator_tracker.git_object_read_occurrences
     )
+    assert _all_real_path_fingerprints() == real_before
 
 
 def test_epoch_7_lineage_registry_deduplicates_exact_refs_and_rejects_conflicts() -> None:
