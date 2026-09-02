@@ -1,0 +1,293 @@
+{
+  "schema_version": "p4.2a-v2-2-series2-epoch8-r9-implementation-independent-review-v1",
+  "review_id": "p4.2a-v2-2-series2-epoch8-r9-implementation-independent-review-20260902-r1",
+  "created_at_utc": "2026-09-02T06:42:56Z",
+  "created_at_shanghai": "2026-09-02T14:42:56+08:00",
+  "status": "PASS_INDEPENDENT_F12_REPORT_READY_FOR_FRESH_PERSISTENT_GATE_REVIEW",
+  "verdict": "APPROVE_EPOCH8_R9_IMPLEMENTATION_FOR_FRESH_PERSISTENT_GATE_REVIEW",
+  "reviewer": {
+    "identity": "independent_ai_subagent_epoch8_r9_f12_20260902",
+    "reviewer_type": "independent_ai_subagent",
+    "model_role": "AI_SUBAGENT",
+    "not_owner": true,
+    "not_third_party_organization": true,
+    "not_candidate_implementer": true,
+    "not_operator_f15_executor": true,
+    "organizational_third_party_independence_asserted": false,
+    "performed_candidate_implementation": false,
+    "modified_candidate_bytes": false,
+    "operator_f15_conclusion_inherited": false,
+    "actual_independent_f12_execution_performed": true,
+    "method": "fresh full non-shallow no-alternates clone; detached candidate identity and governance review; independent compile/AST and collect; one natural strictly serial execution of each complete registered module; independent post-run JUnit parsing; pre/post candidate identity comparison; create-only primary and byte-identical mirror evidence"
+  },
+  "appointment_and_scope": {
+    "appointment_source": "owner instruction in the current Codex task transcript explicitly appointing a new subagent as the independent F-12 reviewer",
+    "review_scope": "epoch-8 r9 candidate implementation and complete registered F-12 modules only",
+    "prior_operator_f15_is_background_only": true,
+    "prior_operator_f15_verdict_used_as_evidence": false,
+    "independent_review_succession_contract_read_and_followed": true
+  },
+  "candidate": {
+    "remote": "https://github.com/a252937166/AlphaPilot-AI.git",
+    "branch": "codex/p4-2a-v2-2-series2-epoch8-r9",
+    "commit": "c286e7cc2fb837bb636f45f8c11215dd676525c5",
+    "parent": "73a703a422b5209115f5b244490db36e06b1f15d",
+    "parent_is_six_field_surface_authority_commit": true,
+    "tree": "301e232d9fdf2c3bb60a76bbcf2d1fd2344dc812",
+    "direct_single_parent_child": true,
+    "remote_branch_tip_equal": true,
+    "clean_before_run": true,
+    "clean_after_run": true,
+    "head_unchanged_after_run": true
+  },
+  "governance_provenance": {
+    "succession_contract": {
+      "path": "docs/phase4/reports/P4.2a-independent-review-succession-contract-20260829.md",
+      "sha256": "e9cb608330b46311b9bceb5fbbc9b3f7a6ab702c5444ff76840239e79c6f0f84"
+    },
+    "epoch_8_design_proposal": {
+      "path": "docs/phase4/reports/P4.2a-v2-2-series2-epoch8-preclaim-census-symmetry-design-proposal-20260901.md",
+      "sha256": "0a0df03f853730e83b6963564035134538769c2e3db1ad07961379e3448a44b1"
+    },
+    "epoch_8_independent_design_review": {
+      "path": "docs/phase4/reports/P4.2a-v2-2-series2-epoch8-preclaim-census-symmetry-independent-design-review-20260901.json",
+      "sha256": "e1b494d9ab76c704745cf7fbd00ec14269faf8f0a919343cc5244fd187a194a6"
+    },
+    "epoch_8_companion": {
+      "path": "docs/phase4/reports/P4.2a-series2-epoch8-companion-20260901.json",
+      "sha256": "4d25ba645c81b3e0d6a3458a47d9e10c80b7cd61f9ad16a28404160af91226ed",
+      "creating_commit": "a39c0263fefcfbdb1886100fec1b71ec374b43a4"
+    },
+    "six_field_surface_authority": {
+      "path": "docs/phase4/reports/P4.2a-v2-2-series2-epoch8-surface-authority-20260901.json",
+      "sha256": "4547a2231c23a0fff96dced033028c279c4247c76130e79360e2ec602f8dd016",
+      "creating_commit": "73a703a422b5209115f5b244490db36e06b1f15d",
+      "base_commit": "a39c0263fefcfbdb1886100fec1b71ec374b43a4",
+      "implementation_epoch": 8,
+      "verdict": "APPROVE_EXACT_V2_2_IMPLEMENTATION_EPOCH_SURFACE"
+    }
+  },
+  "exact_candidate_surface": [
+    {
+      "status": "M",
+      "path": "scripts/p4_2a_v2_2_heldout_rehearsal.py",
+      "sha256": "df85ef29b5adb6dfcf68a5a7bf519000ed8157120380a77446765c97e83570e8"
+    },
+    {
+      "status": "M",
+      "path": "scripts/validate_p4_2a_v2_2_heldout_rehearsal_bundle.py",
+      "sha256": "8587181dac7b7f2ee301ca3febf60f7e5d76aed249bc508d458cb8dd3def83d4"
+    },
+    {
+      "status": "M",
+      "path": "tests/test_p4_2a_v2_2_heldout_rehearsal_runner.py",
+      "sha256": "e3b1be5b4f20ed087a4104020cd7c9529b7d64bc89a08a055010c04efc0d0505"
+    },
+    {
+      "status": "M",
+      "path": "tests/test_p4_2a_v2_2_heldout_rehearsal_validator.py",
+      "sha256": "23f427720784576dfb6eee74eb195c9914b7bb9874e70b81819bb19abc2e19c6"
+    }
+  ],
+  "surface_verification": {
+    "expected_path_count": 4,
+    "observed_path_count": 4,
+    "all_status_values_exactly_M": true,
+    "path_order_utf8_sorted": true,
+    "unexpected_paths": [],
+    "missing_paths": [],
+    "four_sha256_match_owner_supplied_expected_values": true,
+    "compile_passed_for_all_four": true,
+    "ast_parse_passed_for_all_four": true
+  },
+  "r8_failure_and_r9_repair": {
+    "r8_commit": "9d6ef479cfd6ffea47173b4e37d2c4e3da1f2cda",
+    "r9_commit": "c286e7cc2fb837bb636f45f8c11215dd676525c5",
+    "r8_parent": "73a703a422b5209115f5b244490db36e06b1f15d",
+    "r9_parent": "73a703a422b5209115f5b244490db36e06b1f15d",
+    "failure_class": "FIELD_ALIAS_COLLISION_IN_EPOCH_8_LANDING_BINDINGS",
+    "independently_observed_failure_mechanism": "r8 recursive exact-value searches could accept a wrong named landing binding when the correct value appeared elsewhere under an unrelated alias",
+    "r9_repair": "producer and validator each add an independent named-field validator for implementation commit, merge commit, ordered parents, owner authority, review authority, implementation epoch, control root and control count",
+    "explicit_rejections_added": [
+      "unregistered alias carrying a correct value while the named field is wrong or absent",
+      "mixed flat and topology layouts with conflicting declarations",
+      "explicit null topology",
+      "bool or float substitutions for integer epoch and control count",
+      "malformed merge parent cardinality"
+    ],
+    "registered_regression_tests_observed": [
+      "test_epoch_eight_landing_named_bindings_reject_alias_collisions",
+      "test_epoch_eight_producer_full_landing_path_rejects_merge_alias_collision",
+      "test_epoch_8_validator_named_landing_bindings_reject_alias_collisions"
+    ],
+    "full_runner_and_validator_modules_covering_the_repair_passed": true,
+    "verdict": "R8_FAILURE_FIXED_BY_R9"
+  },
+  "fresh_clone": {
+    "path": "/Users/ouyangduning/AlphaPilot-INDEPENDENT-REVIEW-CLONES-DO-NOT-DELETE/P4.2a-F12-epoch8-r9-c286e7cc-20260902-r1",
+    "created_from_remote_for_this_review": true,
+    "detached_at_candidate_during_f12": true,
+    "full_non_shallow": true,
+    "alternates_absent": true,
+    "partial_clone_configuration_absent": true,
+    "existing_implementation_or_operator_worktree_used": false
+  },
+  "registered_test_collection": {
+    "pytest_version": "8.4.2",
+    "runner_expected": 230,
+    "runner_observed": 230,
+    "validator_expected": 323,
+    "validator_observed": 323,
+    "total_expected": 553,
+    "total_observed": 553,
+    "node_count_shrink": false
+  },
+  "execution_policy": {
+    "interpreter": "/Users/ouyangduning/Documents/project/interesting/AlphaPilot-AI/.venv/bin/python",
+    "pytest_addopts_unset": true,
+    "pythondontwritebytecode": "1",
+    "strictly_serial": true,
+    "runner_completed_and_was_independently_parsed_before_validator_started": true,
+    "selection_filter": null,
+    "xdist": false,
+    "outer_timeout": false,
+    "retry_count": 0,
+    "timing_tool": "/usr/bin/time -l",
+    "running_logs_read_during_execution": false,
+    "reviewer_process_input_or_signal": false
+  },
+  "host_preconditions": {
+    "minimum_data_available_gib": 40,
+    "runner_prestart_data_available_kib": 48709596,
+    "runner_prestart_on_ac_power": true,
+    "validator_prestart_data_available_kib": 46579360,
+    "validator_prestart_on_ac_power": true,
+    "swapouts_pages_runner_prestart": 113583993,
+    "swapouts_pages_validator_prestart": 114863877,
+    "swapouts_pages_final": 115118500,
+    "swapouts_used_as_blocking_gate": false,
+    "swapouts_disposition": "recorded truthfully and not used as a blocker under the owner's explicit instruction"
+  },
+  "f12_results": {
+    "runner": {
+      "module": "tests/test_p4_2a_v2_2_heldout_rehearsal_runner.py",
+      "natural_returncode": 0,
+      "tests": 230,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "disabled": 0,
+      "finite_nonnegative_testcase_times": 230,
+      "junit_suite_time_seconds": 8461.267,
+      "time_l_real_seconds": 8462.14,
+      "maximum_resident_set_size": 1156579328,
+      "log_path": "f12-runner.log",
+      "log_sha256": "639873a912f6212ff6ffa03de8b70a397cc1d5f1d8cd1eb1700b3f98c0cf9a35",
+      "log_bytes": 1237,
+      "junit_path": "f12-runner.junit.xml",
+      "junit_sha256": "5be0f326d78836cf03b0b470e07ab41cf829d354cfee060c0f0eea363a3bca89",
+      "junit_bytes": 40141
+    },
+    "validator": {
+      "module": "tests/test_p4_2a_v2_2_heldout_rehearsal_validator.py",
+      "natural_returncode": 0,
+      "tests": 323,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "disabled": 0,
+      "finite_nonnegative_testcase_times": 323,
+      "junit_suite_time_seconds": 4657.991,
+      "time_l_real_seconds": 4658.69,
+      "maximum_resident_set_size": 295518208,
+      "log_path": "f12-validator.log",
+      "log_sha256": "a9fb583d535a9cef5c94d7dc561680f69853e0e1b962451fe6cf95590a100bdc",
+      "log_bytes": 1320,
+      "junit_path": "f12-validator.junit.xml",
+      "junit_sha256": "daf6e18f66a76b3e892541c55059199a64556bc9f7fc8427bdbbc4d72e651eee",
+      "junit_bytes": 60008
+    },
+    "combined": {
+      "tests": 553,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "disabled": 0,
+      "finite_nonnegative_testcase_times": 553,
+      "junit_suite_time_seconds": 13119.258,
+      "time_l_real_seconds": 13120.83,
+      "status": "PASS_553_OF_553"
+    }
+  },
+  "candidate_invariance": {
+    "pre_run_head": "c286e7cc2fb837bb636f45f8c11215dd676525c5",
+    "post_run_head": "c286e7cc2fb837bb636f45f8c11215dd676525c5",
+    "head_equal": true,
+    "pre_run_clean": true,
+    "post_run_clean": true,
+    "four_source_sha256_equal_before_and_after": true,
+    "candidate_files_modified_by_reviewer": 0
+  },
+  "evidence": {
+    "primary_root": "/Users/ouyangduning/AlphaPilot-EVIDENCE-DO-NOT-DELETE/P4.2a-F12-epoch8-r9-c286e7cc-20260902-r1",
+    "mirror_root": "/Users/ouyangduning/AlphaPilot-EVIDENCE-MIRROR-DO-NOT-DELETE/P4.2a-F12-epoch8-r9-c286e7cc-20260902-r1",
+    "primary_root_mode": "0700",
+    "mirror_root_mode": "0700",
+    "manifest_path": "SHA256SUMS",
+    "manifest_sha256": "ea13f7d769f2689b35a49722637fbea3f58510df365f18bf1f9b25fd8c25c5ca",
+    "manifest_covered_file_count": 24,
+    "manifest_verified_in_primary": true,
+    "manifest_verified_in_mirror": true,
+    "primary_summary_path": "primary-summary.json",
+    "primary_summary_sha256": "c347c37d22bd81a193ef01696dd8b9bd494871c840bbfd6b1c877d568c33d4f3",
+    "junit_independent_parse_sha256": "030d3bd7484bfe47f81ab8130fcbb8b8609deb933eeaccfdce9d7302ba40b03d",
+    "mirror_receipt_path": "mirror-receipt.json",
+    "mirror_receipt_sha256": "90f415770324c22ca46d1c4d7debad2b6ee7a5bd21c16e8b387005ebb98aa919",
+    "final_file_count_each_root": 26,
+    "final_total_bytes_each_root": 141317,
+    "final_relative_file_sets_equal": true,
+    "final_all_files_byte_identical": true
+  },
+  "successful_basetemp_cleanup": {
+    "runner_cleanup_record_sha256": "fceadf240ef39c192835a58d24c63546afab1ae4f664a789e31c23d96a731b1b",
+    "validator_cleanup_record_sha256": "856eca1c00431b4e6886aadb6b94d45654ce22f0bc86e3df0fbf426e339fd165",
+    "cleanup_occurred_only_after_each_success_was_evidence_frozen": true,
+    "only_successful_basetemps_removed": true,
+    "cleanup_is_recoverable": false,
+    "logs_and_junits_preserved": true
+  },
+  "report_topology_contract": {
+    "report_path": "docs/phase4/reports/P4.2a-v2-2-series2-epoch8-r9-implementation-independent-review-20260902.json",
+    "review_branch": "codex/p4-2a-v2-2-series2-epoch8-r9-independent-review",
+    "required_parent": "c286e7cc2fb837bb636f45f8c11215dd676525c5",
+    "required_parent_count": 1,
+    "required_diff": [
+      {
+        "status": "A",
+        "path": "docs/phase4/reports/P4.2a-v2-2-series2-epoch8-r9-implementation-independent-review-20260902.json"
+      }
+    ],
+    "main_push_or_merge_permitted_by_this_report": false
+  },
+  "blockers": [],
+  "merge_authorized": false,
+  "persistent_gate_execution_authorized": false,
+  "boundaries": {
+    "this_report_is_f12_and_implementation_review_only": true,
+    "candidate_or_production_code_modified": false,
+    "persistent_gate_run": false,
+    "main_merge_or_push": false,
+    "registered_root_preflight_run": false,
+    "Q_R_B_created_or_run": false,
+    "recovery_run": false,
+    "release_run": false,
+    "heldout_materialization_inference_or_evaluation": false,
+    "official_ledger_write": false,
+    "official_sealed_mirror_write": false,
+    "database_or_network_business_action": false,
+    "trading_action": false,
+    "p4_2a_done": false,
+    "p4_2b_unlocked": false,
+    "p4_3_unlocked": false
+  }
+}
