@@ -1,0 +1,185 @@
+{
+  "schema_version": "p4.2a-v2-2-series2-epoch9-independent-design-review-v1",
+  "review_id": "P4.2A-V2-2-SERIES2-EPOCH9-SOURCE-PROJECTION-IDENTITY-DESIGN-REVIEW-20260903",
+  "created_at_utc": "2026-09-02T17:23:27Z",
+  "created_at_shanghai": "2026-09-03T01:23:27+08:00",
+  "reviewer": {
+    "identity": "codex_subagent_epoch9_source_projection_design_reviewer_20260903",
+    "reviewer_type": "ai",
+    "role": "INDEPENDENT_READ_ONLY_DESIGN_REVIEWER",
+    "independent_from_design_authoring": true,
+    "independent_from_candidate_implementation": true,
+    "independent_from_operator_gate": true,
+    "is_owner": false,
+    "is_human": false,
+    "is_third_party_organization": false,
+    "modified_reviewed_bytes": false,
+    "ran_preflight_or_tests": false,
+    "independence_limit": "task-level AI subagent separation only; no human or organizational third-party independence is claimed"
+  },
+  "reviewed_composite_design": {
+    "normative_rule": "r1 plus r2, with r2 controlling only where it conflicts with r1",
+    "r1": {
+      "path": "docs/phase4/reports/P4.2a-v2-2-series2-epoch9-source-projection-identity-design-proposal-20260903.md",
+      "creating_commit": "094816f11bdb26f9d4141db6c5ddf46de1f735cb",
+      "parent": "87c73ce601a84779295f4ee5e82b14822ea93f42",
+      "sha256": "2f479639273f374ccea36fa6c4dafa0aa2023817ad4fd377df7e78b02db9e23c",
+      "bytes": 16719,
+      "unique_a": true
+    },
+    "r2": {
+      "path": "docs/phase4/reports/P4.2a-v2-2-series2-epoch9-source-projection-identity-design-proposal-r2-20260903.md",
+      "creating_commit": "fce157432a505c7d0cd09263b0d7db8dd3f049da",
+      "parent": "094816f11bdb26f9d4141db6c5ddf46de1f735cb",
+      "sha256": "afaf02b0cc2f53cd891e0ec65a8ad125ce8d7508cd7555b7d651274b8c6e541a",
+      "bytes": 3232,
+      "unique_a": true
+    }
+  },
+  "incident_recomputation": {
+    "classification": "CONFIRMED_VALID_FAIL_CLOSED_PREFLIGHT_REJECTION_DUE_TO_SOURCE_PROJECTION_IDENTITY_COLLAPSE",
+    "operational_bypass": "NO_LEGAL_OPERATIONAL_BYPASS_WITHOUT_CODE_OR_GOVERNANCE_CHANGE",
+    "natural_returncode": 1,
+    "failure_channel": "TASK_TRANSCRIPT_BOUND_COMBINED_STDERR_FAILURE_LINE",
+    "persistent_failure_file_present": false,
+    "persistent_file_provenance_claimed": false,
+    "failure_json_sha256": "501ec855f9dc8d1676fd132899afc825d02c29a0979962969fd6fb753d48e72a",
+    "failure_json_bytes": 219,
+    "failure_json_real_lf_terminated": true,
+    "message_sha256": "abe073515c9331979eb00eeeccd5210c28b63a9ed7a76b2840da77d97f17d18a",
+    "message_literal": "later epoch authority is not the direct child of its base",
+    "message_literal_bytes": 57,
+    "operator_postprocess_error_after_child_return": "ReferenceError: TextEncoder is not defined",
+    "preflight_rerun": false,
+    "state_effects": {
+      "Q_R_B_created": false,
+      "recovery_claim_created": false,
+      "recovery_container_leaves_created": 0,
+      "pipeline_starts": 0,
+      "automatic_retries": 0,
+      "bundle_destination_created": false,
+      "ledger_or_mirror_writes": false,
+      "heldout_effects": 0,
+      "trading_effects": 0
+    }
+  },
+  "git_recomputation": {
+    "epoch8_authority_path": "docs/phase4/reports/P4.2a-v2-2-series2-epoch8-surface-authority-20260901.json",
+    "logical_source_commit": "73a703a422b5209115f5b244490db36e06b1f15d",
+    "logical_source_parents": [
+      "a39c0263fefcfbdb1886100fec1b71ec374b43a4"
+    ],
+    "first_parent_projection_commit": "d9838923b54932eee1785c209b1ff85fbdf8d523",
+    "first_parent_projection_ordered_parents": [
+      "7b9aa18372410baa5d96bd9560fa10a2c6a3d8ac",
+      "ef701e326ebf77e5f18d48544f1da5975253cd5b"
+    ],
+    "authority_blob_oid_at_source_and_projection": "d409aaeb8508b2ea6f310d2beb3a76f333923cbf",
+    "authority_sha256_at_source_projection_and_worktree": "4547a2231c23a0fff96dced033028c279c4247c76130e79360e2ec602f8dd016",
+    "authority_bytes": 726,
+    "implementation_commit": "c286e7cc2fb837bb636f45f8c11215dd676525c5",
+    "implementation_parent_is_logical_source": true,
+    "implementation_parent_is_projection": false,
+    "landing_record_commit": "87c73ce601a84779295f4ee5e82b14822ea93f42",
+    "first_parent_discovery_returns_projection": true,
+    "direct_parent_predicates_require_source": true
+  },
+  "finding_disposition": {
+    "r1_D_1_failure_channel_mislabeled_stdout": {
+      "initial_status": "BLOCKER",
+      "closed_by": "r2 section 2",
+      "final_status": "CLOSED",
+      "closure": "failure evidence is correctly limited to combined/stderr transcript bytes; no persistent file provenance or stdout artifact is claimed"
+    }
+  },
+  "accepted_design": {
+    "identity_modes_closed_no_default": [
+      "LOGICAL_SOURCE_WITH_LAWFUL_PROJECTIONS",
+      "FIRST_PARENT_VISIBLE_UNIQUE_A"
+    ],
+    "owner_surface_role": {
+      "mode": "LOGICAL_SOURCE_WITH_LAWFUL_PROJECTIONS",
+      "result_commit": "73a703a422b5209115f5b244490db36e06b1f15d"
+    },
+    "independent_review_role": {
+      "mode": "FIRST_PARENT_VISIBLE_UNIQUE_A",
+      "result_commit": "d9838923b54932eee1785c209b1ff85fbdf8d523",
+      "logical_review_source_derived_from_second_parent": "ef701e326ebf77e5f18d48544f1da5975253cd5b"
+    },
+    "landing_report_role": {
+      "mode": "FIRST_PARENT_VISIBLE_UNIQUE_A",
+      "result_commit": "87c73ce601a84779295f4ee5e82b14822ea93f42"
+    },
+    "generic_first_parent_helper_semantics_unchanged": true,
+    "generic_validate_unique_a_authority_semantics_unchanged": true,
+    "source_direct_parent_predicates_unchanged": true,
+    "require_current_unchanged": true,
+    "lawful_projection_conditions": [
+      "one logical single-parent exact-A source whose parent lacks the path",
+      "source payload equals pinned SHA-256 and current worktree bytes",
+      "every non-source touch is a two-parent first-parent merge projection",
+      "source is reachable from the projection second parent",
+      "second-parent-to-merge path diff is empty",
+      "projection blob equals source blob byte-for-byte",
+      "all other touches and every ambiguous source fail closed"
+    ],
+    "validator_existing_independent_classifier_is_correct": true,
+    "validator_change_for_symmetry_forbidden": true
+  },
+  "approved_design_surface_for_owner_decision": [
+    {
+      "path": "scripts/p4_2a_v2_2_heldout_rehearsal.py",
+      "status": "M"
+    },
+    {
+      "path": "tests/test_p4_2a_v2_2_heldout_rehearsal_runner.py",
+      "status": "M"
+    }
+  ],
+  "surface_assessment": {
+    "two_M_minimal_and_sufficient": true,
+    "three_M_unnecessary": true,
+    "four_M_unnecessary": true,
+    "validator_and_validator_test_must_remain_byte_identical": true,
+    "thin_shim_and_registered_schemas_must_remain_byte_identical": true
+  },
+  "required_verification": {
+    "real_source_projection_landing_topology_positive": true,
+    "locked_exact_os_preflight_positive": true,
+    "all_tamper_negatives_fail_before_storage": true,
+    "runner_collect_floor": 230,
+    "validator_collect_floor": 323,
+    "full_F_15_both_registered_modules": true,
+    "independent_F_12_both_registered_modules": true,
+    "fresh_persistent_gate": true,
+    "fresh_landing_and_registered_preflight": true,
+    "fresh_Q_v2_R_v1_B_v1": true,
+    "no_test_gate_or_preflight_inheritance": true
+  },
+  "owner_decisions_requiring_explicit_acceptance": [
+    "accept VALID_NON_CONSUMING_EPOCH8_PREFLIGHT_REFUSAL",
+    "accept LOGICAL_SOURCE_FIRST_PARENT_PROJECTION_ROLE_COLLISION",
+    "accept NO_LEGAL_OPERATIONAL_BYPASS",
+    "select implementation epoch 9 while sealed attempt epochs remain [5,6]",
+    "accept the two closed identity modes and unchanged direct-parent predicates",
+    "accept the exact two-M implementation surface",
+    "require fresh F-15, F-12, persistent gate, landing, preflight and Q/R/B",
+    "preserve all ledger, mirror, recovery, release, heldout and trading locks"
+  ],
+  "boundaries": {
+    "owner_adjudication_recorded": false,
+    "companion_created": false,
+    "surface_authority_created": false,
+    "implementation_authorized": false,
+    "implementation_performed": false,
+    "tests_or_gate_authorized": false,
+    "merge_authorized": false,
+    "preflight_authorized": false,
+    "Q_R_B_authorized": false,
+    "recovery_or_release_authorized": false,
+    "ledger_or_mirror_write_authorized": false,
+    "heldout_or_trading_authorized": false
+  },
+  "blockers": [],
+  "verdict": "PASS_COMPOSITE_EPOCH9_DESIGN_REVIEW"
+}
