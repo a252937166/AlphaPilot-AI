@@ -1,0 +1,232 @@
+{
+  "schema_version": "p4.2-daily-screening-adjustment-factor-controlled-recovery-evidence-v1",
+  "evidence_id": "P4.2-DAILY-SCREENING-ADJ-FACTOR-CONTROLLED-RECOVERY-20260903",
+  "status": "PASS_CONTROLLED_CATCHUP_AND_TOP50_RESTORATION_PENDING_NATURAL_SCHEDULE_CONFIRMATION",
+  "evidence_not_owner_verdict": true,
+  "independent_review": false,
+  "created_at_utc": "2026-09-03T04:04:15Z",
+  "created_at_shanghai": "2026-09-03T12:04:15+08:00",
+  "scope_and_non_claims": {
+    "proved": [
+      "the deployed reconciler recognized one exact daily_bars_wait_timeout lineage",
+      "one audited adjustment-factor catch-up restored the registered input contract",
+      "factor and style outputs converged for 2026-09-02",
+      "one audited daily screening run persisted a new 50-symbol research shortlist"
+    ],
+    "not_proved_yet": [
+      "the 2026-09-03 19:07 and 19:12 Asia/Shanghai natural scheduler slots remain to be observed",
+      "this report has an after-only trading-table snapshot and does not claim a byte-proved before-after zero trading delta",
+      "this report is not P4.2a completion, P4.2b or P4.3 unlock, an investment recommendation, production alpha validation, or trading authorization"
+    ]
+  },
+  "deployment_binding": {
+    "canonical_root": "/Users/ouyangduning/Documents/project/interesting/AlphaPilot-AI",
+    "candidate_commit": "3079faa168558938516013cbf79ca501e99c6cf9",
+    "candidate_parent": "87c73ce601a84779295f4ee5e82b14822ea93f42",
+    "merge_commit": "b4f208deb80976a5574b22d574b8369ced83cccd",
+    "merge_parents": [
+      "87c73ce601a84779295f4ee5e82b14822ea93f42",
+      "3079faa168558938516013cbf79ca501e99c6cf9"
+    ],
+    "origin_main_at_execution": "b4f208deb80976a5574b22d574b8369ced83cccd",
+    "changed_paths": [
+      "src/alphapilot/jobs/backtest_jobs.py",
+      "src/alphapilot/jobs/prediction_reconcile.py",
+      "tests/test_phase2_prediction_reconcile.py",
+      "tests/test_phase3_adjust.py"
+    ],
+    "changed_file_sha256": {
+      "src/alphapilot/jobs/backtest_jobs.py": "78bfe4072f0145027d4982b888ebcb047a8e6b821e0185f52fc69bada143ca4f",
+      "src/alphapilot/jobs/prediction_reconcile.py": "864da3a22054726bfaa4c09026e7fd09c221ea0285ef39194e163299c71034fb",
+      "tests/test_phase2_prediction_reconcile.py": "0b8fddbc28a07d265dde51122e062a2017f362f3131c36555dd034ec7cbd691a",
+      "tests/test_phase3_adjust.py": "1768d0b4e4f90c9aebae78ae2fd91da1b8104623d59d45ad73854b496c3e6a12"
+    },
+    "verification": {
+      "targeted_tests": "60 passed",
+      "expanded_regression": "635 passed, 1 pre-existing deprecation warning",
+      "ruff": "PASS",
+      "strict_mypy": "PASS",
+      "operator_internal_read_only_reviews": 2,
+      "operator_internal_review_verdict": "PASS"
+    },
+    "p4_2a_current_control_surface_touched": false
+  },
+  "scheduler_w5_provenance": {
+    "launchd_label": "com.alphapilot.scheduler",
+    "restart_mechanism": "launchctl kickstart -k",
+    "old_pid": 764,
+    "old_pid_started_at_local": "2026-08-29T04:27:23",
+    "pre_restart_live_job_locks": 0,
+    "historical_unterminalized_rows_disclosed_not_modified": [77698, 77769],
+    "new_pid": 76666,
+    "new_pid_started_at_shanghai": "2026-09-03T11:24:52+08:00",
+    "new_process_command": "/Users/ouyangduning/Documents/project/interesting/AlphaPilot-AI/.venv/bin/python -m alphapilot.scheduler_main",
+    "working_directory": "/Users/ouyangduning/Documents/project/interesting/AlphaPilot-AI",
+    "registered_job_count": 18,
+    "launchd_state_after": "running",
+    "editable_install_boundary": "The process loads workspace bytes; the following bytes were present before PID 76666 started and equal merge commit b4f208d.",
+    "loaded_spine_sha256": {
+      "src/alphapilot/scheduler_main.py": "de42cb33baab65ea5212d03e990fa907a0fc342adc7474ca5b1ededbbfd995b9",
+      "src/alphapilot/jobs/__init__.py": "b2418506f51327073e9be738bd472ac6f4de2881b5ee1a747f93ced19fc31b72",
+      "src/alphapilot/jobs/scheduler.py": "a8a7c6de74d6480b7c009b7d921d592226063affc9a647369157152be5848b41",
+      "src/alphapilot/jobs/registry.py": "e1aefd98f33a66166bc345b9de473b2efa4888ce6168454e1206a324cb2e6aa6",
+      "src/alphapilot/jobs/news_poll.py": "ce8c32406a92c739d373b01534cf477c3b3cab2fd00cbd984a1f47288689c21c",
+      "src/alphapilot/jobs/backtest_jobs.py": "78bfe4072f0145027d4982b888ebcb047a8e6b821e0185f52fc69bada143ca4f",
+      "src/alphapilot/jobs/prediction_reconcile.py": "864da3a22054726bfaa4c09026e7fd09c221ea0285ef39194e163299c71034fb"
+    }
+  },
+  "baseline_state": {
+    "latest_screening_run_before": {
+      "id": 22,
+      "data_date": "2026-08-24",
+      "candidate_count": 50
+    },
+    "blocking_lineage": {
+      "daily_bars": {
+        "job_run_id": 113993,
+        "status": "ok",
+        "started_at_utc": "2026-09-02T10:40:00.203405Z",
+        "finished_at_utc": "2026-09-02T11:23:35.855751Z",
+        "latest_trade_date": "2026-09-02",
+        "duration_seconds": 2615.65,
+        "stats_sha256": "743a8ce14d15ecfde9be7cfca6a2160ebdd01768751d3acebfdae94874ad0cf1",
+        "stats_bytes": 2699
+      },
+      "timed_out_adjustment_factors": {
+        "job_run_id": 114004,
+        "status": "failed",
+        "started_at_utc": "2026-09-02T10:50:00.206230Z",
+        "finished_at_utc": "2026-09-02T11:20:04.091196Z",
+        "reason": "daily_bars_wait_timeout",
+        "waited_seconds": 1803.88,
+        "stats_sha256": "230cb0073178a72fafb431692fa4eec8f2e716b05f7fa6df0139beabc5239b50",
+        "stats_bytes": 62
+      },
+      "valuation": {
+        "job_run_id": 114005,
+        "status": "ok",
+        "end_date": "2026-09-02",
+        "is_complete": true,
+        "symbols_failed": 0,
+        "stats_sha256": "d91372dfbaaebe1da4e7e0db899fba69b65f2f348ceb2d016e0e77c1bcf75882",
+        "stats_bytes": 840
+      }
+    }
+  },
+  "controlled_audited_execution": {
+    "classification": "ONE_CONTROLLED_RUN_JOB_VERIFICATION_NOT_A_NATURAL_SCHEDULER_SLOT",
+    "manual_direct_database_write": false,
+    "registry_and_process_locks_used": true,
+    "automatic_retry_loop_added": false,
+    "reconcile": {
+      "job_run_id": 115142,
+      "status": "ok",
+      "started_at_utc": "2026-09-03T03:36:30.385471Z",
+      "finished_at_utc": "2026-09-03T04:02:31.376113Z",
+      "duration_seconds": 1560.99,
+      "skipped": null,
+      "upstream_contract_ok": true,
+      "factor_audit_fresh": true,
+      "output_contract_ok": true,
+      "stats_sha256": "3c3620467842f61c27a7e02b1992b12aafa7a5e4de20aa37c51e915070247f7f",
+      "stats_bytes": 3351
+    },
+    "adjustment_factor_recovery": {
+      "job_run_id": 115143,
+      "status": "ok",
+      "forced_refresh_latest": true,
+      "refresh_latest": true,
+      "processed": 5552,
+      "synced": 5542,
+      "failed_count": 10,
+      "coverage_reported": 1.0,
+      "live_contract_coverage": 0.991174,
+      "tushare_rate_limited": true,
+      "stats_sha256": "babd12d21fce909df2f0f6f467cd70d8ac0644aa8e508ea852cfabe204889311",
+      "stats_bytes": 1782
+    },
+    "factor_compute": {
+      "job_run_id": 115171,
+      "status": "ok",
+      "date": "2026-09-02",
+      "input_coverage": 0.991715,
+      "symbols": 5506,
+      "factor_rows": 71578,
+      "composite_rows": 5506,
+      "stock_score_rows": 5506,
+      "stats_sha256": "6585a19534158476d95b450bb98bba30343be6d98bfe3b470c6625974d013ada",
+      "stats_bytes": 1967
+    },
+    "style_compute": {
+      "job_run_id": 115172,
+      "status": "ok",
+      "date": "2026-09-02",
+      "model_version": "style-v1.0.0",
+      "source_fingerprint": "d072818cfd2e7c5c0b89ffe9c6df5a99576779d4049777086cc2cf0dd260f9ab",
+      "stats_sha256": "51482eca662d6c842c6c366ab30a71ca26787d89267637ba7df629d52055eb84",
+      "stats_bytes": 699
+    },
+    "daily_screening": {
+      "job_run_id": 115173,
+      "status": "ok",
+      "started_at_utc": "2026-09-03T04:02:48.390014Z",
+      "finished_at_utc": "2026-09-03T04:02:50.206876Z",
+      "skipped": null,
+      "forecast_failure_count": 0,
+      "screen_run_id": 23,
+      "stats_sha256": "6d219658175a46cfce7596c6803089bd2ec6ee97a73722126087a736294be668",
+      "stats_bytes": 1288
+    }
+  },
+  "screening_artifact": {
+    "screening_run_id": 23,
+    "data_date": "2026-09-02",
+    "created_at_utc": "2026-09-03T04:02:50.205500Z",
+    "idempotency_key": "daily-screen:2026-09-02:7623700b32f5b692818427cdeb6498ad",
+    "provider": "factor-db",
+    "model_version": "factor-score-v1.1.0",
+    "requested": 5552,
+    "eligible": 5304,
+    "candidate_count": 50,
+    "unique_symbols": 50,
+    "rank_range": [1, 50],
+    "candidate_trade_dates": ["2026-09-02"],
+    "candidate_canonical_sha256": "6ca922a20d99e8c57bb30d16cf72ef09b8888ec8a6a7e2e41aefa8f2822edb84",
+    "candidate_canonical_bytes": 46766,
+    "top_five": [
+      {"rank": 1, "symbol": "001309", "style": "balanced", "score": 100.0},
+      {"rank": 2, "symbol": "300927", "style": "growth", "score": 99.98183469573115},
+      {"rank": 3, "symbol": "601069", "style": "balanced", "score": 99.9636693914623},
+      {"rank": 4, "symbol": "000506", "style": "growth", "score": 99.94550408719346},
+      {"rank": 5, "symbol": "688525", "style": "balanced", "score": 99.92733878292461}
+    ]
+  },
+  "trading_safety_after": {
+    "snapshot_scope": "AFTER_ONLY_CURRENT_SAFETY_STATE",
+    "zero_increment_claim": false,
+    "launchd_trading_mode": "research",
+    "live_trading_enabled": false,
+    "paper_trading_enabled": false,
+    "paper_auto_trading_enabled": false,
+    "futu_enable_account_mutation": false,
+    "futu_enable_trade": false,
+    "trade_proposals_count": 1,
+    "trade_proposals_max_id": 1,
+    "broker_orders_count": 1,
+    "broker_orders_max_id": 1,
+    "non_simulate_broker_orders": 0
+  },
+  "observation_integrity": {
+    "sqlite_open_mode": "ro",
+    "pragma_query_only": true,
+    "total_changes_before": 0,
+    "total_changes_after": 0
+  },
+  "continuation": {
+    "monitoring_automation_id": "alphapilot",
+    "next_natural_reconcile_slot_shanghai": "2026-09-03T19:07:00+08:00",
+    "next_natural_screening_slot_shanghai": "2026-09-03T19:12:00+08:00",
+    "natural_success_expectation": "both terminal ok with skipped=already_current and screening_run_id=23, with no new screening_runs row",
+    "final_natural_autonomy_report_created": false
+  }
+}
