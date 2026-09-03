@@ -101,6 +101,7 @@ EPOCH_EIGHT_SURFACE_AUTHORITY_SHA256 = (
     "4547a2231c23a0fff96dced033028c279c4247c76130e79360e2ec602f8dd016"
 )
 EPOCH_EIGHT_SURFACE_AUTHORITY_COMMIT = "73a703a422b5209115f5b244490db36e06b1f15d"
+EPOCH_NINE_R3_SURFACE_AUTHORITY_COMMIT = "cc64e0b79fbb3a667eb8545c7617e7e8e59115e4"
 EPOCH_EIGHT_RECOVERY_CONTRACT_FIELDS = (
     "schema_version",
     "governing_adjudication",
@@ -124,6 +125,12 @@ EPOCH_EIGHT_RECOVERY_CONTRACT_CANONICAL_BYTES = 36_715
 EPOCH_EIGHT_PREFLIGHT_SCHEMA = "p4.2a-v2-2-read-only-implementation-preflight-v2"
 EPOCH_EIGHT_RECOVERY_REVIEW_REQUEST_SCHEMA = (
     "p4.2a-v2-2-series2-sealed-bundle-recovery-review-request-v2"
+)
+EPOCH_NINE_COMPANION_RELATIVE = Path(
+    "docs/phase4/reports/P4.2a-series2-epoch9-companion-20260903.json"
+)
+EPOCH_NINE_R3_COMPANION_RELATIVE = Path(
+    "docs/phase4/reports/P4.2a-series2-epoch9-r3-companion-20260903.json"
 )
 INDEPENDENT_REVIEW_COMMIT = "b21e1bdbf865dfd9c7605ecc7794fc3f8701ed1f"
 INDEPENDENT_REVIEW_RELATIVE = Path(
@@ -379,6 +386,21 @@ def _fetch_pinned_epoch_eight_fixture_commits(
         .strip()
     )
     assert observed == EPOCH_EIGHT_SURFACE_AUTHORITY_COMMIT
+    latest_destination = f"refs/remotes/{remote}/pinned-latest-live-surface-authority"
+    _fixture_git(
+        project_root,
+        "fetch",
+        "--quiet",
+        "--no-tags",
+        remote,
+        f"+{EPOCH_NINE_R3_SURFACE_AUTHORITY_COMMIT}:{latest_destination}",
+    )
+    latest_observed = (
+        _fixture_git(project_root, "rev-parse", "--verify", f"{latest_destination}^{{commit}}")
+        .decode("ascii", errors="strict")
+        .strip()
+    )
+    assert latest_observed == EPOCH_NINE_R3_SURFACE_AUTHORITY_COMMIT
 
 
 def _fixture_commit_file(project_root: Path, relative: Path, payload: bytes) -> str:
@@ -1384,37 +1406,88 @@ def _prepare_synthetic_epoch_eight_live_base(project_root: Path) -> None:
         "--quiet",
         "-C",
         "main",
-        EPOCH_EIGHT_SURFACE_AUTHORITY_COMMIT,
+        EPOCH_NINE_R3_SURFACE_AUTHORITY_COMMIT,
     )
     _fixture_git(
         project_root,
         "update-ref",
         "refs/remotes/origin/main",
-        EPOCH_EIGHT_SURFACE_AUTHORITY_COMMIT,
+        EPOCH_NINE_R3_SURFACE_AUTHORITY_COMMIT,
     )
     assert (
         _fixture_git(project_root, "rev-parse", "HEAD")
         .decode("ascii", errors="strict")
         .strip()
-        == EPOCH_EIGHT_SURFACE_AUTHORITY_COMMIT
+        == EPOCH_NINE_R3_SURFACE_AUTHORITY_COMMIT
     )
 
 
-def _land_synthetic_epoch_eight(
-    project_root: Path,
-    *,
-    landing_document_merge_drift: bool = False,
-) -> tuple[str, Any, Any, str, Any, Any]:
-    implementation = importlib.import_module(IMPLEMENTATION_MODULE)
-    live_base = _fixture_git(project_root, "rev-parse", "HEAD").decode().strip()
+def _prepare_synthetic_epoch_nine_live_base(project_root: Path) -> None:
+    _fixture_git(project_root, "remote", "add", "epoch-nine-live", PROJECT_ROOT.as_posix())
+    _fetch_pinned_epoch_eight_fixture_commits(
+        project_root,
+        remote="epoch-nine-live",
+    )
+    _fixture_git(
+        project_root,
+        "switch",
+        "--quiet",
+        "-C",
+        "main",
+        EPOCH_EIGHT_SURFACE_AUTHORITY_COMMIT,
+    )
+    main_only_commit = _fixture_commit_file(
+        project_root,
+        Path("epoch-nine-independent-main-only.txt"),
+        b"independently advanced main before epoch-nine landing\n",
+    )
+    _fixture_git(
+        project_root,
+        "update-ref",
+        "refs/remotes/origin/main",
+        main_only_commit,
+    )
+    assert _fixture_git(project_root, "rev-parse", "HEAD").decode().strip() == main_only_commit
     assert _fixture_git(
         project_root,
         "merge-base",
         "--is-ancestor",
         EPOCH_EIGHT_SURFACE_AUTHORITY_COMMIT,
+        main_only_commit,
+    ) == b""
+
+
+def _land_synthetic_epoch_eight(
+    project_root: Path,
+    *,
+    expected_live_epoch: int = 8,
+    landing_document_merge_drift: bool = False,
+) -> tuple[str, Any, Any, str, Any, Any]:
+    implementation = importlib.import_module(IMPLEMENTATION_MODULE)
+    assert expected_live_epoch in {8, 9}
+    authority_commit = (
+        EPOCH_EIGHT_SURFACE_AUTHORITY_COMMIT
+        if expected_live_epoch == 8
+        else EPOCH_NINE_R3_SURFACE_AUTHORITY_COMMIT
+    )
+    authority_relative = (
+        EPOCH_EIGHT_SURFACE_AUTHORITY_RELATIVE
+        if expected_live_epoch == 8
+        else implementation.EPOCH_9_R3_SURFACE_AUTHORITY_RELATIVE
+    )
+    live_base = _fixture_git(project_root, "rev-parse", "HEAD").decode().strip()
+    assert _fixture_git(
+        project_root,
+        "merge-base",
+        "--is-ancestor",
+        (
+            authority_commit
+            if expected_live_epoch == 8
+            else EPOCH_EIGHT_SURFACE_AUTHORITY_COMMIT
+        ),
         live_base,
     ) == b""
-    assert live_base != EPOCH_EIGHT_SURFACE_AUTHORITY_COMMIT
+    assert live_base != authority_commit
     for ordinal in (1, 2):
         action_relative = (
             "docs/phase4/reports/"
@@ -1446,8 +1519,8 @@ def _land_synthetic_epoch_eight(
         "switch",
         "--quiet",
         "-C",
-        "synthetic-epoch-eight-implementation",
-        EPOCH_EIGHT_SURFACE_AUTHORITY_COMMIT,
+        f"synthetic-epoch-{expected_live_epoch}-implementation",
+        authority_commit,
     )
     changed = (
         IMPLEMENTATION_RELATIVE,
@@ -1464,15 +1537,34 @@ def _land_synthetic_epoch_eight(
         "--",
         *(relative.as_posix() for relative in changed),
     )
-    _fixture_git(project_root, "commit", "--quiet", "-m", "synthetic epoch-eight implementation")
+    _fixture_git(
+        project_root,
+        "commit",
+        "--quiet",
+        "-m",
+        f"synthetic epoch-{expected_live_epoch} implementation",
+    )
     implementation_commit = _fixture_git(project_root, "rev-parse", "HEAD").decode().strip()
+    assert _fixture_git(
+        project_root,
+        "diff",
+        "--name-status",
+        "--no-renames",
+        authority_commit,
+        implementation_commit,
+        "--",
+    ).decode().splitlines() == [
+        f"M\t{relative.as_posix()}"
+        for relative in sorted(changed, key=lambda value: value.as_posix().encode("utf-8"))
+    ]
     review_relative = Path(
-        "docs/phase4/reports/P4.2a-v2-2-synthetic-epoch-8-implementation-review.json"
+        "docs/phase4/reports/"
+        f"P4.2a-v2-2-synthetic-epoch-{expected_live_epoch}-implementation-review.json"
     )
     review_payload = implementation._canonical_json_bytes(
         {
             "schema_version": "p4.2a-v2-2-synthetic-implementation-review-v1",
-            "verdict": "APPROVE_EPOCH_8_IMPLEMENTATION",
+            "verdict": f"APPROVE_EPOCH_{expected_live_epoch}_IMPLEMENTATION",
             "reviewed_implementation_commit": implementation_commit,
             "blockers": [],
         }
@@ -1494,7 +1586,7 @@ def _land_synthetic_epoch_eight(
         "--no-commit",
         "-X",
         "theirs",
-        "synthetic-epoch-eight-implementation",
+        f"synthetic-epoch-{expected_live_epoch}-implementation",
     )
     for relative in changed:
         (project_root / relative).write_bytes(
@@ -1515,7 +1607,7 @@ def _land_synthetic_epoch_eight(
         "commit",
         "--quiet",
         "-m",
-        "synthetic epoch-eight merge-only landing",
+        f"synthetic epoch-{expected_live_epoch} merge-only landing",
     )
     merge_commit = _fixture_git(project_root, "rev-parse", "HEAD").decode().strip()
     assert _fixture_git(project_root, "rev-parse", f"{merge_commit}^2").decode().strip() == (
@@ -1536,21 +1628,24 @@ def _land_synthetic_epoch_eight(
         _sha256(review_payload),
         merge_commit,
     )
-    owner_payload = (project_root / EPOCH_EIGHT_SURFACE_AUTHORITY_RELATIVE).read_bytes()
+    owner_payload = (project_root / authority_relative).read_bytes()
     owner = implementation.AuthorityReference(
-        EPOCH_EIGHT_SURFACE_AUTHORITY_RELATIVE.as_posix(),
+        authority_relative.as_posix(),
         _sha256(owner_payload),
-        EPOCH_EIGHT_SURFACE_AUTHORITY_COMMIT,
+        authority_commit,
     )
     control = implementation.build_control_surface(
         project_root,
         implementation_commit,
         require_current=False,
     )
-    landing_relative = Path("docs/phase4/reports/P4.2a-v2-2-synthetic-epoch-8-landing-report.json")
+    landing_relative = Path(
+        "docs/phase4/reports/"
+        f"P4.2a-v2-2-synthetic-epoch-{expected_live_epoch}-landing-report.json"
+    )
     landing_document = {
         "schema_version": "p4.2a-v2-2-synthetic-landing-report-v1",
-        "implementation_epoch": 8,
+        "implementation_epoch": expected_live_epoch,
         "implementation_commit": implementation_commit,
         "owner_exact_surface_authorization": owner.as_json(),
         "independent_implementation_review": review.as_json(),
@@ -1562,7 +1657,7 @@ def _land_synthetic_epoch_eight(
         ],
         "control_merkle_root_sha256": control.merkle_root_sha256,
         "control_record_count": len(control.records),
-        "status": "PASS_SYNTHETIC_EPOCH_8_LANDING",
+        "status": f"PASS_SYNTHETIC_EPOCH_{expected_live_epoch}_LANDING",
     }
     if landing_document_merge_drift:
         landing_document["merge_commit"] = implementation_commit
@@ -1585,6 +1680,7 @@ def _land_synthetic_epoch_eight(
 def _land_synthetic_epoch_eight_recovery_qrb(
     binding: Any,
     *,
+    expected_live_epoch: int = 8,
     history: Any,
     mirrors: tuple[dict[str, Any], dict[str, Any]],
     live_epoch: tuple[str, Any, Any, str, Any, Any],
@@ -1597,6 +1693,7 @@ def _land_synthetic_epoch_eight_recovery_qrb(
     baseline_head = _fixture_git(root, "rev-parse", "HEAD").decode().strip()
     preflight_command = _exact_epoch_eight_read_only_preflight_command(
         binding,
+        implementation_epoch=expected_live_epoch,
         implementation_commit=implementation_commit,
         owner_surface_authorization=owner,
         independent_review=review,
@@ -1619,17 +1716,36 @@ def _land_synthetic_epoch_eight_recovery_qrb(
     )
     assert implementation._canonical_json_bytes(preflight_document).decode() == preflight_stdout
     assert preflight_document["schema_version"] == EPOCH_EIGHT_PREFLIGHT_SCHEMA
-    assert preflight_document["implementation_epoch"] == 8
+    assert preflight_document["implementation_epoch"] == expected_live_epoch
     assert preflight_document["implementation_commit"] == implementation_commit
+    assert preflight_document["owner_exact_surface_authorization"] == owner.as_json()
+    assert owner.creating_commit == (
+        EPOCH_EIGHT_SURFACE_AUTHORITY_COMMIT
+        if expected_live_epoch == 8
+        else EPOCH_NINE_R3_SURFACE_AUTHORITY_COMMIT
+    )
+    assert preflight_document["independent_implementation_review"] == review.as_json()
+    assert review.creating_commit == merge_commit
     assert preflight_document["registered_recovery_storage"] is None
     assert "epoch_7_recovery_storage" not in preflight_document
     census = preflight_document["real_lineage_census"]
     assert isinstance(census, dict)
     assert baseline_head == census["execution_head"]
+    owner_rows = [row for row in census["rows"] if row["path"] == owner.path]
+    assert len(owner_rows) == 1
+    assert owner_rows[0]["logical_source_commit"] == owner.creating_commit
+    assert owner_rows[0]["projection_count"] == 1
+    review_rows = [row for row in census["rows"] if row["path"] == review.path]
+    assert len(review_rows) == 1
+    assert review_rows[0]["declared_landing_projection_commit"] == merge_commit
+    assert review_rows[0]["logical_source_commit"] == (
+        _fixture_git(root, "rev-parse", f"{merge_commit}^2").decode().strip()
+    )
     landing_rows = [row for row in census["rows"] if row["path"] == landing.path]
     assert len(landing_rows) == 1
     assert landing_rows[0]["pinned_sha256"] == landing.sha256
     assert landing_rows[0]["pinned_creating_commit"] == landing.creating_commit
+    assert landing_rows[0]["logical_source_commit"] == landing.creating_commit
     census_reference = implementation._census_reference(census)
     census_reference["all_references_revalidated_at_start"] = True
     q_relative = Path(
@@ -1712,7 +1828,7 @@ def _land_synthetic_epoch_eight_recovery_qrb(
         },
     }
     execution_epoch = {
-        "epoch": 8,
+        "epoch": expected_live_epoch,
         "implementation_commit": implementation_commit,
         "owner_exact_surface_authorization": owner.as_json(),
         "independent_implementation_review": review.as_json(),
@@ -1753,7 +1869,7 @@ def _land_synthetic_epoch_eight_recovery_qrb(
     ]
     recovery_authorization = {
         "schema_version": implementation.EPOCH_8_RECOVERY_AUTHORIZATION_SCHEMA,
-        "authorization_id": "synthetic-series-2-epoch-8-recovery",
+        "authorization_id": f"synthetic-series-2-epoch-{expected_live_epoch}-recovery",
         "created_at_utc": "2026-09-02T12:00:00Z",
         "created_at_shanghai": "2026-09-02T20:00:00+08:00",
         "verdict": (
@@ -1826,7 +1942,7 @@ def _land_synthetic_epoch_eight_recovery_qrb(
         "pipeline start 0，automatic retry 0。"
     )
     landed_epoch = {
-        "epoch": 8,
+        "epoch": expected_live_epoch,
         "implementation_commit": implementation_commit,
         "owner_exact_surface_authorization": owner.as_json(),
         "independent_implementation_review": review.as_json(),
@@ -1837,7 +1953,7 @@ def _land_synthetic_epoch_eight_recovery_qrb(
     }
     review_request = {
         "schema_version": implementation.EPOCH_8_RECOVERY_REVIEW_REQUEST_SCHEMA,
-        "request_id": "synthetic-series-2-epoch-8-recovery-review",
+        "request_id": f"synthetic-series-2-epoch-{expected_live_epoch}-recovery-review",
         "created_at_utc": "2026-09-02T12:00:00Z",
         "created_at_shanghai": "2026-09-02T20:00:00+08:00",
         "status": "AWAITING_INDEPENDENT_REVIEW_AND_OWNER_CONFIRMATION",
@@ -2215,6 +2331,7 @@ def _exact_read_only_preflight_command(
 def _exact_epoch_eight_read_only_preflight_command(
     binding: Any,
     *,
+    implementation_epoch: int = 8,
     implementation_commit: str,
     owner_surface_authorization: Any,
     independent_review: Any,
@@ -2222,7 +2339,7 @@ def _exact_epoch_eight_read_only_preflight_command(
 ) -> list[str]:
     command = _exact_read_only_preflight_command(
         binding,
-        implementation_epoch=8,
+        implementation_epoch=implementation_epoch,
         implementation_commit=implementation_commit,
         owner_surface_authorization=owner_surface_authorization,
         independent_review=independent_review,
@@ -3215,16 +3332,16 @@ def test_epoch_seven_fixture_imports_pinned_commits_from_local_main_only_source(
         )
 
 
-def test_exact_os_epoch_eight_real_preflight_qrb_five_six_recovery_and_release_are_zero_pipeline(
-    tmp_path: Path,
-) -> None:
+@pytest.fixture(scope="module")
+def _epoch_nine_exact_os_e2e(tmp_path_factory: pytest.TempPathFactory) -> dict[str, Any]:
+    tmp_path = tmp_path_factory.mktemp("epoch-nine-exact-os-e2e")
     implementation = importlib.import_module(IMPLEMENTATION_MODULE)
     real_before = _all_real_path_fingerprints()
-    binding = _synthetic_binding(tmp_path, label="epoch-eight-recovery-source")
+    binding = _synthetic_binding(tmp_path, label="epoch-nine-recovery-source")
     epoch_five, epoch_six = _initialize_epoch_seven_governed_five_six_source(
         binding,
     )
-    _prepare_synthetic_epoch_eight_live_base(binding.project_root)
+    _prepare_synthetic_epoch_nine_live_base(binding.project_root)
     _initialize_synthetic_ledger(binding)
     control_five = implementation.build_control_surface(
         binding.project_root,
@@ -3257,13 +3374,17 @@ def test_exact_os_epoch_eight_real_preflight_qrb_five_six_recovery_and_release_a
     assert not (binding.ledger_root / "attempts/000003").exists()
     assert not binding.destination.exists()
     assert _tree_fingerprint(implementation.OFFICIAL_LEDGER_ROOT) == registered_before
-    live_epoch = _land_synthetic_epoch_eight(binding.project_root)
+    live_epoch = _land_synthetic_epoch_eight(
+        binding.project_root,
+        expected_live_epoch=9,
+    )
     primary_recovery = tmp_path / "owner-primary-recovery"
     secondary_recovery = tmp_path / "owner-secondary-recovery"
     primary_recovery.mkdir(mode=0o700)
     secondary_recovery.mkdir(mode=0o700)
     qrb = _land_synthetic_epoch_eight_recovery_qrb(
         binding,
+        expected_live_epoch=9,
         history=history,
         mirrors=mirrors,
         live_epoch=live_epoch,
@@ -3602,7 +3723,7 @@ def test_exact_os_epoch_eight_real_preflight_qrb_five_six_recovery_and_release_a
         "require_current": False,
     }
     assert consume_result["live_execution_anchor"] == {
-        "implementation_epoch": 8,
+        "implementation_epoch": 9,
         "implementation_commit": live_epoch[0],
         "control_merkle_root_sha256": live_epoch[5].merkle_root_sha256,
         "real_lineage_census_sha256": release_census_sha256,
@@ -3632,6 +3753,241 @@ def test_exact_os_epoch_eight_real_preflight_qrb_five_six_recovery_and_release_a
         "release": _tree_fingerprint(binding.project_root / implementation.RELEASE_RELATIVE),
     } == governed_before_consume
     assert _all_real_path_fingerprints() == real_before
+    return {
+        "binding": binding,
+        "history": history,
+        "live_epoch": live_epoch,
+        "qrb": qrb,
+        "q_document": q_document,
+        "r_document": recovery_document,
+        "b_document": json.loads(b_payload),
+        "recovery_result": recovery_result,
+        "claim_started": claim_started,
+        "claim_terminal": claim_terminal,
+        "consume_result": consume_result,
+        "release_census_sha256": release_census_sha256,
+    }
+
+
+@pytest.fixture(scope="module")
+def _epoch_eight_historical_preflight(
+    tmp_path_factory: pytest.TempPathFactory,
+) -> dict[str, Any]:
+    implementation = importlib.import_module(IMPLEMENTATION_MODULE)
+    tmp_path = tmp_path_factory.mktemp("epoch-eight-historical-preflight")
+    binding = _synthetic_binding(tmp_path, label="epoch-eight-historical-preflight")
+    epoch_five, epoch_six = _initialize_epoch_seven_governed_five_six_source(binding)
+    _prepare_synthetic_epoch_eight_live_base(binding.project_root)
+    _initialize_synthetic_ledger(binding)
+    control_five = implementation.build_control_surface(
+        binding.project_root,
+        epoch_five[0],
+        require_current=False,
+    ).merkle_root_sha256
+    control_six = implementation.build_control_surface(
+        binding.project_root,
+        epoch_six[0],
+        require_current=False,
+    ).merkle_root_sha256
+    _install_closed_synthetic_five_six_from_registered_selected_evidence(
+        binding,
+        epoch_five=epoch_five,
+        epoch_six=epoch_six,
+        control_five=control_five,
+        control_six=control_six,
+    )
+    live_epoch = _land_synthetic_epoch_eight(binding.project_root, expected_live_epoch=8)
+    command = _exact_epoch_eight_read_only_preflight_command(
+        binding,
+        implementation_epoch=8,
+        implementation_commit=live_epoch[0],
+        owner_surface_authorization=live_epoch[1],
+        independent_review=live_epoch[2],
+        landing_report=live_epoch[4],
+    )
+    before = {
+        "ledger": _tree_fingerprint(binding.ledger_root),
+        "mirror": _tree_fingerprint(binding.secondary_snapshot_root),
+        "destination_absent": not os.path.lexists(binding.destination),
+    }
+    completed = subprocess.run(
+        command,
+        check=False,
+        capture_output=True,
+        text=True,
+        env=_locked_environment(),
+        timeout=1_800,
+    )
+    assert completed.returncode == 0, completed.stderr
+    assert completed.stderr == ""
+    document = json.loads(completed.stdout)
+    assert implementation._canonical_json_bytes(document).decode() == completed.stdout
+    assert {
+        "ledger": _tree_fingerprint(binding.ledger_root),
+        "mirror": _tree_fingerprint(binding.secondary_snapshot_root),
+        "destination_absent": not os.path.lexists(binding.destination),
+    } == before
+    return {"document": document, "binding": binding, "live_epoch": live_epoch}
+
+
+def test_epoch_nine_latest_landed_preflight_exact_os_passes_real_topology(
+    _epoch_nine_exact_os_e2e: dict[str, Any],
+) -> None:
+    implementation = importlib.import_module(IMPLEMENTATION_MODULE)
+    evidence = _epoch_nine_exact_os_e2e
+    q = evidence["q_document"]
+    stdout_text = q["registered_read_only_recovery_preflight"]["stdout_canonical_json"]
+    preflight = json.loads(stdout_text)
+    live_epoch = evidence["live_epoch"]
+    assert preflight["implementation_epoch"] == 9
+    assert preflight["implementation_commit"] == live_epoch[0]
+    assert preflight["owner_exact_surface_authorization"] == live_epoch[1].as_json()
+    assert preflight["independent_implementation_review"] == live_epoch[2].as_json()
+    assert preflight["effect_summary"]["pipeline_starts"] == 0
+    assert preflight["effect_summary"]["automatic_retries"] == 0
+    merge_commit = live_epoch[3]
+    merge_parents = _fixture_git(
+        evidence["binding"].project_root,
+        "rev-list",
+        "--parents",
+        "-n",
+        "1",
+        merge_commit,
+    ).decode().split()
+    assert merge_parents[0] == merge_commit
+    assert len(merge_parents) == 3
+    assert merge_parents[2] == _fixture_git(
+        evidence["binding"].project_root,
+        "rev-parse",
+        f"{merge_commit}^2",
+    ).decode().strip()
+    assert implementation._canonical_json_bytes(preflight).decode() == stdout_text
+
+
+def test_epoch_nine_qrb_round_trip_binds_preflight_and_live_epoch(
+    _epoch_nine_exact_os_e2e: dict[str, Any],
+) -> None:
+    evidence = _epoch_nine_exact_os_e2e
+    q = evidence["q_document"]
+    r = evidence["r_document"]
+    b = evidence["b_document"]
+    assert q["landed_execution_epoch"]["epoch"] == 9
+    assert r["execution_epoch"]["epoch"] == 9
+    assert b["recovery_authorization"]["sha256"] == evidence["qrb"]["r_sha256"]
+    assert q["registered_read_only_recovery_preflight"]["stdout_sha256"] == (
+        b["registered_read_only_recovery_preflight"]["stdout_sha256"]
+    )
+    assert _fixture_git(
+        evidence["binding"].project_root,
+        "rev-parse",
+        f"{evidence['qrb']['r_commit']}^",
+    ).decode().strip() == evidence["qrb"]["q_commit"]
+    assert _fixture_git(
+        evidence["binding"].project_root,
+        "rev-parse",
+        f"{evidence['qrb']['b_commit']}^",
+    ).decode().strip() == evidence["qrb"]["r_commit"]
+
+
+def test_epoch_nine_qrb_cross_epoch_matrix_rejects_before_storage(
+    _epoch_nine_exact_os_e2e: dict[str, Any],
+    tmp_path: Path,
+) -> None:
+    implementation = importlib.import_module(IMPLEMENTATION_MODULE)
+    evidence = _epoch_nine_exact_os_e2e
+    q = evidence["q_document"]
+    landed = q["landed_execution_epoch"]
+    recovery_epoch = evidence["r_document"]["execution_epoch"]
+    preflight = json.loads(
+        q["registered_read_only_recovery_preflight"]["stdout_canonical_json"]
+    )
+    census = q["registered_read_only_recovery_preflight"]["real_lineage_census"]
+    implementation._validate_epoch_9_qrb_live_cross_binding(
+        landed,
+        recovery_epoch,
+        preflight,
+        census,
+    )
+    scenarios: list[tuple[dict[str, Any], dict[str, Any], dict[str, Any], object]] = []
+    r_eight = copy.deepcopy(recovery_epoch)
+    r_eight["epoch"] = 8
+    scenarios.append((copy.deepcopy(landed), r_eight, copy.deepcopy(preflight), census))
+    q_eight = copy.deepcopy(landed)
+    q_eight["epoch"] = 8
+    scenarios.append((q_eight, copy.deepcopy(recovery_epoch), copy.deepcopy(preflight), census))
+    for key, wrong in (
+        ("implementation_commit", "11" * 20),
+        ("owner_exact_surface_authorization", {"wrong": "owner"}),
+        ("independent_implementation_review", {"wrong": "review"}),
+        ("merge_commit", "22" * 20),
+        ("landing_report", {"wrong": "landing"}),
+        ("control_merkle_root_sha256", "33" * 32),
+        ("control_record_count", 0),
+    ):
+        altered = copy.deepcopy(landed)
+        altered[key] = wrong
+        scenarios.append(
+            (altered, copy.deepcopy(recovery_epoch), copy.deepcopy(preflight), census)
+        )
+    wrong_census = copy.deepcopy(census)
+    wrong_census["canonical_json_sha256"] = "44" * 32
+    scenarios.append(
+        (
+            copy.deepcopy(landed),
+            copy.deepcopy(recovery_epoch),
+            copy.deepcopy(preflight),
+            wrong_census,
+        )
+    )
+    before = _all_real_path_fingerprints()
+    storage_canary = tmp_path / "cross-epoch-storage-must-remain-absent"
+    for altered_landed, altered_r, altered_preflight, altered_census in scenarios:
+        with pytest.raises(implementation.RehearsalV22Error, match="cross-bound"):
+            implementation._validate_epoch_9_qrb_live_cross_binding(
+                altered_landed,
+                altered_r,
+                altered_preflight,
+                altered_census,
+            )
+        assert not os.path.lexists(storage_canary)
+        assert _all_real_path_fingerprints() == before
+
+
+def test_epoch_nine_recovery_rehydrates_once_with_zero_pipeline_or_retry(
+    _epoch_nine_exact_os_e2e: dict[str, Any],
+) -> None:
+    evidence = _epoch_nine_exact_os_e2e
+    result = evidence["recovery_result"]
+    assert result["recovery_starts"] == 1
+    assert result["pipeline_starts"] == 0
+    assert result["automatic_retry_count"] == 0
+    assert evidence["claim_started"]["execution_epoch"] == 9
+    assert evidence["claim_terminal"]["pipeline_starts"] == 0
+    assert evidence["claim_terminal"]["automatic_retry_count"] == 0
+    assert evidence["history"].history_root_sha256 == (
+        evidence["r_document"]["sealed_series"]["history_root_sha256"]
+    )
+
+
+def test_epoch_nine_recovered_release_uses_live_nine_historical_six(
+    _epoch_nine_exact_os_e2e: dict[str, Any],
+) -> None:
+    implementation = importlib.import_module(IMPLEMENTATION_MODULE)
+    result = _epoch_nine_exact_os_e2e["consume_result"]
+    assert result["mode"] == "PASSIVE_RECOVERED_RELEASE"
+    assert result["historical_selected_anchor"]["implementation_epoch"] == 6
+    assert result["historical_selected_anchor"]["require_current"] is False
+    assert result["live_execution_anchor"]["implementation_epoch"] == 9
+    assert result["live_execution_anchor"]["require_current"] is True
+    assert all(
+        value == 0
+        for key, value in result["effect_summary"].items()
+        if key != "before_after_equal"
+    )
+    assert result["effect_summary"]["before_after_equal"] is True
+    source = inspect.getsource(implementation.consume_recovered_release_authorization)
+    assert "replay_selected_pipeline(" not in source
+    assert "_active_replay_selected_pipeline(" not in source
 
 
 def test_epoch_seven_companion_is_the_exact_byte_authority_for_one_twelve_field_contract() -> None:
@@ -3884,9 +4240,9 @@ def test_epoch_seven_companion_declares_exact_anchors_census_effects_and_legacy_
     }
 
 
-def test_epoch_eight_companion_is_the_exact_byte_authority_for_one_thirteen_field_contract() -> (
-    None
-):
+def test_epoch_eight_recovery_contract_bytes_and_series_history_remain_exact(
+    _epoch_nine_exact_os_e2e: dict[str, Any],
+) -> None:
     implementation = importlib.import_module(IMPLEMENTATION_MODULE)
     payload, document, contract = _epoch_eight_companion()
     assert len(payload) == EPOCH_EIGHT_COMPANION_BYTES
@@ -3974,6 +4330,19 @@ def test_epoch_eight_companion_is_the_exact_byte_authority_for_one_thirteen_fiel
     assert implementation.EPOCH_8_COMPANION_RELATIVE == EPOCH_EIGHT_COMPANION_RELATIVE
     assert implementation.EPOCH_8_COMPANION_SHA256 == EPOCH_EIGHT_COMPANION_SHA256
     assert implementation.EPOCH_8_COMPANION_COMMIT == EPOCH_EIGHT_COMPANION_COMMIT
+    history = _epoch_nine_exact_os_e2e["history"]
+    assert [record.ordinal for record in history.records] == [1, 2]
+    assert [record.implementation_epoch for record in history.records] == [5, 6]
+    assert history.selected_attempt_ordinal == 2
+    assert history.records[1].implementation_epoch == 6
+    assert contract["legacy_absence_and_locks"]["amendment_time_facts_permanently_false"] == [
+        "official_series_2_bundle_emits_void_epoch_1",
+        "void_epoch_3_added",
+        "two_four_exception_added",
+        "sealed_bundle_recovery_added",
+        "recover_sealed_bundle_cli_added",
+        "consume_recovered_release_cli_added",
+    ]
 
 
 def test_epoch_eight_contract_separates_v2_live_documents_from_frozen_epoch_seven_history() -> (
@@ -4288,6 +4657,723 @@ def test_epoch_eight_real_git_baseline_plus_qrb_is_exact_and_one_extra_row_fails
         )
 
 
+def _epoch_nine_source_projection_fixture(
+    tmp_path: Path,
+    *,
+    scenario: str = "valid",
+) -> dict[str, Any]:
+    implementation = importlib.import_module(IMPLEMENTATION_MODULE)
+    repository = tmp_path / f"epoch-nine-source-projection-{scenario}"
+    repository.mkdir()
+    _fixture_git(repository, "init", "--quiet")
+    main_branch = _fixture_git(repository, "branch", "--show-current").decode().strip()
+    for relative, payload in (
+        (IMPLEMENTATION_RELATIVE, b"epoch-eight producer\n"),
+        (VALIDATOR_RELATIVE, b"epoch-eight validator\n"),
+        (RUNNER_TEST_RELATIVE, b"epoch-eight runner tests\n"),
+        (VALIDATOR_TEST_RELATIVE, b"epoch-eight validator tests\n"),
+    ):
+        path = repository / relative
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(payload)
+    _fixture_git(
+        repository,
+        "add",
+        "--",
+        IMPLEMENTATION_RELATIVE.as_posix(),
+        VALIDATOR_RELATIVE.as_posix(),
+        RUNNER_TEST_RELATIVE.as_posix(),
+        VALIDATOR_TEST_RELATIVE.as_posix(),
+    )
+    _fixture_git(repository, "commit", "--quiet", "-m", "epoch-nine fixture seed")
+    seed_commit = _fixture_git(repository, "rev-parse", "HEAD").decode().strip()
+
+    _fixture_git(repository, "switch", "--quiet", "-c", "epoch-nine-governed")
+    companion_relative = Path("docs/phase4/reports/epoch-nine-companion.json")
+    companion_payload = _independent_canonical_json_bytes({"companion": "epoch-nine"})
+    companion_commit = _fixture_commit_file(repository, companion_relative, companion_payload)
+    owner_relative = Path("docs/phase4/reports/epoch-nine-surface-authority.json")
+    owner_payload = _independent_canonical_json_bytes(
+        {
+            "base_commit": companion_commit,
+            "exact_surface": [
+                {"path": IMPLEMENTATION_RELATIVE.as_posix(), "status": "M"},
+                {"path": VALIDATOR_RELATIVE.as_posix(), "status": "M"},
+                {"path": RUNNER_TEST_RELATIVE.as_posix(), "status": "M"},
+                {"path": VALIDATOR_TEST_RELATIVE.as_posix(), "status": "M"},
+            ],
+            "implementation_epoch": 9,
+            "owner": {"approved": True, "identity": "ouyang"},
+            "schema_version": (
+                "p4.2a-v2-2-implementation-epoch-surface-authorization-v1"
+            ),
+            "verdict": "APPROVE_EXACT_V2_2_IMPLEMENTATION_EPOCH_SURFACE",
+        }
+    )
+    owner_source_commit = _fixture_commit_file(repository, owner_relative, owner_payload)
+    for relative, payload in (
+        (IMPLEMENTATION_RELATIVE, b"epoch-nine producer\n"),
+        (VALIDATOR_RELATIVE, b"epoch-nine validator\n"),
+        (RUNNER_TEST_RELATIVE, b"epoch-nine runner tests\n"),
+        (VALIDATOR_TEST_RELATIVE, b"epoch-nine validator tests\n"),
+    ):
+        (repository / relative).write_bytes(payload)
+    _fixture_git(
+        repository,
+        "add",
+        "--",
+        IMPLEMENTATION_RELATIVE.as_posix(),
+        VALIDATOR_RELATIVE.as_posix(),
+        RUNNER_TEST_RELATIVE.as_posix(),
+        VALIDATOR_TEST_RELATIVE.as_posix(),
+    )
+    _fixture_git(repository, "commit", "--quiet", "-m", "epoch-nine implementation")
+    implementation_commit = _fixture_git(repository, "rev-parse", "HEAD").decode().strip()
+    review_relative = Path("docs/phase4/reports/epoch-nine-independent-review.json")
+    review_payload = _independent_canonical_json_bytes(
+        {
+            "reviewed_implementation_commit": implementation_commit,
+            "schema_version": "synthetic-epoch-nine-independent-review-v1",
+            "verdict": "APPROVE_EPOCH9_IMPLEMENTATION",
+        }
+    )
+    review_source_commit = _fixture_commit_file(repository, review_relative, review_payload)
+
+    _fixture_git(repository, "switch", "--quiet", main_branch)
+    main_parent = _fixture_commit_file(repository, Path("main-only.txt"), b"main advanced\n")
+    if scenario == "wrong_second_parent":
+        _fixture_git(repository, "switch", "--quiet", "-c", "wrong-second-parent")
+        _fixture_commit_file(repository, Path("wrong-second.txt"), b"wrong second parent\n")
+        _fixture_git(repository, "switch", "--quiet", main_branch)
+        _fixture_git(
+            repository,
+            "merge",
+            "--quiet",
+            "--no-ff",
+            "--no-commit",
+            "wrong-second-parent",
+        )
+        path = repository / owner_relative
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(owner_payload)
+        _fixture_git(repository, "add", "--", owner_relative.as_posix())
+    elif scenario == "second_source":
+        _fixture_git(
+            repository,
+            "switch",
+            "--quiet",
+            "-c",
+            "competing-authority-source",
+            seed_commit,
+        )
+        _fixture_commit_file(repository, owner_relative, owner_payload)
+        _fixture_git(repository, "switch", "--quiet", main_branch)
+        _fixture_git(
+            repository,
+            "merge",
+            "--quiet",
+            "--no-ff",
+            "--no-commit",
+            "competing-authority-source",
+        )
+    else:
+        _fixture_git(
+            repository,
+            "merge",
+            "--quiet",
+            "--no-ff",
+            "--no-commit",
+            "epoch-nine-governed",
+        )
+        if scenario == "projection_bytes_differ":
+            (repository / owner_relative).write_bytes(owner_payload + b" ")
+            _fixture_git(repository, "add", "--", owner_relative.as_posix())
+        elif scenario == "second_parent_diff":
+            (repository / owner_relative).chmod(0o755)
+            _fixture_git(repository, "add", "--", owner_relative.as_posix())
+    _fixture_git(repository, "commit", "--quiet", "-m", "epoch-nine no-ff projection")
+    merge_commit = _fixture_git(repository, "rev-parse", "HEAD").decode().strip()
+
+    landing_relative = Path("docs/phase4/reports/epoch-nine-landing-report.json")
+    landing_payload = _independent_canonical_json_bytes(
+        {
+            "implementation_commit": implementation_commit,
+            "merge_commit": merge_commit,
+            "schema_version": "synthetic-epoch-nine-landing-v1",
+            "status": "PASS_SYNTHETIC_EPOCH_NINE_LANDING",
+        }
+    )
+    landing_commit = _fixture_commit_file(repository, landing_relative, landing_payload)
+    if scenario == "extra_touch":
+        _fixture_commit_file(repository, owner_relative, owner_payload + b" ")
+        _fixture_commit_file(repository, owner_relative, owner_payload)
+    elif scenario == "current_drift":
+        (repository / owner_relative).write_bytes(owner_payload + b" ")
+    execution_head = _fixture_git(repository, "rev-parse", "HEAD").decode().strip()
+    return {
+        "repository": repository,
+        "owner_relative": owner_relative,
+        "owner_payload": owner_payload,
+        "owner_source_commit": owner_source_commit,
+        "companion_commit": companion_commit,
+        "implementation_commit": implementation_commit,
+        "review_relative": review_relative,
+        "review_payload": review_payload,
+        "review_source_commit": review_source_commit,
+        "main_parent": main_parent,
+        "merge_commit": merge_commit,
+        "landing_relative": landing_relative,
+        "landing_payload": landing_payload,
+        "landing_commit": landing_commit,
+        "execution_head": execution_head,
+        "scenario": scenario,
+        "registered_before": implementation._real_path_fingerprints(),
+    }
+
+
+def test_epoch_nine_role_aware_authority_resolution_uses_source_projection_and_landing(
+    tmp_path: Path,
+) -> None:
+    implementation = importlib.import_module(IMPLEMENTATION_MODULE)
+    fixture = _epoch_nine_source_projection_fixture(tmp_path)
+    repository = fixture["repository"]
+    before_repository = _tree_fingerprint(repository)
+    owner_tracker = implementation._RecoveryWorkTracker()
+    owner = implementation._authority_reference_for_path(
+        repository,
+        repository / fixture["owner_relative"],
+        identity_mode="LOGICAL_SOURCE_WITH_LAWFUL_PROJECTIONS",
+        execution_head=fixture["execution_head"],
+        label="owner exact-surface authorization",
+        work_tracker=owner_tracker,
+    )
+    review = implementation._authority_reference_for_path(
+        repository,
+        repository / fixture["review_relative"],
+        identity_mode="FIRST_PARENT_VISIBLE_UNIQUE_A",
+        execution_head=fixture["execution_head"],
+        label="independent implementation review",
+    )
+    landing = implementation._authority_reference_for_path(
+        repository,
+        repository / fixture["landing_relative"],
+        identity_mode="FIRST_PARENT_VISIBLE_UNIQUE_A",
+        execution_head=fixture["execution_head"],
+        label="epoch-8-or-later landing report",
+    )
+    assert owner == implementation.AuthorityReference(
+        fixture["owner_relative"].as_posix(),
+        _sha256(fixture["owner_payload"]),
+        fixture["owner_source_commit"],
+    )
+    assert review == implementation.AuthorityReference(
+        fixture["review_relative"].as_posix(),
+        _sha256(fixture["review_payload"]),
+        fixture["merge_commit"],
+    )
+    assert landing == implementation.AuthorityReference(
+        fixture["landing_relative"].as_posix(),
+        _sha256(fixture["landing_payload"]),
+        fixture["landing_commit"],
+    )
+    assert _fixture_git(
+        repository,
+        "rev-list",
+        "--parents",
+        "-n",
+        "1",
+        fixture["owner_source_commit"],
+    ).decode().split() == [fixture["owner_source_commit"], fixture["companion_commit"]]
+    assert _fixture_git(
+        repository,
+        "rev-list",
+        "--parents",
+        "-n",
+        "1",
+        fixture["implementation_commit"],
+    ).decode().split() == [fixture["implementation_commit"], fixture["owner_source_commit"]]
+    assert (
+        _fixture_git(repository, "rev-parse", f"{fixture['merge_commit']}^2")
+        .decode()
+        .strip()
+        == fixture["review_source_commit"]
+    )
+    assert (
+        _fixture_git(repository, "rev-parse", f"{fixture['landing_commit']}^")
+        .decode()
+        .strip()
+        == fixture["merge_commit"]
+    )
+    counters = owner_tracker.snapshot()
+    assert 0 < counters["git_objects_read"] <= implementation.RECOVERY_WORK_LIMITS[
+        "git_objects_read"
+    ]
+    assert all(
+        counters[field] <= implementation.RECOVERY_WORK_LIMITS[field]
+        for field in implementation.RECOVERY_WORK_COUNTER_FIELDS
+    )
+    second_tracker = implementation._RecoveryWorkTracker()
+    second_owner = implementation._authority_reference_for_path(
+        repository,
+        repository / fixture["owner_relative"],
+        identity_mode="LOGICAL_SOURCE_WITH_LAWFUL_PROJECTIONS",
+        execution_head=fixture["execution_head"],
+        label="owner exact-surface authorization",
+        work_tracker=second_tracker,
+    )
+    assert second_owner == owner
+    assert second_tracker.snapshot() == counters
+    assert _tree_fingerprint(repository) == before_repository
+    assert implementation._real_path_fingerprints() == fixture["registered_before"]
+
+
+def test_epoch_nine_authority_identity_mode_is_required_closed_and_precedes_reads(
+    tmp_path: Path,
+) -> None:
+    implementation = importlib.import_module(IMPLEMENTATION_MODULE)
+    signature = inspect.signature(implementation._authority_reference_for_path)
+    assert signature.parameters["identity_mode"].default is inspect.Parameter.empty
+    source = inspect.getsource(implementation._authority_reference_for_path)
+    mode_guard = source.index("identity_mode not in AUTHORITY_IDENTITY_MODES")
+    assert mode_guard < source.index("_regular_bytes(")
+    assert mode_guard < source.index("_git_")
+    companion = json.loads((PROJECT_ROOT / EPOCH_NINE_COMPANION_RELATIVE).read_bytes())
+    expected_calls = sorted(
+        (row["label"], row["mode"])
+        for row in companion["identity_resolution_contract"]["call_site_map"]
+    )
+    module = ast.parse((PROJECT_ROOT / IMPLEMENTATION_RELATIVE).read_text())
+    observed_calls: list[tuple[str, str]] = []
+    for node in ast.walk(module):
+        if not (
+            isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Name)
+            and node.func.id == "_authority_reference_for_path"
+        ):
+            continue
+        keywords = {keyword.arg: keyword.value for keyword in node.keywords}
+        label = keywords.get("label")
+        mode = keywords.get("identity_mode")
+        assert isinstance(label, ast.Constant) and isinstance(label.value, str)
+        assert isinstance(mode, ast.Name)
+        observed_calls.append((label.value, str(getattr(implementation, mode.id))))
+    assert sorted(observed_calls) == expected_calls
+    before = implementation._real_path_fingerprints()
+    missing = tmp_path / "storage-probe-must-not-be-read.json"
+    with pytest.raises(TypeError):
+        implementation._authority_reference_for_path(
+            tmp_path,
+            missing,
+            execution_head="0" * 40,
+            label="owner exact-surface authorization",
+        )
+    with pytest.raises(implementation.RehearsalV22Error, match=r"identity mode"):
+        implementation._authority_reference_for_path(
+            tmp_path,
+            missing,
+            identity_mode="LOGICAL_SOURCE",
+            execution_head="0" * 40,
+            label="owner exact-surface authorization",
+        )
+    assert not os.path.lexists(missing)
+    assert implementation._real_path_fingerprints() == before
+
+
+@pytest.mark.parametrize(
+    ("relative_key", "label", "identity_mode"),
+    (
+        (
+            "owner_relative",
+            "owner exact-surface authorization",
+            "FIRST_PARENT_VISIBLE_UNIQUE_A",
+        ),
+        (
+            "review_relative",
+            "independent implementation review",
+            "LOGICAL_SOURCE_WITH_LAWFUL_PROJECTIONS",
+        ),
+    ),
+)
+def test_epoch_nine_authority_identity_mode_rejects_a_wrong_registered_role(
+    tmp_path: Path,
+    relative_key: str,
+    label: str,
+    identity_mode: str,
+) -> None:
+    implementation = importlib.import_module(IMPLEMENTATION_MODULE)
+    fixture = _epoch_nine_source_projection_fixture(tmp_path)
+    repository = fixture["repository"]
+    before_repository = _tree_fingerprint(repository)
+    before_registered = implementation._real_path_fingerprints()
+    with pytest.raises(implementation.RehearsalV22Error, match=r"identity mode"):
+        implementation._authority_reference_for_path(
+            repository,
+            repository / fixture[relative_key],
+            identity_mode=identity_mode,
+            execution_head=fixture["execution_head"],
+            label=label,
+        )
+    assert _tree_fingerprint(repository) == before_repository
+    assert implementation._real_path_fingerprints() == before_registered
+
+
+@pytest.mark.parametrize(
+    "scenario",
+    (
+        "projection_bytes_differ",
+        "second_parent_diff",
+        "wrong_second_parent",
+        "second_source",
+        "extra_touch",
+        "current_drift",
+    ),
+)
+def test_epoch_nine_logical_source_resolution_rejects_every_illegal_touch_before_storage(
+    tmp_path: Path,
+    scenario: str,
+) -> None:
+    implementation = importlib.import_module(IMPLEMENTATION_MODULE)
+    fixture = _epoch_nine_source_projection_fixture(tmp_path, scenario=scenario)
+    repository = fixture["repository"]
+    before_repository = _tree_fingerprint(repository)
+    storage_canary = tmp_path / "storage-must-remain-absent"
+    with pytest.raises(
+        implementation.RehearsalV22Error,
+        match=r"authority|lineage|source|projection|touch|worktree",
+    ):
+        implementation._authority_reference_for_path(
+            repository,
+            repository / fixture["owner_relative"],
+            identity_mode="LOGICAL_SOURCE_WITH_LAWFUL_PROJECTIONS",
+            execution_head=fixture["execution_head"],
+            label="owner exact-surface authorization",
+        )
+    assert not os.path.lexists(storage_canary)
+    assert _tree_fingerprint(repository) == before_repository
+    assert implementation._real_path_fingerprints() == fixture["registered_before"]
+
+
+def test_epoch_nine_r3_latest_landed_contract_is_exact_and_preserves_history() -> None:
+    implementation = importlib.import_module(IMPLEMENTATION_MODULE)
+    execution_head = _fixture_git(PROJECT_ROOT, "rev-parse", "HEAD").decode().strip()
+    contract = implementation.validate_epoch_9_latest_landed_execution_contract(
+        PROJECT_ROOT,
+        execution_head=execution_head,
+    )
+    companion = json.loads((PROJECT_ROOT / EPOCH_NINE_R3_COMPANION_RELATIVE).read_bytes())
+    assert contract == companion["epoch_9_latest_landed_execution_contract"]
+    assert set(contract) == implementation.EPOCH_9_LATEST_LANDED_CONTRACT_FIELDS
+    assert contract["schema_version"] == implementation.EPOCH_9_LATEST_LANDED_CONTRACT_SCHEMA
+    assert contract["implementation_epoch"] == implementation.LATEST_LIVE_EPOCH_9 == 9
+    assert (
+        _sha256(implementation._canonical_json_bytes(contract))
+        == implementation.EPOCH_9_LATEST_LANDED_CONTRACT_CANONICAL_SHA256
+    )
+    anchors = contract["dual_byte_anchor_transition_contract"]
+    assert anchors["historical_selected_anchor"] == {
+        "selected_attempt_ordinal": 2,
+        "implementation_epoch": 6,
+        "implementation_commit": implementation.EPOCH_8_HISTORICAL_SELECTED_COMMIT,
+        "history_root_sha256": implementation.EPOCH_8_SEALED_HISTORY_ROOT_SHA256,
+        "live_ledger_root_sha256": implementation.EPOCH_8_SEALED_LIVE_LEDGER_ROOT_SHA256,
+        "require_current": False,
+    }
+    assert anchors["live_execution_anchor"]["implementation_epoch"] == 9
+    assert anchors["live_execution_anchor"]["require_current"] is True
+    assert anchors["sealed_attempt_epoch_table"] == [5, 6]
+    assert all(
+        value is False
+        for value in contract["authority_census_and_effect_lock_contract"][
+            "permanent_absence_fields"
+        ].values()
+    )
+
+
+def test_epoch_nine_latest_landed_contract_mutation_matrix_rejects_every_semantic() -> None:
+    implementation = importlib.import_module(IMPLEMENTATION_MODULE)
+    companion = json.loads((PROJECT_ROOT / EPOCH_NINE_R3_COMPANION_RELATIVE).read_bytes())
+    contract = companion["epoch_9_latest_landed_execution_contract"]
+    assert implementation._validate_epoch_9_latest_landed_contract_semantics(
+        contract,
+        expected_semantics=copy.deepcopy(contract),
+    ) == contract
+    mutations: list[dict[str, Any]] = []
+    for key in sorted(contract, key=lambda value: value.encode("utf-8")):
+        mutated = copy.deepcopy(contract)
+        value = mutated[key]
+        if isinstance(value, dict):
+            nested_key = sorted(value, key=lambda item: item.encode("utf-8"))[0]
+            value[nested_key] = None
+        elif isinstance(value, int):
+            mutated[key] = value + 1
+        else:
+            mutated[key] = f"{value}-mutated"
+        mutations.append(mutated)
+    missing = copy.deepcopy(contract)
+    missing.pop("authority_census_and_effect_lock_contract")
+    mutations.append(missing)
+    extra = copy.deepcopy(contract)
+    extra["unregistered_semantic"] = True
+    mutations.append(extra)
+    for mutated in mutations:
+        with pytest.raises(implementation.RehearsalV22Error):
+            implementation._validate_epoch_9_latest_landed_contract_semantics(
+                mutated,
+                expected_semantics=contract,
+            )
+
+
+def test_epoch_nine_r3_authority_and_census_rows_are_exact_four_m() -> None:
+    implementation = importlib.import_module(IMPLEMENTATION_MODULE)
+    payload = (PROJECT_ROOT / implementation.EPOCH_9_R3_SURFACE_AUTHORITY_RELATIVE).read_bytes()
+    authority = json.loads(payload)
+    assert _sha256(payload) == implementation.EPOCH_9_R3_SURFACE_AUTHORITY_SHA256
+    assert len(payload) == implementation.EPOCH_9_R3_SURFACE_AUTHORITY_BYTES
+    assert authority == {
+        "schema_version": "p4.2a-v2-2-implementation-epoch-surface-authorization-v1",
+        "verdict": "APPROVE_EXACT_V2_2_IMPLEMENTATION_EPOCH_SURFACE",
+        "owner": {"identity": "ouyang", "approved": True},
+        "implementation_epoch": 9,
+        "base_commit": implementation.EPOCH_9_R3_COMPANION_COMMIT,
+        "exact_surface": [
+            {"path": relative.as_posix(), "status": "M"}
+            for relative in sorted(
+                (
+                    IMPLEMENTATION_RELATIVE,
+                    VALIDATOR_RELATIVE,
+                    RUNNER_TEST_RELATIVE,
+                    VALIDATOR_TEST_RELATIVE,
+                ),
+                key=lambda value: value.as_posix().encode("utf-8"),
+            )
+        ],
+    }
+    assert _fixture_git(
+        PROJECT_ROOT,
+        "rev-list",
+        "--parents",
+        "-n",
+        "1",
+        implementation.EPOCH_9_R3_SURFACE_AUTHORITY_COMMIT,
+    ).decode().split() == [
+        implementation.EPOCH_9_R3_SURFACE_AUTHORITY_COMMIT,
+        implementation.EPOCH_9_R3_COMPANION_COMMIT,
+    ]
+    registry = {
+        spec.reference.path: spec for spec in implementation._authority_census_registry(())
+    }
+    for relative, digest, commit in (
+        (
+            implementation.EPOCH_9_R3_ADJUDICATION_RELATIVE,
+            implementation.EPOCH_9_R3_ADJUDICATION_SHA256,
+            implementation.EPOCH_9_R3_ADJUDICATION_COMMIT,
+        ),
+        (
+            implementation.EPOCH_9_R3_COMPANION_RELATIVE,
+            implementation.EPOCH_9_R3_COMPANION_SHA256,
+            implementation.EPOCH_9_R3_COMPANION_COMMIT,
+        ),
+        (
+            implementation.EPOCH_9_R3_SURFACE_AUTHORITY_RELATIVE,
+            implementation.EPOCH_9_R3_SURFACE_AUTHORITY_SHA256,
+            implementation.EPOCH_9_R3_SURFACE_AUTHORITY_COMMIT,
+        ),
+    ):
+        spec = registry[relative.as_posix()]
+        assert spec.reference == implementation.AuthorityReference(
+            relative.as_posix(), digest, commit
+        )
+        assert spec.role == "PINNED_SOURCE"
+        assert spec.declared_landing_projection_commit is None
+
+
+def test_epoch_nine_live_and_historical_epoch_constants_are_purpose_separated() -> None:
+    implementation = importlib.import_module(IMPLEMENTATION_MODULE)
+    assert implementation.HISTORICAL_EPOCH_8 == 8
+    assert implementation.LANDING_PREFLIGHT_ORIGIN_EPOCH == 8
+    assert implementation.LATEST_LIVE_EPOCH_9 == 9
+    historical_source = inspect.getsource(implementation.validate_epoch_8_recovery_contract)
+    live_sources = "\n".join(
+        inspect.getsource(function)
+        for function in (
+            implementation._validate_bundle_recovery_authorization,
+            implementation._validate_recovery_owner_binding,
+            implementation._live_execution_anchor_with_census,
+            implementation._recovered_publication_capability,
+        )
+    )
+    assert "HISTORICAL_EPOCH_8" in historical_source
+    assert "EPOCH_8_IMPLEMENTATION_EPOCH" not in live_sources
+    assert "EPOCH_8_SURFACE_AUTHORITY" not in live_sources
+    assert "LATEST_LIVE_EPOCH_9" in live_sources
+    preflight_source = inspect.getsource(implementation._read_only_implementation_preflight)
+    dispatch_source = inspect.getsource(implementation._preflight_epoch_dispatch)
+    assert "epoch > LATEST_LIVE_EPOCH_9" in dispatch_source
+    assert "epoch.epoch == LATEST_LIVE_EPOCH_9" in preflight_source
+    assert "epoch.epoch == HISTORICAL_EPOCH_8" in preflight_source
+    assert "epoch.epoch >= LANDING_PREFLIGHT_ORIGIN_EPOCH" in preflight_source
+
+
+def test_epoch_nine_dispatch_separates_historical_epoch_eight_from_latest_live(
+    tmp_path: Path,
+    _epoch_eight_historical_preflight: dict[str, Any],
+) -> None:
+    implementation = importlib.import_module(IMPLEMENTATION_MODULE)
+    canary = tmp_path / "storage-must-remain-absent"
+    assert implementation._preflight_epoch_dispatch(tmp_path, 8) == "HISTORICAL_EPOCH_8"
+    assert implementation._preflight_epoch_dispatch(tmp_path, 9) == "LATEST_LIVE_EPOCH_9"
+    assert implementation._preflight_epoch_dispatch(tmp_path, 7) == "HISTORICAL"
+    with pytest.raises(
+        implementation.RehearsalV22Error,
+        match="rejects historical epoch 8",
+    ):
+        implementation._preflight_epoch_dispatch(implementation.REGISTERED_PROJECT_ROOT, 8)
+    with pytest.raises(implementation.RehearsalV22Error, match="not governed"):
+        implementation._preflight_epoch_dispatch(tmp_path, 10)
+    source = inspect.getsource(implementation._preflight_epoch_dispatch)
+    for forbidden in (
+        "_regular_bytes(",
+        "_git_",
+        "validate_live_history(",
+        "_read_only_storage_preflight(",
+        "_registered_storage_directory(",
+    ):
+        assert forbidden not in source
+    assert not os.path.lexists(canary)
+    execution_head = _fixture_git(PROJECT_ROOT, "rev-parse", "HEAD").decode().strip()
+    historical_contract = implementation.validate_epoch_8_recovery_contract(
+        PROJECT_ROOT,
+        execution_head=execution_head,
+    )
+    assert historical_contract["implementation_epoch"] == 8
+    assert implementation._preflight_epoch_dispatch(PROJECT_ROOT.parent, 8) == (
+        "HISTORICAL_EPOCH_8"
+    )
+    historical_preflight = _epoch_eight_historical_preflight["document"]
+    assert historical_preflight["status"] == "PASS_READ_ONLY_IMPLEMENTATION_PREFLIGHT"
+    assert historical_preflight["implementation_epoch"] == 8
+    assert historical_preflight["effect_summary"]["pipeline_starts"] == 0
+    assert historical_preflight["effect_summary"]["automatic_retries"] == 0
+
+
+def test_epoch_nine_landing_document_requires_epoch_nine_and_exact_bindings(
+    _epoch_nine_exact_os_e2e: dict[str, Any],
+) -> None:
+    implementation = importlib.import_module(IMPLEMENTATION_MODULE)
+    signature = inspect.signature(implementation._validate_epoch_8_landing_document_bindings)
+    assert signature.parameters["expected_live_epoch"].default is inspect.Parameter.empty
+    owner = implementation.AuthorityReference("owner.json", "11" * 32, "22" * 20)
+    review = implementation.AuthorityReference("review.json", "33" * 32, "44" * 20)
+    common = {
+        "implementation_commit": "55" * 20,
+        "owner_exact_surface_authorization": owner.as_json(),
+        "independent_implementation_review": review.as_json(),
+        "control_merkle_root_sha256": "66" * 32,
+        "control_record_count": 4,
+        "merge_commit": "44" * 20,
+        "merge_parents": ["77" * 20, "88" * 20],
+    }
+    arguments = {
+        "implementation_commit": "55" * 20,
+        "owner": owner,
+        "review": review,
+        "merge_commit": "44" * 20,
+        "merge_parents": ["77" * 20, "88" * 20],
+        "control_root": "66" * 32,
+        "control_count": 4,
+    }
+    implementation._validate_epoch_8_landing_document_bindings(
+        {**common, "implementation_epoch": 9},
+        expected_live_epoch=9,
+        **arguments,
+    )
+    for wrong_epoch in (8, True, 9.0, "9"):
+        with pytest.raises(
+            implementation.RehearsalV22Error,
+            match="review/merge/landing topology or binding drifted",
+        ):
+            implementation._validate_epoch_8_landing_document_bindings(
+                {**common, "implementation_epoch": wrong_epoch},
+                expected_live_epoch=9,
+                **arguments,
+            )
+    for key, wrong in (
+        ("implementation_commit", "99" * 20),
+        ("owner_exact_surface_authorization", review.as_json()),
+        ("independent_implementation_review", owner.as_json()),
+        ("merge_commit", "aa" * 20),
+        ("merge_parents", list(reversed(common["merge_parents"]))),
+        ("control_merkle_root_sha256", "bb" * 32),
+        ("control_record_count", 5),
+    ):
+        with pytest.raises(
+            implementation.RehearsalV22Error,
+            match="review/merge/landing topology or binding drifted",
+        ):
+            implementation._validate_epoch_8_landing_document_bindings(
+                {**common, "implementation_epoch": 9, key: wrong},
+                expected_live_epoch=9,
+                **arguments,
+            )
+    evidence = _epoch_nine_exact_os_e2e
+    implementation_commit, live_owner, live_review, _merge, landing, control = evidence[
+        "live_epoch"
+    ]
+    wrong_report_bytes = implementation.AuthorityReference(
+        landing.path,
+        "00" * 32,
+        landing.creating_commit,
+    )
+    wrong_parent = implementation.AuthorityReference(
+        landing.path,
+        landing.sha256,
+        live_review.creating_commit,
+    )
+    for wrong_landing in (wrong_report_bytes, wrong_parent):
+        with pytest.raises(implementation.RehearsalV22Error):
+            implementation._validate_epoch_8_landing_authority(
+                evidence["binding"].project_root,
+                expected_live_epoch=9,
+                expected_owner=live_owner,
+                execution_head=_fixture_git(
+                    evidence["binding"].project_root,
+                    "rev-parse",
+                    "HEAD",
+                ).decode().strip(),
+                implementation_commit=implementation_commit,
+                owner=live_owner,
+                review=live_review,
+                landing_report=wrong_landing,
+                control=control,
+            )
+
+
+def test_epoch_nine_recovery_live_chain_uses_nine_without_schema_or_history_rewrite() -> None:
+    implementation = importlib.import_module(IMPLEMENTATION_MODULE)
+    assert implementation.SERIES_2_RECOVERY_REVIEW_REQUEST_SCHEMA == (
+        implementation.EPOCH_8_RECOVERY_REVIEW_REQUEST_SCHEMA
+    )
+    assert implementation.SERIES_2_RECOVERY_AUTHORIZATION_SCHEMA == (
+        implementation.EPOCH_8_RECOVERY_AUTHORIZATION_SCHEMA
+    )
+    assert implementation.SERIES_2_READ_ONLY_PREFLIGHT_SCHEMA == (
+        implementation.EPOCH_8_READ_ONLY_PREFLIGHT_SCHEMA
+    )
+    authorization_source = inspect.getsource(
+        implementation._validate_bundle_recovery_authorization
+    )
+    owner_binding_source = inspect.getsource(implementation._validate_recovery_owner_binding)
+    capability_source = inspect.getsource(implementation._recovered_publication_capability)
+    assert "validate_epoch_9_latest_landed_execution_contract(" in authorization_source
+    assert "execution.get(\"epoch\") != LATEST_LIVE_EPOCH_9" in authorization_source
+    assert "authorization.execution_epoch.get(\"epoch\")" in owner_binding_source
+    assert "started.get(\"execution_epoch\") != live_anchor.execution_epoch" in capability_source
+    assert "receipt.get(\"execution_epoch\") != live_anchor.execution_epoch" in capability_source
+    assert "EPOCH_8_IMPLEMENTATION_EPOCH" not in authorization_source
+    assert "EPOCH_8_IMPLEMENTATION_EPOCH" not in owner_binding_source
+    assert "EPOCH_8_IMPLEMENTATION_EPOCH" not in capability_source
+
+
 def test_epoch_seven_unique_a_accepts_only_a_byte_identical_first_parent_projection(
     tmp_path: Path,
 ) -> None:
@@ -4362,7 +5448,10 @@ def test_epoch_seven_real_lineage_census_contract_is_closed_and_ref_snapshots_ar
     assert implementation.EPOCH_8_LINEAGE_CENSUS_SCHEMA == (
         implementation.EPOCH_7_LINEAGE_CENSUS_SCHEMA
     )
-    assert "EPOCH_8_LINEAGE_CENSUS_SCHEMA" in source
+    assert implementation.SERIES_2_LINEAGE_CENSUS_SCHEMA == (
+        implementation.EPOCH_8_LINEAGE_CENSUS_SCHEMA
+    )
+    assert "SERIES_2_LINEAGE_CENSUS_SCHEMA" in source
     for field in expected["census_exact_fields"]:
         assert repr(field) in source or f'"{field}"' in source
     assert "ref_snapshot_before_sha256" in source
@@ -7932,9 +9021,10 @@ def test_epoch_eight_landing_cli_is_mode_exact_and_identity_census_precede_stora
         "owner_surface = _authority_reference_for_path(",
         "independent_review = _authority_reference_for_path(",
         "landing_report = (",
+        "validate_epoch_9_latest_landed_execution_contract(",
+        "validate_epoch_8_recovery_contract(",
         "control = build_control_surface(",
         "epoch = validate_implementation_epoch(",
-        "validate_epoch_8_recovery_contract(",
         "merge_commit = _validate_epoch_8_landing_authority(",
         "real_lineage_census = _real_lineage_census(",
     )
@@ -7989,6 +9079,7 @@ def test_epoch_eight_landing_named_bindings_reject_alias_collisions() -> None:
     }
     validate = implementation._validate_epoch_8_landing_document_bindings
     arguments = {
+        "expected_live_epoch": 8,
         "implementation_commit": implementation_commit,
         "owner": owner,
         "review": review,
@@ -8105,6 +9196,8 @@ def test_epoch_eight_producer_full_landing_path_rejects_merge_alias_collision(
     ):
         implementation._validate_epoch_8_landing_authority(
             repository,
+            expected_live_epoch=8,
+            expected_owner=owner,
             execution_head=landing.creating_commit,
             implementation_commit=implementation_commit,
             owner=owner,
@@ -9658,7 +10751,7 @@ def test_epoch_eight_recovered_modes_bootstrap_before_storage_and_cannot_reach_a
     assert validator is not None
 
 
-def test_epoch_eight_historical_and_live_anchors_are_explicit_non_substitutable_types() -> None:
+def test_epoch_nine_dual_anchor_keeps_selected_six_and_live_nine() -> None:
     implementation = importlib.import_module(IMPLEMENTATION_MODULE)
     historical_source = inspect.getsource(implementation._validate_sealed_recovery_inputs)
     live_source = inspect.getsource(implementation._live_execution_anchor_with_census)
@@ -9666,7 +10759,8 @@ def test_epoch_eight_historical_and_live_anchors_are_explicit_non_substitutable_
     assert "require_current=False" in historical_source
     assert "LiveExecutionAnchor(" in live_source
     assert "require_current=True" in live_source
-    assert "EPOCH_8_IMPLEMENTATION_EPOCH" in live_source
+    assert "LATEST_LIVE_EPOCH_9" in live_source
+    assert "EPOCH_8_IMPLEMENTATION_EPOCH" not in live_source
     recovered_source = inspect.getsource(implementation._execute_authorized_bundle_recovery)
     for anchor_parameter in ("historical_anchor", "live_anchor"):
         assert anchor_parameter in recovered_source
