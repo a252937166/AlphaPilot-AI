@@ -47,6 +47,18 @@ class _PredictionState:
     details: dict[str, Any]
 
 
+def _with_state_details(
+    state: _PredictionState,
+    extra: dict[str, Any],
+) -> _PredictionState:
+    return _PredictionState(
+        target_date=state.target_date,
+        factor_current=state.factor_current,
+        style_current=state.style_current,
+        details={**state.details, **extra},
+    )
+
+
 def _latest_run(session: Session, job_name: str) -> JobRun | None:
     return session.scalar(
         select(JobRun).where(JobRun.job_name == job_name).order_by(JobRun.id.desc()).limit(1)
@@ -89,6 +101,48 @@ def _run_stats(run: JobRun | None) -> dict[str, Any]:
     if run is None or not isinstance(run.stats, dict):
         return {}
     return dict(run.stats)
+
+
+def _adj_factor_timeout_recovery_context(
+    session: Session,
+    *,
+    target_date: date,
+) -> dict[str, Any] | None:
+    """Return the exact timed-out daily-bar span eligible for one catch-up."""
+
+    daily_run = _latest_run(session, "sync_daily_bars")
+    adj_run = _latest_run(session, "sync_adj_factors")
+    if daily_run is None or adj_run is None:
+        return None
+    daily_stats = _run_stats(daily_run)
+    adj_stats = _run_stats(adj_run)
+    if (
+        daily_run.status != "ok"
+        or daily_run.started_at is None
+        or daily_run.finished_at is None
+        or daily_stats.get("latest_trade_date") != target_date.isoformat()
+        or adj_run.status != "failed"
+        or adj_run.started_at is None
+        or adj_run.finished_at is None
+        or adj_stats.get("reason") != "daily_bars_wait_timeout"
+        or not (
+            daily_run.started_at
+            <= adj_run.started_at
+            <= daily_run.finished_at
+            and adj_run.started_at <= adj_run.finished_at
+        )
+    ):
+        return None
+    return {
+        "target_date": target_date.isoformat(),
+        "daily_bars_job_run_id": daily_run.id,
+        "daily_bars_started_at": daily_run.started_at.isoformat(),
+        "daily_bars_finished_at": daily_run.finished_at.isoformat(),
+        "timed_out_adj_factors_job_run_id": adj_run.id,
+        "timed_out_adj_factors_started_at": adj_run.started_at.isoformat(),
+        "timed_out_adj_factors_finished_at": adj_run.finished_at.isoformat(),
+        "timed_out_adj_factors_reason": "daily_bars_wait_timeout",
+    }
 
 
 def _prediction_state(session: Session) -> _PredictionState:
@@ -281,12 +335,84 @@ def reconcile_prediction_outputs() -> dict[str, Any] | JobOutcome:
             "skipped": "no_daily_bars",
             "duration_seconds": round(monotonic() - started, 2),
         }
+    target_date = initial.target_date
     if initial.factor_current and initial.style_current:
         return {
             **initial.details,
             "skipped": "already_current",
             "duration_seconds": round(monotonic() - started, 2),
         }
+
+    adj_factors_job_run_id: int | None = None
+    adj_recovery_context: dict[str, Any] | None = None
+    recovery_metadata: dict[str, Any] = {}
+    if (
+        not initial.factor_current
+        and initial.details.get("upstream_contract_ok") is not True
+        and initial.details.get("live_input_reason") == "adjustment_factors_not_final"
+    ):
+        with get_session() as session:
+            adj_recovery_context = _adj_factor_timeout_recovery_context(
+                session,
+                target_date=target_date,
+            )
+    if adj_recovery_context is not None:
+        adj_run = run_job(
+            "sync_adj_factors",
+            force_refresh_latest=True,
+            recovery_expected_daily_bars_job_run_id=int(
+                adj_recovery_context["daily_bars_job_run_id"]
+            ),
+            recovery_expected_timed_out_adj_factors_job_run_id=int(
+                adj_recovery_context["timed_out_adj_factors_job_run_id"]
+            ),
+        )
+        adj_factors_job_run_id = adj_run.id
+        if adj_run.status != "ok":
+            return JobOutcome(
+                status="degraded",
+                stats={
+                    **_failed_child_stats(
+                        child_name="sync_adj_factors",
+                        child_run=adj_run,
+                        state=initial,
+                    ),
+                    "adj_factor_recovery_context": adj_recovery_context,
+                    "skipped": "sync_adj_factors_failed",
+                    "message": "自动补同步复权因子失败，预测输出未继续计算。",
+                    "duration_seconds": round(monotonic() - started, 2),
+                },
+            )
+        adj_stats = _run_stats(adj_run)
+        with get_session() as session:
+            recovered = _prediction_state(session)
+        if recovered.target_date != target_date:
+            return {
+                **recovered.details,
+                "adj_factor_recovery_context": adj_recovery_context,
+                "recovery_adj_factors_job_run_id": adj_factors_job_run_id,
+                "recovery_adj_factors_stats": adj_stats,
+                "skipped": "prediction_target_changed",
+                "duration_seconds": round(monotonic() - started, 2),
+            }
+        if recovered.details.get("live_input_reason") == "adjustment_factors_not_final":
+            raise JobExecutionError(
+                "复权因子补同步结束后仍未满足完整性合同。",
+                stats={
+                    **recovered.details,
+                    "reason": "adjustment_factor_recovery_did_not_restore_contract",
+                    "adj_factor_recovery_context": adj_recovery_context,
+                    "recovery_adj_factors_job_run_id": adj_factors_job_run_id,
+                    "recovery_adj_factors_stats": adj_stats,
+                },
+            )
+        recovery_metadata = {
+            "adj_factor_recovery_context": adj_recovery_context,
+            "recovery_adj_factors_job_run_id": adj_factors_job_run_id,
+            "recovery_adj_factors_stats": adj_stats,
+        }
+        initial = _with_state_details(recovered, recovery_metadata)
+
     if not initial.factor_current and initial.details.get("upstream_contract_ok") is not True:
         return {
             **initial.details,
@@ -325,7 +451,7 @@ def reconcile_prediction_outputs() -> dict[str, Any] | JobOutcome:
                 "factor_stats": factor_stats,
                 "duration_seconds": round(monotonic() - started, 2),
             }
-        if factor_stats.get("date") != initial.target_date.isoformat():
+        if factor_stats.get("date") != target_date.isoformat():
             raise JobExecutionError(
                 "自动补算因子日期与最新日线不一致，风格计算未启动。",
                 stats={
@@ -338,6 +464,8 @@ def reconcile_prediction_outputs() -> dict[str, Any] | JobOutcome:
 
     with get_session() as session:
         after_factor = _prediction_state(session)
+    if recovery_metadata:
+        after_factor = _with_state_details(after_factor, recovery_metadata)
     if not after_factor.factor_current:
         raise JobExecutionError(
             "因子子任务结束后输出仍未满足完整性合同。",
@@ -382,6 +510,8 @@ def reconcile_prediction_outputs() -> dict[str, Any] | JobOutcome:
 
     with get_session() as session:
         completed = _prediction_state(session)
+    if recovery_metadata:
+        completed = _with_state_details(completed, recovery_metadata)
     if not completed.factor_current or not completed.style_current:
         raise JobExecutionError(
             "预测链补算结束后仍未收敛到完整终态。",

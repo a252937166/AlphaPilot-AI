@@ -5,7 +5,7 @@ from contextlib import contextmanager
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from types import SimpleNamespace
-from typing import Any
+from typing import Any, cast
 
 import pytest
 from sqlalchemy import create_engine, text
@@ -57,6 +57,19 @@ def _state(
             "factor_input_reason": factor_input_reason or live_input_reason,
         },
     )
+
+
+def _recovery_context() -> dict[str, Any]:
+    return {
+        "target_date": TARGET_DATE.isoformat(),
+        "daily_bars_job_run_id": 401,
+        "daily_bars_started_at": "2026-07-30T10:40:00+00:00",
+        "daily_bars_finished_at": "2026-07-30T11:23:00+00:00",
+        "timed_out_adj_factors_job_run_id": 402,
+        "timed_out_adj_factors_started_at": "2026-07-30T10:50:00+00:00",
+        "timed_out_adj_factors_finished_at": "2026-07-30T11:20:00+00:00",
+        "timed_out_adj_factors_reason": "daily_bars_wait_timeout",
+    }
 
 
 def test_reconcile_runs_factor_then_style_and_converges(
@@ -166,6 +179,361 @@ def test_reconcile_defers_before_factor_when_upstream_is_not_final(
     assert result["skipped"] == "upstream_inputs_not_final"
     assert result["upstream_reason"] == "daily_bars_not_final"
     assert "等待上游恢复" in result["message"]
+
+
+def test_reconcile_recovers_adjustment_factors_then_converges(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    states = iter(
+        (
+            _state(
+                factor_current=False,
+                style_current=False,
+                upstream_contract_ok=False,
+                live_input_reason="adjustment_factors_not_final",
+            ),
+            _state(factor_current=False, style_current=False),
+            _state(factor_current=True, style_current=False),
+            _state(factor_current=True, style_current=True),
+            _state(factor_current=True, style_current=True),
+        )
+    )
+    calls: list[tuple[str, dict[str, Any]]] = []
+
+    def fake_run_job(name: str, **kwargs: Any) -> SimpleNamespace:
+        calls.append((name, kwargs))
+        if name == "sync_adj_factors":
+            return SimpleNamespace(
+                id=501,
+                status="ok",
+                error=None,
+                stats={"coverage": 1.0, "skipped": 0},
+            )
+        if name == "compute_factors":
+            return SimpleNamespace(
+                id=502,
+                status="ok",
+                error=None,
+                stats={"date": TARGET_DATE.isoformat()},
+            )
+        return SimpleNamespace(
+            id=503,
+            status="ok",
+            error=None,
+            stats={"date": TARGET_DATE.isoformat(), "skipped": None},
+        )
+
+    monkeypatch.setattr(prediction_reconcile, "get_session", _unused_session)
+    monkeypatch.setattr(
+        prediction_reconcile,
+        "_prediction_state",
+        lambda _session: next(states),
+    )
+    monkeypatch.setattr(
+        prediction_reconcile,
+        "_adj_factor_timeout_recovery_context",
+        lambda _session, *, target_date: (
+            _recovery_context() if target_date == TARGET_DATE else None
+        ),
+    )
+    monkeypatch.setattr(prediction_reconcile, "run_job", fake_run_job)
+
+    stats = prediction_reconcile.reconcile_prediction_outputs()
+    repeated = prediction_reconcile.reconcile_prediction_outputs()
+
+    assert calls == [
+        (
+            "sync_adj_factors",
+            {
+                "force_refresh_latest": True,
+                "recovery_expected_daily_bars_job_run_id": 401,
+                "recovery_expected_timed_out_adj_factors_job_run_id": 402,
+            },
+        ),
+        ("compute_factors", {"allow_catchup": True}),
+        ("compute_style_daily", {"trade_date": TARGET_DATE}),
+    ]
+    assert stats["recovery_adj_factors_job_run_id"] == 501
+    assert stats["factor_job_run_id"] == 502
+    assert stats["style_job_run_id"] == 503
+    assert stats["skipped"] is None
+    assert repeated["skipped"] == "already_current"
+
+
+def test_reconcile_fails_closed_when_adjustment_factor_recovery_fails(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[str] = []
+
+    def fake_run_job(name: str, **_kwargs: Any) -> SimpleNamespace:
+        calls.append(name)
+        return SimpleNamespace(
+            id=601,
+            status="failed",
+            error="JobExecutionError: provider unavailable",
+            stats={"reason": "provider_unavailable"},
+        )
+
+    monkeypatch.setattr(prediction_reconcile, "get_session", _unused_session)
+    monkeypatch.setattr(
+        prediction_reconcile,
+        "_prediction_state",
+        lambda _session: _state(
+            factor_current=False,
+            style_current=False,
+            upstream_contract_ok=False,
+            live_input_reason="adjustment_factors_not_final",
+        ),
+    )
+    monkeypatch.setattr(
+        prediction_reconcile,
+        "_adj_factor_timeout_recovery_context",
+        lambda _session, *, target_date: (
+            _recovery_context() if target_date == TARGET_DATE else None
+        ),
+    )
+    monkeypatch.setattr(prediction_reconcile, "run_job", fake_run_job)
+
+    result = prediction_reconcile.reconcile_prediction_outputs()
+
+    assert calls == ["sync_adj_factors"]
+    assert isinstance(result, JobOutcome)
+    assert result.status == "degraded"
+    assert result.stats["skipped"] == "sync_adj_factors_failed"
+    assert result.stats["child_job_run_id"] == 601
+    assert result.stats["child_stats"] == {"reason": "provider_unavailable"}
+    assert result.stats["adj_factor_recovery_context"] == _recovery_context()
+
+
+def test_reconcile_does_not_retry_unqualified_adjustment_failure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(prediction_reconcile, "get_session", _unused_session)
+    monkeypatch.setattr(
+        prediction_reconcile,
+        "_prediction_state",
+        lambda _session: _state(
+            factor_current=False,
+            style_current=False,
+            upstream_contract_ok=False,
+            live_input_reason="adjustment_factors_not_final",
+        ),
+    )
+    monkeypatch.setattr(
+        prediction_reconcile,
+        "_adj_factor_timeout_recovery_context",
+        lambda _session, *, target_date: None,
+    )
+    monkeypatch.setattr(
+        prediction_reconcile,
+        "run_job",
+        lambda *_args, **_kwargs: pytest.fail(
+            "an unqualified adjustment-factor failure must not be retried"
+        ),
+    )
+
+    result = prediction_reconcile.reconcile_prediction_outputs()
+
+    assert isinstance(result, dict)
+    assert result["skipped"] == "upstream_inputs_not_final"
+    assert result["upstream_reason"] == "adjustment_factors_not_final"
+    assert "recovery_adj_factors_job_run_id" not in result
+
+
+def test_reconcile_rejects_adjustment_factor_recovery_that_is_still_incomplete(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    states = iter(
+        (
+            _state(
+                factor_current=False,
+                style_current=False,
+                upstream_contract_ok=False,
+                live_input_reason="adjustment_factors_not_final",
+            ),
+            _state(
+                factor_current=False,
+                style_current=False,
+                upstream_contract_ok=False,
+                live_input_reason="adjustment_factors_not_final",
+            ),
+        )
+    )
+    calls: list[str] = []
+
+    monkeypatch.setattr(prediction_reconcile, "get_session", _unused_session)
+    monkeypatch.setattr(
+        prediction_reconcile,
+        "_prediction_state",
+        lambda _session: next(states),
+    )
+    monkeypatch.setattr(
+        prediction_reconcile,
+        "_adj_factor_timeout_recovery_context",
+        lambda _session, *, target_date: (
+            _recovery_context() if target_date == TARGET_DATE else None
+        ),
+    )
+    monkeypatch.setattr(
+        prediction_reconcile,
+        "run_job",
+        lambda name, **_kwargs: (
+            calls.append(name)
+            or SimpleNamespace(
+                id=701,
+                status="ok",
+                error=None,
+                stats={"coverage": 0.98, "skipped": 17},
+            )
+        ),
+    )
+
+    with pytest.raises(
+        prediction_reconcile.JobExecutionError,
+        match="复权因子补同步结束后仍未满足完整性合同",
+    ) as caught:
+        prediction_reconcile.reconcile_prediction_outputs()
+
+    assert calls == ["sync_adj_factors"]
+    assert caught.value.stats["reason"] == ("adjustment_factor_recovery_did_not_restore_contract")
+    assert caught.value.stats["recovery_adj_factors_job_run_id"] == 701
+
+
+def test_reconcile_stops_if_target_changes_during_adjustment_factor_recovery(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    next_date = TARGET_DATE + timedelta(days=1)
+    states = iter(
+        (
+            _state(
+                factor_current=False,
+                style_current=False,
+                upstream_contract_ok=False,
+                live_input_reason="adjustment_factors_not_final",
+            ),
+            _PredictionState(
+                target_date=next_date,
+                factor_current=False,
+                style_current=False,
+                details={"date": next_date.isoformat(), "upstream_contract_ok": False},
+            ),
+        )
+    )
+    calls: list[tuple[str, dict[str, Any]]] = []
+
+    monkeypatch.setattr(prediction_reconcile, "get_session", _unused_session)
+    monkeypatch.setattr(
+        prediction_reconcile,
+        "_prediction_state",
+        lambda _session: next(states),
+    )
+    monkeypatch.setattr(
+        prediction_reconcile,
+        "_adj_factor_timeout_recovery_context",
+        lambda _session, *, target_date: (
+            _recovery_context() if target_date == TARGET_DATE else None
+        ),
+    )
+    monkeypatch.setattr(
+        prediction_reconcile,
+        "run_job",
+        lambda name, **kwargs: (
+            calls.append((name, kwargs))
+            or SimpleNamespace(
+                id=801,
+                status="ok",
+                error=None,
+                stats={"coverage": 1.0, "skipped": 0},
+            )
+        ),
+    )
+
+    result = prediction_reconcile.reconcile_prediction_outputs()
+
+    assert calls == [
+        (
+            "sync_adj_factors",
+            {
+                "force_refresh_latest": True,
+                "recovery_expected_daily_bars_job_run_id": 401,
+                "recovery_expected_timed_out_adj_factors_job_run_id": 402,
+            },
+        )
+    ]
+    assert isinstance(result, dict)
+    assert result["skipped"] == "prediction_target_changed"
+    assert result["date"] == next_date.isoformat()
+    assert result["recovery_adj_factors_job_run_id"] == 801
+
+
+@pytest.mark.parametrize(
+    (
+        "daily_status",
+        "daily_target",
+        "adj_status",
+        "adj_reason",
+        "adj_started_offset",
+        "eligible",
+    ),
+    (
+        ("ok", TARGET_DATE.isoformat(), "failed", "daily_bars_wait_timeout", 10, True),
+        ("running", TARGET_DATE.isoformat(), "failed", "daily_bars_wait_timeout", 10, False),
+        ("ok", "2026-07-29", "failed", "daily_bars_wait_timeout", 10, False),
+        ("ok", TARGET_DATE.isoformat(), "ok", "daily_bars_wait_timeout", 10, False),
+        ("ok", TARGET_DATE.isoformat(), "failed", "provider_unavailable", 10, False),
+        ("ok", TARGET_DATE.isoformat(), "failed", "daily_bars_wait_timeout", -1, False),
+        ("ok", TARGET_DATE.isoformat(), "failed", "daily_bars_wait_timeout", 20, True),
+        ("ok", TARGET_DATE.isoformat(), "failed", "daily_bars_wait_timeout", 44, False),
+    ),
+)
+def test_adjustment_factor_recovery_requires_exact_timed_out_daily_bar_span(
+    monkeypatch: pytest.MonkeyPatch,
+    daily_status: str,
+    daily_target: str,
+    adj_status: str,
+    adj_reason: str,
+    adj_started_offset: int,
+    eligible: bool,
+) -> None:
+    daily_started = datetime(2026, 7, 30, 10, 40, tzinfo=UTC)
+    daily_finished = daily_started + timedelta(minutes=43)
+    adj_started = daily_started + timedelta(minutes=adj_started_offset)
+    adj_finished = adj_started + timedelta(minutes=30)
+    runs = {
+        "sync_daily_bars": SimpleNamespace(
+            id=401,
+            status=daily_status,
+            started_at=daily_started,
+            finished_at=daily_finished,
+            stats={"latest_trade_date": daily_target},
+        ),
+        "sync_adj_factors": SimpleNamespace(
+            id=402,
+            status=adj_status,
+            started_at=adj_started,
+            finished_at=adj_finished,
+            stats={"reason": adj_reason},
+        ),
+    }
+    monkeypatch.setattr(
+        prediction_reconcile,
+        "_latest_run",
+        lambda _session, name: runs[name],
+    )
+
+    context = prediction_reconcile._adj_factor_timeout_recovery_context(
+        cast(Session, object()),
+        target_date=TARGET_DATE,
+    )
+
+    assert (context is not None) is eligible
+    if context is not None:
+        assert context["target_date"] == TARGET_DATE.isoformat()
+        assert context["daily_bars_job_run_id"] == 401
+        assert context["timed_out_adj_factors_job_run_id"] == 402
+        assert context["timed_out_adj_factors_started_at"] == adj_started.isoformat()
+        assert context["timed_out_adj_factors_finished_at"] == adj_finished.isoformat()
+        assert context["timed_out_adj_factors_reason"] == "daily_bars_wait_timeout"
 
 
 def test_reconcile_degrades_without_duplicating_factor_child_failure(
