@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import json
-from datetime import date
+from contextlib import nullcontext
+from datetime import UTC, date, datetime, timedelta
 from io import BytesIO
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
 import pandas as pd
@@ -14,7 +16,8 @@ from sqlalchemy.orm import Session
 
 from alphapilot.backtest import adjust
 from alphapilot.core.config import Settings
-from alphapilot.db.models import AdjFactor, Base, DailyBar, Security
+from alphapilot.core.job_execution_context import bind_job_run
+from alphapilot.db.models import AdjFactor, Base, DailyBar, JobRun, Security
 from alphapilot.jobs import backtest_jobs
 from alphapilot.jobs.backtest_jobs import register_backtest_jobs
 from alphapilot.jobs.registry import JOBS, JobExecutionError
@@ -1060,3 +1063,211 @@ def test_adjustment_job_does_not_refresh_from_slow_status_query(
 
     assert waited == pytest.approx(6.0)
     assert did_wait is False
+
+
+@pytest.mark.parametrize(
+    ("did_wait", "force_refresh_latest", "expected"),
+    (
+        (False, False, False),
+        (False, True, True),
+        (True, False, True),
+        (True, True, True),
+    ),
+)
+def test_adjustment_job_refreshes_latest_for_wait_or_forced_recovery(
+    monkeypatch: pytest.MonkeyPatch,
+    did_wait: bool,
+    force_refresh_latest: bool,
+    expected: bool,
+) -> None:
+    captured: dict[str, Any] = {}
+
+    monkeypatch.setattr(backtest_jobs, "_wait_for_daily_bars", lambda: (0.0, did_wait))
+    monkeypatch.setattr(backtest_jobs, "get_session", lambda: nullcontext(object()))
+
+    def fake_sync_adj_factors(_session: object, *, refresh_latest: bool) -> dict[str, Any]:
+        captured["refresh_latest"] = refresh_latest
+        return {"coverage": 1.0}
+
+    monkeypatch.setattr(backtest_jobs, "sync_adj_factors", fake_sync_adj_factors)
+
+    stats = backtest_jobs.sync_adj_factors_job(
+        force_refresh_latest=force_refresh_latest
+    )
+
+    assert captured == {"refresh_latest": expected}
+    assert stats["forced_refresh_latest"] is force_refresh_latest
+    assert stats["waited_for_daily_bars_seconds"] == 0.0
+
+
+def test_adjustment_recovery_skips_provider_when_plan_was_superseded(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    session = _session(tmp_path)
+    try:
+        started = datetime(2026, 9, 2, 10, 40, tzinfo=UTC)
+        daily = JobRun(
+            job_name="sync_daily_bars",
+            status="ok",
+            started_at=started,
+            finished_at=started + timedelta(minutes=43),
+            stats={"latest_trade_date": "2026-09-02"},
+        )
+        timed_out = JobRun(
+            job_name="sync_adj_factors",
+            status="failed",
+            started_at=started + timedelta(minutes=10),
+            finished_at=started + timedelta(minutes=40),
+            stats={"reason": "daily_bars_wait_timeout"},
+        )
+        successor = JobRun(
+            job_name="sync_adj_factors",
+            status="ok",
+            started_at=started + timedelta(minutes=44),
+            finished_at=started + timedelta(minutes=45),
+            stats={"coverage": 1.0, "skipped": 0},
+        )
+        session.add_all((daily, timed_out, successor))
+        session.commit()
+        current = JobRun(
+            job_name="sync_adj_factors",
+            status="running",
+            started_at=started + timedelta(minutes=46),
+            stats={},
+        )
+        session.add(current)
+        session.commit()
+        monkeypatch.setattr(backtest_jobs, "get_session", lambda: nullcontext(session))
+        monkeypatch.setattr(
+            backtest_jobs,
+            "_wait_for_daily_bars",
+            lambda: pytest.fail("superseded recovery must not wait"),
+        )
+        monkeypatch.setattr(
+            backtest_jobs,
+            "sync_adj_factors",
+            lambda *_args, **_kwargs: pytest.fail(
+                "superseded recovery must not call the provider"
+            ),
+        )
+
+        with bind_job_run(run_id=current.id, job_name="sync_adj_factors"):
+            stats = backtest_jobs.sync_adj_factors_job(
+                force_refresh_latest=True,
+                recovery_expected_daily_bars_job_run_id=daily.id,
+                recovery_expected_timed_out_adj_factors_job_run_id=timed_out.id,
+            )
+
+        assert stats["coverage"] == 1.0
+        assert stats["recovery_plan_superseded"] is True
+        assert stats["recovery_provider_skipped"] is True
+        assert stats["recovery_successor_job_run_id"] == successor.id
+    finally:
+        session.close()
+
+
+def test_adjustment_recovery_rechecks_exact_predecessor_before_provider(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    session = _session(tmp_path)
+    try:
+        started = datetime(2026, 9, 2, 10, 40, tzinfo=UTC)
+        daily = JobRun(
+            job_name="sync_daily_bars",
+            status="ok",
+            started_at=started,
+            finished_at=started + timedelta(minutes=43),
+            stats={"latest_trade_date": "2026-09-02"},
+        )
+        timed_out = JobRun(
+            job_name="sync_adj_factors",
+            status="failed",
+            started_at=started + timedelta(minutes=10),
+            finished_at=started + timedelta(minutes=40),
+            stats={"reason": "daily_bars_wait_timeout"},
+        )
+        session.add_all((daily, timed_out))
+        session.commit()
+        current = JobRun(
+            job_name="sync_adj_factors",
+            status="running",
+            started_at=started + timedelta(minutes=44),
+            stats={},
+        )
+        session.add(current)
+        session.commit()
+        captured: dict[str, Any] = {}
+        monkeypatch.setattr(backtest_jobs, "get_session", lambda: nullcontext(session))
+        monkeypatch.setattr(backtest_jobs, "_wait_for_daily_bars", lambda: (0.0, False))
+
+        def fake_sync_adj_factors(
+            _session: Session,
+            *,
+            refresh_latest: bool,
+        ) -> dict[str, Any]:
+            captured["refresh_latest"] = refresh_latest
+            return {"coverage": 1.0, "skipped": 0}
+
+        monkeypatch.setattr(backtest_jobs, "sync_adj_factors", fake_sync_adj_factors)
+
+        with bind_job_run(run_id=current.id, job_name="sync_adj_factors"):
+            stats = backtest_jobs.sync_adj_factors_job(
+                force_refresh_latest=True,
+                recovery_expected_daily_bars_job_run_id=daily.id,
+                recovery_expected_timed_out_adj_factors_job_run_id=timed_out.id,
+            )
+
+        assert captured == {"refresh_latest": True}
+        assert stats["coverage"] == 1.0
+        assert stats["forced_refresh_latest"] is True
+        assert stats.get("recovery_plan_superseded") is None
+    finally:
+        session.close()
+
+
+def test_adjustment_recovery_requires_both_lineage_bindings() -> None:
+    with pytest.raises(JobExecutionError) as caught:
+        backtest_jobs.sync_adj_factors_job(
+            force_refresh_latest=True,
+            recovery_expected_daily_bars_job_run_id=401,
+        )
+
+    assert caught.value.stats == {
+        "reason": "adjustment_factor_recovery_binding_incomplete"
+    }
+
+
+def test_adjustment_recovery_rejects_missing_expected_predecessor(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    rows = iter(
+        (
+            SimpleNamespace(id=10, status="ok"),
+            SimpleNamespace(id=20, status="ok", stats={"coverage": 1.0}),
+        )
+    )
+    fake_session = SimpleNamespace(scalar=lambda _statement: next(rows))
+    monkeypatch.setattr(
+        backtest_jobs,
+        "current_job_run",
+        lambda: SimpleNamespace(run_id=50, job_name="sync_adj_factors"),
+    )
+    monkeypatch.setattr(
+        backtest_jobs,
+        "get_session",
+        lambda: nullcontext(fake_session),
+    )
+
+    with pytest.raises(JobExecutionError) as caught:
+        backtest_jobs._recovery_plan_supersession(
+            expected_daily_bars_job_run_id=10,
+            expected_timed_out_adj_factors_job_run_id=40,
+        )
+
+    assert caught.value.stats == {
+        "reason": "adjustment_factor_recovery_expected_predecessor_missing",
+        "expected_timed_out_adj_factors_job_run_id": 40,
+        "actual_predecessor_adj_factors_job_run_id": 20,
+    }
