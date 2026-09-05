@@ -46,7 +46,8 @@ V1_CONFIG_PATH = PROJECT_DIR / "config/p4_news_poll_v1.yaml"
 V2_CONFIG_PATH = PROJECT_DIR / "config/p4_news_poll_v2.yaml"
 V2_1_CONFIG_PATH = PROJECT_DIR / "config/p4_news_poll_v2_1.yaml"
 V2_2_CONFIG_PATH = PROJECT_DIR / "config/p4_news_poll_v2_2.yaml"
-DEFAULT_CONFIG_PATH = V2_2_CONFIG_PATH
+V2_3_CONFIG_PATH = PROJECT_DIR / "config/p4_news_poll_v2_3.yaml"
+DEFAULT_CONFIG_PATH = V2_3_CONFIG_PATH
 # Filled after the versioned config is finalized. A different byte stream must
 # ship as a reviewed config/code change before it can make network requests.
 EXPECTED_CONFIG_SHA256 = "d0dcd665472b50092a1b4fa7f65f7115778e1b89ac11aca0ed49dc70beaa790b"
@@ -57,11 +58,13 @@ EXPECTED_V2_2_CONFIG_SHA256_BY_PAGE_CAP = {
     80: "72e4b83f98252d7e7e3d9fa54abc6a3430a04e8dc27d7ece3a36f3f8d5563378",
     100: EXPECTED_V2_2_CONFIG_SHA256,
 }
+EXPECTED_V2_3_CONFIG_SHA256 = "a12abe09fae93a75887e8304b6739b68ee4720daffd6164c19048298a0121122"
 EXPECTED_CONFIG_SHA256_BY_VERSION = {
     "p4.1-news-poll-v1": EXPECTED_CONFIG_SHA256,
     "p4.1-news-poll-v2": EXPECTED_V2_CONFIG_SHA256,
     "p4.1-news-poll-v2.1": EXPECTED_V2_1_CONFIG_SHA256,
     "p4.1-news-poll-v2.2": EXPECTED_V2_2_CONFIG_SHA256,
+    "p4.1-news-poll-v2.3": EXPECTED_V2_3_CONFIG_SHA256,
 }
 # The abandoned v2 contract remains permanently non-runnable. v2.1 manual
 # entry points remain receipt-bound; its separately reviewed scheduler gate is
@@ -71,6 +74,17 @@ V2_1_CODE_READY = True
 V2_1_SCHEDULER_ACTIVATED = True
 V2_2_CODE_READY = True
 V2_2_SCHEDULER_ACTIVATED = True
+V2_3_CODE_READY = True
+V2_3_SCHEDULER_ACTIVATED = True
+# v2.3 refines the v2.2 plates into five exact sub-plates (sz = szmb + szcy,
+# sh = shmb + shkcp) and closes a date with a disclosed capacity gap when one
+# sub-plate exceeds the official 100-page x 30-row single-query ceiling.
+V2_2_PARTITIONS = ["sz", "sh", "bj"]
+V2_3_PARTITIONS = ["szmb", "szcy", "shmb", "shkcp", "bj"]
+V2_3_PARTITION_ROW_CEILING = 3000
+V2_3_MIN_INTERVAL_SECONDS = 0.5
+V2_3_CAPACITY_GAP_CODE = "cninfo_partition_capacity_gap"
+_PARTITIONED_CNINFO_VERSIONS = frozenset({"p4.1-news-poll-v2.2", "p4.1-news-poll-v2.3"})
 MARKET_TIMEZONE = ZoneInfo("Asia/Shanghai")
 NEWS_POLL_ENABLED_ENV = "ALPHAPILOT_NEWS_POLL_ENABLED"
 NEWS_POLL_WALL_CLOCK_REPORTABLE_SECONDS = 480.0
@@ -203,6 +217,18 @@ def load_news_poll_config(path: Path = DEFAULT_CONFIG_PATH) -> NewsPollConfig:
             "checkpoint_lineage_read_only": True,
         }:
             raise ValueError("P4.1 v2.2 superseded-v2.1 binding drifted")
+    if version == "p4.1-news-poll-v2.3":
+        superseded = document.get("superseded_v2_2")
+        if not isinstance(superseded, dict) or superseded != {
+            "config": "config/p4_news_poll_v2_2.yaml",
+            "config_sha256": EXPECTED_V2_2_CONFIG_SHA256,
+            "config_sha256_80_page_predecessor": EXPECTED_V2_2_CONFIG_SHA256_BY_PAGE_CAP[80],
+            "status": "immutable_checkpoint_lineage_predecessor",
+            "reason": "single_plate_partition_exceeded_official_3000_row_query_ceiling",
+            "activation_forbidden_after_v2_3_scheduler_restart": True,
+            "checkpoint_lineage_read_only": True,
+        }:
+            raise ValueError("P4.1 v2.3 superseded-v2.2 binding drifted")
     runtime = document.get("runtime")
     if (
         not isinstance(runtime, dict)
@@ -238,6 +264,15 @@ def load_news_poll_config(path: Path = DEFAULT_CONFIG_PATH) -> NewsPollConfig:
         is not True
     ):
         raise ValueError("P4.1 v2.2 code/capacity/scheduler phase gates drifted")
+    if version == "p4.1-news-poll-v2.3" and (
+        phase_gate.get("p4_1_v2_3_code_ready") is not True
+        or phase_gate.get("p4_1_v2_3_scheduler_activated") is not False
+        or phase_gate.get("cninfo_subplate_partition_capacity_review_complete") is not True
+        or phase_gate.get("scheduler_restart_required_after_landing") is not True
+        or phase_gate.get("config_digest_owner_signoff_required_before_scheduler_restart")
+        is not True
+    ):
+        raise ValueError("P4.1 v2.3 code/capacity/scheduler phase gates drifted")
 
     sources = document.get("sources")
     if not isinstance(sources, dict):
@@ -267,6 +302,29 @@ def load_news_poll_config(path: Path = DEFAULT_CONFIG_PATH) -> NewsPollConfig:
         or cninfo.get("retry_backoff_seconds") != [0.0]
     ):
         raise ValueError("P4.1 v2.2 CNInfo partition/budget contract drifted")
+    if version == "p4.1-news-poll-v2.3":
+        gap_policy = cninfo.get("capacity_gap_policy")
+        if (
+            cninfo.get("canonical_column") != "szse"
+            or cninfo.get("columns") != ["szse"]
+            or cninfo.get("partition_parameter") != "plate"
+            or cninfo.get("partitions") != V2_3_PARTITIONS
+            or cninfo.get("page_size") != 30
+            or cninfo.get("aggregate_count_probe_per_date") != 1
+            or cninfo.get("max_pages_per_partition") != 100
+            or cninfo.get("official_max_pages_per_partition") != 100
+            or cninfo.get("max_dates_per_run") != 1
+            or cninfo.get("max_attempts_per_logical_request") != 2
+            or cninfo.get("min_interval_seconds") != V2_3_MIN_INTERVAL_SECONDS
+            or cninfo.get("retry_backoff_seconds") != [0.0]
+            or not isinstance(gap_policy, dict)
+            or gap_policy.get("partition_row_ceiling") != V2_3_PARTITION_ROW_CEILING
+            or gap_policy.get("event_code") != V2_3_CAPACITY_GAP_CODE
+            or gap_policy.get("event_status") != "degraded"
+            or gap_policy.get("closed_date_checkpoint_advances_with_disclosed_gap") is not True
+            or gap_policy.get("capped_partition_rows_seen_must_equal_ceiling") is not True
+        ):
+            raise ValueError("P4.1 v2.3 CNInfo sub-plate partition/budget contract drifted")
     cls = sources.get("akshare_cls")
     cls_attempts_key = (
         "max_attempts_per_request"
@@ -308,6 +366,7 @@ def _is_v2_config(config: NewsPollConfig) -> bool:
         "p4.1-news-poll-v2",
         "p4.1-news-poll-v2.1",
         "p4.1-news-poll-v2.2",
+        "p4.1-news-poll-v2.3",
     }
 
 
@@ -328,7 +387,9 @@ def _v2_execution_gate_error(
             "execution_mode": execution_mode,
             "implementation_gate": code,
             "v2_code_ready": (
-                V2_2_CODE_READY
+                V2_3_CODE_READY
+                if config.document.get("schema_version") == "p4.1-news-poll-v2.3"
+                else V2_2_CODE_READY
                 if config.document.get("schema_version") == "p4.1-news-poll-v2.2"
                 else (
                     V2_1_CODE_READY
@@ -337,7 +398,9 @@ def _v2_execution_gate_error(
                 )
             ),
             "v2_scheduler_activated": (
-                V2_2_SCHEDULER_ACTIVATED
+                V2_3_SCHEDULER_ACTIVATED
+                if config.document.get("schema_version") == "p4.1-news-poll-v2.3"
+                else V2_2_SCHEDULER_ACTIVATED
                 if config.document.get("schema_version") == "p4.1-news-poll-v2.2"
                 else (
                     V2_1_SCHEDULER_ACTIVATED
@@ -481,6 +544,29 @@ def _v2_execution_authorization(
                         recoverable=False,
                     ),
                 },
+            )
+        return {"execution_mode": execution_mode, "scheduler_activated": True}
+    if version == "p4.1-news-poll-v2.3":
+        if execution_mode != "scheduler" or authorization_receipt_path is not None:
+            raise _v2_execution_gate_error(
+                config,
+                code="v2_3_scheduler_only",
+                message="P4.1 v2.3 permits only receipt-free scheduler execution",
+                execution_mode=execution_mode,
+            )
+        if not V2_3_CODE_READY:
+            raise _v2_execution_gate_error(
+                config,
+                code="v2_3_code_not_ready",
+                message="P4.1 v2.3 code readiness gate is closed",
+                execution_mode=execution_mode,
+            )
+        if not V2_3_SCHEDULER_ACTIVATED:
+            raise _v2_execution_gate_error(
+                config,
+                code="v2_3_scheduler_not_activated",
+                message="P4.1 v2.3 scheduler activation gate is closed",
+                execution_mode=execution_mode,
             )
         return {"execution_mode": execution_mode, "scheduler_activated": True}
     if version == "p4.1-news-poll-v2.2":
@@ -963,7 +1049,10 @@ def _transport(
     if _is_v2_config(config):
         max_logical_requests: object
         max_physical_attempts: object
-        if config.document.get("schema_version") == "p4.1-news-poll-v2.2" and source_id == "cninfo":
+        if (
+            config.document.get("schema_version") in _PARTITIONED_CNINFO_VERSIONS
+            and source_id == "cninfo"
+        ):
             max_logical_requests, max_physical_attempts = _v2_2_cninfo_request_budgets(source)
         else:
             max_logical_requests = source.get("max_logical_requests_per_run")
@@ -1129,7 +1218,7 @@ def _last_committed_daily_checkpoint(
     """Load the active hash-bound daily checkpoint or an exact predecessor."""
 
     version = config.document.get("schema_version")
-    if version not in {"p4.1-news-poll-v2.1", "p4.1-news-poll-v2.2"}:
+    if version not in {"p4.1-news-poll-v2.1", "p4.1-news-poll-v2.2", "p4.1-news-poll-v2.3"}:
         raise ValueError("daily checkpoints require a P4.1 daily-slice config")
     with get_session() as session:
         rows = session.scalars(
@@ -1146,15 +1235,19 @@ def _last_committed_daily_checkpoint(
         checkpoint = source.get("daily_checkpoint")
         if not isinstance(checkpoint, dict) or checkpoint.get("checkpoint_committed") is not True:
             return None
-        if lineage == "v2.2_daily_checkpoint" and (
+        if lineage in {"v2.2_daily_checkpoint", "v2.2_daily_checkpoint_predecessor"} and (
             job_stats is None
             or expected_v2_2_page_cap is None
             or not _v2_2_cninfo_slices_complete(
                 source,
                 job_stats=job_stats,
-                expected_partitions=["sz", "sh", "bj"],
+                expected_partitions=V2_2_PARTITIONS,
                 expected_page_cap=expected_v2_2_page_cap,
             )
+        ):
+            return None
+        if lineage == "v2.3_daily_checkpoint" and (
+            job_stats is None or not _v2_3_cninfo_slices_complete(source, job_stats=job_stats)
         ):
             return None
         raw_date = checkpoint.get("verified_checkpoint_date_shanghai_after")
@@ -1169,7 +1262,12 @@ def _last_committed_daily_checkpoint(
             aggregate_total = checkpoint.get("closed_date_without_observed_high_aggregate_total")
             unique_rows = checkpoint.get("closed_date_without_observed_high_unique_rows")
             closed_date_without_observed_high_reconciled = (
-                lineage == "v2.2_daily_checkpoint"
+                lineage
+                in {
+                    "v2.2_daily_checkpoint",
+                    "v2.2_daily_checkpoint_predecessor",
+                    "v2.3_daily_checkpoint",
+                }
                 and checkpoint.get("closed_date_without_observed_high_reconciled") is True
                 and checkpoint.get("closed_date_without_observed_high_shanghai")
                 == parsed_date.isoformat()
@@ -1188,6 +1286,105 @@ def _last_committed_daily_checkpoint(
             newest_observed_at_utc=observed,
             legacy_watermark_utc=(observed if parsed_date is None else None),
             lineage=lineage,
+        )
+
+    if version == "p4.1-news-poll-v2.3":
+        v2_3_predecessor: DailyCheckpointSeed | None = None
+        v2_3_active: DailyCheckpointSeed | None = None
+        for row in reversed(rows):
+            stats = row.stats if isinstance(row.stats, dict) else {}
+            sources = stats.get("sources")
+            source = sources.get(source_id) if isinstance(sources, dict) else None
+            if not isinstance(source, dict) or row.status not in {"ok", "degraded"}:
+                continue
+            row_version = stats.get("config_version")
+            row_sha = stats.get("config_sha256")
+            v2_2_page_cap = next(
+                (
+                    page_cap
+                    for page_cap, digest in EXPECTED_V2_2_CONFIG_SHA256_BY_PAGE_CAP.items()
+                    if digest == row_sha
+                ),
+                None,
+            )
+            if (
+                v2_3_active is None
+                and row_version == "p4.1-news-poll-v2.2"
+                and v2_2_page_cap is not None
+            ):
+                v2_2_candidate = parsed_seed(
+                    source,
+                    lineage="v2.2_daily_checkpoint_predecessor",
+                    job_stats=stats,
+                    expected_v2_2_page_cap=v2_2_page_cap,
+                )
+                if v2_2_candidate is None:
+                    continue
+                v2_2_candidate_observed = v2_2_candidate.newest_observed_at_utc
+                v2_3_predecessor_observed = (
+                    v2_3_predecessor.newest_observed_at_utc
+                    if v2_3_predecessor is not None
+                    else None
+                )
+                if v2_3_predecessor is not None and (
+                    v2_2_candidate.checkpoint_date_shanghai is None
+                    or v2_3_predecessor.checkpoint_date_shanghai is None
+                    or v2_2_candidate_observed is None
+                    or v2_3_predecessor_observed is None
+                    or v2_2_candidate.checkpoint_date_shanghai
+                    < v2_3_predecessor.checkpoint_date_shanghai
+                    or (
+                        v2_2_candidate.checkpoint_date_shanghai
+                        == v2_3_predecessor.checkpoint_date_shanghai
+                        and v2_2_candidate_observed < v2_3_predecessor_observed
+                    )
+                ):
+                    continue
+                v2_3_predecessor = v2_2_candidate
+                continue
+            if row_version != "p4.1-news-poll-v2.3" or row_sha != EXPECTED_V2_3_CONFIG_SHA256:
+                continue
+            v2_3_candidate = parsed_seed(
+                source,
+                lineage="v2.3_daily_checkpoint",
+                job_stats=stats,
+            )
+            v2_3_prior = v2_3_active or v2_3_predecessor
+            v2_3_checkpoint = source.get("daily_checkpoint")
+            v2_3_candidate_observed = (
+                v2_3_candidate.newest_observed_at_utc if v2_3_candidate is not None else None
+            )
+            v2_3_prior_observed = (
+                v2_3_prior.newest_observed_at_utc if v2_3_prior is not None else None
+            )
+            if (
+                v2_3_candidate is None
+                or v2_3_prior is None
+                or v2_3_prior.checkpoint_date_shanghai is None
+                or v2_3_candidate_observed is None
+                or v2_3_prior_observed is None
+                or not isinstance(v2_3_checkpoint, dict)
+                or v2_3_checkpoint.get("verified_checkpoint_date_shanghai_before")
+                != v2_3_prior.checkpoint_date_shanghai.isoformat()
+                or v2_3_checkpoint.get("lineage_before")
+                != (
+                    "v2.3_daily_checkpoint"
+                    if v2_3_active is not None
+                    else "v2.2_daily_checkpoint_predecessor"
+                )
+                or v2_3_candidate_observed < v2_3_prior_observed
+            ):
+                continue
+            v2_3_active = v2_3_candidate
+        if v2_3_active is not None:
+            return v2_3_active
+        if v2_3_predecessor is not None:
+            return v2_3_predecessor
+        return DailyCheckpointSeed(
+            checkpoint_date_shanghai=None,
+            newest_observed_at_utc=None,
+            legacy_watermark_utc=None,
+            lineage="missing",
         )
 
     if version == "p4.1-news-poll-v2.2":
@@ -2511,11 +2708,651 @@ def _fetch_cninfo_v2_2(
     return batch
 
 
+def _fetch_cninfo_v2_3(
+    config: NewsPollConfig,
+    now: datetime,
+    client_factory: HttpClientFactory | None,
+) -> SourceBatch:
+    """Reconcile one Shanghai date through five disjoint CNInfo sub-plate partitions.
+
+    A sub-plate that exceeds the official 100-page x 30-row single-query ceiling
+    closes the date with an explicitly disclosed capacity gap instead of leaving
+    every later date unreachable behind an immovable checkpoint.
+    """
+
+    source = cast(
+        dict[str, Any],
+        cast(dict[str, Any], config.document["sources"])["cninfo"],
+    )
+    source_id = "cninfo"
+    canonical_column = str(source["canonical_column"])
+    partition_parameter = str(source["partition_parameter"])
+    partitions = [str(value) for value in cast(list[object], source["partitions"])]
+    page_size = int(source["page_size"])
+    page_cap = int(source["max_pages_per_partition"])
+    if (
+        canonical_column != "szse"
+        or source.get("columns") != ["szse"]
+        or partition_parameter != "plate"
+        or partitions != V2_3_PARTITIONS
+        or page_size != 30
+        or page_cap != 100
+        or float(source["min_interval_seconds"]) != V2_3_MIN_INTERVAL_SECONDS
+    ):
+        raise NewsSourceError(
+            "partition_contract_drifted",
+            "CNInfo v2.3 sub-plate partition contract is not registered",
+            blocked=True,
+        )
+
+    poll_started_at_utc = _ensure_utc(now)
+    assert poll_started_at_utc is not None
+    seed = _last_committed_daily_checkpoint(config, source_id)
+    max_dates = int(source["max_dates_per_run"])
+    slice_dates = _v2_1_slice_dates(
+        seed,
+        poll_started_at_utc=poll_started_at_utc,
+        max_dates_per_run=max_dates,
+    )
+    market_date = poll_started_at_utc.astimezone(MARKET_TIMEZONE).date()
+    row_ceiling = page_cap * page_size
+    capacity_gap_dates: list[date] = []
+    client = client_factory(source_id) if client_factory else _new_http_client(config)
+    transport = _transport(config, source_id, source, client)
+    batch = SourceBatch(source_id=source_id)
+    slices: list[JsonObject] = []
+    checkpoint_before = seed.checkpoint_date_shanghai
+    checkpoint_after = checkpoint_before
+    committed_observed = seed.newest_observed_at_utc
+    latest_attempt_observed = seed.newest_observed_at_utc
+    any_checkpoint_committed = False
+    closed_date_without_observed_high: tuple[date, int, int] | None = None
+    response_shape_events: list[JsonObject] = []
+    no_row = object()
+
+    def json_type(value: object) -> str:
+        if value is None:
+            return "null"
+        if isinstance(value, bool):
+            return "boolean"
+        if isinstance(value, int):
+            return "integer"
+        if isinstance(value, float):
+            return "number"
+        if isinstance(value, str):
+            return "string"
+        if isinstance(value, list):
+            return "array"
+        if isinstance(value, Mapping):
+            return "object"
+        return "non_json"
+
+    def shape_fields(value: object) -> list[JsonObject]:
+        if not isinstance(value, Mapping):
+            return []
+        string_fields = sorted(
+            ((name, field_value) for name, field_value in value.items() if isinstance(name, str)),
+            key=lambda item: item[0].encode("utf-8"),
+        )
+        return [
+            {
+                "name": name,
+                "json_type": json_type(field_value),
+            }
+            for name, field_value in string_fields
+        ]
+
+    def record_schema_changed_shape(
+        site: str,
+        response: object,
+        *,
+        date_shanghai: date,
+        partition: str | None = None,
+        page: int | None = None,
+        row_index: int | None = None,
+        row: object = no_row,
+    ) -> None:
+        response_shape_events.append(
+            {
+                "event": "schema_changed_response_shape",
+                "site": site,
+                "date_shanghai": date_shanghai.isoformat(),
+                "partition": partition,
+                "page": page,
+                "row_index": row_index,
+                "response_json_type": json_type(response),
+                "response_fields": shape_fields(response),
+                "row_json_type": None if row is no_row else json_type(row),
+                "row_fields": shape_fields(row),
+            }
+        )
+
+    def upstream_total(
+        payload: Mapping[str, object],
+        label: str,
+        *,
+        site: str,
+        date_shanghai: date,
+        partition: str | None = None,
+        page: int | None = None,
+    ) -> int:
+        raw = payload.get(str(source["aggregate_total_field"]))
+        if not isinstance(raw, int) or isinstance(raw, bool) or raw < 0:
+            record_schema_changed_shape(
+                site,
+                payload,
+                date_shanghai=date_shanghai,
+                partition=partition,
+                page=page,
+            )
+            raise NewsSourceError(
+                "schema_changed",
+                f"CNInfo {label} totalAnnouncement must be a non-negative integer",
+            )
+        return raw
+
+    try:
+        for slice_date in slice_dates:
+            logical_before = transport.logical_request_count
+            physical_before = transport.physical_attempt_count
+            candidates_before = len(batch.candidates)
+            newest_in_slice: datetime | None = None
+            failure: JsonObject | None = None
+            aggregate_probe_count = 0
+            aggregate_upstream_total: int | None = None
+            partition_page_counts = {partition: 0 for partition in partitions}
+            partition_rows_seen = {partition: 0 for partition in partitions}
+            partition_upstream_totals: dict[str, int | None] = {
+                partition: None for partition in partitions
+            }
+            partition_completion = {partition: False for partition in partitions}
+            page_cap_hit_partitions: list[str] = []
+            announcement_partitions: dict[str, str] = {}
+            active_partition: str | None = None
+            shortfall: dict[str, int] = {}
+            gap_rows = 0
+            try:
+                aggregate_probe_count = 1
+                probe = transport.request(
+                    "POST",
+                    str(source["announcements_url"]),
+                    data={
+                        "pageNum": 1,
+                        "pageSize": 1,
+                        "column": canonical_column,
+                        "tabName": "fulltext",
+                        "stock": "",
+                        "seDate": f"{slice_date.isoformat()}~{slice_date.isoformat()}",
+                        "sortName": str(source["sort_name"]),
+                        "sortType": str(source["sort_type"]),
+                        "isHLtitle": "false",
+                    },
+                    headers={"Content-Type": "application/x-www-form-urlencoded"},
+                )
+                probe_payload = _decode_json(probe)
+                if not isinstance(probe_payload, dict):
+                    record_schema_changed_shape(
+                        "aggregate_response_not_object",
+                        probe_payload,
+                        date_shanghai=slice_date,
+                    )
+                    raise NewsSourceError(
+                        "schema_changed",
+                        "CNInfo aggregate probe response is not an object",
+                    )
+                aggregate_upstream_total = upstream_total(
+                    probe_payload,
+                    "aggregate probe",
+                    site="aggregate_total_invalid",
+                    date_shanghai=slice_date,
+                )
+
+                for partition in partitions:
+                    active_partition = partition
+                    previous_page_min: datetime | None = None
+                    partition_total: int | None = None
+                    for page in range(1, page_cap + 1):
+                        response = transport.request(
+                            "POST",
+                            str(source["announcements_url"]),
+                            data={
+                                "pageNum": page,
+                                "pageSize": page_size,
+                                "column": canonical_column,
+                                partition_parameter: partition,
+                                "tabName": "fulltext",
+                                "stock": "",
+                                "seDate": (f"{slice_date.isoformat()}~{slice_date.isoformat()}"),
+                                "sortName": str(source["sort_name"]),
+                                "sortType": str(source["sort_type"]),
+                                "isHLtitle": "false",
+                            },
+                            headers={"Content-Type": "application/x-www-form-urlencoded"},
+                        )
+                        partition_page_counts[partition] += 1
+                        payload = _decode_json(response)
+                        if not isinstance(payload, dict):
+                            record_schema_changed_shape(
+                                "partition_response_not_object",
+                                payload,
+                                date_shanghai=slice_date,
+                                partition=partition,
+                                page=page,
+                            )
+                            raise NewsSourceError(
+                                "schema_changed",
+                                "CNInfo partition response is not an object",
+                            )
+                        observed_total = upstream_total(
+                            payload,
+                            partition,
+                            site="partition_total_invalid",
+                            date_shanghai=slice_date,
+                            partition=partition,
+                            page=page,
+                        )
+                        if partition_total is None:
+                            partition_total = observed_total
+                        elif partition_total != observed_total:
+                            raise NewsSourceError(
+                                "partition_count_mismatch",
+                                "CNInfo partition total changed between pages",
+                            )
+                        announcements_field_present = "announcements" in payload
+                        rows = payload.get("announcements")
+                        if announcements_field_present and rows is None and observed_total == 0:
+                            rows = []
+                            response_shape_events.append(
+                                {
+                                    "date_shanghai": slice_date.isoformat(),
+                                    "partition": partition,
+                                    "page": page,
+                                    "response_json_type": "object",
+                                    "announcements_field_present": True,
+                                    "announcements_json_type": "null",
+                                    "total_announcement_json_type": "integer",
+                                    "total_announcement_value": 0,
+                                    "normalized_to_empty_list": True,
+                                }
+                            )
+                        if not isinstance(rows, list):
+                            record_schema_changed_shape(
+                                "partition_announcements_not_list",
+                                payload,
+                                date_shanghai=slice_date,
+                                partition=partition,
+                                page=page,
+                            )
+                            raise NewsSourceError(
+                                "schema_changed",
+                                "CNInfo partition announcements is not a list",
+                            )
+                        page_times: list[datetime] = []
+                        page_candidates: list[NewsCandidate] = []
+                        for row_index, raw in enumerate(rows):
+                            if not isinstance(raw, dict):
+                                record_schema_changed_shape(
+                                    "announcement_row_not_object",
+                                    payload,
+                                    date_shanghai=slice_date,
+                                    partition=partition,
+                                    page=page,
+                                    row_index=row_index,
+                                    row=raw,
+                                )
+                                raise NewsSourceError(
+                                    "schema_changed",
+                                    "CNInfo v2.3 announcement row must be an object",
+                                )
+                            announcement_id = _normalize_text(
+                                raw.get(str(source["announcement_id_field"]))
+                            )
+                            if not announcement_id:
+                                record_schema_changed_shape(
+                                    "announcement_id_invalid",
+                                    payload,
+                                    date_shanghai=slice_date,
+                                    partition=partition,
+                                    page=page,
+                                    row_index=row_index,
+                                    row=raw,
+                                )
+                                raise NewsSourceError(
+                                    "schema_changed",
+                                    "CNInfo announcementId must be non-empty",
+                                )
+                            prior_partition = announcement_partitions.get(announcement_id)
+                            if prior_partition is not None:
+                                raise NewsSourceError(
+                                    (
+                                        "cross_partition_duplicate"
+                                        if prior_partition != partition
+                                        else "partition_duplicate"
+                                    ),
+                                    "CNInfo announcementId is not unique",
+                                )
+                            announcement_partitions[announcement_id] = partition
+                            title = _normalize_text(raw.get("announcementTitle"))
+                            adjunct = _normalize_text(raw.get("adjunctUrl"))
+                            if not title or not adjunct:
+                                record_schema_changed_shape(
+                                    "announcement_content_fields_invalid",
+                                    payload,
+                                    date_shanghai=slice_date,
+                                    partition=partition,
+                                    page=page,
+                                    row_index=row_index,
+                                    row=raw,
+                                )
+                                raise NewsSourceError(
+                                    "schema_changed",
+                                    "CNInfo title and adjunctUrl must be non-empty",
+                                )
+                            raw_published_at = raw.get("announcementTime")
+                            published_at = _parse_cninfo_timestamp(raw_published_at)
+                            if (
+                                raw_published_at is not None
+                                and raw_published_at != ""
+                                and published_at is None
+                            ):
+                                record_schema_changed_shape(
+                                    "announcement_timestamp_invalid",
+                                    payload,
+                                    date_shanghai=slice_date,
+                                    partition=partition,
+                                    page=page,
+                                    row_index=row_index,
+                                    row=raw,
+                                )
+                                raise NewsSourceError(
+                                    "schema_changed",
+                                    "CNInfo non-null announcementTime must be parseable",
+                                )
+                            if (
+                                published_at is not None
+                                and published_at.astimezone(MARKET_TIMEZONE).date() != slice_date
+                            ):
+                                raise NewsSourceError(
+                                    "cninfo_slice_date_contract_violated",
+                                    "CNInfo announcementTime is outside its CST date",
+                                )
+                            if published_at is not None:
+                                page_times.append(published_at)
+                            safe_raw = cast(JsonObject, _json_safe(raw))
+                            safe_raw["_alphapilot_cninfo_partition"] = partition
+                            page_candidates.append(
+                                NewsCandidate(
+                                    source=source_id,
+                                    symbol=_normalize_symbol(raw.get("secCode")),
+                                    title=title,
+                                    url=urljoin(
+                                        str(source["static_url_prefix"]),
+                                        adjunct,
+                                    ),
+                                    published_at=published_at,
+                                    content="",
+                                    raw_payload=safe_raw,
+                                )
+                            )
+                        if any(later > earlier for earlier, later in pairwise(page_times)):
+                            raise NewsSourceError(
+                                "cninfo_order_contract_violated",
+                                "CNInfo partition page is not timestamp-descending",
+                            )
+                        if (
+                            previous_page_min is not None
+                            and page_times
+                            and max(page_times) > previous_page_min
+                        ):
+                            raise NewsSourceError(
+                                "cninfo_order_contract_violated",
+                                "CNInfo partition pages are not descending",
+                            )
+                        if page_times:
+                            previous_page_min = min(page_times)
+                            page_newest = max(page_times)
+                            newest_in_slice = (
+                                page_newest
+                                if newest_in_slice is None
+                                else max(newest_in_slice, page_newest)
+                            )
+                            latest_attempt_observed = (
+                                page_newest
+                                if latest_attempt_observed is None
+                                else max(latest_attempt_observed, page_newest)
+                            )
+                        batch.candidates.extend(page_candidates)
+                        partition_rows_seen[partition] += len(rows)
+                        if not rows or payload.get("hasMore") is False or len(rows) < page_size:
+                            partition_completion[partition] = True
+                            break
+                    else:
+                        page_cap_hit_partitions.append(partition)
+                    partition_upstream_totals[partition] = partition_total
+                    if partition in page_cap_hit_partitions:
+                        if (
+                            partition_total is None
+                            or partition_total <= row_ceiling
+                            or partition_rows_seen[partition] != row_ceiling
+                        ):
+                            raise NewsSourceError(
+                                "partition_count_mismatch",
+                                "CNInfo capped partition rows differ from the row ceiling",
+                            )
+                        shortfall[partition] = partition_total - row_ceiling
+                    elif partition_rows_seen[partition] != partition_total:
+                        raise NewsSourceError(
+                            "partition_count_mismatch",
+                            "CNInfo partition rows differ from upstream total",
+                        )
+
+                active_partition = None
+                totals = [
+                    value for value in partition_upstream_totals.values() if value is not None
+                ]
+                if len(totals) != len(partitions):
+                    raise NewsSourceError(
+                        "partition_count_mismatch",
+                        "CNInfo partition total is missing",
+                    )
+                gap_rows = sum(shortfall.values())
+                if (
+                    sum(totals) != aggregate_upstream_total
+                    or len(announcement_partitions) + gap_rows != aggregate_upstream_total
+                ):
+                    raise NewsSourceError(
+                        "aggregate_count_mismatch",
+                        "CNInfo partition reconciliation differs from aggregate",
+                    )
+            except Exception as exc:
+                failure = {
+                    **_source_failure(exc),
+                    "date_shanghai": slice_date.isoformat(),
+                }
+                if active_partition is not None:
+                    failure["partition"] = active_partition
+                batch.failures.append(failure)
+                batch.status = "unavailable"
+
+            pagination_complete = (
+                failure is None
+                and not page_cap_hit_partitions
+                and all(partition_completion.values())
+            )
+            capacity_gap = (
+                failure is None
+                and bool(page_cap_hit_partitions)
+                and all(
+                    partition_completion[partition]
+                    for partition in partitions
+                    if partition not in page_cap_hit_partitions
+                )
+            )
+            if capacity_gap:
+                capacity_gap_dates.append(slice_date)
+            date_closed = slice_date < market_date
+            checkpoint_committed = pagination_complete or capacity_gap
+            if checkpoint_committed:
+                if date_closed:
+                    checkpoint_after = slice_date
+                    closed_date_without_observed_high = (
+                        (
+                            slice_date,
+                            aggregate_upstream_total,
+                            len(announcement_partitions),
+                        )
+                        if newest_in_slice is None and aggregate_upstream_total is not None
+                        else None
+                    )
+                any_checkpoint_committed = True
+                if newest_in_slice is not None:
+                    committed_observed = (
+                        newest_in_slice
+                        if committed_observed is None
+                        else max(committed_observed, newest_in_slice)
+                    )
+            slices.append(
+                {
+                    "date_shanghai": slice_date.isoformat(),
+                    "date_closed": date_closed,
+                    "mode": (
+                        "closed_date_reconciliation" if date_closed else "current_date_incremental"
+                    ),
+                    "incremental_floor_utc": None,
+                    "attempted": True,
+                    "page_count": sum(partition_page_counts.values()),
+                    "aggregate_probe_count": aggregate_probe_count,
+                    "aggregate_upstream_total": aggregate_upstream_total,
+                    "partition_page_cap": page_cap,
+                    "partition_page_counts": partition_page_counts,
+                    "partition_rows_seen": partition_rows_seen,
+                    "partition_upstream_totals": partition_upstream_totals,
+                    "partition_completion": partition_completion,
+                    "cross_partition_unique_rows": len(announcement_partitions),
+                    "page_cap_hit_partitions": page_cap_hit_partitions,
+                    "logical_request_count": (transport.logical_request_count - logical_before),
+                    "physical_attempt_count": (transport.physical_attempt_count - physical_before),
+                    "fetched": len(batch.candidates) - candidates_before,
+                    "newest_observed_at_utc": (
+                        newest_in_slice.isoformat() if newest_in_slice is not None else None
+                    ),
+                    "pagination_complete": pagination_complete,
+                    "coverage_proven": pagination_complete,
+                    "capacity_gap": capacity_gap,
+                    "capacity_gap_partitions": list(page_cap_hit_partitions),
+                    "capacity_gap_rows": gap_rows,
+                    "partition_capacity_shortfall": dict(shortfall),
+                    "partition_row_ceiling": row_ceiling,
+                    "checkpoint_committed": checkpoint_committed,
+                    "page_cap_hit": bool(page_cap_hit_partitions),
+                    "checkpoint_before": (
+                        checkpoint_before.isoformat() if checkpoint_before is not None else None
+                    ),
+                    "checkpoint_after": (
+                        checkpoint_after.isoformat() if checkpoint_after is not None else None
+                    ),
+                    "checkpoint_advanced": checkpoint_after != checkpoint_before,
+                    "failure": (_safe_v2_failure(failure) if failure is not None else None),
+                }
+            )
+            if capacity_gap:
+                batch.failures.append(
+                    {
+                        "code": V2_3_CAPACITY_GAP_CODE,
+                        "blocked": False,
+                        "error_type": "NewsSourceError",
+                        "date_shanghai": slice_date.isoformat(),
+                        "partitions": list(page_cap_hit_partitions),
+                        "rows_missing": gap_rows,
+                    }
+                )
+                if batch.status == "ok":
+                    batch.status = "degraded"
+            if failure is not None:
+                break
+    finally:
+        close = getattr(client, "close", None)
+        if callable(close):
+            close()
+
+    _copy_transport_counts(batch, transport)
+    max_logical, max_physical = _v2_2_cninfo_request_budgets(source)
+    batch.details = {
+        "canonical_column": canonical_column,
+        "partition_parameter": partition_parameter,
+        "partitions": partitions,
+        "response_shape_events": response_shape_events,
+        "slice_dates_shanghai": [item.isoformat() for item in slice_dates],
+        "slices": slices,
+        "request_budget": {
+            "page_size": page_size,
+            "aggregate_count_probe_per_date": int(source["aggregate_count_probe_per_date"]),
+            "partition_count": len(partitions),
+            "max_pages_per_partition": page_cap,
+            "official_max_pages_per_partition": int(source["official_max_pages_per_partition"]),
+            "max_dates_per_run": max_dates,
+            "max_logical_requests_per_run": max_logical,
+            "max_physical_attempts_per_run": max_physical,
+            "max_attempts_per_logical_request": int(source["max_attempts_per_logical_request"]),
+            "min_interval_seconds": float(source["min_interval_seconds"]),
+            "retry_backoff_seconds": list(source["retry_backoff_seconds"]),
+            "logical_request_count": transport.logical_request_count,
+            "physical_attempt_count": transport.physical_attempt_count,
+            "page_101_requested": False,
+            "partition_row_ceiling": row_ceiling,
+        },
+        "daily_checkpoint": {
+            "lineage_before": seed.lineage,
+            "verified_checkpoint_date_shanghai_before": (
+                checkpoint_before.isoformat() if checkpoint_before is not None else None
+            ),
+            "verified_checkpoint_date_shanghai_after": (
+                checkpoint_after.isoformat() if checkpoint_after is not None else None
+            ),
+            "newest_observed_at_utc": (
+                committed_observed.isoformat() if committed_observed is not None else None
+            ),
+            "latest_attempt_observed_at_utc": (
+                latest_attempt_observed.isoformat() if latest_attempt_observed is not None else None
+            ),
+            "checkpoint_committed": any_checkpoint_committed,
+            "partial_checkpoint": any(item["checkpoint_committed"] is not True for item in slices),
+            "v2_2_predecessor_used": (seed.lineage == "v2.2_daily_checkpoint_predecessor"),
+            "capacity_gap_dates_shanghai": [item.isoformat() for item in capacity_gap_dates],
+            "closed_date_without_observed_high_reconciled": (
+                closed_date_without_observed_high is not None
+            ),
+            "closed_date_without_observed_high_shanghai": (
+                closed_date_without_observed_high[0].isoformat()
+                if closed_date_without_observed_high is not None
+                else None
+            ),
+            "closed_date_without_observed_high_aggregate_total": (
+                closed_date_without_observed_high[1]
+                if closed_date_without_observed_high is not None
+                else None
+            ),
+            "closed_date_without_observed_high_unique_rows": (
+                closed_date_without_observed_high[2]
+                if closed_date_without_observed_high is not None
+                else None
+            ),
+        },
+        "poll_started_at_utc": poll_started_at_utc.isoformat(),
+        "market_date_at_poll": market_date.isoformat(),
+        "requests": transport.requests,
+        "tls_verification": True,
+    }
+    return batch
+
+
 def _fetch_cninfo(
     config: NewsPollConfig,
     now: datetime,
     client_factory: HttpClientFactory | None,
 ) -> SourceBatch:
+    if config.document.get("schema_version") == "p4.1-news-poll-v2.3":
+        return _fetch_cninfo_v2_3(config, now, client_factory)
     if config.document.get("schema_version") == "p4.1-news-poll-v2.2":
         return _fetch_cninfo_v2_2(config, now, client_factory)
     if config.document.get("schema_version") == "p4.1-news-poll-v2.1":
@@ -3943,6 +4780,653 @@ def _v2_2_cninfo_slices_complete(
     return True
 
 
+def _v2_3_capacity_gap_slices(source: Mapping[str, object]) -> list[dict[str, object]] | None:
+    """Return the v2.3 slices that closed with a disclosed capacity gap, or None if malformed."""
+
+    slices = source.get("slices")
+    if not isinstance(slices, list):
+        return None
+    result: list[dict[str, object]] = []
+    for item in slices:
+        if not isinstance(item, dict):
+            return None
+        flag = item.get("capacity_gap")
+        if not isinstance(flag, bool):
+            return None
+        if flag:
+            partitions = item.get("capacity_gap_partitions")
+            if (
+                not isinstance(partitions, list)
+                or not partitions
+                or not all(isinstance(value, str) for value in partitions)
+            ):
+                return None
+            result.append(cast(dict[str, object], item))
+    return result
+
+
+def _v2_3_capacity_gap_diagnostic() -> JsonObject:
+    return _v2_terminal_diagnostic(
+        code=V2_3_CAPACITY_GAP_CODE,
+        source="cninfo",
+        constraint="partition_row_ceiling",
+        recoverable=False,
+    )
+
+
+def _v2_3_cninfo_slices_complete(
+    source: Mapping[str, object],
+    *,
+    job_stats: Mapping[str, object],
+) -> bool:
+    """Accept a v2.3 terminal row that is complete or complete with a disclosed gap."""
+
+    expected_partitions = V2_3_PARTITIONS
+    expected_page_cap = 100
+    row_ceiling = expected_page_cap * 30
+    gap_slices = _v2_3_capacity_gap_slices(source)
+    if gap_slices is None:
+        return False
+    has_gap = bool(gap_slices)
+
+    def strict_nonnegative_int(value: object) -> bool:
+        return isinstance(value, int) and not isinstance(value, bool) and value >= 0
+
+    def strict_date(value: object) -> date | None:
+        if not isinstance(value, str):
+            return None
+        try:
+            parsed = date.fromisoformat(value)
+        except ValueError:
+            return None
+        return parsed if parsed.isoformat() == value else None
+
+    def strict_utc_datetime(value: object) -> datetime | None:
+        parsed = _parsed_utc_watermark(value)
+        return parsed if parsed is not None and parsed.isoformat() == value else None
+
+    expected_config_sha256 = EXPECTED_V2_3_CONFIG_SHA256
+    top_poll_started = strict_utc_datetime(job_stats.get("poll_started_at"))
+    top_poll_completed = strict_utc_datetime(job_stats.get("poll_completed_at"))
+    coverage_gap = job_stats.get("coverage_gap")
+    run_mode = job_stats.get("run_mode")
+    coverage_gap_details = job_stats.get("coverage_gap_details")
+    top_sources = job_stats.get("sources")
+    if (
+        expected_config_sha256 is None
+        or job_stats.get("config_version") != "p4.1-news-poll-v2.3"
+        or job_stats.get("config_path") != "config/p4_news_poll_v2_3.yaml"
+        or job_stats.get("config_sha256") != expected_config_sha256
+        or job_stats.get("execution_mode") != "scheduler"
+        or not isinstance(coverage_gap, bool)
+        or run_mode not in {"regular_incremental", "coverage_gap_catchup"}
+        or (run_mode == "coverage_gap_catchup") is not coverage_gap
+        or top_poll_started is None
+        or top_poll_completed is None
+        or top_poll_completed < top_poll_started
+        or job_stats.get("safety_unchanged") is not True
+        or job_stats.get("terminal_diagnostics")
+        != (_v2_3_capacity_gap_diagnostic() if has_gap else None)
+        or job_stats.get("p4_2_unlocked") is not False
+        or not isinstance(top_sources, Mapping)
+        or top_sources.get("cninfo") != source
+    ):
+        return False
+
+    expected_failures = [
+        {
+            "code": V2_3_CAPACITY_GAP_CODE,
+            "blocked": False,
+            "error_type": "NewsSourceError",
+            "partitions": [
+                str(value)[:8]
+                for value in cast(list[object], item.get("capacity_gap_partitions"))[:3]
+            ],
+            "date_shanghai": str(item.get("date_shanghai"))[:10],
+        }
+        for item in gap_slices
+    ]
+    if (
+        source.get("status") != ("degraded" if has_gap else "ok")
+        or not strict_nonnegative_int(source.get("failure_count"))
+        or source.get("failure_count") != len(expected_failures)
+        or not isinstance(source.get("failures"), list)
+        or [
+            _safe_v2_failure(failure) if isinstance(failure, Mapping) else None
+            for failure in cast(list[object], source.get("failures"))
+        ]
+        != expected_failures
+        or source.get("tls_verification") is not True
+        or source.get("canonical_column") != "szse"
+        or source.get("partition_parameter") != "plate"
+        or source.get("partitions") != expected_partitions
+    ):
+        return False
+    slices = source.get("slices")
+    slice_dates = source.get("slice_dates_shanghai")
+    request_budget = source.get("request_budget")
+    checkpoint = source.get("daily_checkpoint")
+    requests = source.get("requests")
+    if (
+        not isinstance(slices, list)
+        or len(slices) != 1
+        or not isinstance(slice_dates, list)
+        or len(slice_dates) != 1
+        or not isinstance(request_budget, dict)
+        or not isinstance(checkpoint, dict)
+        or not isinstance(requests, list)
+    ):
+        return False
+    required_slice_fields = {
+        "date_shanghai",
+        "date_closed",
+        "mode",
+        "incremental_floor_utc",
+        "attempted",
+        "page_count",
+        "aggregate_probe_count",
+        "aggregate_upstream_total",
+        "partition_page_cap",
+        "partition_page_counts",
+        "partition_rows_seen",
+        "partition_upstream_totals",
+        "partition_completion",
+        "cross_partition_unique_rows",
+        "page_cap_hit_partitions",
+        "logical_request_count",
+        "physical_attempt_count",
+        "fetched",
+        "newest_observed_at_utc",
+        "pagination_complete",
+        "coverage_proven",
+        "checkpoint_committed",
+        "page_cap_hit",
+        "checkpoint_before",
+        "checkpoint_after",
+        "checkpoint_advanced",
+        "failure",
+        "capacity_gap",
+        "capacity_gap_partitions",
+        "capacity_gap_rows",
+        "partition_capacity_shortfall",
+        "partition_row_ceiling",
+        "inserted",
+        "duplicate_url",
+        "duplicate_content_hash",
+        "filtered",
+        "disposition_total",
+        "disposition_identity_valid",
+    }
+    required_checkpoint_fields = {
+        "lineage_before",
+        "verified_checkpoint_date_shanghai_before",
+        "verified_checkpoint_date_shanghai_after",
+        "newest_observed_at_utc",
+        "latest_attempt_observed_at_utc",
+        "checkpoint_committed",
+        "partial_checkpoint",
+        "v2_2_predecessor_used",
+        "capacity_gap_dates_shanghai",
+        "closed_date_without_observed_high_reconciled",
+        "closed_date_without_observed_high_shanghai",
+        "closed_date_without_observed_high_aggregate_total",
+        "closed_date_without_observed_high_unique_rows",
+    }
+    required_budget_fields = {
+        "page_size",
+        "aggregate_count_probe_per_date",
+        "partition_count",
+        "max_pages_per_partition",
+        "official_max_pages_per_partition",
+        "max_dates_per_run",
+        "max_logical_requests_per_run",
+        "max_physical_attempts_per_run",
+        "max_attempts_per_logical_request",
+        "min_interval_seconds",
+        "retry_backoff_seconds",
+        "logical_request_count",
+        "physical_attempt_count",
+        "page_101_requested",
+        "partition_row_ceiling",
+    }
+    if not required_checkpoint_fields <= set(checkpoint) or not required_budget_fields <= set(
+        request_budget
+    ):
+        return False
+    for item in slices:
+        if not isinstance(item, dict) or not required_slice_fields <= set(item):
+            return False
+        totals = item.get("partition_upstream_totals")
+        rows_seen = item.get("partition_rows_seen")
+        page_counts = item.get("partition_page_counts")
+        completion = item.get("partition_completion")
+        aggregate = item.get("aggregate_upstream_total")
+        unique_rows = item.get("cross_partition_unique_rows")
+        fetched = item.get("fetched")
+        page_count = item.get("page_count")
+        logical_count = item.get("logical_request_count")
+        physical_count = item.get("physical_attempt_count")
+        page_cap = item.get("partition_page_cap")
+        slice_date = strict_date(item.get("date_shanghai"))
+        market_date = strict_date(source.get("market_date_at_poll"))
+        poll_started_raw = source.get("poll_started_at_utc")
+        poll_started = _parsed_utc_watermark(poll_started_raw)
+        checkpoint_before_raw = item.get("checkpoint_before")
+        checkpoint_after_raw = item.get("checkpoint_after")
+        checkpoint_before = (
+            strict_date(checkpoint_before_raw) if checkpoint_before_raw is not None else None
+        )
+        checkpoint_after = (
+            strict_date(checkpoint_after_raw) if checkpoint_after_raw is not None else None
+        )
+        raw_slice_newest = item.get("newest_observed_at_utc")
+        slice_newest = _parsed_utc_watermark(raw_slice_newest)
+        disposition_keys = (
+            "inserted",
+            "duplicate_url",
+            "duplicate_content_hash",
+            "filtered",
+        )
+        source_counter_keys = (
+            "request_count",
+            "retry_count",
+            "logical_request_count",
+            "physical_attempt_count",
+            "fetched",
+            "prepared",
+            "symbol_null",
+            "published_at_null",
+            "preceded_by_coverage_gap_inserted",
+            *disposition_keys,
+        )
+        fetch_completed = strict_utc_datetime(source.get("fetch_completed_at"))
+        write_lock_acquired = strict_utc_datetime(source.get("db_write_lock_acquired_at"))
+        flush_completed = strict_utc_datetime(source.get("db_flush_completed_at"))
+        commit_completed = strict_utc_datetime(source.get("db_commit_completed_at"))
+        first_available = strict_utc_datetime(source.get("first_available_time"))
+        last_available = strict_utc_datetime(source.get("last_available_time"))
+        capped = item.get("capacity_gap_partitions")
+        shortfall = item.get("partition_capacity_shortfall")
+        slice_has_gap = item.get("capacity_gap") is True
+        if (
+            item.get("attempted") is not True
+            or not strict_nonnegative_int(item.get("aggregate_probe_count"))
+            or item.get("aggregate_probe_count") != 1
+            or item.get("pagination_complete") is slice_has_gap
+            or item.get("coverage_proven") is slice_has_gap
+            or item.get("checkpoint_committed") is not True
+            or item.get("page_cap_hit") is not slice_has_gap
+            or not isinstance(capped, list)
+            or not all(isinstance(value, str) for value in capped)
+            or bool(capped) is not slice_has_gap
+            or item.get("page_cap_hit_partitions") != capped
+            or len(set(capped)) != len(capped)
+            or not set(capped) <= set(expected_partitions)
+            or not isinstance(shortfall, dict)
+            or set(shortfall) != set(capped)
+            or not all(strict_nonnegative_int(value) for value in shortfall.values())
+            or item.get("partition_row_ceiling") != row_ceiling
+            or not strict_nonnegative_int(item.get("capacity_gap_rows"))
+            or item.get("failure") is not None
+            or not strict_nonnegative_int(aggregate)
+            or not strict_nonnegative_int(unique_rows)
+            or not strict_nonnegative_int(fetched)
+            or not strict_nonnegative_int(page_count)
+            or not strict_nonnegative_int(logical_count)
+            or not strict_nonnegative_int(physical_count)
+            or not isinstance(page_cap, int)
+            or isinstance(page_cap, bool)
+            or page_cap != expected_page_cap
+            or slice_date is None
+            or market_date is None
+            or poll_started is None
+            or poll_started.isoformat() != poll_started_raw
+            or poll_started != top_poll_started
+            or poll_started.astimezone(MARKET_TIMEZONE).date() != market_date
+            or slice_date > market_date
+            or slice_dates != [slice_date.isoformat()]
+            or item.get("incremental_floor_utc") is not None
+            or (checkpoint_before_raw is not None and checkpoint_before is None)
+            or (checkpoint_after_raw is not None and checkpoint_after is None)
+            or (
+                raw_slice_newest is not None
+                and (slice_newest is None or slice_newest.isoformat() != raw_slice_newest)
+            )
+            or any(not strict_nonnegative_int(item.get(key)) for key in disposition_keys)
+            or any(not strict_nonnegative_int(source.get(key)) for key in source_counter_keys)
+            or fetch_completed is None
+            or write_lock_acquired is None
+            or flush_completed is None
+            or commit_completed is None
+            or not (
+                poll_started
+                <= fetch_completed
+                <= write_lock_acquired
+                <= flush_completed
+                <= commit_completed
+            )
+            or commit_completed > top_poll_completed
+            or not strict_nonnegative_int(item.get("disposition_total"))
+            or item.get("disposition_identity_valid") is not True
+            or not all(
+                isinstance(value, dict) and set(value) == set(expected_partitions)
+                for value in (totals, rows_seen, page_counts, completion)
+            )
+        ):
+            return False
+        assert isinstance(totals, dict)
+        assert isinstance(rows_seen, dict)
+        assert isinstance(page_counts, dict)
+        assert isinstance(completion, dict)
+        assert isinstance(aggregate, int)
+        assert isinstance(unique_rows, int)
+        assert isinstance(fetched, int)
+        assert isinstance(page_count, int)
+        assert isinstance(logical_count, int)
+        assert isinstance(physical_count, int)
+        assert isinstance(page_cap, int)
+        disposition_total = sum(int(item[key]) for key in disposition_keys)
+        source_inserted = cast(int, source["inserted"])
+        source_duplicate_url = cast(int, source["duplicate_url"])
+        source_duplicate_hash = cast(int, source["duplicate_content_hash"])
+        source_filtered = cast(int, source["filtered"])
+        source_prepared = cast(int, source["prepared"])
+        preceded_by_gap_inserted = cast(int, source["preceded_by_coverage_gap_inserted"])
+        if (
+            not all(
+                isinstance(totals[partition], int)
+                and not isinstance(totals[partition], bool)
+                and totals[partition] >= 0
+                and isinstance(rows_seen[partition], int)
+                and not isinstance(rows_seen[partition], bool)
+                and rows_seen[partition] >= 0
+                and isinstance(page_counts[partition], int)
+                and not isinstance(page_counts[partition], bool)
+                and page_counts[partition] >= 1
+                and page_counts[partition] <= page_cap
+                and (
+                    (
+                        totals[partition] > row_ceiling
+                        and rows_seen[partition] == row_ceiling
+                        and page_counts[partition] == page_cap
+                        and completion[partition] is False
+                        and shortfall[partition] == totals[partition] - row_ceiling
+                    )
+                    if partition in capped
+                    else (
+                        rows_seen[partition] == totals[partition] and completion[partition] is True
+                    )
+                )
+                for partition in expected_partitions
+            )
+            or sum(int(totals[partition]) for partition in expected_partitions) != aggregate
+            or item.get("capacity_gap_rows") != sum(int(value) for value in shortfall.values())
+            or unique_rows + int(cast(int, item.get("capacity_gap_rows"))) != aggregate
+            or fetched != unique_rows
+            or page_count != sum(int(page_counts[partition]) for partition in expected_partitions)
+            or logical_count != 1 + page_count
+            or physical_count < logical_count
+            or physical_count > logical_count * 2
+            or disposition_total != fetched
+            or item.get("disposition_total") != disposition_total
+            or source.get("fetched") != fetched
+            or source.get("inserted") != item.get("inserted")
+            or source.get("duplicate_url") != item.get("duplicate_url")
+            or source.get("duplicate_content_hash") != item.get("duplicate_content_hash")
+            or source.get("filtered") != item.get("filtered")
+            or source_prepared != source_inserted + source_duplicate_url + source_duplicate_hash
+            or fetched != source_prepared + source_filtered
+            or cast(int, source["symbol_null"]) > source_inserted
+            or cast(int, source["published_at_null"]) > source_inserted
+            or preceded_by_gap_inserted != (source_inserted if coverage_gap else 0)
+        ):
+            return False
+        if source_inserted:
+            if (
+                first_available is None
+                or last_available is None
+                or not (write_lock_acquired <= first_available <= last_available <= flush_completed)
+                or not isinstance(source.get("available_time_coverage"), float)
+                or source.get("available_time_coverage") != 1.0
+            ):
+                return False
+        elif (
+            source.get("first_available_time") is not None
+            or source.get("last_available_time") is not None
+            or source.get("available_time_coverage") is not None
+        ):
+            return False
+
+        date_closed = slice_date < market_date
+        expected_mode = "closed_date_reconciliation" if date_closed else "current_date_incremental"
+        if date_closed:
+            if (
+                coverage_gap is not True
+                or run_mode != "coverage_gap_catchup"
+                or not isinstance(coverage_gap_details, Mapping)
+                or coverage_gap_details.get("reason") != "cninfo_capacity_checkpoint_lag"
+                or coverage_gap_details.get("timezone") != "Asia/Shanghai"
+                or coverage_gap_details.get("checkpoint_lineage")
+                != checkpoint.get("lineage_before")
+                or coverage_gap_details.get("checkpoint_date_shanghai") != checkpoint_before_raw
+                or coverage_gap_details.get("target_closed_date_shanghai") != slice_date.isoformat()
+                or coverage_gap_details.get("recovery_poll_started_at_utc")
+                != poll_started.isoformat()
+                or coverage_gap_details.get("recovery_poll_started_at_shanghai")
+                != poll_started.astimezone(MARKET_TIMEZONE).isoformat()
+            ):
+                return False
+        elif coverage_gap is False:
+            if run_mode != "regular_incremental" or coverage_gap_details is not None:
+                return False
+        elif (
+            run_mode != "coverage_gap_catchup"
+            or not isinstance(coverage_gap_details, Mapping)
+            or coverage_gap_details.get("reason") != "owner_confirmed_periodic_host_unavailability"
+            or coverage_gap_details.get("timezone") != "Asia/Shanghai"
+            or coverage_gap_details.get("recovery_poll_started_at_utc") != poll_started.isoformat()
+            or coverage_gap_details.get("recovery_poll_started_at_shanghai")
+            != poll_started.astimezone(MARKET_TIMEZONE).isoformat()
+        ):
+            return False
+        expected_checkpoint_after_raw = (
+            item.get("date_shanghai") if date_closed else checkpoint_before_raw
+        )
+        if (
+            item.get("date_closed") is not date_closed
+            or item.get("mode") != expected_mode
+            or checkpoint_after_raw != expected_checkpoint_after_raw
+        ):
+            return False
+        if item.get("checkpoint_advanced") is not (checkpoint_after != checkpoint_before):
+            return False
+        if date_closed:
+            if (
+                checkpoint_before is None
+                or checkpoint_after is None
+                or checkpoint_before >= checkpoint_after
+                or slice_date != checkpoint_before + timedelta(days=1)
+            ):
+                return False
+        elif checkpoint_before is None or checkpoint_before > slice_date:
+            return False
+        if (
+            slice_newest is not None
+            and slice_newest.astimezone(MARKET_TIMEZONE).date() != slice_date
+        ):
+            return False
+
+        daily_newest_raw = checkpoint.get("newest_observed_at_utc")
+        latest_attempt_raw = checkpoint.get("latest_attempt_observed_at_utc")
+        daily_newest = _parsed_utc_watermark(daily_newest_raw)
+        latest_attempt = _parsed_utc_watermark(latest_attempt_raw)
+        lineage_before = checkpoint.get("lineage_before")
+        if (
+            lineage_before
+            not in {
+                "v2.2_daily_checkpoint_predecessor",
+                "v2.3_daily_checkpoint",
+            }
+            or checkpoint.get("verified_checkpoint_date_shanghai_before") != checkpoint_before_raw
+            or checkpoint.get("verified_checkpoint_date_shanghai_after") != checkpoint_after_raw
+            or checkpoint.get("checkpoint_committed") is not True
+            or checkpoint.get("partial_checkpoint") is not False
+            or checkpoint.get("v2_2_predecessor_used")
+            is not (lineage_before == "v2.2_daily_checkpoint_predecessor")
+            or checkpoint.get("capacity_gap_dates_shanghai")
+            != [gap_item.get("date_shanghai") for gap_item in gap_slices]
+            or daily_newest is None
+            or latest_attempt is None
+            or daily_newest.isoformat() != daily_newest_raw
+            or latest_attempt.isoformat() != latest_attempt_raw
+            or latest_attempt != daily_newest
+            or (slice_newest is not None and daily_newest < slice_newest)
+            or (date_closed and slice_newest is not None and daily_newest != slice_newest)
+        ):
+            return False
+
+        proof_required = date_closed and slice_newest is None
+        if proof_required:
+            proof_aggregate = checkpoint.get("closed_date_without_observed_high_aggregate_total")
+            proof_unique = checkpoint.get("closed_date_without_observed_high_unique_rows")
+            if (
+                checkpoint.get("closed_date_without_observed_high_reconciled") is not True
+                or checkpoint.get("closed_date_without_observed_high_shanghai")
+                != slice_date.isoformat()
+                or not strict_nonnegative_int(proof_aggregate)
+                or proof_aggregate != aggregate
+                or not strict_nonnegative_int(proof_unique)
+                or proof_unique != unique_rows
+                or daily_newest.astimezone(MARKET_TIMEZONE).date() >= slice_date
+            ):
+                return False
+        elif (
+            checkpoint.get("closed_date_without_observed_high_reconciled") is not False
+            or checkpoint.get("closed_date_without_observed_high_shanghai") is not None
+            or checkpoint.get("closed_date_without_observed_high_aggregate_total") is not None
+            or checkpoint.get("closed_date_without_observed_high_unique_rows") is not None
+        ):
+            return False
+
+        required_request_fields = {
+            "logical_request",
+            "attempt",
+            "method",
+            "host",
+            "path",
+            "requested_at",
+            "received_at",
+            "latency_ms",
+            "http_status",
+            "failure_code",
+        }
+        request_attempts: dict[int, list[tuple[int, bool]]] = {}
+        request_failures = 0
+        for request in requests:
+            if not isinstance(request, dict) or not required_request_fields <= set(request):
+                return False
+            logical_request = request.get("logical_request")
+            attempt = request.get("attempt")
+            requested_at = strict_utc_datetime(request.get("requested_at"))
+            received_at = strict_utc_datetime(request.get("received_at"))
+            latency_ms = request.get("latency_ms")
+            http_status = request.get("http_status")
+            failure_code = request.get("failure_code")
+            if (
+                not isinstance(logical_request, int)
+                or isinstance(logical_request, bool)
+                or logical_request < 1
+                or logical_request > logical_count
+                or not isinstance(attempt, int)
+                or isinstance(attempt, bool)
+                or attempt not in {1, 2}
+                or request.get("method") != "POST"
+                or request.get("host") != "www.cninfo.com.cn"
+                or request.get("path") != "/new/hisAnnouncement/query"
+                or requested_at is None
+                or received_at is None
+                or not (poll_started <= requested_at <= received_at <= fetch_completed)
+                or not isinstance(latency_ms, (int, float))
+                or isinstance(latency_ms, bool)
+                or latency_ms < 0
+            ):
+                return False
+            succeeded = failure_code is None
+            if succeeded:
+                if (
+                    not isinstance(http_status, int)
+                    or isinstance(http_status, bool)
+                    or not 200 <= http_status < 300
+                ):
+                    return False
+            else:
+                request_failures += 1
+                if failure_code not in {
+                    "transport_timeout",
+                    "transport_error",
+                    "client_error",
+                    "http_server_error",
+                } or (
+                    http_status is not None
+                    and (
+                        not isinstance(http_status, int)
+                        or isinstance(http_status, bool)
+                        or http_status < 500
+                    )
+                ):
+                    return False
+            request_attempts.setdefault(logical_request, []).append((attempt, succeeded))
+        if set(request_attempts) != set(range(1, logical_count + 1)):
+            return False
+        if any(
+            [attempt for attempt, _succeeded in attempts] != list(range(1, len(attempts) + 1))
+            or not attempts[-1][1]
+            or any(succeeded for _attempt, succeeded in attempts[:-1])
+            for attempts in request_attempts.values()
+        ):
+            return False
+
+        max_logical = 1 + len(expected_partitions) * page_cap
+        max_physical = max_logical * 2
+        budget_integer_expectations = {
+            "page_size": 30,
+            "aggregate_count_probe_per_date": 1,
+            "partition_count": len(expected_partitions),
+            "max_pages_per_partition": page_cap,
+            "official_max_pages_per_partition": 100,
+            "max_dates_per_run": 1,
+            "max_logical_requests_per_run": max_logical,
+            "max_physical_attempts_per_run": max_physical,
+            "max_attempts_per_logical_request": 2,
+            "logical_request_count": logical_count,
+            "physical_attempt_count": physical_count,
+            "partition_row_ceiling": row_ceiling,
+        }
+        retry_backoff = request_budget.get("retry_backoff_seconds")
+        if (
+            any(
+                not strict_nonnegative_int(request_budget.get(key))
+                or request_budget.get(key) != expected
+                for key, expected in budget_integer_expectations.items()
+            )
+            or not isinstance(request_budget.get("min_interval_seconds"), float)
+            or request_budget.get("min_interval_seconds") != V2_3_MIN_INTERVAL_SECONDS
+            or not isinstance(retry_backoff, list)
+            or len(retry_backoff) != 1
+            or not isinstance(retry_backoff[0], float)
+            or retry_backoff[0] != 0.0
+            or request_budget.get("page_101_requested") is not False
+            or source.get("logical_request_count") != logical_count
+            or source.get("physical_attempt_count") != physical_count
+            or source.get("request_count") != physical_count
+            or source.get("retry_count") != physical_count - logical_count
+            or request_failures != physical_count - logical_count
+            or len(requests) != physical_count
+        ):
+            return False
+    return True
+
+
 def _v2_2_cninfo_page_cap_only(
     source: Mapping[str, object],
     *,
@@ -4010,7 +5494,7 @@ def _v2_run_context(config: NewsPollConfig, started_at: datetime) -> JsonObject:
     """Derive the frozen Monday recovery semantics from the actual poll time."""
 
     local = started_at.astimezone(MARKET_TIMEZONE)
-    if config.document.get("schema_version") == "p4.1-news-poll-v2.2":
+    if config.document.get("schema_version") in _PARTITIONED_CNINFO_VERSIONS:
         seed = _last_committed_daily_checkpoint(config, "cninfo")
         if seed.checkpoint_date_shanghai is not None:
             next_date = seed.checkpoint_date_shanghai + timedelta(days=1)
@@ -4478,9 +5962,24 @@ def _run_news_poll_once(
         if daily_slice_version in {
             "p4.1-news-poll-v2.1",
             "p4.1-news-poll-v2.2",
+            "p4.1-news-poll-v2.3",
         }:
             slices = cninfo_result.get("slices")
-            if daily_slice_version == "p4.1-news-poll-v2.2":
+            if daily_slice_version == "p4.1-news-poll-v2.3":
+                gap_slices = _v2_3_capacity_gap_slices(cninfo_result)
+                capacity_gap = bool(gap_slices)
+                stats["terminal_diagnostics"] = (
+                    _v2_3_capacity_gap_diagnostic() if capacity_gap else None
+                )
+                complete = _v2_3_cninfo_slices_complete(cninfo_result, job_stats=stats)
+                page_cap_only = False
+                if complete:
+                    return JobOutcome(
+                        status="degraded" if capacity_gap else "ok",
+                        stats=cast(JsonObject, _json_safe(stats)),
+                    )
+                stats["terminal_diagnostics"] = None
+            elif daily_slice_version == "p4.1-news-poll-v2.2":
                 expected_partitions = [
                     str(item)
                     for item in cast(
@@ -4596,7 +6095,7 @@ def _with_news_poll_wall_clock(
     *,
     started_monotonic: float,
 ) -> JsonObject:
-    if stats.get("config_version") != "p4.1-news-poll-v2.2":
+    if stats.get("config_version") not in _PARTITIONED_CNINFO_VERSIONS:
         return cast(JsonObject, _json_safe(dict(stats)))
     elapsed = max(0.0, _news_poll_wall_clock() - started_monotonic)
     wall_clock_seconds = round(elapsed, 3)
@@ -4792,7 +6291,7 @@ def _news_poll_trigger_v2() -> OrTrigger:
 def _news_poll_trigger(config_path: Path = DEFAULT_CONFIG_PATH) -> OrTrigger:
     if config_path == V1_CONFIG_PATH:
         return _news_poll_trigger_v1()
-    if config_path in {V2_CONFIG_PATH, V2_1_CONFIG_PATH, V2_2_CONFIG_PATH}:
+    if config_path in {V2_CONFIG_PATH, V2_1_CONFIG_PATH, V2_2_CONFIG_PATH, V2_3_CONFIG_PATH}:
         return _news_poll_trigger_v2()
     raise ValueError(f"unsupported P4.1 news-poll config path: {config_path}")
 

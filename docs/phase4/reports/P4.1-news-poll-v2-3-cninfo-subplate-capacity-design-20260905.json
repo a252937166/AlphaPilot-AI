@@ -1,0 +1,138 @@
+{
+  "schema_version": "p4.1-news-poll-v2-3-cninfo-subplate-capacity-design-and-implementation-v1",
+  "record_id": "P4.1-NEWS-POLL-V2-3-CNINFO-SUBPLATE-CAPACITY-20260905",
+  "status": "CODE_READY_ON_BRANCH_NOT_LANDED_NOT_DEPLOYED_SECOND_PARTY_AUDIT_REQUIRED",
+  "created_at_utc": "2026-09-05T10:26:30.682603+00:00",
+  "created_at_shanghai": "2026-09-05T18:26:30.682603+08:00",
+  "author": {
+    "identity": "independent_ai_architect_claude_code",
+    "model": "claude-fable-5-1",
+    "role_note": "The designated independent reviewer authored this change at the owner's explicit request; it therefore has NOT been independently reviewed. A second party (the operator, Codex) must perform the read-only audit before landing."
+  },
+  "owner_delegation": {
+    "owner": "ouyang",
+    "verbatim_owner_words_2026_09_05": "你帮我把现在卡主的事情都解决掉",
+    "reviewer_summary_that_preceded_it": "巨潮公告自 08-25 起零入库，卡在 sz 分区 100 页上限，08-23 的容量方案还是草稿等你拍板；事件驱动靠的就是公告，这件事不依赖 P4.2a，可以现在就决定，让 Codex 并行去做。",
+    "interpretation": "Owner delegated the pending CNInfo capacity decision (P4.1-NEWS-POLL-V2-2-CNINFO-PARTITION-CAPACITY-20260823, status DRAFT_FOR_OWNER_REVIEW_NOT_EFFECTIVE; 100-page W5 evidence 20260825 owner_action_required=true) to the architect. Landing, scheduler restart and config-digest signoff remain separate owner actions."
+  },
+  "blocker_being_resolved": {
+    "checkpoint_stuck_at_shanghai": "2026-08-24",
+    "since_shanghai": "2026-08-25",
+    "cause": "sz plate upstream total 3228 exceeded the official 100-page x 30-row ceiling (3000); v2.2 refuses to advance a checkpoint past an incomplete date, so every later date became unreachable",
+    "cninfo_rows_inserted_last_7_days_before_fix": 0
+  },
+  "read_only_probe": {
+    "record": "docs/phase4/reports/P4.1-news-poll-v2-3-cninfo-capacity-probe-20260905.json",
+    "sha256": "4dc68c2054dfed00096b8653557d3679bb1fbd31b6acc42b458410cb6749af39",
+    "facts": [
+      "pageSize is server-capped at 30 (50/100/200 all return 30 rows)",
+      "sortType=asc is ignored (identical first page to desc)",
+      "plate accepts szmb/szcy/shmb/shkcp/bj and they refine sz/sh/bj exactly on all eight probed dates",
+      "semiannual peak 2026-08-28: largest sub-plate szcy 2252 < 3000",
+      "annual peak 2026-04-29: aggregate 26066, szmb 9088, szcy 8511, shmb 5035 -> no plate refinement fits; a disclosed per-date gap is unavoidable"
+    ]
+  },
+  "design": {
+    "partitions": [
+      "szmb",
+      "szcy",
+      "shmb",
+      "shkcp",
+      "bj"
+    ],
+    "page_size": 30,
+    "max_pages_per_partition": 100,
+    "partition_row_ceiling": 3000,
+    "min_interval_seconds": 0.5,
+    "logical_requests_worst_case": 501,
+    "physical_attempts_worst_case": 1002,
+    "throttle_only_worst_case_seconds": 250.5,
+    "capacity_gap_semantics": "When a sub-plate exceeds 3000 rows, its first 100 pages (latest 3000 rows) are ingested, the shortfall is recorded per partition, the run terminates degraded with terminal_diagnostics cninfo_partition_capacity_gap, and the closed date's checkpoint STILL advances. Reconciliation requires sum(partition totals) == aggregate and unique rows + gap rows == aggregate; a capped partition must have seen exactly 3000 rows with total > 3000, otherwise it is a partition_count_mismatch failure.",
+    "what_downstream_must_do": "Treat dates listed in daily_checkpoint.capacity_gap_dates_shanghai (and slices with capacity_gap=true) as missing coverage for the listed partitions, never as 'no events'.",
+    "lineage": "v2.3 reads the latest complete v2.2 terminal row (either page-cap digest, validated by the unchanged v2.2 terminal validator) as its exact predecessor; v2.3 rows chain with lineage_before checks like v2.2.",
+    "unchanged": [
+      "candidate/persistence/dedupe/PIT semantics",
+      "v2.2 code paths and both v2.2 config digests",
+      "src/alphapilot/core/config.py",
+      "all v2.1/v2/v1 behaviour",
+      "trigger schedule (v2.3 uses the v2 trigger)"
+    ]
+  },
+  "production_read_only_verification": {
+    "database": "sqlite ro URI over data/alphapilot.db",
+    "v2_3_lineage_seed": {
+      "lineage": "v2.2_daily_checkpoint_predecessor",
+      "checkpoint_date_shanghai": "2026-08-24",
+      "newest_observed_at_utc": "2026-08-24T13:10:10+00:00"
+    },
+    "next_slice_date_shanghai": "2026-08-25",
+    "run_context": "coverage_gap_catchup / cninfo_capacity_checkpoint_lag"
+  },
+  "change_surface": [
+    {
+      "path": "config/p4_news_poll_v2_3.yaml",
+      "sha256": "a12abe09fae93a75887e8304b6739b68ee4720daffd6164c19048298a0121122",
+      "bytes": 24983
+    },
+    {
+      "path": "src/alphapilot/jobs/news_poll.py",
+      "sha256": "af481c99b4d9397fb76c572817ef0346e05013a47be3a3ca5f9f110c990fe2e0",
+      "bytes": 274439
+    },
+    {
+      "path": "tests/test_p4_news_poll_v2_3.py",
+      "sha256": "4583263366204bb429beea5699b2e7e1a994f396d90d66239287d259ca197933",
+      "bytes": 21971
+    },
+    {
+      "path": "tests/test_p4_news_poll_v2_2.py",
+      "sha256": "725b5c43c78aa4d974bad0689539d0f2a7f76ed2b436e2a93d6cd31ca287fefe",
+      "bytes": 69968
+    },
+    {
+      "path": "tests/test_p4_news_poll.py",
+      "sha256": "c21547cc07650abaf14a01a34010bc3769aba66cb26dda03a1932d217d313e46",
+      "bytes": 76167
+    },
+    {
+      "path": "docs/phase4/reports/P4.1-news-poll-v2-3-cninfo-capacity-probe-20260905.json",
+      "sha256": "4dc68c2054dfed00096b8653557d3679bb1fbd31b6acc42b458410cb6749af39",
+      "bytes": 37978
+    }
+  ],
+  "config_digest": {
+    "config/p4_news_poll_v2_3.yaml": "a12abe09fae93a75887e8304b6739b68ee4720daffd6164c19048298a0121122",
+    "config/p4_news_poll_v2_2.yaml_unchanged": "d6ce47f2f41156ec525eb2fabd2ac8f88a4f0ef830859aa3867fe9588347f11d",
+    "src/alphapilot/core/config.py_unchanged": "6bdc24abbc943bb52ecc416fd72180e356fbcb3bc55eb6a96f98d5b0be8137cd"
+  },
+  "test_evidence": {
+    "targeted": "tests/test_p4_news_poll_v2_3.py 9 passed; tests/test_p4_news_poll_v2_2.py, _v2_1, _v2_preregistration, test_p4_news_poll.py 152 passed; test_p4_2a_dev_iteration, test_p4_news_acceptance, test_p4_v2_1_migration_evidence, test_phase2_jobs 100 passed",
+    "ruff_check_src_tests": "PASS",
+    "mypy_strict_src_alphapilot": "PASS (157 source files)",
+    "full_suite": "1978 collected excluding the two P4.2a v2.2 rehearsal modules (those are the registered F-12/F-15 modules, unaffected: news_poll is outside their AST closure and the 80-record control surface). First pass with a uv-built CPython 3.12.13 venv: 40 failures, all inside the seven CI-ignored historical rehearsal modules (interpreter SHA pinned to the canonical CPython 3.12.0 binary) plus test_run_p3_m3_s6_presign_gate::test_actual_repo_scopes_match_frozen_baseline. After rebuilding the venv on the canonical /Library/Frameworks CPython 3.12.0 with the canonical 82-package freeze: the interpreter-pinned modules pass; what remains is 24 commit-topology failures in test_p4_2a_v2_heldout*.py (they require HEAD to be the approved successor commit; CI ignores these modules in the portable matrix) and the presign scope test. Both remaining failures reproduce byte-for-byte on the pristine base commit aa1b8b83 in the same clone with the change stashed, so they are pre-existing and unrelated to this change.",
+    "not_run": "tests/test_p4_2a_v2_2_heldout_rehearsal_runner.py and _validator.py (registered gate modules, ~5 h; news_poll is outside their control surface and AST closure)"
+  },
+  "landing_constraints": {
+    "must_not_land_before": "epoch-9 r4 persistent gate landing (main is pinned at aa1b8b83bbcda932784fad112ab01edf2ed516d6 by the attempt-8 harness)",
+    "must_not_land_between": "registered-root preflight and recovery start (succession contract 7.3)",
+    "recommended_window": "immediately after the epoch-9 merge-only landing and before the registered-root preflight, or after release; owner decides",
+    "second_party_read_only_audit_required": true,
+    "scheduler_restart_required_after_landing": true,
+    "w5_restart_evidence_required": true,
+    "config_digest_owner_signoff_required": "a12abe09fae93a75887e8304b6739b68ee4720daffd6164c19048298a0121122"
+  },
+  "catchup_plan_after_deployment": {
+    "first_closed_date": "2026-08-25",
+    "one_closed_date_per_run": true,
+    "peak_dates_expected_to_close_with_gaps": [
+      "2026-08-28 (szcy 2252 fits; no gap expected)",
+      "none in the 08-25..09-05 range; annual-report dates in late April will close with disclosed gaps"
+    ],
+    "acceptance": "per-date live cninfo row counts and final checkpoint from the database"
+  },
+  "non_claims": [
+    "not a P4.2a completion, P4.2b or P4.3 unlock",
+    "not an investment recommendation",
+    "no trading table touched"
+  ]
+}

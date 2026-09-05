@@ -129,9 +129,9 @@ def _register_v1_news_poll_job() -> None:
 def test_config_is_hash_locked_and_keeps_excluded_sources_disabled(tmp_path: Path) -> None:
     config = news_poll.load_news_poll_config()
 
-    assert config.path == news_poll.V2_2_CONFIG_PATH
-    assert config.sha256 == news_poll.EXPECTED_V2_2_CONFIG_SHA256
-    assert config.document["schema_version"] == "p4.1-news-poll-v2.2"
+    assert config.path == news_poll.V2_3_CONFIG_PATH
+    assert config.sha256 == news_poll.EXPECTED_V2_3_CONFIG_SHA256
+    assert config.document["schema_version"] == "p4.1-news-poll-v2.3"
     assert config.document["sources"]["cninfo"]["verify_tls"] is True
     assert config.document["sources"]["cninfo"]["max_pages_per_partition"] == 100
     assert (
@@ -225,6 +225,7 @@ def test_config_loader_explicitly_accepts_all_hash_locked_versions(tmp_path: Pat
     v2 = news_poll.load_news_poll_config(news_poll.V2_CONFIG_PATH)
     v2_1 = news_poll.load_news_poll_config(news_poll.V2_1_CONFIG_PATH)
     v2_2 = news_poll.load_news_poll_config(news_poll.V2_2_CONFIG_PATH)
+    v2_3 = news_poll.load_news_poll_config(news_poll.V2_3_CONFIG_PATH)
 
     assert v1.sha256 == news_poll.EXPECTED_CONFIG_SHA256
     assert v1.document["schema_version"] == "p4.1-news-poll-v1"
@@ -234,7 +235,9 @@ def test_config_loader_explicitly_accepts_all_hash_locked_versions(tmp_path: Pat
     assert v2_1.document["schema_version"] == "p4.1-news-poll-v2.1"
     assert v2_2.sha256 == news_poll.EXPECTED_V2_2_CONFIG_SHA256
     assert v2_2.document["schema_version"] == "p4.1-news-poll-v2.2"
-    assert news_poll.DEFAULT_CONFIG_PATH == news_poll.V2_2_CONFIG_PATH
+    assert v2_3.sha256 == news_poll.EXPECTED_V2_3_CONFIG_SHA256
+    assert v2_3.document["schema_version"] == "p4.1-news-poll-v2.3"
+    assert news_poll.DEFAULT_CONFIG_PATH == news_poll.V2_3_CONFIG_PATH
 
     changed_v2 = tmp_path / "changed-v2.yaml"
     changed_v2.write_bytes(v2.path.read_bytes() + b"\n")
@@ -2152,9 +2155,12 @@ def test_news_poll_scheduler_requires_explicit_env_enable(
     assert news_poll.run_news_poll.__kwdefaults__ is not None
     assert (
         news_poll.run_news_poll.__kwdefaults__["config_path"]
-        == news_poll.V2_2_CONFIG_PATH
+        == news_poll.V2_3_CONFIG_PATH
     )
     monday = date(2026, 8, 10)
+    assert _trigger_fire_times(registered.trigger, monday) == _trigger_fire_times(
+        news_poll._news_poll_trigger(news_poll.V2_3_CONFIG_PATH), monday
+    )
     assert _trigger_fire_times(registered.trigger, monday) == _trigger_fire_times(
         news_poll._news_poll_trigger(news_poll.V2_2_CONFIG_PATH), monday
     )
