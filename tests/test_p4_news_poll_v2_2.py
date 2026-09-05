@@ -536,7 +536,7 @@ def test_v2_2_config_is_frozen_at_100_pages_and_retains_the_80_page_predecessor(
     digest = hashlib.sha256(raw).hexdigest()
     document = yaml.safe_load(raw)
 
-    assert news_poll.DEFAULT_CONFIG_PATH == CONFIG_PATH
+    assert news_poll.DEFAULT_CONFIG_PATH == news_poll.V2_3_CONFIG_PATH
     assert news_poll.V2_2_CONFIG_PATH == CONFIG_PATH
     assert hashlib.sha256(v2_1_bytes).hexdigest() == (
         "9d56e137baf10bd0858723a93aff02c57bf7b35f8705f1817b16a89ec615183f"
@@ -583,7 +583,7 @@ def test_v2_2_default_registration_is_scheduler_only(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
-    config = news_poll.load_news_poll_config()
+    config = news_poll.load_news_poll_config(CONFIG_PATH)
     assert news_poll._v2_execution_authorization(
         config,
         execution_mode="scheduler",
@@ -612,7 +612,7 @@ def test_v2_2_default_registration_is_scheduler_only(
     default = inspect.signature(spec.func).parameters["config_path"].default
     assert spec.func is news_poll.run_news_poll
     assert spec.trigger is None
-    assert default == CONFIG_PATH
+    assert default == news_poll.V2_3_CONFIG_PATH
 
 
 def test_v2_2_checkpoint_uses_v2_1_only_as_exact_predecessor() -> None:
