@@ -34,6 +34,11 @@ import yaml  # noqa: E402
 from jsonschema import Draft202012Validator, FormatChecker  # noqa: E402
 from scripts import build_p4_2a_gold_sample as gold_builder  # noqa: E402
 from scripts import p4_2a_v2_dev_common as common  # noqa: E402
+# New protocol dependency: must be implemented, registered and reviewed separately.
+from scripts import p4_2a_successor_production_authority as production_authority  # noqa: E402
+from scripts.p4_2a_successor_production_authority import (  # noqa: E402
+    ProductionPreparationAuthorization,
+)
 from scripts import run_p4_2a_offline_extract as offline_extract  # noqa: E402
 from scripts import run_p4_2a_v2_dev_calibration as dev_runner  # noqa: E402
 from scripts.run_p4_2a_heldout_predictions import HeldoutPredictionError  # noqa: E402
@@ -367,7 +372,13 @@ class _OfflineRehearsalCapability:
         raise TypeError("offline rehearsal capability is not serializable")
 
 
-ExecutionContext = V21ReleaseAuthorization | _OfflineRehearsalCapability | None
+# A distinct production protocol; never a V21 subclass or offline capability.
+StageAuthorization = (
+    V21ReleaseAuthorization
+    | ProductionPreparationAuthorization
+    | _OfflineRehearsalCapability
+)
+ExecutionContext = StageAuthorization | None
 
 
 @dataclass(frozen=True, slots=True)
@@ -396,7 +407,7 @@ class _PrevalidatedStageAuthority:
     _nonce: object
     project_root: Path
     validated_stage: str
-    authorization: V21ReleaseAuthorization | _OfflineRehearsalCapability
+    authorization: StageAuthorization
 
     def __reduce__(self) -> NoReturn:
         raise TypeError("prevalidated stage authority is not serializable")
@@ -1069,9 +1080,22 @@ def _validate_canonical_runtime_module_origins(
     binding: HeldoutBinding,
     *,
     stage: str,
-    authorization: V21ReleaseAuthorization,
+    authorization: V21ReleaseAuthorization | ProductionPreparationAuthorization,
 ) -> None:
     """Classify origins only after the locked child validated committed source."""
+
+    if type(authorization) is ProductionPreparationAuthorization:
+        try:
+            production_authority.validate_registered_production_sources(
+                binding.root.resolve(),
+                authorization,
+                stage=stage,
+            )
+        except (production_authority.ProductionAuthorityError, OSError) as exc:
+            raise HeldoutPreparationError(
+                "successor production source or runtime verification failed"
+            ) from exc
+        return
 
     root = binding.root.resolve()
     for relative in _registered_successor_implementation_paths(root):
@@ -2039,12 +2063,54 @@ def _validate_v2_1_offline_capability(
     return capability
 
 
+def _production_release_candidate(root: Path) -> bool:
+    """Select only the new fixed path; an invalid candidate must never fall back."""
+    try:
+        present = production_authority.has_registered_release_candidate(root)
+    except (production_authority.ProductionAuthorityError, OSError) as exc:
+        raise HeldoutPreparationError(
+            "successor production release candidate inspection failed"
+        ) from exc
+    if type(present) is not bool:
+        raise HeldoutPreparationError("production candidate presence is not boolean")
+    if present and os.path.lexists(root / SUCCESSOR_V2_1_RELEASE_PATH):
+        raise HeldoutPreparationError("ambiguous legacy and production releases")
+    return present
+
+
+def _validate_production_release_facts(
+    root: Path,
+    *,
+    stage: str | None,
+) -> ProductionPreparationAuthorization:
+    """Recompute stable facts; stage=None is read-only diagnosis, never admission."""
+    if root.resolve() != PROJECT_ROOT.resolve():
+        raise HeldoutPreparationError("production release requires the canonical root")
+    if not _production_release_candidate(root):
+        raise HeldoutPreparationError("registered production release is absent")
+    try:
+        observed = production_authority.validate_preparation_authorization(
+            root,
+            stage=stage,
+        )
+    except (production_authority.ProductionAuthorityError, OSError) as exc:
+        raise HeldoutPreparationError(
+            "successor production authorization failed independent validation"
+        ) from exc
+    if (
+        type(observed) is not ProductionPreparationAuthorization
+        or observed.project_root != root.resolve()
+    ):
+        raise HeldoutPreparationError("production authorization type or root drifted")
+    return observed
+
+
 def validate_v2_1_stage_authorization(
     binding: HeldoutBinding,
     *,
     stage: str,
     execution_context: ExecutionContext = None,
-) -> V21ReleaseAuthorization | _OfflineRehearsalCapability:
+) -> StageAuthorization:
     """Fail closed at every successor mutating stage before business input reads."""
 
     if stage not in _OFFLINE_ALLOWED_STAGES:
@@ -2065,6 +2131,26 @@ def validate_v2_1_stage_authorization(
             "synthetic successor receipt cannot unlock a noncanonical real stage"
         )
     _validate_canonical_runtime_environment(binding, stage=stage)
+    if _production_release_candidate(binding.root):
+        if (
+            execution_context is not None
+            and type(execution_context) is not ProductionPreparationAuthorization
+        ):
+            raise HeldoutPreparationError("production execution context is forged")
+        production_observed = _validate_production_release_facts(
+            binding.root,
+            stage=stage,
+        )
+        _validate_canonical_runtime_module_origins(
+            binding,
+            stage=stage,
+            authorization=production_observed,
+        )
+        if execution_context is not None and execution_context != production_observed:
+            raise HeldoutPreparationError("production release context drifted")
+        return production_observed
+    if type(execution_context) is ProductionPreparationAuthorization:
+        raise HeldoutPreparationError("production context has no registered release")
     observed = validate_v2_1_release_authorization(binding.root)
     _validate_canonical_runtime_module_origins(
         binding,
@@ -2083,7 +2169,7 @@ def _prevalidated_stage_authority_identity_api() -> tuple[
     Callable[..., _PrevalidatedStageAuthority],
     Callable[
         [HeldoutBinding, _PrevalidatedStageAuthority, str],
-        V21ReleaseAuthorization | _OfflineRehearsalCapability,
+        StageAuthorization,
     ],
 ]:
     minted: dict[int, _PrevalidatedStageAuthority] = {}
@@ -2112,7 +2198,34 @@ def _prevalidated_stage_authority_identity_api() -> tuple[
         binding: HeldoutBinding,
         delegated: _PrevalidatedStageAuthority,
         validated_stage: str,
-    ) -> V21ReleaseAuthorization | _OfflineRehearsalCapability:
+    ) -> StageAuthorization:
+        if (
+            type(delegated) is _PrevalidatedStageAuthority
+            and type(delegated.authorization) is ProductionPreparationAuthorization
+        ):
+            if (
+                delegated._nonce is not _PREVALIDATED_STAGE_AUTHORITY_NONCE
+                or minted.get(id(delegated)) is not delegated
+                or delegated.project_root != binding.root.resolve()
+                or delegated.validated_stage != validated_stage
+                or validated_stage not in _REAL_ALLOWED_STAGES
+            ):
+                raise HeldoutPreparationError(
+                    "production prevalidated authority is forged, cross-stage, or drifted"
+                )
+            production_observed = validate_v2_1_stage_authorization(
+                binding,
+                stage=validated_stage,
+                execution_context=delegated.authorization,
+            )
+            if (
+                type(production_observed) is not ProductionPreparationAuthorization
+                or production_observed != delegated.authorization
+            ):
+                raise HeldoutPreparationError(
+                    "production prevalidated authority changed during revalidation"
+                )
+            return production_observed
         if (
             delegated._nonce is not _PREVALIDATED_STAGE_AUTHORITY_NONCE
             or minted.get(id(delegated)) is not delegated
@@ -2155,7 +2268,7 @@ def _pure_revalidation_authority(
     execution_context: ExecutionContext,
     prevalidated_authority: _PrevalidatedStageAuthority | None,
 ) -> tuple[
-    V21ReleaseAuthorization | _OfflineRehearsalCapability,
+    StageAuthorization,
     _PrevalidatedStageAuthority,
 ]:
     if prevalidated_authority is not None:
@@ -2575,8 +2688,16 @@ def _offline_runtime_start_preflight() -> JsonObject:
 
 
 def _execution_authority_evidence(
-    context: V21ReleaseAuthorization | _OfflineRehearsalCapability,
+    context: StageAuthorization,
 ) -> JsonObject:
+    if type(context) is ProductionPreparationAuthorization:
+        try:
+            evidence = production_authority.execution_authority_evidence(context)
+        except (production_authority.ProductionAuthorityError, OSError) as exc:
+            raise HeldoutPreparationError(
+                "production execution-authority evidence validation failed"
+            ) from exc
+        return _mapping(evidence, "production execution authority")
     common_fields: JsonObject = {
         "frame_authority": {
             "path": FRAME_AUTHORITY_PATH.as_posix(),
@@ -4390,6 +4511,8 @@ def run_materialize(
         },
         "runtime_start_preflight": runtime_start_preflight,
     }
+    if type(authorized) is ProductionPreparationAuthorization:
+        manifest["schema_version"] = production_authority.MATERIALIZATION_MANIFEST_SCHEMA
     _publish_create_only(
         (
             (binding.artifacts["materialized_inputs"], input_payload),
@@ -4440,7 +4563,7 @@ def _exclusive_inference_state(path: Path) -> Iterator[int]:
 
 
 def _validate_v2_1_inference_seams(
-    authorized: V21ReleaseAuthorization | _OfflineRehearsalCapability,
+    authorized: StageAuthorization,
     *,
     settings: Settings | None,
     chat_json_fn: ChatJsonCallable | None,
@@ -4450,6 +4573,21 @@ def _validate_v2_1_inference_seams(
     prediction_recorded_at_clock: RecordedAtClock | None,
     prediction_monotonic_ns_clock: MonotonicNsClock | None,
 ) -> None:
+    if type(authorized) is ProductionPreparationAuthorization:
+        if (
+            settings is not None
+            or chat_json_fn is not None
+            or snapshot_loader is not dev_runner._production_snapshot
+            or clock is not _system_clock
+            or execution_id_factory is not _random_execution_id
+            or prediction_recorded_at_clock is not None
+            or prediction_monotonic_ns_clock is not None
+        ):
+            raise HeldoutPreparationError(
+                "real held-out inference forbids injected settings, model, snapshot, "
+                "clock, or id seams"
+            )
+        return
     if isinstance(authorized, V21ReleaseAuthorization):
         if (
             settings is not None
@@ -4784,7 +4922,7 @@ def _validate_request_pacing_evidence(
 def _validate_runtime_preflight_evidence(
     binding: HeldoutBinding,
     value: object,
-    context: V21ReleaseAuthorization | _OfflineRehearsalCapability,
+    context: StageAuthorization,
 ) -> None:
     evidence = _mapping(value, "materialization runtime_start_preflight")
     if isinstance(context, _OfflineRehearsalCapability):
@@ -4963,6 +5101,65 @@ def _validate_runtime_preflight_evidence(
         raise HeldoutPreparationError("runtime operator timing attestation drifted")
 
 
+def _validate_production_materialization_manifest(
+    binding: HeldoutBinding,
+    manifest: Mapping[str, Any],
+    candidates: Sequence[Mapping[str, Any]],
+    *,
+    inputs_sha256: str,
+    authorization: ProductionPreparationAuthorization,
+) -> None:
+    """Validate the new authority version plus every unchanged business check."""
+    expected_top_level = {
+        "schema_version",
+        "frame_id",
+        "lineage",
+        "artifacts",
+        "counts",
+        "layers",
+        "production_database",
+        "execution_authority",
+        "request_pacing",
+        "runtime_start_preflight",
+    }
+    if (
+        set(manifest) != expected_top_level
+        or manifest.get("schema_version")
+        != production_authority.MATERIALIZATION_MANIFEST_SCHEMA
+    ):
+        raise HeldoutPreparationError("production materialization manifest schema drifted")
+    if manifest.get("execution_authority") != _execution_authority_evidence(authorization):
+        raise HeldoutPreparationError("production materialization authority drifted")
+    layers = _mapping(manifest.get("layers"), "materialization layers")
+    all_candidates = layers.get("all_candidates")
+    if not isinstance(all_candidates, list):
+        raise HeldoutPreparationError("materialization all-candidate layer is invalid")
+    expected_cninfo_requests = sum(
+        isinstance(row, Mapping) and row.get("source") == "cninfo"
+        for row in all_candidates
+    )
+    _validate_request_pacing_evidence(
+        manifest.get("request_pacing"),
+        expected_cninfo_requests=expected_cninfo_requests,
+    )
+    _validate_runtime_preflight_evidence(
+        binding,
+        manifest.get("runtime_start_preflight"),
+        authorization,
+    )
+    # The pre-existing scientific projection is unchanged; no V21 receipt is minted.
+    legacy_projection = copy.deepcopy(dict(manifest))
+    for field in ("execution_authority", "request_pacing", "runtime_start_preflight"):
+        legacy_projection.pop(field)
+    legacy_projection["schema_version"] = "p4.2a-v2-heldout-materialization-manifest-v1"
+    _validate_materialization_for_selection(
+        binding,
+        legacy_projection,
+        candidates,
+        inputs_sha256=inputs_sha256,
+    )
+
+
 def validate_v2_1_materialization_manifest(
     binding: HeldoutBinding,
     manifest: Mapping[str, Any],
@@ -4981,6 +5178,15 @@ def validate_v2_1_materialization_manifest(
         prevalidated_authority=prevalidated_authority,
         validated_stage=validated_stage,
     )
+    if type(authorized) is ProductionPreparationAuthorization:
+        _validate_production_materialization_manifest(
+            binding,
+            manifest,
+            candidates,
+            inputs_sha256=inputs_sha256,
+            authorization=authorized,
+        )
+        return
     expected_top_level = {
         "schema_version",
         "frame_id",
@@ -5859,6 +6065,34 @@ def main(argv: Sequence[str] | None = None) -> NoReturn:
     parser = _parser()
     args = parser.parse_args(argv)
     binding = load_binding(args.project_root)
+    if args.stage == "validate":
+        try:
+            if _production_release_candidate(binding.root):
+                production_release = _validate_production_release_facts(
+                    binding.root,
+                    stage=None,
+                )
+                production_result = {
+                    "status": "valid_successor_production_preparation_authority",
+                    "valid": True,
+                    "release_receipt_sha256": production_release.receipt_sha256,
+                    "implementation_commit": production_release.implementation_commit,
+                    "read_only_authority_validation": True,
+                    "stage_started": False,
+                    "runtime_start_preflight_performed": False,
+                }
+                print(json.dumps(production_result, ensure_ascii=False, sort_keys=True))
+                raise SystemExit(0)
+        except HeldoutPreparationError as exc:
+            production_blocked = {
+                "status": "BLOCKED_PENDING_SUCCESSOR_PRODUCTION_PREPARATION_AUTHORITY",
+                "valid": False,
+                "reason": str(exc),
+                "stage_started": False,
+                "runtime_start_preflight_performed": False,
+            }
+            print(json.dumps(production_blocked, ensure_ascii=False, sort_keys=True))
+            raise SystemExit(2) from None
     if args.stage == "validate":
         try:
             release = validate_v2_1_release_authorization(binding.root)
