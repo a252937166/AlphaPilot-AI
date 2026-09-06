@@ -1,0 +1,217 @@
+{
+  "adjudication_id": "P4.2A_SERIES2_EPOCH9_R3_DESIGN_CONFLICT_20260903",
+  "approved_replacement_surface_direction": {
+    "exact_change_count": 4,
+    "exact_surface": [
+      {
+        "path": "scripts/p4_2a_v2_2_heldout_rehearsal.py",
+        "status": "M"
+      },
+      {
+        "path": "scripts/validate_p4_2a_v2_2_heldout_rehearsal_bundle.py",
+        "status": "M"
+      },
+      {
+        "path": "tests/test_p4_2a_v2_2_heldout_rehearsal_runner.py",
+        "status": "M"
+      },
+      {
+        "path": "tests/test_p4_2a_v2_2_heldout_rehearsal_validator.py",
+        "status": "M"
+      }
+    ],
+    "ledger_or_mirror_changed": false,
+    "schemas_changed": false,
+    "shim_changed": false,
+    "status": "APPROVED_FOR_COMPANION_AND_AUTHORITY_DRAFT_PREPARATION_ONLY",
+    "thresholds_samples_seeds_models_prompts_gold_changed": false
+  },
+  "authorization_boundary": {
+    "Q_R_B_authorized": false,
+    "authority_commit_authorized": false,
+    "exact_next_owner_gate": "owner review and exact approval of the replacement six-field four-file surface authority bytes and SHA-256",
+    "heldout_or_trading_authorized": false,
+    "implementation_authorized": false,
+    "ledger_or_mirror_write_authorized": false,
+    "merge_authorized": false,
+    "persistent_gate_authorized": false,
+    "recovery_or_release_authorized": false,
+    "registered_root_preflight_authorized": false,
+    "tests_or_F15_or_F12_authorized": false
+  },
+  "authorized_next_actions": {
+    "create_new_epoch9_companion": true,
+    "create_this_governing_adjudication": true,
+    "prepare_replacement_exact_six_field_four_file_surface_authority_draft": true
+  },
+  "created_at_shanghai": "2026-09-03T12:37:09+08:00",
+  "created_at_utc": "2026-09-03T04:37:09Z",
+  "epoch_semantics": {
+    "historical_recovery_governance_epoch": 8,
+    "historical_selected_attempt_epoch": 6,
+    "historical_selected_require_current": false,
+    "landing_preflight_schema_origin_epoch": 8,
+    "latest_live_execution_epoch": 9,
+    "latest_live_require_current": true,
+    "sealed_attempt_epoch_table": [
+      5,
+      6
+    ],
+    "synthetic_attempt_rows_for_epochs_7_8_9_forbidden": true
+  },
+  "immutable_runtime_and_history_locks": {
+    "automatic_retries_authorized_now": 0,
+    "heldout_evaluation_locked": true,
+    "heldout_inference_locked": true,
+    "heldout_materialization_locked": true,
+    "history_root_sha256": "832559b59a8edc09c04b0f5a7c09cea71e5c3597c2bdc0831072a4122bf016e7",
+    "ledger_and_mirror_read_only": true,
+    "live_ledger_root_sha256": "ab08612ba2e11e45c3a3415ca7079117f2a739bf470719abf4f204958272574d",
+    "p4_2b_locked": true,
+    "p4_3_locked": true,
+    "pipeline_starts_authorized_now": 0,
+    "recovery_starts_authorized_now": 0,
+    "selected_attempt_ordinal": 2,
+    "selected_implementation_commit": "e5aab9772793a7b0465f100cb48f99a1bc4e45dc",
+    "selected_implementation_epoch": 6,
+    "six_amendment_absence_facts_remain_false": true,
+    "trading_locked": true
+  },
+  "issued_by": {
+    "operator_is_independent_reviewer": false,
+    "operator_role": "governance_record_preparer",
+    "owner_decision_mode": "TRANSCRIPT_BOUND_EXACT_APPROVAL",
+    "owner_identity": "ouyang"
+  },
+  "owner_decisions": [
+    {
+      "accepted": true,
+      "decision": "accept the status BLOCKED_BY_DESIGN_CONTRACT_CONFLICT",
+      "ordinal": 1
+    },
+    {
+      "accepted": true,
+      "decision": "accept that r1 section 4.3 conflicts with sections 6.2 and 7",
+      "ordinal": 2
+    },
+    {
+      "accepted": true,
+      "decision": "accept that the old two-file authority is insufficient and must remain immutable but be superseded for implementation",
+      "ordinal": 3
+    },
+    {
+      "accepted": true,
+      "decision": "accept the immutable epoch-8 recovery contract plus latest-live epoch-9 contract split",
+      "ordinal": 4
+    },
+    {
+      "accepted": true,
+      "decision": "accept epoch 9 as the required landing document, preflight, Q/R/B, recovery claim/receipt, recovered capability, and release live epoch",
+      "ordinal": 5
+    },
+    {
+      "accepted": true,
+      "decision": "accept selected historical epoch 6 and sealed bundle epochs [5,6]",
+      "ordinal": 6
+    },
+    {
+      "accepted": true,
+      "decision": "accept exact producer/validator symmetry and the four-file M surface",
+      "ordinal": 7
+    },
+    {
+      "accepted": true,
+      "decision": "accept the full registered test matrix and no inheritance of F-15, F-12, or gate results",
+      "ordinal": 8
+    },
+    {
+      "accepted": true,
+      "decision": "accept that all six amendment absence facts remain false",
+      "ordinal": 9
+    },
+    {
+      "accepted": true,
+      "decision": "accept one future recovery start, zero pipeline starts, zero automatic retries, and all heldout and trading locks",
+      "ordinal": 10
+    },
+    {
+      "accepted": true,
+      "decision": "authorize a new companion and preparation of an exact six-field four-file authority only after the passed r3 incremental review",
+      "ordinal": 11
+    }
+  ],
+  "owner_transcript_binding": {
+    "assistant_approval_request_exact_text": "本人 ouyang 明确批准上一条所列 epoch-9 r3 全部 11 项决定及授权边界：仅授权提交 governing adjudication、创建 companion、准备六字段 4M authority 草案；其余实现、测试、门禁、合并、preflight、Q/R/B、recovery、release、heldout 与 trading 暂不授权。",
+    "owner_response_exact_text": "本人 ouyang 明确批准上一条所列 epoch-9 r3 全部 11 项决定及授权边界：仅授权提交 governing adjudication、创建 companion、准备六字段 4M authority 草案；其余实现、测试、门禁、合并、preflight、Q/R/B、recovery、release、heldout 与 trading 暂不授权。",
+    "response_interpretation": "The owner explicitly approves all eleven decisions and their authorization boundaries, authorizes only submission of this governing adjudication, creation of the companion, and preparation of an uncommitted replacement four-file six-field authority draft, and withholds every implementation and runtime authorization.",
+    "transcript_bound": true
+  },
+  "required_companion_contract": {
+    "defaults_subsets_and_best_effort_forbidden": true,
+    "exact_top_level_field_count": 12,
+    "exact_top_level_fields": [
+      "schema_version",
+      "implementation_epoch",
+      "governing_adjudication",
+      "superseded_two_file_authority",
+      "historical_epoch_8_recovery_contract",
+      "latest_landed_authority_contract",
+      "registered_preflight_dispatch_contract",
+      "dual_byte_anchor_transition_contract",
+      "recovery_qrb_live_binding_contract",
+      "recovery_claim_and_receipt_live_binding_contract",
+      "recovered_publication_and_release_live_binding_contract",
+      "authority_census_and_effect_lock_contract"
+    ],
+    "nested_field_sets_exact_not_extensible": true,
+    "producer_and_validator_compare_against_companion_bytes": true,
+    "producer_and_validator_define_the_same_exact_field_set": true,
+    "semantic_predicates_independently_implemented": true
+  },
+  "schema_version": "p4.2a-epoch9-r3-design-conflict-governing-adjudication-v1",
+  "subject": {
+    "governing_design": {
+      "bytes": 45262,
+      "composite_rule": "r1 plus r2 plus r3; r2 controls the failed-preflight evidence channel and r3 controls latest-live-epoch closure, historical-contract separation, the four-file surface, and every conflicting downstream requirement",
+      "creating_commit": "7bf6d7fd0b054d6be775c36583085b443e0769f2",
+      "parent_commit": "6936f4531eb52a6a343bf8a20e879dac1503bbdd",
+      "path": "docs/phase4/reports/P4.2a-v2-2-series2-epoch9-latest-landed-epoch-design-r3-20260903.md",
+      "sha256": "5f99c0ac8cf708467e6c37c4516a30941af313cebbcd9d3141bd8b048e1460d9"
+    },
+    "implementation_epoch": 9,
+    "independent_incremental_design_review": {
+      "F12_classification": "NOT_EXECUTED_DESIGN_REVIEW_ONLY",
+      "bytes": 13519,
+      "creating_commit": "dad5d0d332752bf99beeb9c5be55d1d2323bafab",
+      "parent_commit": "7bf6d7fd0b054d6be775c36583085b443e0769f2",
+      "path": "docs/phase4/reports/P4.2a-v2-2-series2-epoch9-latest-landed-epoch-independent-design-review-r3-20260903.json",
+      "sha256": "24c66b7027d30b3fc168ae3ffa9dff0a0fe707d61130c5102b67e3386c6425f9",
+      "verdict": "PASS_INCREMENTAL_EPOCH9_R3_DESIGN_REVIEW"
+    },
+    "series": 2,
+    "status_before_adjudication": "BLOCKED_BY_DESIGN_CONTRACT_CONFLICT"
+  },
+  "superseded_two_file_authority": {
+    "bytes": 517,
+    "creating_commit": "6936f4531eb52a6a343bf8a20e879dac1503bbdd",
+    "disposition": "SUPERSEDED_FOR_IMPLEMENTATION_ONLY",
+    "immutable_evidence": true,
+    "implementation_epoch": 9,
+    "may_be_amended_or_rewritten": false,
+    "original_exact_surface": [
+      {
+        "path": "scripts/p4_2a_v2_2_heldout_rehearsal.py",
+        "status": "M"
+      },
+      {
+        "path": "tests/test_p4_2a_v2_2_heldout_rehearsal_runner.py",
+        "status": "M"
+      }
+    ],
+    "parent_commit": "261a483d4d199d6e113b8b20231079985b36472a",
+    "path": "docs/phase4/reports/P4.2a-v2-2-series2-epoch9-surface-authority-20260903.json",
+    "sha256": "e5501e387d85be43fabe131b1e3d5067ad189db2e81a255744ad29b99446379e",
+    "sufficient_for_r3_implementation": false
+  },
+  "verdict": "APPROVE_EPOCH9_R3_DESIGN_AND_GOVERNANCE_PREPARATION"
+}
