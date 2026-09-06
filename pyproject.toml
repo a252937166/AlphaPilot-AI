@@ -39,7 +39,7 @@ ml = [
 ]
 db = [
   "psycopg[binary]>=3.2,<4",
-  "redis>=6.0,<7",
+  "redis>=6.0,<9",
 ]
 dev = [
   "pytest>=8.3,<9",
