@@ -1,0 +1,298 @@
+{
+  "schema_version": "p4.2a-v2-heldout-rehearsal-failure-remediation-review-request-v1",
+  "request_id": "P4.2A-V2-HELDOUT-REHEARSAL-V2-1-FAILURE-REMEDIATION-20260811-R1",
+  "created_at_utc": "2026-08-11T07:22:15Z",
+  "created_at_shanghai": "2026-08-11T15:22:15+08:00",
+  "status": "REQUESTED_NOT_AUTHORIZED",
+  "requester": {
+    "identity": "OpenAI Codex GPT-5",
+    "requester_type": "ai",
+    "role": "registered_rehearsal_operator_and_incident_recorder",
+    "impersonation_disclaimer": "Not the human owner. This request cannot authorize its own remediation."
+  },
+  "self_creation_policy": {
+    "path": "docs/phase4/reports/P4.2a-v2-heldout-rehearsal-v2-1-failure-remediation-review-request-20260811.json",
+    "required_parent": "7a6e8be39f9a0702bf8fb4a22c669dc7331b0d95",
+    "required_path_status": "A",
+    "unique_a_only_commit": true,
+    "no_other_paths_in_commit": true,
+    "owner_response_must_bind_current_bytes_and_unique_a_commit": true
+  },
+  "incident_binding": {
+    "path": "docs/phase4/reports/P4.2a-v2-heldout-rehearsal-v2-1-one-shot-consumed-incident-20260811.json",
+    "sha256": "d658336f61cdca0239584b696043fe4abc5ede1ef7aff76a4fe514b7b5d0735c",
+    "creating_commit": "7a6e8be39f9a0702bf8fb4a22c669dc7331b0d95",
+    "creating_commit_parent": "ed59a0ce6057145068b7c87fc681dd0aeea47270",
+    "creating_commit_path_status": "A",
+    "incident_verdict": "REGISTERED_REHEARSAL_ONE_SHOT_CONSUMED_WITHOUT_BUNDLE"
+  },
+  "immutable_failure_facts": {
+    "v2_1_attempts_authorized": 1,
+    "v2_1_attempts_executed": 1,
+    "v2_1_retry_count": 0,
+    "v2_1_retry_allowed": false,
+    "v2_1_claim_must_remain_present": true,
+    "v2_1_registered_destination": "docs/phase4/rehearsals/P4.2a-v2-calibration-v2-1",
+    "v2_1_registered_destination_state": "ABSENT",
+    "v2_1_bundle_state": "ABSENT",
+    "v2_1_success_review_request_state": "ABSENT",
+    "real_heldout_state": "ABSENT",
+    "root_cause": "The exact OS bootstrap loaded the runner as __main__, while the nested independent validator imported a second package-named runner instance. Their ContextVar authorities were distinct, so nested temporary-authority creation escaped the outer audit write root and was correctly rejected before any registered bundle byte was written."
+  },
+  "owner_decisions_requested": [
+    {
+      "decision_id": "D1",
+      "request": "ACKNOWLEDGE_V2_1_PERMANENT_FAILURE",
+      "effect_if_accepted": "Freeze the incident and empty claim as permanent historical evidence; forbid deletion, reconstruction, bundle publication and any v2.1 retry."
+    },
+    {
+      "decision_id": "D2",
+      "request": "AUTHORIZE_CREATE_ONLY_V2_2_PREREGISTRATION",
+      "effect_if_accepted": "Authorize only the creation and independent review of a new successor preregistration and its schemas. It would not authorize implementation or execution."
+    },
+    {
+      "decision_id": "D3",
+      "request": "ACCEPT_OR_REVISE_THE_PROPOSED_V2_2_IDENTITY_AND_FIX_CONTRACT",
+      "effect_if_accepted": "Freeze a new version, destination and claim derivation plus the exact nested-validator authority semantics and full-path tests before any code or test edit."
+    },
+    {
+      "decision_id": "D4",
+      "request": "SET_THE_F8_TEST_REGISTRATION_RULE_FOR_THE_SUCCESSOR_PREREGISTRATION",
+      "effect_if_accepted": "Require every test used as a release or one-shot gate claim for v2.2 to be byte-registered in its control archive and Merkle surface; this does not attempt a repository-wide test registry in the failed v2.1 round."
+    }
+  ],
+  "proposed_successor_identity": {
+    "version": "v2.2",
+    "rehearsal_id": "P4.2A-V2-HELDOUT-REHEARSAL-V2-2-DETERMINISTIC-20260811",
+    "registered_destination": "docs/phase4/rehearsals/P4.2a-v2-calibration-v2-2",
+    "absolute_registered_destination": "/Users/ouyangduning/Documents/project/interesting/AlphaPilot-AI/docs/phase4/rehearsals/P4.2a-v2-calibration-v2-2",
+    "bundle_path": "docs/phase4/rehearsals/P4.2a-v2-calibration-v2-2/bundle.json",
+    "claim_seed_authority": "incident sha256 d658336f61cdca0239584b696043fe4abc5ede1ef7aff76a4fe514b7b5d0735c",
+    "claim_derivation": "lowercase_hex_sha256(UTF8(incident_sha256 + NUL + rehearsal_id + NUL + absolute_literal_registered_destination))",
+    "claim_token": "35ba1b83a9b187817d7a591758e1c131e867fcd37917cba0ab196799fff832ef",
+    "claim_path": "/Users/ouyangduning/Documents/project/interesting/.alphapilot-p4-2a-v2-2-execution-claim-35ba1b83a9b187817d7a591758e1c131e867fcd37917cba0ab196799fff832ef",
+    "claim_exact_path_status": "FROZEN_BY_THIS_REQUEST_AND_MUST_BE_CARRIED_BYTE_EXACTLY_INTO_THE_SUCCESSOR_PREREGISTRATION",
+    "must_not_alias_or_reuse": [
+      "P4.2A-V2-HELDOUT-REHEARSAL-V2-1-DETERMINISTIC-20260810",
+      "docs/phase4/rehearsals/P4.2a-v2-calibration-v2-1",
+      "/Users/ouyangduning/Documents/project/interesting/.alphapilot-p4-2a-v2-1-execution-claim-52378ddcda558a8489795c62a5c4d290687700801320508c03c51589c202e962"
+    ]
+  },
+  "proposed_control_plane_paths": {
+    "authorization_effect_if_owner_accepts_d2": "create these three files only, on create-only paths, before any implementation or test edit",
+    "paths": [
+      {
+        "role": "successor_preregistration",
+        "path": "docs/phase4/reports/P4.2a-v2-heldout-rehearsal-v2-2-preregistration-20260811.json",
+        "required_status": "A",
+        "create_only": true
+      },
+      {
+        "role": "bundle_schema",
+        "path": "config/schemas/p4_2a_v2_2_heldout_rehearsal_bundle.schema.json",
+        "required_status": "A",
+        "create_only": true
+      },
+      {
+        "role": "release_authorization_schema",
+        "path": "config/schemas/p4_2a_v2_2_heldout_release_authorization.schema.json",
+        "required_status": "A",
+        "create_only": true
+      }
+    ],
+    "path_count": 3,
+    "exhaustive_for_d2": true,
+    "same_commit_required": true,
+    "independent_review_or_owner_ruling_files_are_not_pre_authorized_by_d2": true
+  },
+  "proposed_fix_contract": {
+    "required_behavior": "Nested independent validation must either borrow a capability whose identity, root, ownership and lifetime were validated by the outer runner, or create its nested authority strictly inside the currently authorized audit write root. The exact choice must be preregistered before implementation.",
+    "forbidden_shortcuts": [
+      "relaxing the process-wide audit write-root policy",
+      "allowing arbitrary /private/tmp writes",
+      "monkeypatching or bypassing the registered gate",
+      "using an alternate unregistered real entry point",
+      "deleting or renaming the v2.1 claim",
+      "reconstructing or publishing the v2.1 in-memory candidate",
+      "reusing the v2.1 destination, ID or claim",
+      "editing code or tests before the successor preregistration is committed and independently approved"
+    ],
+    "module_identity_requirement": "Authority semantics must be invariant when the runner is loaded as __main__ and then imported by the validator under its package name. A second module instance must not silently create an independent authority domain; any cross-module borrow must use the exact preregistered delegation API and bind identity, root, ownership and lifetime.",
+    "ownership_requirement": "Every temporary authority must have an explicit creator, containing write root, cleanup owner and lifetime; nested validation must not outlive or escape its parent authority."
+  },
+  "required_preregistered_tests": {
+    "exact_os_bootstrap_positive": "Launch the fixed interpreter from the OS with -S -P -B and the exact minimal environment, execute the new runner as __main__, invoke the package-imported validator, complete nested authority creation inside the allowed root, and finish the full synthetic release probe.",
+    "module_identity_negative": "Prove that an authority domain cannot unlock or borrow another domain without the exact preregistered delegation API, and that any identity, root, ownership or lifetime mismatch is rejected.",
+    "external_temp_negative": "Attempt nested authority creation outside the active audit write root and prove fail-close before external mkdir or bundle publication.",
+    "authority_lifetime_negative": "Prove a borrowed or nested authority is rejected after its parent scope exits and cannot be forged through a public token, closure registry or ambient environment.",
+    "full_registered_shape": "In a disposable byte-exact synthetic repository, start the fixed interpreter from the OS with -S -P -B and the exact minimal environment, run the v2.2 runner as __main__, and use the destination and claim that are canonical for that synthetic root with no path or validation override. Complete two deterministic runs, bundle construction, nested release validation, independent replay and create-only publication, then independently compare the exact artifact and Merkle inventory. The real canonical repository, destination and claim must remain untouched.",
+    "failure_persistence": "Only in a disposable byte-exact synthetic repository, prove that BaseException after its synthetic durable claim leaves that synthetic claim present and makes a second synthetic invocation fail before either pipeline starts. This test must never create or consume the real v2.2 claim.",
+    "test_byte_registration": "Archive and Merkle-bind every test file whose PASS is cited as evidence for these gates."
+  },
+  "prospective_scope_policy": {
+    "status": "NOT_YET_AUTHORIZED_OR_FROZEN",
+    "principle": "Prefer new v2.2 runner, validator, schemas and tests. Any edit to a shared or production entry file must be explicitly enumerated and justified in the preregistration before the edit.",
+    "must_bind": [
+      "this remediation review request path, SHA and unique-A commit",
+      "the v2.1 incident path, SHA and unique-A commit",
+      "the v2.1 implementation and independent-review lineage",
+      "the permanent v2.1 claim path and no-retry state",
+      "every v2.2 source, schema and test byte used by the official runner or independent validator"
+    ],
+    "no_silent_scope_expansion": true
+  },
+  "carry_forward_contract": {
+    "inheritance_mode": "v2.1_frozen_control_contract_plus_narrow_preregistered_delta",
+    "must_bind_exactly": [
+      {
+        "role": "base_preregistration",
+        "path": "docs/phase4/reports/P4.2a-v2-heldout-rehearsal-v2-1-preregistration-20260810.json",
+        "sha256": "c303cfb13a42ecbb7e0acaec04de12a9e9169b89cf9e93ea79d0f120d1439d3e",
+        "creating_commit": "b302d5889f01296568340bcc15041cc554ceb2c7"
+      },
+      {
+        "role": "prediction_timing_preregistration",
+        "path": "docs/phase4/reports/P4.2a-v2-heldout-rehearsal-v2-1-prediction-timing-seam-preregistration-20260810.json",
+        "sha256": "1052c7a33268572fc794517844dae4b6c1ea504121712ad2f55ec814a7446f9a",
+        "creating_commit": "b3c2d2216c1feffd9949f181fa6766f8357ff683"
+      },
+      {
+        "role": "frame_authority_ruling",
+        "path": "docs/phase4/reports/P4.2a-rehearsal-v2-approval-and-frame-authority-ruling-20260810.json",
+        "sha256": "8605dd30dd6bffa9621b6efe5e01c4c9cead615c9639259c2e79e14fcbbc3421",
+        "creating_commit": "da374342781d6fde2f2c6d87d23582050bc8edaa"
+      },
+      {
+        "role": "successor_code_gate_authorization",
+        "path": "docs/phase4/reports/P4.2a-successor-v2-1-code-gate-authorization-20260810.json",
+        "sha256": "e28db692dc150983f86f6760fb1a95584d8607658e8a78a0de35cf3fc81940cd",
+        "creating_commit": "aa082578aa48296f1dd394a380775a5a4546ca65"
+      },
+      {
+        "role": "scope_correction_ruling",
+        "path": "docs/phase4/reports/P4.2a-v2-heldout-rehearsal-v2-1-scope-correction-owner-ruling-20260810.json",
+        "sha256": "36a3baea9ce5e4c28c7e6aff9e77c09691024a870513f49f2094b07963f3582e",
+        "creating_commit": "88690ef488925f9de922569f961ec4ff1a23bb78"
+      },
+      {
+        "role": "control_plane_registry_authorization",
+        "path": "docs/phase4/reports/P4.2a-v2-1-control-plane-registry-expansion-authorization-20260811.json",
+        "sha256": "ab85a0ddd90728c7d41051e640b59f7dc777f2f2aec3c8290286206979251796",
+        "creating_commit": "d37040be87644977ddaad60b2590ac2e62b2aeed"
+      },
+      {
+        "role": "v2_1_implementation",
+        "commit": "4fce89e89fe2dba656694a7cffdc0ee1af0305c0",
+        "parent": "d37040be87644977ddaad60b2590ac2e62b2aeed"
+      },
+      {
+        "role": "v2_1_independent_implementation_review",
+        "path": "docs/phase4/reports/P4.2a-v2-1-implementation-independent-review-20260811.json",
+        "sha256": "d144f77d4e7a2946f00e618fb768960b0abdd6e40caf5831f4f198700762d276",
+        "creating_commit": "ed59a0ce6057145068b7c87fc681dd0aeea47270"
+      },
+      {
+        "role": "v2_1_incident",
+        "path": "docs/phase4/reports/P4.2a-v2-heldout-rehearsal-v2-1-one-shot-consumed-incident-20260811.json",
+        "sha256": "d658336f61cdca0239584b696043fe4abc5ede1ef7aff76a4fe514b7b5d0735c",
+        "creating_commit": "7a6e8be39f9a0702bf8fb4a22c669dc7331b0d95"
+      }
+    ],
+    "only_prospective_delta_classes": [
+      "successor version, rehearsal ID, destination and durable claim",
+      "module-identity-safe nested authority delegation, ownership and lifetime",
+      "new v2.2 runner, validator, schema and registered test paths required to prove that delta",
+      "lineage and report fields needed to bind the new successor"
+    ],
+    "must_remain_semantically_frozen": [
+      "offline-only dual deterministic replay with no real database, network, model or production-path writes",
+      "exact 4,048-row three-source synthetic fixture and the full materialize-to-owner-chain synthetic path",
+      "CNInfo 1.0-second monotonic start-to-start pacing contract, no first delay and zero retry",
+      "one candidate per model call with no prompt merge, truncation or prefilter",
+      "the exact 14-artifact run inventory and byte-identical dual-run requirement",
+      "locked interpreter, environment, module-origin, Git metadata and control-surface proof",
+      "control archive, Merkle recomputation, active independent replay and create-only atomic publication",
+      "claim-before-first-pipeline, failure-retains-claim and second-invocation-before-pipeline rejection",
+      "release receipt create-only history, positive validator path and modified-after-creation rejection",
+      "all real heldout, evaluation, P4.2b, P4.3 and trading locks"
+    ],
+    "historical_immutability": [
+      "retired v1 evidence",
+      "v2 bundle and approvals",
+      "the v2.1 implementation tree at commit 4fce89e89fe2dba656694a7cffdc0ee1af0305c0 and all archived v2.1 evidence",
+      "v2.1 authorities, empty claim and incident",
+      "the absent v2.1 bundle and success-review paths"
+    ],
+    "shared_path_change_rule": "A currently shared source path may change for v2.2 only if the new preregistration enumerates it exactly and a later owner implementation/code-surface authorization approves that exact path and semantic delta; this does not mutate the historical 4fce commit or archived v2.1 evidence.",
+    "statistical_or_model_change_allowed": false,
+    "prompt_contract_frame_sampling_threshold_or_gold_change_allowed": false
+  },
+  "future_owner_gates_required": {
+    "sequence": [
+      "owner accepts this scope-only remediation request in a new create-only ruling",
+      "the three exact v2.2 preregistration/schema paths are created in one A-only commit",
+      "an independent reviewer approves the frozen v2.2 preregistration and schemas",
+      "the owner issues a separate implementation and exact code-surface authorization binding the approved preregistration",
+      "implementation is committed on exactly that authorized surface",
+      "an independent reviewer approves the exact implementation commit and its registered offline test and static evidence",
+      "immediately before execution, the owner issues an action-time authorization for exactly one registered v2.2 attempt with zero retry",
+      "the operator rechecks that the registered destination and exact derived claim are absent, then acquires the durable claim before the first pipeline"
+    ],
+    "official_registered_execution_count": 1,
+    "official_retry_count": 0,
+    "durable_claim_must_precede_first_pipeline": true,
+    "failure_must_permanently_forbid_second_pipeline_start": true,
+    "no_gate_may_be_inferred_from_an_earlier_scope_only_approval": true
+  },
+  "acceptance_evidence_required_before_any_v2_2_registered_run": [
+    "owner acceptance of this request or an explicitly revised replacement",
+    "create-only successor preregistration committed before implementation",
+    "independent preregistration review with no blockers",
+    "separate owner implementation and exact code-surface authorization binding the approved preregistration",
+    "implementation commit with an exact preregistered A/M surface",
+    "independent implementation review with no blockers and exact implementation-commit binding",
+    "all registered tests passing with zero conditional skip",
+    "exact OS __main__ plus nested-validator full-path PASS",
+    "independent validator active replay PASS",
+    "action-time owner authorization for exactly one official registered attempt with zero retry",
+    "registered destination and derived durable claim both absent immediately before the only authorized attempt"
+  ],
+  "this_request_does_not_authorize": [
+    "any code or test edit",
+    "any v2.2 preregistration before owner acceptance",
+    "any v2.2 implementation",
+    "any v2.2 rehearsal execution",
+    "any v2.1 retry or recovery",
+    "real heldout materialization",
+    "real network access",
+    "real model inference",
+    "heldout evaluation",
+    "P4.2b",
+    "P4.3"
+  ],
+  "requested_owner_response": {
+    "owner_identity": "ouyang",
+    "accepted_verdict": "APPROVE_V2_2_PREREGISTRATION_SCOPE_ONLY",
+    "rejected_verdict": "REJECT_V2_2_REMEDIATION_REQUEST",
+    "must_bind_request_path_sha_and_commit": true,
+    "must_bind_incident_path_sha_and_commit": true,
+    "must_state_any_revision_to_version_destination_claim_or_scope": true,
+    "owner_may_override_or_narrow_any_proposal": true
+  },
+  "governance_notes": {
+    "o6_prelaunch_fact": "No fourth narrow authorization occurred before the failed v2.1 launch.",
+    "o6_adequacy_inference": "Withdrawn by the incident because the exact __main__ to package-import validator path was not covered.",
+    "f8": "Open. The v2.2 preregistration is requested to register every test used as gate evidence, while broader repository test-registration policy remains an owner decision."
+  },
+  "locks": {
+    "p4_2a_done": false,
+    "heldout_materialization_unlocked": false,
+    "heldout_inference_unlocked": false,
+    "heldout_evaluation_unlocked": false,
+    "p4_2b_unlocked": false,
+    "p4_3_unlocked": false,
+    "trading_mode": "research",
+    "non_simulate_orders_allowed": false,
+    "p4_1_effect_attributable_to_this_request_observed": false
+  }
+}

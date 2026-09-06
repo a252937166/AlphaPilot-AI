@@ -1,0 +1,3180 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://alphapilot.local/schemas/p4_2a_v2_2_series_2_heldout_rehearsal_bundle.schema.json",
+  "title": "AlphaPilot P4.2a held-out successor v2.2 disclosed-repeatable rehearsal bundle",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "rehearsal_id",
+    "status",
+    "lineage",
+    "publication",
+    "execution_binding",
+    "rehearsal_attempt_policy",
+    "harness_identity",
+    "implementation_epochs",
+    "attempt_history",
+    "determinism",
+    "real_entry_gate_validation",
+    "request_interval_validation",
+    "archive",
+    "execution_environment",
+    "merkle",
+    "semantic_validation",
+    "safety",
+    "evaluation_one_shot",
+    "locks",
+    "remaining_blockers"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "p4.2a-v2-heldout-rehearsal-bundle-v2.2"
+    },
+    "rehearsal_id": {
+      "const": "P4.2A-V2-HELDOUT-REHEARSAL-V2-2-DETERMINISTIC-20260811"
+    },
+    "status": {
+      "const": "PASS_REHEARSAL_V2_2_AWAITING_OWNER_REVIEW"
+    },
+    "lineage": {
+      "$ref": "#/$defs/lineage"
+    },
+    "publication": {
+      "$ref": "#/$defs/publication"
+    },
+    "execution_binding": {
+      "$ref": "#/$defs/executionBinding"
+    },
+    "rehearsal_attempt_policy": {
+      "$ref": "#/$defs/rehearsalAttemptPolicy"
+    },
+    "harness_identity": {
+      "$ref": "#/$defs/harnessIdentity"
+    },
+    "implementation_epochs": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/implementationEpoch"
+      }
+    },
+    "attempt_history": {
+      "$ref": "#/$defs/attemptHistory"
+    },
+    "determinism": {
+      "$ref": "#/$defs/determinism"
+    },
+    "real_entry_gate_validation": {
+      "$ref": "#/$defs/realEntryGateValidation"
+    },
+    "request_interval_validation": {
+      "$ref": "#/$defs/requestIntervalValidation"
+    },
+    "archive": {
+      "$ref": "#/$defs/archive"
+    },
+    "execution_environment": {
+      "$ref": "#/$defs/executionEnvironment"
+    },
+    "merkle": {
+      "$ref": "#/$defs/merkle"
+    },
+    "semantic_validation": {
+      "$ref": "#/$defs/semanticValidation"
+    },
+    "safety": {
+      "$ref": "#/$defs/safety"
+    },
+    "evaluation_one_shot": {
+      "$ref": "#/$defs/evaluationOneShot"
+    },
+    "locks": {
+      "$ref": "#/$defs/locks"
+    },
+    "remaining_blockers": {
+      "$ref": "#/$defs/remainingBlockers"
+    }
+  },
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "gitCommit": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$"
+    },
+    "relativePath": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9._/-]+$",
+      "not": {
+        "anyOf": [
+          {
+            "pattern": "^/"
+          },
+          {
+            "pattern": "//"
+          },
+          {
+            "pattern": "(^|/)\\.{1,2}(/|$)"
+          },
+          {
+            "pattern": "/$"
+          }
+        ]
+      }
+    },
+    "fileRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "sha256"
+      ],
+      "properties": {
+        "path": {
+          "$ref": "#/$defs/relativePath"
+        },
+        "sha256": {
+          "$ref": "#/$defs/sha256"
+        }
+      }
+    },
+    "artifactRecord": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "logical_name",
+        "source_relative_path",
+        "bytes",
+        "sha256"
+      ],
+      "properties": {
+        "logical_name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "source_relative_path": {
+          "$ref": "#/$defs/relativePath"
+        },
+        "bytes": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "sha256": {
+          "$ref": "#/$defs/sha256"
+        }
+      }
+    },
+    "artifactList": {
+      "type": "array",
+      "minItems": 14,
+      "maxItems": 14,
+      "prefixItems": [
+        {
+          "allOf": [
+            {
+              "$ref": "#/$defs/artifactRecord"
+            },
+            {
+              "properties": {
+                "logical_name": {
+                  "const": "materialized_inputs"
+                },
+                "source_relative_path": {
+                  "const": "docs/phase4/eval/v2-calibration/heldout/materialization/candidate-inputs.jsonl"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "allOf": [
+            {
+              "$ref": "#/$defs/artifactRecord"
+            },
+            {
+              "properties": {
+                "logical_name": {
+                  "const": "materialization_manifest"
+                },
+                "source_relative_path": {
+                  "const": "docs/phase4/eval/v2-calibration/heldout/materialization/manifest.json"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "allOf": [
+            {
+              "$ref": "#/$defs/artifactRecord"
+            },
+            {
+              "properties": {
+                "logical_name": {
+                  "const": "inference_state"
+                },
+                "source_relative_path": {
+                  "const": "docs/phase4/eval/v2-calibration/heldout/P4.2a-heldout-v2-inference.state.jsonl"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "allOf": [
+            {
+              "$ref": "#/$defs/artifactRecord"
+            },
+            {
+              "properties": {
+                "logical_name": {
+                  "const": "predictions"
+                },
+                "source_relative_path": {
+                  "const": "docs/phase4/eval/v2-calibration/heldout/P4.2a-heldout-v2.predictions.jsonl"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "allOf": [
+            {
+              "$ref": "#/$defs/artifactRecord"
+            },
+            {
+              "properties": {
+                "logical_name": {
+                  "const": "prediction_manifest"
+                },
+                "source_relative_path": {
+                  "const": "docs/phase4/eval/v2-calibration/heldout/P4.2a-heldout-v2.predictions.manifest.json"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "allOf": [
+            {
+              "$ref": "#/$defs/artifactRecord"
+            },
+            {
+              "properties": {
+                "logical_name": {
+                  "const": "private_selection"
+                },
+                "source_relative_path": {
+                  "const": "docs/phase4/eval/v2-calibration/heldout/P4.2a-heldout-frame-v2.selection.json"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "allOf": [
+            {
+              "$ref": "#/$defs/artifactRecord"
+            },
+            {
+              "properties": {
+                "logical_name": {
+                  "const": "owner_blind"
+                },
+                "source_relative_path": {
+                  "const": "docs/phase4/eval/v2-calibration/heldout/P4.2a-heldout-frame-v2.blind.jsonl"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "allOf": [
+            {
+              "$ref": "#/$defs/artifactRecord"
+            },
+            {
+              "properties": {
+                "logical_name": {
+                  "const": "ai_draft"
+                },
+                "source_relative_path": {
+                  "const": "docs/phase4/eval/v2-calibration/heldout/P4.2a-heldout-frame-v2.labels-ai-drafted.jsonl"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "allOf": [
+            {
+              "$ref": "#/$defs/artifactRecord"
+            },
+            {
+              "properties": {
+                "logical_name": {
+                  "const": "adjudication_ui"
+                },
+                "source_relative_path": {
+                  "const": "docs/phase4/eval/v2-calibration/heldout/P4.2a-heldout-frame-v2.adjudication.html"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "allOf": [
+            {
+              "$ref": "#/$defs/artifactRecord"
+            },
+            {
+              "properties": {
+                "logical_name": {
+                  "const": "owner_export"
+                },
+                "source_relative_path": {
+                  "const": "docs/phase4/eval/v2-calibration/heldout/P4.2a-heldout-frame-v2.owner-export.jsonl"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "allOf": [
+            {
+              "$ref": "#/$defs/artifactRecord"
+            },
+            {
+              "properties": {
+                "logical_name": {
+                  "const": "human_adjudicated"
+                },
+                "source_relative_path": {
+                  "const": "docs/phase4/eval/v2-calibration/heldout/P4.2a-heldout-frame-v2.human-adjudicated.jsonl"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "allOf": [
+            {
+              "$ref": "#/$defs/artifactRecord"
+            },
+            {
+              "properties": {
+                "logical_name": {
+                  "const": "owner_completion"
+                },
+                "source_relative_path": {
+                  "const": "docs/phase4/eval/v2-calibration/heldout/P4.2a-heldout-frame-v2.owner-completion.json"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "allOf": [
+            {
+              "$ref": "#/$defs/artifactRecord"
+            },
+            {
+              "properties": {
+                "logical_name": {
+                  "const": "evaluation_state"
+                },
+                "source_relative_path": {
+                  "const": "docs/phase4/eval/v2-calibration/heldout/P4.2a-heldout-v2-evaluation.state.jsonl"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "allOf": [
+            {
+              "$ref": "#/$defs/artifactRecord"
+            },
+            {
+              "properties": {
+                "logical_name": {
+                  "const": "synthetic_report"
+                },
+                "source_relative_path": {
+                  "const": "docs/phase4/eval/v2-calibration/heldout/report/P4.2a-heldout-v2-evaluation-result.json"
+                }
+              }
+            }
+          ]
+        }
+      ],
+      "items": false
+    },
+    "runArchive": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "run_label",
+        "archive_root",
+        "artifact_count",
+        "artifacts",
+        "artifact_merkle_root_sha256"
+      ],
+      "properties": {
+        "run_label": {
+          "type": "string"
+        },
+        "archive_root": {
+          "$ref": "#/$defs/relativePath"
+        },
+        "artifact_count": {
+          "const": 14
+        },
+        "artifacts": {
+          "$ref": "#/$defs/artifactList"
+        },
+        "artifact_merkle_root_sha256": {
+          "$ref": "#/$defs/sha256"
+        }
+      }
+    },
+    "controlFile": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "logical_name",
+        "bundle_relative_path",
+        "source_kind",
+        "repository_path",
+        "bytes",
+        "sha256"
+      ],
+      "properties": {
+        "logical_name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "bundle_relative_path": {
+          "$ref": "#/$defs/relativePath"
+        },
+        "source_kind": {
+          "enum": [
+            "python_source",
+            "package_initializer",
+            "frozen_control",
+            "project_manifest",
+            "lockfile",
+            "control_manifest",
+            "python_runtime",
+            "package_inventory"
+          ]
+        },
+        "repository_path": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/relativePath"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "bytes": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "sha256": {
+          "$ref": "#/$defs/sha256"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "source_kind": {
+                "enum": [
+                  "python_source",
+                  "package_initializer",
+                  "frozen_control",
+                  "project_manifest",
+                  "lockfile"
+                ]
+              }
+            },
+            "required": [
+              "source_kind"
+            ]
+          },
+          "then": {
+            "properties": {
+              "repository_path": {
+                "$ref": "#/$defs/relativePath"
+              }
+            }
+          },
+          "else": {
+            "properties": {
+              "repository_path": {
+                "type": "null"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "controlManifestRecord": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/controlFile"
+        },
+        {
+          "properties": {
+            "logical_name": {
+              "const": "control_surface_manifest"
+            },
+            "bundle_relative_path": {
+              "const": "archive/control-surface/manifest.json"
+            },
+            "source_kind": {
+              "const": "control_manifest"
+            },
+            "repository_path": {
+              "type": "null"
+            }
+          }
+        }
+      ]
+    },
+    "controlRootFile": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/controlFile"
+        },
+        {
+          "properties": {
+            "source_kind": {
+              "enum": [
+                "python_source",
+                "package_initializer",
+                "frozen_control",
+                "project_manifest",
+                "lockfile",
+                "python_runtime",
+                "package_inventory"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "lineage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "preregistration",
+        "bundle_schema",
+        "release_authorization_schema",
+        "parent_heldout_preregistration",
+        "parent_rehearsal_v2_preregistration",
+        "parent_rehearsal_v2_bundle_schema",
+        "parent_rehearsal_v2_bundle",
+        "parent_rehearsal_v2_review_request",
+        "parent_rehearsal_v2_approval",
+        "frame_authority_ruling",
+        "successor_v2_1_authorization",
+        "full_pool_cost_acceptance",
+        "same_publisher_interval_basis",
+        "v1_incident",
+        "v1_fail_close_commit",
+        "preregistration_commit",
+        "implementation_commit",
+        "design",
+        "heldout_contract",
+        "round3_prompt",
+        "round3_plus_contract",
+        "retired_v1_artifacts",
+        "v2_1_preregistration",
+        "v2_1_prediction_timing_preregistration",
+        "v2_1_frame_authority_ruling",
+        "v2_1_code_gate_authorization",
+        "v2_1_scope_correction_owner_ruling",
+        "v2_1_registry_expansion_authorization",
+        "v2_1_implementation_commit",
+        "v2_1_independent_implementation_review",
+        "v2_1_consumed_attempt_incident",
+        "v2_2_remediation_request",
+        "v2_2_preregistration_scope_authorization"
+      ],
+      "properties": {
+        "preregistration": {
+          "allOf": [
+            {
+              "$ref": "#/$defs/fileRef"
+            },
+            {
+              "properties": {
+                "path": {
+                  "const": "docs/phase4/reports/P4.2a-v2-2-series-2-preregistration-amendment-20260823.json"
+                }
+              }
+            }
+          ]
+        },
+        "bundle_schema": {
+          "allOf": [
+            {
+              "$ref": "#/$defs/fileRef"
+            },
+            {
+              "properties": {
+                "path": {
+                  "const": "config/schemas/p4_2a_v2_2_series_2_heldout_rehearsal_bundle.schema.json"
+                }
+              }
+            }
+          ]
+        },
+        "release_authorization_schema": {
+          "allOf": [
+            {
+              "$ref": "#/$defs/fileRef"
+            },
+            {
+              "properties": {
+                "path": {
+                  "const": "config/schemas/p4_2a_v2_2_series_2_heldout_release_authorization.schema.json"
+                },
+                "sha256": {
+                  "const": "c7228bff2d4ec575bcdec024194ce2b53d37a27e05ba793bd4bdf145a97f63be"
+                }
+              }
+            }
+          ]
+        },
+        "parent_heldout_preregistration": {
+          "allOf": [
+            {
+              "$ref": "#/$defs/fileRef"
+            },
+            {
+              "properties": {
+                "path": {
+                  "const": "docs/phase4/reports/P4.2a-v2-heldout-preregistration-20260810.json"
+                },
+                "sha256": {
+                  "const": "ccecbf5ca7b48b16e445318b8c94a08927432f92c7e8c12f8ab40f2916578705"
+                }
+              }
+            }
+          ]
+        },
+        "parent_rehearsal_v2_preregistration": {
+          "allOf": [
+            {
+              "$ref": "#/$defs/fileRef"
+            },
+            {
+              "properties": {
+                "path": {
+                  "const": "docs/phase4/reports/P4.2a-v2-heldout-rehearsal-v2-preregistration-20260810.json"
+                },
+                "sha256": {
+                  "const": "35b6d757876e1308d8f28ded3dc36784afb4e5d7c5c1589b8c211cc079aac7c3"
+                }
+              }
+            }
+          ]
+        },
+        "parent_rehearsal_v2_bundle_schema": {
+          "allOf": [
+            {
+              "$ref": "#/$defs/fileRef"
+            },
+            {
+              "properties": {
+                "path": {
+                  "const": "config/schemas/p4_2a_v2_heldout_rehearsal_bundle_v2.schema.json"
+                },
+                "sha256": {
+                  "const": "f5ff0516c58f2285302dab5d1a03daafd70ea887d4f323387d44c7c19623a8bc"
+                }
+              }
+            }
+          ]
+        },
+        "parent_rehearsal_v2_bundle": {
+          "allOf": [
+            {
+              "$ref": "#/$defs/fileRef"
+            },
+            {
+              "properties": {
+                "path": {
+                  "const": "docs/phase4/rehearsals/P4.2a-v2-calibration-v2/bundle.json"
+                },
+                "sha256": {
+                  "const": "0f3cbb3fe0251994da457e1a8d36a09b06ba127a8f0b584a2d924eb02e47b01f"
+                }
+              }
+            }
+          ]
+        },
+        "parent_rehearsal_v2_review_request": {
+          "allOf": [
+            {
+              "$ref": "#/$defs/fileRef"
+            },
+            {
+              "properties": {
+                "path": {
+                  "const": "docs/phase4/reports/P4.2a-v2-heldout-rehearsal-v2-implementation-and-execution-review-request-20260810.json"
+                },
+                "sha256": {
+                  "const": "c6d818eb2e67cb1b9b47f282526e93757dc6e5d6231f1abf3d1486a4e43434e1"
+                }
+              }
+            }
+          ]
+        },
+        "parent_rehearsal_v2_approval": {
+          "allOf": [
+            {
+              "$ref": "#/$defs/fileRef"
+            },
+            {
+              "properties": {
+                "path": {
+                  "const": "docs/phase4/reports/P4.2a-rehearsal-v2-approval-and-frame-authority-ruling-20260810.json"
+                },
+                "sha256": {
+                  "const": "8605dd30dd6bffa9621b6efe5e01c4c9cead615c9639259c2e79e14fcbbc3421"
+                }
+              }
+            }
+          ]
+        },
+        "frame_authority_ruling": {
+          "allOf": [
+            {
+              "$ref": "#/$defs/fileRef"
+            },
+            {
+              "properties": {
+                "path": {
+                  "const": "docs/phase4/reports/P4.2a-rehearsal-v2-approval-and-frame-authority-ruling-20260810.json"
+                },
+                "sha256": {
+                  "const": "8605dd30dd6bffa9621b6efe5e01c4c9cead615c9639259c2e79e14fcbbc3421"
+                }
+              }
+            }
+          ]
+        },
+        "successor_v2_1_authorization": {
+          "allOf": [
+            {
+              "$ref": "#/$defs/fileRef"
+            },
+            {
+              "properties": {
+                "path": {
+                  "const": "docs/phase4/reports/P4.2a-successor-v2-1-code-gate-authorization-20260810.json"
+                },
+                "sha256": {
+                  "const": "e28db692dc150983f86f6760fb1a95584d8607658e8a78a0de35cf3fc81940cd"
+                }
+              }
+            }
+          ]
+        },
+        "full_pool_cost_acceptance": {
+          "allOf": [
+            {
+              "$ref": "#/$defs/fileRef"
+            },
+            {
+              "properties": {
+                "path": {
+                  "const": "docs/phase4/reports/P4.2a-heldout-full-pool-inference-cost-acceptance-20260810.json"
+                },
+                "sha256": {
+                  "const": "7555b4e7ade255d0d947f2e9005246a490be92db71c8db1e559e616572e033e7"
+                }
+              }
+            }
+          ]
+        },
+        "same_publisher_interval_basis": {
+          "allOf": [
+            {
+              "$ref": "#/$defs/fileRef"
+            },
+            {
+              "properties": {
+                "path": {
+                  "const": "config/p4_news_poll_v2_1.yaml"
+                },
+                "sha256": {
+                  "const": "9d56e137baf10bd0858723a93aff02c57bf7b35f8705f1817b16a89ec615183f"
+                }
+              }
+            }
+          ]
+        },
+        "v1_incident": {
+          "allOf": [
+            {
+              "$ref": "#/$defs/fileRef"
+            },
+            {
+              "properties": {
+                "path": {
+                  "const": "docs/phase4/reports/P4.2a-v2-heldout-rehearsal-v1-incident-20260810.json"
+                },
+                "sha256": {
+                  "const": "c3224b288f5181131351ae711a673ce94ec603375925d0cc968cef85d103e785"
+                }
+              }
+            }
+          ]
+        },
+        "v1_fail_close_commit": {
+          "const": "d710e885b49006eedf4f70ea09cb81fe15d176a3"
+        },
+        "preregistration_commit": {
+          "$ref": "#/$defs/gitCommit"
+        },
+        "implementation_commit": {
+          "$ref": "#/$defs/gitCommit"
+        },
+        "design": {
+          "allOf": [
+            {
+              "$ref": "#/$defs/fileRef"
+            },
+            {
+              "properties": {
+                "path": {
+                  "const": "config/p4_event_evaluation_v2.yaml"
+                },
+                "sha256": {
+                  "const": "18a2428a4ec04bfea6e4f4d70692f38ea82fbaee5a223f30f2465b895b238e21"
+                }
+              }
+            }
+          ]
+        },
+        "heldout_contract": {
+          "allOf": [
+            {
+              "$ref": "#/$defs/fileRef"
+            },
+            {
+              "properties": {
+                "path": {
+                  "const": "config/p4_event_extract_eval_v2-heldout-qwen3.6-plus.yaml"
+                },
+                "sha256": {
+                  "const": "26be1765204b122908e7bd09cac857c33bd3140233df47dc3358bc590e020199"
+                }
+              }
+            }
+          ]
+        },
+        "round3_prompt": {
+          "allOf": [
+            {
+              "$ref": "#/$defs/fileRef"
+            },
+            {
+              "properties": {
+                "path": {
+                  "const": "config/prompts/p4_news_event_extract_v2-r3.txt"
+                },
+                "sha256": {
+                  "const": "0291dc882aac42878ba00c4ed3970da72f19508308cd39211467b4fd92294f44"
+                }
+              }
+            }
+          ]
+        },
+        "round3_plus_contract": {
+          "allOf": [
+            {
+              "$ref": "#/$defs/fileRef"
+            },
+            {
+              "properties": {
+                "path": {
+                  "const": "config/p4_event_extract_eval_v2-r3-qwen3.6-plus.yaml"
+                },
+                "sha256": {
+                  "const": "fa75a6cf33065745d02f74fe39e4f102723da43f37ac549058bb34fa8256a181"
+                }
+              }
+            }
+          ]
+        },
+        "retired_v1_artifacts": {
+          "type": "array",
+          "minItems": 4,
+          "maxItems": 4,
+          "prefixItems": [
+            {
+              "allOf": [
+                {
+                  "$ref": "#/$defs/fileRef"
+                },
+                {
+                  "properties": {
+                    "path": {
+                      "const": "docs/phase4/rehearsals/P4.2a-v2-calibration/contract.json"
+                    },
+                    "sha256": {
+                      "const": "61ff631b0dc025bf7441fd3bd04636d0d6d34e5085b0ca570e6f8e2fcfd298ac"
+                    }
+                  }
+                }
+              ]
+            },
+            {
+              "allOf": [
+                {
+                  "$ref": "#/$defs/fileRef"
+                },
+                {
+                  "properties": {
+                    "path": {
+                      "const": "docs/phase4/rehearsals/P4.2a-v2-calibration/inputs.jsonl"
+                    },
+                    "sha256": {
+                      "const": "a6c5e6e0da6341cecf01df038b36964af6d8bb433b72babf953b385addc87707"
+                    }
+                  }
+                }
+              ]
+            },
+            {
+              "allOf": [
+                {
+                  "$ref": "#/$defs/fileRef"
+                },
+                {
+                  "properties": {
+                    "path": {
+                      "const": "docs/phase4/rehearsals/P4.2a-v2-calibration/expected.json"
+                    },
+                    "sha256": {
+                      "const": "557433d6ebdd6e3585aad18c6204e28c1cae6417ab3b1b3591474c5f0189b9ac"
+                    }
+                  }
+                }
+              ]
+            },
+            {
+              "allOf": [
+                {
+                  "$ref": "#/$defs/fileRef"
+                },
+                {
+                  "properties": {
+                    "path": {
+                      "const": "docs/phase4/rehearsals/P4.2a-v2-calibration/pass-receipt.json"
+                    },
+                    "sha256": {
+                      "const": "2610a8b3885426e44a7f32c1d964defcaa46a118bb531a2ecc9b0f3aefa1e0f5"
+                    }
+                  }
+                }
+              ]
+            }
+          ],
+          "items": false
+        },
+        "v2_1_preregistration": {
+          "allOf": [
+            {
+              "$ref": "#/$defs/authorityRef"
+            },
+            {
+              "properties": {
+                "path": {
+                  "const": "docs/phase4/reports/P4.2a-v2-heldout-rehearsal-v2-1-preregistration-20260810.json"
+                },
+                "sha256": {
+                  "const": "c303cfb13a42ecbb7e0acaec04de12a9e9169b89cf9e93ea79d0f120d1439d3e"
+                },
+                "creating_commit": {
+                  "const": "b302d5889f01296568340bcc15041cc554ceb2c7"
+                },
+                "unique_a_history_verified": {
+                  "const": true
+                }
+              }
+            }
+          ]
+        },
+        "v2_1_prediction_timing_preregistration": {
+          "allOf": [
+            {
+              "$ref": "#/$defs/authorityRef"
+            },
+            {
+              "properties": {
+                "path": {
+                  "const": "docs/phase4/reports/P4.2a-v2-heldout-rehearsal-v2-1-prediction-timing-seam-preregistration-20260810.json"
+                },
+                "sha256": {
+                  "const": "1052c7a33268572fc794517844dae4b6c1ea504121712ad2f55ec814a7446f9a"
+                },
+                "creating_commit": {
+                  "const": "b3c2d2216c1feffd9949f181fa6766f8357ff683"
+                },
+                "unique_a_history_verified": {
+                  "const": true
+                }
+              }
+            }
+          ]
+        },
+        "v2_1_frame_authority_ruling": {
+          "allOf": [
+            {
+              "$ref": "#/$defs/authorityRef"
+            },
+            {
+              "properties": {
+                "path": {
+                  "const": "docs/phase4/reports/P4.2a-rehearsal-v2-approval-and-frame-authority-ruling-20260810.json"
+                },
+                "sha256": {
+                  "const": "8605dd30dd6bffa9621b6efe5e01c4c9cead615c9639259c2e79e14fcbbc3421"
+                },
+                "creating_commit": {
+                  "const": "da374342781d6fde2f2c6d87d23582050bc8edaa"
+                },
+                "unique_a_history_verified": {
+                  "const": true
+                }
+              }
+            }
+          ]
+        },
+        "v2_1_code_gate_authorization": {
+          "allOf": [
+            {
+              "$ref": "#/$defs/authorityRef"
+            },
+            {
+              "properties": {
+                "path": {
+                  "const": "docs/phase4/reports/P4.2a-successor-v2-1-code-gate-authorization-20260810.json"
+                },
+                "sha256": {
+                  "const": "e28db692dc150983f86f6760fb1a95584d8607658e8a78a0de35cf3fc81940cd"
+                },
+                "creating_commit": {
+                  "const": "aa082578aa48296f1dd394a380775a5a4546ca65"
+                },
+                "unique_a_history_verified": {
+                  "const": true
+                }
+              }
+            }
+          ]
+        },
+        "v2_1_scope_correction_owner_ruling": {
+          "allOf": [
+            {
+              "$ref": "#/$defs/authorityRef"
+            },
+            {
+              "properties": {
+                "path": {
+                  "const": "docs/phase4/reports/P4.2a-v2-heldout-rehearsal-v2-1-scope-correction-owner-ruling-20260810.json"
+                },
+                "sha256": {
+                  "const": "36a3baea9ce5e4c28c7e6aff9e77c09691024a870513f49f2094b07963f3582e"
+                },
+                "creating_commit": {
+                  "const": "88690ef488925f9de922569f961ec4ff1a23bb78"
+                },
+                "unique_a_history_verified": {
+                  "const": true
+                }
+              }
+            }
+          ]
+        },
+        "v2_1_registry_expansion_authorization": {
+          "allOf": [
+            {
+              "$ref": "#/$defs/authorityRef"
+            },
+            {
+              "properties": {
+                "path": {
+                  "const": "docs/phase4/reports/P4.2a-v2-1-control-plane-registry-expansion-authorization-20260811.json"
+                },
+                "sha256": {
+                  "const": "ab85a0ddd90728c7d41051e640b59f7dc777f2f2aec3c8290286206979251796"
+                },
+                "creating_commit": {
+                  "const": "d37040be87644977ddaad60b2590ac2e62b2aeed"
+                },
+                "unique_a_history_verified": {
+                  "const": true
+                }
+              }
+            }
+          ]
+        },
+        "v2_1_implementation_commit": {
+          "const": "4fce89e89fe2dba656694a7cffdc0ee1af0305c0"
+        },
+        "v2_1_independent_implementation_review": {
+          "allOf": [
+            {
+              "$ref": "#/$defs/authorityRef"
+            },
+            {
+              "properties": {
+                "path": {
+                  "const": "docs/phase4/reports/P4.2a-v2-1-implementation-independent-review-20260811.json"
+                },
+                "sha256": {
+                  "const": "d144f77d4e7a2946f00e618fb768960b0abdd6e40caf5831f4f198700762d276"
+                },
+                "creating_commit": {
+                  "const": "ed59a0ce6057145068b7c87fc681dd0aeea47270"
+                },
+                "unique_a_history_verified": {
+                  "const": true
+                }
+              }
+            }
+          ]
+        },
+        "v2_1_consumed_attempt_incident": {
+          "allOf": [
+            {
+              "$ref": "#/$defs/authorityRef"
+            },
+            {
+              "properties": {
+                "path": {
+                  "const": "docs/phase4/reports/P4.2a-v2-heldout-rehearsal-v2-1-one-shot-consumed-incident-20260811.json"
+                },
+                "sha256": {
+                  "const": "d658336f61cdca0239584b696043fe4abc5ede1ef7aff76a4fe514b7b5d0735c"
+                },
+                "creating_commit": {
+                  "const": "7a6e8be39f9a0702bf8fb4a22c669dc7331b0d95"
+                },
+                "unique_a_history_verified": {
+                  "const": true
+                }
+              }
+            }
+          ]
+        },
+        "v2_2_remediation_request": {
+          "allOf": [
+            {
+              "$ref": "#/$defs/authorityRef"
+            },
+            {
+              "properties": {
+                "path": {
+                  "const": "docs/phase4/reports/P4.2a-v2-heldout-rehearsal-v2-1-failure-remediation-review-request-20260811.json"
+                },
+                "sha256": {
+                  "const": "820ed6c62a2e04a051d530bee7c33f5cfff21fd3fee25afd7587e18a407ce29f"
+                },
+                "creating_commit": {
+                  "const": "530f2dc9f89360ad7c12776d85c3bf369f209214"
+                },
+                "unique_a_history_verified": {
+                  "const": true
+                }
+              }
+            }
+          ]
+        },
+        "v2_2_preregistration_scope_authorization": {
+          "allOf": [
+            {
+              "$ref": "#/$defs/authorityRef"
+            },
+            {
+              "properties": {
+                "path": {
+                  "const": "docs/phase4/reports/P4.2a-v2-2-preregistration-scope-authorization-20260811.json"
+                },
+                "sha256": {
+                  "const": "7cef82e5e4b2fcce349cbc25672705ea75795b0b07865970c415945747aa3296"
+                },
+                "creating_commit": {
+                  "const": "5fe756401f20e67ff5c868bf29f099c1bfe5b4d3"
+                },
+                "unique_a_history_verified": {
+                  "const": true
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    "publication": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "directory",
+        "bundle_manifest",
+        "atomic_create_only",
+        "directory_absent_before_execution",
+        "staged_outside_repository",
+        "published_by_single_atomic_rename",
+        "symlink_count",
+        "unexpected_entry_count"
+      ],
+      "properties": {
+        "directory": {
+          "const": "docs/phase4/rehearsals/P4.2a-v2-calibration-v2-2"
+        },
+        "bundle_manifest": {
+          "const": "bundle.json"
+        },
+        "atomic_create_only": {
+          "const": true
+        },
+        "directory_absent_before_execution": {
+          "const": true
+        },
+        "staged_outside_repository": {
+          "const": true
+        },
+        "published_by_single_atomic_rename": {
+          "const": true
+        },
+        "symlink_count": {
+          "const": 0
+        },
+        "unexpected_entry_count": {
+          "const": 0
+        }
+      }
+    },
+    "determinism": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "run_labels",
+        "distinct_temp_roots",
+        "artifact_count_per_run",
+        "byte_identical_artifact_count",
+        "mismatch_count",
+        "normalization_used",
+        "wall_clock",
+        "monotonic_clock",
+        "uuid_policy",
+        "temp_root_leak_count"
+      ],
+      "properties": {
+        "run_labels": {
+          "const": [
+            "run-a",
+            "run-b"
+          ]
+        },
+        "distinct_temp_roots": {
+          "const": true
+        },
+        "artifact_count_per_run": {
+          "const": 14
+        },
+        "byte_identical_artifact_count": {
+          "const": 14
+        },
+        "mismatch_count": {
+          "const": 0
+        },
+        "normalization_used": {
+          "const": false
+        },
+        "wall_clock": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "policy",
+            "value_utc"
+          ],
+          "properties": {
+            "policy": {
+              "const": "every_injected_wall_clock_read_returns_the_same_value"
+            },
+            "value_utc": {
+              "const": "2026-08-10T12:30:00Z"
+            }
+          }
+        },
+        "monotonic_clock": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "policy",
+            "initial_seconds",
+            "reset_for_each_run"
+          ],
+          "properties": {
+            "policy": {
+              "const": "deterministic_clock_advanced_only_by_registered_sleeper"
+            },
+            "initial_seconds": {
+              "const": 1000.0
+            },
+            "reset_for_each_run": {
+              "const": true
+            }
+          }
+        },
+        "uuid_policy": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "algorithm",
+            "namespace",
+            "uuid4_forbidden"
+          ],
+          "properties": {
+            "algorithm": {
+              "const": "uuid5_sha1_rfc4122"
+            },
+            "namespace": {
+              "const": "4a8a9839-d0a6-509a-b193-ddf4b5700780"
+            },
+            "uuid4_forbidden": {
+              "const": true
+            }
+          }
+        },
+        "temp_root_leak_count": {
+          "const": 0
+        }
+      }
+    },
+    "realEntryGateValidation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "single_registered_entrypoint",
+        "real_context_requires_release_receipt",
+        "registered_real_release_receipt_used_during_rehearsal",
+        "synthetic_successor_release_receipt_positive_probe_passed",
+        "synthetic_receipt_schema_validation_passed",
+        "synthetic_receipt_git_create_only_history_positive_probe_passed",
+        "synthetic_receipt_modified_after_creation_negative_probe_passed",
+        "synthetic_receipt_validator_is_canonical_validator",
+        "synthetic_receipt_cannot_unlock_canonical_real_execution",
+        "offline_capability_private_identity",
+        "offline_capability_non_serializable",
+        "offline_root_is_distinct_temporary_root",
+        "offline_database_is_inside_temporary_root",
+        "offline_fetcher_is_stub",
+        "canonical_project_root_rejects_offline_capability",
+        "missing_release_receipt_rejected_before_database_or_artifact_write",
+        "offline_manifest_execution_authority_nonrecursive_binding_passed",
+        "synthetic_real_manifest_execution_authority_shape_positive_probe_passed",
+        "seal_and_ui_direct_release_gate_probes_passed",
+        "canonical_finalize_real_context_rejection_probe_passed",
+        "operator_timing_attestation_explicit_input_negative_probes_passed",
+        "retired_v1_rejected",
+        "wrapper_monkeypatch_or_alternate_entry_used",
+        "thin_main_shim_has_no_authority_state",
+        "single_package_authority_module",
+        "validator_imports_package_implementation_not_shim",
+        "main_and_validator_share_module_object_identity",
+        "exact_os_main_package_validator_nested_path_passed",
+        "implementation_direct_execution_rejected",
+        "second_authority_module_rejected",
+        "delegation_identity_root_creator_owner_lifetime_bound",
+        "external_temp_authority_creation_rejected"
+      ],
+      "properties": {
+        "single_registered_entrypoint": {
+          "const": "scripts/prepare_p4_2a_v2_heldout.py::run_materialize"
+        },
+        "real_context_requires_release_receipt": {
+          "const": true
+        },
+        "registered_real_release_receipt_used_during_rehearsal": {
+          "const": false
+        },
+        "synthetic_successor_release_receipt_positive_probe_passed": {
+          "const": true
+        },
+        "synthetic_receipt_schema_validation_passed": {
+          "const": true
+        },
+        "synthetic_receipt_git_create_only_history_positive_probe_passed": {
+          "const": true
+        },
+        "synthetic_receipt_modified_after_creation_negative_probe_passed": {
+          "const": true
+        },
+        "synthetic_receipt_validator_is_canonical_validator": {
+          "const": true
+        },
+        "synthetic_receipt_cannot_unlock_canonical_real_execution": {
+          "const": true
+        },
+        "offline_capability_private_identity": {
+          "const": true
+        },
+        "offline_capability_non_serializable": {
+          "const": true
+        },
+        "offline_root_is_distinct_temporary_root": {
+          "const": true
+        },
+        "offline_database_is_inside_temporary_root": {
+          "const": true
+        },
+        "offline_fetcher_is_stub": {
+          "const": true
+        },
+        "canonical_project_root_rejects_offline_capability": {
+          "const": true
+        },
+        "missing_release_receipt_rejected_before_database_or_artifact_write": {
+          "const": true
+        },
+        "offline_manifest_execution_authority_nonrecursive_binding_passed": {
+          "const": true
+        },
+        "synthetic_real_manifest_execution_authority_shape_positive_probe_passed": {
+          "const": true
+        },
+        "seal_and_ui_direct_release_gate_probes_passed": {
+          "const": true
+        },
+        "canonical_finalize_real_context_rejection_probe_passed": {
+          "const": true
+        },
+        "operator_timing_attestation_explicit_input_negative_probes_passed": {
+          "const": true
+        },
+        "retired_v1_rejected": {
+          "const": true
+        },
+        "wrapper_monkeypatch_or_alternate_entry_used": {
+          "const": false
+        },
+        "thin_main_shim_has_no_authority_state": {
+          "const": true
+        },
+        "single_package_authority_module": {
+          "const": true
+        },
+        "validator_imports_package_implementation_not_shim": {
+          "const": true
+        },
+        "main_and_validator_share_module_object_identity": {
+          "const": true
+        },
+        "exact_os_main_package_validator_nested_path_passed": {
+          "const": true
+        },
+        "implementation_direct_execution_rejected": {
+          "const": true
+        },
+        "second_authority_module_rejected": {
+          "const": true
+        },
+        "delegation_identity_root_creator_owner_lifetime_bound": {
+          "const": true
+        },
+        "external_temp_authority_creation_rejected": {
+          "const": true
+        }
+      }
+    },
+    "requestIntervalValidation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "cninfo_pdf",
+        "akshare_ths",
+        "sina_company_news",
+        "delay_probe",
+        "candidate_document_handling_probes"
+      ],
+      "properties": {
+        "cninfo_pdf": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "host",
+            "policy",
+            "min_start_to_start_seconds",
+            "clock",
+            "first_request_delay",
+            "retries",
+            "synthetic_fixture_request_start_count",
+            "synthetic_fixture_observed_gap_count",
+            "minimum_observed_gap_seconds",
+            "median_observed_gap_seconds",
+            "violation_count"
+          ],
+          "properties": {
+            "host": {
+              "const": "static.cninfo.com.cn"
+            },
+            "policy": {
+              "const": "minimum_start_to_start"
+            },
+            "min_start_to_start_seconds": {
+              "const": 1.0
+            },
+            "clock": {
+              "const": "monotonic"
+            },
+            "first_request_delay": {
+              "const": false
+            },
+            "retries": {
+              "const": 0
+            },
+            "synthetic_fixture_request_start_count": {
+              "const": 2824
+            },
+            "synthetic_fixture_observed_gap_count": {
+              "const": 2823
+            },
+            "minimum_observed_gap_seconds": {
+              "const": 1.0
+            },
+            "median_observed_gap_seconds": {
+              "const": 1.0
+            },
+            "violation_count": {
+              "const": 0
+            }
+          }
+        },
+        "akshare_ths": {
+          "const": "not_applicable_no_external_document_fetch"
+        },
+        "sina_company_news": {
+          "const": "not_applicable_no_external_document_fetch"
+        },
+        "delay_probe": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "result",
+            "first_fetch_count",
+            "second_fetch_started",
+            "failure_reason"
+          ],
+          "properties": {
+            "result": {
+              "const": "PASS_NOOP_SLEEPER_REJECTED_BEFORE_SECOND_FETCH"
+            },
+            "first_fetch_count": {
+              "const": 1
+            },
+            "second_fetch_started": {
+              "const": false
+            },
+            "failure_reason": {
+              "const": "monotonic_clock_did_not_advance_after_sleep"
+            }
+          }
+        },
+        "candidate_document_handling_probes": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "deterministic_ineligible_reasons",
+            "deterministic_ineligible_result",
+            "unexpected_failure_result",
+            "unknown_ineligible_reason_result"
+          ],
+          "properties": {
+            "deterministic_ineligible_reasons": {
+              "const": [
+                "pdf_text_below_min_char_gate",
+                "pdf_exceeds_size_bound"
+              ]
+            },
+            "deterministic_ineligible_result": {
+              "const": "PASS_RECORDED_EXCLUDED_CONTINUED_ZERO_RETRY_ZERO_RETURN_TO_POOL"
+            },
+            "unexpected_failure_result": {
+              "const": "PASS_ABORTED_ENTIRE_MATERIALIZATION_ZERO_RETRY_ZERO_PARTIAL_PUBLISH"
+            },
+            "unknown_ineligible_reason_result": {
+              "const": "PASS_FAIL_CLOSED_ZERO_RETRY_ZERO_PARTIAL_PUBLISH"
+            }
+          }
+        }
+      }
+    },
+    "archive": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "runs",
+        "control_surface",
+        "attempt_history"
+      ],
+      "properties": {
+        "runs": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 2,
+          "prefixItems": [
+            {
+              "allOf": [
+                {
+                  "$ref": "#/$defs/runArchive"
+                },
+                {
+                  "properties": {
+                    "run_label": {
+                      "const": "run-a"
+                    },
+                    "archive_root": {
+                      "const": "archive/run-a/root"
+                    }
+                  }
+                }
+              ]
+            },
+            {
+              "allOf": [
+                {
+                  "$ref": "#/$defs/runArchive"
+                },
+                {
+                  "properties": {
+                    "run_label": {
+                      "const": "run-b"
+                    },
+                    "archive_root": {
+                      "const": "archive/run-b/root"
+                    }
+                  }
+                }
+              ]
+            }
+          ],
+          "items": false
+        },
+        "control_surface": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "archive_root",
+            "manifest",
+            "file_count",
+            "tree_member_count",
+            "tree_member_count_rule",
+            "manifest_included_in_merkle",
+            "files",
+            "merkle_root_sha256",
+            "referenced_pass_test_count",
+            "referenced_pass_test_paths",
+            "all_referenced_pass_tests_archived"
+          ],
+          "properties": {
+            "archive_root": {
+              "const": "archive/control-surface/root"
+            },
+            "manifest": {
+              "$ref": "#/$defs/controlManifestRecord"
+            },
+            "file_count": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "tree_member_count": {
+              "type": "integer",
+              "minimum": 2
+            },
+            "tree_member_count_rule": {
+              "const": "tree_member_count == file_count + 1"
+            },
+            "manifest_included_in_merkle": {
+              "const": true
+            },
+            "files": {
+              "type": "array",
+              "minItems": 1,
+              "uniqueItems": true,
+              "items": {
+                "$ref": "#/$defs/controlRootFile"
+              }
+            },
+            "merkle_root_sha256": {
+              "$ref": "#/$defs/sha256"
+            },
+            "referenced_pass_test_count": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "referenced_pass_test_paths": {
+              "type": "array",
+              "minItems": 1,
+              "uniqueItems": true,
+              "items": {
+                "$ref": "#/$defs/relativePath"
+              }
+            },
+            "all_referenced_pass_tests_archived": {
+              "const": true
+            }
+          }
+        },
+        "attempt_history": {
+          "$ref": "#/$defs/attemptHistoryArchive"
+        }
+      }
+    },
+    "executionEnvironment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "pyproject",
+        "uv_lock",
+        "python",
+        "packages"
+      ],
+      "properties": {
+        "pyproject": {
+          "allOf": [
+            {
+              "$ref": "#/$defs/fileRef"
+            },
+            {
+              "properties": {
+                "path": {
+                  "const": "pyproject.toml"
+                },
+                "sha256": {
+                  "const": "b38481e57b0ba88d1b9b728c2a57583d55cf175262a8a803b483cf4823e13e29"
+                }
+              }
+            }
+          ]
+        },
+        "uv_lock": {
+          "allOf": [
+            {
+              "$ref": "#/$defs/fileRef"
+            },
+            {
+              "properties": {
+                "path": {
+                  "const": "uv.lock"
+                },
+                "sha256": {
+                  "const": "10829f7ef74adfcbd4401000112b5539c899a899d09d8a3f78fdf8d95803a673"
+                }
+              }
+            }
+          ]
+        },
+        "python": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "implementation",
+            "version",
+            "cache_tag",
+            "abi_flags",
+            "inventory_path",
+            "inventory_sha256"
+          ],
+          "properties": {
+            "implementation": {
+              "const": "CPython"
+            },
+            "version": {
+              "const": "3.12.0"
+            },
+            "cache_tag": {
+              "const": "cpython-312"
+            },
+            "abi_flags": {
+              "const": ""
+            },
+            "inventory_path": {
+              "const": "archive/control-surface/root/runtime/python.json"
+            },
+            "inventory_sha256": {
+              "const": "ab3e067417027bb98ea4335e9086d2046ac9dfd4eaf857acc8622dc8f0a13a31"
+            }
+          }
+        },
+        "packages": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "source_call",
+            "path_scope",
+            "sysconfig_path_keys",
+            "absolute_path_roots_policy",
+            "selected_path_roots_project_relative",
+            "selected_path_roots_sha256",
+            "editable_repository_metadata_excluded",
+            "excluded_repository_metadata_path",
+            "canonicalization",
+            "inventory_path",
+            "raw_distribution_count",
+            "count",
+            "duplicate_normalized_name_count",
+            "duplicate_normalized_name_policy",
+            "duplicate_metadata_negative_probe",
+            "sha256"
+          ],
+          "properties": {
+            "source_call": {
+              "const": "importlib.metadata.distributions(path=derived_absolute_selected_path_roots)"
+            },
+            "path_scope": {
+              "const": "deduplicated_resolved_sysconfig_purelib_and_platlib_only_no_sys_path_fallback"
+            },
+            "sysconfig_path_keys": {
+              "const": [
+                "purelib",
+                "platlib"
+              ]
+            },
+            "absolute_path_roots_policy": {
+              "const": "derived_at_validation_time_not_persisted"
+            },
+            "selected_path_roots_project_relative": {
+              "const": [
+                ".venv/lib/python3.12/site-packages"
+              ]
+            },
+            "selected_path_roots_sha256": {
+              "const": "fae235892c0988d4093d1ad12b034a6126d116e436393e837a8b2f71601fbd12"
+            },
+            "editable_repository_metadata_excluded": {
+              "const": true
+            },
+            "excluded_repository_metadata_path": {
+              "const": "src/alphapilot_ai.egg-info"
+            },
+            "canonicalization": {
+              "const": "sorted_unique_pep503_normalized_name_and_importlib_metadata_version_as_canonical_json_array_newline"
+            },
+            "inventory_path": {
+              "const": "archive/control-surface/root/runtime/packages.json"
+            },
+            "raw_distribution_count": {
+              "const": 84
+            },
+            "count": {
+              "const": 84
+            },
+            "duplicate_normalized_name_count": {
+              "const": 0
+            },
+            "duplicate_normalized_name_policy": {
+              "const": "fail_closed_before_inventory_hash_acceptance"
+            },
+            "duplicate_metadata_negative_probe": {
+              "const": "PASS_INJECTED_SECOND_SAME_NORMALIZED_NAME_REJECTED"
+            },
+            "sha256": {
+              "const": "c3c7792eb31679c0eb7d3140e067d691df330cd3af302d2350bf15b74ac8ec42"
+            }
+          }
+        }
+      }
+    },
+    "merkle": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "hash",
+        "domain",
+        "path_encoding",
+        "sort_order",
+        "leaf_formula",
+        "control_tree_path_basis",
+        "control_manifest_leaf_relative_path",
+        "control_manifest_leaf_formula",
+        "node_formula",
+        "attempt_token_formula",
+        "attempt_history_empty_root_formula",
+        "attempt_record_formula",
+        "attempt_history_step_formula",
+        "live_ledger_leaf_formula",
+        "attempt_evidence_empty_root_formula",
+        "attempt_evidence_leaf_formula",
+        "attempt_evidence_node_formula",
+        "run_control_archive_odd_leaf_policy",
+        "run_control_archive_empty_tree_policy",
+        "live_ledger_odd_leaf_policy",
+        "live_ledger_empty_tree_policy",
+        "attempt_evidence_relative_path_basis",
+        "attempt_evidence_path_normalization",
+        "attempt_evidence_odd_leaf_policy",
+        "attempt_evidence_empty_tree_policy",
+        "run_a_root_sha256",
+        "run_b_root_sha256",
+        "control_surface_root_sha256",
+        "bundle_root_formula",
+        "bundle_root_sha256",
+        "bundle_manifest_is_not_a_member_of_any_merkle_tree",
+        "attempt_history_root_sha256",
+        "live_ledger_root_sha256"
+      ],
+      "properties": {
+        "hash": {
+          "const": "sha256"
+        },
+        "domain": {
+          "const": "p4.2a-rehearsal-v2.2"
+        },
+        "path_encoding": {
+          "const": "utf-8-posix-relative"
+        },
+        "sort_order": {
+          "const": "ascending_unsigned_utf8_path_bytes"
+        },
+        "leaf_formula": {
+          "const": "SHA256(utf8('p4.2a-rehearsal-leaf-v2.2\\0') || utf8(relative_path) || NUL || SHA256(file_bytes).digest())"
+        },
+        "control_tree_path_basis": {
+          "const": "bundle_relative_paths_for_manifest_and_every_control_root_file"
+        },
+        "control_manifest_leaf_relative_path": {
+          "const": "archive/control-surface/manifest.json"
+        },
+        "control_manifest_leaf_formula": {
+          "const": "SHA256(utf8('p4.2a-rehearsal-leaf-v2.2\\0') || utf8('archive/control-surface/manifest.json') || NUL || SHA256(control_manifest_bytes).digest())"
+        },
+        "node_formula": {
+          "const": "SHA256(utf8('p4.2a-rehearsal-node-v2.2\\0') || left_digest_32_bytes || right_digest_32_bytes)"
+        },
+        "attempt_token_formula": {
+          "const": "SHA256(utf8('p4.2a-rehearsal-v2.2-attempt-v1\\0') || series_token_digest_32_bytes || ordinal_u64be || implementation_commit_digest_20_bytes || previous_history_root_digest_32_bytes)"
+        },
+        "attempt_history_empty_root_formula": {
+          "const": "SHA256(utf8('p4.2a-rehearsal-v2.2-history-empty-v1\\0'))"
+        },
+        "attempt_record_formula": {
+          "const": "SHA256(utf8('p4.2a-rehearsal-v2.2-attempt-record-v1\\0') || ordinal_u64be || attempt_token_digest_32_bytes || started_sha256_digest_32_bytes || candidate_sha256_digest_or_zero32 || terminal_sha256_digest_or_zero32 || evidence_tree_root_digest_32_bytes)"
+        },
+        "attempt_history_step_formula": {
+          "const": "SHA256(utf8('p4.2a-rehearsal-v2.2-history-step-v1\\0') || previous_history_root_digest_32_bytes || attempt_record_root_digest_32_bytes)"
+        },
+        "live_ledger_leaf_formula": {
+          "const": "SHA256(utf8('p4.2a-rehearsal-v2.2-ledger-leaf-v1\\0') || utf8(ledger_relative_path) || NUL || SHA256(file_bytes).digest())"
+        },
+        "run_control_archive_odd_leaf_policy": {
+          "const": "duplicate_last_digest_at_each_level"
+        },
+        "run_control_archive_empty_tree_policy": {
+          "const": "forbidden"
+        },
+        "live_ledger_odd_leaf_policy": {
+          "const": "duplicate_last_digest_at_each_level"
+        },
+        "live_ledger_empty_tree_policy": {
+          "const": "forbidden"
+        },
+        "run_a_root_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "run_b_root_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "control_surface_root_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "bundle_root_formula": {
+          "const": "SHA256(utf8('p4.2a-rehearsal-bundle-v2.2\\0') || attempt_history_root_digest_32_bytes || run_a_root_digest_32_bytes || run_b_root_digest_32_bytes || control_surface_root_digest_32_bytes)"
+        },
+        "bundle_root_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "bundle_manifest_is_not_a_member_of_any_merkle_tree": {
+          "const": true
+        },
+        "attempt_history_root_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "live_ledger_root_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "attempt_evidence_empty_root_formula": {
+          "const": "SHA256(utf8('p4.2a-rehearsal-v2.2-evidence-empty-v1\\0'))"
+        },
+        "attempt_evidence_leaf_formula": {
+          "const": "SHA256(utf8('p4.2a-rehearsal-v2.2-evidence-leaf-v1\\0') || utf8(evidence_relative_path) || NUL || SHA256(file_bytes).digest())"
+        },
+        "attempt_evidence_node_formula": {
+          "const": "SHA256(utf8('p4.2a-rehearsal-v2.2-evidence-node-v1\\0') || left_digest_32_bytes || right_digest_32_bytes)"
+        },
+        "attempt_evidence_relative_path_basis": {
+          "const": "POSIX path relative to attempts/%06d/evidence with that root prefix excluded"
+        },
+        "attempt_evidence_path_normalization": {
+          "const": "nonempty ASCII matching ^[A-Za-z0-9._/-]+$ with forward slashes; no leading slash empty dot dot-dot trailing slash backslash or NUL; resolved path remains beneath exact attempt evidence root"
+        },
+        "attempt_evidence_odd_leaf_policy": {
+          "const": "duplicate_last_digest_at_each_level"
+        },
+        "attempt_evidence_empty_tree_policy": {
+          "const": "use_attempt_evidence_empty_root_formula"
+        }
+      }
+    },
+    "semanticValidation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "json_schema_valid",
+        "lineage_rehash_passed",
+        "retired_v1_immutability_passed",
+        "implementation_commit_object_exists",
+        "implementation_commit_descends_from_preregistration",
+        "implementation_commit_descends_from_v1_fail_close",
+        "implementation_commit_tree_binding_passed",
+        "full_archive_rehash_passed",
+        "control_manifest_rehash_passed",
+        "artifact_semantics_passed",
+        "run_artifact_bytes_equal",
+        "ast_local_import_closure_complete",
+        "package_initializers_complete",
+        "control_surface_exact_set_match",
+        "environment_binding_passed",
+        "package_inventory_path_scope_binding_passed",
+        "package_duplicate_metadata_negative_probe_passed",
+        "merkle_roots_recomputed",
+        "real_run_materialize_path_covered",
+        "materialization_manifest_v2_evidence_recomputed",
+        "rate_limiter_delay_probe_passed",
+        "synthetic_release_receipt_positive_probe_passed",
+        "release_receipt_create_only_git_history_probes_passed",
+        "materialization_execution_authority_mode_branches_recomputed",
+        "deterministic_ineligible_zero_retry_continuation_probe_passed",
+        "unexpected_fetch_or_extract_failure_zero_retry_abort_probe_passed",
+        "seal_and_ui_release_gate_probes_passed",
+        "canonical_finalize_real_context_rejection_probe_passed",
+        "operator_timing_attestation_explicit_input_negative_probes_passed",
+        "authority_gate_negative_probes_passed",
+        "runtime_start_gate_negative_probes_passed",
+        "full_downstream_path_replayed",
+        "no_v1_fallback",
+        "old_v2_accepted_for_current_source",
+        "v1_receipt_or_gate_accepted",
+        "independent_gate_result",
+        "disclosed_repeatable_series_policy_validated",
+        "every_attempt_started_before_pipeline",
+        "every_attempt_action_time_owner_authorized",
+        "automatic_retry_count_zero_for_every_attempt",
+        "complete_attempt_history_rehashed",
+        "attempt_ordinals_contiguous_without_gap_duplicate_or_reorder",
+        "failed_and_incomplete_attempts_fully_disclosed",
+        "first_validated_success_selected_and_series_closed",
+        "candidate_receipt_closes_series_before_bundle_publication",
+        "no_attempt_after_selected_success",
+        "every_implementation_epoch_owner_authorized_and_independently_reviewed",
+        "live_ledger_matches_archived_attempt_history",
+        "thin_main_shim_single_package_module_identity_validated",
+        "v2_1_contract_inheritance_json_pointer_zero_diff",
+        "every_referenced_pass_test_archived_and_merkle_bound",
+        "heldout_evaluation_one_shot_unchanged_and_unconsumed",
+        "execution_binding_derivation_recomputed",
+        "disposable_test_rebase_private_capability_validated",
+        "every_actual_attempt_evidence_byte_persisted_and_archived",
+        "empty_attempt_evidence_root_recomputed",
+        "attempt_outcome_discriminator_validated",
+        "action_authorization_source_and_archive_bytes_equal",
+        "series_json_execution_binding_cross_equality_passed",
+        "live_record_exact_schema_and_archive_identity_passed",
+        "attempt_evidence_path_basis_and_odd_policy_recomputed",
+        "synthetic_v2_2_evidence_acceptance_receipt_same_validator_positive_probe_passed",
+        "official_execution_binding_registered_paths_rehashed_as_expected"
+      ],
+      "properties": {
+        "json_schema_valid": {
+          "const": true
+        },
+        "lineage_rehash_passed": {
+          "const": true
+        },
+        "retired_v1_immutability_passed": {
+          "const": true
+        },
+        "implementation_commit_object_exists": {
+          "const": true
+        },
+        "implementation_commit_descends_from_preregistration": {
+          "const": true
+        },
+        "implementation_commit_descends_from_v1_fail_close": {
+          "const": true
+        },
+        "implementation_commit_tree_binding_passed": {
+          "const": true
+        },
+        "full_archive_rehash_passed": {
+          "const": true
+        },
+        "control_manifest_rehash_passed": {
+          "const": true
+        },
+        "artifact_semantics_passed": {
+          "const": true
+        },
+        "run_artifact_bytes_equal": {
+          "const": true
+        },
+        "ast_local_import_closure_complete": {
+          "const": true
+        },
+        "package_initializers_complete": {
+          "const": true
+        },
+        "control_surface_exact_set_match": {
+          "const": true
+        },
+        "environment_binding_passed": {
+          "const": true
+        },
+        "package_inventory_path_scope_binding_passed": {
+          "const": true
+        },
+        "package_duplicate_metadata_negative_probe_passed": {
+          "const": true
+        },
+        "merkle_roots_recomputed": {
+          "const": true
+        },
+        "real_run_materialize_path_covered": {
+          "const": true
+        },
+        "materialization_manifest_v2_evidence_recomputed": {
+          "const": true
+        },
+        "rate_limiter_delay_probe_passed": {
+          "const": true
+        },
+        "synthetic_release_receipt_positive_probe_passed": {
+          "const": true
+        },
+        "release_receipt_create_only_git_history_probes_passed": {
+          "const": true
+        },
+        "materialization_execution_authority_mode_branches_recomputed": {
+          "const": true
+        },
+        "deterministic_ineligible_zero_retry_continuation_probe_passed": {
+          "const": true
+        },
+        "unexpected_fetch_or_extract_failure_zero_retry_abort_probe_passed": {
+          "const": true
+        },
+        "seal_and_ui_release_gate_probes_passed": {
+          "const": true
+        },
+        "canonical_finalize_real_context_rejection_probe_passed": {
+          "const": true
+        },
+        "operator_timing_attestation_explicit_input_negative_probes_passed": {
+          "const": true
+        },
+        "authority_gate_negative_probes_passed": {
+          "const": true
+        },
+        "runtime_start_gate_negative_probes_passed": {
+          "const": true
+        },
+        "full_downstream_path_replayed": {
+          "const": true
+        },
+        "no_v1_fallback": {
+          "const": true
+        },
+        "old_v2_accepted_for_current_source": {
+          "const": false
+        },
+        "v1_receipt_or_gate_accepted": {
+          "const": false
+        },
+        "independent_gate_result": {
+          "const": "PASS_REHEARSAL_V2_2_AWAITING_OWNER_REVIEW"
+        },
+        "disclosed_repeatable_series_policy_validated": {
+          "const": true
+        },
+        "every_attempt_started_before_pipeline": {
+          "const": true
+        },
+        "every_attempt_action_time_owner_authorized": {
+          "const": true
+        },
+        "automatic_retry_count_zero_for_every_attempt": {
+          "const": true
+        },
+        "complete_attempt_history_rehashed": {
+          "const": true
+        },
+        "attempt_ordinals_contiguous_without_gap_duplicate_or_reorder": {
+          "const": true
+        },
+        "failed_and_incomplete_attempts_fully_disclosed": {
+          "const": true
+        },
+        "first_validated_success_selected_and_series_closed": {
+          "const": true
+        },
+        "candidate_receipt_closes_series_before_bundle_publication": {
+          "const": true
+        },
+        "no_attempt_after_selected_success": {
+          "const": true
+        },
+        "every_implementation_epoch_owner_authorized_and_independently_reviewed": {
+          "const": true
+        },
+        "live_ledger_matches_archived_attempt_history": {
+          "const": true
+        },
+        "thin_main_shim_single_package_module_identity_validated": {
+          "const": true
+        },
+        "v2_1_contract_inheritance_json_pointer_zero_diff": {
+          "const": true
+        },
+        "every_referenced_pass_test_archived_and_merkle_bound": {
+          "const": true
+        },
+        "heldout_evaluation_one_shot_unchanged_and_unconsumed": {
+          "const": true
+        },
+        "execution_binding_derivation_recomputed": {
+          "const": true
+        },
+        "disposable_test_rebase_private_capability_validated": {
+          "const": true
+        },
+        "every_actual_attempt_evidence_byte_persisted_and_archived": {
+          "const": true
+        },
+        "empty_attempt_evidence_root_recomputed": {
+          "const": true
+        },
+        "attempt_outcome_discriminator_validated": {
+          "const": true
+        },
+        "action_authorization_source_and_archive_bytes_equal": {
+          "const": true
+        },
+        "series_json_execution_binding_cross_equality_passed": {
+          "const": true
+        },
+        "live_record_exact_schema_and_archive_identity_passed": {
+          "const": true
+        },
+        "attempt_evidence_path_basis_and_odd_policy_recomputed": {
+          "const": true
+        },
+        "synthetic_v2_2_evidence_acceptance_receipt_same_validator_positive_probe_passed": {
+          "const": true
+        },
+        "official_execution_binding_registered_paths_rehashed_as_expected": {
+          "const": true
+        }
+      }
+    },
+    "safety": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "real_database_reads",
+        "real_network_calls",
+        "real_model_calls",
+        "production_writes",
+        "production_heldout_artifacts_changed",
+        "real_heldout_metrics_computed",
+        "real_metrics_disclosed",
+        "proposals_or_orders_allowed"
+      ],
+      "properties": {
+        "real_database_reads": {
+          "const": 0
+        },
+        "real_network_calls": {
+          "const": 0
+        },
+        "real_model_calls": {
+          "const": 0
+        },
+        "production_writes": {
+          "const": false
+        },
+        "production_heldout_artifacts_changed": {
+          "const": false
+        },
+        "real_heldout_metrics_computed": {
+          "const": false
+        },
+        "real_metrics_disclosed": {
+          "const": false
+        },
+        "proposals_or_orders_allowed": {
+          "const": false
+        }
+      }
+    },
+    "locks": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "trading_mode",
+        "live_trading_enabled",
+        "paper_trading_enabled",
+        "paper_auto_trading_enabled",
+        "futu_enable_trade",
+        "futu_enable_account_mutation",
+        "unlock_trade_permanently_blocked",
+        "p4_2a_done",
+        "p4_2b_unlocked",
+        "p4_3_unlocked"
+      ],
+      "properties": {
+        "trading_mode": {
+          "const": "research"
+        },
+        "live_trading_enabled": {
+          "const": false
+        },
+        "paper_trading_enabled": {
+          "const": false
+        },
+        "paper_auto_trading_enabled": {
+          "const": false
+        },
+        "futu_enable_trade": {
+          "const": false
+        },
+        "futu_enable_account_mutation": {
+          "const": false
+        },
+        "unlock_trade_permanently_blocked": {
+          "const": true
+        },
+        "p4_2a_done": {
+          "const": false
+        },
+        "p4_2b_unlocked": {
+          "const": false
+        },
+        "p4_3_unlocked": {
+          "const": false
+        }
+      }
+    },
+    "remainingBlockers": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "successor_v2_2_owner_review",
+        "real_heldout_materialization_unlocked",
+        "real_heldout_inference_unlocked",
+        "heldout_metric_evaluation_unlocked"
+      ],
+      "properties": {
+        "successor_v2_2_owner_review": {
+          "const": "PENDING"
+        },
+        "real_heldout_materialization_unlocked": {
+          "const": false
+        },
+        "real_heldout_inference_unlocked": {
+          "const": false
+        },
+        "heldout_metric_evaluation_unlocked": {
+          "const": false
+        }
+      }
+    },
+    "absolutePath": {
+      "type": "string",
+      "minLength": 2,
+      "pattern": "^/[^\\u0000]+$",
+      "not": {
+        "anyOf": [
+          {
+            "pattern": "//"
+          },
+          {
+            "pattern": "(^|/)\\.{1,2}(/|$)"
+          },
+          {
+            "pattern": "/$"
+          }
+        ]
+      }
+    },
+    "authorityRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "sha256",
+        "creating_commit",
+        "unique_a_history_verified"
+      ],
+      "properties": {
+        "path": {
+          "$ref": "#/$defs/relativePath"
+        },
+        "sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "creating_commit": {
+          "$ref": "#/$defs/gitCommit"
+        },
+        "unique_a_history_verified": {
+          "const": true
+        }
+      }
+    },
+    "rehearsalAttemptPolicy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "policy",
+        "protected_property",
+        "supersedes_v2_1_rehearsal_one_shot_only",
+        "series_attempt_limit",
+        "per_attempt_action_time_owner_authorization_required",
+        "automatic_retry_count",
+        "implementation_changes_between_attempts",
+        "first_validated_success_closes_series",
+        "attempt_after_success_forbidden",
+        "abandoned_without_success_requires_incident",
+        "heldout_evaluation_one_shot_unchanged"
+      ],
+      "properties": {
+        "policy": {
+          "const": "DISCLOSED_REPEATABLE_SERIES_V1"
+        },
+        "protected_property": {
+          "const": "selective_rerun_and_cherry_pick_resistance_through_complete_attempt_disclosure"
+        },
+        "supersedes_v2_1_rehearsal_one_shot_only": {
+          "const": true
+        },
+        "series_attempt_limit": {
+          "const": "unbounded_until_first_validated_success_or_owner_abandonment"
+        },
+        "per_attempt_action_time_owner_authorization_required": {
+          "const": true
+        },
+        "automatic_retry_count": {
+          "const": 0
+        },
+        "implementation_changes_between_attempts": {
+          "const": "new_epoch_requires_separate_owner_exact_surface_authorization_and_independent_implementation_review"
+        },
+        "first_validated_success_closes_series": {
+          "const": true
+        },
+        "attempt_after_success_forbidden": {
+          "const": true
+        },
+        "abandoned_without_success_requires_incident": {
+          "const": true
+        },
+        "heldout_evaluation_one_shot_unchanged": {
+          "const": true
+        }
+      }
+    },
+    "harnessIdentity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "thin_main_shim",
+        "implementation_module",
+        "validator_module",
+        "implementation_module_name",
+        "validator_module_name",
+        "authority_owner_module",
+        "shim_has_authority_state",
+        "validator_import_target",
+        "module_object_identity_equal",
+        "exact_os_bootstrap_passed",
+        "implementation_direct_execution_rejected",
+        "second_authority_module_rejected",
+        "delegation_binding_passed"
+      ],
+      "properties": {
+        "thin_main_shim": {
+          "allOf": [
+            {
+              "$ref": "#/$defs/fileRef"
+            },
+            {
+              "properties": {
+                "path": {
+                  "const": "scripts/rehearse_p4_2a_v2_2_heldout_full_path.py"
+                }
+              }
+            }
+          ]
+        },
+        "implementation_module": {
+          "allOf": [
+            {
+              "$ref": "#/$defs/fileRef"
+            },
+            {
+              "properties": {
+                "path": {
+                  "const": "scripts/p4_2a_v2_2_heldout_rehearsal.py"
+                }
+              }
+            }
+          ]
+        },
+        "validator_module": {
+          "allOf": [
+            {
+              "$ref": "#/$defs/fileRef"
+            },
+            {
+              "properties": {
+                "path": {
+                  "const": "scripts/validate_p4_2a_v2_2_heldout_rehearsal_bundle.py"
+                }
+              }
+            }
+          ]
+        },
+        "implementation_module_name": {
+          "const": "scripts.p4_2a_v2_2_heldout_rehearsal"
+        },
+        "validator_module_name": {
+          "const": "scripts.validate_p4_2a_v2_2_heldout_rehearsal_bundle"
+        },
+        "authority_owner_module": {
+          "const": "scripts.p4_2a_v2_2_heldout_rehearsal"
+        },
+        "shim_has_authority_state": {
+          "const": false
+        },
+        "validator_import_target": {
+          "const": "scripts.p4_2a_v2_2_heldout_rehearsal"
+        },
+        "module_object_identity_equal": {
+          "const": true
+        },
+        "exact_os_bootstrap_passed": {
+          "const": true
+        },
+        "implementation_direct_execution_rejected": {
+          "const": true
+        },
+        "second_authority_module_rejected": {
+          "const": true
+        },
+        "delegation_binding_passed": {
+          "const": "identity_root_creator_owner_and_lifetime_exact"
+        }
+      }
+    },
+    "implementationEpoch": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "epoch",
+        "implementation_commit",
+        "owner_exact_surface_authorization",
+        "independent_implementation_review",
+        "control_merkle_root_sha256",
+        "first_attempt_ordinal",
+        "last_attempt_ordinal",
+        "all_attempts_authorized"
+      ],
+      "properties": {
+        "epoch": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "implementation_commit": {
+          "$ref": "#/$defs/gitCommit"
+        },
+        "owner_exact_surface_authorization": {
+          "$ref": "#/$defs/authorityRef"
+        },
+        "independent_implementation_review": {
+          "$ref": "#/$defs/authorityRef"
+        },
+        "control_merkle_root_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "first_attempt_ordinal": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "last_attempt_ordinal": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "all_attempts_authorized": {
+          "const": true
+        }
+      }
+    },
+    "attemptFileEvidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "live_relative_path",
+        "archive_relative_path",
+        "bytes",
+        "sha256"
+      ],
+      "properties": {
+        "live_relative_path": {
+          "$ref": "#/$defs/relativePath"
+        },
+        "archive_relative_path": {
+          "$ref": "#/$defs/relativePath"
+        },
+        "bytes": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "sha256": {
+          "$ref": "#/$defs/sha256"
+        }
+      }
+    },
+    "attemptArtifactEvidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "logical_name",
+        "relative_path",
+        "relative_path_basis",
+        "bytes",
+        "sha256",
+        "durability",
+        "archive_relative_path",
+        "source_and_archive_bytes_equal"
+      ],
+      "properties": {
+        "logical_name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "relative_path": {
+          "$ref": "#/$defs/relativePath"
+        },
+        "relative_path_basis": {
+          "const": "attempt_evidence_root_excluded"
+        },
+        "bytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "durability": {
+          "const": "ARCHIVED"
+        },
+        "archive_relative_path": {
+          "$ref": "#/$defs/relativePath"
+        },
+        "source_and_archive_bytes_equal": {
+          "const": true
+        }
+      }
+    },
+    "attemptError": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "exception_type",
+        "message_sha256",
+        "failing_stage"
+      ],
+      "properties": {
+        "exception_type": {
+          "type": "string",
+          "minLength": 1
+        },
+        "message_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "failing_stage": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "attemptRecord": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "ordinal",
+        "attempt_token_sha256",
+        "previous_history_root_sha256",
+        "started",
+        "candidate",
+        "terminal",
+        "outcome",
+        "reached_stage",
+        "implementation_epoch",
+        "implementation_commit",
+        "owner_action_time_authorization",
+        "command_sha256",
+        "environment_sha256",
+        "automatic_retry_count",
+        "artifact_inventory",
+        "error",
+        "evidence_tree_root_sha256",
+        "record_root_sha256"
+      ],
+      "properties": {
+        "ordinal": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "attempt_token_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "previous_history_root_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "started": {
+          "$ref": "#/$defs/attemptFileEvidence"
+        },
+        "candidate": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/attemptFileEvidence"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "terminal": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/attemptFileEvidence"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "outcome": {
+          "enum": [
+            "FAILED",
+            "INCOMPLETE_UNTERMINALIZED",
+            "CANDIDATE_VALIDATED_AND_SELECTED"
+          ]
+        },
+        "reached_stage": {
+          "type": "string",
+          "minLength": 1
+        },
+        "implementation_epoch": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "implementation_commit": {
+          "$ref": "#/$defs/gitCommit"
+        },
+        "owner_action_time_authorization": {
+          "$ref": "#/$defs/archivedAuthorityEvidence"
+        },
+        "command_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "environment_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "automatic_retry_count": {
+          "const": 0
+        },
+        "artifact_inventory": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/attemptArtifactEvidence"
+          }
+        },
+        "error": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/attemptError"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "evidence_tree_root_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "record_root_sha256": {
+          "$ref": "#/$defs/sha256"
+        }
+      },
+      "oneOf": [
+        {
+          "properties": {
+            "outcome": {
+              "const": "FAILED"
+            },
+            "candidate": {
+              "type": "null"
+            },
+            "terminal": {
+              "$ref": "#/$defs/attemptFileEvidence"
+            },
+            "error": {
+              "$ref": "#/$defs/attemptError"
+            }
+          }
+        },
+        {
+          "properties": {
+            "outcome": {
+              "const": "INCOMPLETE_UNTERMINALIZED"
+            },
+            "candidate": {
+              "type": "null"
+            },
+            "terminal": {
+              "type": "null"
+            },
+            "error": {
+              "type": "null"
+            }
+          }
+        },
+        {
+          "properties": {
+            "outcome": {
+              "const": "CANDIDATE_VALIDATED_AND_SELECTED"
+            },
+            "candidate": {
+              "$ref": "#/$defs/attemptFileEvidence"
+            },
+            "terminal": {
+              "$ref": "#/$defs/attemptFileEvidence"
+            },
+            "error": {
+              "type": "null"
+            }
+          }
+        }
+      ]
+    },
+    "attemptHistory": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "series_id",
+        "series_token_sha256",
+        "ledger_root",
+        "policy",
+        "attempt_limit",
+        "started_count",
+        "failed_count",
+        "incomplete_count",
+        "validated_candidate_count",
+        "selected_attempt_ordinal",
+        "series_closed",
+        "records",
+        "history_root_sha256",
+        "live_ledger_root_sha256",
+        "ordinals_contiguous",
+        "no_gap_duplicate_or_reorder",
+        "no_unarchived_attempt",
+        "no_attempt_after_selected_success",
+        "first_validated_success_is_selected"
+      ],
+      "properties": {
+        "series_id": {
+          "const": "P4.2A-V2-HELDOUT-REHEARSAL-V2-2-DETERMINISTIC-20260811"
+        },
+        "series_token_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "ledger_root": {
+          "$ref": "#/$defs/absolutePath"
+        },
+        "policy": {
+          "const": "DISCLOSED_REPEATABLE_SERIES_V1"
+        },
+        "attempt_limit": {
+          "const": "unbounded_until_first_validated_success_or_owner_abandonment"
+        },
+        "started_count": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "failed_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "incomplete_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "validated_candidate_count": {
+          "const": 1
+        },
+        "selected_attempt_ordinal": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "series_closed": {
+          "const": true
+        },
+        "records": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/attemptRecord"
+          },
+          "contains": {
+            "type": "object",
+            "required": [
+              "outcome"
+            ],
+            "properties": {
+              "outcome": {
+                "const": "CANDIDATE_VALIDATED_AND_SELECTED"
+              }
+            }
+          },
+          "minContains": 1,
+          "maxContains": 1
+        },
+        "history_root_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "live_ledger_root_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "ordinals_contiguous": {
+          "const": true
+        },
+        "no_gap_duplicate_or_reorder": {
+          "const": true
+        },
+        "no_unarchived_attempt": {
+          "const": true
+        },
+        "no_attempt_after_selected_success": {
+          "const": true
+        },
+        "first_validated_success_is_selected": {
+          "const": true
+        }
+      }
+    },
+    "attemptHistoryArchive": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "archive_root",
+        "file_count",
+        "files",
+        "history_merkle_root_sha256",
+        "every_live_started_candidate_terminal_and_action_authorization_byte_archived",
+        "every_attempt_evidence_byte_archived"
+      ],
+      "properties": {
+        "archive_root": {
+          "const": "archive/attempt-history"
+        },
+        "file_count": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "files": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/fileRef"
+          }
+        },
+        "history_merkle_root_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "every_live_started_candidate_terminal_and_action_authorization_byte_archived": {
+          "const": true
+        },
+        "every_attempt_evidence_byte_archived": {
+          "const": true
+        }
+      }
+    },
+    "evaluationOneShot": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "unchanged_and_unconsumed",
+        "attempts_consumed_by_v2_2_rehearsal",
+        "rehearsal_repeatability_policy_applies_to_evaluation",
+        "evaluation_claim_or_destination_touched"
+      ],
+      "properties": {
+        "unchanged_and_unconsumed": {
+          "const": true
+        },
+        "attempts_consumed_by_v2_2_rehearsal": {
+          "const": 0
+        },
+        "rehearsal_repeatability_policy_applies_to_evaluation": {
+          "const": false
+        },
+        "evaluation_claim_or_destination_touched": {
+          "const": false
+        }
+      }
+    },
+    "executionBinding": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "mode",
+            "project_root",
+            "absolute_destination",
+            "series_token_sha256",
+            "ledger_root",
+            "derivation_recomputed",
+            "private_rebase_capability_validated",
+            "registered_rehearsal_paths_created_as_expected"
+          ],
+          "properties": {
+            "mode": {
+              "const": "REGISTERED_OFFICIAL"
+            },
+            "project_root": {
+              "const": "/Users/ouyangduning/Documents/project/interesting/AlphaPilot-AI"
+            },
+            "absolute_destination": {
+              "const": "/Users/ouyangduning/Documents/project/interesting/AlphaPilot-AI/docs/phase4/rehearsals/P4.2a-v2-calibration-v2-2"
+            },
+            "series_token_sha256": {
+              "const": "2543d679819f96958baf747ef61dda2044013a0b00a9cb824c0d7675640d9f93"
+            },
+            "ledger_root": {
+              "const": "/Users/ouyangduning/AlphaPilot-EVIDENCE-DO-NOT-DELETE/P4.2a/v2.2/SERIES-000002-2543d679819f96958baf747ef61dda2044013a0b00a9cb824c0d7675640d9f93/PRIMARY-LEDGER-DO-NOT-DELETE"
+            },
+            "derivation_recomputed": {
+              "const": true
+            },
+            "private_rebase_capability_validated": {
+              "const": false
+            },
+            "registered_rehearsal_paths_created_as_expected": {
+              "const": true
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "mode",
+            "project_root",
+            "absolute_destination",
+            "series_token_sha256",
+            "ledger_root",
+            "derivation_recomputed",
+            "private_rebase_capability_validated",
+            "real_registered_paths_untouched"
+          ],
+          "properties": {
+            "mode": {
+              "const": "DISPOSABLE_FULL_SHAPE_TEST"
+            },
+            "project_root": {
+              "$ref": "#/$defs/absolutePath"
+            },
+            "absolute_destination": {
+              "$ref": "#/$defs/absolutePath"
+            },
+            "series_token_sha256": {
+              "$ref": "#/$defs/sha256"
+            },
+            "ledger_root": {
+              "$ref": "#/$defs/absolutePath"
+            },
+            "derivation_recomputed": {
+              "const": true
+            },
+            "private_rebase_capability_validated": {
+              "const": true
+            },
+            "real_registered_paths_untouched": {
+              "const": true
+            }
+          }
+        }
+      ]
+    },
+    "archivedAuthorityEvidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "authority",
+        "archive_relative_path",
+        "bytes",
+        "archive_sha256",
+        "source_and_archive_bytes_equal"
+      ],
+      "properties": {
+        "authority": {
+          "$ref": "#/$defs/authorityRef"
+        },
+        "archive_relative_path": {
+          "$ref": "#/$defs/relativePath"
+        },
+        "bytes": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "archive_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "source_and_archive_bytes_equal": {
+          "const": true
+        }
+      }
+    }
+  }
+}

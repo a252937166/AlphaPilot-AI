@@ -1,0 +1,68 @@
+schema_version: p4.2a-heldout-event-extract-contract-v2
+owner_spec_commit: 3cf402820511707776e3e25dd6b0ae6a77be0b2e
+pre_registered_at: "2026-08-10T03:50:00Z"
+production_writes_allowed: false
+heldout_access_allowed: true
+artifact_root: docs/phase4/eval/v2-calibration/heldout
+
+selected_development_contract:
+  path: config/p4_event_extract_eval_v2-r3-qwen3.6-plus.yaml
+  sha256: fa75a6cf33065745d02f74fe39e4f102723da43f37ac549058bb34fa8256a181
+  schema_version: p4.2a-development-event-extract-contract-v2-r3
+  inheritance: inference_semantics_byte_frozen
+
+contract_files:
+  prompt:
+    path: config/prompts/p4_news_event_extract_v2-r3.txt
+    sha256: 0291dc882aac42878ba00c4ed3970da72f19508308cd39211467b4fd92294f44
+  schema:
+    path: config/schemas/p4_news_event_candidate_v1.schema.json
+    sha256: c106cd15bd974de19ecc01d6e99e8f39c39fbf14df3a3b4dc74ee9b08ff6dd66
+  materialized_schema:
+    path: config/schemas/p4_news_event_v1.schema.json
+    sha256: 0ac68654ce23ecd4e537d849d695e092c76dcb9de0fb03793e65ae62b181947f
+
+llm:
+  purpose: p4_news_event_extract
+  model: qwen3.6-plus
+  endpoint: https://dashscope.aliyuncs.com/compatible-mode/v1
+  temperature: 0.2
+  enable_thinking: false
+  max_output_tokens: 2000
+  total_deadline_seconds: 20.0
+  max_retries: 0
+  max_items_per_run: exact_eligible_materialization_count
+  response_format: json_object
+  explicit_cache:
+    enabled: false
+    cache_control: null
+
+request_shape:
+  one_news_item_per_request: true
+  one_request_per_eligible_candidate: true
+  multi_item_prompt_forbidden: true
+  prefilter_forbidden: true
+  input_representation: exact_round_3_frozen_contract_representation
+  round_3_max_annotation_text_characters: 14000
+  additional_body_shortening_for_cost_forbidden: true
+  failed_candidate_retries: 0
+  automatic_retries: 0
+
+heldout_frame:
+  frame_id: p4.2a-heldout-frame-v2
+  timezone: Asia/Shanghai
+  start_inclusive: "2026-08-06T00:00:00+08:00"
+  end_exclusive: "2026-08-09T00:00:00+08:00"
+  selected_positive_count: 40
+  selected_negative_count: 20
+  extract_failed_selected_count: 0
+  total_selected_count: 60
+
+isolation:
+  production_database: data/alphapilot.db
+  open_mode: read_only_query_only
+  production_llm_calls_write: false
+  p4_1_runtime_mutation: false
+  p4_2b_unlocked: false
+  p4_3_unlocked: false
+  proposals_or_orders_allowed: false
