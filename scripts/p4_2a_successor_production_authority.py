@@ -32,7 +32,6 @@ import weakref
 from dataclasses import dataclass, field
 from pathlib import Path, PurePosixPath
 from typing import Any
-from xml.etree import ElementTree
 from zoneinfo import ZoneInfo
 
 from jsonschema import Draft202012Validator, FormatChecker
@@ -612,6 +611,9 @@ def _external_source(root: Path, value: dict[str, Any]) -> dict[str, Any]:
 def _registered_checks(
     root: Path, checks: list[dict[str, Any]], policy: dict[str, Any], implementation_commit: str
 ) -> None:
+    # Keep pyexpat helpers out of the frozen v2.1 bootstrap origin census.
+    from xml.etree import ElementTree
+
     _require(
         type(checks) is list
         and len(checks) == len(_CHECK_IDS)
