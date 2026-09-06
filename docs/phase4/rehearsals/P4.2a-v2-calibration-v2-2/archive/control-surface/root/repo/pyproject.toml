@@ -1,0 +1,85 @@
+[build-system]
+requires = ["setuptools>=75", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "alphapilot-ai"
+version = "0.5.0"
+description = "AI-driven probabilistic stock research, monitoring, scenario analysis and trading-assistance platform"
+readme = "README.md"
+requires-python = ">=3.11,<3.14"
+authors = [{ name = "AlphaPilot AI Team" }]
+keywords = ["quant", "stock", "ai", "forecast", "akshare", "futu"]
+dependencies = [
+  "fastapi>=0.139,<1",
+  "uvicorn[standard]>=0.35,<1",
+  "pydantic>=2.11,<3",
+  "pydantic-settings>=2.10,<3",
+  "pandas>=2.2,<3",
+  "numpy>=1.26,<2.5",
+  "httpx>=0.28,<1",
+  "jsonschema>=4,<5",
+  "PyYAML>=6.0,<7",
+  "tenacity>=9.0,<10",
+  "SQLAlchemy>=2.0,<3",
+  "APScheduler>=3.10,<4",
+]
+
+[project.optional-dependencies]
+cn-data = [
+  "akshare>=1.18.64,<2",
+  "baostock>=0.9.3,<1",
+]
+futu = [
+  "futu-api>=10.9.6908,<11",
+]
+ml = [
+  "scikit-learn>=1.6,<2",
+  "lightgbm>=4.6,<5",
+]
+db = [
+  "psycopg[binary]>=3.2,<4",
+  "redis>=6.0,<7",
+]
+dev = [
+  "pytest>=8.3,<9",
+  "pytest-asyncio>=0.25,<1",
+  "ruff>=0.12,<1",
+  "mypy>=1.15,<2",
+  "pandas-stubs>=2.2,<3",
+  "types-PyYAML>=6.0.12,<7",
+  # pandas.read_html optional backend; locally pulled in transitively by
+  # akshare, but CI installs only .[dev] and the FX parser test needs it.
+  "lxml>=5.0,<7",
+]
+
+[project.scripts]
+alphapilot-api = "alphapilot.cli:run_api"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+addopts = "-q"
+testpaths = ["tests"]
+# "." keeps the `scripts` namespace package importable under bare `pytest`
+# (Makefile/CI); `python -m pytest` adds the cwd on its own.
+pythonpath = ["src", "."]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "SIM", "RUF"]
+# B008: FastAPI Depends() in defaults; RUF001-003: CJK punctuation in UI strings.
+ignore = ["B008", "RUF001", "RUF002", "RUF003"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+packages = ["alphapilot"]
+warn_unused_ignores = true
+plugins = ["pydantic.mypy"]
+ignore_missing_imports = true

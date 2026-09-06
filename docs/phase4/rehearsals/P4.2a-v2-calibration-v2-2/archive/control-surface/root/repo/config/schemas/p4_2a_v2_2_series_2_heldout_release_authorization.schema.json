@@ -1,0 +1,967 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://alphapilot.local/schemas/p4_2a_v2_2_series_2_heldout_release_authorization.schema.json",
+  "title": "AlphaPilot P4.2a successor v2.2 rehearsal evidence acceptance for a separate production-integration gate",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "authorization_id",
+    "created_at_utc",
+    "created_at_shanghai",
+    "verdict",
+    "reviewed_repository_head",
+    "reviewer",
+    "owner_authorization",
+    "lineage",
+    "execution_binding",
+    "series_identity",
+    "attempt_history_acceptance",
+    "implementation_epochs",
+    "independent_checks",
+    "authorized_stages",
+    "still_gated",
+    "runtime_start_policy",
+    "production_integration_gate",
+    "evaluation_one_shot",
+    "locks"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "p4.2a-v2-heldout-rehearsal-v2-2-evidence-acceptance-v1"
+    },
+    "authorization_id": {
+      "const": "P4.2A-V2-HELDOUT-REHEARSAL-V2-2-EVIDENCE-ACCEPTANCE-20260811"
+    },
+    "created_at_utc": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "created_at_shanghai": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "verdict": {
+      "const": "ACCEPT_V2_2_REHEARSAL_EVIDENCE_FOR_SEPARATE_PRODUCTION_INTEGRATION_REVIEW"
+    },
+    "reviewed_repository_head": {
+      "$ref": "#/$defs/gitCommit"
+    },
+    "reviewer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "identity",
+        "reviewer_type",
+        "model",
+        "method",
+        "independent_of_operator"
+      ],
+      "properties": {
+        "identity": {
+          "type": "string",
+          "minLength": 1
+        },
+        "reviewer_type": {
+          "enum": [
+            "human",
+            "ai"
+          ]
+        },
+        "model": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "method": {
+          "type": "string",
+          "minLength": 1
+        },
+        "independent_of_operator": {
+          "const": true
+        }
+      }
+    },
+    "owner_authorization": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "owner",
+        "approved",
+        "approval_scope",
+        "accepts_disclosed_repeatability",
+        "acknowledged_attempt_count",
+        "acknowledged_failed_count",
+        "acknowledged_incomplete_count",
+        "acknowledged_outcomes",
+        "selected_attempt_ordinal",
+        "attempt_history_root_sha256",
+        "all_attempt_outcomes_reviewed",
+        "no_hidden_or_omitted_attempt_accepted",
+        "acknowledged_outcomes_are_contiguous_and_ordered"
+      ],
+      "properties": {
+        "owner": {
+          "const": "ouyang"
+        },
+        "approved": {
+          "const": true
+        },
+        "approval_scope": {
+          "const": "rehearsal_evidence_and_complete_attempt_history_only_not_real_stage_release"
+        },
+        "accepts_disclosed_repeatability": {
+          "const": true
+        },
+        "acknowledged_attempt_count": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "acknowledged_failed_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "acknowledged_incomplete_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "acknowledged_outcomes": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/attemptOutcomeAcknowledgement"
+          },
+          "contains": {
+            "type": "object",
+            "required": [
+              "outcome"
+            ],
+            "properties": {
+              "outcome": {
+                "const": "CANDIDATE_VALIDATED_AND_SELECTED"
+              }
+            }
+          },
+          "minContains": 1,
+          "maxContains": 1
+        },
+        "selected_attempt_ordinal": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "attempt_history_root_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "all_attempt_outcomes_reviewed": {
+          "const": true
+        },
+        "no_hidden_or_omitted_attempt_accepted": {
+          "const": true
+        },
+        "acknowledged_outcomes_are_contiguous_and_ordered": {
+          "const": true
+        }
+      }
+    },
+    "lineage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "preregistration",
+        "bundle_schema",
+        "release_schema",
+        "bundle",
+        "bundle_root_sha256",
+        "attempt_history_root_sha256",
+        "live_ledger_root_sha256",
+        "preregistration_commit",
+        "selected_implementation_commit",
+        "rehearsal_evidence_commit",
+        "v2_1_incident",
+        "remediation_request",
+        "v2_2_scope_authorization",
+        "review_request"
+      ],
+      "properties": {
+        "preregistration": {
+          "allOf": [
+            {
+              "$ref": "#/$defs/fileRef"
+            },
+            {
+              "properties": {
+                "path": {
+                  "const": "docs/phase4/reports/P4.2a-v2-2-series-2-preregistration-amendment-20260823.json"
+                }
+              }
+            }
+          ]
+        },
+        "bundle_schema": {
+          "allOf": [
+            {
+              "$ref": "#/$defs/fileRef"
+            },
+            {
+              "properties": {
+                "path": {
+                  "const": "config/schemas/p4_2a_v2_2_series_2_heldout_rehearsal_bundle.schema.json"
+                }
+              }
+            }
+          ]
+        },
+        "release_schema": {
+          "allOf": [
+            {
+              "$ref": "#/$defs/fileRef"
+            },
+            {
+              "properties": {
+                "path": {
+                  "const": "config/schemas/p4_2a_v2_2_series_2_heldout_release_authorization.schema.json"
+                }
+              }
+            }
+          ]
+        },
+        "bundle": {
+          "allOf": [
+            {
+              "$ref": "#/$defs/fileRef"
+            },
+            {
+              "properties": {
+                "path": {
+                  "const": "docs/phase4/rehearsals/P4.2a-v2-calibration-v2-2/bundle.json"
+                }
+              }
+            }
+          ]
+        },
+        "bundle_root_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "attempt_history_root_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "live_ledger_root_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "preregistration_commit": {
+          "$ref": "#/$defs/gitCommit"
+        },
+        "selected_implementation_commit": {
+          "$ref": "#/$defs/gitCommit"
+        },
+        "rehearsal_evidence_commit": {
+          "$ref": "#/$defs/gitCommit"
+        },
+        "v2_1_incident": {
+          "allOf": [
+            {
+              "$ref": "#/$defs/authorityRef"
+            },
+            {
+              "properties": {
+                "path": {
+                  "const": "docs/phase4/reports/P4.2a-v2-heldout-rehearsal-v2-1-one-shot-consumed-incident-20260811.json"
+                },
+                "sha256": {
+                  "const": "d658336f61cdca0239584b696043fe4abc5ede1ef7aff76a4fe514b7b5d0735c"
+                },
+                "creating_commit": {
+                  "const": "7a6e8be39f9a0702bf8fb4a22c669dc7331b0d95"
+                }
+              }
+            }
+          ]
+        },
+        "remediation_request": {
+          "allOf": [
+            {
+              "$ref": "#/$defs/authorityRef"
+            },
+            {
+              "properties": {
+                "path": {
+                  "const": "docs/phase4/reports/P4.2a-v2-heldout-rehearsal-v2-1-failure-remediation-review-request-20260811.json"
+                },
+                "sha256": {
+                  "const": "820ed6c62a2e04a051d530bee7c33f5cfff21fd3fee25afd7587e18a407ce29f"
+                },
+                "creating_commit": {
+                  "const": "530f2dc9f89360ad7c12776d85c3bf369f209214"
+                }
+              }
+            }
+          ]
+        },
+        "v2_2_scope_authorization": {
+          "allOf": [
+            {
+              "$ref": "#/$defs/authorityRef"
+            },
+            {
+              "properties": {
+                "path": {
+                  "const": "docs/phase4/reports/P4.2a-v2-2-preregistration-scope-authorization-20260811.json"
+                },
+                "sha256": {
+                  "const": "7cef82e5e4b2fcce349cbc25672705ea75795b0b07865970c415945747aa3296"
+                },
+                "creating_commit": {
+                  "const": "5fe756401f20e67ff5c868bf29f099c1bfe5b4d3"
+                }
+              }
+            }
+          ]
+        },
+        "review_request": {
+          "allOf": [
+            {
+              "$ref": "#/$defs/authorityRef"
+            },
+            {
+              "properties": {
+                "path": {
+                  "const": "docs/phase4/reports/P4.2a-v2-heldout-rehearsal-v2-2-implementation-and-execution-review-request-20260811.json"
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    "execution_binding": {
+      "$ref": "#/$defs/executionBinding"
+    },
+    "series_identity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "series_id",
+        "policy",
+        "series_token_sha256",
+        "ledger_root",
+        "series_closed"
+      ],
+      "properties": {
+        "series_id": {
+          "const": "P4.2A-V2-HELDOUT-REHEARSAL-V2-2-DETERMINISTIC-20260811"
+        },
+        "policy": {
+          "const": "DISCLOSED_REPEATABLE_SERIES_V1"
+        },
+        "series_token_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "ledger_root": {
+          "$ref": "#/$defs/absolutePath"
+        },
+        "series_closed": {
+          "const": true
+        }
+      }
+    },
+    "attempt_history_acceptance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "policy",
+        "series_closed",
+        "attempt_count",
+        "failed_count",
+        "incomplete_count",
+        "selected_attempt_ordinal",
+        "validated_candidate_count",
+        "first_validated_success_is_selected",
+        "no_attempt_after_selected_success",
+        "ordinals_contiguous",
+        "all_started_candidate_terminal_action_authorization_and_actual_evidence_bytes_archived",
+        "all_failure_and_incomplete_disclosures_archived",
+        "history_merkle_recomputed",
+        "live_ledger_matches_bundle_history",
+        "history_unchanged_after_bundle_publication",
+        "counts_equal_recomputed_records",
+        "owner_acknowledged_outcomes_equal_ordered_bundle_records",
+        "selected_ordinal_is_the_unique_validated_candidate",
+        "selected_ordinal_and_epoch_match_lineage",
+        "history_and_live_roots_match_lineage_and_bundle"
+      ],
+      "properties": {
+        "policy": {
+          "const": "DISCLOSED_REPEATABLE_SERIES_V1"
+        },
+        "series_closed": {
+          "const": true
+        },
+        "attempt_count": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "failed_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "incomplete_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "selected_attempt_ordinal": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "validated_candidate_count": {
+          "const": 1
+        },
+        "first_validated_success_is_selected": {
+          "const": true
+        },
+        "no_attempt_after_selected_success": {
+          "const": true
+        },
+        "ordinals_contiguous": {
+          "const": true
+        },
+        "all_started_candidate_terminal_action_authorization_and_actual_evidence_bytes_archived": {
+          "const": true
+        },
+        "all_failure_and_incomplete_disclosures_archived": {
+          "const": true
+        },
+        "history_merkle_recomputed": {
+          "const": true
+        },
+        "live_ledger_matches_bundle_history": {
+          "const": true
+        },
+        "history_unchanged_after_bundle_publication": {
+          "const": true
+        },
+        "counts_equal_recomputed_records": {
+          "const": true
+        },
+        "owner_acknowledged_outcomes_equal_ordered_bundle_records": {
+          "const": true
+        },
+        "selected_ordinal_is_the_unique_validated_candidate": {
+          "const": true
+        },
+        "selected_ordinal_and_epoch_match_lineage": {
+          "const": true
+        },
+        "history_and_live_roots_match_lineage_and_bundle": {
+          "const": true
+        }
+      }
+    },
+    "implementation_epochs": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/implementationEpoch"
+      }
+    },
+    "independent_checks": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "bundle_full_rehash_passed",
+        "complete_attempt_history_rehash_passed",
+        "live_ledger_exact_match_passed",
+        "ordinal_chain_no_gap_duplicate_or_reorder_passed",
+        "every_attempt_disclosed_passed",
+        "every_implementation_epoch_authorized_and_reviewed_passed",
+        "thin_shim_single_module_identity_passed",
+        "exact_os_main_nested_validator_path_passed",
+        "selected_attempt_14_of_14_byte_identical",
+        "historical_failures_not_described_as_passed",
+        "first_success_and_no_later_attempt_passed",
+        "candidate_receipt_prepublication_close_passed",
+        "request_interval_evidence_passed",
+        "noop_sleeper_negative_probe_passed",
+        "full_downstream_replay_passed",
+        "real_database_reads",
+        "real_network_calls",
+        "real_model_calls",
+        "production_writes",
+        "heldout_evaluation_attempts_consumed",
+        "owner_acknowledgement_count_and_outcome_cross_equality_passed",
+        "selected_ordinal_is_unique_success_passed",
+        "execution_binding_mode_and_derivation_recomputed",
+        "series_identity_equals_execution_binding_passed"
+      ],
+      "properties": {
+        "bundle_full_rehash_passed": {
+          "const": true
+        },
+        "complete_attempt_history_rehash_passed": {
+          "const": true
+        },
+        "live_ledger_exact_match_passed": {
+          "const": true
+        },
+        "ordinal_chain_no_gap_duplicate_or_reorder_passed": {
+          "const": true
+        },
+        "every_attempt_disclosed_passed": {
+          "const": true
+        },
+        "every_implementation_epoch_authorized_and_reviewed_passed": {
+          "const": true
+        },
+        "thin_shim_single_module_identity_passed": {
+          "const": true
+        },
+        "exact_os_main_nested_validator_path_passed": {
+          "const": true
+        },
+        "selected_attempt_14_of_14_byte_identical": {
+          "const": true
+        },
+        "historical_failures_not_described_as_passed": {
+          "const": true
+        },
+        "first_success_and_no_later_attempt_passed": {
+          "const": true
+        },
+        "candidate_receipt_prepublication_close_passed": {
+          "const": true
+        },
+        "request_interval_evidence_passed": {
+          "const": true
+        },
+        "noop_sleeper_negative_probe_passed": {
+          "const": true
+        },
+        "full_downstream_replay_passed": {
+          "const": true
+        },
+        "real_database_reads": {
+          "const": 0
+        },
+        "real_network_calls": {
+          "const": 0
+        },
+        "real_model_calls": {
+          "const": 0
+        },
+        "production_writes": {
+          "const": false
+        },
+        "heldout_evaluation_attempts_consumed": {
+          "const": 0
+        },
+        "owner_acknowledgement_count_and_outcome_cross_equality_passed": {
+          "const": true
+        },
+        "selected_ordinal_is_unique_success_passed": {
+          "const": true
+        },
+        "execution_binding_mode_and_derivation_recomputed": {
+          "const": true
+        },
+        "series_identity_equals_execution_binding_passed": {
+          "const": true
+        }
+      }
+    },
+    "authorized_stages": {
+      "const": []
+    },
+    "still_gated": {
+      "const": [
+        "materialize",
+        "infer",
+        "select-blind",
+        "blind-draft",
+        "owner-adjudication-ui",
+        "finalize-owner-adjudication",
+        "heldout-evaluation",
+        "p4.2b",
+        "p4.3"
+      ]
+    },
+    "runtime_start_policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "live_probe_required",
+        "probe_timing",
+        "backup_stamp_policy",
+        "database_backup_launchagent_policy",
+        "database_backup_lock_policy",
+        "latest_backup_manifest_policy",
+        "avoid_cninfo_midnight_batch",
+        "avoid_dense_p4_1_trading_slots",
+        "explicit_operator_timing_attestation_required",
+        "observations_must_be_recorded_in_materialization_manifest"
+      ],
+      "properties": {
+        "live_probe_required": {
+          "const": true
+        },
+        "probe_timing": {
+          "const": "after_release_gate_before_real_database_network_or_artifact_write"
+        },
+        "backup_stamp_policy": {
+          "const": "current_Asia_Shanghai_date"
+        },
+        "database_backup_launchagent_policy": {
+          "const": "loaded_state_not_running_last_exit_code_0"
+        },
+        "database_backup_lock_policy": {
+          "const": "nonblocking_flock_proves_not_held"
+        },
+        "latest_backup_manifest_policy": {
+          "const": "created_after_22_00_CST_quick_check_ok_database_exists"
+        },
+        "avoid_cninfo_midnight_batch": {
+          "const": true
+        },
+        "avoid_dense_p4_1_trading_slots": {
+          "const": true
+        },
+        "explicit_operator_timing_attestation_required": {
+          "const": true
+        },
+        "observations_must_be_recorded_in_materialization_manifest": {
+          "const": true
+        }
+      }
+    },
+    "production_integration_gate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "this_receipt_unlocks_real_stages",
+        "separate_preregistration_required",
+        "separate_owner_exact_surface_authorization_required",
+        "central_release_dispatch_integration_required",
+        "independent_implementation_review_required",
+        "new_production_release_receipt_required",
+        "runtime_start_policy_carried_forward_not_executed_by_this_receipt"
+      ],
+      "properties": {
+        "status": {
+          "const": "PENDING_SEPARATE_PRODUCTION_INTEGRATION_CODE_GATE"
+        },
+        "this_receipt_unlocks_real_stages": {
+          "const": false
+        },
+        "separate_preregistration_required": {
+          "const": true
+        },
+        "separate_owner_exact_surface_authorization_required": {
+          "const": true
+        },
+        "central_release_dispatch_integration_required": {
+          "const": true
+        },
+        "independent_implementation_review_required": {
+          "const": true
+        },
+        "new_production_release_receipt_required": {
+          "const": true
+        },
+        "runtime_start_policy_carried_forward_not_executed_by_this_receipt": {
+          "const": true
+        }
+      }
+    },
+    "evaluation_one_shot": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "unchanged_and_unconsumed",
+        "evaluation_attempts_consumed_by_rehearsal",
+        "rehearsal_policy_does_not_apply_to_evaluation"
+      ],
+      "properties": {
+        "unchanged_and_unconsumed": {
+          "const": true
+        },
+        "evaluation_attempts_consumed_by_rehearsal": {
+          "const": 0
+        },
+        "rehearsal_policy_does_not_apply_to_evaluation": {
+          "const": true
+        }
+      }
+    },
+    "locks": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "p4_2a_done",
+        "heldout_materialization_authorized_by_this_receipt",
+        "heldout_inference_authorized_by_this_receipt",
+        "heldout_evaluation_unlocked",
+        "p4_2b_unlocked",
+        "p4_3_unlocked",
+        "trading_mode",
+        "non_simulate_orders_allowed"
+      ],
+      "properties": {
+        "p4_2a_done": {
+          "const": false
+        },
+        "heldout_materialization_authorized_by_this_receipt": {
+          "const": false
+        },
+        "heldout_inference_authorized_by_this_receipt": {
+          "const": false
+        },
+        "heldout_evaluation_unlocked": {
+          "const": false
+        },
+        "p4_2b_unlocked": {
+          "const": false
+        },
+        "p4_3_unlocked": {
+          "const": false
+        },
+        "trading_mode": {
+          "const": "research"
+        },
+        "non_simulate_orders_allowed": {
+          "const": false
+        }
+      }
+    }
+  },
+  "$defs": {
+    "absolutePath": {
+      "type": "string",
+      "minLength": 2,
+      "pattern": "^/[^\\u0000]*$"
+    },
+    "executionBinding": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "mode",
+            "project_root",
+            "absolute_destination",
+            "series_token_sha256",
+            "ledger_root",
+            "derivation_recomputed",
+            "private_rebase_capability_validated",
+            "registered_rehearsal_paths_rehashed_as_expected"
+          ],
+          "properties": {
+            "mode": {
+              "const": "REGISTERED_OFFICIAL"
+            },
+            "project_root": {
+              "const": "/Users/ouyangduning/Documents/project/interesting/AlphaPilot-AI"
+            },
+            "absolute_destination": {
+              "const": "/Users/ouyangduning/Documents/project/interesting/AlphaPilot-AI/docs/phase4/rehearsals/P4.2a-v2-calibration-v2-2"
+            },
+            "series_token_sha256": {
+              "const": "2543d679819f96958baf747ef61dda2044013a0b00a9cb824c0d7675640d9f93"
+            },
+            "ledger_root": {
+              "const": "/Users/ouyangduning/AlphaPilot-EVIDENCE-DO-NOT-DELETE/P4.2a/v2.2/SERIES-000002-2543d679819f96958baf747ef61dda2044013a0b00a9cb824c0d7675640d9f93/PRIMARY-LEDGER-DO-NOT-DELETE"
+            },
+            "derivation_recomputed": {
+              "const": true
+            },
+            "private_rebase_capability_validated": {
+              "const": false
+            },
+            "registered_rehearsal_paths_rehashed_as_expected": {
+              "const": true
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "mode",
+            "project_root",
+            "absolute_destination",
+            "series_token_sha256",
+            "ledger_root",
+            "derivation_recomputed",
+            "private_rebase_capability_validated",
+            "real_registered_paths_untouched"
+          ],
+          "properties": {
+            "mode": {
+              "const": "DISPOSABLE_FULL_SHAPE_TEST"
+            },
+            "project_root": {
+              "$ref": "#/$defs/absolutePath"
+            },
+            "absolute_destination": {
+              "$ref": "#/$defs/absolutePath"
+            },
+            "series_token_sha256": {
+              "$ref": "#/$defs/sha256"
+            },
+            "ledger_root": {
+              "$ref": "#/$defs/absolutePath"
+            },
+            "derivation_recomputed": {
+              "const": true
+            },
+            "private_rebase_capability_validated": {
+              "const": true
+            },
+            "real_registered_paths_untouched": {
+              "const": true
+            }
+          }
+        }
+      ]
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "gitCommit": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$"
+    },
+    "relativePath": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9._/-]+$",
+      "not": {
+        "anyOf": [
+          {
+            "pattern": "^/"
+          },
+          {
+            "pattern": "//"
+          },
+          {
+            "pattern": "(^|/)\\.{1,2}(/|$)"
+          },
+          {
+            "pattern": "/$"
+          }
+        ]
+      }
+    },
+    "fileRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "sha256"
+      ],
+      "properties": {
+        "path": {
+          "$ref": "#/$defs/relativePath"
+        },
+        "sha256": {
+          "$ref": "#/$defs/sha256"
+        }
+      }
+    },
+    "authorityRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "sha256",
+        "creating_commit",
+        "unique_a_history_verified"
+      ],
+      "properties": {
+        "path": {
+          "$ref": "#/$defs/relativePath"
+        },
+        "sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "creating_commit": {
+          "$ref": "#/$defs/gitCommit"
+        },
+        "unique_a_history_verified": {
+          "const": true
+        }
+      }
+    },
+    "attemptOutcomeAcknowledgement": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "ordinal",
+        "outcome",
+        "implementation_epoch",
+        "record_root_sha256"
+      ],
+      "properties": {
+        "ordinal": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "outcome": {
+          "enum": [
+            "FAILED",
+            "INCOMPLETE_UNTERMINALIZED",
+            "CANDIDATE_VALIDATED_AND_SELECTED"
+          ]
+        },
+        "implementation_epoch": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "record_root_sha256": {
+          "$ref": "#/$defs/sha256"
+        }
+      }
+    },
+    "implementationEpoch": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "epoch",
+        "implementation_commit",
+        "owner_surface_authorization",
+        "independent_implementation_review",
+        "control_merkle_root_sha256",
+        "first_attempt_ordinal",
+        "last_attempt_ordinal"
+      ],
+      "properties": {
+        "epoch": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "implementation_commit": {
+          "$ref": "#/$defs/gitCommit"
+        },
+        "owner_surface_authorization": {
+          "$ref": "#/$defs/authorityRef"
+        },
+        "independent_implementation_review": {
+          "$ref": "#/$defs/authorityRef"
+        },
+        "control_merkle_root_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "first_attempt_ordinal": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "last_attempt_ordinal": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    }
+  }
+}

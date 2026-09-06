@@ -1,0 +1,438 @@
+{
+  "schema_version": "p4.2a-v2-2-series-2-preregistration-amendment-v1",
+  "amendment_id": "P4.2A-V2-2-SERIES-2-PREREGISTRATION-AMENDMENT-20260823",
+  "created_at_utc": "2026-08-23T10:06:13Z",
+  "created_at_shanghai": "2026-08-23T18:06:13+08:00",
+  "status": "DRAFT_FOR_INDEPENDENT_REVIEW_NOT_EFFECTIVE",
+  "scope": {
+    "create_only_package": true,
+    "exact_status_A_paths": [
+      "config/schemas/p4_2a_v2_2_series_2_heldout_rehearsal_bundle.schema.json",
+      "config/schemas/p4_2a_v2_2_series_2_heldout_release_authorization.schema.json",
+      "docs/phase4/reports/P4.2a-v2-2-series-2-preregistration-amendment-20260823.json"
+    ],
+    "code_changed": false,
+    "config_changed": false,
+    "tests_changed": false,
+    "existing_files_changed": false,
+    "ledger_created_or_reconstructed": false,
+    "external_evidence_directories_created": false,
+    "pipeline_started": false,
+    "heldout_materialized": false,
+    "inference_started": false,
+    "evaluation_started": false,
+    "bundle_created": false,
+    "release_authorization_created": false,
+    "trading_effects": 0,
+    "creating_commit_embedded": false,
+    "creating_commit_rule": "The create-only package cannot self-bind its creating commit. Review and owner digest approval bind the exact three file bytes; the landing commit is derived from Git after landing."
+  },
+  "part_1_authority_loss_and_owner_decision_bindings": {
+    "loss_incident": {
+      "commit": "a7cea63378a39702b1618895b3a7350febcb5da6",
+      "path": "docs/phase4/reports/P4.2a-v2-2-sealed-ledger-loss-incident-20260823.json",
+      "sha256": "2deee3072c339d8e8993bbf8ca8ecbe9380576c1499835828064fb4aead43d30",
+      "bytes": 6422,
+      "verdict": "SEALED_LEDGER_BYTES_LOST_SERIES_SUCCESS_STANDS_BY_DIGEST"
+    },
+    "owner_decision": {
+      "commit": "9a028855c73c4feba36125ed30cf5a7d4db5fff4",
+      "path": "docs/phase4/reports/P4.2a-owner-decision-rerun-rehearsal-series-2-20260823.json",
+      "sha256": "e0fc6a17c853be063632551b4b794091a6152324af7f7ec95262ed2af8538051",
+      "bytes": 2347,
+      "decision": "run it again"
+    },
+    "approved_design": {
+      "commit": "5c7e81c0f4850bb2fe21346c7a7e7d140b9bb3c1",
+      "branch": "codex/p4-2a-v2-2-series2-design",
+      "path": "docs/phase4/reports/P4.2a-v2-2-series-2-design-proposal-20260823.json",
+      "sha256": "a80437b7925ac089989176473b3a67bb6cc6431cd9a92d57515d85dc7c2b7bfc",
+      "bytes": 33219
+    },
+    "design_review_and_owner_storage_decision": {
+      "commit": "d3db7a40e764cca36c7ecf07a8ff9b94c36eead6",
+      "path": "docs/phase4/reports/P4.2a-series-2-design-review-and-storage-decisions-20260823.json",
+      "sha256": "523cdf9adeb25eccaf8c73eb9cb3d5e5dd58a5e102116f9cdff8da058f54639f",
+      "bytes": 4159,
+      "verdict": "PASS_DESIGN_REVIEW_WITH_TWO_STORAGE_AMENDMENTS"
+    },
+    "post_cninfo_main_base": {
+      "commit": "f21fa10babd9b300fae03c751ba038c7ebc77392",
+      "commit_subject": "P4.1: expand CNInfo polling with partitioned v2.2",
+      "implementation_evidence": {
+        "path": "docs/phase4/reports/P4.1-news-poll-v2-2-cninfo-partition-capacity-implementation-evidence-20260823.json",
+        "sha256": "778c7165b7a833950b86f0e192b08571897cd2e629b2469f68067ea29dfc80c3",
+        "bytes": 16427
+      },
+      "main_and_origin_main_equal_at_draft_creation": true
+    },
+    "authority_boundary": {
+      "this_amendment_is_implementation_authority": false,
+      "this_amendment_is_attempt_authorization": false,
+      "independent_review_required": true,
+      "owner_digest_signature_required_before_landing": true,
+      "owner_companion_and_six_field_epoch_5_authority_required_after_landing": true
+    }
+  },
+  "part_2_complete_lost_series_digest_history": {
+    "classification": "DIGEST_PROOF_CHAIN_NOT_RECONSTRUCTABLE_LEDGER_BYTES",
+    "old_series_token_sha256": "35ba1b83a9b187817d7a591758e1c131e867fcd37917cba0ab196799fff832ef",
+    "old_ledger_root": "/Users/ouyangduning/Documents/project/interesting/.alphapilot-p4-2a-v2-2-execution-claim-35ba1b83a9b187817d7a591758e1c131e867fcd37917cba0ab196799fff832ef",
+    "history_root_after_ordinal_1": "076ae961fc149ae271bf5a3724c1677abccfea7139589909ea717a7f4a38083a",
+    "history_root_after_ordinal_2": "a466de7b349882f2bcd556a4b4d00bf38bace9adb593b0e3b6296c415a8c9ca1",
+    "attempt_1": {
+      "ordinal": 1,
+      "outcome": "FAILED",
+      "implementation_epoch": 2,
+      "implementation_commit": "1b4e05c6acd513bb1bc11245911da97b6a128ca1",
+      "evidence_tree_root_sha256": "deea0e81e3fd8a5c886cc4c757fb5485cb7f750718462489dea48d3deed2691c"
+    },
+    "attempt_2": {
+      "ordinal": 2,
+      "outcome": "CANDIDATE_VALIDATED_AND_SELECTED",
+      "implementation_epoch": 4,
+      "implementation_commit": "890e9002116c625d41f6aa037975df15d1546c56",
+      "started_sha256": "75771a37572fb9191a9db26f986b1e9d89c26843556b502866322a8f4bdaf42d",
+      "candidate_sha256": "92652f963b04b79e29580978cd6857c2154df0b429ac09502be6c0c0c5d84da5",
+      "terminal_sha256": "7ba4ed1b5d7e7abc462b312f08b131ff438cc524cecbdeea6b43dc199292e3dc",
+      "evidence_tree_root_sha256": "f38b18b972f14a170fc9bb4129f25ec77e8ad1c4e8a8f137b5853cc371b694c2",
+      "run_a_and_run_b_root_sha256": "5fb8edf3aa65cdcd0f54b82bdf6f240104fa8537c1004e640671910115f8f314",
+      "candidate_content_root_sha256": "5de4f74d1f73e5f90aa9c196c8fc6574bce2ecfa91abd750b22726c14c6a60b7",
+      "selected_control_root_sha256": "76076606d6e40cdd386b28cdd5bc40a8957693b8cfdc8b17a0a77410b4e082e8",
+      "q_r_b_commits": [
+        "f6f993d0e9f30b6f6c5250a94a4a49b179fc8ff1",
+        "f004054c1797904206e5590f2b0f4751848665c1",
+        "1832ed7c6130b71d5a99722721eaec83b2adabdd"
+      ],
+      "execution_authorization_sha256": "8f5c0b31ef88922b8b44b202c729fad55a4d0cb172c000089991f1cd2c995461"
+    },
+    "contemporaneous_verification_commits": [
+      "7fc122f575801ff43d2446a2c59491a086735e93",
+      "0548692480ff8325b69be92f01e0d42e11ad4eb0",
+      "7cf819d43d5b73f7b8f1469a556c79ece12587f0"
+    ],
+    "series_1_outcome_stands": true,
+    "series_1_bundle_cannot_be_reconstructed_or_released": true,
+    "series_1_digests_enter_series_2_amendment_lineage": true,
+    "series_1_digests_enter_series_2_attempt_history_root": false,
+    "series_1_digests_enter_series_2_control_surface_and_bundle_lineage_through_the_amendment": true,
+    "old_ledger_and_retired_v2_1_claim_must_remain_absent": true
+  },
+  "part_3_non_reconstruction_and_independent_empty_history_reset": {
+    "lost_bytes_must_not_be_reconstructed_from_digests_or_reports": true,
+    "old_ledger_must_remain_absent": true,
+    "retired_v2_1_claim_must_remain_absent": true,
+    "old_history_root_must_not_seed_series_2": true,
+    "series_2_attempt_ordinals_start_at": 1,
+    "history_empty_root_formula": "SHA256(UTF8('p4.2a-rehearsal-v2.2-history-empty-v1') || NUL)",
+    "history_empty_root_sha256": "318b5c9ed06b2eed4ea55bf6f14da4c27e11b4cb2122e3f182847644aa549605",
+    "ordinal_1_previous_history_root_sha256": "318b5c9ed06b2eed4ea55bf6f14da4c27e11b4cb2122e3f182847644aa549605",
+    "lineage_rule": "The immutable series-1 digest summary is carried by this amendment into the active control surface and bundle lineage. It is never serialized as an attempt row and contributes no bytes to the independent series-2 attempt-history root.",
+    "observed_absence_at_draft_creation": {
+      "old_ledger": true,
+      "canonical_bundle_destination": true,
+      "new_primary_series_container": true,
+      "new_secondary_series_container": true
+    }
+  },
+  "part_4_fresh_series_identity_and_visible_primary_mirror_paths": {
+    "series_number": 2,
+    "policy": "DISCLOSED_REPEATABLE_SERIES_V1",
+    "rehearsal_id_unchanged": "P4.2A-V2-HELDOUT-REHEARSAL-V2-2-DETERMINISTIC-20260811",
+    "bundle_destination_unchanged": "/Users/ouyangduning/Documents/project/interesting/AlphaPilot-AI/docs/phase4/rehearsals/P4.2a-v2-calibration-v2-2",
+    "token_derivation": "SHA256(lowercase(loss_incident_file_sha256) || NUL || rehearsal_id || NUL || absolute_bundle_destination)",
+    "token_material_bytes": 232,
+    "loss_incident_file_sha256": "2deee3072c339d8e8993bbf8ca8ecbe9380576c1499835828064fb4aead43d30",
+    "series_token_sha256": "2543d679819f96958baf747ef61dda2044013a0b00a9cb824c0d7675640d9f93",
+    "primary_series_container": "/Users/ouyangduning/AlphaPilot-EVIDENCE-DO-NOT-DELETE/P4.2a/v2.2/SERIES-000002-2543d679819f96958baf747ef61dda2044013a0b00a9cb824c0d7675640d9f93",
+    "primary_ledger_root": "/Users/ouyangduning/AlphaPilot-EVIDENCE-DO-NOT-DELETE/P4.2a/v2.2/SERIES-000002-2543d679819f96958baf747ef61dda2044013a0b00a9cb824c0d7675640d9f93/PRIMARY-LEDGER-DO-NOT-DELETE",
+    "primary_receipt_root": "/Users/ouyangduning/AlphaPilot-EVIDENCE-DO-NOT-DELETE/P4.2a/v2.2/SERIES-000002-2543d679819f96958baf747ef61dda2044013a0b00a9cb824c0d7675640d9f93/MIRROR-RECEIPTS-DO-NOT-DELETE",
+    "secondary_series_container": "/Users/ouyangduning/AlphaPilot-EVIDENCE-MIRROR-DO-NOT-DELETE/P4.2a/v2.2/SERIES-000002-2543d679819f96958baf747ef61dda2044013a0b00a9cb824c0d7675640d9f93",
+    "secondary_snapshot_root": "/Users/ouyangduning/AlphaPilot-EVIDENCE-MIRROR-DO-NOT-DELETE/P4.2a/v2.2/SERIES-000002-2543d679819f96958baf747ef61dda2044013a0b00a9cb824c0d7675640d9f93/SEALED-LEDGER-SNAPSHOTS-DO-NOT-DELETE",
+    "secondary_receipt_root": "/Users/ouyangduning/AlphaPilot-EVIDENCE-MIRROR-DO-NOT-DELETE/P4.2a/v2.2/SERIES-000002-2543d679819f96958baf747ef61dda2044013a0b00a9cb824c0d7675640d9f93/MIRROR-RECEIPTS-DO-NOT-DELETE",
+    "owner_storage_decision": {
+      "second_copy": "second local visible directory only; no cloud service",
+      "residual_risk_accepted": "The two visible same-machine roots protect against path-scoped accidental deletion but not disk failure, machine loss or same-volume corruption.",
+      "path_binding_precedence": "The owner-authorized 2026-08-23 transcript spelling P4.2a/v2.2 is the final active binding; the committed design-review source remains immutable."
+    },
+    "provisioning_rule": "Only after explicit owner provisioning authority and before attempt 1, the owner creates exactly the two registered SERIES-000002-* containers with mode 0700. Registered-root preflight proves owner UID, mode, non-symlink, non-overlap and absence of the primary-ledger, secondary-snapshot and both receipt leaves. This amendment creates none of those paths.",
+    "constant_isolation": {
+      "new_token_seed_constant": "SERIES_2_TOKEN_SEED_SHA256",
+      "new_token_seed_value": "2deee3072c339d8e8993bbf8ca8ecbe9380576c1499835828064fb4aead43d30",
+      "legacy_incident_sha256_constant_name": "INCIDENT_SHA256",
+      "legacy_incident_sha256_value_unchanged": "d658336f61cdca0239584b696043fe4abc5ede1ef7aff76a4fe514b7b5d0735c",
+      "rule": "SERIES_2_TOKEN_SEED_SHA256 must not overwrite, alias or reinterpret INCIDENT_SHA256."
+    }
+  },
+  "part_5_epoch_origin_5_and_explicit_epoch_key_rules": {
+    "registered_base_epoch_before_series_2_change": 4,
+    "smallest_authorizable_successor_epoch": 5,
+    "series_2_epoch_origin": 5,
+    "series_schema_version": "p4.2a-v2-2-rehearsal-series-2-v1",
+    "series_schema_shape": "the existing exact 13 fields plus exactly implementation_epoch_origin=5",
+    "packer_rules": [
+      "the first attempt must use implementation_epoch=5",
+      "distinct used epochs must equal range(5, 5 + distinct_epoch_count)",
+      "multiple contiguous attempts may use the same epoch",
+      "an implementation transition may advance only by exactly one",
+      "bundle implementation_epochs contains only epochs actually used by series 2 and emits no synthetic rows for epochs 1 through 4",
+      "attempt ordinals start at 1 and remain contiguous"
+    ],
+    "validator_rules": [
+      "index implementation epochs by their explicit epoch field rather than one-based array position",
+      "require the first registered series-2 epoch key to equal 5 and each later key to increase by one",
+      "resolve selected, authority, review, topology, control-root and current-byte checks by explicit epoch key",
+      "keep the selected epoch current-byte check fully fail-closed",
+      "reject origin 1, 2, 3, 4 or 6, reject [5,7], regression, reorder and authority epoch mismatch"
+    ],
+    "unlanded_epoch_5_candidates_consume_official_epoch_number": false,
+    "legacy_and_absence_rules": {
+      "existing_void_epoch_1_code_may_remain_for_legacy_and_disposable_validation": true,
+      "official_series_2_bundle_emits_void_epoch_1": false,
+      "void_epoch_3_added": false,
+      "two_four_exception_added": false,
+      "sealed_bundle_recovery_added": false,
+      "recover_sealed_bundle_cli_added": false,
+      "consume_recovered_release_cli_added": false
+    }
+  },
+  "part_6_binding_only_schema_equivalence_allowlist": {
+    "classification": "ADDITIVE_BINDING_ONLY_GOVERNANCE_PROFILES_NOT_A_SCIENTIFIC_OR_RELEASE_RELAXATION",
+    "construction_order": "The series-2 release schema was created first and its true SHA-256 was then bound into the series-2 bundle schema. There is no fallback, default or self-reference.",
+    "frozen_bundle_schema": {
+      "path": "config/schemas/p4_2a_v2_2_heldout_rehearsal_bundle.schema.json",
+      "sha256": "19903ac94d4d7ced81c7f18e7b8880bd1dbb68fd3ededf3f0b91f89d034aa5db",
+      "bytes": 93736,
+      "change": "FORBIDDEN"
+    },
+    "series_2_bundle_schema": {
+      "path": "config/schemas/p4_2a_v2_2_series_2_heldout_rehearsal_bundle.schema.json",
+      "sha256": "252ad069ed300917989a97656b4c38e6ee2c74069b2bacd6c258b263b5684ec7",
+      "bytes": 93780,
+      "difference_count": 7
+    },
+    "bundle_schema_exact_7_json_pointers": [
+      "/$id",
+      "/$defs/lineage/properties/preregistration/allOf/1/properties/path/const",
+      "/$defs/lineage/properties/bundle_schema/allOf/1/properties/path/const",
+      "/$defs/lineage/properties/release_authorization_schema/allOf/1/properties/path/const",
+      "/$defs/lineage/properties/release_authorization_schema/allOf/1/properties/sha256/const",
+      "/$defs/executionBinding/oneOf/0/properties/series_token_sha256/const",
+      "/$defs/executionBinding/oneOf/0/properties/ledger_root/const"
+    ],
+    "frozen_release_schema": {
+      "path": "config/schemas/p4_2a_v2_2_heldout_release_authorization.schema.json",
+      "sha256": "098d213f510718aab0d9c6bfc950a30bb1c4841ca151631bea78c1bf0238e7ea",
+      "bytes": 27235,
+      "change": "FORBIDDEN"
+    },
+    "series_2_release_schema": {
+      "path": "config/schemas/p4_2a_v2_2_series_2_heldout_release_authorization.schema.json",
+      "sha256": "c7228bff2d4ec575bcdec024194ce2b53d37a27e05ba793bd4bdf145a97f63be",
+      "bytes": 27279,
+      "difference_count": 6
+    },
+    "release_schema_exact_6_json_pointers": [
+      "/$id",
+      "/properties/lineage/properties/preregistration/allOf/1/properties/path/const",
+      "/properties/lineage/properties/bundle_schema/allOf/1/properties/path/const",
+      "/properties/lineage/properties/release_schema/allOf/1/properties/path/const",
+      "/$defs/executionBinding/oneOf/0/properties/series_token_sha256/const",
+      "/$defs/executionBinding/oneOf/0/properties/ledger_root/const"
+    ],
+    "all_other_canonical_json_pointers_equal_the_frozen_schemas": true,
+    "historical_constants_unchanged": [
+      "PREREGISTRATION_RELATIVE",
+      "PREREGISTRATION_SHA256",
+      "PREREGISTRATION_COMMIT",
+      "INCIDENT_RELATIVE",
+      "INCIDENT_SHA256",
+      "BUNDLE_SCHEMA_RELATIVE",
+      "BUNDLE_SCHEMA_SHA256",
+      "RELEASE_SCHEMA_RELATIVE",
+      "RELEASE_SCHEMA_SHA256"
+    ],
+    "historical_preregistration_binding": {
+      "path": "docs/phase4/reports/P4.2a-v2-heldout-rehearsal-v2-2-preregistration-20260811.json",
+      "sha256": "8f52a9e24df11e23a900b5cb79720f3b4aae999c6ab770a9038ebe2617e8d8d5",
+      "bytes": 106742,
+      "creating_commit": "be6423506f598c290db7ad944b002763fdf806ab"
+    },
+    "new_active_constants": [
+      "SERIES_2_PREREGISTRATION_RELATIVE",
+      "SERIES_2_PREREGISTRATION_SHA256",
+      "SERIES_2_PREREGISTRATION_COMMIT",
+      "SERIES_2_TOKEN_SEED_SHA256",
+      "SERIES_2_BUNDLE_SCHEMA_RELATIVE",
+      "SERIES_2_BUNDLE_SCHEMA_SHA256",
+      "SERIES_2_RELEASE_SCHEMA_RELATIVE",
+      "SERIES_2_RELEASE_SCHEMA_SHA256"
+    ],
+    "role_rule": "Legacy initial-epoch, void-epoch-1, strict-inheritance and historical-topology checks continue using unchanged historical constants. Series-2 series.json, bundle/release lineage, control surface and active validators use only SERIES_2_* constants and carry historical bindings through this amendment."
+  },
+  "part_7_attempt_seal_and_second_copy_fail_closed_protocol": {
+    "primary_seal_semantics": [
+      "while holding the exclusive series lock, persist the primary terminal with existing create-only rules and fsync every file and directory",
+      "once the primary terminal is durable, the attempt is sealed and its terminal outcome is irreversible",
+      "if a process dies before terminalization, the next lock holder replays and classifies the persisted attempt as INCOMPLETE_UNTERMINALIZED, freezes exactly the primary bytes then present, keeps terminal.json absent and completes that frozen-history mirror before allocating a later ordinal",
+      "a later mirror failure never deletes, rewrites, rolls back or reclassifies a sealed terminal attempt or frozen incomplete primary bytes"
+    ],
+    "snapshot_scope": "After each terminal seal, and before carrying any replay-confirmed INCOMPLETE_UNTERMINALIZED record into a later ordinal, copy the entire live ledger as of that ordinal, including series.json and all attempts through the sealed or frozen ordinal, into a new create-only secondary snapshot.",
+    "snapshot_name": "through-ordinal-{ordinal:06d}-{live_ledger_root_sha256}",
+    "copy_algorithm": [
+      "continue holding the series lock and replay the complete primary history",
+      "compute the sorted live-ledger inventory and Merkle root plus relative path, mode, bytes, SHA-256, file count, total bytes and history root",
+      "reject symlink, hardlink, special-file, alias and overlapping primary/secondary ancestors; prohibit clonefile/reflink APIs and copy with explicit read/write without claiming APFS extent sharing can be detected afterward",
+      "on the first mirror only, create the registered secondary snapshot root and both receipt roots with one-level create-only mkdir mode 0700 under owner-provisioned containers and fsync all three parents; later mirrors require exact owner, mode and non-alias properties",
+      "copy bytes into a unique same-parent staging directory with O_EXCL; directories are 0700 and files are 0600",
+      "fsync each file, each directory and the staging parent",
+      "independently re-read the secondary tree and recompute inventory, history root and live-ledger root",
+      "require exact equality of relative paths, modes, bytes, per-file SHA-256, history root and live-ledger root",
+      "on exact macOS publish the same-parent staging directory only with renameatx_np and RENAME_EXCL=0x00000004, require success, fsync the final parent and re-read the published tree; absent-check plus os.rename is forbidden",
+      "construct one canonical receipt byte string and publish it with O_CREAT|O_EXCL under both receipt roots with the same filename; fsync each receipt and parent, then require independently re-read receipt bytes to be identical"
+    ],
+    "receipt_filename": "through-ordinal-{ordinal:06d}-{live_ledger_root_sha256}.mirror-verification.json",
+    "receipt_required_fields": [
+      "schema_version",
+      "series_token_sha256",
+      "ordinal",
+      "attempt_outcome",
+      "attempt_sealed",
+      "primary_ledger_root",
+      "secondary_snapshot_root",
+      "history_root_sha256",
+      "live_ledger_root_sha256",
+      "file_count",
+      "total_bytes",
+      "primary_inventory_sha256",
+      "secondary_inventory_sha256",
+      "second_copy_verified",
+      "verified_at_utc"
+    ],
+    "covered_states": [
+      "FAILED",
+      "CANDIDATE_VALIDATED_AND_SELECTED",
+      "INCOMPLETE_UNTERMINALIZED frozen by replay before a later disclosed attempt"
+    ],
+    "mirror_failure_semantics": {
+      "terminalized_attempt_seal_or_incomplete_history_freeze_remains_effective": true,
+      "second_copy_verified": false,
+      "primary_terminal_unchanged_for_terminalized_attempt": true,
+      "primary_incomplete_history_bytes_unchanged_and_terminal_absent_when_applicable": true,
+      "next_attempt_forbidden": true,
+      "bundle_forbidden": true,
+      "release_forbidden": true,
+      "pipeline_retry_started": false,
+      "automatic_retry": 0,
+      "staging_or_partial_artifacts_automatically_deleted_or_overwritten": false,
+      "completion_in_epoch_5": "NOT_IMPLEMENTED_OR_PREAUTHORIZED",
+      "required_response": "Stop the line and preserve primary, staging, snapshot and receipt bytes. Any mirror-only completion requires a later reviewed design, explicit authorization record, one-use claim and separate entrypoint with zero pipeline authority."
+    },
+    "continuation_gate": "Only second_copy_verified=true, supported by identical independently re-read receipts, permits a later ordinal, bundle packing, validation or release processing."
+  },
+  "part_8_unchanged_scientific_release_bytes_and_phase_trading_locks": {
+    "frozen_rule": "Gates, thresholds, samples, seeds, models, prompts, scientific contracts, gold data, the exact 24-field action authorization shape and all heldout locks remain byte-identical.",
+    "existing_preregistration": {
+      "path": "docs/phase4/reports/P4.2a-v2-heldout-rehearsal-v2-2-preregistration-20260811.json",
+      "sha256": "8f52a9e24df11e23a900b5cb79720f3b4aae999c6ab770a9038ebe2617e8d8d5",
+      "bytes": 106742,
+      "change": "FORBIDDEN"
+    },
+    "registered_epoch_4_files_unchanged_at_draft_creation": {
+      "scripts/rehearse_p4_2a_v2_2_heldout_full_path.py": "660d6b6e820581eae792e6c04f35b15b30bdb2427d93c3a934af9146f0e044c0",
+      "scripts/p4_2a_v2_2_heldout_rehearsal.py": "9318e46e86f9a9a6aa5676a99f000eae4446f000520db261ecef391c30e88d77",
+      "scripts/validate_p4_2a_v2_2_heldout_rehearsal_bundle.py": "8c2e34370174122d02232e76314ec7cc092523c8424773891b4cdb8335b53b0d",
+      "tests/test_p4_2a_v2_2_heldout_rehearsal_runner.py": "7209349831a0f1c14d796adf6238ad0b9905b81d5a94b5e273ec4715f417a85a",
+      "tests/test_p4_2a_v2_2_heldout_rehearsal_validator.py": "fbd7cfedda56bb48f06b1d0438d59ad7d5e635ecc91bf0ca43d2afbfbfd45b13"
+    },
+    "heldout_evaluation_one_shot": "UNCONSUMED",
+    "automatic_retry": 0,
+    "one_pipeline_start_per_owner_authorization": true,
+    "materialization_locked_until_Q_R_B": true,
+    "inference_locked_until_Q_R_B": true,
+    "evaluation_locked_until_Q_R_B": true,
+    "p4_2a_done": false,
+    "p4_2b_unlocked": false,
+    "p4_3_unlocked": false,
+    "trading_mode": "SIMULATE_ONLY",
+    "non_simulate_trading_effects": 0,
+    "no_release_from_lost_series": true,
+    "no_recovery_machinery_from_unlanded_epoch_5_candidates": true
+  },
+  "part_9_mandatory_order_and_control_surface_freeze": {
+    "cninfo_first": {
+      "landing_complete": true,
+      "commit": "f21fa10babd9b300fae03c751ba038c7ebc77392",
+      "scheduler_activation_and_natural_catchup": "operational evidence is collected outside this create-only governance package and is not claimed complete here"
+    },
+    "next_steps": [
+      "independently review these exact three status-A bytes and obtain the owner's signature over their exact digests",
+      "land the reviewed exact-three-A package on fresh main with no other diff",
+      "issue an owner companion descending from the amendment landing and then its direct-child six-field epoch-5 authority",
+      "implement exact four M, run operator F-15 and obtain independent full F-12 runner and validator evidence",
+      "run the unchanged persistent gate, generate its landing report before merge and use merge-only",
+      "after explicit owner provisioning, run the merged registered-root preflight and construct series-2 ordinal-1 Q",
+      "obtain the exact 24-field R and in-person B, execute one exact-OS pipeline start, seal, mirror and only then process the bundle"
+    ],
+    "seventy_three_member_freeze": {
+      "active_from_cninfo_landing": "f21fa10babd9b300fae03c751ba038c7ebc77392",
+      "active_through": "series-2 attempt 1 execution and release completion",
+      "rule": "No one changes any of the 73 registered control-surface members during this interval. This exact-three-A package changes none of them."
+    },
+    "backup_retention_fix_relanding": "only after P4.2a release",
+    "git_shape": "one future landing commit, exact three status-A paths, no other diff"
+  },
+  "registered_test_plan_for_authorized_epoch_5_implementation": {
+    "epoch_origin": [
+      "accept [5], [5,5] and [5,6]",
+      "reject origins 1,2,3,4,6, [5,7], reorder, regression and authority/index substitution",
+      "resolve selected epoch 5 and 6 authority, review, topology, control and current bytes by explicit key",
+      "prove the official series-2 bundle has no synthetic void row",
+      "prove series.json has its exact series-2 schema version and old 13 fields plus implementation_epoch_origin=5"
+    ],
+    "series_identity_and_schema": [
+      "recompute the series-2 token from exactly 232 registered material bytes",
+      "reject old token, hidden ledger root, old series summary as previous history and every schema/binding mismatch",
+      "prove exact seven-pointer bundle and six-pointer release schema equivalence",
+      "prove SERIES_2_* bindings cannot substitute historical constants"
+    ],
+    "lost_history": [
+      "tampering any a7cea63 or 9a02885 path, commit, SHA, bytes, history root or attempt digest fails preflight",
+      "prove series-1 summaries enter control and bundle lineage but never the series-2 attempt-history root",
+      "prove old ledger and retired v2.1 claim remain absent and are never recreated"
+    ],
+    "second_copy": [
+      "exact full-ledger snapshot succeeds for FAILED, incomplete and selected terminal histories",
+      "missing, extra, byte, SHA or mode drift, symlink, hardlink, alias, overlap, collision and receipt failure all fail closed",
+      "mirror failure preserves the primary seal or frozen incomplete bytes and blocks later ordinal, bundle and release",
+      "no mirror-only completion entrypoint or authorization exists in epoch 5"
+    ],
+    "exact_os_positive": "A synthetic registered-shape series with ordinal 1 at epoch 5 seals primary, verifies the second snapshot and packs and validates the bundle without changing a scientific or safety contract."
+  },
+  "attempt_1_minimal_path": [
+    "complete and independently accept CNInfo capacity activation and natural catch-up evidence",
+    "independently review, owner-sign and land this exact-three-A preregistration amendment package",
+    "obtain the owner companion and its direct-child six-field epoch-5 authority",
+    "implement exact four M and run operator F-15 registered regression",
+    "obtain independent full F-12 runner and validator evidence",
+    "run the persistent gate with zero retry, generate landing report before merge and merge-only",
+    "after explicit owner provisioning authority, create only the two registered mode-0700 SERIES-000002-* parent containers",
+    "run merged registered-root read-only preflight and require destination, retired v2.1 claim, old ledger and all new ledger, snapshot and receipt leaves absent",
+    "create series-2 ordinal-1 Q with epoch 5, fresh token and ledger root, previous history root 318b5c9ed06b2eed4ea55bf6f14da4c27e11b4cb2122e3f182847644aa549605, one pipeline start and automatic retry zero",
+    "obtain exact 24-field R and in-person B",
+    "execute one exact-OS pipeline start",
+    "seal the primary attempt and publish and verify the create-only secondary full-ledger snapshot",
+    "only after second_copy_verified=true may packer, validator and release processing continue"
+  ],
+  "stop_boundary": {
+    "draft_is_effective_preregistration": false,
+    "schemas_are_active_before_review_owner_signature_and_landing": false,
+    "implementation_may_start": false,
+    "external_directories_may_be_created": false,
+    "owner_companion_or_six_field_authority_exists": false,
+    "attempt_Q_R_B_may_be_created": false,
+    "attempt_1_may_start": false,
+    "ledger_or_bundle_may_be_written": false,
+    "required_next_action": "Independent review of the exact three create-only bytes, followed by an owner signature over their exact SHA-256 digests."
+  }
+}

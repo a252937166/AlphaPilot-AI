@@ -1,0 +1,91 @@
+{
+  "schema_version": "p4.2a-independent-review-v1",
+  "review_id": "p4.2a-v2-1-implementation-review-20260811-r1",
+  "created_at_utc": "2026-08-11T05:00:41Z",
+  "created_at_shanghai": "2026-08-11T13:00:41+08:00",
+  "verdict": "APPROVE_IMPLEMENTATION",
+  "blockers": [],
+  "implementation_commit": "4fce89e89fe2dba656694a7cffdc0ee1af0305c0",
+  "reviewer": {
+    "identity": "independent_ai_architect_claude_code",
+    "reviewer_type": "ai",
+    "model": "Anthropic Claude Fable 5 (model id claude-fable-5)",
+    "impersonation_disclaimer": "Not a human reviewer. Issued under the owner governance amendment with requires_release_gate_amendment=true.",
+    "method": "read-only. No rehearsal executed, no real database, network or model access, no artifact created beyond this record. Every claim re-derived from the repository rather than accepted from the report."
+  },
+  "part_1_commit_shape": {
+    "parent": "d37040be87644977ddaad60b2590ac2e62b2aeed",
+    "parent_is_the_control_plane_authorization": true,
+    "parent_count": 1,
+    "no_intervening_commit": true,
+    "pushed": false,
+    "verdict": "the surface base rule from the control-plane authorization is satisfied exactly"
+  },
+  "part_2_surface_reconciliation": {
+    "observed": {"total": 15, "modified": 11, "added": 4},
+    "provenance_of_every_path": {
+      "base_preregistration_b302d588": {"count": 12, "fields": ["registered_modified_consumers", "registered_new_files", "registered_existing_test_updates"]},
+      "timing_seam_preregistration_b3c2d22": {"count": 2, "paths": ["scripts/run_p4_2a_offline_extract.py", "tests/test_p4_2a_offline_extract.py"], "note": "registered in advance as prospective_scope_extension"},
+      "control_plane_authorization_d37040b": {"count": 1, "path": "tests/test_p4_2a_v2_heldout_finalizer.py"}
+    },
+    "arithmetic": "12 + 2 + 1 = 15, and the observed surface contains no path outside these three authorities and omits none of them",
+    "verdict": "no unauthorised path entered the surface"
+  },
+  "part_3_registry_expansion_auditable": {
+    "named_constants": {"SUCCESSOR_V2_1_PREEXPANSION_SURFACE_COUNT": 14, "SUCCESSOR_V2_1_EXPANDED_SURFACE_COUNT": 15},
+    "authority_digests_pinned": ["scope-correction ruling sha256 36a3baea...", "scope-correction ruling commit 88690ef...", "control-plane authorization sha256 ab85a0dd...", "control-plane authorization commit d37040b..."],
+    "verdict_string_checked_verbatim": "the consumer asserts the ruling's explicit_verdict equals the exact sentence accepting registration of tests/test_p4_2a_v2_heldout_finalizer.py, so a differently worded ruling could not satisfy the gate",
+    "verdict": "the 14 to 15 change is explicit and traceable rather than a silent count edit, as required"
+  },
+  "part_4_cninfo_pacing": {
+    "implementation": "_CninfoStartPacer in scripts/prepare_p4_2a_v2_heldout.py, injected through the pdf_fetcher seam that materialize_heldout_candidate_inputs already exposes",
+    "build_p4_2a_gold_sample_unchanged": true,
+    "is_this_the_forbidden_wrapper": "no. The prohibition targeted an external wrapper or monkeypatch creating an entry point no rehearsal covers. This uses the injection point the code already provides, from inside a registered path, and the materialization call site itself is on the registered surface.",
+    "behaviour_verified": {
+      "constant": "CNINFO_MIN_START_TO_START_SECONDS = 1.0",
+      "clock": "monotonic, with rejection of non-numeric, non-finite and reversed readings",
+      "first_request_delay": "none",
+      "evidence_fields": ["host", "policy", "configured_min_start_to_start_seconds", "clock", "first_request_delayed", "request_start_count", "observed_gap_count", "minimum_observed_start_to_start_seconds", "median_observed_start_to_start_seconds", "violation_count", "retry_count"],
+      "matches_the_reporting_i_required": true
+    },
+    "negative_case": {
+      "required": "a case proving the limiter actually delays, so the rehearsal cannot pass with a no-op limiter",
+      "delivered": "test_cninfo_noop_sleeper_rejects_before_second_fetch_and_never_retries. With a sleeper that does not advance the clock, the second fetch raises 'did not advance' and the underlying fetch count stays at 1. A no-op limiter does not merely get detected, it cannot proceed.",
+      "additional_coverage": ["clock reversal raises", "non-finite clock raises", "positive case asserts no first delay, two sleeps of exactly 1.0, and the full evidence mapping"],
+      "assessment": "stronger than the condition asked for"
+    }
+  },
+  "part_5_entry_gate_rewired": {
+    "old_gate": "_validate_full_path_rehearsal_gate remains defined but has no call site anywhere in the file",
+    "new_path": "stage-bound authorization through _validate_v2_1_offline_capability, with the pacer constructed in the materialization path before any fetch",
+    "retired_id_guard_retained": true,
+    "finalize_stage_still_locked": "the finalize-owner-adjudication stage raises REJECTED_PENDING_OWNER_ADJUDICATION_AUTHORITY",
+    "verdict": "the blocker recorded in the successor code-gate authorization is resolved without weakening the guard it replaced"
+  },
+  "part_6_gates_rerun_by_reviewer": {
+    "ruff": "All checks passed",
+    "mypy_strict_src_alphapilot": "no issues found in 157 source files",
+    "registered_test_files": "133 tests across test_p4_2a_v2_heldout.py, test_p4_2a_v2_1_heldout_rehearsal_runner.py, test_p4_2a_v2_1_heldout_rehearsal_validator.py, test_p4_2a_v2_heldout_finalizer.py and test_p4_2a_offline_extract.py, all passing with zero skips",
+    "former_conditional_skips": {
+      "test_prevalidated_stage_authority_is_identity_and_stage_bound": "PASS, in tests/test_p4_2a_v2_heldout.py",
+      "test_single_temp_full_path_is_commit_bound_and_never_registered": "PASS, in tests/test_p4_2a_v2_1_heldout_rehearsal_runner.py",
+      "method": "both invoked by exact node id and observed to pass rather than skip"
+    }
+  },
+  "part_7_isolation": {
+    "official_rehearsal_executed": false,
+    "real_heldout_root": "docs/phase4/eval/v2-calibration contains only development",
+    "v2_1_bundle": "not created",
+    "real_database_network_or_model_activity": "none observed; trading state remains 1 proposal and 0 non-SIMULATE orders",
+    "p4_1_observation_window": "95 polls since it opened with zero failures, unaffected"
+  },
+  "part_8_what_this_approves": {
+    "approves": "the v2.1 implementation candidate at 4fce89e as the source from which the single registered rehearsal may be run",
+    "does_not_approve": ["the rehearsal result, which does not exist yet", "any real materialization, inference, evaluation or one-shot consumption", "marking P4.2a done or unlocking P4.2b or P4.3"],
+    "next_step": "run the single registered offline rehearsal, publish the create-only v2.1 bundle, validate it, and submit bundle plus review request for independent review before any real execution"
+  },
+  "part_9_note_on_o6": {
+    "statement": "The control-plane authorization warned that a fourth narrow authorization before the rehearsal would indicate the v2.1 pre-registration had under-specified its own surface. No fourth was needed. The surface reconciled exactly against the three existing authorities, which suggests the pre-registration was adequate once the finalizer test omission was corrected.",
+    "outstanding": "F-8 remains open. The control surface still holds scripts and, now, one registered test; every other test file can still be modified without a gate noticing."
+  }
+}

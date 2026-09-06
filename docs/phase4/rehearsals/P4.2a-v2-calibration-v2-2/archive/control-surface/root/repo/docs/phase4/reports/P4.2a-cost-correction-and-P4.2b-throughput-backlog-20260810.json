@@ -1,0 +1,86 @@
+{
+  "schema_version": "p4-cost-correction-and-optimisation-backlog-v1",
+  "record_id": "p4.2a-cost-correction-and-p4.2b-throughput-backlog-20260810-r1",
+  "created_at_utc": "2026-08-10T03:30:20Z",
+  "created_at_shanghai": "2026-08-10T11:30:20+08:00",
+  "repository_head_at_record": "3cf402820511707776e3e25dd6b0ae6a77be0b2e",
+  "status": "recorded_for_p4_2b; nothing implemented; no artifact, model, threshold or selection changed",
+  "author": {
+    "identity": "independent_ai_architect_claude_code",
+    "reviewer_type": "ai",
+    "model": "Anthropic Claude Fable 5 (model id claude-fable-5)",
+    "impersonation_disclaimer": "Not a human reviewer. Issued under the owner governance amendment with requires_release_gate_amendment=true."
+  },
+  "part_1_cost_correction": {
+    "id": "C-1",
+    "severity": "material_correction_of_a_figure_the_owner_decided_on",
+    "what_was_said": "When the owner amended the selection rule to qwen3.6-plus, this adjudicator quoted the incremental cost as approximately 113 CNY per month, from about 11.8 to about 124.8, citing the frozen v1.7 cost formula.",
+    "why_it_was_wrong": "That formula rests on two assumptions that measurement has now overturned. It assumed 15,000 calls per month, which is 500 per day, and 3,484 prompt tokens per call under the shorter v1_5 prompt.",
+    "measured_reality": {
+      "daily_ingestion": {"cninfo_per_trading_day": "1,127 to 1,529 on 2026-08-03 through 08-08", "akshare_ths_per_day": "roughly 50 to 60", "sina_company_news_per_day": "roughly 16 to 21", "total_per_day": "roughly 1,300 to 1,600"},
+      "tokens_per_call_round_3": {"prompt_mean": 6236, "prompt_min": 3909, "prompt_max": 12218, "completion_mean": 124, "fixed_prompt_component": 3909, "variable_body_component_mean": 2327},
+      "cost_per_call": {"qwen3.6-plus": 0.013959, "qwen3.7-flash": 0.001343, "unit": "CNY", "pricing": "plus 2 in / 12 out per million; flash 0.2 in / 0.8 out per million"},
+      "latency_per_call_ms": {"qwen3.6-plus": 3180, "qwen3.7-flash": 1496}
+    },
+    "corrected_projection_if_every_ingested_item_is_extracted": {
+      "1300_per_day": {"plus_cny_per_month": 544, "flash_cny_per_month": 52},
+      "1500_per_day": {"plus_cny_per_month": 628, "flash_cny_per_month": 60},
+      "actual_gap_between_models": "roughly 490 to 570 CNY per month, not the 113 previously quoted"
+    },
+    "does_this_change_the_owner_decision": {
+      "assessment": "not necessarily, and no change is proposed here",
+      "reasoning": "The owner chose plus to avoid a 27.8 percent miss rate on material events. That reasoning is unaffected by the corrected figure. What the correction does change is the right way to control cost: reduce the number of calls rather than downgrade the model. The optimisations below bring plus to roughly 50 to 170 CNY per month without touching model quality.",
+      "owner_may_revisit": "The owner is entitled to reconsider the selection on the corrected figure. If they do, it must be recorded as a further owner amendment made before the heldout is spent, exactly as the first amendment was."
+    },
+    "throughput_note": "At 1,300 calls per day and 3.18 seconds per call, plus needs about 69 minutes of serial processing per day. The CNInfo batch that arrives at 00:00 CST is 800 to 1,000 items, which is 42 to 53 minutes serially for plus and 20 to 25 for flash. Concurrency and provider rate limits are a P4.2b design input."
+  },
+  "part_2_full_batch_request_assessed_and_rejected": {
+    "id": "C-2",
+    "question_from_owner": "Can all 1,300 items be sent in one request and answered together, instead of one request per item?",
+    "verdict": "not feasible, and the saving it would buy is nearly exhausted long before that scale",
+    "physical_infeasibility": {"input_tokens_for_1300_items": 3025100, "total_with_fixed_prompt": 3029009, "expected_output_tokens": 161200, "assessment": "roughly 3 million input tokens exceeds every current model's context, and 161 thousand output tokens exceeds normal output caps by a wide margin. The request would be rejected rather than merely expensive."},
+    "marginal_saving_curve": {
+      "per_item_tokens": {"k_1": 6236, "k_5": 3109, "k_10": 2718, "k_20": 2522, "k_50": 2405, "k_100": 2366, "k_1300": 2330},
+      "monthly_cny_at_1300_per_day": {"k_1": 544, "k_5": 301, "k_10": 270, "k_20": 255, "k_50": 246, "k_100": 243, "k_1300": 240},
+      "reading": "Going from one item per call to ten saves about 50 percent. Going from ten to thirteen hundred saves a further 11 percent, roughly 30 CNY per month. The fixed prompt is already almost fully amortised at ten."
+    },
+    "why_the_floor_exists": "At ten items per call the fixed prompt contributes 391 tokens per item, 14 percent, while the announcement body itself contributes 2,327 tokens, 86 percent. Body text is irreducible if the model is to read the announcement, so batching cannot touch the dominant term.",
+    "quality_and_failure_risks": ["long-context attention degrades for items positioned mid-context, and the 0.944 precision was measured one item per call", "a single malformed or truncated response loses the entire batch, which is incompatible with zero-retry discipline", "evidence_span must match each item's own original text verbatim, and large batches raise the risk of cross-item misattribution"],
+    "conclusion": "Moderate batching of five to ten items is a legitimate future optimisation. Full-batch is neither possible nor worth pursuing."
+  },
+  "part_3_p4_2b_optimisation_backlog": {
+    "note": "Recorded only. None of this is implemented, pre-registered or authorised by this document, and none of it may be started before P4.2a closes.",
+    "ordered_by_leverage": [
+      {
+        "rank": 1,
+        "item": "send fewer items",
+        "mechanisms": ["local pre-filter using the qwen2.5-7b models already installed under ollama on this host, tuned for high recall", "restrict extraction to watchlist and Top50 related symbols", "announcement-type whitelist that drops routine filings"],
+        "projected_effect": "1,300 per day down to roughly 300 to 400, which puts plus at roughly 126 to 168 CNY per month",
+        "mandatory_condition": "The pre-filter is a separate component and needs its own pre-registered evaluation with its own false-omission gate, measured against human-adjudicated gold. The owner selected plus precisely for its 5.6 percent miss rate; a careless pre-filter would silently give that back. A pre-filter that drops 10 percent of material items cancels the entire benefit of the model choice.",
+        "local_runtime_verified": "ollama is listening on 127.0.0.1:11434 with qwen2.5-7b variants present. A two-case smoke test answered correctly: a routine independent-director meeting notice was judged not material, a controlling-shareholder change with trading halt was judged material. This is encouraging, not evidence; it is two items."
+      },
+      {
+        "rank": 2,
+        "item": "shorten the body sent per item",
+        "rationale": "The body averages 2,327 tokens and is 86 percent of the per-item cost. Materiality judgement plausibly rests on the title, the opening sections and the passages carrying figures.",
+        "projected_effect": "cutting to 800 to 1,000 tokens roughly halves the remaining cost",
+        "mandatory_condition": "Truncation must be evaluated for what it destroys. Any truncation rule needs the same precision and false-omission gates, because a rule that removes the decisive passage produces confident wrong answers rather than visible failures."
+      },
+      {
+        "rank": 3,
+        "item": "batch five to ten items per call",
+        "projected_effect": "about 50 percent off the fixed prompt overhead, plus at roughly 270 CNY per month before the other two optimisations",
+        "mandatory_condition": "Multi-item prompting is a different task from the one calibrated in Rounds 1 to 3. It invalidates the current calibration and requires re-calibration on the development frame and a fresh heldout. It must not be adopted to save cost on a model whose quality was established one item per call."
+      }
+    ],
+    "combined_projection": "With the first and third applied, plus lands at roughly 50 to 100 CNY per month against 544 for naive full extraction, with model quality untouched. The saving comes from calling less, not from choosing a weaker model."
+  },
+  "part_4_what_is_unchanged_now": {
+    "statement": "Nothing in this record changes any current decision or artifact.",
+    "model_selection": "qwen3.6-plus, per the owner amendment recorded on 2026-08-10",
+    "gates": "precision at least 0.80 and false-omission at most 0.20, with the margin requirement, all unchanged",
+    "heldout_plan": "60 items from 2026-08-06 to 08-08, one item per call, human-adjudicated, one-shot with zero retries; its cost is negligible at this scale",
+    "phase_locks": {"p4_2a_done": false, "p4_2b_unlocked": false, "p4_3_unlocked": false},
+    "p4_1": "observation window running for 2026-08-10 through 08-12, unaffected"
+  }
+}

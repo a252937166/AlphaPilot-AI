@@ -1,0 +1,68 @@
+{
+  "schema_version": "p4.2a-v2-1-control-plane-registry-expansion-authorization-v1",
+  "authorization_id": "P4.2A-V2-1-CONTROL-PLANE-REGISTRY-EXPANSION-20260811",
+  "created_at_utc": "2026-08-11T02:36:10Z",
+  "created_at_shanghai": "2026-08-11T10:36:10+08:00",
+  "verdict": "AUTHORIZE_NARROW_CONTROL_PLANE_REGISTRY_EXPANSION",
+  "repository_head_at_authorization": "88690ef488925f9de922569f961ec4ff1a23bb78",
+  "issued_by": {
+    "identity": "independent_ai_architect_claude_code",
+    "reviewer_type": "ai",
+    "model": "Anthropic Claude Fable 5 (model id claude-fable-5)",
+    "impersonation_disclaimer": "Not a human reviewer and not the owner. Issued under the owner governance amendment with requires_release_gate_amendment=true; the owner may override.",
+    "method": "read-only verification of every claim before authorising"
+  },
+  "part_1_claims_verified": {
+    "registry_is_data_not_hardcode": "prepare_p4_2a_v2_heldout.py builds the registered path tuple from three fields of the successor implementation contract: registered_modified_consumers, registered_new_files and registered_existing_test_updates. Expanding the registry is therefore a data change consumed by code, which is the right shape for this correction.",
+    "gates_do_not_yet_know_the_ruling": "confirmed; the three consumers read only the pre-existing registry, so a redone finalizer test would appear as an unregistered modification",
+    "am_surface_base": "b3c2d221 is the current base and the only entry since then is the addition of the scope-correction ruling, so a redone test would add an M the gates do not expect",
+    "named_scripts_exist": ["scripts/prepare_p4_2a_v2_heldout.py", "scripts/rehearse_p4_2a_v2_1_heldout_full_path.py", "scripts/validate_p4_2a_v2_1_heldout_rehearsal_bundle.py"],
+    "operator_conduct": "Stopped under condition 5 of the scope-correction ruling rather than assuming the semantic acceptance was machine-enforceable, and left the finalizer test at its baseline d6e8b3bd with zero real database, network, model or artifact activity. Recognising that a valid ruling is not yet an enforceable control is exactly the distinction this regime depends on."
+  },
+  "part_2_authorised_scope": {
+    "modifiable_paths_exhaustive": ["scripts/prepare_p4_2a_v2_heldout.py", "scripts/rehearse_p4_2a_v2_1_heldout_full_path.py", "scripts/validate_p4_2a_v2_1_heldout_rehearsal_bundle.py"],
+    "permitted_effects_exhaustive": [
+      "pin a fixed binding to the scope-correction ruling at commit 88690ef488925f9de922569f961ec4ff1a23bb78 and sha256 36a3baea9ce5e4c28c7e6aff9e77c09691024a870513f49f2094b07963f3582e",
+      "expand the registered path set from 14 to exactly 15 by appending tests/test_p4_2a_v2_heldout_finalizer.py to registered_existing_test_updates",
+      "include the scope-correction ruling and tests/test_p4_2a_v2_heldout_finalizer.py in the control archive and its Merkle coverage"
+    ],
+    "surface_base_rule": "If this authorization is committed separately, that commit becomes the fixed A/M surface base and the direct parent of the implementation commit. The implementation commit must descend from it with no intervening commit.",
+    "expansion_must_be_auditable": "The registry count must read 14 then 15 with the appended path named explicitly and this authorization cited as the authority. A silent count change is not acceptable."
+  },
+  "part_3_explicitly_not_authorised": [
+    "modifying any script other than the three named above",
+    "adding, removing or reordering any registry entry other than the single appended finalizer test path",
+    "any change to production source, to the evaluation design, or to the frame, prompt, contract, model, seed, thresholds or gold",
+    "reapplying the transient finalizer implementation at sha256 89cb5db1...; the redo must start from the restored baseline d6e8b3bd...",
+    "any real materialization, network fetch, model inference or one-shot consumption",
+    "treating this authorization as approval of the resulting implementation or rehearsal, which still require independent review"
+  ],
+  "part_4_conditions": [
+    "Commit this authorization alone, then implement, so the ordering is visible in commit sequence and the surface base is unambiguous.",
+    "Preserve the canonical finalize fail-closed assertions in the redone test; broadening it to exercise the private offline rehearsal capability must not weaken any assertion that the finalizer refuses invalid input.",
+    "Turn both conditional SKIPs into PASS and verify the fixed A/M surface before requesting the rehearsal review.",
+    "The v2 rehearsal bundle is invalidated by these modifications, as already recorded in the successor code-gate authorization. Produce the v2.1 bundle fresh; do not cite the v2 approval for modified source.",
+    "If the implementation requires touching anything outside the three authorized scripts and the one authorized test, stop and disclose rather than widening scope again."
+  ],
+  "part_5_effect_on_the_recorded_gap": {
+    "id": "F-8 partial closure",
+    "statement": "Including tests/test_p4_2a_v2_heldout_finalizer.py in the archive and Merkle coverage means that this one test can no longer be modified without a gate noticing. That closes the gap for this path only.",
+    "still_open": "The control surface otherwise contains 17 scripts and no tests, so every other test file remains modifiable without detection. F-8 stays open and a principled rule for test registration still belongs in a later pre-registration, not in this correction."
+  },
+  "part_6_meta_observation": {
+    "id": "O-6",
+    "statement": "This is the third consecutive narrow authorization required to advance one step: the successor v2.1 code gate, then the scope correction, then this control-plane expansion. Each was individually correct and each was requested rather than assumed.",
+    "assessment": "The cost is real and is being paid honestly. It is the direct consequence of a regime where an approval that is not machine-enforceable is treated as not yet in force, which is the property that has repeatedly prevented silent drift in this phase. No loosening is proposed.",
+    "watch": "If a fourth authorization becomes necessary before the rehearsal runs, that is a signal the v2.1 pre-registration under-specified its own surface, and the remedy is a better pre-registration next time rather than faster approvals now."
+  },
+  "part_7_unchanged_locks": {
+    "real_heldout_materialization": "forbidden until the v2.1 bundle is independently reviewed",
+    "real_network_or_model_activity": "forbidden",
+    "heldout_evaluation": "locked",
+    "frame_authority": "available_time over three audited sources, 4,048 rows",
+    "cninfo_fetch_interval": "1.0 second start-to-start, monotonic clock, no first-request delay, zero retries",
+    "p4_2a_done": false,
+    "p4_2b_unlocked": false,
+    "p4_3_unlocked": false
+  }
+}
