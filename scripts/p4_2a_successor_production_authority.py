@@ -905,6 +905,11 @@ def _loaded_origins(root: Path, closure: list[dict[str, Any]]) -> None:
     source_map = {item["path"]: item for item in closure}
     stdlib = Path(sysconfig.get_path("stdlib")).resolve()
     site_roots = {Path(sysconfig.get_path(key)).resolve() for key in ("purelib", "platlib")}
+    # The frozen real-stage bootstrap runs under `-S`, which keeps site.py from
+    # redirecting sys.prefix to the project venv, so sysconfig then reports the
+    # base interpreter's site-packages. This root is derived from `root` alone,
+    # never from sys.prefix, sys.path, the environment, or a module's location.
+    site_roots.add((root / ".venv/lib/python3.12/site-packages").resolve())
     for name, module in tuple(sys.modules.items()):
         origin = getattr(module, "__file__", None)
         repository_namespace = (
@@ -934,6 +939,41 @@ def _loaded_origins(root: Path, closure: list[dict[str, Any]]) -> None:
                 _sha(payload) == source_map[relative]["sha256"],
                 f"loaded repository source mismatch: {name}",
             )
+            if name == "__main__":
+                # The frozen real-stage bootstrap aliases the ``-c`` namespace's
+                # ``__file__`` to a registered entrypoint and imports its ``main``.
+                # That namespace declares no repository code of its own, so it is
+                # admitted only as an exact alias of the registered module, which
+                # stays fully validated through its own ``sys.modules`` entry.
+                _require(
+                    relative.endswith(".py"),
+                    f"aliased __main__ is not a registered module source: {relative}",
+                )
+                registered = relative[: -len(".py")].replace("/", ".")
+                entrypoint = sys.modules.get(registered)
+                entrypoint_origin = getattr(entrypoint, "__file__", None)
+                _require(
+                    entrypoint is not None
+                    and isinstance(entrypoint_origin, str)
+                    and not entrypoint_origin.startswith("<")
+                    and Path(entrypoint_origin).resolve() == path,
+                    f"aliased __main__ without its registered module: {registered}",
+                )
+                aliased = vars(module)
+                _require(
+                    isinstance(aliased.get("main"), types.FunctionType)
+                    and aliased["main"] is getattr(entrypoint, "main", None),
+                    f"aliased __main__ does not expose the registered entrypoint: {registered}",
+                )
+                _require(
+                    all(
+                        value.__module__ == registered
+                        for value in aliased.values()
+                        if isinstance(value, types.FunctionType)
+                    ),
+                    f"aliased __main__ owns a foreign callable: {registered}",
+                )
+                continue
             _validate_loaded_callables(module, path, payload)
             if (
                 name == "scripts"
