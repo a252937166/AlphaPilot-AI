@@ -703,20 +703,23 @@ else:
 """
 
 
-def _origin_probe(**values: object) -> dict[str, Any]:
-    """Clean interpreter avoids pytest's intentional function/assert rewrites."""
+def _probe_request(**values: object) -> str:
     tracked = set(_git(ROOT, "ls-files").splitlines())
     source_paths = sorted(
         {name for name in tracked if name.endswith(".py") or name.startswith("config/")}
         | {path.as_posix() for path in IMPLEMENTATION_FILES}
     )
-    request = {"root": str(ROOT), "source_paths": source_paths, **values}
+    return json.dumps({"root": str(ROOT), "source_paths": source_paths, **values})
+
+
+def _clean_probe(program: str, **values: object) -> dict[str, Any]:
+    """Clean interpreter avoids pytest's intentional function/assert rewrites."""
     environment = dict(os.environ)
     environment["PYTHONDONTWRITEBYTECODE"] = "1"
     environment["PYTHONPATH"] = os.pathsep.join((str(ROOT / "src"), str(ROOT)))
     result = subprocess.run(
-        [sys.executable, "-B", "-c", _ORIGIN_PROBE],
-        input=json.dumps(request),
+        [sys.executable, "-B", "-c", program],
+        input=_probe_request(**values),
         text=True,
         capture_output=True,
         cwd=ROOT,
@@ -725,6 +728,10 @@ def _origin_probe(**values: object) -> dict[str, Any]:
     )
     assert result.returncode == 0, result.stderr + result.stdout
     return json.loads(result.stdout)
+
+
+def _origin_probe(**values: object) -> dict[str, Any]:
+    return _clean_probe(_ORIGIN_PROBE, **values)
 
 
 @pytest.mark.parametrize("namespace", ["scripts", "alphapilot"])
@@ -743,6 +750,186 @@ def test_runtime_origin_gate_checks_actual_loaded_callable_code(injection: str) 
     result = _origin_probe(injection=injection)
     assert result["baseline_pass"] is True and result["rejected"] is True
     assert "injected" in result["message"] or "callable" in result["message"]
+
+
+_MAIN_ALIAS_PROBE = r"""
+import hashlib, json, sys, types
+from pathlib import Path
+from scripts import p4_2a_successor_production_authority as authority
+from scripts import prepare_p4_2a_v2_heldout as prepare
+
+request = json.load(sys.stdin)
+root = Path(request["root"])
+closure = []
+for relative in request["source_paths"]:
+    payload = (root / relative).read_bytes()
+    closure.append({"path": relative, "sha256": hashlib.sha256(payload).hexdigest(),
+                    "bytes": len(payload)})
+
+# The frozen bootstrap's `-c` namespace: __file__ aliased to the registered
+# entrypoint, holding the imported `main` and `sys` and nothing else of its own.
+aliased = types.ModuleType("__main__")
+aliased.__file__ = str(root / "scripts/prepare_p4_2a_v2_heldout.py")
+aliased.sys = sys
+aliased.main = prepare.main
+mutation = request["mutation"]
+if mutation == "impostor-main":
+    # Same code object and owner name, deliberately not the registered object.
+    aliased.main = types.FunctionType(prepare.main.__code__, dict(vars(prepare)), "main")
+elif mutation == "foreign-main":
+    aliased.main = authority._sha
+elif mutation == "extra-callable":
+    def _injected_aliased_helper():
+        raise AssertionError("an injected aliased-__main__ callable must never execute")
+
+    aliased.helper = _injected_aliased_helper
+elif mutation == "unloaded-entrypoint":
+    del sys.modules["scripts.prepare_p4_2a_v2_heldout"]
+sys.modules["__main__"] = aliased
+try:
+    accepted = authority._loaded_origins(root, closure) is None
+except authority.ProductionAuthorityError as error:
+    print(json.dumps({"accepted": False, "message": str(error)}))
+else:
+    print(json.dumps({"accepted": accepted, "message": ""}))
+"""
+
+
+def test_runtime_origin_gate_accepts_the_aliased_bootstrap_main_namespace() -> None:
+    """F-SPI-3: the frozen launcher's aliased __main__ owns no repository code."""
+    result = _clean_probe(_MAIN_ALIAS_PROBE, mutation=None)
+    assert result == {"accepted": True, "message": ""}
+
+
+@pytest.mark.parametrize(
+    ("mutation", "expected"),
+    [
+        ("impostor-main", "does not expose the registered entrypoint"),
+        ("foreign-main", "does not expose the registered entrypoint"),
+        ("extra-callable", "owns a foreign callable"),
+        ("unloaded-entrypoint", "without its registered module"),
+    ],
+)
+def test_aliased_main_namespace_cannot_carry_unregistered_code(
+    mutation: str,
+    expected: str,
+) -> None:
+    result = _clean_probe(_MAIN_ALIAS_PROBE, mutation=mutation)
+    assert result["accepted"] is False
+    assert expected in result["message"]
+
+
+_SITE_ROOT_PROBE = r"""
+import hashlib, json, sys, sysconfig
+from pathlib import Path
+from scripts import p4_2a_successor_production_authority as authority
+
+request = json.load(sys.stdin)
+root = Path(request["root"])
+closure = []
+for relative in request["source_paths"]:
+    payload = (root / relative).read_bytes()
+    closure.append({"path": relative, "sha256": hashlib.sha256(payload).hexdigest(),
+                    "bytes": len(payload)})
+
+venv_site = (root / ".venv/lib/python3.12/site-packages").resolve()
+purelib = Path(sysconfig.get_path("purelib")).resolve()
+package = Path(sys.modules["jsonschema"].__file__).resolve()
+if request["outside"] is not None:
+    sys.path.insert(0, request["outside"])
+    import synthetic_probe_outside_module  # noqa: F401
+try:
+    accepted = authority._loaded_origins(root, closure) is None
+except authority.ProductionAuthorityError as error:
+    observed = {"accepted": False, "message": str(error)}
+else:
+    observed = {"accepted": accepted, "message": ""}
+observed["purelib_is_venv_site"] = purelib == venv_site
+observed["package_under_venv_site"] = package.is_relative_to(venv_site)
+print(json.dumps(observed))
+"""
+
+
+def _frozen_site_probe(**values: object) -> dict[str, Any]:
+    """`-S` reproduces the launcher, where sysconfig reports the base interpreter."""
+    runtime_paths = list(prepare._canonical_real_stage_runtime_paths(ROOT))
+    program = f"import sys;sys.path[:]={runtime_paths!r}\n" + _SITE_ROOT_PROBE
+    result = subprocess.run(
+        [str(ROOT / prepare._LOCKED_PYTHON_EXECUTABLE_RELATIVE), "-S", "-P", "-B", "-c", program],
+        input=_probe_request(**values),
+        text=True,
+        capture_output=True,
+        cwd=str(ROOT),
+        env=prepare._canonical_real_stage_environment(ROOT),
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr + result.stdout
+    return json.loads(result.stdout)
+
+
+def test_project_venv_is_the_registered_runtime_root_the_frozen_launcher_needs() -> None:
+    """F-SPI-4: under -S sysconfig reports the base interpreter, not the venv."""
+    result = _frozen_site_probe(outside=None)
+    assert result == {
+        "accepted": True,
+        "message": "",
+        # The census passed although sysconfig named a site root that holds none
+        # of the loaded packages, so only the venv root under `root` admits them.
+        "purelib_is_venv_site": False,
+        "package_under_venv_site": True,
+    }
+
+
+def test_registered_runtime_roots_still_refuse_packages_outside_the_project_venv(
+    tmp_path: Path,
+) -> None:
+    outside = tmp_path.resolve()
+    (outside / "synthetic_probe_outside_module.py").write_text(
+        "VALUE = 'synthetic module outside every registered runtime root'\n", encoding="utf-8"
+    )
+    result = _frozen_site_probe(outside=str(outside))
+    assert result["accepted"] is False
+    assert "outside registered runtime roots: synthetic_probe_outside_module" in result["message"]
+
+
+_BOOTSTRAP_CENSUS_MARKER = "F-SPI-3-frozen-bootstrap-census-accepted"
+
+
+def test_frozen_real_stage_bootstrap_shape_passes_the_runtime_origin_census() -> None:
+    """The exact frozen launch prefix is executed; `main()` is never called."""
+    bootstrap = prepare._canonical_real_stage_bootstrap(ROOT, "materialize")
+    launch = "from scripts.prepare_p4_2a_v2_heldout import main;"
+    prefix, separator, remainder = bootstrap.partition(launch)
+    assert separator == launch and remainder == "main()"
+    head = _git(ROOT, "rev-parse", "HEAD")
+    program = (
+        prefix
+        + separator
+        + (
+            "from pathlib import Path;"
+            "from scripts import p4_2a_successor_production_authority as authority;"
+            f"root=Path({str(ROOT)!r});"
+            f"authority._loaded_origins(root, authority.registered_source_closure(root, {head!r}));"
+            "import json;"
+            f"print(json.dumps({{'marker': {_BOOTSTRAP_CENSUS_MARKER!r},"
+            " 'main_file': sys.modules['__main__'].__file__,"
+            " 'main_module': vars(sys.modules['__main__'])['main'].__module__}))"
+        )
+    )
+    result = subprocess.run(
+        [str(ROOT / prepare._LOCKED_PYTHON_EXECUTABLE_RELATIVE), "-S", "-P", "-B", "-c", program],
+        env=prepare._canonical_real_stage_environment(ROOT),
+        cwd=str(ROOT),
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr + result.stdout
+    assert json.loads(result.stdout) == {
+        "marker": _BOOTSTRAP_CENSUS_MARKER,
+        "main_file": str(ROOT / PREPARE_PATH),
+        "main_module": "scripts.prepare_p4_2a_v2_heldout",
+    }
 
 
 def test_design_registration_does_not_conflict_with_future_preparation_scope() -> None:
