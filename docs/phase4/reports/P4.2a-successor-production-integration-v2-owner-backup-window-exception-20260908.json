@@ -1,0 +1,492 @@
+{
+  "H0_completion": {
+    "authorized_stages": [],
+    "completion_receipt": {
+      "bytes": 3597,
+      "path": "/Users/ouyangduning/Documents/project/interesting/AlphaPilot-EVIDENCE-DO-NOT-DELETE-epoch9-forward-rebaseline-compatibility-20260906.tYa303/independent-review-H0-evidence-acceptance-completion-receipt.json",
+      "sha256": "201a8fc52a09dc6670147ac71f48fce8ca5477ce81e81408cbc1188331600422"
+    },
+    "registered_consume": {
+      "historical_result_only_not_rerun_in_H1a": true,
+      "mode": "PASSIVE_RECOVERED_RELEASE",
+      "status": "PASS_READ_ONLY_RECOVERED_RELEASE_REVALIDATION",
+      "stdout": {
+        "bytes": 2193,
+        "path": "/Users/ouyangduning/Documents/project/interesting/AlphaPilot-EVIDENCE-DO-NOT-DELETE-H0b-push-continuation-v3-20260906.4a4b860d9931/CONSUME/commands/002-registered-consume-readonly-once/stdout",
+        "sha256": "7cc85a621c23a3ac2b680bb6d87f0287fbf9b8a3d188e17f3a8dbdae6de05429"
+      }
+    },
+    "registered_receipt": {
+      "blob_at_main_verified": true,
+      "creating_commit": "902bfa3c4dbc2b4b5e95884479a95e4bf91c2859",
+      "path": "docs/phase4/reports/P4.2a-v2-heldout-rehearsal-v2-2-release-authorization-20260811.json",
+      "reviewer_independent_verification": "126 checks PASS (verify_h0_draft.py)",
+      "sha256": "2ede11c0bc3a1dbdbaff489f6c6f155f456e7a6685fda8b31ce1772ca005ad40"
+    },
+    "reviewer_attested_repository_state": {
+      "main": "902bfa3c4dbc2b4b5e95884479a95e4bf91c2859",
+      "origin_main": "902bfa3c4dbc2b4b5e95884479a95e4bf91c2859",
+      "real_remote_main": "902bfa3c4dbc2b4b5e95884479a95e4bf91c2859",
+      "refs_sha256": "3484e2aae5c17ca38303341fb38bec489aa34eec1d04194d9f9d4b6bc38fe82b"
+    },
+    "status": "H0_EVIDENCE_ACCEPTANCE_COMPLETE_VERIFIED",
+    "this_acceptance_unlocks_real_stages": false
+  },
+  "authorized_stages": [],
+  "created_at_shanghai": "2026-09-09T00:12:35.602842+08:00",
+  "created_at_utc": "2026-09-08T16:12:35.602842Z",
+  "document_id": "P4.2A-SUCCESSOR-PRODUCTION-INTEGRATION-V2-OWNER-BACKUP-WINDOW-EXCEPTION-20260908",
+  "failure_policy": {
+    "amend_or_overwrite_existing_evidence": false,
+    "automatic_retries": 0,
+    "new_attempt_requires_separate_explicit_authority": true,
+    "on_any_natural_failure": "PRESERVE_ORIGINAL_EVIDENCE_AND_STOP_FOR_INDEPENDENT_REVIEW",
+    "repair_or_retry_in_same_consumed_stage": false
+  },
+  "implementation_scope_limits": {
+    "heldout_evaluation_authorized": false,
+    "implementation_requires_all_preconditions": true,
+    "new_version_must_not_claim_historical_candidate_identity": true,
+    "only_listed_seven_file_surface": true,
+    "pipeline_authorized": false,
+    "real_preparation_authorized": false,
+    "recovery_authorized": false,
+    "release_decision_authorized": false,
+    "test_plan_is_not_blanket_source_modification_authority": true,
+    "test_requirements_ref": {
+      "json_pointer": "/registered_tests",
+      "path": "docs/phase4/reports/P4.2a-successor-production-integration-v1-preregistration-20260907.json",
+      "sha256": "32f136bfdd4d04474fedf2ee8f0ba3f2c2c4fb160f4ece2712bd1c54810c9bcb"
+    }
+  },
+  "independent_scope_review": {
+    "attestation": null,
+    "future_registered_report": {
+      "accepted_verdict": "PASS_SUCCESSOR_PRODUCTION_INTEGRATION_V2_IMPLEMENTATION_REVIEW",
+      "other_natural_verdicts": [
+        "BLOCK_SUCCESSOR_PRODUCTION_INTEGRATION_V2_IMPLEMENTATION_REVIEW",
+        "REJECT_SUCCESSOR_PRODUCTION_INTEGRATION_V2_IMPLEMENTATION_REVIEW"
+      ],
+      "path": "docs/phase4/reports/P4.2a-successor-production-integration-v2-independent-implementation-review-20260908.json",
+      "schema_version": "p4.2a-successor-production-integration-v2-independent-implementation-review"
+    }
+  },
+  "locks": {
+    "heldout_evaluation_unlocked": false,
+    "non_simulate_orders_allowed": false,
+    "p4_2a_done": false,
+    "p4_2b_unlocked": false,
+    "p4_3_unlocked": false,
+    "trading_mode": "research"
+  },
+  "materialization_manifest_schema": {
+    "decided_by": "implementer, for independent review",
+    "new": "p4.2a-successor-production-integration-v2-materialization-manifest-v1",
+    "previous": "p4.2a-successor-production-integration-v1-materialization-manifest-v1",
+    "reason": "the CNInfo pacing evidence gains transport_retry_policy and retry_events, and no production manifest was ever published under the previous string"
+  },
+  "new_module_interface": {
+    "new_module": null,
+    "note": "no new module; existing authority module modified"
+  },
+  "operator": {
+    "action": "DRAFTING_FOR_INDEPENDENT_REVIEW",
+    "identity": "Claude Opus 5 stand-in",
+    "independent_of_reviewer": true,
+    "role": "operator",
+    "under_owner_authorization_sha256": "278a228457a1ed64b12efef20c0f521e50711a7f22b10ad37db491b5dfe3fc5f"
+  },
+  "owner_decisions": [
+    {
+      "context_statements": {
+        "bytes": 474,
+        "excluded_first_line_is_reviewer_header": true,
+        "path": "/Users/ouyangduning/Documents/project/interesting/AlphaPilot-EVIDENCE-DO-NOT-DELETE-epoch9-forward-rebaseline-compatibility-20260906.tYa303/owner-backup-window-rule-change-context-statements-20260908.txt",
+        "sha256": "ae2dbe070c15fe9c09f8a8f29eb22fdea4d1c591a0bd96c48708f5ecb2ce0cfc",
+        "verbatim_lines": [
+          "能现在直接开始吗，没有等待的必要吧",
+          "不能跑昨天的吗，为什么一定要跑今天的",
+          "那这样不是每实验一次就要等一天，我觉得没必要，完全可以用就数据来测试，等最新一天的数据只是新增一天数据而已，对方案是否可行没有任何影响"
+        ]
+      },
+      "decision_id": "real_stage_backup_window_relaxation",
+      "decision_relay": {
+        "bytes": 4630,
+        "path": "/Users/ouyangduning/Documents/project/interesting/AlphaPilot-EVIDENCE-DO-NOT-DELETE-epoch9-forward-rebaseline-compatibility-20260906.tYa303/owner-backup-window-rule-change-decision-relay-20260908.json",
+        "sha256": "3ec9db5c21f2f47d12b38cd3de06bff5d80c9a02ca2d08dee6b692c62c1055bb"
+      },
+      "identity": "ouyang",
+      "reviewer_proposal_accepted": {
+        "bytes": 419,
+        "excluded_first_line_is_reviewer_header": true,
+        "path": "/Users/ouyangduning/Documents/project/interesting/AlphaPilot-EVIDENCE-DO-NOT-DELETE-epoch9-forward-rebaseline-compatibility-20260906.tYa303/reviewer-backup-window-rule-change-proposal-as-presented-to-owner-20260908.txt",
+        "sha256": "6f1005c042782fbd4aecf7d5a3efdfad097b146de8cd89de9c1578739ca79542",
+        "verbatim": "我的建议：今晚按计划跑，这是拿到 60 条盲样最快的路。规则本身你要改，等这条链跑完我起草一份变更说明，把「当天 22 点后的备份」放宽成「最近一次校验通过的备份」，走正常的复核链落地，以后的真实阶段就不用卡时间窗了。"
+      },
+      "source": "业主向复核方当面确认，由复核方转达",
+      "transcription_rule": "UTF8_DECODE_ONLY_NO_TRIM_NO_NEWLINE_OR_WORD_CHANGES",
+      "verbatim": "好，就这样改",
+      "verbatim_bytes": 18,
+      "verbatim_sha256": "9dc1b3cfb7f4edec2999e6b621f9bc2228535979cab80fcf2cdffe45586340fa",
+      "verbatim_source": {
+        "bytes": 18,
+        "path": "/Users/ouyangduning/Documents/project/interesting/AlphaPilot-EVIDENCE-DO-NOT-DELETE-epoch9-forward-rebaseline-compatibility-20260906.tYa303/owner-backup-window-rule-change-decision-20260908.txt",
+        "sha256": "9dc1b3cfb7f4edec2999e6b621f9bc2228535979cab80fcf2cdffe45586340fa"
+      }
+    },
+    {
+      "decision_id": "cninfo_download_retry_and_combined_landing",
+      "decision_relay": {
+        "bytes": 3465,
+        "path": "/Users/ouyangduning/Documents/project/interesting/AlphaPilot-EVIDENCE-DO-NOT-DELETE-epoch9-forward-rebaseline-compatibility-20260906.tYa303/owner-cninfo-download-retry-decision-relay-20260908.json",
+        "sha256": "67e36a5c3b9717bdaf897a1381aebaf85c8565122d9e16ee55ae49d10a24236b"
+      },
+      "identity": "ouyang",
+      "reviewer_proposal_accepted": {
+        "bytes": 1262,
+        "excluded_first_line_is_reviewer_header": true,
+        "path": "/Users/ouyangduning/Documents/project/interesting/AlphaPilot-EVIDENCE-DO-NOT-DELETE-epoch9-forward-rebaseline-compatibility-20260906.tYa303/reviewer-cninfo-download-retry-proposal-as-presented-to-owner-20260908.txt",
+        "sha256": "421dbd1db1344774fd5e338bc7485fb50ebfad05df7b479f313e25342a7b5fbf",
+        "verbatim_lines": [
+          "需要你决定的一件事：预登记写死了\"任何瞬时下载失败即整段失败、不重试\"，我建议放宽为\"单个 PDF 对传输层瞬时错误最多尝试 3 次、退避 2 秒和 4 秒、起跑间隔地板不变；内容错误和资格错误不重试；任一 PDF 用尽尝试仍失败则整段失败不部分发布；每次重试逐条记入物化清单\"。候选池仍是完整或全无，模型、prompt、数据窗、推理零重试都不动。这是预登记偏离，不在你委托我的范围里，要你一句原话。草案在 tYa303 目录 `independent-review-cninfo-download-retry-proposal-r1-20260908.md`。",
+          "顺带一提，这条 run 作废之后，昨天复核通过的备份窗口放宽不用再等第七阶段，可以落地了。你同意重试规则的话，两项合并成一次落地：实现和复核明天上午做完，出收据、诊断、新工具，下午 15 点后第一个非封锁时段就能起跑，不必再等夜里的备份。机器上的系统代理要不要给巨潮域名做绕过，你自己定，重试规则本身已经能覆盖偶发停顿。"
+        ]
+      },
+      "reviewer_proposal_document": {
+        "bytes": 4111,
+        "path": "/Users/ouyangduning/Documents/project/interesting/AlphaPilot-EVIDENCE-DO-NOT-DELETE-epoch9-forward-rebaseline-compatibility-20260906.tYa303/independent-review-cninfo-download-retry-proposal-r1-20260908.md",
+        "sha256": "063bbe84a80f5cf240e18909351a6f95db44adcd1e586ae139725ebab2926437"
+      },
+      "source": "业主向复核方当面确认，由复核方转达",
+      "transcription_rule": "UTF8_DECODE_ONLY_NO_TRIM_NO_NEWLINE_OR_WORD_CHANGES",
+      "triggering_natural_failure": {
+        "bytes": 4654,
+        "id": "N-H5P-1",
+        "path": "/Users/ouyangduning/Documents/project/interesting/AlphaPilot-EVIDENCE-DO-NOT-DELETE-epoch9-forward-rebaseline-compatibility-20260906.tYa303/independent-review-H5p-natural-failure-N-H5P-1-cninfo-readtimeout-20260908.json",
+        "sha256": "25688c30927d72111683b37c7433144b000794dab5cf9aa3a4c9cf7136129e8d"
+      },
+      "verbatim": "好，按照你的建议进行",
+      "verbatim_bytes": 30,
+      "verbatim_sha256": "2d3c2a68d6b54ea4616803f277f48659a522f2ff3f61c8191fe6af5752e64a65",
+      "verbatim_source": {
+        "bytes": 30,
+        "path": "/Users/ouyangduning/Documents/project/interesting/AlphaPilot-EVIDENCE-DO-NOT-DELETE-epoch9-forward-rebaseline-compatibility-20260906.tYa303/owner-cninfo-download-retry-and-combined-landing-decision-20260908.txt",
+        "sha256": "2d3c2a68d6b54ea4616803f277f48659a522f2ff3f61c8191fe6af5752e64a65"
+      }
+    }
+  ],
+  "preconditions": {
+    "H0_evidence_acceptance_completed": {
+      "receipt": {
+        "bytes": 3597,
+        "path": "/Users/ouyangduning/Documents/project/interesting/AlphaPilot-EVIDENCE-DO-NOT-DELETE-epoch9-forward-rebaseline-compatibility-20260906.tYa303/independent-review-H0-evidence-acceptance-completion-receipt.json",
+        "sha256": "201a8fc52a09dc6670147ac71f48fce8ca5477ce81e81408cbc1188331600422"
+      },
+      "satisfied_by_bound_evidence": true
+    },
+    "h5_run_okkwyxqz_is_void": {
+      "bytes": 4654,
+      "natural_failure_id": "N-H5P-1",
+      "path": "/Users/ouyangduning/Documents/project/interesting/AlphaPilot-EVIDENCE-DO-NOT-DELETE-epoch9-forward-rebaseline-compatibility-20260906.tYa303/independent-review-H5p-natural-failure-N-H5P-1-cninfo-readtimeout-20260908.json",
+      "sha256": "25688c30927d72111683b37c7433144b000794dab5cf9aa3a4c9cf7136129e8d",
+      "stage_seven_wait_no_longer_applies": true
+    },
+    "independent_PASS_before_apply": {
+      "exact_required_verdict": "PASS_SUCCESSOR_PRODUCTION_INTEGRATION_V2_IMPLEMENTATION_REVIEW",
+      "path": "docs/phase4/reports/P4.2a-successor-production-integration-v2-independent-implementation-review-20260908.json"
+    }
+  },
+  "prepare_exception": {
+    "added_lines": 212,
+    "allowed_modified_existing_source_paths": [
+      "scripts/prepare_p4_2a_v2_heldout.py",
+      "scripts/evaluate_p4_2a_v2_heldout.py",
+      "scripts/p4_2a_successor_production_authority.py",
+      "tests/test_p4_2a_v2_heldout.py",
+      "tests/test_p4_2a_successor_production_authority.py",
+      "tests/test_p4_2a_successor_preparation_integration.py"
+    ],
+    "allowed_new_paths": [
+      "config/schemas/p4_2a_successor_production_integration_v2_release_authorization.schema.json"
+    ],
+    "analysis_ref": null,
+    "base_sha256": "fdcb7fc9063b563ca02fcd630f36e450c1dd04d5b99aa9b2811c11c81eaba1d5",
+    "patch_command": "git -C <repository_root> diff --no-ext-diff --no-color --no-renames --full-index 06d1ffbb37a06ea89248b1181af8a63afe1bd3dc <implementation_commit> -- scripts/prepare_p4_2a_v2_heldout.py",
+    "patch_command_base_note": "This document's own creating commit adds only its own path and does not modify scripts/prepare_p4_2a_v2_heldout.py, so substituting that commit for 06d1ffbb37a06ea89248b1181af8a63afe1bd3dc yields byte-identical patch output; the authority module states the same command with its BASE_COMMIT, which is this document's creating commit.",
+    "patch_sha256": "e903bf8626fa476bf9f777dad16f7ff85e2d15299718110be6e49449221d810c",
+    "removed_lines": 29,
+    "target_path": "scripts/prepare_p4_2a_v2_heldout.py",
+    "target_sha256": "35e9e2c445f7b67f008a4429017e89db99adb29a20dea89111a321d9bc7f843f"
+  },
+  "preregistration_deviations": [
+    {
+      "decided_values": {
+        "backup_stamp_policy": "equals_bound_backup_created_Asia_Shanghai_date",
+        "latest_backup_manifest_policy": "newest_manifest_verified_quick_check_ok_database_exists_no_calendar_bound"
+      },
+      "decision_source": {
+        "context_statements": {
+          "bytes": 474,
+          "excluded_first_line_is_reviewer_header": true,
+          "path": "/Users/ouyangduning/Documents/project/interesting/AlphaPilot-EVIDENCE-DO-NOT-DELETE-epoch9-forward-rebaseline-compatibility-20260906.tYa303/owner-backup-window-rule-change-context-statements-20260908.txt",
+          "sha256": "ae2dbe070c15fe9c09f8a8f29eb22fdea4d1c591a0bd96c48708f5ecb2ce0cfc",
+          "verbatim_lines": [
+            "能现在直接开始吗，没有等待的必要吧",
+            "不能跑昨天的吗，为什么一定要跑今天的",
+            "那这样不是每实验一次就要等一天，我觉得没必要，完全可以用就数据来测试，等最新一天的数据只是新增一天数据而已，对方案是否可行没有任何影响"
+          ]
+        },
+        "decision_id": "real_stage_backup_window_relaxation",
+        "decision_relay": {
+          "bytes": 4630,
+          "path": "/Users/ouyangduning/Documents/project/interesting/AlphaPilot-EVIDENCE-DO-NOT-DELETE-epoch9-forward-rebaseline-compatibility-20260906.tYa303/owner-backup-window-rule-change-decision-relay-20260908.json",
+          "sha256": "3ec9db5c21f2f47d12b38cd3de06bff5d80c9a02ca2d08dee6b692c62c1055bb"
+        },
+        "identity": "ouyang",
+        "reviewer_proposal_accepted": {
+          "bytes": 419,
+          "excluded_first_line_is_reviewer_header": true,
+          "path": "/Users/ouyangduning/Documents/project/interesting/AlphaPilot-EVIDENCE-DO-NOT-DELETE-epoch9-forward-rebaseline-compatibility-20260906.tYa303/reviewer-backup-window-rule-change-proposal-as-presented-to-owner-20260908.txt",
+          "sha256": "6f1005c042782fbd4aecf7d5a3efdfad097b146de8cd89de9c1578739ca79542",
+          "verbatim": "我的建议：今晚按计划跑，这是拿到 60 条盲样最快的路。规则本身你要改，等这条链跑完我起草一份变更说明，把「当天 22 点后的备份」放宽成「最近一次校验通过的备份」，走正常的复核链落地，以后的真实阶段就不用卡时间窗了。"
+        },
+        "source": "业主向复核方当面确认，由复核方转达",
+        "transcription_rule": "UTF8_DECODE_ONLY_NO_TRIM_NO_NEWLINE_OR_WORD_CHANGES",
+        "verbatim": "好，就这样改",
+        "verbatim_bytes": 18,
+        "verbatim_sha256": "9dc1b3cfb7f4edec2999e6b621f9bc2228535979cab80fcf2cdffe45586340fa",
+        "verbatim_source": {
+          "bytes": 18,
+          "path": "/Users/ouyangduning/Documents/project/interesting/AlphaPilot-EVIDENCE-DO-NOT-DELETE-epoch9-forward-rebaseline-compatibility-20260906.tYa303/owner-backup-window-rule-change-decision-20260908.txt",
+          "sha256": "9dc1b3cfb7f4edec2999e6b621f9bc2228535979cab80fcf2cdffe45586340fa"
+        }
+      },
+      "every_other_key_unchanged": true,
+      "json_pointer": "/runtime_start_policy",
+      "preregistration_ref": {
+        "creating_commit": "c59ba4f7e2a8c82a678b040e57145600d1c4564b",
+        "path": "docs/phase4/reports/P4.2a-successor-production-integration-v1-preregistration-20260907.json",
+        "sha256": "32f136bfdd4d04474fedf2ee8f0ba3f2c2c4fb160f4ece2712bd1c54810c9bcb"
+      },
+      "registered_values": {
+        "backup_stamp_policy": "current_Asia_Shanghai_date",
+        "latest_backup_manifest_policy": "created_after_22_00_CST_quick_check_ok_database_exists"
+      }
+    },
+    {
+      "decided_value": "bounded_transport_retry_max_3_attempts_then_fail_entire_materialization_without_partial_publish",
+      "decision_source": {
+        "decision_id": "cninfo_download_retry_and_combined_landing",
+        "decision_relay": {
+          "bytes": 3465,
+          "path": "/Users/ouyangduning/Documents/project/interesting/AlphaPilot-EVIDENCE-DO-NOT-DELETE-epoch9-forward-rebaseline-compatibility-20260906.tYa303/owner-cninfo-download-retry-decision-relay-20260908.json",
+          "sha256": "67e36a5c3b9717bdaf897a1381aebaf85c8565122d9e16ee55ae49d10a24236b"
+        },
+        "identity": "ouyang",
+        "reviewer_proposal_accepted": {
+          "bytes": 1262,
+          "excluded_first_line_is_reviewer_header": true,
+          "path": "/Users/ouyangduning/Documents/project/interesting/AlphaPilot-EVIDENCE-DO-NOT-DELETE-epoch9-forward-rebaseline-compatibility-20260906.tYa303/reviewer-cninfo-download-retry-proposal-as-presented-to-owner-20260908.txt",
+          "sha256": "421dbd1db1344774fd5e338bc7485fb50ebfad05df7b479f313e25342a7b5fbf",
+          "verbatim_lines": [
+            "需要你决定的一件事：预登记写死了\"任何瞬时下载失败即整段失败、不重试\"，我建议放宽为\"单个 PDF 对传输层瞬时错误最多尝试 3 次、退避 2 秒和 4 秒、起跑间隔地板不变；内容错误和资格错误不重试；任一 PDF 用尽尝试仍失败则整段失败不部分发布；每次重试逐条记入物化清单\"。候选池仍是完整或全无，模型、prompt、数据窗、推理零重试都不动。这是预登记偏离，不在你委托我的范围里，要你一句原话。草案在 tYa303 目录 `independent-review-cninfo-download-retry-proposal-r1-20260908.md`。",
+            "顺带一提，这条 run 作废之后，昨天复核通过的备份窗口放宽不用再等第七阶段，可以落地了。你同意重试规则的话，两项合并成一次落地：实现和复核明天上午做完，出收据、诊断、新工具，下午 15 点后第一个非封锁时段就能起跑，不必再等夜里的备份。机器上的系统代理要不要给巨潮域名做绕过，你自己定，重试规则本身已经能覆盖偶发停顿。"
+          ]
+        },
+        "reviewer_proposal_document": {
+          "bytes": 4111,
+          "path": "/Users/ouyangduning/Documents/project/interesting/AlphaPilot-EVIDENCE-DO-NOT-DELETE-epoch9-forward-rebaseline-compatibility-20260906.tYa303/independent-review-cninfo-download-retry-proposal-r1-20260908.md",
+          "sha256": "063bbe84a80f5cf240e18909351a6f95db44adcd1e586ae139725ebab2926437"
+        },
+        "source": "业主向复核方当面确认，由复核方转达",
+        "transcription_rule": "UTF8_DECODE_ONLY_NO_TRIM_NO_NEWLINE_OR_WORD_CHANGES",
+        "triggering_natural_failure": {
+          "bytes": 4654,
+          "id": "N-H5P-1",
+          "path": "/Users/ouyangduning/Documents/project/interesting/AlphaPilot-EVIDENCE-DO-NOT-DELETE-epoch9-forward-rebaseline-compatibility-20260906.tYa303/independent-review-H5p-natural-failure-N-H5P-1-cninfo-readtimeout-20260908.json",
+          "sha256": "25688c30927d72111683b37c7433144b000794dab5cf9aa3a4c9cf7136129e8d"
+        },
+        "verbatim": "好，按照你的建议进行",
+        "verbatim_bytes": 30,
+        "verbatim_sha256": "2d3c2a68d6b54ea4616803f277f48659a522f2ff3f61c8191fe6af5752e64a65",
+        "verbatim_source": {
+          "bytes": 30,
+          "path": "/Users/ouyangduning/Documents/project/interesting/AlphaPilot-EVIDENCE-DO-NOT-DELETE-epoch9-forward-rebaseline-compatibility-20260906.tYa303/owner-cninfo-download-retry-and-combined-landing-decision-20260908.txt",
+          "sha256": "2d3c2a68d6b54ea4616803f277f48659a522f2ff3f61c8191fe6af5752e64a65"
+        }
+      },
+      "inference_stage_zero_retry_unchanged": {
+        "json_pointer": "/authorization_boundary/forbidden_now",
+        "note": "retrying_any_failed_candidate_or_round is read as inference candidates and inference rounds; the inference stage keeps one item once with zero automatic retry, and this deviation touches only the CNInfo PDF download inside a single materialize attempt",
+        "registered_value": "retrying_any_failed_candidate_or_round",
+        "unchanged": true
+      },
+      "json_pointer": "/eligibility_and_sampling/transient_download_or_extraction_failure",
+      "preregistration_ref": {
+        "bytes": 11149,
+        "path": "docs/phase4/reports/P4.2a-v2-heldout-preregistration-20260810.json",
+        "sha256": "ccecbf5ca7b48b16e445318b8c94a08927432f92c7e8c12f8ab40f2916578705"
+      },
+      "registered_value": "fail_entire_materialization_without_partial_publish",
+      "retry_parameters": {
+        "backoff_seconds": [
+          2.0,
+          4.0
+        ],
+        "extraction_failures_retried": false,
+        "max_attempts_per_pdf": 3,
+        "non_retried": [
+          "candidate_document_ineligible",
+          "content_length_invalid",
+          "content_not_pdf",
+          "http_status_other_than_502_503_504",
+          "pdf_text_extraction_failure"
+        ],
+        "pacing_floor_applies_to_every_attempt": true,
+        "retried_error_classes": [
+          "httpx.TransportError",
+          "OSError",
+          "gold_sample_http_status_502",
+          "gold_sample_http_status_503",
+          "gold_sample_http_status_504"
+        ]
+      }
+    }
+  ],
+  "preregistration_ref": {
+    "bytes": 62949,
+    "creating_commit_resolution": "DERIVE_FROM_REAL_SINGLE_PARENT_UNIQUE_A_HISTORY_AFTER_REGISTRATION",
+    "path": "docs/phase4/reports/P4.2a-successor-production-integration-v1-preregistration-20260907.json",
+    "registration_status_at_document_creation": "NOT_YET_REGISTERED",
+    "sha256": "32f136bfdd4d04474fedf2ee8f0ba3f2c2c4fb160f4ece2712bd1c54810c9bcb"
+  },
+  "recording_responsibility": "OPERATOR_RECORDS_EXISTING_OWNER_TEXT_ONLY_DOES_NOT_AUTHOR_OWNER_OR_REVIEWER_WORDS",
+  "registered_path": "docs/phase4/reports/P4.2a-successor-production-integration-v2-owner-backup-window-exception-20260908.json",
+  "schema_version": "p4.2a-successor-production-integration-v2-owner-backup-window-exception",
+  "scientific_contract_immutability": [
+    {
+      "authority": {
+        "json_pointer": "/lineage",
+        "path": "docs/phase4/reports/P4.2a-v2-heldout-rehearsal-v2-2-release-authorization-20260811.json",
+        "sha256": "2ede11c0bc3a1dbdbaff489f6c6f155f456e7a6685fda8b31ce1772ca005ad40"
+      },
+      "id": "candidate_and_model_identity",
+      "implementation_review_required": true,
+      "rule": "PRESERVE_EXISTING_REGISTERED_BYTES_VALUES_AND_SEMANTICS"
+    },
+    {
+      "authority": {
+        "json_pointer": "/lineage",
+        "path": "docs/phase4/reports/P4.2a-v2-heldout-rehearsal-v2-2-release-authorization-20260811.json",
+        "sha256": "2ede11c0bc3a1dbdbaff489f6c6f155f456e7a6685fda8b31ce1772ca005ad40"
+      },
+      "id": "model_prompt_parameters_and_scientific_contract",
+      "implementation_review_required": true,
+      "rule": "PRESERVE_EXISTING_REGISTERED_BYTES_VALUES_AND_SEMANTICS"
+    },
+    {
+      "authority": {
+        "json_pointer": "/lineage",
+        "path": "docs/phase4/reports/P4.2a-v2-heldout-rehearsal-v2-2-release-authorization-20260811.json",
+        "sha256": "2ede11c0bc3a1dbdbaff489f6c6f155f456e7a6685fda8b31ce1772ca005ad40"
+      },
+      "id": "data_window_and_eligibility",
+      "implementation_review_required": true,
+      "rule": "PRESERVE_EXISTING_REGISTERED_BYTES_VALUES_AND_SEMANTICS"
+    },
+    {
+      "authority": {
+        "json_pointer": "/lineage",
+        "path": "docs/phase4/reports/P4.2a-v2-heldout-rehearsal-v2-2-release-authorization-20260811.json",
+        "sha256": "2ede11c0bc3a1dbdbaff489f6c6f155f456e7a6685fda8b31ce1772ca005ad40"
+      },
+      "id": "sampling_40_20_and_seed",
+      "implementation_review_required": true,
+      "rule": "PRESERVE_EXISTING_REGISTERED_BYTES_VALUES_AND_SEMANTICS"
+    },
+    {
+      "authority": {
+        "json_pointer": "/lineage",
+        "path": "docs/phase4/reports/P4.2a-v2-heldout-rehearsal-v2-2-release-authorization-20260811.json",
+        "sha256": "2ede11c0bc3a1dbdbaff489f6c6f155f456e7a6685fda8b31ce1772ca005ad40"
+      },
+      "id": "gold_and_owner_blind_adjudication",
+      "implementation_review_required": true,
+      "rule": "PRESERVE_EXISTING_REGISTERED_BYTES_VALUES_AND_SEMANTICS"
+    },
+    {
+      "authority": {
+        "json_pointer": "/lineage",
+        "path": "docs/phase4/reports/P4.2a-v2-heldout-rehearsal-v2-2-release-authorization-20260811.json",
+        "sha256": "2ede11c0bc3a1dbdbaff489f6c6f155f456e7a6685fda8b31ce1772ca005ad40"
+      },
+      "id": "scientific_predicates_and_thresholds",
+      "implementation_review_required": true,
+      "rule": "PRESERVE_EXISTING_REGISTERED_BYTES_VALUES_AND_SEMANTICS"
+    },
+    {
+      "authority": {
+        "json_pointer": "/lineage",
+        "path": "docs/phase4/reports/P4.2a-v2-heldout-rehearsal-v2-2-release-authorization-20260811.json",
+        "sha256": "2ede11c0bc3a1dbdbaff489f6c6f155f456e7a6685fda8b31ce1772ca005ad40"
+      },
+      "id": "request_order_and_pacing",
+      "implementation_review_required": true,
+      "rule": "PRESERVE_EXISTING_REGISTERED_BYTES_VALUES_AND_SEMANTICS"
+    },
+    {
+      "authority": {
+        "json_pointer": "/lineage",
+        "path": "docs/phase4/reports/P4.2a-v2-heldout-rehearsal-v2-2-release-authorization-20260811.json",
+        "sha256": "2ede11c0bc3a1dbdbaff489f6c6f155f456e7a6685fda8b31ce1772ca005ad40"
+      },
+      "id": "one_item_once_zero_automatic_retry",
+      "implementation_review_required": true,
+      "rule": "PRESERVE_EXISTING_REGISTERED_BYTES_VALUES_AND_SEMANTICS"
+    },
+    {
+      "authority": {
+        "json_pointer": "/lineage",
+        "path": "docs/phase4/reports/P4.2a-v2-heldout-rehearsal-v2-2-release-authorization-20260811.json",
+        "sha256": "2ede11c0bc3a1dbdbaff489f6c6f155f456e7a6685fda8b31ce1772ca005ad40"
+      },
+      "id": "old_v2_1_release_and_offline_capability_guards",
+      "implementation_review_required": true,
+      "rule": "PRESERVE_EXISTING_REGISTERED_BYTES_VALUES_AND_SEMANTICS"
+    },
+    {
+      "authority": {
+        "json_pointer": "/lineage",
+        "path": "docs/phase4/reports/P4.2a-v2-heldout-rehearsal-v2-2-release-authorization-20260811.json",
+        "sha256": "2ede11c0bc3a1dbdbaff489f6c6f155f456e7a6685fda8b31ce1772ca005ad40"
+      },
+      "id": "backup_frame_and_runtime_start_guards",
+      "implementation_review_required": true,
+      "rule": "PRESERVE_EXISTING_REGISTERED_BYTES_VALUES_AND_SEMANTICS"
+    },
+    {
+      "authority": {
+        "json_pointer": "/lineage",
+        "path": "docs/phase4/reports/P4.2a-v2-heldout-rehearsal-v2-2-release-authorization-20260811.json",
+        "sha256": "2ede11c0bc3a1dbdbaff489f6c6f155f456e7a6685fda8b31ce1772ca005ad40"
+      },
+      "id": "sealed_history_ledger_mirror_and_consumed_attempts",
+      "implementation_review_required": true,
+      "rule": "PRESERVE_EXISTING_REGISTERED_BYTES_VALUES_AND_SEMANTICS"
+    }
+  ],
+  "still_gated": [
+    "finalize-owner-adjudication",
+    "heldout-evaluation",
+    "p4.2a-done",
+    "p4.2b",
+    "p4.3",
+    "trading"
+  ],
+  "supersedes_exception": {
+    "creating_commit": "d7a1f3c001a6243150eb12e1c58efe473c238892",
+    "path": "docs/phase4/reports/P4.2a-successor-production-integration-v1-owner-exact-surface-exception-20260907.json",
+    "sha256": "3f95b0d1958fb5eb4f04238fa089eb2619dd5ece225c031f875eb56a1bb8959a"
+  },
+  "verdict": "AUTHORIZE_SUCCESSOR_PRODUCTION_INTEGRATION_V2_BACKUP_WINDOW_AND_DOWNLOAD_RETRY_RELAXATION_IMPLEMENTATION_ONLY"
+}
