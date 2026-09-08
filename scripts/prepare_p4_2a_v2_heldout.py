@@ -30,6 +30,7 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 if __package__ in {None, ""}:
     sys.path[:0] = [str(PROJECT_ROOT), str(PROJECT_ROOT / "src")]
 
+import httpx  # noqa: E402
 import yaml  # noqa: E402
 from jsonschema import Draft202012Validator, FormatChecker  # noqa: E402
 from scripts import build_p4_2a_gold_sample as gold_builder  # noqa: E402
@@ -197,6 +198,35 @@ SUCCESSOR_V2_1_RELEASE_VERDICT = (
 )
 MATERIALIZATION_MANIFEST_V2_SCHEMA = "p4.2a-v2-heldout-materialization-manifest-v2"
 CNINFO_MIN_START_TO_START_SECONDS = 1.0
+# Owner decision 2026-09-08: a single CNInfo PDF download may be retried after a
+# transient transport failure. Candidate pool, request order, eligibility and the
+# inference stage's one-item-once-zero-retry rule are untouched.
+CNINFO_MAX_PDF_ATTEMPTS = 3
+CNINFO_RETRY_BACKOFF_SECONDS = (2.0, 4.0)
+CNINFO_RETRIED_ERROR_CLASSES = (
+    "httpx.TransportError",
+    "OSError",
+    "gold_sample_http_status_502",
+    "gold_sample_http_status_503",
+    "gold_sample_http_status_504",
+)
+CNINFO_NON_RETRIED_FAILURES = (
+    "candidate_document_ineligible",
+    "content_length_invalid",
+    "content_not_pdf",
+    "http_status_other_than_502_503_504",
+    "pdf_text_extraction_failure",
+)
+# build_p4_2a_gold_sample.download_cninfo_pdf raises its own GoldSampleError for a
+# non-200 response, so the status is only visible in the message it formats.
+_CNINFO_RETRYABLE_STATUS = re.compile(r"^CNInfo PDF returned non-success HTTP (502|503|504)$")
+# The three label shapes _retryable_download_failure can produce; matched literally
+# so the same recorded bytes validate identically in every process.
+_CNINFO_RETRY_EVENT_LABEL = re.compile(
+    r"^(?:gold_sample_http_status_(?:502|503|504)"
+    r"|httpx\.[A-Za-z_][A-Za-z0-9_]*"
+    r"|(?!gold_sample_http_status_)[A-Za-z_][A-Za-z0-9_]*)$"
+)
 _SHANGHAI = ZoneInfo("Asia/Shanghai")
 _REAL_ALLOWED_STAGES = frozenset(
     {
@@ -2304,6 +2334,7 @@ class _CninfoStartPacer:
         self._monotonic = monotonic
         self._sleep = sleep
         self._starts: list[float] = []
+        self._retry_events: list[JsonObject] = []
 
     @staticmethod
     def _valid_clock_value(value: object) -> float:
@@ -2333,6 +2364,21 @@ class _CninfoStartPacer:
             raise HeldoutPreparationError("CNInfo pacing floor was not reached")
         self._starts.append(observed)
 
+    def backoff(self, seconds: float, *, url_sha256: str, attempt: int, label: str) -> None:
+        """Record one transport retry and wait before the next paced attempt."""
+        observed = self._valid_clock_value(self._monotonic())
+        self._retry_events.append(
+            {
+                "url_sha256": url_sha256,
+                "attempt": attempt,
+                "exception_type": label,
+                "monotonic_offset_seconds": observed - self._starts[0]
+                if self._starts
+                else 0.0,
+            }
+        )
+        self._sleep(seconds)
+
     def evidence(self) -> JsonObject:
         gaps = [
             right - left
@@ -2352,8 +2398,32 @@ class _CninfoStartPacer:
             if gaps
             else None,
             "violation_count": violations,
-            "retry_count": 0,
+            "retry_count": len(self._retry_events),
+            "transport_retry_policy": {
+                "max_attempts_per_pdf": CNINFO_MAX_PDF_ATTEMPTS,
+                "backoff_seconds": list(CNINFO_RETRY_BACKOFF_SECONDS),
+                "retried_error_classes": list(CNINFO_RETRIED_ERROR_CLASSES),
+                "non_retried": list(CNINFO_NON_RETRIED_FAILURES),
+            },
+            "retry_events": [dict(event) for event in self._retry_events],
         }
+
+
+def _retryable_download_failure(error: gold_builder.GoldSampleError) -> str | None:
+    """Name the transient transport failure to retry, or None to fail at once.
+
+    Content, eligibility and every other status failure keep the registered
+    complete-or-nothing behaviour.
+    """
+    cause = error.__cause__
+    if isinstance(cause, httpx.TransportError):
+        return f"httpx.{type(cause).__name__}"
+    if isinstance(cause, OSError):
+        return type(cause).__name__
+    status = _CNINFO_RETRYABLE_STATUS.fullmatch(str(error))
+    if status is not None:
+        return f"gold_sample_http_status_{status.group(1)}"
+    return None
 
 
 def _paced_pdf_boundaries(
@@ -2365,16 +2435,29 @@ def _paced_pdf_boundaries(
         url: str,
         policy: gold_builder.AnnouncementBodyPolicy,
     ) -> bytes:
-        pacer.before_fetch()
-        try:
-            payload: bytes = pdf_fetcher(url, policy)
-            return payload
-        except gold_builder.CandidateDocumentIneligible as exc:
-            if exc.reason != "pdf_exceeds_size_bound":
-                raise HeldoutPreparationError(
-                    f"unknown deterministic candidate reason: {exc.reason}"
-                ) from exc
-            raise
+        url_sha256 = common.sha256_bytes(url.encode("utf-8"))
+        for attempt in range(1, CNINFO_MAX_PDF_ATTEMPTS + 1):
+            pacer.before_fetch()
+            try:
+                payload: bytes = pdf_fetcher(url, policy)
+                return payload
+            except gold_builder.CandidateDocumentIneligible as exc:
+                if exc.reason != "pdf_exceeds_size_bound":
+                    raise HeldoutPreparationError(
+                        f"unknown deterministic candidate reason: {exc.reason}"
+                    ) from exc
+                raise
+            except gold_builder.GoldSampleError as exc:
+                label = _retryable_download_failure(exc)
+                if label is None or attempt >= CNINFO_MAX_PDF_ATTEMPTS:
+                    raise
+                pacer.backoff(
+                    CNINFO_RETRY_BACKOFF_SECONDS[attempt - 1],
+                    url_sha256=url_sha256,
+                    attempt=attempt,
+                    label=label,
+                )
+        raise HeldoutPreparationError("CNInfo PDF retry budget was not enforced")
 
     def checked_extract(
         pdf_bytes: bytes,
@@ -2591,17 +2674,10 @@ def _verified_backup_evidence(binding: HeldoutBinding, observed_at: datetime) ->
         created_at = _parse_aware_timestamp(
             manifest.get("created_at"), "database backup created_at"
         )
-        created_shanghai = created_at.astimezone(_SHANGHAI)
-        observed_shanghai = observed_at.astimezone(_SHANGHAI)
-        if (
-            created_shanghai.date() != observed_shanghai.date()
-            or created_shanghai.hour < 22
-        ):
-            continue
         candidates.append((created_at, manifest_path, manifest))
     if not candidates:
         raise HeldoutPreparationError(
-            "no current Shanghai-date post-22:00 database backup manifest is available"
+            "no database backup manifest is available"
         )
     created_at, manifest_path, manifest = max(candidates, key=lambda item: item[0])
     if (
@@ -2665,16 +2741,30 @@ def _real_runtime_start_preflight(
         attestation, observed_start_shanghai=observed_shanghai
     )
     runtime_directory = _database_backup_runtime_directory()
+    # The LaunchAgent and lock probes still run before any manifest is read, so a
+    # concurrent backup is refused first. The stamp is probed last because it is now
+    # checked against the backup this preflight actually binds.
+    launchagent = _launchagent_evidence()
+    lock = _backup_lock_evidence(runtime_directory)
+    verified_backup = _verified_backup_evidence(binding, observed_at)
+    bound_backup_shanghai_date = (
+        _parse_aware_timestamp(
+            verified_backup["created_at_shanghai"], "verified backup created_at_shanghai"
+        )
+        .astimezone(_SHANGHAI)
+        .date()
+        .isoformat()
+    )
     return {
         "mode": "real",
         "observed_at_utc": observed_at.isoformat().replace("+00:00", "Z"),
         "observed_at_shanghai": observed_shanghai.isoformat(),
         "backup_stamp": _backup_stamp_evidence(
-            runtime_directory, observed_shanghai.date().isoformat()
+            runtime_directory, bound_backup_shanghai_date
         ),
-        "database_backup_launchagent": _launchagent_evidence(),
-        "database_backup_lock": _backup_lock_evidence(runtime_directory),
-        "verified_backup": _verified_backup_evidence(binding, observed_at),
+        "database_backup_launchagent": launchagent,
+        "database_backup_lock": lock,
+        "verified_backup": verified_backup,
         "operator_timing_attestation": operator,
     }
 
@@ -3341,6 +3431,7 @@ def _synthetic_prediction(
 def _synthetic_production_materialization_fixture(
     binding: HeldoutBinding,
     *,
+    transport_retry_recorded: bool = False,
     execution_context: ExecutionContext = None,
 ) -> tuple[list[JsonObject], JsonObject]:
     """Build a legal production-shaped offline fixture for deep validator tests."""
@@ -3499,6 +3590,19 @@ def _synthetic_production_materialization_fixture(
                 "median_observed_start_to_start_seconds": 1.0,
                 "violation_count": 0,
                 "retry_count": 0,
+                **(
+                    {
+                        "transport_retry_policy": {
+                            "max_attempts_per_pdf": CNINFO_MAX_PDF_ATTEMPTS,
+                            "backoff_seconds": list(CNINFO_RETRY_BACKOFF_SECONDS),
+                            "retried_error_classes": list(CNINFO_RETRIED_ERROR_CLASSES),
+                            "non_retried": list(CNINFO_NON_RETRIED_FAILURES),
+                        },
+                        "retry_events": [],
+                    }
+                    if transport_retry_recorded
+                    else {}
+                ),
             },
             "akshare_ths": "not_applicable_no_external_document_fetch",
             "sina_company_news": "not_applicable_no_external_document_fetch",
@@ -4845,11 +4949,86 @@ def _relative_artifact_path(binding: HeldoutBinding, name: str) -> str:
     return binding.artifacts[name].relative_to(binding.root).as_posix()
 
 
+def _valid_transport_retry_evidence(
+    cninfo: Mapping[str, Any],
+    *,
+    request_count: int,
+    retry_count: int,
+) -> bool:
+    """The recorded policy is the registered one and every retry is accounted for."""
+    policy = cninfo.get("transport_retry_policy")
+    events = cninfo.get("retry_events")
+    if not isinstance(policy, Mapping) or not isinstance(events, list):
+        return False
+    backoff = policy.get("backoff_seconds")
+    if (
+        set(policy)
+        != {"max_attempts_per_pdf", "backoff_seconds", "retried_error_classes", "non_retried"}
+        or isinstance(policy.get("max_attempts_per_pdf"), bool)
+        or policy.get("max_attempts_per_pdf") != CNINFO_MAX_PDF_ATTEMPTS
+        or not isinstance(backoff, list)
+        or len(backoff) != len(CNINFO_RETRY_BACKOFF_SECONDS)
+        or any(
+            isinstance(item, bool)
+            or not isinstance(item, (int, float))
+            or float(item) != expected
+            for item, expected in zip(backoff, CNINFO_RETRY_BACKOFF_SECONDS, strict=True)
+        )
+        or policy.get("retried_error_classes") != list(CNINFO_RETRIED_ERROR_CLASSES)
+        or policy.get("non_retried") != list(CNINFO_NON_RETRIED_FAILURES)
+    ):
+        return False
+    # Every retry is itemised, and the budget bounds the total across all PDFs.
+    if len(events) != retry_count:
+        return False
+    # Distinct PDFs are the request starts that were not themselves retries, and
+    # each PDF may contribute at most MAX-1 retries.
+    distinct_pdfs = request_count - retry_count
+    if distinct_pdfs < 0 or retry_count > (CNINFO_MAX_PDF_ATTEMPTS - 1) * distinct_pdfs:
+        return False
+    attempts_by_url: dict[str, list[int]] = {}
+    for event in events:
+        if (
+            not isinstance(event, Mapping)
+            or set(event)
+            != {"url_sha256", "attempt", "exception_type", "monotonic_offset_seconds"}
+            or not isinstance(event.get("url_sha256"), str)
+            or re.fullmatch(r"[0-9a-f]{64}", str(event.get("url_sha256"))) is None
+            or isinstance(event.get("attempt"), bool)
+            or not isinstance(event.get("attempt"), int)
+            or not 1 <= cast(int, event["attempt"]) < CNINFO_MAX_PDF_ATTEMPTS
+            or not isinstance(event.get("exception_type"), str)
+            or _CNINFO_RETRY_EVENT_LABEL.fullmatch(cast(str, event["exception_type"])) is None
+            or isinstance(event.get("monotonic_offset_seconds"), bool)
+            or not isinstance(event.get("monotonic_offset_seconds"), (int, float))
+            or not math.isfinite(float(cast(float, event["monotonic_offset_seconds"])))
+            or float(cast(float, event["monotonic_offset_seconds"])) < 0.0
+        ):
+            return False
+        attempts_by_url.setdefault(cast(str, event["url_sha256"]), []).append(
+            cast(int, event["attempt"])
+        )
+    # One PDF's retries are attempts 1..k in order; nothing may be skipped or repeated.
+    return all(
+        attempts == list(range(1, len(attempts) + 1))
+        and len(attempts) <= CNINFO_MAX_PDF_ATTEMPTS - 1
+        for attempts in attempts_by_url.values()
+    )
+
+
 def _validate_request_pacing_evidence(
     value: object,
     *,
     expected_cninfo_requests: int,
+    transport_retry_recorded: bool,
 ) -> None:
+    """Validate CNInfo pacing evidence in exactly the shape its generation records.
+
+    Manifests published before the owner's 2026-09-08 download decision carry no
+    retry policy and must still prove zero retries; manifests published after it
+    must itemise every retry. Neither shape is accepted in the other's place, so
+    frozen rehearsal evidence stays valid without weakening the new rule.
+    """
     pacing = _mapping(value, "materialization request_pacing")
     if set(pacing) != {"cninfo_pdf", "akshare_ths", "sina_company_news"}:
         raise HeldoutPreparationError("materialization request_pacing schema drifted")
@@ -4873,6 +5052,8 @@ def _validate_request_pacing_evidence(
         "violation_count",
         "retry_count",
     }
+    if transport_retry_recorded:
+        fields |= {"transport_retry_policy", "retry_events"}
     if set(cninfo) != fields:
         raise HeldoutPreparationError("materialization CNInfo pacing schema drifted")
     request_count = cninfo.get("request_start_count")
@@ -4910,11 +5091,17 @@ def _validate_request_pacing_evidence(
         or float(configured_floor) != CNINFO_MIN_START_TO_START_SECONDS
         or cninfo.get("clock") != "monotonic"
         or cninfo.get("first_request_delayed") is not False
-        or request_count != expected_cninfo_requests
+        or request_count != expected_cninfo_requests + cast(int, retry_count)
         or gap_count != max(request_count - 1, 0)
         or violations != 0
-        or retry_count != 0
         or not valid_statistics
+        or (
+            not _valid_transport_retry_evidence(
+                cninfo, request_count=request_count, retry_count=cast(int, retry_count)
+            )
+            if transport_retry_recorded
+            else retry_count != 0
+        )
     ):
         raise HeldoutPreparationError("materialization CNInfo pacing evidence drifted")
 
@@ -4968,7 +5155,6 @@ def _validate_runtime_preflight_evidence(
         != {"path", "expected_shanghai_date", "observed_value", "regular_file", "symlink", "mode"}
         or stamp.get("path")
         != str(runtime_directory / "last-success-shanghai-date")
-        or stamp.get("expected_shanghai_date") != observed_shanghai.date().isoformat()
         or stamp.get("observed_value") != stamp.get("expected_shanghai_date")
         or stamp.get("regular_file") is not True
         or stamp.get("symlink") is not False
@@ -5013,6 +5199,11 @@ def _validate_runtime_preflight_evidence(
     backup_created_shanghai = _parse_aware_timestamp(
         verified.get("created_at_shanghai"), "verified backup created_at_shanghai"
     )
+    if (
+        stamp.get("expected_shanghai_date")
+        != backup_created_shanghai.astimezone(_SHANGHAI).date().isoformat()
+    ):
+        raise HeldoutPreparationError("runtime backup stamp evidence drifted")
     raw_backup_directory = binding.root / "data/backups"
     backup_directory = raw_backup_directory.resolve()
     manifest_path_raw = verified.get("manifest_path")
@@ -5057,9 +5248,6 @@ def _validate_runtime_preflight_evidence(
         or backup_manifest_evidence.get("sha256") != recorded_backup_sha
         or backup_created_utc.astimezone(UTC)
         != backup_created_shanghai.astimezone(UTC)
-        or backup_created_shanghai.astimezone(_SHANGHAI).date()
-        != observed_shanghai.date()
-        or backup_created_shanghai.astimezone(_SHANGHAI).hour < 22
         or backup_created_utc.astimezone(UTC) > observed_utc.astimezone(UTC)
         or verified.get("quick_check") != "ok"
         or verified.get("verify_database_backup_passed") is not True
@@ -5141,6 +5329,7 @@ def _validate_production_materialization_manifest(
     _validate_request_pacing_evidence(
         manifest.get("request_pacing"),
         expected_cninfo_requests=expected_cninfo_requests,
+        transport_retry_recorded=True,
     )
     _validate_runtime_preflight_evidence(
         binding,
@@ -5217,6 +5406,7 @@ def validate_v2_1_materialization_manifest(
     _validate_request_pacing_evidence(
         manifest.get("request_pacing"),
         expected_cninfo_requests=expected_cninfo_requests,
+        transport_retry_recorded=False,
     )
     _validate_runtime_preflight_evidence(
         binding,

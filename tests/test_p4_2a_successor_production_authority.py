@@ -26,18 +26,33 @@ from scripts import prepare_p4_2a_v2_heldout as prepare
 
 ROOT = Path(__file__).resolve().parents[1]
 RELEASE_PATH = Path(
-    "docs/phase4/reports/P4.2a-successor-production-integration-v1-production-release-20260907.json"
+    "docs/phase4/reports/P4.2a-successor-production-integration-v2-production-release-20260908.json"
 )
 SCHEMA_PATH = Path(
-    "config/schemas/p4_2a_successor_production_integration_v1_release_authorization.schema.json"
+    "config/schemas/p4_2a_successor_production_integration_v2_release_authorization.schema.json"
 )
+SUPERSEDED_RELEASE_PATH = Path(
+    "docs/phase4/reports/P4.2a-successor-production-integration-v1-production-release-20260907.json"
+)
+SUPERSEDED_RELEASE_SHA = "5cd8401b1c35afa865c64c1d2a835a09b79fe68aabdfb9a8eacad85c0001ad48"
+EXCEPTION_PATH = Path(
+    "docs/phase4/reports/"
+    "P4.2a-successor-production-integration-v2-owner-backup-window-exception-20260908.json"
+)
+SUPERSEDED_RELEASE_COMMIT = "06d1ffbb37a06ea89248b1181af8a63afe1bd3dc"
 MODULE_PATH = Path("scripts/p4_2a_successor_production_authority.py")
 PREPARE_PATH = Path("scripts/prepare_p4_2a_v2_heldout.py")
-BASE_HEAD = "d7a1f3c001a6243150eb12e1c58efe473c238892"
+EVALUATE_PATH = Path("scripts/evaluate_p4_2a_v2_heldout.py")
+PREPARE_TARGET_SHA = "35e9e2c445f7b67f008a4429017e89db99adb29a20dea89111a321d9bc7f843f"
+PREPARE_BASE_SHA = "fdcb7fc9063b563ca02fcd630f36e450c1dd04d5b99aa9b2811c11c81eaba1d5"
+PREPARE_PATCH_SHA = "e903bf8626fa476bf9f777dad16f7ff85e2d15299718110be6e49449221d810c"
+BASE_HEAD = "9eb06d6a473481aef47fc950f35e96f1e8981660"
 IMPLEMENTATION_FILES = (
     PREPARE_PATH,
+    EVALUATE_PATH,
     MODULE_PATH,
     SCHEMA_PATH,
+    Path("tests/test_p4_2a_v2_heldout.py"),
     Path("tests/test_p4_2a_successor_production_authority.py"),
     Path("tests/test_p4_2a_successor_preparation_integration.py"),
 )
@@ -233,19 +248,39 @@ def test_release_schema_is_closed_and_keeps_the_owner_day_as_a_pattern() -> None
     assert schema["additionalProperties"] is False
     assert schema["$id"] == (
         "https://alphapilot.local/schemas/"
-        "p4_2a_successor_production_integration_v1_release_authorization.schema.json"
+        "p4_2a_successor_production_integration_v2_release_authorization.schema.json"
     )
     identity = schema["properties"]["authorization_id"]
     assert "pattern" in identity and "const" not in identity
     assert schema["properties"]["verdict"]["const"] == (
-        "APPROVE_SUCCESSOR_PRODUCTION_INTEGRATION_V1_HELDOUT_PREPARATION_ONLY"
+        "APPROVE_SUCCESSOR_PRODUCTION_INTEGRATION_V2_HELDOUT_PREPARATION_ONLY"
     )
     assert schema["properties"]["authorized_stages"]["const"] == list(PREPARATION_STAGES)
+    assert "supersedes" in schema["required"]
+    superseded = schema["properties"]["supersedes"]["properties"]
+    assert superseded["path"]["const"] == SUPERSEDED_RELEASE_PATH.as_posix()
+    assert superseded["sha256"]["const"] == SUPERSEDED_RELEASE_SHA
+    assert superseded["creating_commit"]["const"] == SUPERSEDED_RELEASE_COMMIT
+    policy = schema["properties"]["runtime_start_policy"]["properties"]
+    assert policy["backup_stamp_policy"]["const"] == (
+        "equals_bound_backup_created_Asia_Shanghai_date"
+    )
+    assert policy["latest_backup_manifest_policy"]["const"] == (
+        "newest_manifest_verified_quick_check_ok_database_exists_no_calendar_bound"
+    )
+
+
+def _relaxed_runtime_start_policy(prereg: dict[str, Any]) -> dict[str, Any]:
+    """The preregistered policy with only the owner-decided backup rule replaced."""
+    policy = copy.deepcopy(prereg["runtime_start_policy"])
+    policy.update(copy.deepcopy(authority._RELAXED_RUNTIME_START_POLICY))
+    return policy
 
 
 def _structural_release_document() -> dict[str, Any]:
     """An explicitly fictional schema example, not a valid authority fixture."""
     prefix = "docs/phase4/reports/P4.2a-successor-production-integration-v1-"
+    v2_prefix = "docs/phase4/reports/P4.2a-successor-production-integration-v2-"
     prereg = json.loads((ROOT / (prefix + "preregistration-20260907.json")).read_text())
     sample_ref = {"path": "/synthetic-authority-test/evidence.json", "sha256": "1" * 64, "bytes": 1}
     sample_source = {
@@ -274,7 +309,9 @@ def _structural_release_document() -> dict[str, Any]:
     lineage: dict[str, Any] = {
         "preregistration": authority_ref(prefix + "preregistration-20260907.json"),
         "release_schema": {"path": SCHEMA_PATH.as_posix(), "sha256": "6" * 64, "bytes": 1},
-        "owner_exception": authority_ref(prefix + "owner-exact-surface-exception-20260907.json"),
+        "owner_exception": authority_ref(
+            v2_prefix + "owner-backup-window-exception-20260908.json"
+        ),
         "h0_evidence_acceptance": authority_ref(
             "docs/phase4/reports/P4.2a-v2-heldout-rehearsal-v2-2-release-authorization-20260811.json"
         ),
@@ -305,11 +342,11 @@ def _structural_release_document() -> dict[str, Any]:
         "max_inference_attempts_per_item": 1,
     }
     return {
-        "schema_version": "p4.2a-successor-production-integration-v1-production-release",
-        "authorization_id": "P4.2A-SUCCESSOR-PRODUCTION-INTEGRATION-V1-PRODUCTION-RELEASE-20260907",
-        "verdict": "APPROVE_SUCCESSOR_PRODUCTION_INTEGRATION_V1_HELDOUT_PREPARATION_ONLY",
-        "created_at_utc": "2026-09-07T01:00:00Z",
-        "created_at_shanghai": "2026-09-07T09:00:00+08:00",
+        "schema_version": "p4.2a-successor-production-integration-v2-production-release",
+        "authorization_id": "P4.2A-SUCCESSOR-PRODUCTION-INTEGRATION-V2-PRODUCTION-RELEASE-20260908",
+        "verdict": "APPROVE_SUCCESSOR_PRODUCTION_INTEGRATION_V2_HELDOUT_PREPARATION_ONLY",
+        "created_at_utc": "2026-09-08T01:00:00Z",
+        "created_at_shanghai": "2026-09-08T09:00:00+08:00",
         "reviewed_repository_head": "8" * 40,
         "owner_decision_source": sample_source,
         "owner_identity": "ouyang",
@@ -319,18 +356,23 @@ def _structural_release_document() -> dict[str, Any]:
             "still_gated": copy.deepcopy(prereg["still_gated"]),
         },
         "independent_implementation_review_ref": authority_ref(
-            prefix + "independent-implementation-review-20260907.json"
+            v2_prefix + "independent-implementation-review-20260908.json"
         ),
         "reviewer": reviewer,
         "lineage": lineage,
+        "supersedes": {
+            "path": SUPERSEDED_RELEASE_PATH.as_posix(),
+            "sha256": SUPERSEDED_RELEASE_SHA,
+            "creating_commit": SUPERSEDED_RELEASE_COMMIT,
+        },
         "production_implementation_binding": {
             "implementation_commit": "9" * 40,
             "build_manifest": sample_ref,
             "prepare_exception": {
                 "path": PREPARE_PATH.as_posix(),
-                "base_sha256": "ac2b3eb92ac9fadf823dfc081a1983af57132a77b36bb4f1419297c488eb9394",
-                "target_sha256": "fdcb7fc9063b563ca02fcd630f36e450c1dd04d5b99aa9b2811c11c81eaba1d5",
-                "patch_sha256": "aef8e0ce1ad8e4e31a091b7414dd9ef72fb6048b40113c0b1d11a8b568e43ca5",
+                "base_sha256": PREPARE_BASE_SHA,
+                "target_sha256": PREPARE_TARGET_SHA,
+                "patch_sha256": PREPARE_PATCH_SHA,
             },
             "source_closure": [{"path": MODULE_PATH.as_posix(), "sha256": "a" * 64, "bytes": 1}],
             "active_validator": {
@@ -362,7 +404,7 @@ def _structural_release_document() -> dict[str, Any]:
         ],
         "authorized_stages": list(PREPARATION_STAGES),
         "still_gated": copy.deepcopy(prereg["still_gated"]),
-        "runtime_start_policy": copy.deepcopy(prereg["runtime_start_policy"]),
+        "runtime_start_policy": _relaxed_runtime_start_policy(prereg),
         "locks": copy.deepcopy(prereg["locks"]),
         "execution_limits": limits,
         "external_cost_confirmation": {
@@ -402,10 +444,10 @@ def test_schema_example_is_not_execution_authority(tmp_path: Path) -> None:
         ("verdict", "APPROVE_ALL_REAL_STAGES"),
         (
             "authorization_id",
-            "P4.2A-SUCCESSOR-PRODUCTION-INTEGRATION-V1-PRODUCTION-RELEASE-2026-09-07",
+            "P4.2A-SUCCESSOR-PRODUCTION-INTEGRATION-V2-PRODUCTION-RELEASE-2026-09-08",
         ),
-        ("created_at_utc", "2026-09-07T09:00:00+08:00"),
-        ("created_at_shanghai", "2026-09-07T01:00:00Z"),
+        ("created_at_utc", "2026-09-08T09:00:00+08:00"),
+        ("created_at_shanghai", "2026-09-08T01:00:00Z"),
         ("owner_identity", "operator"),
         ("authorized_stages", ["infer", "heldout-evaluation"]),
         ("still_gated", []),
@@ -414,6 +456,13 @@ def test_schema_example_is_not_execution_authority(tmp_path: Path) -> None:
         ("execution_limits.automatic_retries", 1),
         ("execution_limits.max_inference_attempts_per_item", 2),
         ("runtime_start_policy.live_probe_required", False),
+        ("runtime_start_policy.backup_stamp_policy", "current_Asia_Shanghai_date"),
+        (
+            "runtime_start_policy.latest_backup_manifest_policy",
+            "created_after_22_00_CST_quick_check_ok_database_exists",
+        ),
+        ("supersedes.sha256", "0" * 64),
+        ("supersedes.creating_commit", "0" * 40),
         ("reviewer.independent_of_operator", False),
         ("production_implementation_binding.active_validator.entrypoint", "lambda_true"),
         ("production_implementation_binding.source_closure", []),
@@ -451,11 +500,11 @@ def test_schema_rejects_extra_fields_and_duplicated_or_missing_registered_checks
 def test_owner_issuance_day_is_not_backdated_by_a_schema_constant() -> None:
     document = _structural_release_document()
     document["authorization_id"] = (
-        "P4.2A-SUCCESSOR-PRODUCTION-INTEGRATION-V1-PRODUCTION-RELEASE-20260908"
+        "P4.2A-SUCCESSOR-PRODUCTION-INTEGRATION-V2-PRODUCTION-RELEASE-20260909"
     )
-    document["created_at_utc"] = "2026-09-08T01:00:00Z"
-    document["created_at_shanghai"] = "2026-09-08T09:00:00+08:00"
-    document["owner_decision_source"]["observed_at_utc"] = "2026-09-08T00:59:00Z"
+    document["created_at_utc"] = "2026-09-09T01:00:00Z"
+    document["created_at_shanghai"] = "2026-09-09T09:00:00+08:00"
+    document["owner_decision_source"]["observed_at_utc"] = "2026-09-09T00:59:00Z"
     _schema_validator().validate(document)
 
 
@@ -518,7 +567,7 @@ def implementation_fixture(tmp_path_factory: pytest.TempPathFactory) -> tuple[Pa
     ]
     changes.sort(key=lambda row: row["path"])
     manifest = {
-        "schema_version": "p4.2a-successor-production-integration-v1-build-manifest",
+        "schema_version": "p4.2a-successor-production-integration-v2-build-manifest",
         "implementation_commit": implementation_commit,
         "source_closure": closure,
         "changed_paths": changes,
@@ -557,9 +606,10 @@ def test_active_validator_checks_real_implementation_commit_and_complete_closure
     )
     assert isinstance(result, dict)
     assert result["implementation_commit"] == binding["implementation_commit"]
-    assert _sha((repository / PREPARE_PATH).read_bytes()) == (
-        "fdcb7fc9063b563ca02fcd630f36e450c1dd04d5b99aa9b2811c11c81eaba1d5"
-    )
+    assert _sha((repository / PREPARE_PATH).read_bytes()) == PREPARE_TARGET_SHA
+    assert authority.PREPARE_TARGET_SHA == PREPARE_TARGET_SHA
+    assert authority.PREPARE_BASE_SHA == PREPARE_BASE_SHA
+    assert authority.PATCH_SHA == PREPARE_PATCH_SHA
     closure_paths = {row["path"] for row in binding["source_closure"]}
     assert {path.as_posix() for path in IMPLEMENTATION_FILES} <= closure_paths
     tracked = set(_git(repository, "ls-files").splitlines())
@@ -932,6 +982,29 @@ def test_frozen_real_stage_bootstrap_shape_passes_the_runtime_origin_census() ->
     }
 
 
+def test_registered_change_surface_is_exactly_the_reviewed_v2_file_set() -> None:
+    expected_changes = {
+        PREPARE_PATH.as_posix(): "M",
+        EVALUATE_PATH.as_posix(): "M",
+        MODULE_PATH.as_posix(): "M",
+        SCHEMA_PATH.as_posix(): "A",
+        "tests/test_p4_2a_v2_heldout.py": "M",
+        "tests/test_p4_2a_successor_production_authority.py": "M",
+        "tests/test_p4_2a_successor_preparation_integration.py": "M",
+    }
+    assert authority.BASE_COMMIT == BASE_HEAD
+    assert expected_changes == authority._ALLOWED_CHANGES
+    assert {path.as_posix() for path in IMPLEMENTATION_FILES} == set(
+        authority._ALLOWED_CHANGES
+    )
+    # The superseded v1 receipt and its schema are never part of the change set.
+    assert SUPERSEDED_RELEASE_PATH.as_posix() not in authority._ALLOWED_CHANGES
+    assert (
+        "config/schemas/p4_2a_successor_production_integration_v1_release_authorization"
+        ".schema.json"
+    ) not in authority._ALLOWED_CHANGES
+
+
 def test_design_registration_does_not_conflict_with_future_preparation_scope() -> None:
     receipt = _structural_release_document()
     policy = json.loads((ROOT / (authority.PREFIX + "preregistration-20260907.json")).read_text())
@@ -945,6 +1018,229 @@ def test_design_registration_does_not_conflict_with_future_preparation_scope() -
     receipt["locks"]["p4_2a_done"] = True
     with pytest.raises(authority.ProductionAuthorityError):
         authority._validate_policy_scope(receipt, policy)
+
+
+def test_only_the_two_owner_decided_backup_policy_strings_may_differ() -> None:
+    policy = json.loads((ROOT / (authority.PREFIX + "preregistration-20260907.json")).read_text())
+    registered = policy["runtime_start_policy"]
+    receipt = _structural_release_document()
+    relaxed = receipt["runtime_start_policy"]
+    assert set(relaxed) == set(registered)
+    changed = {key for key in registered if relaxed[key] != registered[key]}
+    assert changed == {"backup_stamp_policy", "latest_backup_manifest_policy"}
+    assert registered["backup_stamp_policy"] == "current_Asia_Shanghai_date"
+    assert registered["latest_backup_manifest_policy"] == (
+        "created_after_22_00_CST_quick_check_ok_database_exists"
+    )
+    assert authority._validate_policy_scope(receipt, policy) is None
+
+    # The preregistered wording is no longer accepted, and no third key may move.
+    for mutation in (
+        {"backup_stamp_policy": registered["backup_stamp_policy"]},
+        {"latest_backup_manifest_policy": registered["latest_backup_manifest_policy"]},
+        {"probe_timing": "before_release_gate"},
+        {"live_probe_required": False},
+    ):
+        drifted = _structural_release_document()
+        drifted["runtime_start_policy"].update(mutation)
+        with pytest.raises(
+            authority.ProductionAuthorityError, match="runtime_start_policy"
+        ):
+            authority._validate_policy_scope(drifted, policy)
+
+    missing_key = _structural_release_document()
+    missing_key["runtime_start_policy"].pop("probe_timing")
+    with pytest.raises(authority.ProductionAuthorityError, match="runtime_start_policy"):
+        authority._validate_policy_scope(missing_key, policy)
+
+    extra_key = _structural_release_document()
+    extra_key["runtime_start_policy"]["unregistered_relaxation"] = True
+    with pytest.raises(authority.ProductionAuthorityError, match="runtime_start_policy"):
+        authority._validate_policy_scope(extra_key, policy)
+
+
+def _prepare_patch(*revisions: str) -> bytes:
+    """The registered patch command; --full-index keeps the bytes portable."""
+    return subprocess.run(
+        [
+            "/usr/bin/git",
+            "-C",
+            str(ROOT),
+            "diff",
+            "--no-ext-diff",
+            "--no-color",
+            "--no-renames",
+            "--full-index",
+            *revisions,
+            "--",
+            PREPARE_PATH.as_posix(),
+        ],
+        check=True,
+        capture_output=True,
+    ).stdout
+
+
+def test_prepare_patch_identity_is_stable_and_recorded() -> None:
+    """Blob ids are printed in full, so the patch bytes ignore core.abbrev."""
+    patch = _prepare_patch(authority.BASE_COMMIT)
+    assert PREPARE_PATCH_SHA == authority.PATCH_SHA
+    assert _sha(patch) == PREPARE_PATCH_SHA
+    index_line = patch.splitlines()[1].decode()
+    assert index_line.startswith("index ")
+    before, _, after = index_line.split()[1].partition("..")
+    assert len(before) == 40 and len(after) == 40
+    # The two-revision form the authority comment records is byte-identical.
+    assert _prepare_patch(authority.BASE_COMMIT, _git(ROOT, "rev-parse", "HEAD")) == patch
+
+
+def test_owner_backup_window_exception_is_the_registered_v2_lineage() -> None:
+    """The v2 patch and the preregistration deviation are owner-recorded."""
+    assert EXCEPTION_PATH.as_posix() == authority.EXCEPTION_RELATIVE
+    assert authority.EXCEPTION_COMMIT == authority.BASE_COMMIT
+    payload = (ROOT / EXCEPTION_PATH).read_bytes()
+    assert _sha(payload) == authority.EXCEPTION_SHA
+    document = json.loads(payload.decode("utf-8"))
+    assert document["registered_path"] == EXCEPTION_PATH.as_posix()
+    assert document["verdict"] == (
+        "AUTHORIZE_SUCCESSOR_PRODUCTION_INTEGRATION_V2"
+        "_BACKUP_WINDOW_AND_DOWNLOAD_RETRY_RELAXATION_IMPLEMENTATION_ONLY"
+    )
+    assert document["authorized_stages"] == []
+    for locked in ("heldout_evaluation_authorized", "real_preparation_authorized"):
+        assert document["implementation_scope_limits"][locked] is False
+
+    exception = document["prepare_exception"]
+    assert exception["base_sha256"] == PREPARE_BASE_SHA
+    assert exception["target_sha256"] == PREPARE_TARGET_SHA
+    assert exception["patch_sha256"] == PREPARE_PATCH_SHA
+    assert "--full-index" in exception["patch_command"]
+    surface = set(exception["allowed_modified_existing_source_paths"]) | set(
+        exception["allowed_new_paths"]
+    )
+    assert surface == set(authority._ALLOWED_CHANGES)
+    # The exception document itself lands in its own commit, never in the change set.
+    assert EXCEPTION_PATH.as_posix() not in authority._ALLOWED_CHANGES
+
+    # Both owner decisions of 2026-09-08 are recorded, each with its own source.
+    decisions = {entry["decision_id"]: entry for entry in document["owner_decisions"]}
+    assert set(decisions) == {
+        "real_stage_backup_window_relaxation",
+        "cninfo_download_retry_and_combined_landing",
+    }
+    for decision in decisions.values():
+        assert decision["identity"] == "ouyang"
+        assert decision["verbatim_bytes"] == len(decision["verbatim"].encode("utf-8"))
+        assert decision["verbatim_sha256"] == _sha(decision["verbatim"].encode("utf-8"))
+        assert decision["transcription_rule"] == (
+            "UTF8_DECODE_ONLY_NO_TRIM_NO_NEWLINE_OR_WORD_CHANGES"
+        )
+
+    deviations = {entry["json_pointer"]: entry for entry in document["preregistration_deviations"]}
+    assert set(deviations) == {
+        "/runtime_start_policy",
+        "/eligibility_and_sampling/transient_download_or_extraction_failure",
+    }
+
+    backup = deviations["/runtime_start_policy"]
+    assert backup["every_other_key_unchanged"] is True
+    assert backup["decided_values"] == authority._RELAXED_RUNTIME_START_POLICY
+    registered = json.loads(
+        (ROOT / (authority.PREFIX + "preregistration-20260907.json")).read_text(encoding="utf-8")
+    )["runtime_start_policy"]
+    assert backup["registered_values"] == {
+        key: registered[key] for key in backup["decided_values"]
+    }
+    assert backup["preregistration_ref"]["sha256"] == authority.PREREG_SHA
+    assert backup["preregistration_ref"]["creating_commit"] == authority.PREREG_COMMIT
+    assert backup["decision_source"] == decisions["real_stage_backup_window_relaxation"]
+
+    retry = deviations["/eligibility_and_sampling/transient_download_or_extraction_failure"]
+    assert retry["decision_source"] == decisions["cninfo_download_retry_and_combined_landing"]
+    heldout_prereg = json.loads(
+        (ROOT / retry["preregistration_ref"]["path"]).read_text(encoding="utf-8")
+    )
+    assert _sha((ROOT / retry["preregistration_ref"]["path"]).read_bytes()) == (
+        retry["preregistration_ref"]["sha256"]
+    )
+    assert retry["registered_value"] == (
+        heldout_prereg["eligibility_and_sampling"]["transient_download_or_extraction_failure"]
+    )
+    assert retry["decided_value"] != retry["registered_value"]
+    parameters = retry["retry_parameters"]
+    assert parameters["max_attempts_per_pdf"] == prepare.CNINFO_MAX_PDF_ATTEMPTS == 3
+    assert parameters["backoff_seconds"] == list(prepare.CNINFO_RETRY_BACKOFF_SECONDS) == [2.0, 4.0]
+    assert parameters["retried_error_classes"] == list(prepare.CNINFO_RETRIED_ERROR_CLASSES)
+    assert parameters["non_retried"] == list(prepare.CNINFO_NON_RETRIED_FAILURES)
+    assert parameters["pacing_floor_applies_to_every_attempt"] is True
+    assert parameters["extraction_failures_retried"] is False
+    # The inference stage keeps one item once with zero automatic retry.
+    inference = retry["inference_stage_zero_retry_unchanged"]
+    assert inference["unchanged"] is True
+    assert inference["registered_value"] == "retrying_any_failed_candidate_or_round"
+    assert inference["registered_value"] in (
+        heldout_prereg["authorization_boundary"]["forbidden_now"]
+    )
+
+    # The manifest schema string moves with the new evidence shape.
+    schema_note = document["materialization_manifest_schema"]
+    assert schema_note["new"] == authority.MATERIALIZATION_MANIFEST_SCHEMA
+    assert schema_note["previous"] != schema_note["new"]
+
+    assert document["supersedes_exception"] == {
+        "creating_commit": authority.SUPERSEDED_EXCEPTION_COMMIT,
+        "path": authority.SUPERSEDED_EXCEPTION_RELATIVE,
+        "sha256": authority.SUPERSEDED_EXCEPTION_SHA,
+    }
+    # The superseded v1 exception keeps its own bytes in the tree.
+    assert _sha((ROOT / authority.SUPERSEDED_EXCEPTION_RELATIVE).read_bytes()) == (
+        authority.SUPERSEDED_EXCEPTION_SHA
+    )
+
+
+def test_supersedes_must_bind_the_landed_v1_receipt(tmp_path: Path) -> None:
+    """The v1 receipt is proven in place; it is never rewritten or removed."""
+    assert (
+        SUPERSEDED_RELEASE_PATH.as_posix(),
+        SUPERSEDED_RELEASE_SHA,
+        SUPERSEDED_RELEASE_COMMIT,
+    ) == (
+        authority.SUPERSEDED_RELEASE_RELATIVE,
+        authority.SUPERSEDED_RELEASE_SHA,
+        authority.SUPERSEDED_RELEASE_COMMIT,
+    )
+    assert _sha((ROOT / SUPERSEDED_RELEASE_PATH).read_bytes()) == SUPERSEDED_RELEASE_SHA
+
+    receipt = _structural_release_document()
+    for mutation in (
+        {"sha256": "0" * 64},
+        {"creating_commit": "0" * 40},
+        {"path": "docs/phase4/reports/some-other-receipt.json"},
+    ):
+        drifted = copy.deepcopy(receipt)
+        drifted["supersedes"].update(mutation)
+        with pytest.raises(authority.ProductionAuthorityError, match="supersede"):
+            authority._validate_supersedes(tmp_path, drifted)
+    for broken in ({}, {"path": SUPERSEDED_RELEASE_PATH.as_posix()}, "not-an-object"):
+        drifted = copy.deepcopy(receipt)
+        drifted["supersedes"] = broken
+        with pytest.raises(authority.ProductionAuthorityError, match="supersede"):
+            authority._validate_supersedes(tmp_path, drifted)
+
+
+def test_supersedes_accepts_only_the_actual_v1_bytes_in_real_history(
+    implementation_fixture: tuple[Path, dict[str, Any]],
+    tmp_path: Path,
+) -> None:
+    repository, _binding = implementation_fixture
+    receipt = _structural_release_document()
+    assert authority._validate_supersedes(repository, receipt) is None
+
+    drifted = tmp_path / "superseded-drift"
+    _git(tmp_path, "clone", "--local", "--no-hardlinks", "--quiet", str(repository), str(drifted))
+    target = drifted / SUPERSEDED_RELEASE_PATH
+    target.write_bytes(target.read_bytes() + b" ")
+    with pytest.raises(authority.ProductionAuthorityError):
+        authority._validate_supersedes(drifted, receipt)
 
 
 @pytest.mark.parametrize("mutation", ["anchor", "receipt-digest", "receipt-commit"])
