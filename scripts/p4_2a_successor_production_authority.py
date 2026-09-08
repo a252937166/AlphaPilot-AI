@@ -36,33 +36,64 @@ from zoneinfo import ZoneInfo
 
 from jsonschema import Draft202012Validator, FormatChecker
 
+# Bumped with the v2 landing: the CNInfo pacing evidence gains transport_retry_policy
+# and retry_events, so a v1-labelled manifest can no longer describe this shape. The
+# only production materialize attempt under the v1 string published zero artifacts.
 MATERIALIZATION_MANIFEST_SCHEMA = (
-    "p4.2a-successor-production-integration-v1-materialization-manifest-v1"
+    "p4.2a-successor-production-integration-v2-materialization-manifest-v1"
 )
 PREFIX = "docs/phase4/reports/P4.2a-successor-production-integration-v1-"
-RELEASE_RELATIVE = PREFIX + "production-release-20260907.json"
+V2_PREFIX = "docs/phase4/reports/P4.2a-successor-production-integration-v2-"
+RELEASE_RELATIVE = V2_PREFIX + "production-release-20260908.json"
 PREREG_RELATIVE = PREFIX + "preregistration-20260907.json"
-EXCEPTION_RELATIVE = PREFIX + "owner-exact-surface-exception-20260907.json"
-REVIEW_RELATIVE = PREFIX + "independent-implementation-review-20260907.json"
+EXCEPTION_RELATIVE = V2_PREFIX + "owner-backup-window-exception-20260908.json"
+REVIEW_RELATIVE = V2_PREFIX + "independent-implementation-review-20260908.json"
 SCHEMA_RELATIVE = (
-    "config/schemas/p4_2a_successor_production_integration_v1_release_authorization.schema.json"
+    "config/schemas/p4_2a_successor_production_integration_v2_release_authorization.schema.json"
 )
+# The landed v1 production release this version supersedes; its bytes stay in history.
+SUPERSEDED_RELEASE_RELATIVE = PREFIX + "production-release-20260907.json"
+SUPERSEDED_RELEASE_SHA = "5cd8401b1c35afa865c64c1d2a835a09b79fe68aabdfb9a8eacad85c0001ad48"
+SUPERSEDED_RELEASE_COMMIT = "06d1ffbb37a06ea89248b1181af8a63afe1bd3dc"
 MODULE_RELATIVE = "scripts/p4_2a_successor_production_authority.py"
 PREPARE_RELATIVE = "scripts/prepare_p4_2a_v2_heldout.py"
-BASE_COMMIT = "d7a1f3c001a6243150eb12e1c58efe473c238892"
+EVALUATE_RELATIVE = "scripts/evaluate_p4_2a_v2_heldout.py"
+# The implementation base is the commit that records the owner backup-window
+# exception; it adds only that document, so the prepare base bytes are unchanged.
+BASE_COMMIT = "9eb06d6a473481aef47fc950f35e96f1e8981660"
 PREREG_COMMIT = "c59ba4f7e2a8c82a678b040e57145600d1c4564b"
+EXCEPTION_COMMIT = "9eb06d6a473481aef47fc950f35e96f1e8981660"
+SUPERSEDED_EXCEPTION_RELATIVE = PREFIX + "owner-exact-surface-exception-20260907.json"
+SUPERSEDED_EXCEPTION_SHA = "3f95b0d1958fb5eb4f04238fa089eb2619dd5ece225c031f875eb56a1bb8959a"
+SUPERSEDED_EXCEPTION_COMMIT = "d7a1f3c001a6243150eb12e1c58efe473c238892"
 PREREG_SHA = "32f136bfdd4d04474fedf2ee8f0ba3f2c2c4fb160f4ece2712bd1c54810c9bcb"
-EXCEPTION_SHA = "3f95b0d1958fb5eb4f04238fa089eb2619dd5ece225c031f875eb56a1bb8959a"
-PREPARE_BASE_SHA = "ac2b3eb92ac9fadf823dfc081a1983af57132a77b36bb4f1419297c488eb9394"
-PREPARE_TARGET_SHA = "fdcb7fc9063b563ca02fcd630f36e450c1dd04d5b99aa9b2811c11c81eaba1d5"
-PATCH_SHA = "aef8e0ce1ad8e4e31a091b7414dd9ef72fb6048b40113c0b1d11a8b568e43ca5"
+EXCEPTION_SHA = "df771b4b726750853d58d61bad84491a5a33bd31a93e82b1ed12bacd0f730ba4"
+PREPARE_BASE_SHA = "fdcb7fc9063b563ca02fcd630f36e450c1dd04d5b99aa9b2811c11c81eaba1d5"
+PREPARE_TARGET_SHA = "35e9e2c445f7b67f008a4429017e89db99adb29a20dea89111a321d9bc7f843f"
+# SHA-256 of the exact prepare patch, reproducible read-only from the commits
+# themselves. --full-index prints 40-hex blob ids, so the bytes do not depend on
+# the repository's object count (core.abbrev):
+#   git -C <root> diff --no-ext-diff --no-color --no-renames --full-index \
+#       9eb06d6a473481aef47fc950f35e96f1e8981660 <implementation_commit> \
+#       -- scripts/prepare_p4_2a_v2_heldout.py
+PATCH_SHA = "e903bf8626fa476bf9f777dad16f7ff85e2d15299718110be6e49449221d810c"
+# Owner decision of 2026-09-08 relaxing the real-stage backup start rule. Every other
+# preparation policy value stays identical to the registered preregistration.
+_RELAXED_RUNTIME_START_POLICY = {
+    "backup_stamp_policy": "equals_bound_backup_created_Asia_Shanghai_date",
+    "latest_backup_manifest_policy": (
+        "newest_manifest_verified_quick_check_ok_database_exists_no_calendar_bound"
+    ),
+}
 ALLOWED_STAGES = ("materialize", "infer", "select-blind", "seal-draft", "build-adjudication-ui")
 _ALLOWED_CHANGES = {
     PREPARE_RELATIVE: "M",
-    MODULE_RELATIVE: "A",
+    EVALUATE_RELATIVE: "M",
+    MODULE_RELATIVE: "M",
     SCHEMA_RELATIVE: "A",
-    "tests/test_p4_2a_successor_production_authority.py": "A",
-    "tests/test_p4_2a_successor_preparation_integration.py": "A",
+    "tests/test_p4_2a_v2_heldout.py": "M",
+    "tests/test_p4_2a_successor_production_authority.py": "M",
+    "tests/test_p4_2a_successor_preparation_integration.py": "M",
 }
 _CHECK_IDS = (
     "old_gate_regression",
@@ -547,7 +578,7 @@ def validate_implementation_binding(
     _require(
         manifest
         == {
-            "schema_version": "p4.2a-successor-production-integration-v1-build-manifest",
+            "schema_version": "p4.2a-successor-production-integration-v2-build-manifest",
             "implementation_commit": commit,
             "source_closure": closure,
             "changed_paths": changes,
@@ -730,11 +761,11 @@ def _review(
     _require(set(review) == required, "independent review fields drifted")
     _require(
         review["schema_version"]
-        == "p4.2a-successor-production-integration-v1-independent-implementation-review",
+        == "p4.2a-successor-production-integration-v2-independent-implementation-review",
         "independent review schema mismatch",
     )
     _require(
-        review["verdict"] == "PASS_SUCCESSOR_PRODUCTION_INTEGRATION_V1_IMPLEMENTATION_REVIEW",
+        review["verdict"] == "PASS_SUCCESSOR_PRODUCTION_INTEGRATION_V2_IMPLEMENTATION_REVIEW",
         "independent implementation review not PASS",
     )
     _require(
@@ -1007,8 +1038,63 @@ def _validate_policy_scope(receipt: dict[str, Any], policy: dict[str, Any]) -> N
         "production release does not grant exactly five preparation stages",
     )
     _require(policy["authorized_stages"] == [], "preregistration is not design-only")
-    for key in ("still_gated", "runtime_start_policy", "locks", "failure_policy"):
+    for key in ("still_gated", "locks", "failure_policy"):
         _require(receipt[key] == policy[key], f"registered preparation policy drifted: {key}")
+    _validate_relaxed_runtime_start_policy(receipt, policy)
+
+
+def _validate_relaxed_runtime_start_policy(receipt: dict[str, Any], policy: dict[str, Any]) -> None:
+    """Only the owner-decided backup start rule may differ from the preregistration.
+
+    The preregistration is registered, SHA-pinned history and is not rewritten. The
+    owner decision of 2026-09-08 replaces exactly two policy strings; every other
+    obligation, and the key set itself, must still match it byte for byte.
+    """
+    registered = policy["runtime_start_policy"]
+    current = receipt["runtime_start_policy"]
+    _require(
+        type(current) is dict and set(current) == set(registered),
+        "registered preparation policy drifted: runtime_start_policy",
+    )
+    for key, value in registered.items():
+        expected = _RELAXED_RUNTIME_START_POLICY.get(key, value)
+        _require(
+            current[key] == expected,
+            f"registered preparation policy drifted: runtime_start_policy.{key}",
+        )
+    for key, value in _RELAXED_RUNTIME_START_POLICY.items():
+        _require(
+            key in registered and registered[key] != value,
+            f"relaxed policy key is not an actual change: runtime_start_policy.{key}",
+        )
+
+
+def _validate_supersedes(root: Path, receipt: dict[str, Any]) -> None:
+    """Bind this version to the landed v1 receipt it replaces; read-only.
+
+    The v1 receipt is not amended, moved or deleted. This proves the declared
+    predecessor is exactly the receipt that landed at its creating commit, that its
+    bytes are still identical at HEAD, and that this repository descends from it.
+    """
+    superseded = receipt["supersedes"]
+    _require(
+        type(superseded) is dict
+        and set(superseded) == {"path", "sha256", "creating_commit"}
+        and superseded["path"] == SUPERSEDED_RELEASE_RELATIVE
+        and superseded["sha256"] == SUPERSEDED_RELEASE_SHA
+        and superseded["creating_commit"] == SUPERSEDED_RELEASE_COMMIT,
+        "release does not supersede the landed v1 production release",
+    )
+    _, value = _file_ref(root, superseded, SUPERSEDED_RELEASE_RELATIVE, SUPERSEDED_RELEASE_SHA)
+    _require(
+        _git(root, "show", f"{SUPERSEDED_RELEASE_COMMIT}:{SUPERSEDED_RELEASE_RELATIVE}") == value,
+        "superseded v1 receipt bytes drifted from its creating commit",
+    )
+    _require(
+        _git(root, "show", f"HEAD:{SUPERSEDED_RELEASE_RELATIVE}") == value,
+        "superseded v1 receipt was modified after landing",
+    )
+    _ancestor(root, SUPERSEDED_RELEASE_COMMIT, _git(root, "rev-parse", "HEAD").decode().strip())
 
 
 def _validate_local_schema_refs(value: Any) -> None:
@@ -1123,9 +1209,10 @@ def validate_preparation_authorization(
         root, lineage["owner_exception"], EXCEPTION_RELATIVE, EXCEPTION_SHA
     )
     _require(
-        prereg_commit == PREREG_COMMIT and exception_commit == BASE_COMMIT,
+        prereg_commit == PREREG_COMMIT and exception_commit == EXCEPTION_COMMIT,
         "registration commit pins drifted",
     )
+    _validate_supersedes(root, receipt)
     _require(
         receipt["historical_anchor_h0"] == policy["historical_anchor_h0"],
         "historical H0 epoch/source distinction drifted",

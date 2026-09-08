@@ -116,6 +116,29 @@ EXPECTED_REVIEWER_TYPE = "ai"
 EXPECTED_REVIEWER_ROLE = "independent_ai_architect_claude_code"
 EXPECTED_REVIEWER_MODEL = "claude-fable-5"
 EXPECTED_RAW_COUNT = 4048
+# Owner decision 2026-09-08: bounded CNInfo transport retry inside one materialize.
+CNINFO_MAX_PDF_ATTEMPTS = 3
+CNINFO_RETRY_BACKOFF_SECONDS = (2.0, 4.0)
+CNINFO_RETRIED_ERROR_CLASSES = (
+    "httpx.TransportError",
+    "OSError",
+    "gold_sample_http_status_502",
+    "gold_sample_http_status_503",
+    "gold_sample_http_status_504",
+)
+CNINFO_NON_RETRIED_FAILURES = (
+    "candidate_document_ineligible",
+    "content_length_invalid",
+    "content_not_pdf",
+    "http_status_other_than_502_503_504",
+    "pdf_text_extraction_failure",
+)
+_CNINFO_RETRY_EVENT_LABEL = re.compile(
+    r"^(?:gold_sample_http_status_(?:502|503|504)"
+    r"|httpx\.[A-Za-z_][A-Za-z0-9_]*"
+    r"|(?!gold_sample_http_status_)[A-Za-z_][A-Za-z0-9_]*)$"
+)
+
 EXPECTED_RAW_BY_SOURCE = {
     "akshare_ths": 1021,
     "cninfo": 2824,
@@ -921,7 +944,72 @@ def _validate_execution_authority(value: object) -> str:
     return mode
 
 
-def _validate_request_pacing(value: object) -> None:
+def _valid_transport_retry_evidence(
+    cninfo: Mapping[str, Any],
+    *,
+    request_count: int,
+    retry_count: int,
+) -> bool:
+    """Recorded retry policy is the registered one and every retry is itemised."""
+    policy = cninfo.get("transport_retry_policy")
+    events = cninfo.get("retry_events")
+    if not isinstance(policy, Mapping) or not isinstance(events, list):
+        return False
+    backoff = policy.get("backoff_seconds")
+    if (
+        set(policy)
+        != {"max_attempts_per_pdf", "backoff_seconds", "retried_error_classes", "non_retried"}
+        or isinstance(policy.get("max_attempts_per_pdf"), bool)
+        or policy.get("max_attempts_per_pdf") != CNINFO_MAX_PDF_ATTEMPTS
+        or not isinstance(backoff, list)
+        or len(backoff) != len(CNINFO_RETRY_BACKOFF_SECONDS)
+        or any(
+            isinstance(item, bool)
+            or not isinstance(item, (int, float))
+            or float(item) != expected
+            for item, expected in zip(backoff, CNINFO_RETRY_BACKOFF_SECONDS, strict=True)
+        )
+        or policy.get("retried_error_classes") != list(CNINFO_RETRIED_ERROR_CLASSES)
+        or policy.get("non_retried") != list(CNINFO_NON_RETRIED_FAILURES)
+    ):
+        return False
+    if len(events) != retry_count:
+        return False
+    # Distinct PDFs are the request starts that were not themselves retries, and
+    # each PDF may contribute at most MAX-1 retries.
+    distinct_pdfs = request_count - retry_count
+    if distinct_pdfs < 0 or retry_count > (CNINFO_MAX_PDF_ATTEMPTS - 1) * distinct_pdfs:
+        return False
+    attempts_by_url: dict[str, list[int]] = {}
+    for event in events:
+        if (
+            not isinstance(event, Mapping)
+            or set(event)
+            != {"url_sha256", "attempt", "exception_type", "monotonic_offset_seconds"}
+            or not _is_sha(event.get("url_sha256"))
+            or isinstance(event.get("attempt"), bool)
+            or not isinstance(event.get("attempt"), int)
+            or not 1 <= cast(int, event["attempt"]) < CNINFO_MAX_PDF_ATTEMPTS
+            or not isinstance(event.get("exception_type"), str)
+            or _CNINFO_RETRY_EVENT_LABEL.fullmatch(cast(str, event["exception_type"])) is None
+            or isinstance(event.get("monotonic_offset_seconds"), bool)
+            or not isinstance(event.get("monotonic_offset_seconds"), (int, float))
+            or not math.isfinite(float(cast(float, event["monotonic_offset_seconds"])))
+            or float(cast(float, event["monotonic_offset_seconds"])) < 0.0
+        ):
+            return False
+        attempts_by_url.setdefault(cast(str, event["url_sha256"]), []).append(
+            cast(int, event["attempt"])
+        )
+    return all(
+        attempts == list(range(1, len(attempts) + 1))
+        and len(attempts) <= CNINFO_MAX_PDF_ATTEMPTS - 1
+        for attempts in attempts_by_url.values()
+    )
+
+
+def _validate_request_pacing(value: object, *, transport_retry_recorded: bool) -> None:
+    """Same two-shape rule as prepare: legacy evidence proves zero retries."""
     pacing = _mapping(value, "materialization.request_pacing")
     _exact_keys(
         pacing,
@@ -949,6 +1037,7 @@ def _validate_request_pacing(value: object) -> None:
             "median_observed_start_to_start_seconds",
             "violation_count",
             "retry_count",
+            *(("transport_retry_policy", "retry_events") if transport_retry_recorded else ()),
         },
         "materialization.request_pacing.cninfo_pdf",
     )
@@ -973,11 +1062,17 @@ def _validate_request_pacing(value: object) -> None:
         or cninfo.get("configured_min_start_to_start_seconds") != 1.0
         or cninfo.get("clock") != "monotonic"
         or cninfo.get("first_request_delayed") is not False
-        or request_count != EXPECTED_RAW_BY_SOURCE["cninfo"]
+        or request_count != EXPECTED_RAW_BY_SOURCE["cninfo"] + retry_count
         or gap_count != max(request_count - 1, 0)
         or not gap_statistics_valid
         or violation_count != 0
-        or retry_count != 0
+        or (
+            not _valid_transport_retry_evidence(
+                cninfo, request_count=request_count, retry_count=retry_count
+            )
+            if transport_retry_recorded
+            else retry_count != 0
+        )
     ):
         raise HeldoutEvaluationError("CNInfo request pacing evidence drifted")
 
@@ -1073,13 +1168,13 @@ def _validate_runtime_start_preflight(value: object, *, authority_mode: str) -> 
         },
         "runtime operator attestation",
     )
-    expected_date = observed_shanghai.date().isoformat()
     backup_created_utc = _aware_datetime(
         backup.get("created_at_utc"), "verified backup created_at_utc"
     )
     backup_created_shanghai = _aware_datetime(
         backup.get("created_at_shanghai"), "verified backup created_at_shanghai"
     )
+    expected_date = backup_created_shanghai.date().isoformat()
     operator_start = _aware_datetime(
         attestation.get("observed_start_cst"), "operator observed_start_cst"
     )
@@ -1100,8 +1195,7 @@ def _validate_runtime_start_preflight(value: object, *, authority_mode: str) -> 
         or not _is_sha(backup.get("manifest_sha256"))
         or not _is_sha(backup.get("backup_sha256"))
         or backup_created_utc.astimezone(UTC) != backup_created_shanghai.astimezone(UTC)
-        or backup_created_shanghai.date().isoformat() != expected_date
-        or backup_created_shanghai.hour < 22
+        or backup_created_utc.astimezone(UTC) > observed_utc.astimezone(UTC)
         or backup.get("quick_check") != "ok"
         or backup.get("verify_database_backup_passed") is not True
         or operator_start.astimezone(UTC) != observed_utc.astimezone(UTC)
@@ -1165,7 +1259,9 @@ def _validate_materialization_manifest(
         "materialization manifest",
     )
     authority_mode = _validate_execution_authority(manifest.get("execution_authority"))
-    _validate_request_pacing(manifest.get("request_pacing"))
+    _validate_request_pacing(
+        manifest.get("request_pacing"), transport_retry_recorded=False
+    )
     _validate_runtime_start_preflight(
         manifest.get("runtime_start_preflight"), authority_mode=authority_mode
     )

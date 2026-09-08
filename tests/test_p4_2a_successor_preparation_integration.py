@@ -23,12 +23,13 @@ from typing import Any, NoReturn, cast
 
 import pytest
 from scripts import build_p4_2a_v2_heldout_adjudication_ui as ui
+from scripts import evaluate_p4_2a_v2_heldout as evaluate
 from scripts import p4_2a_successor_production_authority as authority
 from scripts import prepare_p4_2a_v2_heldout as prepare
 from scripts import seal_p4_2a_v2_heldout_draft as seal
 
 RELEASE_REL = Path(
-    "docs/phase4/reports/P4.2a-successor-production-integration-v1-production-release-20260907.json"
+    "docs/phase4/reports/P4.2a-successor-production-integration-v2-production-release-20260908.json"
 )
 PREPARATION_STAGES = ("materialize", "infer", "select-blind", "seal-draft", "build-adjudication-ui")
 SYNTHETIC_EVIDENCE = {
@@ -196,7 +197,7 @@ def dispatch(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> SimpleNamespace
 
 def test_absent_fixed_new_path_does_not_select_another_date(tmp_path: Path) -> None:
     assert prepare._production_release_candidate(tmp_path) is False
-    wrong_date = tmp_path / str(RELEASE_REL).replace("20260907", "20260906")
+    wrong_date = tmp_path / str(RELEASE_REL).replace("20260908", "20260907")
     wrong_date.parent.mkdir(parents=True)
     wrong_date.write_text('{"synthetic":true}', encoding="utf-8")
     assert prepare._production_release_candidate(tmp_path) is False
@@ -557,14 +558,26 @@ def test_forged_offline_capability_still_fails_the_real_old_identity_gate(tmp_pa
         )
 
 
-def _runtime_record(root: Path) -> dict[str, Any]:
-    """Synthetic record shape only; no backup command, DB check or real attestation."""
+def _runtime_record(
+    root: Path,
+    *,
+    created_utc: str = "2026-09-07T14:30:00Z",
+    created_local: str = "2026-09-07T22:30:00+08:00",
+    observed_utc: str = "2026-09-07T15:10:00Z",
+    observed_local: str = "2026-09-07T23:10:00+08:00",
+    stamp_date: str | None = None,
+) -> dict[str, Any]:
+    """Synthetic record shape only; no backup command, DB check or real attestation.
+
+    The stamp defaults to the bound backup's own Shanghai date, which is what the
+    relaxed real-stage backup start rule requires of a recorded preflight.
+    """
     directory = root / "data/backups"
-    directory.mkdir(parents=True)
-    backup = directory / "alphapilot-full-synthetic-unit.db"
+    directory.mkdir(parents=True, exist_ok=True)
+    backup = directory / f"alphapilot-full-synthetic-unit-{created_utc.replace(':', '')}.db"
     backup.write_bytes(b"synthetic record fixture; intentionally not a production database")
     manifest = prepare.database_backup.manifest_path_for(backup)
-    created_utc, created_local = "2026-09-07T14:30:00Z", "2026-09-07T22:30:00+08:00"
+    stamp_date = stamp_date or created_local[:10]
     backup_sha = prepare.common.sha256_file(backup)
     manifest.write_bytes(
         prepare.common.canonical_json_bytes(
@@ -576,7 +589,6 @@ def _runtime_record(root: Path) -> dict[str, Any]:
             }
         )
     )
-    observed_utc, observed_local = "2026-09-07T15:10:00Z", "2026-09-07T23:10:00+08:00"
     runtime = prepare._database_backup_runtime_directory()
     return {
         "mode": "real",
@@ -584,8 +596,8 @@ def _runtime_record(root: Path) -> dict[str, Any]:
         "observed_at_shanghai": observed_local,
         "backup_stamp": {
             "path": str(runtime / "last-success-shanghai-date"),
-            "expected_shanghai_date": "2026-09-07",
-            "observed_value": "2026-09-07",
+            "expected_shanghai_date": stamp_date,
+            "observed_value": stamp_date,
             "regular_file": True,
             "symlink": False,
             "mode": "0600",
@@ -653,7 +665,9 @@ def materialization(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> SimpleNa
         construction.setattr(
             prepare, "validate_v2_1_stage_authorization", lambda *_args, **_kwargs: facts
         )
-        candidates, manifest = prepare._synthetic_production_materialization_fixture(binding)
+        candidates, manifest = prepare._synthetic_production_materialization_fixture(
+            binding, transport_retry_recorded=True
+        )
     manifest["schema_version"] = authority.MATERIALIZATION_MANIFEST_SCHEMA
     manifest["runtime_start_preflight"] = _runtime_record(root)
     return SimpleNamespace(
@@ -683,11 +697,80 @@ def test_new_manifest_runs_runtime_pacing_and_complete_existing_scientific_proje
     assert materialization.manifest == before
 
 
+def test_manifest_runtime_preflight_accepts_the_newest_backup_from_a_previous_day(
+    materialization: SimpleNamespace,
+) -> None:
+    """No calendar-day or 22:00 condition remains, in prepare or in evaluate."""
+    manifest = copy.deepcopy(materialization.manifest)
+    record = _runtime_record(
+        materialization.binding.root,
+        created_utc="2026-09-06T14:05:00Z",
+        created_local="2026-09-06T22:05:00+08:00",
+        observed_utc="2026-09-07T15:10:00Z",
+        observed_local="2026-09-07T23:10:00+08:00",
+    )
+    assert record["backup_stamp"]["expected_shanghai_date"] == "2026-09-06"
+    manifest["runtime_start_preflight"] = record
+    assert _validate_manifest(materialization, manifest) is None
+    evaluate._validate_runtime_start_preflight(record, authority_mode="real_owner_released")
+
+
+def test_manifest_runtime_preflight_refuses_a_stamp_from_another_day(
+    materialization: SimpleNamespace,
+) -> None:
+    manifest = copy.deepcopy(materialization.manifest)
+    record = _runtime_record(
+        materialization.binding.root,
+        created_utc="2026-09-06T14:05:00Z",
+        created_local="2026-09-06T22:05:00+08:00",
+        observed_utc="2026-09-07T15:10:00Z",
+        observed_local="2026-09-07T23:10:00+08:00",
+        stamp_date="2026-09-07",
+    )
+    manifest["runtime_start_preflight"] = record
+    with pytest.raises(prepare.HeldoutPreparationError, match="stamp evidence"):
+        _validate_manifest(materialization, manifest)
+    with pytest.raises(evaluate.HeldoutEvaluationError, match="preflight drifted"):
+        evaluate._validate_runtime_start_preflight(record, authority_mode="real_owner_released")
+
+
+def test_manifest_runtime_preflight_refuses_a_future_dated_backup(
+    materialization: SimpleNamespace,
+) -> None:
+    manifest = copy.deepcopy(materialization.manifest)
+    record = _runtime_record(
+        materialization.binding.root,
+        created_utc="2026-09-08T14:05:00Z",
+        created_local="2026-09-08T22:05:00+08:00",
+        observed_utc="2026-09-07T15:10:00Z",
+        observed_local="2026-09-07T23:10:00+08:00",
+    )
+    manifest["runtime_start_preflight"] = record
+    with pytest.raises(prepare.HeldoutPreparationError, match="verified backup evidence"):
+        _validate_manifest(materialization, manifest)
+    with pytest.raises(evaluate.HeldoutEvaluationError, match="preflight drifted"):
+        evaluate._validate_runtime_start_preflight(record, authority_mode="real_owner_released")
+
+
+def test_manifest_runtime_preflight_same_day_post_2200_record_still_passes(
+    materialization: SimpleNamespace,
+) -> None:
+    """The shape recorded under the previous rule stays valid after the relaxation."""
+    record = materialization.manifest["runtime_start_preflight"]
+    assert record["backup_stamp"]["expected_shanghai_date"] == "2026-09-07"
+    assert record["verified_backup"]["created_at_shanghai"] == "2026-09-07T22:30:00+08:00"
+    assert record["observed_at_shanghai"] == "2026-09-07T23:10:00+08:00"
+    assert _validate_manifest(materialization, materialization.manifest) is None
+    evaluate._validate_runtime_start_preflight(record, authority_mode="real_owner_released")
+
+
 @pytest.mark.parametrize(
     "legacy_schema",
     (
         "p4.2a-v2-heldout-materialization-manifest-v1",
         "p4.2a-v2-heldout-materialization-manifest-v2",
+        # The successor v1 manifest string is retired with the retry evidence keys.
+        "p4.2a-successor-production-integration-v1-materialization-manifest-v1",
     ),
 )
 def test_new_authority_does_not_accept_either_old_manifest_version(
