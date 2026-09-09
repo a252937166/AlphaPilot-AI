@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import copy
 import hashlib
+import hmac
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
@@ -255,6 +256,83 @@ EXPECTED_REPORT_FIELDS = (
 )
 
 _SHA256_LENGTH = 64
+
+VENDOR_ENDPOINT = "https://dashscope.aliyuncs.com/compatible-mode/v1"
+VENDOR_PROVIDER = "dashscope"
+PLATFORM_PROVIDER = "friday"
+
+
+def _endpoint_binding_matches(
+    observed: Mapping[str, Any],
+    contract: EventExtractContract,
+    *,
+    endpoint_key: str = "endpoint",
+    provider_key: str = "provider",
+    digest_key: str = "endpoint_hmac_sha256",
+) -> bool:
+    """Compare a recorded endpoint binding against the contract's.
+
+    The vendor arm keeps comparing its public literal, so every artefact already
+    on disk stays verifiable byte for byte. The platform arm compares provider
+    identity plus the keyed digest of the request URL in constant time, because
+    that address cannot be recorded in a public repository. A contract pinning
+    neither never reaches here: the loader refuses it.
+    """
+    if contract.endpoint is not None:
+        recorded_provider = observed.get(provider_key)
+        return (
+            observed.get(endpoint_key) == contract.endpoint
+            and recorded_provider in (None, VENDOR_PROVIDER)
+            and observed.get(digest_key) is None
+        )
+    if contract.provider is None or contract.endpoint_hmac_sha256 is None:
+        return False
+    if observed.get(endpoint_key) is not None:
+        return False
+    if observed.get(provider_key) != contract.provider:
+        return False
+    recorded_digest = observed.get(digest_key)
+    if not isinstance(recorded_digest, str):
+        return False
+    return hmac.compare_digest(recorded_digest, contract.endpoint_hmac_sha256)
+
+
+def _observed_binding_keys(
+    observed: Mapping[str, Any],
+    *,
+    endpoint_key: str = "endpoint",
+    provider_key: str = "provider",
+    digest_key: str = "endpoint_hmac_sha256",
+) -> set[str]:
+    """The binding keys this artefact claims to carry, as one shape or the other.
+
+    The key-set assertion runs before the contract is loaded, so the shape has to
+    come from the artefact. That is safe: the set comparison still rejects any
+    extra or missing key, and `_endpoint_binding_matches` then ties whichever
+    shape was found to the contract actually in force.
+    """
+    if endpoint_key in observed:
+        return {endpoint_key}
+    return {provider_key, digest_key}
+
+
+def _endpoint_binding_keys(
+    contract: EventExtractContract,
+    *,
+    endpoint_key: str = "endpoint",
+    provider_key: str = "provider",
+    digest_key: str = "endpoint_hmac_sha256",
+) -> set[str]:
+    """The binding keys an artefact must carry for this contract, and no others.
+
+    The recorded evidence shape is otherwise unchanged: the vendor arm still
+    carries exactly its endpoint key, and only the platform arm swaps in the
+    provider identity and digest.
+    """
+    if contract.endpoint is not None:
+        return {endpoint_key}
+    return {provider_key, digest_key}
+
 _ARTIFACT_ROOT = Path("docs/phase4/eval")
 _V1_3_HISTORICAL_ARTIFACT_PATHS = {
     "predictions_sha256": Path(
@@ -1219,7 +1297,7 @@ def _load_v1_2_event_evaluation_design(
     if (
         active.get("schema_version") != prediction_contract.document.get("schema_version")
         or active.get("model") != prediction_contract.model
-        or active.get("endpoint") != prediction_contract.endpoint
+        or not _endpoint_binding_matches(active, prediction_contract)
         or dict(active_prompt) != dict(contract_prompt)
         or dict(active_schema) != dict(contract_schema)
         or active.get("taxonomy_version") != taxonomy.get("version")
@@ -1290,18 +1368,28 @@ def _load_v1_2_event_evaluation_design(
     expected_freeze_keys = {
         "required_contract_artifact",
         "required_model",
-        "required_endpoint",
         "required_prompt_sha256",
         "required_result_schema_sha256",
         "required_taxonomy_version",
         "required_explicit_cache_enabled",
         "required_receipt_fields_append",
-    }
+    } | _observed_binding_keys(
+        freeze_overlay,
+        endpoint_key="required_endpoint",
+        provider_key="required_provider",
+        digest_key="required_endpoint_hmac_sha256",
+    )
     if (
         set(freeze_overlay) != expected_freeze_keys
         or freeze_overlay.get("required_contract_artifact") != "active_prediction_contract"
         or freeze_overlay.get("required_model") != prediction_contract.model
-        or freeze_overlay.get("required_endpoint") != prediction_contract.endpoint
+        or not _endpoint_binding_matches(
+            freeze_overlay,
+            prediction_contract,
+            endpoint_key="required_endpoint",
+            provider_key="required_provider",
+            digest_key="required_endpoint_hmac_sha256",
+        )
         or freeze_overlay.get("required_prompt_sha256") != contract_prompt.get("sha256")
         or freeze_overlay.get("required_result_schema_sha256") != contract_schema.get("sha256")
         or freeze_overlay.get("required_taxonomy_version") != taxonomy.get("version")
@@ -1479,13 +1567,12 @@ def _load_v1_3_event_evaluation_design(
         "sha256",
         "schema_version",
         "model",
-        "endpoint",
         "prompt",
         "result_schema",
         "taxonomy_version",
         "evidence_span_match_mode",
         "explicit_cache",
-    }
+    } | _observed_binding_keys(active)
     active_path = _artifact_path(
         project_root,
         active.get("path"),
@@ -1553,7 +1640,7 @@ def _load_v1_3_event_evaluation_design(
     if (
         active.get("schema_version") != prediction_contract.document.get("schema_version")
         or active.get("model") != prediction_contract.model
-        or active.get("endpoint") != prediction_contract.endpoint
+        or not _endpoint_binding_matches(active, prediction_contract)
         or dict(active_prompt) != dict(contract_prompt)
         or dict(active_schema) != dict(contract_schema)
         or active.get("taxonomy_version") != taxonomy.get("version")
@@ -1614,7 +1701,13 @@ def _load_v1_3_event_evaluation_design(
         set(freeze_overlay) != expected_freeze_keys
         or freeze_overlay.get("required_contract_artifact") != "active_prediction_contract"
         or freeze_overlay.get("required_model") != prediction_contract.model
-        or freeze_overlay.get("required_endpoint") != prediction_contract.endpoint
+        or not _endpoint_binding_matches(
+            freeze_overlay,
+            prediction_contract,
+            endpoint_key="required_endpoint",
+            provider_key="required_provider",
+            digest_key="required_endpoint_hmac_sha256",
+        )
         or freeze_overlay.get("required_prompt_sha256") != contract_prompt.get("sha256")
         or freeze_overlay.get("required_result_schema_sha256") != contract_schema.get("sha256")
         or freeze_overlay.get("required_taxonomy_version") != taxonomy.get("version")
@@ -1867,7 +1960,7 @@ def _load_v1_4_event_evaluation_design(
     if (
         active.get("schema_version") != prediction_contract.document.get("schema_version")
         or active.get("model") != prediction_contract.model
-        or active.get("endpoint") != prediction_contract.endpoint
+        or not _endpoint_binding_matches(active, prediction_contract)
         or dict(active_prompt) != dict(contract_prompt)
         or dict(active_schema) != dict(contract_schema)
         or active.get("taxonomy_version") != taxonomy.get("version")
@@ -1927,7 +2020,13 @@ def _load_v1_4_event_evaluation_design(
         }
         or freeze_overlay.get("required_contract_artifact") != "active_prediction_contract"
         or freeze_overlay.get("required_model") != prediction_contract.model
-        or freeze_overlay.get("required_endpoint") != prediction_contract.endpoint
+        or not _endpoint_binding_matches(
+            freeze_overlay,
+            prediction_contract,
+            endpoint_key="required_endpoint",
+            provider_key="required_provider",
+            digest_key="required_endpoint_hmac_sha256",
+        )
         or freeze_overlay.get("required_prompt_sha256") != contract_prompt.get("sha256")
         or freeze_overlay.get("required_result_schema_sha256") != contract_schema.get("sha256")
         or freeze_overlay.get("required_taxonomy_version") != taxonomy.get("version")
@@ -2252,7 +2351,7 @@ def _load_v1_5_event_evaluation_design(
     if (
         prediction_contract.document.get("schema_version") != active.get("schema_version")
         or prediction_contract.model != active.get("model")
-        or prediction_contract.endpoint != active.get("endpoint")
+        or not _endpoint_binding_matches(active, prediction_contract)
         or dict(contract_prompt) != active.get("prompt")
         or dict(contract_schema) != active.get("model_result_schema")
         or dict(contract_materialized_schema) != active.get("materialized_result_schema")
@@ -2655,7 +2754,7 @@ def _load_v1_6_event_evaluation_design(
     if (
         prediction_contract.document.get("schema_version") != active.get("schema_version")
         or prediction_contract.model != active.get("model")
-        or prediction_contract.endpoint != active.get("endpoint")
+        or not _endpoint_binding_matches(active, prediction_contract)
         or prediction_contract.evidence_candidate_selection is not True
         or prediction_contract.materialized_schema is None
         or prediction_contract.evidence_span_match_mode != active.get("evidence_span_match_mode")

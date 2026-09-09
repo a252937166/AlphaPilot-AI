@@ -40,46 +40,48 @@ from jsonschema import Draft202012Validator, FormatChecker
 # and retry_events, so a v1-labelled manifest can no longer describe this shape. The
 # only production materialize attempt under the v1 string published zero artifacts.
 MATERIALIZATION_MANIFEST_SCHEMA = (
-    "p4.2a-successor-production-integration-v4-materialization-manifest-v1"
+    "p4.2a-successor-production-integration-v5-materialization-manifest-v1"
 )
 PREFIX = "docs/phase4/reports/P4.2a-successor-production-integration-v1-"
 V2_PREFIX = "docs/phase4/reports/P4.2a-successor-production-integration-v2-"
 V3_PREFIX = "docs/phase4/reports/P4.2a-successor-production-integration-v3-"
 V4_PREFIX = "docs/phase4/reports/P4.2a-successor-production-integration-v4-"
-RELEASE_RELATIVE = V4_PREFIX + "production-release-20260909.json"
+V5_PREFIX = "docs/phase4/reports/P4.2a-successor-production-integration-v5-"
+RELEASE_RELATIVE = V5_PREFIX + "production-release-20260910.json"
 PREREG_RELATIVE = PREFIX + "preregistration-20260907.json"
-EXCEPTION_RELATIVE = V4_PREFIX + "owner-cninfo-404-ineligibility-exception-20260909.json"
-REVIEW_RELATIVE = V4_PREFIX + "independent-implementation-review-20260909.json"
+EXCEPTION_RELATIVE = V5_PREFIX + "owner-exception-20260910.json"
+REVIEW_RELATIVE = V5_PREFIX + "independent-implementation-review-20260910.json"
 SCHEMA_RELATIVE = (
-    "config/schemas/p4_2a_successor_production_integration_v4_release_authorization.schema.json"
+    "config/schemas/p4_2a_successor_production_integration_v5_release_authorization.schema.json"
 )
 # The landed v2 production release this version supersedes; its bytes stay in history.
-SUPERSEDED_RELEASE_RELATIVE = V3_PREFIX + "production-release-20260909.json"
-SUPERSEDED_RELEASE_SHA = "bf527c52121628831a80a8434a25d8cf46e9b552830ea03e99e1b796937e4213"
-SUPERSEDED_RELEASE_COMMIT = "42837857ef2e60e0a6ed32e6053a0677e4d8f3da"
+SUPERSEDED_RELEASE_RELATIVE = V4_PREFIX + "production-release-20260909.json"
+SUPERSEDED_RELEASE_SHA = "a979ac2905f2028a17e0fc3fc5c6371ed8ac65b1e330dcfcaebb0c450bf74f4f"
+SUPERSEDED_RELEASE_COMMIT = "f3a5f88fa5346a8c17e7bbf9b1f828598c3056c9"
 MODULE_RELATIVE = "scripts/p4_2a_successor_production_authority.py"
 PREPARE_RELATIVE = "scripts/prepare_p4_2a_v2_heldout.py"
 EVALUATE_RELATIVE = "scripts/evaluate_p4_2a_v2_heldout.py"
-# The implementation base is the commit that records the owner download-retry
-# budget exception; it adds only that document, so the prepare base bytes are
-# unchanged.
-BASE_COMMIT = "f98810abd8d18af99f0e78fbfd4da4c4e6ee4340"
+HELDOUT_CONTRACT_RELATIVE = "config/p4_event_extract_eval_v3-heldout.yaml"
+# The implementation base is the commit that records the owner inference
+# post-validation exception; it adds only that document, so the prepare base
+# bytes are unchanged.
+BASE_COMMIT = "d197a63f813774f8a470a12e4835e71c32f37585"
 PREREG_COMMIT = "c59ba4f7e2a8c82a678b040e57145600d1c4564b"
-EXCEPTION_COMMIT = "f98810abd8d18af99f0e78fbfd4da4c4e6ee4340"
-SUPERSEDED_EXCEPTION_RELATIVE = V3_PREFIX + "owner-download-retry-budget-exception-20260909.json"
-SUPERSEDED_EXCEPTION_SHA = "e67c73aa67a9c122d056c7ed49e01d0ece88896205dda505a2b1861279c7aca9"
-SUPERSEDED_EXCEPTION_COMMIT = "3efa8fb905f5217adcf775e2c9bc0102aea40d99"
+EXCEPTION_COMMIT = "d197a63f813774f8a470a12e4835e71c32f37585"
+SUPERSEDED_EXCEPTION_RELATIVE = V4_PREFIX + "owner-cninfo-404-ineligibility-exception-20260909.json"
+SUPERSEDED_EXCEPTION_SHA = "281c71ff70b5bc35b01039227c28bb4a0d44114149f81de098738bebb3a694db"
+SUPERSEDED_EXCEPTION_COMMIT = "f98810abd8d18af99f0e78fbfd4da4c4e6ee4340"
 PREREG_SHA = "32f136bfdd4d04474fedf2ee8f0ba3f2c2c4fb160f4ece2712bd1c54810c9bcb"
-EXCEPTION_SHA = "281c71ff70b5bc35b01039227c28bb4a0d44114149f81de098738bebb3a694db"
-PREPARE_BASE_SHA = "bd9c28c997c1c039dff248dd89a754914a08758063a5f06b64458ff63a0a5bb5"
-PREPARE_TARGET_SHA = "a0cd9f1a957b98f6f9a07f2ac87f9ef786514928dd11c9356e7d57711e8e07c4"
+EXCEPTION_SHA = "f615d63230101f987a3c610096226f8f4d8c5d24a785cd2fcf8e829b15d2ef00"
+PREPARE_BASE_SHA = "a0cd9f1a957b98f6f9a07f2ac87f9ef786514928dd11c9356e7d57711e8e07c4"
+PREPARE_TARGET_SHA = "fb8afa6d915189f6e876f31509d2060b713fe4c35b8a5dd498a9cd5182d26302"
 # SHA-256 of the exact prepare patch, reproducible read-only from the commits
 # themselves. --full-index prints 40-hex blob ids, so the bytes do not depend on
 # the repository's object count (core.abbrev):
 #   git -C <root> diff --no-ext-diff --no-color --no-renames --full-index \
-#       f98810abd8d18af99f0e78fbfd4da4c4e6ee4340 <implementation_commit> \
+#       d197a63f813774f8a470a12e4835e71c32f37585 <implementation_commit> \
 #       -- scripts/prepare_p4_2a_v2_heldout.py
-PATCH_SHA = "6ee6101b5053799d9139312298f51f09300f46de2ef4f49326982716268efb2c"
+PATCH_SHA = "09266ca1db4d5cc0bc48c7fcfd6ebacc1c7e9abda3a6f274fea2252a11f01fe1"
 # Owner decision of 2026-09-08 relaxing the real-stage backup start rule. Every other
 # preparation policy value stays identical to the registered preregistration.
 _RELAXED_RUNTIME_START_POLICY = {
@@ -89,7 +91,11 @@ _RELAXED_RUNTIME_START_POLICY = {
     ),
 }
 ALLOWED_STAGES = ("materialize", "infer", "select-blind", "seal-draft", "build-adjudication-ui")
-_ALLOWED_CHANGES = {
+# Two lanes land together because the inference rule and the platform re-pin take
+# effect on the same scientific contract; splitting them would make the gate accept
+# half a surface. The heldout lane is the preparation and gate surface; the
+# model_platform lane is the switchable provider layer the contract now names.
+_HELDOUT_LANE_CHANGES = {
     PREPARE_RELATIVE: "M",
     EVALUATE_RELATIVE: "M",
     MODULE_RELATIVE: "M",
@@ -97,7 +103,30 @@ _ALLOWED_CHANGES = {
     "tests/test_p4_2a_v2_heldout.py": "M",
     "tests/test_p4_2a_successor_production_authority.py": "M",
     "tests/test_p4_2a_successor_preparation_integration.py": "M",
+    # The pass constructs its rate-limit policy from the registered constants and
+    # forwards it through this runner, so the caps stay inside the surface the
+    # gate checks rather than inside the provider layer.
+    "scripts/run_p4_2a_offline_extract.py": "M",
 }
+_MODEL_PLATFORM_LANE_CHANGES = {
+    ".env.example": "M",
+    HELDOUT_CONTRACT_RELATIVE: "A",
+    "src/alphapilot/core/config.py": "M",
+    "src/alphapilot/llm/client.py": "M",
+    "src/alphapilot/llm/p4_news_eval.py": "M",
+    "src/alphapilot/llm/p4_news_event.py": "M",
+    "src/alphapilot/llm/providers.py": "A",
+    "tests/conftest.py": "M",
+    "tests/test_llm_provider_layer.py": "A",
+}
+_CHANGE_LANES = {
+    "heldout": _HELDOUT_LANE_CHANGES,
+    "model_platform": _MODEL_PLATFORM_LANE_CHANGES,
+}
+_ALLOWED_CHANGES = {**_HELDOUT_LANE_CHANGES, **_MODEL_PLATFORM_LANE_CHANGES}
+assert len(_ALLOWED_CHANGES) == len(_HELDOUT_LANE_CHANGES) + len(
+    _MODEL_PLATFORM_LANE_CHANGES
+), "a path may belong to exactly one lane"
 _CHECK_IDS = (
     "old_gate_regression",
     "new_gate_fail_closed",
@@ -581,7 +610,7 @@ def validate_implementation_binding(
     _require(
         manifest
         == {
-            "schema_version": "p4.2a-successor-production-integration-v4-build-manifest",
+            "schema_version": "p4.2a-successor-production-integration-v5-build-manifest",
             "implementation_commit": commit,
             "source_closure": closure,
             "changed_paths": changes,
@@ -764,11 +793,11 @@ def _review(
     _require(set(review) == required, "independent review fields drifted")
     _require(
         review["schema_version"]
-        == "p4.2a-successor-production-integration-v4-independent-implementation-review",
+        == "p4.2a-successor-production-integration-v5-independent-implementation-review",
         "independent review schema mismatch",
     )
     _require(
-        review["verdict"] == "PASS_SUCCESSOR_PRODUCTION_INTEGRATION_V4_IMPLEMENTATION_REVIEW",
+        review["verdict"] == "PASS_SUCCESSOR_PRODUCTION_INTEGRATION_V5_IMPLEMENTATION_REVIEW",
         "independent implementation review not PASS",
     )
     _require(

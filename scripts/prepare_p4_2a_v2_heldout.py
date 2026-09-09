@@ -80,8 +80,17 @@ PREREGISTRATION_PATH = Path("docs/phase4/reports/P4.2a-v2-heldout-preregistratio
 PREREGISTRATION_SHA256 = "ccecbf5ca7b48b16e445318b8c94a08927432f92c7e8c12f8ab40f2916578705"
 DESIGN_PATH = Path("config/p4_event_evaluation_v2.yaml")
 DESIGN_SHA256 = "18a2428a4ec04bfea6e4f4d70692f38ea82fbaee5a223f30f2465b895b238e21"
-HELDOUT_CONTRACT_PATH = Path("config/p4_event_extract_eval_v2-heldout-qwen3.6-plus.yaml")
-HELDOUT_CONTRACT_SHA256 = "26be1765204b122908e7bd09cac857c33bd3140233df47dc3358bc590e020199"
+HELDOUT_CONTRACT_PATH = Path("config/p4_event_extract_eval_v3-heldout.yaml")
+HELDOUT_CONTRACT_SHA256 = "ed4844244b8b995147318e45d38f3fe35c05526de5378e3c9cb4974650800366"
+# What the frozen preregistration recorded. The pass now binds the v3 contract
+# above under the owner's 2026-09-10 decision; this pair keeps the preregistered
+# values so the frozen document is still read as itself.
+PREREGISTERED_HELDOUT_CONTRACT_PATH = Path(
+    "config/p4_event_extract_eval_v2-heldout-qwen3.6-plus.yaml"
+)
+PREREGISTERED_HELDOUT_CONTRACT_SHA256 = (
+    "26be1765204b122908e7bd09cac857c33bd3140233df47dc3358bc590e020199"
+)
 ROUND3_CONTRACT_PATH = Path("config/p4_event_extract_eval_v2-r3-qwen3.6-plus.yaml")
 ROUND3_CONTRACT_SHA256 = "fa75a6cf33065745d02f74fe39e4f102723da43f37ac549058bb34fa8256a181"
 ROUND3_PROMPT_PATH = Path("config/prompts/p4_news_event_extract_v2-r3.txt")
@@ -198,6 +207,24 @@ SUCCESSOR_V2_1_RELEASE_VERDICT = (
     "APPROVE_SUCCESSOR_V2_1_REAL_HELDOUT_PREPARATION"
 )
 MATERIALIZATION_MANIFEST_V2_SCHEMA = "p4.2a-v2-heldout-materialization-manifest-v2"
+# Owner decision 2026-09-09 (v5): a completed model request whose output is refused
+# by a deterministic, non-retryable post-validation constraint is recorded as one
+# extract_failed candidate and the pass continues. Every other outcome stays
+# terminal. The ratio ceiling is evaluated as the run proceeds, but only once the
+# completed-request count has reached the minimum below, so a single failure can
+# never trip it on an early candidate.
+INFERENCE_EXTRACT_FAILED_RATIO_CEILING = 0.02
+INFERENCE_EXTRACT_FAILED_CEILING_MIN_COMPLETED = 50
+# The recorded reasons mean "the model answered and the answer was refused
+# deterministically". Everything else - transport, audit, configuration, unknown -
+# stays terminal, so a misconfigured or unreachable provider can never be absorbed
+# as a candidate-level failure. A new provider reason must be added here
+# deliberately; an unrecognised reason is terminal by construction.
+INFERENCE_RECORDED_FAILURE_CATEGORIES = {
+    "post_validation_failed": "post_validation_constraint",
+    "schema_validation_failed": "response_schema_violation",
+    "event_contract_failed": "model_output_contract_violation",
+}
 CNINFO_MIN_START_TO_START_SECONDS = 1.0
 # Owner decision 2026-09-08: a single CNInfo PDF download may be retried after a
 # transient transport failure. Candidate pool, request order, eligibility and the
@@ -281,7 +308,70 @@ _OFFLINE_CAPABILITY_NONCE = object()
 _PREVALIDATED_STAGE_AUTHORITY_NONCE = object()
 
 FRAME_ID = "p4.2a-heldout-frame-v2"
-MODEL = "qwen3.6-plus"
+# The model the preregistration and the frozen development lineage recorded. It is
+# NOT the model this pass runs: the owner's 2026-09-10 decision moved the held-out
+# pass to MODEL below. Comparisons against frozen documents keep this value, so a
+# frozen document is never re-read as if it had been rewritten; the difference
+# between the two constants is the deviation itself.
+PREREGISTERED_MODEL = "qwen3.6-plus"
+MODEL = "kimi-k3"
+# Owner decision 2026-09-10: the held-out pass runs on an internal OpenAI-compatible
+# platform. The platform is identified by an opaque provider name and the request
+# address is bound by a keyed digest, never by the address itself: this repository is
+# public. The salt lives only in the operator's gitignored environment, so the digest
+# below cannot be used to recover the address by guessing.
+HELDOUT_PROVIDER = "friday"
+HELDOUT_ENDPOINT_HMAC_SHA256 = (
+    "b4c42d19ade073e7390020a4567caa776b40ae06a472462009632d630a3031cf"
+)
+# A held-out wrapper inherits inference semantics byte-for-byte from the round-3
+# development contract. The 2026-09-10 decision is the first that legitimately
+# needs a wrapper to override an inherited inference field, so the wrapper's
+# authority is widened deliberately and narrowly: exactly these llm: keys, and
+# nothing else. The prompt and the schema are not in the list and stay frozen. A
+# wrapper carrying any other key is a hard load error naming that key, so a future
+# wrapper cannot widen this by accident.
+HELDOUT_WRAPPER_LLM_KEYS = frozenset(
+    {
+        "purpose",
+        "model",
+        "provider",
+        "endpoint_hmac_sha256",
+        "enable_thinking",
+        "max_output_tokens",
+        "total_deadline_seconds",
+        "max_retries",
+        "max_items_per_run",
+        "response_format",
+        "explicit_cache",
+    }
+)
+# The subset that actually overrides a field on the contract object the pass calls
+# with. The rest are asserted against registered values and carry no override.
+HELDOUT_WRAPPER_OVERRIDES = {
+    "model": "model",
+    "provider": "provider",
+    "endpoint_hmac_sha256": "endpoint_hmac_sha256",
+    "total_deadline_seconds": "timeout",
+    "max_output_tokens": "max_tokens",
+    "max_retries": "max_retries",
+}
+# Owner decision 2026-09-10: the platform rejects about a tenth of requests with
+# HTTP 429, and the rejection rate is invariant to pacing between unpaced and 20 s
+# spacing, so the pass must NOT be paced and a rejection is waited out and re-sent.
+# A rejected request never produced an answer, so a re-send is not a candidate retry:
+# automatic_retries stays 0 and this counter is separate. These are registered
+# constants, not settings, so an operator cannot widen them at runtime.
+RATE_LIMIT_STATUS = 429
+RATE_LIMIT_BACKOFF_SECONDS = (5.0, 10.0, 20.0, 30.0, 45.0, 60.0)
+RATE_LIMIT_PER_CANDIDATE_RESENDS = 6
+RATE_LIMIT_PER_PASS_RESEND_CAP = 2000
+RATE_LIMIT_PER_PASS_WALL_CLOCK_CAP_SECONDS = 50400.0
+# A platform-supplied delay is honoured only inside this window. Zero is legal HTTP
+# meaning "resend now" and is floored rather than refused; a value past the ceiling
+# is the quota being gone, not a longer wait, and is terminal.
+RATE_LIMIT_SUPPLIED_DELAY_FLOOR_SECONDS = 1.0
+RATE_LIMIT_SUPPLIED_DELAY_CEILING_SECONDS = 120.0
 WINDOW_START_UTC = "2026-08-05T16:00:00Z"
 WINDOW_END_UTC = "2026-08-08T16:00:00Z"
 SQLITE_WINDOW_START_UTC = "2026-08-05 16:00:00"
@@ -345,6 +435,19 @@ _SNAPSHOT_FIELDS = {
 
 class HeldoutPreparationError(RuntimeError):
     """The frozen v2 held-out preparation contract was violated."""
+
+
+class HeldoutRateLimitAbort(HeldoutPreparationError):
+    """Terminal: the transport stopped waiting out rate limits, with its census.
+
+    A rejected request never produced a model answer, so this is never recorded as
+    a candidate-level failure and never enters the extract_failed census.
+    """
+
+    def __init__(self, message: str, *, reason: str, evidence: Mapping[str, Any]) -> None:
+        super().__init__(message)
+        self.reason = reason
+        self.evidence: dict[str, Any] = dict(evidence)
 
 
 @dataclass(frozen=True, slots=True)
@@ -2530,6 +2633,63 @@ def _retryable_download_failure(error: gold_builder.GoldSampleError) -> str | No
     return None
 
 
+def _last_prediction_row(path: Path, expected_line_count: int) -> JsonObject:
+    """Read only the row this candidate just appended; predictions are append-only."""
+    with path.open("rb") as stream:
+        stream.seek(0, os.SEEK_END)
+        size = stream.tell()
+        window = min(size, 1 << 20)
+        stream.seek(size - window)
+        tail = stream.read(window)
+    lines = [line for line in tail.split(b"\n") if line.strip()]
+    if not lines or expected_line_count < 1:
+        raise HeldoutPreparationError("held-out prediction row is unreadable")
+    try:
+        row = json.loads(lines[-1].decode("utf-8"))
+    except (ValueError, UnicodeError) as exc:
+        raise HeldoutPreparationError("held-out prediction row is not JSON") from exc
+    if not isinstance(row, dict):
+        raise HeldoutPreparationError("held-out prediction row is not an object")
+    return cast(JsonObject, row)
+
+
+def _accepted_post_validation_failure(
+    row: Mapping[str, Any], news_item_id: int
+) -> JsonObject | None:
+    """Return the census entry for a failure v5 records, else None.
+
+    Only a completed request whose answer was refused deterministically qualifies:
+    the recorded reason must be non-retryable and must name one of the registered
+    refusal categories. Transport failures, audit failures, configuration failures,
+    retryable failures and unrecognised reasons return None and stay terminal.
+    """
+    if (
+        row.get("status") != "extract_failed"
+        or row.get("news_item_id") != news_item_id
+        or row.get("prediction") is not None
+    ):
+        return None
+    failure = row.get("extract_failed")
+    if not isinstance(failure, Mapping) or failure.get("retryable") is not False:
+        return None
+    reason = failure.get("reason")
+    if not isinstance(reason, str) or reason not in INFERENCE_RECORDED_FAILURE_CATEGORIES:
+        return None
+    entry: JsonObject = {
+        "news_item_id": news_item_id,
+        "category": INFERENCE_RECORDED_FAILURE_CATEGORIES[reason],
+        "reason": reason,
+    }
+    # The frozen extractor only attaches a field/constraint pair to validation and
+    # schema refusals; a contract refusal carries none and is recorded without them.
+    field = failure.get("field")
+    constraint = failure.get("constraint")
+    if isinstance(field, str) and field and isinstance(constraint, str) and constraint:
+        entry["field"] = field
+        entry["constraint"] = constraint
+    return entry
+
+
 def _paced_pdf_boundaries(
     pacer: _CninfoStartPacer,
     pdf_fetcher: gold_builder.PdfFetcher,
@@ -3042,7 +3202,10 @@ def _load_selected_contract(root: Path) -> EventExtractContract:
         preregistration_sha256=cast(str, dev_runner.ROUND_3_PREREGISTRATION_SHA256),
     )
     bindings = dev_runner._load_contracts(root, prereg, round_binding)
-    selected = next((item.contract for item in bindings if item.model_slug == MODEL), None)
+    selected = next(
+        (item.contract for item in bindings if item.model_slug == PREREGISTERED_MODEL),
+        None,
+    )
     if selected is None or selected.path != (root / ROUND3_CONTRACT_PATH).resolve():
         raise HeldoutPreparationError("Round 3 selected contract is unavailable")
     if selected.sha256 != ROUND3_CONTRACT_SHA256:
@@ -3080,8 +3243,8 @@ def _load_selected_contract(root: Path) -> EventExtractContract:
             key: llm.get(key)
             for key in (
                 "model",
-                "endpoint",
-                "temperature",
+                "provider",
+                "endpoint_hmac_sha256",
                 "enable_thinking",
                 "max_output_tokens",
                 "total_deadline_seconds",
@@ -3091,26 +3254,41 @@ def _load_selected_contract(root: Path) -> EventExtractContract:
         },
         {
             "model": MODEL,
-            "endpoint": "https://dashscope.aliyuncs.com/compatible-mode/v1",
-            "temperature": 0.2,
+            "provider": HELDOUT_PROVIDER,
+            "endpoint_hmac_sha256": HELDOUT_ENDPOINT_HMAC_SHA256,
             "enable_thinking": False,
             "max_output_tokens": 2000,
-            "total_deadline_seconds": 20.0,
+            "total_deadline_seconds": 90.0,
             "max_retries": 0,
-            "response_format": "json_object",
+            "response_format": "prompt_enforced_json",
         },
         "held-out LLM controls",
     )
+    unexpected = set(llm) - HELDOUT_WRAPPER_LLM_KEYS
+    if unexpected:
+        raise HeldoutPreparationError(
+            "held-out wrapper may not override inherited inference key: "
+            + sorted(unexpected)[0]
+        )
     request = _mapping(document.get("request_shape"), "request_shape")
     for key in ("one_news_item_per_request", "one_request_per_eligible_candidate"):
         _assert_exact(request.get(key), True, key)
     _assert_exact(request.get("failed_candidate_retries"), 0, "failed candidate retries")
     _assert_exact(request.get("automatic_retries"), 0, "automatic retries")
+    # The wrapper names the platform and the model; without applying them here the
+    # object the pass calls with would keep the inherited round-3 values while every
+    # artefact row recorded the wrapper's, which no later read of the rows could
+    # detect. The prompt and the schema are deliberately not overridable.
+    overrides = {
+        field: llm[key] for key, field in HELDOUT_WRAPPER_OVERRIDES.items() if key in llm
+    }
     return replace(
         selected,
         path=heldout_path.resolve(),
         sha256=HELDOUT_CONTRACT_SHA256,
         max_items_per_run=EXPECTED_RAW_COUNT,
+        endpoint=None,
+        **overrides,
     )
 
 
@@ -3181,7 +3359,7 @@ def load_binding(project_root: Path = PROJECT_ROOT) -> HeldoutBinding:
         "selected freeze SHA",
     )
     selected = _mapping(prereg.get("selected_extractor"), "selected_extractor")
-    _assert_exact(selected.get("model"), MODEL, "selected model")
+    _assert_exact(selected.get("model"), PREREGISTERED_MODEL, "preregistered selected model")
     _assert_exact(
         selected.get("round_3_prompt"),
         {
@@ -3202,8 +3380,11 @@ def load_binding(project_root: Path = PROJECT_ROOT) -> HeldoutBinding:
     )
     _assert_exact(
         selected.get("heldout_execution_contract"),
-        {"path": HELDOUT_CONTRACT_PATH.as_posix(), "sha256": HELDOUT_CONTRACT_SHA256},
-        "held-out contract binding",
+        {
+            "path": PREREGISTERED_HELDOUT_CONTRACT_PATH.as_posix(),
+            "sha256": PREREGISTERED_HELDOUT_CONTRACT_SHA256,
+        },
+        "preregistered held-out contract binding",
     )
     source = _mapping(prereg.get("source_frame"), "source_frame")
     _assert_exact(source.get("frame_id"), FRAME_ID, "frame id")
@@ -3917,6 +4098,103 @@ def _write_synthetic_production_execution_fixture(
     return candidates, predictions, execution_id
 
 
+def _extract_failed_category_counts(entries: Sequence[Mapping[str, Any]]) -> JsonObject:
+    """Per-category counts, every registered category present even when zero."""
+    counts = dict.fromkeys(sorted(set(INFERENCE_RECORDED_FAILURE_CATEGORIES.values())), 0)
+    for entry in entries:
+        counts[cast(str, entry["category"])] += 1
+    return cast(JsonObject, counts)
+
+
+def _extract_failed_census_ids(entries: object) -> list[int] | None:
+    """Sorted news_item_ids from a recorded census, or None when it is malformed."""
+    if not isinstance(entries, list):
+        return None
+    identifiers: list[int] = []
+    for entry in entries:
+        if not isinstance(entry, Mapping):
+            return None
+        identifier = entry.get("news_item_id")
+        if isinstance(identifier, bool) or not isinstance(identifier, int) or identifier <= 0:
+            return None
+        reason = entry.get("reason")
+        if (
+            not isinstance(reason, str)
+            or reason not in INFERENCE_RECORDED_FAILURE_CATEGORIES
+            or entry.get("category") != INFERENCE_RECORDED_FAILURE_CATEGORIES[reason]
+            or set(entry) - {"news_item_id", "category", "reason", "field", "constraint"}
+            or ("field" in entry) != ("constraint" in entry)
+            or any(
+                not isinstance(entry[key], str) or not entry[key]
+                for key in ("field", "constraint")
+                if key in entry
+            )
+        ):
+            return None
+        identifiers.append(identifier)
+    return sorted(identifiers)
+
+
+def _validate_extract_failed_census(
+    binding: HeldoutBinding,
+    predictions: Sequence[Mapping[str, Any]],
+    failures: int,
+) -> None:
+    """The sampling layer and the inference census must name the same candidates."""
+    observed = sorted(
+        _positive_news_item_id(row, "failed prediction row")
+        for row in predictions
+        if row.get("status") != "ok"
+    )
+    if len(observed) != failures or len(set(observed)) != len(observed):
+        raise HeldoutPreparationError("extract_failed census count drifted")
+    manifest_path = binding.artifacts["prediction_manifest"]
+    if not manifest_path.is_file():
+        if failures:
+            raise HeldoutPreparationError(
+                "full eligible inference contains failures without a recorded census"
+            )
+        return
+    manifest = _load_json(manifest_path, "prediction manifest")
+    if "extract_failed_count" not in manifest:
+        # Pre-v5 manifests carry no census and must still prove zero failures.
+        if failures:
+            raise HeldoutPreparationError(
+                "full eligible inference contains failures without a recorded census"
+            )
+        return
+    recorded_count = manifest.get("extract_failed_count")
+    recorded_ids = _extract_failed_census_ids(manifest.get("extract_failed_ids"))
+    if (
+        isinstance(recorded_count, bool)
+        or not isinstance(recorded_count, int)
+        or recorded_count != failures
+        or recorded_ids != observed
+    ):
+        raise HeldoutPreparationError(
+            "extract_failed census disagrees with the prediction manifest"
+        )
+    state_path = binding.artifacts["inference_state"]
+    if not state_path.is_file():
+        raise HeldoutPreparationError("inference state is unavailable for the census")
+    completed = [
+        descriptor
+        for descriptor in _load_jsonl(state_path, "inference state")
+        if descriptor.get("status") == "completed_all_eligible_candidates_once"
+    ]
+    if not completed:
+        raise HeldoutPreparationError("inference state lacks a completion descriptor")
+    final = completed[-1]
+    if (
+        final.get("extract_failed_count") != failures
+        or _extract_failed_census_ids(final.get("extract_failed_ids")) != observed
+    ):
+        raise HeldoutPreparationError(
+            "extract_failed census disagrees with the inference state"
+        )
+    _validate_rate_limit_evidence(final, len(predictions))
+
+
 def _positive_news_item_id(row: Mapping[str, Any], label: str) -> int:
     identifier = row.get("news_item_id")
     if isinstance(identifier, bool) or not isinstance(identifier, int) or identifier <= 0:
@@ -3997,10 +4275,11 @@ def select_and_blind(
         joined.append((candidate, prediction, stratum))
     if len(joined) + failures != len(inputs):
         raise HeldoutPreparationError("full eligible pool was not inferred exactly once")
-    if failures != 0:
-        raise HeldoutPreparationError(
-            "full eligible inference contains failures; sampling is forbidden"
-        )
+    # v5: extract_failed candidates are reported and excluded from both sampled
+    # strata, exactly as the registered stratum already prescribes. They are only
+    # tolerated here when the inference stage itemised them; any disagreement
+    # between this layer and that census is terminal.
+    _validate_extract_failed_census(binding, prediction_rows, failures)
     by_stratum: dict[str, list[tuple[JsonObject, JsonObject, str]]] = {
         "predicted_positive": [],
         "predicted_negative": [],
@@ -4867,6 +5146,143 @@ def _validate_v2_1_inference_seams(
         )
 
 
+def _extract_one_candidate(*args: Any, **kwargs: Any) -> Any:
+    """One candidate, with a named rate-limit give-up turned into a stage failure.
+
+    The four give-up rules are distinct outcomes: a candidate that burned its own
+    guard, a pass that spent its resend budget, a wait that would wake past the
+    wall clock, and a platform-supplied delay past the ceiling that says the quota
+    is gone. Collapsing them into one transport error would lose exactly what the
+    census is for, so the reason and the counters travel with the failure.
+    """
+    from alphapilot.llm import providers
+
+    try:
+        return extract_records(*args, **kwargs)
+    except providers.RateLimitAbort as abort:
+        raise HeldoutRateLimitAbort(
+            f"held-out inference stopped on a rate-limit rule: {abort.reason}",
+            reason=abort.reason,
+            evidence=abort.evidence,
+        ) from abort
+
+
+def _rate_limit_policy_evidence() -> JsonObject:
+    """The registered transport policy, as recorded in every inference artefact."""
+    return {
+        "status": RATE_LIMIT_STATUS,
+        "fallback_backoff_seconds": list(RATE_LIMIT_BACKOFF_SECONDS),
+        "per_candidate_resends": RATE_LIMIT_PER_CANDIDATE_RESENDS,
+        "per_pass_resend_cap": RATE_LIMIT_PER_PASS_RESEND_CAP,
+        "per_pass_wall_clock_cap_seconds": RATE_LIMIT_PER_PASS_WALL_CLOCK_CAP_SECONDS,
+        "supplied_delay_floor_seconds": RATE_LIMIT_SUPPLIED_DELAY_FLOOR_SECONDS,
+        "supplied_delay_ceiling_seconds": RATE_LIMIT_SUPPLIED_DELAY_CEILING_SECONDS,
+        "pacing": "none_measured_rejection_rate_is_invariant_to_spacing",
+        "resend_is_not_a_candidate_retry": True,
+    }
+
+
+_RATE_LIMIT_POLICY_KEYS = frozenset(_rate_limit_policy_evidence())
+
+
+def _validate_rate_limit_evidence(
+    inference: Mapping[str, Any], eligible_candidate_count: int
+) -> None:
+    """The recorded policy is the registered one and every request is accounted for.
+
+    Two shapes are accepted and never interchanged: an artefact published before
+    this decision carries no transport block at all, and one published after it
+    must carry the whole block. A partial block is a drift, not a default.
+    """
+    policy = inference.get("rate_limit_policy")
+    accounting = inference.get("request_accounting")
+    if policy is None and accounting is None:
+        return
+    if not isinstance(policy, Mapping) or not isinstance(accounting, Mapping):
+        raise HeldoutPreparationError("transport rate-limit evidence is incomplete")
+    if set(policy) != _RATE_LIMIT_POLICY_KEYS:
+        raise HeldoutPreparationError("transport rate-limit policy key set drifted")
+    if dict(policy) != _rate_limit_policy_evidence():
+        raise HeldoutPreparationError("transport rate-limit policy is not the registered one")
+    if set(accounting) != {
+        "requests_started",
+        "answers_served",
+        "rate_limited_responses",
+        "rate_limit_waits",
+        "rate_limit_wait_seconds",
+        "rate_limit_wait_items",
+    }:
+        raise HeldoutPreparationError("transport request accounting key set drifted")
+    served = accounting.get("answers_served")
+    started = accounting.get("requests_started")
+    waits = accounting.get("rate_limit_waits")
+    rejected = accounting.get("rate_limited_responses")
+    items = accounting.get("rate_limit_wait_items")
+    if not isinstance(items, list) or len(items) != waits:
+        raise HeldoutPreparationError("transport wait items do not match the wait count")
+    # One answer per eligible candidate, and every extra request is a re-send.
+    if served != eligible_candidate_count:
+        raise HeldoutPreparationError("answers served is not the eligible candidate count")
+    if started != served + waits:
+        raise HeldoutPreparationError("requests started is not candidates plus re-sends")
+    if not isinstance(rejected, int) or rejected < waits:
+        raise HeldoutPreparationError("more re-sends than rejections were recorded")
+    if waits > RATE_LIMIT_PER_PASS_RESEND_CAP:
+        raise HeldoutPreparationError("re-sends exceeded the registered per-pass cap")
+    if sum(items) > RATE_LIMIT_PER_PASS_WALL_CLOCK_CAP_SECONDS:
+        raise HeldoutPreparationError("rate-limit waiting exceeded the registered cap")
+
+
+def _assert_registered_platform_admission(
+    binding: HeldoutBinding, authorized: StageAuthorization
+) -> None:
+    """Bind the pass to the registered platform before any candidate is read.
+
+    Three things must agree: the contract bytes (already checked when the contract
+    was loaded), the provider identity the contract pins, and - on a real stage -
+    the keyed digest recomputed from the operator's live configuration. The
+    address, the salt and the digest never appear in any message raised here, so a
+    failure is safe to paste into a report from a public repository.
+    """
+    # Imported inside the function: a new top-level import would change the frozen
+    # real-stage bootstrap's runtime origin census.
+    import hmac
+
+    from alphapilot.llm import providers
+
+    pinned = providers.contract_provider(binding.contract)
+    if pinned != HELDOUT_PROVIDER:
+        raise HeldoutPreparationError(
+            "held-out contract does not pin the registered platform provider"
+        )
+    if binding.contract.endpoint_hmac_sha256 != HELDOUT_ENDPOINT_HMAC_SHA256:
+        raise HeldoutPreparationError(
+            "held-out contract endpoint binding digest is not the registered one"
+        )
+    if providers.active_provider(contract=binding.contract) != HELDOUT_PROVIDER:
+        raise HeldoutPreparationError(
+            "resolved active provider is not the registered platform provider"
+        )
+    real_stage = type(authorized) is ProductionPreparationAuthorization or isinstance(
+        authorized, V21ReleaseAuthorization
+    )
+    if not real_stage:
+        # A synthetic stage injects its own seams and never reaches the platform,
+        # so there is no live configuration to bind against.
+        return
+    settings = _settings_from_project_env(binding.root)
+    try:
+        observed = providers.endpoint_binding_digest(settings)
+    except providers.ProviderConfigurationError as exc:
+        raise HeldoutPreparationError(
+            "platform endpoint binding is not configured for the real held-out stage"
+        ) from exc
+    if not hmac.compare_digest(observed, HELDOUT_ENDPOINT_HMAC_SHA256):
+        raise HeldoutPreparationError(
+            "configured platform endpoint does not match the registered binding"
+        )
+
+
 def run_infer(
     binding: HeldoutBinding,
     *,
@@ -4899,6 +5315,7 @@ def run_infer(
         prediction_recorded_at_clock=prediction_recorded_at_clock,
         prediction_monotonic_ns_clock=prediction_monotonic_ns_clock,
     )
+    _assert_registered_platform_admission(binding, authorized)
     candidates = _load_jsonl(binding.artifacts["materialized_inputs"], "held-out inputs")
     manifest = _load_json(binding.artifacts["materialization_manifest"], "materialization manifest")
     inputs_payload = common.canonical_jsonl_bytes(candidates)
@@ -4970,13 +5387,31 @@ def run_infer(
                 ),
             },
         )
+        extract_failed_census: list[JsonObject] = []
+        # Imported here, not at module scope: this module is the frozen real-stage
+        # bootstrap entry and a new top-level import changes its origin census.
+        from alphapilot.llm.client import RateLimitPolicy, RequestAccounting
+
+        # The caps are registered constants read from this module, so the gate sees
+        # them; "opt-in" is satisfied by the registered caller rather than by a
+        # default that could be flipped elsewhere.
+        rate_limit_policy = RateLimitPolicy(
+            per_candidate_resends=RATE_LIMIT_PER_CANDIDATE_RESENDS,
+            per_pass_resend_cap=RATE_LIMIT_PER_PASS_RESEND_CAP,
+            per_pass_wall_clock_cap_seconds=RATE_LIMIT_PER_PASS_WALL_CLOCK_CAP_SECONDS,
+        )
+        request_accounting = RequestAccounting()
+        # The wall-clock cap is measured from the first request instant and counts
+        # waiting time. Setting it here rather than leaving it None is what makes
+        # the cap enforceable at all.
+        request_accounting.pass_started_at = time.monotonic()
         try:
             for index, candidate in enumerate(candidates, start=1):
                 active_candidate_index = index
                 active_candidate_id = _positive_news_item_id(
                     candidate, f"eligible candidate {index}"
                 )
-                summary = extract_records(
+                summary = _extract_one_candidate(
                     binding.contract,
                     [_extract_record(candidate)],
                     output_path=binding.artifacts["predictions"],
@@ -4987,15 +5422,38 @@ def run_infer(
                     chat_json_fn=chat_json_fn,
                     recorded_at_clock=prediction_recorded_at_clock,
                     monotonic_ns_clock=prediction_monotonic_ns_clock,
+                    rate_limit=rate_limit_policy,
+                    accounting=request_accounting,
                 )
                 if (
                     summary.newly_attempted_count != 1
-                    or summary.success_count != 1
-                    or summary.failure_count != 0
+                    or summary.success_count + summary.failure_count != 1
+                    or summary.retried_failure_count != 0
                 ):
                     raise HeldoutPreparationError(
                         f"candidate {candidate['news_item_id']} failed; inference is terminal"
                     )
+                if summary.success_count != 1:
+                    accepted = _accepted_post_validation_failure(
+                        _last_prediction_row(binding.artifacts["predictions"], index),
+                        active_candidate_id,
+                    )
+                    if accepted is None:
+                        raise HeldoutPreparationError(
+                            f"candidate {candidate['news_item_id']} failed; "
+                            "inference is terminal"
+                        )
+                    extract_failed_census.append(accepted)
+                    if (
+                        index >= INFERENCE_EXTRACT_FAILED_CEILING_MIN_COMPLETED
+                        and len(extract_failed_census)
+                        > INFERENCE_EXTRACT_FAILED_RATIO_CEILING * index
+                    ):
+                        raise HeldoutPreparationError(
+                            "held-out inference exceeded the registered extract_failed "
+                            f"ceiling: {len(extract_failed_census)} of {index} completed "
+                            "requests"
+                        )
                 if summary.retried_failure_count != 0:
                     raise HeldoutPreparationError("a held-out candidate was retried")
                 if index != summary.output_line_count:
@@ -5016,6 +5474,14 @@ def run_infer(
                 "prediction_count": len(predictions),
                 "status_ok_count": sum(row.get("status") == "ok" for row in predictions),
                 "status_failed_count": sum(row.get("status") != "ok" for row in predictions),
+                "extract_failed_count": len(extract_failed_census),
+                "extract_failed_ids": [dict(entry) for entry in extract_failed_census],
+                "extract_failed_by_category": _extract_failed_category_counts(
+                    extract_failed_census
+                ),
+                "extract_failed_ratio_ceiling": INFERENCE_EXTRACT_FAILED_RATIO_CEILING,
+                "rate_limit_policy": _rate_limit_policy_evidence(),
+                "request_accounting": request_accounting.as_evidence(),
                 "one_news_item_per_request": True,
                 "one_request_per_eligible_candidate": True,
                 "automatic_retries": 0,
@@ -5051,6 +5517,11 @@ def run_infer(
                     "materialization_manifest_sha256": materialization_sha256,
                     "completed_at_utc": clock().astimezone(UTC).isoformat().replace("+00:00", "Z"),
                     "prediction_count": len(predictions),
+                    "extract_failed_count": len(extract_failed_census),
+                    "extract_failed_ids": [dict(entry) for entry in extract_failed_census],
+                    "extract_failed_by_category": _extract_failed_category_counts(
+                        extract_failed_census
+                    ),
                     "predictions_sha256": common.sha256_file(binding.artifacts["predictions"]),
                     "prediction_manifest_sha256": common.sha256_file(
                         binding.artifacts["prediction_manifest"]

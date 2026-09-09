@@ -74,9 +74,31 @@ class Settings(BaseSettings):
     mirofish_base_url: str | None = None
     mirofish_api_key: str | None = None
 
+    # Which chat platform every LLM call goes to. One variable switches the whole
+    # process between platforms; both credential sets may sit in .env at once.
+    # Registered names live in alphapilot.llm.providers.
+    llm_provider: str = "dashscope"
+
+    # DashScope (OpenAI-compatible mode).
     llm_base_url: str | None = None
     llm_api_key: str | None = None
     llm_model: str = "qwen3.6-flash"
+
+    # Internal-platform provider. Address and credential are configuration-only:
+    # this repository is public, so no default host or path is carried here. The
+    # credential is an App ID bound to a model family rather than a per-key API
+    # secret. With any of the three absent, the friday provider fails closed
+    # rather than falling back to DashScope.
+    llm_friday_base_url: str | None = None
+    llm_friday_completions_path: str | None = None
+    llm_friday_app_id: str | None = None
+    llm_friday_model: str = "kimi-k3"
+    # Key for the contract's endpoint binding: the registered contract names the
+    # platform as provider identity plus a keyed digest of the request URL, so
+    # neither the URL nor this salt ever has to be committed. 64 hex characters.
+    llm_friday_endpoint_hmac_salt: str | None = None
+
+    # Per-purpose model override; applies to whichever provider is active.
     llm_purpose_models: dict[str, str] = Field(default_factory=dict)
     llm_polish_feed: bool = False
 
