@@ -124,6 +124,14 @@ CNINFO_STALL_PAUSE_WINDOW = 20
 CNINFO_STALL_PAUSE_WINDOW_STALLS = 15
 CNINFO_STALL_PAUSE_SECONDS = 600.0
 CNINFO_STALL_PAUSE_MAX = 3
+CNINFO_UNAVAILABLE_HTTP_STATUSES = (404, 410)
+CNINFO_UNAVAILABLE_REASON = "pdf_unavailable_http_404"
+CNINFO_UNAVAILABLE_GATE_STATUS = 200
+CNINFO_DETERMINISTIC_INELIGIBLE_REASONS = (
+    "pdf_text_below_min_char_gate",
+    "pdf_exceeds_size_bound",
+    CNINFO_UNAVAILABLE_REASON,
+)
 CNINFO_MATERIALIZE_WALL_CLOCK_CAP_SECONDS = 43200
 CNINFO_RETRIED_ERROR_CLASSES = (
     "httpx.TransportError",
@@ -1020,6 +1028,34 @@ def _valid_retry_attempt_segments(events: list[Any], pauses: list[Any]) -> bool:
     return True
 
 
+def _valid_http_unavailable_events(value: object, count: object) -> bool:
+    """Every 404/410 candidate is itemised once and matches the recorded count."""
+    if (
+        not isinstance(value, list)
+        or isinstance(count, bool)
+        or not isinstance(count, int)
+        or count != len(value)
+    ):
+        return False
+    previous = 0.0
+    for event in value:
+        if (
+            not isinstance(event, Mapping)
+            or set(event) != {"url_sha256", "http_status", "monotonic_offset_seconds"}
+            or not isinstance(event.get("url_sha256"), str)
+            or re.fullmatch(r"[0-9a-f]{64}", cast(str, event["url_sha256"])) is None
+            or isinstance(event.get("http_status"), bool)
+            or event.get("http_status") not in CNINFO_UNAVAILABLE_HTTP_STATUSES
+            or isinstance(event.get("monotonic_offset_seconds"), bool)
+            or not isinstance(event.get("monotonic_offset_seconds"), (int, float))
+            or not math.isfinite(float(cast(float, event["monotonic_offset_seconds"])))
+            or float(cast(float, event["monotonic_offset_seconds"])) < previous
+        ):
+            return False
+        previous = float(cast(float, event["monotonic_offset_seconds"]))
+    return True
+
+
 def _valid_transport_retry_evidence(
     cninfo: Mapping[str, Any],
     *,
@@ -1041,6 +1077,7 @@ def _valid_transport_retry_evidence(
             "non_retried",
             "stall_pause_policy",
             "wall_clock_cap_seconds",
+            "unavailable_http_statuses",
         }
         or isinstance(policy.get("max_attempts_per_pdf"), bool)
         or policy.get("max_attempts_per_pdf") != CNINFO_MAX_PDF_ATTEMPTS
@@ -1063,6 +1100,11 @@ def _valid_transport_retry_evidence(
         }
         or isinstance(policy.get("wall_clock_cap_seconds"), bool)
         or policy.get("wall_clock_cap_seconds") != CNINFO_MATERIALIZE_WALL_CLOCK_CAP_SECONDS
+        or policy.get("unavailable_http_statuses") != list(CNINFO_UNAVAILABLE_HTTP_STATUSES)
+    ):
+        return False
+    if not _valid_http_unavailable_events(
+        cninfo.get("http_unavailable_events"), cninfo.get("http_unavailable_count")
     ):
         return False
     if not _valid_stall_pause_events(cninfo.get("pause_events")):
@@ -1127,7 +1169,13 @@ def _validate_request_pacing(value: object, *, transport_retry_recorded: bool) -
             "violation_count",
             "retry_count",
             *(
-                ("transport_retry_policy", "retry_events", "pause_events")
+                (
+                    "transport_retry_policy",
+                    "retry_events",
+                    "pause_events",
+                    "http_unavailable_count",
+                    "http_unavailable_events",
+                )
                 if transport_retry_recorded
                 else ()
             ),
@@ -1607,7 +1655,7 @@ def _validate_materialization_manifest(
         )
         identifier = _positive_int(row.get("news_item_id"), "ineligible candidate ID")
         reason = row.get("reason")
-        if reason not in {"pdf_text_below_min_char_gate", "pdf_exceeds_size_bound"}:
+        if reason not in set(CNINFO_DETERMINISTIC_INELIGIBLE_REASONS):
             raise HeldoutEvaluationError("materialization ineligible reason drifted")
         measured = _nonnegative_int(row.get("measured_value"), "ineligible measured value")
         gate = _positive_int(row.get("gate_value"), "ineligible gate value")
@@ -1635,6 +1683,14 @@ def _validate_materialization_manifest(
             or (
                 reason == "pdf_exceeds_size_bound"
                 and (gate != maximum_pdf_bytes or measured <= gate)
+            )
+            or (
+                reason == CNINFO_UNAVAILABLE_REASON
+                and (
+                    gate != CNINFO_UNAVAILABLE_GATE_STATUS
+                    or measured not in CNINFO_UNAVAILABLE_HTTP_STATUSES
+                    or pdf_sha is not None
+                )
             )
         ):
             raise HeldoutEvaluationError("materialization ineligible evidence drifted")

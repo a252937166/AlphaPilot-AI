@@ -234,6 +234,18 @@ CNINFO_NON_RETRIED_FAILURES = (
 # build_p4_2a_gold_sample.download_cninfo_pdf raises its own GoldSampleError for a
 # non-200 response, so the status is only visible in the message it formats.
 _CNINFO_RETRYABLE_STATUS = re.compile(r"^CNInfo PDF returned non-success HTTP (502|503|504)$")
+# Owner decision 2026-09-09 (v4): a registered CNInfo URL that is gone is a
+# deterministic candidate property, not a run failure. Every other non-2xx status
+# keeps its v3 handling.
+CNINFO_UNAVAILABLE_HTTP_STATUSES = (404, 410)
+CNINFO_UNAVAILABLE_REASON = "pdf_unavailable_http_404"
+CNINFO_UNAVAILABLE_GATE_STATUS = 200
+CNINFO_DETERMINISTIC_INELIGIBLE_REASONS = (
+    "pdf_text_below_min_char_gate",
+    "pdf_exceeds_size_bound",
+    CNINFO_UNAVAILABLE_REASON,
+)
+_CNINFO_UNAVAILABLE_STATUS = re.compile(r"^CNInfo PDF returned non-success HTTP (404|410)$")
 # The three label shapes _retryable_download_failure can produce; matched literally
 # so the same recorded bytes validate identically in every process.
 _CNINFO_RETRY_EVENT_LABEL = re.compile(
@@ -2351,6 +2363,7 @@ class _CninfoStartPacer:
         self._retry_events: list[JsonObject] = []
         self._pause_events: list[JsonObject] = []
         self._window: deque[bool] = deque(maxlen=CNINFO_STALL_PAUSE_WINDOW)
+        self._unavailable_events: list[JsonObject] = []
 
     @staticmethod
     def _valid_clock_value(value: object) -> float:
@@ -2396,6 +2409,17 @@ class _CninfoStartPacer:
             raise HeldoutPreparationError(
                 "CNInfo materialization exceeded its wall-clock cap"
             )
+
+    def record_unavailable(self, *, url_sha256: str, http_status: int) -> None:
+        """Itemise one registered URL the host no longer serves."""
+        observed = self._valid_clock_value(self._monotonic())
+        self._unavailable_events.append(
+            {
+                "url_sha256": url_sha256,
+                "http_status": http_status,
+                "monotonic_offset_seconds": self._offset(observed),
+            }
+        )
 
     def record_stall(
         self,
@@ -2480,9 +2504,12 @@ class _CninfoStartPacer:
                     "max_pauses": CNINFO_STALL_PAUSE_MAX,
                 },
                 "wall_clock_cap_seconds": CNINFO_MATERIALIZE_WALL_CLOCK_CAP_SECONDS,
+                "unavailable_http_statuses": list(CNINFO_UNAVAILABLE_HTTP_STATUSES),
             },
             "retry_events": [dict(event) for event in self._retry_events],
             "pause_events": [dict(event) for event in self._pause_events],
+            "http_unavailable_count": len(self._unavailable_events),
+            "http_unavailable_events": [dict(event) for event in self._unavailable_events],
         }
 
 
@@ -2523,12 +2550,25 @@ def _paced_pdf_boundaries(
                     pacer.note_success()
                     return payload
                 except gold_builder.CandidateDocumentIneligible as exc:
-                    if exc.reason != "pdf_exceeds_size_bound":
+                    if exc.reason not in {
+                        "pdf_exceeds_size_bound",
+                        CNINFO_UNAVAILABLE_REASON,
+                    }:
                         raise HeldoutPreparationError(
                             f"unknown deterministic candidate reason: {exc.reason}"
                         ) from exc
                     raise
                 except gold_builder.GoldSampleError as exc:
+                    unavailable = _CNINFO_UNAVAILABLE_STATUS.fullmatch(str(exc))
+                    if unavailable is not None:
+                        status = int(unavailable.group(1))
+                        pacer.record_unavailable(url_sha256=url_sha256, http_status=status)
+                        raise gold_builder.CandidateDocumentIneligible(
+                            reason=CNINFO_UNAVAILABLE_REASON,
+                            measured_value=status,
+                            gate_value=CNINFO_UNAVAILABLE_GATE_STATUS,
+                            pdf_sha256=None,
+                        ) from exc
                     label = _retryable_download_failure(exc)
                     if label is None:
                         raise
@@ -3700,9 +3740,14 @@ def _synthetic_production_materialization_fixture(
                             "wall_clock_cap_seconds": (
                                 CNINFO_MATERIALIZE_WALL_CLOCK_CAP_SECONDS
                             ),
+                            "unavailable_http_statuses": list(
+                                CNINFO_UNAVAILABLE_HTTP_STATUSES
+                            ),
                         },
                         "retry_events": [],
                         "pause_events": [],
+                        "http_unavailable_count": 0,
+                        "http_unavailable_events": [],
                     }
                     if transport_retry_recorded
                     else {}
@@ -4636,10 +4681,7 @@ def run_materialize(
         pdf_fetcher=paced_fetcher,
         pdf_text_extractor=checked_extractor,
     )
-    allowed_ineligible_reasons = {
-        "pdf_text_below_min_char_gate",
-        "pdf_exceeds_size_bound",
-    }
+    allowed_ineligible_reasons = set(CNINFO_DETERMINISTIC_INELIGIBLE_REASONS)
     observed_reasons = set(materialized.reason_counts)
     if not observed_reasons <= allowed_ineligible_reasons or any(
         row.get("reason") not in allowed_ineligible_reasons
@@ -5123,6 +5165,34 @@ def _valid_retry_attempt_segments(events: list[Any], pauses: list[Any]) -> bool:
     return True
 
 
+def _valid_http_unavailable_events(value: object, count: object) -> bool:
+    """Every 404/410 candidate is itemised once and matches the recorded count."""
+    if (
+        not isinstance(value, list)
+        or isinstance(count, bool)
+        or not isinstance(count, int)
+        or count != len(value)
+    ):
+        return False
+    previous = 0.0
+    for event in value:
+        if (
+            not isinstance(event, Mapping)
+            or set(event) != {"url_sha256", "http_status", "monotonic_offset_seconds"}
+            or not isinstance(event.get("url_sha256"), str)
+            or re.fullmatch(r"[0-9a-f]{64}", cast(str, event["url_sha256"])) is None
+            or isinstance(event.get("http_status"), bool)
+            or event.get("http_status") not in CNINFO_UNAVAILABLE_HTTP_STATUSES
+            or isinstance(event.get("monotonic_offset_seconds"), bool)
+            or not isinstance(event.get("monotonic_offset_seconds"), (int, float))
+            or not math.isfinite(float(cast(float, event["monotonic_offset_seconds"])))
+            or float(cast(float, event["monotonic_offset_seconds"])) < previous
+        ):
+            return False
+        previous = float(cast(float, event["monotonic_offset_seconds"]))
+    return True
+
+
 def _valid_transport_retry_evidence(
     cninfo: Mapping[str, Any],
     *,
@@ -5144,6 +5214,7 @@ def _valid_transport_retry_evidence(
             "non_retried",
             "stall_pause_policy",
             "wall_clock_cap_seconds",
+            "unavailable_http_statuses",
         }
         or isinstance(policy.get("max_attempts_per_pdf"), bool)
         or policy.get("max_attempts_per_pdf") != CNINFO_MAX_PDF_ATTEMPTS
@@ -5166,6 +5237,11 @@ def _valid_transport_retry_evidence(
         }
         or isinstance(policy.get("wall_clock_cap_seconds"), bool)
         or policy.get("wall_clock_cap_seconds") != CNINFO_MATERIALIZE_WALL_CLOCK_CAP_SECONDS
+        or policy.get("unavailable_http_statuses") != list(CNINFO_UNAVAILABLE_HTTP_STATUSES)
+    ):
+        return False
+    if not _valid_http_unavailable_events(
+        cninfo.get("http_unavailable_events"), cninfo.get("http_unavailable_count")
     ):
         return False
     if not _valid_stall_pause_events(cninfo.get("pause_events")):
@@ -5239,7 +5315,13 @@ def _validate_request_pacing_evidence(
         "retry_count",
     }
     if transport_retry_recorded:
-        fields |= {"transport_retry_policy", "retry_events", "pause_events"}
+        fields |= {
+            "transport_retry_policy",
+            "retry_events",
+            "pause_events",
+            "http_unavailable_count",
+            "http_unavailable_events",
+        }
     if set(cninfo) != fields:
         raise HeldoutPreparationError("materialization CNInfo pacing schema drifted")
     request_count = cninfo.get("request_start_count")
@@ -5517,6 +5599,21 @@ def _validate_production_materialization_manifest(
         expected_cninfo_requests=expected_cninfo_requests,
         transport_retry_recorded=True,
     )
+    # The itemised 404/410 candidates and the pacing counter describe one fact.
+    cninfo_pacing = _mapping(
+        _mapping(manifest.get("request_pacing"), "materialization request_pacing").get(
+            "cninfo_pdf"
+        ),
+        "materialization CNInfo pacing",
+    )
+    unavailable_rows = sum(
+        isinstance(row, Mapping) and row.get("reason") == CNINFO_UNAVAILABLE_REASON
+        for row in layers.get("ineligible_candidates") or []
+    )
+    if cninfo_pacing.get("http_unavailable_count") != unavailable_rows:
+        raise HeldoutPreparationError(
+            "materialization unavailable-candidate evidence drifted"
+        )
     _validate_runtime_preflight_evidence(
         binding,
         manifest.get("runtime_start_preflight"),
@@ -5912,7 +6009,7 @@ def _validate_materialization_for_selection(
         url_value = row.get("url")
         parsed_url = urlparse(url_value) if isinstance(url_value, str) else None
         if (
-            reason not in {"pdf_text_below_min_char_gate", "pdf_exceeds_size_bound"}
+            reason not in set(CNINFO_DETERMINISTIC_INELIGIBLE_REASONS)
             or isinstance(measured, bool)
             or not isinstance(measured, int)
             or measured < 0
@@ -5945,6 +6042,14 @@ def _validate_materialization_for_selection(
             or (
                 reason == "pdf_exceeds_size_bound"
                 and (gate != maximum_pdf_bytes or measured <= gate)
+            )
+            or (
+                reason == CNINFO_UNAVAILABLE_REASON
+                and (
+                    gate != CNINFO_UNAVAILABLE_GATE_STATUS
+                    or measured not in CNINFO_UNAVAILABLE_HTTP_STATUSES
+                    or pdf_sha is not None
+                )
             )
         ):
             raise HeldoutPreparationError("materialization ineligible evidence drifted")
