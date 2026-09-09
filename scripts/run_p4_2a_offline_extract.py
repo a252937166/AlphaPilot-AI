@@ -49,7 +49,14 @@ EVAL_ROOT = Path("docs/phase4/eval")
 FROZEN_MAX_NEWS_ITEM_ID = 423
 FROZEN_EXPECTED_COUNT = 423
 EXPECTED_PURPOSE = "p4_news_event_extract"
-EXPECTED_TIMEOUT_SECONDS = 20.0
+# The registered per-request deadlines of the contracts this module serves: 20.0 s
+# for the round-3 development contract, 90.0 s for the v3 held-out contract, whose
+# platform has a measured 26.6 s tail. A closed set, not a scalar: a single value
+# silently becomes wrong the moment a contract legitimately pins a different one,
+# which is how a real INFER stage was spent discovering this. The contract's own
+# bytes are digest-pinned upstream, so this stays a drift check rather than the
+# registration of the value.
+ACCEPTED_TIMEOUT_SECONDS = frozenset({20.0, 90.0})
 EXPECTED_MAX_RETRIES = 0
 EXPECTED_MAX_TOKENS = 2_000
 SUPPORTED_SOURCES = frozenset({"akshare_ths", "cninfo", "sina_company_news"})
@@ -308,10 +315,45 @@ def _resolve_settings_model(settings: Settings, purpose: str) -> str | None:
     return model.strip() if isinstance(model, str) and model.strip() else None
 
 
+def _validate_platform_binding(contract: EventExtractContract, settings: Settings) -> None:
+    """Bind a contract that pins a platform rather than a public address.
+
+    Mirrors the extractor's own check deliberately: this module is a second entry
+    into the same call path, and a binding enforced in only one of them is not
+    enforced. Neither the address, the salt nor the digest appears in any message.
+    """
+    # Imported inside the function: this module sits in the frozen real-stage
+    # bootstrap's import chain, where a new top-level import moves the census.
+    import hmac
+
+    from alphapilot.llm import providers
+
+    if contract.provider is None and contract.endpoint_hmac_sha256 is None:
+        # A contract that pins neither an address nor a platform predates endpoint
+        # binding entirely. This is not a fail-open: the loader refuses such a
+        # contract for any version that has ever pinned one, so it cannot describe
+        # the held-out pass. The extractor's copy of this check reasons the same
+        # way, and the two must agree or the binding is enforced in only one entry
+        # into the same call path.
+        return
+    if contract.provider is None or contract.endpoint_hmac_sha256 is None:
+        raise OfflineExtractError("frozen contract pins a partial endpoint binding")
+    if contract.provider != providers.FRIDAY.name:
+        raise OfflineExtractError(
+            "frozen contract pins an endpoint binding for an unsupported provider"
+        )
+    try:
+        observed = providers.endpoint_binding_digest(settings)
+    except providers.ProviderConfigurationError as exc:
+        raise OfflineExtractError("platform endpoint binding is not configured") from exc
+    if not hmac.compare_digest(observed, contract.endpoint_hmac_sha256):
+        raise OfflineExtractError("configured platform endpoint differs from the frozen contract")
+
+
 def _validate_runtime_contract(contract: EventExtractContract, settings: Settings) -> None:
     if (
         contract.purpose != EXPECTED_PURPOSE
-        or contract.timeout != EXPECTED_TIMEOUT_SECONDS
+        or contract.timeout not in ACCEPTED_TIMEOUT_SECONDS
         or contract.max_tokens != EXPECTED_MAX_TOKENS
         or contract.max_retries != EXPECTED_MAX_RETRIES
         or contract.explicit_cache_enabled
@@ -336,8 +378,15 @@ def _validate_runtime_contract(contract: EventExtractContract, settings: Setting
             raise OfflineExtractError(
                 "Settings .env LLM endpoint differs from the frozen contract"
             )
-    if not raw_endpoint or not (settings.llm_api_key or "").strip():
-        raise OfflineExtractError("Settings .env does not contain a complete LLM configuration")
+        if not raw_endpoint or not (settings.llm_api_key or "").strip():
+            raise OfflineExtractError(
+                "Settings .env does not contain a complete LLM configuration"
+            )
+        return
+    # A contract that names no public endpoint must still be bound, never waved
+    # through: skipping the check here is the fail-open that lets a pass run
+    # against whatever address the environment happens to hold.
+    _validate_platform_binding(contract, settings)
 
 
 def _settings_from_project_env(project_root: Path) -> Settings:

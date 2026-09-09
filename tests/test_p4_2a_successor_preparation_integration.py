@@ -29,7 +29,7 @@ from scripts import prepare_p4_2a_v2_heldout as prepare
 from scripts import seal_p4_2a_v2_heldout_draft as seal
 
 RELEASE_REL = Path(
-    "docs/phase4/reports/P4.2a-successor-production-integration-v5-production-release-20260910.json"
+    "docs/phase4/reports/P4.2a-successor-production-integration-v6-production-release-20260910.json"
 )
 PREPARATION_STAGES = ("materialize", "infer", "select-blind", "seal-draft", "build-adjudication-ui")
 SYNTHETIC_EVIDENCE = {
