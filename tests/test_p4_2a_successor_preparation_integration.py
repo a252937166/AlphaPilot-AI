@@ -29,7 +29,7 @@ from scripts import prepare_p4_2a_v2_heldout as prepare
 from scripts import seal_p4_2a_v2_heldout_draft as seal
 
 RELEASE_REL = Path(
-    "docs/phase4/reports/P4.2a-successor-production-integration-v3-production-release-20260909.json"
+    "docs/phase4/reports/P4.2a-successor-production-integration-v4-production-release-20260909.json"
 )
 PREPARATION_STAGES = ("materialize", "infer", "select-blind", "seal-draft", "build-adjudication-ui")
 SYNTHETIC_EVIDENCE = {
@@ -772,6 +772,7 @@ def test_manifest_runtime_preflight_same_day_post_2200_record_still_passes(
         # Superseded successor manifest strings are retired with their evidence shapes.
         "p4.2a-successor-production-integration-v1-materialization-manifest-v1",
         "p4.2a-successor-production-integration-v2-materialization-manifest-v1",
+        "p4.2a-successor-production-integration-v3-materialization-manifest-v1",
     ),
 )
 def test_new_authority_does_not_accept_either_old_manifest_version(

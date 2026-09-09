@@ -64,6 +64,7 @@ _EXPECTED_RETRY_POLICY = {
         "max_pauses": 3,
     },
     "wall_clock_cap_seconds": 43200,
+    "unavailable_http_statuses": [404, 410],
 }
 
 
@@ -98,6 +99,8 @@ def _recorded_cninfo_pacing(
         "transport_retry_policy": copy.deepcopy(_EXPECTED_RETRY_POLICY),
         "retry_events": copy.deepcopy(retry_events),
         "pause_events": copy.deepcopy(pause_events or []),
+        "http_unavailable_count": 0,
+        "http_unavailable_events": [],
     }
 
 
@@ -1821,6 +1824,8 @@ def test_cninfo_start_pacer_has_no_first_delay_and_exact_monotonic_evidence() ->
         "transport_retry_policy": _EXPECTED_RETRY_POLICY,
         "retry_events": [],
         "pause_events": [],
+        "http_unavailable_count": 0,
+        "http_unavailable_events": [],
     }
 
 
@@ -2274,6 +2279,91 @@ def test_wall_clock_cap_fails_the_whole_materialization() -> None:
         paced("https://static.cninfo.com.cn/f/2.PDF", _test_pdf_policy())
 
 
+def test_cninfo_404_and_410_make_the_candidate_deterministically_ineligible() -> None:
+    """Owner decision 2026-09-09: a vanished announcement is a candidate property."""
+    monotonic, sleep, _sleeps = _stepping_clock()
+    pacer = runner._CninfoStartPacer(monotonic, sleep)
+    calls = 0
+
+    def fetch(url: str, _policy: gold_builder.AnnouncementBodyPolicy) -> bytes:
+        nonlocal calls
+        calls += 1
+        if "gone" in url:
+            raise gold_builder.GoldSampleError("CNInfo PDF returned non-success HTTP 404")
+        if "moved" in url:
+            raise gold_builder.GoldSampleError("CNInfo PDF returned non-success HTTP 410")
+        return b"%PDF-ok"
+
+    paced, _extract = runner._paced_pdf_boundaries(pacer, fetch, _unused_pdf_extractor)
+    policy = _test_pdf_policy()
+    for name, status in (("gone", 404), ("moved", 410)):
+        url = f"https://static.cninfo.com.cn/{name}.PDF"
+        with pytest.raises(gold_builder.CandidateDocumentIneligible) as raised:
+            paced(url, policy)
+        assert raised.value.reason == runner.CNINFO_UNAVAILABLE_REASON
+        assert raised.value.measured_value == status
+        assert raised.value.gate_value == runner.CNINFO_UNAVAILABLE_GATE_STATUS
+        assert raised.value.pdf_sha256 is None
+    # Materialization continues: the next candidate is fetched normally.
+    assert paced("https://static.cninfo.com.cn/ok.PDF", policy) == b"%PDF-ok"
+    assert calls == 3
+
+    evidence = pacer.evidence()
+    assert evidence["http_unavailable_count"] == 2
+    assert [event["http_status"] for event in evidence["http_unavailable_events"]] == [404, 410]
+    assert evidence["http_unavailable_events"][0]["url_sha256"] == common.sha256_bytes(
+        b"https://static.cninfo.com.cn/gone.PDF"
+    )
+    assert evidence["transport_retry_policy"]["unavailable_http_statuses"] == [404, 410]
+    assert evidence["retry_count"] == 0
+    runner._validate_request_pacing_evidence(
+        _pacing_evidence(evidence), expected_cninfo_requests=3, transport_retry_recorded=True
+    )
+
+
+@_parametrize("status", [400, 403, 429, 451, 500])
+def test_other_non_success_statuses_remain_fatal(status: int) -> None:
+    monotonic, sleep, _sleeps = _stepping_clock()
+    pacer = runner._CninfoStartPacer(monotonic, sleep)
+
+    def fetch(_url: str, _policy: gold_builder.AnnouncementBodyPolicy) -> bytes:
+        raise gold_builder.GoldSampleError(
+            f"CNInfo PDF returned non-success HTTP {status}"
+        )
+
+    paced, _extract = runner._paced_pdf_boundaries(pacer, fetch, _unused_pdf_extractor)
+    with pytest.raises(gold_builder.GoldSampleError, match=str(status)):
+        paced("https://static.cninfo.com.cn/f/9.PDF", _test_pdf_policy())
+    assert pacer.evidence()["http_unavailable_count"] == 0
+
+
+def test_gold_builder_still_formats_the_status_message_the_404_rule_matches() -> None:
+    """The 404/410 rule reads the frozen downloader's own message text."""
+    source = inspect.getsource(gold_builder.download_cninfo_pdf)
+    assert 'f"CNInfo PDF returned non-success HTTP {response.status_code}"' in source
+    for status in runner.CNINFO_UNAVAILABLE_HTTP_STATUSES:
+        assert runner._CNINFO_UNAVAILABLE_STATUS.fullmatch(
+            f"CNInfo PDF returned non-success HTTP {status}"
+        )
+    for status in (403, 500, 502):
+        assert (
+            runner._CNINFO_UNAVAILABLE_STATUS.fullmatch(
+                f"CNInfo PDF returned non-success HTTP {status}"
+            )
+            is None
+        )
+    # The frozen builder still declares only the two registered reasons; the third
+    # lives in the successor layer, which is exactly the recorded deviation.
+    assert gold_builder.MATERIALIZATION_INELIGIBLE_REASONS == (
+        "pdf_text_below_min_char_gate",
+        "pdf_exceeds_size_bound",
+    )
+    assert (
+        *gold_builder.MATERIALIZATION_INELIGIBLE_REASONS,
+        runner.CNINFO_UNAVAILABLE_REASON,
+    ) == runner.CNINFO_DETERMINISTIC_INELIGIBLE_REASONS
+
+
 def test_v2_shaped_retry_policy_is_no_longer_accepted() -> None:
     """A manifest recorded under the superseded three-attempt budget is refused."""
     expected = runner.EXPECTED_BY_SOURCE["cninfo"]
@@ -2300,10 +2390,10 @@ def test_v2_shaped_retry_policy_is_no_longer_accepted() -> None:
 def test_production_manifest_schema_version_comes_from_the_authority_constant() -> None:
     """The writer and the checker both read the bumped constant, never a literal."""
     assert authority.MATERIALIZATION_MANIFEST_SCHEMA == (
-        "p4.2a-successor-production-integration-v3-materialization-manifest-v1"
+        "p4.2a-successor-production-integration-v4-materialization-manifest-v1"
     )
     source = Path(runner.__file__).read_text(encoding="utf-8")
-    for retired in ("v1", "v2", "v3"):
+    for retired in ("v1", "v2", "v3", "v4"):
         assert f"successor-production-integration-{retired}-materialization-manifest" not in source
     writer = inspect.getsource(runner.run_materialize)
     assert (
@@ -2351,6 +2441,8 @@ def test_pacing_validators_accept_itemised_retries_and_reject_inconsistent_evide
     del legacy["transport_retry_policy"]
     del legacy["retry_events"]
     del legacy["pause_events"]
+    del legacy["http_unavailable_count"]
+    del legacy["http_unavailable_events"]
     runner._validate_request_pacing_evidence(
         _pacing_evidence(copy.deepcopy(legacy)),
         expected_cninfo_requests=expected,
@@ -2434,6 +2526,14 @@ def test_pacing_validators_accept_itemised_retries_and_reject_inconsistent_evide
             "window_stall_threshold", 10
         ),
         lambda value: value.pop("pause_events"),
+        lambda value: value.__setitem__("http_unavailable_count", 1),
+        lambda value: value.__setitem__(
+            "http_unavailable_events",
+            [{"url_sha256": "a" * 64, "http_status": 403, "monotonic_offset_seconds": 1.0}],
+        ),
+        lambda value: value["transport_retry_policy"].__setitem__(
+            "unavailable_http_statuses", [404]
+        ),
         lambda value: value["retry_events"][0].__setitem__("attempt", 0),
         lambda value: value["retry_events"][0].__setitem__("url_sha256", "not-a-digest"),
         lambda value: value["retry_events"][0].__setitem__("exception_type", "not a label"),
