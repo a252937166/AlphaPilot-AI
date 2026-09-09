@@ -15,12 +15,13 @@ import sys
 import tempfile
 import time
 import uuid
-from collections import Counter
+from collections import Counter, deque
 from collections.abc import Callable, Iterator, Mapping, Sequence
 from contextlib import contextmanager, suppress
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from functools import lru_cache
+from itertools import pairwise
 from pathlib import Path
 from typing import Any, NoReturn, cast
 from urllib.parse import urlparse
@@ -201,8 +202,21 @@ CNINFO_MIN_START_TO_START_SECONDS = 1.0
 # Owner decision 2026-09-08: a single CNInfo PDF download may be retried after a
 # transient transport failure. Candidate pool, request order, eligibility and the
 # inference stage's one-item-once-zero-retry rule are untouched.
-CNINFO_MAX_PDF_ATTEMPTS = 3
-CNINFO_RETRY_BACKOFF_SECONDS = (2.0, 4.0)
+# Owner decision 2026-09-09 (v3): the budget is widened after two real materialize
+# runs died on CNInfo withholding any HTTP response for 27-45% of requests at
+# several hours, on both the proxy and the direct path, independent of pacing.
+CNINFO_MAX_PDF_ATTEMPTS = 12
+CNINFO_RETRY_BACKOFF_SECONDS = (2.0, 4.0, 8.0, 15.0, 30.0, 30.0, 30.0, 60.0, 60.0, 60.0, 60.0)
+# Server-side stall breaker, settled by delegated decision D-8: a sliding window
+# over the outcomes of the last attempts across all PDFs, successes included. When
+# the window is full and at least this many outcomes were transport stalls, pause
+# once and carry on. A fourth trigger fails the materialization.
+CNINFO_STALL_PAUSE_WINDOW = 20
+CNINFO_STALL_PAUSE_WINDOW_STALLS = 15
+CNINFO_STALL_PAUSE_SECONDS = 600.0
+CNINFO_STALL_PAUSE_MAX = 3
+# Whole-materialization wall clock, measured from the first request start.
+CNINFO_MATERIALIZE_WALL_CLOCK_CAP_SECONDS = 43200
 CNINFO_RETRIED_ERROR_CLASSES = (
     "httpx.TransportError",
     "OSError",
@@ -2335,6 +2349,8 @@ class _CninfoStartPacer:
         self._sleep = sleep
         self._starts: list[float] = []
         self._retry_events: list[JsonObject] = []
+        self._pause_events: list[JsonObject] = []
+        self._window: deque[bool] = deque(maxlen=CNINFO_STALL_PAUSE_WINDOW)
 
     @staticmethod
     def _valid_clock_value(value: object) -> float:
@@ -2364,20 +2380,73 @@ class _CninfoStartPacer:
             raise HeldoutPreparationError("CNInfo pacing floor was not reached")
         self._starts.append(observed)
 
-    def backoff(self, seconds: float, *, url_sha256: str, attempt: int, label: str) -> None:
-        """Record one transport retry and wait before the next paced attempt."""
+    def _offset(self, observed: float) -> float:
+        return observed - self._starts[0] if self._starts else 0.0
+
+    def note_success(self) -> None:
+        """A completed fetch is one more outcome in the stall window."""
+        self._window.append(False)
+
+    def check_wall_clock(self) -> None:
+        """Refuse a further attempt once the whole materialization is out of time."""
+        if not self._starts:
+            return
         observed = self._valid_clock_value(self._monotonic())
-        self._retry_events.append(
+        if observed - self._starts[0] > CNINFO_MATERIALIZE_WALL_CLOCK_CAP_SECONDS:
+            raise HeldoutPreparationError(
+                "CNInfo materialization exceeded its wall-clock cap"
+            )
+
+    def record_stall(
+        self,
+        *,
+        url_sha256: str,
+        attempt: int,
+        label: str,
+        backoff_seconds: float | None,
+    ) -> bool:
+        """Record one transport stall; return True when a stall pause fired.
+
+        A stall that will be retried inside the current attempt budget is itemised
+        and followed by its backoff. The exhausting attempt is not itemised: it
+        either ends the materialization or is rescued by a pause, after which the
+        PDF starts a fresh budget.
+        """
+        self._window.append(True)
+        if backoff_seconds is not None:
+            observed = self._valid_clock_value(self._monotonic())
+            self._retry_events.append(
+                {
+                    "url_sha256": url_sha256,
+                    "attempt": attempt,
+                    "exception_type": label,
+                    "monotonic_offset_seconds": self._offset(observed),
+                }
+            )
+            self._sleep(backoff_seconds)
+        if (
+            len(self._window) < CNINFO_STALL_PAUSE_WINDOW
+            or sum(self._window) < CNINFO_STALL_PAUSE_WINDOW_STALLS
+        ):
+            return False
+        if len(self._pause_events) >= CNINFO_STALL_PAUSE_MAX:
+            raise HeldoutPreparationError(
+                "CNInfo stall pauses exhausted; the host is not serving this run"
+            )
+        paused_at = self._valid_clock_value(self._monotonic())
+        self._pause_events.append(
             {
-                "url_sha256": url_sha256,
-                "attempt": attempt,
-                "exception_type": label,
-                "monotonic_offset_seconds": observed - self._starts[0]
-                if self._starts
-                else 0.0,
+                "pause_index": len(self._pause_events) + 1,
+                "window_size": CNINFO_STALL_PAUSE_WINDOW,
+                "window_stalls": sum(self._window),
+                "pause_seconds": CNINFO_STALL_PAUSE_SECONDS,
+                "monotonic_offset_seconds": self._offset(paused_at),
+                "current_url_sha256": url_sha256,
             }
         )
-        self._sleep(seconds)
+        self._sleep(CNINFO_STALL_PAUSE_SECONDS)
+        self._window.clear()
+        return True
 
     def evidence(self) -> JsonObject:
         gaps = [
@@ -2404,8 +2473,16 @@ class _CninfoStartPacer:
                 "backoff_seconds": list(CNINFO_RETRY_BACKOFF_SECONDS),
                 "retried_error_classes": list(CNINFO_RETRIED_ERROR_CLASSES),
                 "non_retried": list(CNINFO_NON_RETRIED_FAILURES),
+                "stall_pause_policy": {
+                    "window_size": CNINFO_STALL_PAUSE_WINDOW,
+                    "window_stall_threshold": CNINFO_STALL_PAUSE_WINDOW_STALLS,
+                    "pause_seconds": CNINFO_STALL_PAUSE_SECONDS,
+                    "max_pauses": CNINFO_STALL_PAUSE_MAX,
+                },
+                "wall_clock_cap_seconds": CNINFO_MATERIALIZE_WALL_CLOCK_CAP_SECONDS,
             },
             "retry_events": [dict(event) for event in self._retry_events],
+            "pause_events": [dict(event) for event in self._pause_events],
         }
 
 
@@ -2436,28 +2513,43 @@ def _paced_pdf_boundaries(
         policy: gold_builder.AnnouncementBodyPolicy,
     ) -> bytes:
         url_sha256 = common.sha256_bytes(url.encode("utf-8"))
-        for attempt in range(1, CNINFO_MAX_PDF_ATTEMPTS + 1):
-            pacer.before_fetch()
-            try:
-                payload: bytes = pdf_fetcher(url, policy)
-                return payload
-            except gold_builder.CandidateDocumentIneligible as exc:
-                if exc.reason != "pdf_exceeds_size_bound":
-                    raise HeldoutPreparationError(
-                        f"unknown deterministic candidate reason: {exc.reason}"
-                    ) from exc
-                raise
-            except gold_builder.GoldSampleError as exc:
-                label = _retryable_download_failure(exc)
-                if label is None or attempt >= CNINFO_MAX_PDF_ATTEMPTS:
+        while True:
+            paused = False
+            for attempt in range(1, CNINFO_MAX_PDF_ATTEMPTS + 1):
+                pacer.check_wall_clock()
+                pacer.before_fetch()
+                try:
+                    payload: bytes = pdf_fetcher(url, policy)
+                    pacer.note_success()
+                    return payload
+                except gold_builder.CandidateDocumentIneligible as exc:
+                    if exc.reason != "pdf_exceeds_size_bound":
+                        raise HeldoutPreparationError(
+                            f"unknown deterministic candidate reason: {exc.reason}"
+                        ) from exc
                     raise
-                pacer.backoff(
-                    CNINFO_RETRY_BACKOFF_SECONDS[attempt - 1],
-                    url_sha256=url_sha256,
-                    attempt=attempt,
-                    label=label,
-                )
-        raise HeldoutPreparationError("CNInfo PDF retry budget was not enforced")
+                except gold_builder.GoldSampleError as exc:
+                    label = _retryable_download_failure(exc)
+                    if label is None:
+                        raise
+                    last_attempt = attempt >= CNINFO_MAX_PDF_ATTEMPTS
+                    paused = pacer.record_stall(
+                        url_sha256=url_sha256,
+                        attempt=attempt,
+                        label=label,
+                        backoff_seconds=(
+                            None if last_attempt else CNINFO_RETRY_BACKOFF_SECONDS[attempt - 1]
+                        ),
+                    )
+                    if paused:
+                        # D-8: the server was unavailable, not this PDF. Start a
+                        # fresh budget for the same URL; earlier attempts stay
+                        # itemised in their own segment.
+                        break
+                    if last_attempt:
+                        raise
+            if not paused:
+                raise HeldoutPreparationError("CNInfo PDF retry budget was not enforced")
 
     def checked_extract(
         pdf_bytes: bytes,
@@ -3597,8 +3689,20 @@ def _synthetic_production_materialization_fixture(
                             "backoff_seconds": list(CNINFO_RETRY_BACKOFF_SECONDS),
                             "retried_error_classes": list(CNINFO_RETRIED_ERROR_CLASSES),
                             "non_retried": list(CNINFO_NON_RETRIED_FAILURES),
+                            "stall_pause_policy": {
+                                "window_size": CNINFO_STALL_PAUSE_WINDOW,
+                                "window_stall_threshold": (
+                                    CNINFO_STALL_PAUSE_WINDOW_STALLS
+                                ),
+                                "pause_seconds": CNINFO_STALL_PAUSE_SECONDS,
+                                "max_pauses": CNINFO_STALL_PAUSE_MAX,
+                            },
+                            "wall_clock_cap_seconds": (
+                                CNINFO_MATERIALIZE_WALL_CLOCK_CAP_SECONDS
+                            ),
                         },
                         "retry_events": [],
+                        "pause_events": [],
                     }
                     if transport_retry_recorded
                     else {}
@@ -4949,6 +5053,76 @@ def _relative_artifact_path(binding: HeldoutBinding, name: str) -> str:
     return binding.artifacts[name].relative_to(binding.root).as_posix()
 
 
+def _valid_stall_pause_events(value: object) -> bool:
+    """Pauses are bounded, window-justified and ordered; they are not requests."""
+    if not isinstance(value, list) or len(value) > CNINFO_STALL_PAUSE_MAX:
+        return False
+    previous = 0.0
+    for index, event in enumerate(value, 1):
+        stalls = event.get("window_stalls") if isinstance(event, Mapping) else None
+        if (
+            not isinstance(event, Mapping)
+            or set(event)
+            != {
+                "pause_index",
+                "window_size",
+                "window_stalls",
+                "pause_seconds",
+                "monotonic_offset_seconds",
+                "current_url_sha256",
+            }
+            or isinstance(event.get("pause_index"), bool)
+            or event.get("pause_index") != index
+            or isinstance(event.get("window_size"), bool)
+            or event.get("window_size") != CNINFO_STALL_PAUSE_WINDOW
+            or isinstance(stalls, bool)
+            or not isinstance(stalls, int)
+            or not CNINFO_STALL_PAUSE_WINDOW_STALLS <= stalls <= CNINFO_STALL_PAUSE_WINDOW
+            or isinstance(event.get("pause_seconds"), bool)
+            or not isinstance(event.get("pause_seconds"), (int, float))
+            or float(cast(float, event["pause_seconds"])) != CNINFO_STALL_PAUSE_SECONDS
+            or not isinstance(event.get("current_url_sha256"), str)
+            or re.fullmatch(r"[0-9a-f]{64}", cast(str, event["current_url_sha256"])) is None
+            or isinstance(event.get("monotonic_offset_seconds"), bool)
+            or not isinstance(event.get("monotonic_offset_seconds"), (int, float))
+            or not math.isfinite(float(cast(float, event["monotonic_offset_seconds"])))
+            or float(cast(float, event["monotonic_offset_seconds"])) < previous
+        ):
+            return False
+        previous = float(cast(float, event["monotonic_offset_seconds"]))
+    return True
+
+
+def _valid_retry_attempt_segments(events: list[Any], pauses: list[Any]) -> bool:
+    """Each PDF's attempts run 1..k; a restart at 1 needs a pause naming that PDF."""
+    by_url: dict[str, list[tuple[int, float]]] = {}
+    for event in events:
+        by_url.setdefault(cast(str, event["url_sha256"]), []).append(
+            (cast(int, event["attempt"]), float(cast(float, event["monotonic_offset_seconds"])))
+        )
+    for url, entries in by_url.items():
+        segments: list[list[tuple[int, float]]] = []
+        for attempt, offset in entries:
+            if attempt == 1 or not segments:
+                segments.append([])
+            segments[-1].append((attempt, offset))
+        for segment in segments:
+            attempts = [attempt for attempt, _offset in segment]
+            if attempts != list(range(1, len(attempts) + 1)):
+                return False
+            if len(attempts) > CNINFO_MAX_PDF_ATTEMPTS - 1:
+                return False
+        for previous, following in pairwise(segments):
+            closed, opened = previous[-1][1], following[0][1]
+            if not any(
+                pause["current_url_sha256"] == url
+                and closed <= float(pause["monotonic_offset_seconds"]) <= opened
+                for pause in pauses
+            ):
+                return False
+    return True
+
+
 def _valid_transport_retry_evidence(
     cninfo: Mapping[str, Any],
     *,
@@ -4963,7 +5137,14 @@ def _valid_transport_retry_evidence(
     backoff = policy.get("backoff_seconds")
     if (
         set(policy)
-        != {"max_attempts_per_pdf", "backoff_seconds", "retried_error_classes", "non_retried"}
+        != {
+            "max_attempts_per_pdf",
+            "backoff_seconds",
+            "retried_error_classes",
+            "non_retried",
+            "stall_pause_policy",
+            "wall_clock_cap_seconds",
+        }
         or isinstance(policy.get("max_attempts_per_pdf"), bool)
         or policy.get("max_attempts_per_pdf") != CNINFO_MAX_PDF_ATTEMPTS
         or not isinstance(backoff, list)
@@ -4976,17 +5157,30 @@ def _valid_transport_retry_evidence(
         )
         or policy.get("retried_error_classes") != list(CNINFO_RETRIED_ERROR_CLASSES)
         or policy.get("non_retried") != list(CNINFO_NON_RETRIED_FAILURES)
+        or policy.get("stall_pause_policy")
+        != {
+            "window_size": CNINFO_STALL_PAUSE_WINDOW,
+            "window_stall_threshold": CNINFO_STALL_PAUSE_WINDOW_STALLS,
+            "pause_seconds": CNINFO_STALL_PAUSE_SECONDS,
+            "max_pauses": CNINFO_STALL_PAUSE_MAX,
+        }
+        or isinstance(policy.get("wall_clock_cap_seconds"), bool)
+        or policy.get("wall_clock_cap_seconds") != CNINFO_MATERIALIZE_WALL_CLOCK_CAP_SECONDS
     ):
+        return False
+    if not _valid_stall_pause_events(cninfo.get("pause_events")):
         return False
     # Every retry is itemised, and the budget bounds the total across all PDFs.
     if len(events) != retry_count:
         return False
     # Distinct PDFs are the request starts that were not themselves retries, and
     # each PDF may contribute at most MAX-1 retries.
+    pauses = cast(list[Any], cninfo.get("pause_events"))
     distinct_pdfs = request_count - retry_count
-    if distinct_pdfs < 0 or retry_count > (CNINFO_MAX_PDF_ATTEMPTS - 1) * distinct_pdfs:
+    if distinct_pdfs < 0 or retry_count > (CNINFO_MAX_PDF_ATTEMPTS - 1) * (
+        distinct_pdfs + len(pauses)
+    ):
         return False
-    attempts_by_url: dict[str, list[int]] = {}
     for event in events:
         if (
             not isinstance(event, Mapping)
@@ -5005,15 +5199,7 @@ def _valid_transport_retry_evidence(
             or float(cast(float, event["monotonic_offset_seconds"])) < 0.0
         ):
             return False
-        attempts_by_url.setdefault(cast(str, event["url_sha256"]), []).append(
-            cast(int, event["attempt"])
-        )
-    # One PDF's retries are attempts 1..k in order; nothing may be skipped or repeated.
-    return all(
-        attempts == list(range(1, len(attempts) + 1))
-        and len(attempts) <= CNINFO_MAX_PDF_ATTEMPTS - 1
-        for attempts in attempts_by_url.values()
-    )
+    return _valid_retry_attempt_segments(events, pauses)
 
 
 def _validate_request_pacing_evidence(
@@ -5053,7 +5239,7 @@ def _validate_request_pacing_evidence(
         "retry_count",
     }
     if transport_retry_recorded:
-        fields |= {"transport_retry_policy", "retry_events"}
+        fields |= {"transport_retry_policy", "retry_events", "pause_events"}
     if set(cninfo) != fields:
         raise HeldoutPreparationError("materialization CNInfo pacing schema drifted")
     request_count = cninfo.get("request_start_count")

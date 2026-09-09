@@ -41,8 +41,8 @@ _parametrize: Callable[..., Callable[[_TestCallable], _TestCallable]] = (
 
 
 _EXPECTED_RETRY_POLICY = {
-    "max_attempts_per_pdf": 3,
-    "backoff_seconds": [2.0, 4.0],
+    "max_attempts_per_pdf": 12,
+    "backoff_seconds": [2.0, 4.0, 8.0, 15.0, 30.0, 30.0, 30.0, 60.0, 60.0, 60.0, 60.0],
     "retried_error_classes": [
         "httpx.TransportError",
         "OSError",
@@ -57,6 +57,13 @@ _EXPECTED_RETRY_POLICY = {
         "http_status_other_than_502_503_504",
         "pdf_text_extraction_failure",
     ],
+    "stall_pause_policy": {
+        "window_size": 20,
+        "window_stall_threshold": 15,
+        "pause_seconds": 600.0,
+        "max_pauses": 3,
+    },
+    "wall_clock_cap_seconds": 43200,
 }
 
 
@@ -69,7 +76,10 @@ def _pacing_evidence(cninfo: dict[str, Any]) -> dict[str, Any]:
 
 
 def _recorded_cninfo_pacing(
-    *, pdf_count: int, retry_events: list[dict[str, Any]]
+    *,
+    pdf_count: int,
+    retry_events: list[dict[str, Any]],
+    pause_events: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     """Shaped like the real pacer records it: one request start per attempt."""
     request_count = pdf_count + len(retry_events)
@@ -87,6 +97,7 @@ def _recorded_cninfo_pacing(
         "retry_count": len(retry_events),
         "transport_retry_policy": copy.deepcopy(_EXPECTED_RETRY_POLICY),
         "retry_events": copy.deepcopy(retry_events),
+        "pause_events": copy.deepcopy(pause_events or []),
     }
 
 
@@ -1809,6 +1820,7 @@ def test_cninfo_start_pacer_has_no_first_delay_and_exact_monotonic_evidence() ->
         "retry_count": 0,
         "transport_retry_policy": _EXPECTED_RETRY_POLICY,
         "retry_events": [],
+        "pause_events": [],
     }
 
 
@@ -1899,9 +1911,9 @@ def test_exhausted_transport_retries_fail_the_whole_materialization() -> None:
     paced, _extract = runner._paced_pdf_boundaries(pacer, always_timeout, _unused_pdf_extractor)
     with pytest.raises(gold_builder.GoldSampleError, match="download failed"):
         paced("https://static.cninfo.com.cn/finalpage/2026-09-08/2.PDF", _test_pdf_policy())
-    assert attempts == runner.CNINFO_MAX_PDF_ATTEMPTS == 3
-    assert sleeps == [2.0, 4.0]
-    assert pacer.evidence()["retry_count"] == 2
+    assert attempts == runner.CNINFO_MAX_PDF_ATTEMPTS == 12
+    assert sleeps == list(runner.CNINFO_RETRY_BACKOFF_SECONDS)
+    assert pacer.evidence()["retry_count"] == 11
 
 
 @_parametrize(
@@ -2057,14 +2069,242 @@ def test_real_pacer_evidence_with_a_retry_passes_both_validators_unmodified(
         )
 
 
+def test_v3_budget_is_twelve_attempts_with_the_registered_backoff_schedule() -> None:
+    """Owner decision 2026-09-09: eleven retries per PDF on the registered ladder."""
+    assert runner.CNINFO_MAX_PDF_ATTEMPTS == 12
+    assert runner.CNINFO_RETRY_BACKOFF_SECONDS == (
+        2.0, 4.0, 8.0, 15.0, 30.0, 30.0, 30.0, 60.0, 60.0, 60.0, 60.0,
+    )
+    assert len(runner.CNINFO_RETRY_BACKOFF_SECONDS) == runner.CNINFO_MAX_PDF_ATTEMPTS - 1
+    assert evaluator.CNINFO_MAX_PDF_ATTEMPTS == runner.CNINFO_MAX_PDF_ATTEMPTS
+    assert evaluator.CNINFO_RETRY_BACKOFF_SECONDS == runner.CNINFO_RETRY_BACKOFF_SECONDS
+
+    monotonic, sleep, sleeps = _stepping_clock()
+    pacer = runner._CninfoStartPacer(monotonic, sleep)
+    attempts = 0
+
+    def fetch(_url: str, _policy: gold_builder.AnnouncementBodyPolicy) -> bytes:
+        nonlocal attempts
+        attempts += 1
+        if attempts < runner.CNINFO_MAX_PDF_ATTEMPTS:
+            raise _transport_failure(httpx.ReadTimeout("read timed out"))
+        return b"%PDF-late"
+
+    paced, _extract = runner._paced_pdf_boundaries(pacer, fetch, _unused_pdf_extractor)
+    assert paced("https://static.cninfo.com.cn/f/1.PDF", _test_pdf_policy()) == b"%PDF-late"
+    assert attempts == 12
+    assert sleeps == list(runner.CNINFO_RETRY_BACKOFF_SECONDS)
+    evidence = pacer.evidence()
+    assert evidence["retry_count"] == 11
+    assert [event["attempt"] for event in evidence["retry_events"]] == list(range(1, 12))
+    assert evidence["pause_events"] == []
+    runner._validate_request_pacing_evidence(
+        _pacing_evidence(evidence), expected_cninfo_requests=1, transport_retry_recorded=True
+    )
+
+
+def _stalling_fetcher(stalls_per_url: int) -> Callable[..., bytes]:
+    """Each URL stalls a fixed number of times, then succeeds."""
+    seen: dict[str, int] = {}
+
+    def fetch(url: str, _policy: gold_builder.AnnouncementBodyPolicy) -> bytes:
+        seen[url] = seen.get(url, 0) + 1
+        if seen[url] <= stalls_per_url:
+            raise _transport_failure(httpx.ReadTimeout("read timed out"))
+        return b"%PDF-ok"
+
+    return fetch
+
+
+def test_stall_pause_fires_on_the_sliding_window_and_restarts_the_current_pdf() -> None:
+    """D-8: 15 stalls in the last 20 attempts pause once; the PDF starts over."""
+    monotonic, sleep, sleeps = _stepping_clock()
+    pacer = runner._CninfoStartPacer(monotonic, sleep)
+    paced, _extract = runner._paced_pdf_boundaries(
+        pacer, _stalling_fetcher(3), _unused_pdf_extractor
+    )
+    policy = _test_pdf_policy()
+    documents = 6
+    urls = [f"https://static.cninfo.com.cn/f/{index}.PDF" for index in range(documents)]
+    for url in urls:
+        assert paced(url, policy) == b"%PDF-ok"
+
+    evidence = pacer.evidence()
+    assert len(evidence["pause_events"]) == 1
+    pause = evidence["pause_events"][0]
+    assert pause["pause_index"] == 1
+    assert pause["window_size"] == runner.CNINFO_STALL_PAUSE_WINDOW == 20
+    assert pause["window_stalls"] >= runner.CNINFO_STALL_PAUSE_WINDOW_STALLS == 15
+    assert pause["pause_seconds"] == runner.CNINFO_STALL_PAUSE_SECONDS == 600.0
+    # The pause names the PDF that was being fetched when it fired.
+    assert pause["current_url_sha256"] == common.sha256_bytes(urls[-1].encode("utf-8"))
+    assert runner.CNINFO_STALL_PAUSE_SECONDS in sleeps
+
+    # That PDF restarted its budget: its attempts are two segments, each from 1.
+    attempts = [
+        event["attempt"]
+        for event in evidence["retry_events"]
+        if event["url_sha256"] == pause["current_url_sha256"]
+    ]
+    assert attempts == [1, 1, 2]
+    assert evidence["request_start_count"] == documents + evidence["retry_count"]
+
+    runner._validate_request_pacing_evidence(
+        _pacing_evidence(copy.deepcopy(evidence)),
+        expected_cninfo_requests=documents,
+        transport_retry_recorded=True,
+    )
+
+
+def test_real_pacer_evidence_with_retries_and_pauses_passes_both_validators(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The unmodified real-pacer evidence, pause included, satisfies both sides."""
+    monotonic, sleep, sleeps = _stepping_clock()
+    pacer = runner._CninfoStartPacer(monotonic, sleep)
+    paced, _extract = runner._paced_pdf_boundaries(
+        pacer, _stalling_fetcher(3), _unused_pdf_extractor
+    )
+    documents = 6
+    for index in range(documents):
+        paced(f"https://static.cninfo.com.cn/f/{index}.PDF", _test_pdf_policy())
+    evidence = pacer.evidence()
+    assert len(evidence["pause_events"]) == 1
+    assert runner.CNINFO_STALL_PAUSE_SECONDS in sleeps
+
+    runner._validate_request_pacing_evidence(
+        _pacing_evidence(copy.deepcopy(evidence)),
+        expected_cninfo_requests=documents,
+        transport_retry_recorded=True,
+    )
+    monkeypatch.setitem(evaluator.EXPECTED_RAW_BY_SOURCE, "cninfo", documents)
+    evaluator._validate_request_pacing(
+        _pacing_evidence(copy.deepcopy(evidence)), transport_retry_recorded=True
+    )
+
+    # A restart at attempt 1 with no pause to justify it is refused by both.
+    forged = copy.deepcopy(evidence)
+    forged["pause_events"] = []
+    with pytest.raises(runner.HeldoutPreparationError, match="CNInfo pacing"):
+        runner._validate_request_pacing_evidence(
+            _pacing_evidence(forged),
+            expected_cninfo_requests=documents,
+            transport_retry_recorded=True,
+        )
+    with pytest.raises(evaluator.HeldoutEvaluationError, match="pacing"):
+        evaluator._validate_request_pacing(
+            _pacing_evidence(copy.deepcopy(forged)), transport_retry_recorded=True
+        )
+
+
+def test_no_pause_below_the_window_threshold_and_the_window_clears_after_one() -> None:
+    """Fourteen stalls in twenty attempts is not enough; the window then resets."""
+    monotonic, sleep, sleeps = _stepping_clock()
+    pacer = runner._CninfoStartPacer(monotonic, sleep)
+    paced, _extract = runner._paced_pdf_boundaries(
+        pacer, _stalling_fetcher(2), _unused_pdf_extractor
+    )
+    # Two stalls then a success per PDF is 2/3 stalls - below 15/20.
+    for index in range(10):
+        paced(f"https://static.cninfo.com.cn/g/{index}.PDF", _test_pdf_policy())
+    assert pacer.evidence()["pause_events"] == []
+    assert runner.CNINFO_STALL_PAUSE_SECONDS not in sleeps
+
+    # After a pause the window is cleared, so the next pause needs a fresh 15/20.
+    cleared_monotonic, cleared_sleep, _cleared_sleeps = _stepping_clock()
+    cleared = runner._CninfoStartPacer(cleared_monotonic, cleared_sleep)
+    cleared.before_fetch()
+    for index in range(runner.CNINFO_STALL_PAUSE_WINDOW):
+        assert (
+            cleared.record_stall(
+                url_sha256=common.sha256_bytes(f"h{index // 11}".encode()),
+                attempt=index % 11 + 1,
+                label="httpx.ReadTimeout",
+                backoff_seconds=2.0,
+            )
+            is (index == runner.CNINFO_STALL_PAUSE_WINDOW - 1)
+        )
+    assert len(cleared.evidence()["pause_events"]) == 1
+    # The very next stall cannot pause again: the window holds one outcome.
+    assert (
+        cleared.record_stall(
+            url_sha256="f" * 64, attempt=1, label="OSError", backoff_seconds=2.0
+        )
+        is False
+    )
+
+
+def test_fourth_stall_pause_fails_the_whole_materialization() -> None:
+    monotonic, sleep, _sleeps = _stepping_clock()
+    pacer = runner._CninfoStartPacer(monotonic, sleep)
+    pacer.before_fetch()
+    window = runner.CNINFO_STALL_PAUSE_WINDOW
+    with pytest.raises(runner.HeldoutPreparationError, match="stall pauses exhausted"):
+        for index in range(window * (runner.CNINFO_STALL_PAUSE_MAX + 1)):
+            pacer.record_stall(
+                url_sha256=common.sha256_bytes(f"i{index // 11}".encode()),
+                attempt=index % 11 + 1,
+                label="httpx.ReadTimeout",
+                backoff_seconds=2.0,
+            )
+    assert len(pacer.evidence()["pause_events"]) == runner.CNINFO_STALL_PAUSE_MAX
+
+
+def test_wall_clock_cap_fails_the_whole_materialization() -> None:
+    """The cap is measured from the first request start, before each attempt."""
+    assert runner.CNINFO_MATERIALIZE_WALL_CLOCK_CAP_SECONDS == 43200
+    now = 0.0
+
+    def monotonic() -> float:
+        nonlocal now
+        now += runner.CNINFO_MATERIALIZE_WALL_CLOCK_CAP_SECONDS / 4
+        return now
+
+    def sleep(duration: float) -> None:
+        nonlocal now
+        now += duration
+
+    pacer = runner._CninfoStartPacer(monotonic, sleep)
+
+    def always_stall(_url: str, _policy: gold_builder.AnnouncementBodyPolicy) -> bytes:
+        raise _transport_failure(httpx.ReadTimeout("read timed out"))
+
+    paced, _extract = runner._paced_pdf_boundaries(pacer, always_stall, _unused_pdf_extractor)
+    with pytest.raises(runner.HeldoutPreparationError, match="wall-clock cap"):
+        paced("https://static.cninfo.com.cn/f/2.PDF", _test_pdf_policy())
+
+
+def test_v2_shaped_retry_policy_is_no_longer_accepted() -> None:
+    """A manifest recorded under the superseded three-attempt budget is refused."""
+    expected = runner.EXPECTED_BY_SOURCE["cninfo"]
+    v2_shaped = _recorded_cninfo_pacing(pdf_count=expected, retry_events=[])
+    v2_shaped["transport_retry_policy"] = {
+        "max_attempts_per_pdf": 3,
+        "backoff_seconds": [2.0, 4.0],
+        "retried_error_classes": list(runner.CNINFO_RETRIED_ERROR_CLASSES),
+        "non_retried": list(runner.CNINFO_NON_RETRIED_FAILURES),
+    }
+    del v2_shaped["pause_events"]
+    with pytest.raises(runner.HeldoutPreparationError, match="CNInfo pacing"):
+        runner._validate_request_pacing_evidence(
+            _pacing_evidence(copy.deepcopy(v2_shaped)),
+            expected_cninfo_requests=expected,
+            transport_retry_recorded=True,
+        )
+    with pytest.raises(evaluator.HeldoutEvaluationError, match="pacing"):
+        evaluator._validate_request_pacing(
+            _pacing_evidence(copy.deepcopy(v2_shaped)), transport_retry_recorded=True
+        )
+
+
 def test_production_manifest_schema_version_comes_from_the_authority_constant() -> None:
     """The writer and the checker both read the bumped constant, never a literal."""
     assert authority.MATERIALIZATION_MANIFEST_SCHEMA == (
-        "p4.2a-successor-production-integration-v2-materialization-manifest-v1"
+        "p4.2a-successor-production-integration-v3-materialization-manifest-v1"
     )
     source = Path(runner.__file__).read_text(encoding="utf-8")
-    assert "successor-production-integration-v1-materialization-manifest" not in source
-    assert "successor-production-integration-v2-materialization-manifest" not in source
+    for retired in ("v1", "v2", "v3"):
+        assert f"successor-production-integration-{retired}-materialization-manifest" not in source
     writer = inspect.getsource(runner.run_materialize)
     assert (
         'manifest["schema_version"] = production_authority.MATERIALIZATION_MANIFEST_SCHEMA'
@@ -2110,6 +2350,7 @@ def test_pacing_validators_accept_itemised_retries_and_reject_inconsistent_evide
     legacy = _recorded_cninfo_pacing(pdf_count=expected, retry_events=[])
     del legacy["transport_retry_policy"]
     del legacy["retry_events"]
+    del legacy["pause_events"]
     runner._validate_request_pacing_evidence(
         _pacing_evidence(copy.deepcopy(legacy)),
         expected_cninfo_requests=expected,
@@ -2153,7 +2394,46 @@ def test_pacing_validators_accept_itemised_retries_and_reject_inconsistent_evide
         ),
         lambda value: value["retry_events"][0].__setitem__("attempt", 2),
         lambda value: value.__setitem__("retry_events", []),
-        lambda value: value["retry_events"][0].__setitem__("attempt", 3),
+        lambda value: value["retry_events"][0].__setitem__(
+            "attempt", runner.CNINFO_MAX_PDF_ATTEMPTS
+        ),
+        lambda value: value.__setitem__(
+            "pause_events",
+            [
+                {
+                    "pause_index": 1,
+                    "window_size": 20,
+                    "window_stalls": 14,
+                    "current_url_sha256": "a" * 64,
+                    "pause_seconds": 600.0,
+                    "monotonic_offset_seconds": 1.0,
+                }
+            ],
+        ),
+        lambda value: value.__setitem__(
+            "pause_events",
+            [
+                {
+                    "pause_index": index,
+                    "window_size": 20,
+                    "window_stalls": 15,
+                    "current_url_sha256": "a" * 64,
+                    "pause_seconds": 600.0,
+                    "monotonic_offset_seconds": float(index),
+                }
+                for index in range(1, runner.CNINFO_STALL_PAUSE_MAX + 2)
+            ],
+        ),
+        lambda value: value["transport_retry_policy"].__setitem__(
+            "wall_clock_cap_seconds", 1
+        ),
+        lambda value: value["transport_retry_policy"]["stall_pause_policy"].__setitem__(
+            "max_pauses", 4
+        ),
+        lambda value: value["transport_retry_policy"]["stall_pause_policy"].__setitem__(
+            "window_stall_threshold", 10
+        ),
+        lambda value: value.pop("pause_events"),
         lambda value: value["retry_events"][0].__setitem__("attempt", 0),
         lambda value: value["retry_events"][0].__setitem__("url_sha256", "not-a-digest"),
         lambda value: value["retry_events"][0].__setitem__("exception_type", "not a label"),
@@ -2185,7 +2465,9 @@ def test_pacing_validators_accept_itemised_retries_and_reject_inconsistent_evide
     # The budget bounds the total retries across every PDF in the run.
     over_budget = _recorded_cninfo_pacing(
         pdf_count=1,
-        retry_events=[dict(event, attempt=1), dict(event, attempt=2), dict(event, attempt=3)],
+        retry_events=[
+            dict(event, attempt=index) for index in range(1, runner.CNINFO_MAX_PDF_ATTEMPTS + 1)
+        ],
     )
     with pytest.raises(runner.HeldoutPreparationError, match="CNInfo pacing"):
         runner._validate_request_pacing_evidence(

@@ -26,27 +26,27 @@ from scripts import prepare_p4_2a_v2_heldout as prepare
 
 ROOT = Path(__file__).resolve().parents[1]
 RELEASE_PATH = Path(
-    "docs/phase4/reports/P4.2a-successor-production-integration-v2-production-release-20260908.json"
+    "docs/phase4/reports/P4.2a-successor-production-integration-v3-production-release-20260909.json"
 )
 SCHEMA_PATH = Path(
-    "config/schemas/p4_2a_successor_production_integration_v2_release_authorization.schema.json"
+    "config/schemas/p4_2a_successor_production_integration_v3_release_authorization.schema.json"
 )
 SUPERSEDED_RELEASE_PATH = Path(
-    "docs/phase4/reports/P4.2a-successor-production-integration-v1-production-release-20260907.json"
+    "docs/phase4/reports/P4.2a-successor-production-integration-v2-production-release-20260908.json"
 )
-SUPERSEDED_RELEASE_SHA = "5cd8401b1c35afa865c64c1d2a835a09b79fe68aabdfb9a8eacad85c0001ad48"
+SUPERSEDED_RELEASE_SHA = "f34ef195700760ced01efd4af913a9f50f58ab9272a4d93567a9df4ca5eafee6"
 EXCEPTION_PATH = Path(
-    "docs/phase4/reports/"
-    "P4.2a-successor-production-integration-v2-owner-backup-window-exception-20260908.json"
+    "docs/phase4/reports/P4.2a-successor-production-integration-v3"
+    "-owner-download-retry-budget-exception-20260909.json"
 )
-SUPERSEDED_RELEASE_COMMIT = "06d1ffbb37a06ea89248b1181af8a63afe1bd3dc"
+SUPERSEDED_RELEASE_COMMIT = "3a4b79062ccc6a3d27e674a10b56ed2ba84ab74f"
 MODULE_PATH = Path("scripts/p4_2a_successor_production_authority.py")
 PREPARE_PATH = Path("scripts/prepare_p4_2a_v2_heldout.py")
 EVALUATE_PATH = Path("scripts/evaluate_p4_2a_v2_heldout.py")
-PREPARE_TARGET_SHA = "35e9e2c445f7b67f008a4429017e89db99adb29a20dea89111a321d9bc7f843f"
-PREPARE_BASE_SHA = "fdcb7fc9063b563ca02fcd630f36e450c1dd04d5b99aa9b2811c11c81eaba1d5"
-PREPARE_PATCH_SHA = "e903bf8626fa476bf9f777dad16f7ff85e2d15299718110be6e49449221d810c"
-BASE_HEAD = "9eb06d6a473481aef47fc950f35e96f1e8981660"
+PREPARE_TARGET_SHA = "bd9c28c997c1c039dff248dd89a754914a08758063a5f06b64458ff63a0a5bb5"
+PREPARE_BASE_SHA = "35e9e2c445f7b67f008a4429017e89db99adb29a20dea89111a321d9bc7f843f"
+PREPARE_PATCH_SHA = "e193c91c14494d1a7d41c7166929118a098a274919ec7f9d1051d390f140e802"
+BASE_HEAD = "3efa8fb905f5217adcf775e2c9bc0102aea40d99"
 IMPLEMENTATION_FILES = (
     PREPARE_PATH,
     EVALUATE_PATH,
@@ -248,12 +248,12 @@ def test_release_schema_is_closed_and_keeps_the_owner_day_as_a_pattern() -> None
     assert schema["additionalProperties"] is False
     assert schema["$id"] == (
         "https://alphapilot.local/schemas/"
-        "p4_2a_successor_production_integration_v2_release_authorization.schema.json"
+        "p4_2a_successor_production_integration_v3_release_authorization.schema.json"
     )
     identity = schema["properties"]["authorization_id"]
     assert "pattern" in identity and "const" not in identity
     assert schema["properties"]["verdict"]["const"] == (
-        "APPROVE_SUCCESSOR_PRODUCTION_INTEGRATION_V2_HELDOUT_PREPARATION_ONLY"
+        "APPROVE_SUCCESSOR_PRODUCTION_INTEGRATION_V3_HELDOUT_PREPARATION_ONLY"
     )
     assert schema["properties"]["authorized_stages"]["const"] == list(PREPARATION_STAGES)
     assert "supersedes" in schema["required"]
@@ -280,7 +280,7 @@ def _relaxed_runtime_start_policy(prereg: dict[str, Any]) -> dict[str, Any]:
 def _structural_release_document() -> dict[str, Any]:
     """An explicitly fictional schema example, not a valid authority fixture."""
     prefix = "docs/phase4/reports/P4.2a-successor-production-integration-v1-"
-    v2_prefix = "docs/phase4/reports/P4.2a-successor-production-integration-v2-"
+    v3_prefix = "docs/phase4/reports/P4.2a-successor-production-integration-v3-"
     prereg = json.loads((ROOT / (prefix + "preregistration-20260907.json")).read_text())
     sample_ref = {"path": "/synthetic-authority-test/evidence.json", "sha256": "1" * 64, "bytes": 1}
     sample_source = {
@@ -310,7 +310,7 @@ def _structural_release_document() -> dict[str, Any]:
         "preregistration": authority_ref(prefix + "preregistration-20260907.json"),
         "release_schema": {"path": SCHEMA_PATH.as_posix(), "sha256": "6" * 64, "bytes": 1},
         "owner_exception": authority_ref(
-            v2_prefix + "owner-backup-window-exception-20260908.json"
+            v3_prefix + "owner-download-retry-budget-exception-20260909.json"
         ),
         "h0_evidence_acceptance": authority_ref(
             "docs/phase4/reports/P4.2a-v2-heldout-rehearsal-v2-2-release-authorization-20260811.json"
@@ -342,11 +342,11 @@ def _structural_release_document() -> dict[str, Any]:
         "max_inference_attempts_per_item": 1,
     }
     return {
-        "schema_version": "p4.2a-successor-production-integration-v2-production-release",
-        "authorization_id": "P4.2A-SUCCESSOR-PRODUCTION-INTEGRATION-V2-PRODUCTION-RELEASE-20260908",
-        "verdict": "APPROVE_SUCCESSOR_PRODUCTION_INTEGRATION_V2_HELDOUT_PREPARATION_ONLY",
-        "created_at_utc": "2026-09-08T01:00:00Z",
-        "created_at_shanghai": "2026-09-08T09:00:00+08:00",
+        "schema_version": "p4.2a-successor-production-integration-v3-production-release",
+        "authorization_id": "P4.2A-SUCCESSOR-PRODUCTION-INTEGRATION-V3-PRODUCTION-RELEASE-20260909",
+        "verdict": "APPROVE_SUCCESSOR_PRODUCTION_INTEGRATION_V3_HELDOUT_PREPARATION_ONLY",
+        "created_at_utc": "2026-09-09T01:00:00Z",
+        "created_at_shanghai": "2026-09-09T09:00:00+08:00",
         "reviewed_repository_head": "8" * 40,
         "owner_decision_source": sample_source,
         "owner_identity": "ouyang",
@@ -356,7 +356,7 @@ def _structural_release_document() -> dict[str, Any]:
             "still_gated": copy.deepcopy(prereg["still_gated"]),
         },
         "independent_implementation_review_ref": authority_ref(
-            v2_prefix + "independent-implementation-review-20260908.json"
+            v3_prefix + "independent-implementation-review-20260909.json"
         ),
         "reviewer": reviewer,
         "lineage": lineage,
@@ -444,10 +444,10 @@ def test_schema_example_is_not_execution_authority(tmp_path: Path) -> None:
         ("verdict", "APPROVE_ALL_REAL_STAGES"),
         (
             "authorization_id",
-            "P4.2A-SUCCESSOR-PRODUCTION-INTEGRATION-V2-PRODUCTION-RELEASE-2026-09-08",
+            "P4.2A-SUCCESSOR-PRODUCTION-INTEGRATION-V3-PRODUCTION-RELEASE-2026-09-09",
         ),
-        ("created_at_utc", "2026-09-08T09:00:00+08:00"),
-        ("created_at_shanghai", "2026-09-08T01:00:00Z"),
+        ("created_at_utc", "2026-09-09T09:00:00+08:00"),
+        ("created_at_shanghai", "2026-09-09T01:00:00Z"),
         ("owner_identity", "operator"),
         ("authorized_stages", ["infer", "heldout-evaluation"]),
         ("still_gated", []),
@@ -500,11 +500,11 @@ def test_schema_rejects_extra_fields_and_duplicated_or_missing_registered_checks
 def test_owner_issuance_day_is_not_backdated_by_a_schema_constant() -> None:
     document = _structural_release_document()
     document["authorization_id"] = (
-        "P4.2A-SUCCESSOR-PRODUCTION-INTEGRATION-V2-PRODUCTION-RELEASE-20260909"
+        "P4.2A-SUCCESSOR-PRODUCTION-INTEGRATION-V3-PRODUCTION-RELEASE-20260910"
     )
-    document["created_at_utc"] = "2026-09-09T01:00:00Z"
-    document["created_at_shanghai"] = "2026-09-09T09:00:00+08:00"
-    document["owner_decision_source"]["observed_at_utc"] = "2026-09-09T00:59:00Z"
+    document["created_at_utc"] = "2026-09-10T01:00:00Z"
+    document["created_at_shanghai"] = "2026-09-10T09:00:00+08:00"
+    document["owner_decision_source"]["observed_at_utc"] = "2026-09-10T00:59:00Z"
     _schema_validator().validate(document)
 
 
@@ -567,7 +567,7 @@ def implementation_fixture(tmp_path_factory: pytest.TempPathFactory) -> tuple[Pa
     ]
     changes.sort(key=lambda row: row["path"])
     manifest = {
-        "schema_version": "p4.2a-successor-production-integration-v2-build-manifest",
+        "schema_version": "p4.2a-successor-production-integration-v3-build-manifest",
         "implementation_commit": implementation_commit,
         "source_closure": closure,
         "changed_paths": changes,
@@ -982,7 +982,7 @@ def test_frozen_real_stage_bootstrap_shape_passes_the_runtime_origin_census() ->
     }
 
 
-def test_registered_change_surface_is_exactly_the_reviewed_v2_file_set() -> None:
+def test_registered_change_surface_is_exactly_the_reviewed_v3_file_set() -> None:
     expected_changes = {
         PREPARE_PATH.as_posix(): "M",
         EVALUATE_PATH.as_posix(): "M",
@@ -1093,8 +1093,8 @@ def test_prepare_patch_identity_is_stable_and_recorded() -> None:
     assert _prepare_patch(authority.BASE_COMMIT, _git(ROOT, "rev-parse", "HEAD")) == patch
 
 
-def test_owner_backup_window_exception_is_the_registered_v2_lineage() -> None:
-    """The v2 patch and the preregistration deviation are owner-recorded."""
+def test_owner_download_retry_budget_exception_is_the_registered_v3_lineage() -> None:
+    """The v3 patch and the preregistration deviation are owner-recorded."""
     assert EXCEPTION_PATH.as_posix() == authority.EXCEPTION_RELATIVE
     assert authority.EXCEPTION_COMMIT == authority.BASE_COMMIT
     payload = (ROOT / EXCEPTION_PATH).read_bytes()
@@ -1102,8 +1102,8 @@ def test_owner_backup_window_exception_is_the_registered_v2_lineage() -> None:
     document = json.loads(payload.decode("utf-8"))
     assert document["registered_path"] == EXCEPTION_PATH.as_posix()
     assert document["verdict"] == (
-        "AUTHORIZE_SUCCESSOR_PRODUCTION_INTEGRATION_V2"
-        "_BACKUP_WINDOW_AND_DOWNLOAD_RETRY_RELAXATION_IMPLEMENTATION_ONLY"
+        "AUTHORIZE_SUCCESSOR_PRODUCTION_INTEGRATION_V3"
+        "_DOWNLOAD_RETRY_BUDGET_IMPLEMENTATION_ONLY"
     )
     assert document["authorized_stages"] == []
     for locked in ("heldout_evaluation_authorized", "real_preparation_authorized"):
@@ -1123,10 +1123,7 @@ def test_owner_backup_window_exception_is_the_registered_v2_lineage() -> None:
 
     # Both owner decisions of 2026-09-08 are recorded, each with its own source.
     decisions = {entry["decision_id"]: entry for entry in document["owner_decisions"]}
-    assert set(decisions) == {
-        "real_stage_backup_window_relaxation",
-        "cninfo_download_retry_and_combined_landing",
-    }
+    assert set(decisions) == {"cninfo_download_retry_budget_v3"}
     for decision in decisions.values():
         assert decision["identity"] == "ouyang"
         assert decision["verbatim_bytes"] == len(decision["verbatim"].encode("utf-8"))
@@ -1137,25 +1134,17 @@ def test_owner_backup_window_exception_is_the_registered_v2_lineage() -> None:
 
     deviations = {entry["json_pointer"]: entry for entry in document["preregistration_deviations"]}
     assert set(deviations) == {
-        "/runtime_start_policy",
-        "/eligibility_and_sampling/transient_download_or_extraction_failure",
+        "/eligibility_and_sampling/transient_download_or_extraction_failure"
     }
-
-    backup = deviations["/runtime_start_policy"]
-    assert backup["every_other_key_unchanged"] is True
-    assert backup["decided_values"] == authority._RELAXED_RUNTIME_START_POLICY
-    registered = json.loads(
-        (ROOT / (authority.PREFIX + "preregistration-20260907.json")).read_text(encoding="utf-8")
-    )["runtime_start_policy"]
-    assert backup["registered_values"] == {
-        key: registered[key] for key in backup["decided_values"]
-    }
-    assert backup["preregistration_ref"]["sha256"] == authority.PREREG_SHA
-    assert backup["preregistration_ref"]["creating_commit"] == authority.PREREG_COMMIT
-    assert backup["decision_source"] == decisions["real_stage_backup_window_relaxation"]
-
     retry = deviations["/eligibility_and_sampling/transient_download_or_extraction_failure"]
-    assert retry["decision_source"] == decisions["cninfo_download_retry_and_combined_landing"]
+    assert retry["decision_source"] == decisions["cninfo_download_retry_budget_v3"]
+    # The widened budget replaces the v2 entry rather than standing beside it.
+    superseded = retry["supersedes_deviation"]
+    assert superseded["path"] == authority.SUPERSEDED_EXCEPTION_RELATIVE
+    assert superseded["sha256"] == authority.SUPERSEDED_EXCEPTION_SHA
+    assert superseded["creating_commit"] == authority.SUPERSEDED_EXCEPTION_COMMIT
+    assert superseded["json_pointer"] == retry["json_pointer"]
+    assert superseded["decided_value"] != retry["decided_value"]
     heldout_prereg = json.loads(
         (ROOT / retry["preregistration_ref"]["path"]).read_text(encoding="utf-8")
     )
@@ -1167,8 +1156,22 @@ def test_owner_backup_window_exception_is_the_registered_v2_lineage() -> None:
     )
     assert retry["decided_value"] != retry["registered_value"]
     parameters = retry["retry_parameters"]
-    assert parameters["max_attempts_per_pdf"] == prepare.CNINFO_MAX_PDF_ATTEMPTS == 3
-    assert parameters["backoff_seconds"] == list(prepare.CNINFO_RETRY_BACKOFF_SECONDS) == [2.0, 4.0]
+    assert parameters["max_attempts_per_pdf"] == prepare.CNINFO_MAX_PDF_ATTEMPTS == 12
+    assert parameters["backoff_seconds"] == list(prepare.CNINFO_RETRY_BACKOFF_SECONDS)
+    assert parameters["stall_pause_policy"] == {
+        "max_pauses": prepare.CNINFO_STALL_PAUSE_MAX,
+        "pause_seconds": prepare.CNINFO_STALL_PAUSE_SECONDS,
+        "window_size": prepare.CNINFO_STALL_PAUSE_WINDOW,
+        "window_stall_threshold": prepare.CNINFO_STALL_PAUSE_WINDOW_STALLS,
+    }
+    # D-8 settled the trigger; the document records it as the reviewer's words.
+    settled = document["reviewer_settled_details"]["D-8"]
+    assert settled["reviewer_words_not_owner_words"] is True
+    assert _sha((Path(settled["path"])).read_bytes()) == settled["sha256"]
+    assert settled["decision"]["trigger"].startswith("sliding window")
+    assert parameters["wall_clock_cap_seconds"] == (
+        prepare.CNINFO_MATERIALIZE_WALL_CLOCK_CAP_SECONDS
+    )
     assert parameters["retried_error_classes"] == list(prepare.CNINFO_RETRIED_ERROR_CLASSES)
     assert parameters["non_retried"] == list(prepare.CNINFO_NON_RETRIED_FAILURES)
     assert parameters["pacing_floor_applies_to_every_attempt"] is True
@@ -1191,6 +1194,12 @@ def test_owner_backup_window_exception_is_the_registered_v2_lineage() -> None:
         "path": authority.SUPERSEDED_EXCEPTION_RELATIVE,
         "sha256": authority.SUPERSEDED_EXCEPTION_SHA,
     }
+    # The v3 receipt schema supersedes the landed v2 receipt.
+    release_schema = json.loads((ROOT / SCHEMA_PATH).read_text(encoding="utf-8"))
+    superseded_receipt = release_schema["properties"]["supersedes"]["properties"]
+    assert superseded_receipt["path"]["const"] == SUPERSEDED_RELEASE_PATH.as_posix()
+    assert superseded_receipt["sha256"]["const"] == SUPERSEDED_RELEASE_SHA
+    assert superseded_receipt["creating_commit"]["const"] == SUPERSEDED_RELEASE_COMMIT
     # The superseded v1 exception keeps its own bytes in the tree.
     assert _sha((ROOT / authority.SUPERSEDED_EXCEPTION_RELATIVE).read_bytes()) == (
         authority.SUPERSEDED_EXCEPTION_SHA
