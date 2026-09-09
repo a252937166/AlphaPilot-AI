@@ -1221,11 +1221,32 @@ def extract_records(
     chat_json_fn: ChatJsonCallable | None = None,
     recorded_at_clock: RecordedAtClock | None = None,
     monotonic_ns_clock: MonotonicNsClock | None = None,
+    rate_limit: Any = None,
+    accounting: Any = None,
 ) -> ExtractionSummary:
     """Extract a fixed record set into an append-only, resumable eval JSONL."""
     _validate_runtime_contract(contract, settings)
     prepared_records = _prepare_records(contract, records)
     llm_call = chat_json if chat_json_fn is None else chat_json_fn
+    # Only the real client is told which platform to use and how to wait out a
+    # rate limit. A caller that injects its own model function is a test seam and
+    # takes the historical signature unchanged.
+    live_call_kwargs: dict[str, Any] = {}
+    if chat_json_fn is None:
+        # Imported here, not at module scope: this module sits in the frozen
+        # real-stage bootstrap's import chain, where a new top-level import
+        # changes the loaded-origin census.
+        from alphapilot.llm import providers
+
+        # Per-contract resolution. Without this the call falls back to the
+        # process-wide default and a contract that pins a platform is ignored.
+        live_call_kwargs["provider"] = providers.active_provider(
+            settings, contract=contract
+        )
+        if rate_limit is not None:
+            live_call_kwargs["rate_limit"] = rate_limit
+        if accounting is not None:
+            live_call_kwargs["accounting"] = accounting
     active_recorded_at_clock = _utc_now if recorded_at_clock is None else recorded_at_clock
     active_monotonic_ns_clock = monotonic_ns if monotonic_ns_clock is None else monotonic_ns_clock
     newly_attempted = 0
@@ -1268,6 +1289,7 @@ def extract_records(
                     max_retries=contract.max_retries,
                     settings=settings,
                     session=audit_session,
+                    **live_call_kwargs,
                 )
                 prediction = validate_event_result(
                     contract,

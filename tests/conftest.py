@@ -24,7 +24,11 @@ os.environ["ALPHAPILOT_PAPER_TRADING_ENABLED"] = "false"
 os.environ["ALPHAPILOT_PAPER_AUTO_TRADING_ENABLED"] = "false"
 os.environ["ALPHAPILOT_TRADING_MODE"] = "research"
 os.environ["ALPHAPILOT_LIVE_TRADING_ENABLED"] = "false"
-# Unit and API tests must never inherit the developer's real local LLM credentials.
+# Unit and API tests must never inherit the developer's real local LLM credentials,
+# nor a locally switched chat platform: ALPHAPILOT_LLM_PROVIDER=friday in a .env
+# would otherwise silently move every LLM test onto the other provider profile.
+os.environ["ALPHAPILOT_LLM_PROVIDER"] = "dashscope"
+os.environ["ALPHAPILOT_LLM_FRIDAY_APP_ID"] = ""
 os.environ["ALPHAPILOT_LLM_BASE_URL"] = ""
 os.environ["ALPHAPILOT_LLM_API_KEY"] = ""
 os.environ["ALPHAPILOT_LLM_MODEL"] = "qwen3.6-flash"

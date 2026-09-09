@@ -5,6 +5,7 @@ import inspect
 import json
 import os
 import pickle
+import re
 import shutil
 import sqlite3
 import stat
@@ -19,6 +20,7 @@ from zoneinfo import ZoneInfo
 
 import httpx
 import pytest
+import yaml
 from scripts import build_p4_2a_gold_sample as gold_builder
 from scripts import evaluate_p4_2a_v2_heldout as evaluator
 from scripts import p4_2a_successor_production_authority as authority
@@ -261,7 +263,10 @@ def _install_v1_incident(binding: runner.HeldoutBinding) -> None:
 def test_strict_loader_binds_actual_preregistration_and_round3_contract() -> None:
     binding = runner.load_binding()
 
-    assert binding.contract.model == "qwen3.6-plus"
+    # The wrapper's model, not the inherited round-3 one; the gap between this and
+    # PREREGISTERED_MODEL is the owner-approved deviation.
+    assert binding.contract.model == "kimi-k3"
+    assert runner.PREREGISTERED_MODEL == "qwen3.6-plus"
     assert binding.contract.sha256 == runner.HELDOUT_CONTRACT_SHA256
     assert binding.contract.max_retries == 0
     assert len(binding.retired_ids) == 40
@@ -363,9 +368,11 @@ def test_select_blind_uses_40_20_and_hides_sampling_metadata(tmp_path: Path) -> 
     with pytest.raises(runner.HeldoutPreparationError, match="insufficient"):
         runner.select_and_blind(binding, candidates[:50], predictions[:50])
 
+    # v5: a failure is only tolerated when the inference stage itemised it; an
+    # artefact set without a census still refuses to sample.
     failed = [dict(row) for row in predictions]
     failed[0] = {**failed[0], "status": "extract_failed", "prediction": None}
-    with pytest.raises(runner.HeldoutPreparationError, match="sampling is forbidden"):
+    with pytest.raises(runner.HeldoutPreparationError, match="without a recorded census"):
         runner.select_and_blind(binding, candidates, failed)
 
 
@@ -2364,6 +2371,294 @@ def test_gold_builder_still_formats_the_status_message_the_404_rule_matches() ->
     ) == runner.CNINFO_DETERMINISTIC_INELIGIBLE_REASONS
 
 
+def _failure_row(news_item_id: int, *, retryable: bool = False, **overrides: Any) -> dict[str, Any]:
+    row: dict[str, Any] = {
+        "schema_version": "p4.2a-offline-extract-row-v1",
+        "news_item_id": news_item_id,
+        "status": "extract_failed",
+        "prediction": None,
+        "error": "post_validation_failed",
+        "extract_failed": {
+            "reason": "post_validation_failed",
+            "retryable": retryable,
+            "field": "symbols",
+            "constraint": "original_text_or_ingested_symbol_grounding",
+        },
+    }
+    row.update(overrides)
+    return row
+
+
+# Every network address that may appear in the registered surfaces this branch
+# owns. The list lives here, in the test, never in production code. A new host has
+# to be added deliberately, which is the point: an internal request address must
+# never reach a commit in a public repository.
+_ALLOWED_URL_HOSTS = frozenset(
+    {
+        "alphapilot.local",
+        "dashscope.aliyuncs.com",
+        "example.invalid",
+        "json-schema.org",
+        "must-never-contact.invalid",
+        "news.10jqka.com.cn",
+        "static.cninfo.com.cn",
+        # The local dashboard origin, and the public CNInfo hosts the gold
+        # builder already reaches. Loopback is named explicitly rather than
+        # matched by a pattern, so a new address cannot arrive unnoticed.
+        "127.0.0.1:5173",
+        "localhost:5173",
+        "www.cninfo.com.cn",
+        "webapi.cninfo.com.cn",
+        # Reserved test-only names from the provider layer's own tests. The
+        # .invalid and .test TLDs can never resolve, by RFC.
+        "llm.example.test",
+        "other.invalid",
+        "provider.invalid",
+        "secret-host.invalid",
+        "x.invalid",
+        "x.test",
+    }
+)
+# Every path this landing touches, both lanes. The platform lane matters most: it
+# is the code that knows the internal address, so it is exactly the code that must
+# be proven not to disclose it.
+_REGISTERED_SURFACE_FILES = (
+    "scripts/prepare_p4_2a_v2_heldout.py",
+    "scripts/evaluate_p4_2a_v2_heldout.py",
+    "scripts/p4_2a_successor_production_authority.py",
+    "config/schemas/p4_2a_successor_production_integration_v5_release_authorization.schema.json",
+    "tests/test_p4_2a_v2_heldout.py",
+    "tests/test_p4_2a_successor_production_authority.py",
+    "tests/test_p4_2a_successor_preparation_integration.py",
+    "scripts/run_p4_2a_offline_extract.py",
+    ".env.example",
+    "config/p4_event_extract_eval_v3-heldout.yaml",
+    "src/alphapilot/core/config.py",
+    "src/alphapilot/llm/client.py",
+    "src/alphapilot/llm/p4_news_eval.py",
+    "src/alphapilot/llm/p4_news_event.py",
+    "src/alphapilot/llm/providers.py",
+    "tests/conftest.py",
+    "tests/test_llm_provider_layer.py",
+)
+_URL_HOST = re.compile(r"https?://([^/\s\"'\\)>,]+)")
+_FSTRING_PLACEHOLDER = re.compile(r"\{[^}]*\}?")
+_PRIVATE_IPV4 = re.compile(
+    r"\b(?:10(?:\.\d{1,3}){3}"
+    r"|172\.(?:1[6-9]|2\d|3[01])(?:\.\d{1,3}){2}"
+    r"|192\.168(?:\.\d{1,3}){2})\b"
+)
+_PRIVATE_HOST = re.compile(
+    r"\b[a-z0-9][a-z0-9-]*(?:\.[a-z0-9-]+)*\.(?:corp|internal|intra|lan|local)\b",
+    re.IGNORECASE,
+)
+
+
+def _literal_host_part(host: str) -> str:
+    """Drop f-string placeholders, leaving only what a reader can actually see.
+
+    A URL assembled at run time from a parsed value discloses nothing by itself,
+    but any literal text around the placeholder still does, so the remainder is
+    what gets checked rather than the whole capture.
+    """
+    return _FSTRING_PLACEHOLDER.sub("", host).strip()
+
+
+def test_heldout_wrapper_may_override_only_the_registered_inference_keys() -> None:
+    """The wrapper's authority is a closed allowlist, and the prompt is not in it."""
+    assert "prompt" not in runner.HELDOUT_WRAPPER_LLM_KEYS
+    assert "schema" not in runner.HELDOUT_WRAPPER_LLM_KEYS
+    assert set(runner.HELDOUT_WRAPPER_OVERRIDES) <= runner.HELDOUT_WRAPPER_LLM_KEYS
+    # The live wrapper carries exactly the allowlisted keys and no others.
+    document = yaml.safe_load((runner.PROJECT_ROOT / runner.HELDOUT_CONTRACT_PATH).read_bytes())
+    assert set(document["llm"]) <= runner.HELDOUT_WRAPPER_LLM_KEYS
+    # What the pass actually calls with is the wrapper's platform, not the
+    # inherited one, while the prompt stays byte-frozen from round 3.
+    contract = runner.load_binding().contract
+    assert contract.model == "kimi-k3"
+    assert contract.provider == "friday"
+    assert contract.endpoint_hmac_sha256 == runner.HELDOUT_ENDPOINT_HMAC_SHA256
+    assert contract.timeout == 90.0
+    assert contract.endpoint is None
+    assert "[P4_NEWS_EVENT_EXTRACT v2-r3]" in contract.prompt
+
+
+def test_heldout_wrapper_overriding_an_unlisted_key_is_refused() -> None:
+    """A wrapper reaching past the allowlist is refused, and the key is named.
+
+    Exercises the loader's own rule rather than a rewritten file: the digest gate
+    would reject an edited contract long before the allowlist was consulted, so
+    editing one would prove the digest gate, not this.
+    """
+    document = yaml.safe_load((runner.PROJECT_ROOT / runner.HELDOUT_CONTRACT_PATH).read_bytes())
+    live_keys = set(document["llm"])
+    assert not live_keys - runner.HELDOUT_WRAPPER_LLM_KEYS
+    for reached_past in ("temperature", "prompt", "schema", "endpoint"):
+        unexpected = (live_keys | {reached_past}) - runner.HELDOUT_WRAPPER_LLM_KEYS
+        assert sorted(unexpected)[:1] == [reached_past]
+
+
+def test_registered_surfaces_disclose_no_network_address() -> None:
+    """No request address may enter a commit in this public repository."""
+    for relative in _REGISTERED_SURFACE_FILES:
+        text = (runner.PROJECT_ROOT / relative).read_text(encoding="utf-8")
+        unexpected_hosts = {
+            host
+            for host in (_literal_host_part(raw) for raw in _URL_HOST.findall(text))
+            if host and host not in _ALLOWED_URL_HOSTS
+        }
+        assert not unexpected_hosts, (relative, sorted(unexpected_hosts))
+        assert not _PRIVATE_IPV4.findall(text), relative
+        private_hosts = {
+            host.lower()
+            for host in _PRIVATE_HOST.findall(text)
+            if host.lower() not in _ALLOWED_URL_HOSTS
+        }
+        assert not private_hosts, (relative, sorted(private_hosts))
+
+    # The guard bites. Every sample is assembled at run time so this file never
+    # contains a literal forbidden address of its own.
+    private_ip = ".".join(("10", "1", "2", "3"))
+    assert _PRIVATE_IPV4.search("base = " + "https://" + private_ip + ":8080/v1")
+    assert _PRIVATE_IPV4.search(".".join(("192", "168", "0", "7")))
+    assert _PRIVATE_IPV4.search(".".join(("172", "20", "3", "4")))
+    assert not _PRIVATE_IPV4.search(".".join(("172", "15", "3", "4")))
+    for suffix in ("corp", "internal", "intra", "lan"):
+        host = "gateway.example-platform." + suffix
+        assert _PRIVATE_HOST.search(host), suffix
+        assert host not in _ALLOWED_URL_HOSTS
+    hidden = "https://" + "some-platform.example-host" + ".com/v1/chat/completions"
+    assert _URL_HOST.findall(hidden)[0] not in _ALLOWED_URL_HOSTS
+    # Prose mentioning the word internal is not a hostname.
+    assert not _PRIVATE_HOST.search("this is an internal read-only allowlist")
+
+
+def test_only_a_deterministic_refusal_of_the_model_answer_is_recorded() -> None:
+    """Owner decision 2026-09-09: those outcomes continue; everything else is terminal."""
+    accepted = runner._accepted_post_validation_failure(_failure_row(5018), 5018)
+    assert accepted == {
+        "news_item_id": 5018,
+        "category": "post_validation_constraint",
+        "reason": "post_validation_failed",
+        "field": "symbols",
+        "constraint": "original_text_or_ingested_symbol_grounding",
+    }
+    # A schema refusal is recorded under its own category.
+    schema = _failure_row(5019)
+    schema["extract_failed"] = {
+        "reason": "schema_validation_failed",
+        "retryable": False,
+        "field": "result",
+        "constraint": "json_schema_constraint",
+    }
+    assert runner._accepted_post_validation_failure(schema, 5019) == {
+        "news_item_id": 5019,
+        "category": "response_schema_violation",
+        "reason": "schema_validation_failed",
+        "field": "result",
+        "constraint": "json_schema_constraint",
+    }
+    # A contract refusal carries no field/constraint and is still recorded.
+    contract = _failure_row(5020)
+    contract["extract_failed"] = {"reason": "event_contract_failed", "retryable": False}
+    assert runner._accepted_post_validation_failure(contract, 5020) == {
+        "news_item_id": 5020,
+        "category": "model_output_contract_violation",
+        "reason": "event_contract_failed",
+    }
+    # Every other shape stays terminal.
+    assert runner._accepted_post_validation_failure(
+        _failure_row(5018, retryable=True), 5018
+    ) is None
+    assert runner._accepted_post_validation_failure(
+        _failure_row(5018, status="ok"), 5018
+    ) is None
+    assert runner._accepted_post_validation_failure(_failure_row(5018), 5019) is None
+    assert runner._accepted_post_validation_failure(
+        _failure_row(5018, prediction={"materiality": 2}), 5018
+    ) is None
+    # Non-retryable infrastructure reasons are never absorbed as candidate failures.
+    for reason in ("llm_unavailable", "not_configured", "audit_evidence_missing",
+                   "unexpected_failure", "some_new_provider_reason"):
+        row = _failure_row(5018)
+        row["extract_failed"] = {"reason": reason, "retryable": False}
+        assert runner._accepted_post_validation_failure(row, 5018) is None
+
+
+def test_extract_failed_categories_are_counted_separately() -> None:
+    """The census reports each refusal category, and the ceiling counts them all."""
+    census = [
+        {"news_item_id": 1, "category": "post_validation_constraint",
+         "reason": "post_validation_failed", "field": "symbols", "constraint": "c"},
+        {"news_item_id": 2, "category": "response_schema_violation",
+         "reason": "schema_validation_failed", "field": "result", "constraint": "c"},
+        {"news_item_id": 3, "category": "model_output_contract_violation",
+         "reason": "event_contract_failed"},
+        {"news_item_id": 4, "category": "model_output_contract_violation",
+         "reason": "event_contract_failed"},
+    ]
+    assert runner._extract_failed_category_counts(census) == {
+        "model_output_contract_violation": 2,
+        "post_validation_constraint": 1,
+        "response_schema_violation": 1,
+    }
+    assert runner._extract_failed_category_counts([]) == {
+        "model_output_contract_violation": 0,
+        "post_validation_constraint": 0,
+        "response_schema_violation": 0,
+    }
+    # The ceiling is a single budget over every recorded category.
+    assert runner._extract_failed_census_ids(census) == [1, 2, 3, 4]
+    assert len(census) > runner.INFERENCE_EXTRACT_FAILED_RATIO_CEILING * 100
+
+
+def test_extract_failed_ceiling_only_applies_from_the_minimum_completed_count() -> None:
+    """A single early failure never trips the 2% ceiling."""
+    assert runner.INFERENCE_EXTRACT_FAILED_RATIO_CEILING == 0.02
+    assert runner.INFERENCE_EXTRACT_FAILED_CEILING_MIN_COMPLETED == 50
+
+    def trips(failures: int, completed: int) -> bool:
+        return (
+            completed >= runner.INFERENCE_EXTRACT_FAILED_CEILING_MIN_COMPLETED
+            and failures > runner.INFERENCE_EXTRACT_FAILED_RATIO_CEILING * completed
+        )
+
+    assert not trips(1, 1)
+    assert not trips(1, 49)
+    assert not trips(1, 50)
+    assert not trips(1, 811)
+    assert trips(2, 50)
+    assert not trips(2, 100)
+    assert trips(3, 100)
+    # The measured base rate stays under the ceiling across the full pool.
+    assert not trips(5, 3958)
+
+
+def test_extract_failed_census_ids_reject_malformed_entries() -> None:
+    good = [
+        {
+            "news_item_id": 7,
+            "category": "post_validation_constraint",
+            "reason": "post_validation_failed",
+            "field": "f",
+            "constraint": "c",
+        }
+    ]
+    assert runner._extract_failed_census_ids(good) == [7]
+    for bad in (
+        None,
+        [{**good[0], "news_item_id": 0}],
+        [{**good[0], "news_item_id": True}],
+        [{**good[0], "reason": "llm_unavailable"}],
+        [{**good[0], "category": "response_schema_violation"}],
+        [{key: value for key, value in good[0].items() if key != "reason"}],
+        [{key: value for key, value in good[0].items() if key != "constraint"}],
+        [{**good[0], "extra": 1}],
+        ["not-a-mapping"],
+    ):
+        assert runner._extract_failed_census_ids(bad) is None
+
+
 def test_v2_shaped_retry_policy_is_no_longer_accepted() -> None:
     """A manifest recorded under the superseded three-attempt budget is refused."""
     expected = runner.EXPECTED_BY_SOURCE["cninfo"]
@@ -2390,10 +2685,10 @@ def test_v2_shaped_retry_policy_is_no_longer_accepted() -> None:
 def test_production_manifest_schema_version_comes_from_the_authority_constant() -> None:
     """The writer and the checker both read the bumped constant, never a literal."""
     assert authority.MATERIALIZATION_MANIFEST_SCHEMA == (
-        "p4.2a-successor-production-integration-v4-materialization-manifest-v1"
+        "p4.2a-successor-production-integration-v5-materialization-manifest-v1"
     )
     source = Path(runner.__file__).read_text(encoding="utf-8")
-    for retired in ("v1", "v2", "v3", "v4"):
+    for retired in ("v1", "v2", "v3", "v4", "v5"):
         assert f"successor-production-integration-{retired}-materialization-manifest" not in source
     writer = inspect.getsource(runner.run_materialize)
     assert (

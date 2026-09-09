@@ -64,8 +64,8 @@ SELECTED_FREEZE_PATH = Path(
     "docs/phase4/eval/v2-calibration/development/P4.2a-development-v2-selected-contract-freeze.json"
 )
 SELECTED_FREEZE_SHA256 = "0ebc5362055af7ef6409155befc5e09d345cd4f2d8d128ea0791a0c293f66f75"
-HELDOUT_CONTRACT_PATH = Path("config/p4_event_extract_eval_v2-heldout-qwen3.6-plus.yaml")
-HELDOUT_CONTRACT_SHA256 = "26be1765204b122908e7bd09cac857c33bd3140233df47dc3358bc590e020199"
+HELDOUT_CONTRACT_PATH = Path("config/p4_event_extract_eval_v3-heldout.yaml")
+HELDOUT_CONTRACT_SHA256 = "ed4844244b8b995147318e45d38f3fe35c05526de5378e3c9cb4974650800366"
 ROUND3_CONTRACT_PATH = Path("config/p4_event_extract_eval_v2-r3-qwen3.6-plus.yaml")
 ROUND3_CONTRACT_SHA256 = "fa75a6cf33065745d02f74fe39e4f102723da43f37ac549058bb34fa8256a181"
 PROMPT_PATH = Path("config/prompts/p4_news_event_extract_v2-r3.txt")
@@ -109,7 +109,13 @@ SUCCESSOR_RELEASE_AUTHORIZATION_PATH = Path(
 MATERIALIZATION_MANIFEST_SCHEMA = "p4.2a-v2-heldout-materialization-manifest-v2"
 
 FRAME_ID = "p4.2a-heldout-frame-v2"
-MODEL = "qwen3.6-plus"
+# The model the preregistration and the frozen development lineage recorded. It is
+# NOT the model this pass runs: the owner's 2026-09-10 decision moved the held-out
+# pass to MODEL below. Comparisons against frozen documents keep this value, so a
+# frozen document is never re-read as if it had been rewritten; the difference
+# between the two constants is the deviation itself.
+PREREGISTERED_MODEL = "qwen3.6-plus"
+MODEL = "kimi-k3"
 EXPECTED_DRAFTER_ID = "OpenAI Codex GPT-5"
 EXPECTED_ADJUDICATOR_ID = "ouyang"
 EXPECTED_REVIEWER_ID = "independent_ai_architect_claude_code"
@@ -152,6 +158,53 @@ _CNINFO_RETRY_EVENT_LABEL = re.compile(
     r"|httpx\.[A-Za-z_][A-Za-z0-9_]*"
     r"|(?!gold_sample_http_status_)[A-Za-z_][A-Za-z0-9_]*)$"
 )
+
+INFERENCE_EXTRACT_FAILED_RATIO_CEILING = 0.02
+INFERENCE_RECORDED_FAILURE_CATEGORIES = {
+    "post_validation_failed": "post_validation_constraint",
+    "schema_validation_failed": "response_schema_violation",
+    "event_contract_failed": "model_output_contract_violation",
+}
+
+
+def _expected_category_counts(entries: object) -> JsonObject:
+    """Per-category counts recomputed from a recorded census."""
+    counts = dict.fromkeys(sorted(set(INFERENCE_RECORDED_FAILURE_CATEGORIES.values())), 0)
+    if isinstance(entries, list):
+        for entry in entries:
+            if isinstance(entry, Mapping) and entry.get("category") in counts:
+                counts[cast(str, entry["category"])] += 1
+    return cast(JsonObject, counts)
+
+
+def _extract_failed_census_ids(entries: object) -> list[int] | None:
+    """Sorted news_item_ids from a recorded census, or None when it is malformed."""
+    if not isinstance(entries, list):
+        return None
+    identifiers: list[int] = []
+    for entry in entries:
+        if not isinstance(entry, Mapping):
+            return None
+        identifier = entry.get("news_item_id")
+        if isinstance(identifier, bool) or not isinstance(identifier, int) or identifier <= 0:
+            return None
+        reason = entry.get("reason")
+        if (
+            not isinstance(reason, str)
+            or reason not in INFERENCE_RECORDED_FAILURE_CATEGORIES
+            or entry.get("category") != INFERENCE_RECORDED_FAILURE_CATEGORIES[reason]
+            or set(entry) - {"news_item_id", "category", "reason", "field", "constraint"}
+            or ("field" in entry) != ("constraint" in entry)
+            or any(
+                not isinstance(entry[key], str) or not entry[key]
+                for key in ("field", "constraint")
+                if key in entry
+            )
+        ):
+            return None
+        identifiers.append(identifier)
+    return sorted(identifiers)
+
 
 EXPECTED_RAW_BY_SOURCE = {
     "akshare_ths": 1021,
@@ -558,9 +611,9 @@ def load_control_bundle(root: Path = PROJECT_ROOT) -> ControlBundle:
         != "PREREGISTERED_BEFORE_SYNTHETIC_REHEARSAL_AND_ANY_HELDOUT_ARTIFACT"
         or design.get("schema_version") != "p4.2a-evaluation-design-v2"
         or design.get("production_writes_allowed") is not False
-        or outcome.get("selected_model") != MODEL
-        or freeze.get("selected_model") != MODEL
-        or heldout_contract.get("schema_version") != "p4.2a-heldout-event-extract-contract-v2"
+        or outcome.get("selected_model") != PREREGISTERED_MODEL
+        or freeze.get("selected_model") != PREREGISTERED_MODEL
+        or heldout_contract.get("schema_version") != "p4.2a-heldout-event-extract-contract-v3"
         or round3_contract.get("schema_version") != "p4.2a-development-event-extract-contract-v2-r3"
     ):
         raise HeldoutEvaluationError("P4.2a v2 held-out control versions drifted")
@@ -568,7 +621,7 @@ def load_control_bundle(root: Path = PROJECT_ROOT) -> ControlBundle:
     request = _mapping(prereg.get("request_contract"), "prereg.request_contract")
     metrics = _mapping(prereg.get("metrics"), "prereg.metrics")
     if (
-        selected.get("model") != MODEL
+        selected.get("model") != PREREGISTERED_MODEL
         or _mapping(selected.get("round_3_prompt"), "round_3_prompt").get("sha256") != PROMPT_SHA256
         or _mapping(selected.get("round_3_contract"), "round_3_contract").get("sha256")
         != ROUND3_CONTRACT_SHA256
@@ -1861,6 +1914,20 @@ def _validate_inference_chain(
         },
         "inference started event",
     )
+    # v5: the census of deterministic post-validation failures binds three layers.
+    # Artefacts published before the decision carry no census and must prove zero
+    # failures, exactly as they did; neither shape is accepted in the other's place.
+    census_recorded = "extract_failed_count" in prediction_manifest
+    failed_ids = sorted(
+        cast(int, row["news_item_id"])
+        for row in predictions
+        if row.get("status") != "ok"
+    )
+    failed_count = len(failed_ids)
+    if not census_recorded and failed_count:
+        raise HeldoutEvaluationError("inference failures without a recorded census")
+    if failed_count > INFERENCE_EXTRACT_FAILED_RATIO_CEILING * len(predictions):
+        raise HeldoutEvaluationError("inference extract_failed ratio exceeded its ceiling")
     _exact_keys(
         completed,
         {
@@ -1871,6 +1938,11 @@ def _validate_inference_chain(
             "materialization_manifest_sha256",
             "completed_at_utc",
             "prediction_count",
+            *(
+                ("extract_failed_count", "extract_failed_ids", "extract_failed_by_category")
+                if census_recorded
+                else ()
+            ),
             "predictions_sha256",
             "prediction_manifest_sha256",
             "production_snapshot_unchanged",
@@ -1893,6 +1965,16 @@ def _validate_inference_chain(
             "prediction_count",
             "status_ok_count",
             "status_failed_count",
+            *(
+                (
+                    "extract_failed_count",
+                    "extract_failed_ids",
+                    "extract_failed_by_category",
+                    "extract_failed_ratio_ceiling",
+                )
+                if census_recorded
+                else ()
+            ),
             "one_news_item_per_request",
             "one_request_per_eligible_candidate",
             "automatic_retries",
@@ -1985,8 +2067,25 @@ def _validate_inference_chain(
         or prediction_manifest.get("model") != MODEL
         or prediction_manifest.get("candidate_count") != len(candidates)
         or prediction_manifest.get("prediction_count") != len(predictions)
-        or prediction_manifest.get("status_ok_count") != len(predictions)
-        or prediction_manifest.get("status_failed_count") != 0
+        or prediction_manifest.get("status_ok_count") != len(predictions) - failed_count
+        or prediction_manifest.get("status_failed_count") != failed_count
+        or (
+            census_recorded
+            and (
+                prediction_manifest.get("extract_failed_count") != failed_count
+                or _extract_failed_census_ids(prediction_manifest.get("extract_failed_ids"))
+                != failed_ids
+                or prediction_manifest.get("extract_failed_ratio_ceiling")
+                != INFERENCE_EXTRACT_FAILED_RATIO_CEILING
+                or prediction_manifest.get("extract_failed_by_category")
+                != _expected_category_counts(prediction_manifest.get("extract_failed_ids"))
+                or completed.get("extract_failed_by_category")
+                != _expected_category_counts(completed.get("extract_failed_ids"))
+                or completed.get("extract_failed_count") != failed_count
+                or _extract_failed_census_ids(completed.get("extract_failed_ids"))
+                != failed_ids
+            )
+        )
         or prediction_manifest.get("one_news_item_per_request") is not True
         or prediction_manifest.get("one_request_per_eligible_candidate") is not True
         or prediction_manifest.get("automatic_retries") != 0
@@ -2120,10 +2219,17 @@ def _validate_selection(
         raise HeldoutEvaluationError("deterministic without-replacement selection drifted")
     selected_ids = {cast(int, row["news_item_id"]) for row in expected_selected}
     audit = _mapping(selection.get("audit"), "selection.audit")
+    # v5: candidates refused by a deterministic post-validation constraint are
+    # reported here and excluded from both sampled strata.
+    selection_failed_count = sum(
+        predictions_by_id[cast(int, row["news_item_id"])].get("status") != "ok"
+        for row in candidates
+        if cast(int, row["news_item_id"]) in predictions_by_id
+    )
     expected_audit = {
         "eligible_candidate_count": len(candidates),
-        "successful_prediction_count": len(candidates),
-        "extract_failed_count": 0,
+        "successful_prediction_count": len(candidates) - selection_failed_count,
+        "extract_failed_count": selection_failed_count,
         "available_by_stratum": dict(stratum_counts),
         "retired_selected_intersection_count": len(selected_ids.intersection(retired_ids)),
         "input_prediction_identity_match": True,

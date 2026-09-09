@@ -29,7 +29,7 @@ from scripts import prepare_p4_2a_v2_heldout as prepare
 from scripts import seal_p4_2a_v2_heldout_draft as seal
 
 RELEASE_REL = Path(
-    "docs/phase4/reports/P4.2a-successor-production-integration-v4-production-release-20260909.json"
+    "docs/phase4/reports/P4.2a-successor-production-integration-v5-production-release-20260910.json"
 )
 PREPARATION_STAGES = ("materialize", "infer", "select-blind", "seal-draft", "build-adjudication-ui")
 SYNTHETIC_EVIDENCE = {
@@ -197,7 +197,7 @@ def dispatch(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> SimpleNamespace
 
 def test_absent_fixed_new_path_does_not_select_another_date(tmp_path: Path) -> None:
     assert prepare._production_release_candidate(tmp_path) is False
-    wrong_date = tmp_path / str(RELEASE_REL).replace("20260909", "20260908")
+    wrong_date = tmp_path / str(RELEASE_REL).replace("20260910", "20260908")
     wrong_date.parent.mkdir(parents=True)
     wrong_date.write_text('{"synthetic":true}', encoding="utf-8")
     assert prepare._production_release_candidate(tmp_path) is False
@@ -773,6 +773,7 @@ def test_manifest_runtime_preflight_same_day_post_2200_record_still_passes(
         "p4.2a-successor-production-integration-v1-materialization-manifest-v1",
         "p4.2a-successor-production-integration-v2-materialization-manifest-v1",
         "p4.2a-successor-production-integration-v3-materialization-manifest-v1",
+        "p4.2a-successor-production-integration-v4-materialization-manifest-v1",
     ),
 )
 def test_new_authority_does_not_accept_either_old_manifest_version(
