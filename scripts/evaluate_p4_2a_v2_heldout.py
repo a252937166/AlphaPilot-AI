@@ -30,6 +30,7 @@ from collections import Counter
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime
+from itertools import pairwise
 from pathlib import Path
 from typing import Any, NoReturn, cast
 from urllib.parse import urlparse
@@ -117,8 +118,13 @@ EXPECTED_REVIEWER_ROLE = "independent_ai_architect_claude_code"
 EXPECTED_REVIEWER_MODEL = "claude-fable-5"
 EXPECTED_RAW_COUNT = 4048
 # Owner decision 2026-09-08: bounded CNInfo transport retry inside one materialize.
-CNINFO_MAX_PDF_ATTEMPTS = 3
-CNINFO_RETRY_BACKOFF_SECONDS = (2.0, 4.0)
+CNINFO_MAX_PDF_ATTEMPTS = 12
+CNINFO_RETRY_BACKOFF_SECONDS = (2.0, 4.0, 8.0, 15.0, 30.0, 30.0, 30.0, 60.0, 60.0, 60.0, 60.0)
+CNINFO_STALL_PAUSE_WINDOW = 20
+CNINFO_STALL_PAUSE_WINDOW_STALLS = 15
+CNINFO_STALL_PAUSE_SECONDS = 600.0
+CNINFO_STALL_PAUSE_MAX = 3
+CNINFO_MATERIALIZE_WALL_CLOCK_CAP_SECONDS = 43200
 CNINFO_RETRIED_ERROR_CLASSES = (
     "httpx.TransportError",
     "OSError",
@@ -944,6 +950,76 @@ def _validate_execution_authority(value: object) -> str:
     return mode
 
 
+def _valid_stall_pause_events(value: object) -> bool:
+    """Pauses are bounded, window-justified and ordered; they are not requests."""
+    if not isinstance(value, list) or len(value) > CNINFO_STALL_PAUSE_MAX:
+        return False
+    previous = 0.0
+    for index, event in enumerate(value, 1):
+        stalls = event.get("window_stalls") if isinstance(event, Mapping) else None
+        if (
+            not isinstance(event, Mapping)
+            or set(event)
+            != {
+                "pause_index",
+                "window_size",
+                "window_stalls",
+                "pause_seconds",
+                "monotonic_offset_seconds",
+                "current_url_sha256",
+            }
+            or isinstance(event.get("pause_index"), bool)
+            or event.get("pause_index") != index
+            or isinstance(event.get("window_size"), bool)
+            or event.get("window_size") != CNINFO_STALL_PAUSE_WINDOW
+            or isinstance(stalls, bool)
+            or not isinstance(stalls, int)
+            or not CNINFO_STALL_PAUSE_WINDOW_STALLS <= stalls <= CNINFO_STALL_PAUSE_WINDOW
+            or isinstance(event.get("pause_seconds"), bool)
+            or not isinstance(event.get("pause_seconds"), (int, float))
+            or float(cast(float, event["pause_seconds"])) != CNINFO_STALL_PAUSE_SECONDS
+            or not isinstance(event.get("current_url_sha256"), str)
+            or re.fullmatch(r"[0-9a-f]{64}", cast(str, event["current_url_sha256"])) is None
+            or isinstance(event.get("monotonic_offset_seconds"), bool)
+            or not isinstance(event.get("monotonic_offset_seconds"), (int, float))
+            or not math.isfinite(float(cast(float, event["monotonic_offset_seconds"])))
+            or float(cast(float, event["monotonic_offset_seconds"])) < previous
+        ):
+            return False
+        previous = float(cast(float, event["monotonic_offset_seconds"]))
+    return True
+
+
+def _valid_retry_attempt_segments(events: list[Any], pauses: list[Any]) -> bool:
+    """Each PDF's attempts run 1..k; a restart at 1 needs a pause naming that PDF."""
+    by_url: dict[str, list[tuple[int, float]]] = {}
+    for event in events:
+        by_url.setdefault(cast(str, event["url_sha256"]), []).append(
+            (cast(int, event["attempt"]), float(cast(float, event["monotonic_offset_seconds"])))
+        )
+    for url, entries in by_url.items():
+        segments: list[list[tuple[int, float]]] = []
+        for attempt, offset in entries:
+            if attempt == 1 or not segments:
+                segments.append([])
+            segments[-1].append((attempt, offset))
+        for segment in segments:
+            attempts = [attempt for attempt, _offset in segment]
+            if attempts != list(range(1, len(attempts) + 1)):
+                return False
+            if len(attempts) > CNINFO_MAX_PDF_ATTEMPTS - 1:
+                return False
+        for previous, following in pairwise(segments):
+            closed, opened = previous[-1][1], following[0][1]
+            if not any(
+                pause["current_url_sha256"] == url
+                and closed <= float(pause["monotonic_offset_seconds"]) <= opened
+                for pause in pauses
+            ):
+                return False
+    return True
+
+
 def _valid_transport_retry_evidence(
     cninfo: Mapping[str, Any],
     *,
@@ -958,7 +1034,14 @@ def _valid_transport_retry_evidence(
     backoff = policy.get("backoff_seconds")
     if (
         set(policy)
-        != {"max_attempts_per_pdf", "backoff_seconds", "retried_error_classes", "non_retried"}
+        != {
+            "max_attempts_per_pdf",
+            "backoff_seconds",
+            "retried_error_classes",
+            "non_retried",
+            "stall_pause_policy",
+            "wall_clock_cap_seconds",
+        }
         or isinstance(policy.get("max_attempts_per_pdf"), bool)
         or policy.get("max_attempts_per_pdf") != CNINFO_MAX_PDF_ATTEMPTS
         or not isinstance(backoff, list)
@@ -971,16 +1054,29 @@ def _valid_transport_retry_evidence(
         )
         or policy.get("retried_error_classes") != list(CNINFO_RETRIED_ERROR_CLASSES)
         or policy.get("non_retried") != list(CNINFO_NON_RETRIED_FAILURES)
+        or policy.get("stall_pause_policy")
+        != {
+            "window_size": CNINFO_STALL_PAUSE_WINDOW,
+            "window_stall_threshold": CNINFO_STALL_PAUSE_WINDOW_STALLS,
+            "pause_seconds": CNINFO_STALL_PAUSE_SECONDS,
+            "max_pauses": CNINFO_STALL_PAUSE_MAX,
+        }
+        or isinstance(policy.get("wall_clock_cap_seconds"), bool)
+        or policy.get("wall_clock_cap_seconds") != CNINFO_MATERIALIZE_WALL_CLOCK_CAP_SECONDS
     ):
+        return False
+    if not _valid_stall_pause_events(cninfo.get("pause_events")):
         return False
     if len(events) != retry_count:
         return False
     # Distinct PDFs are the request starts that were not themselves retries, and
     # each PDF may contribute at most MAX-1 retries.
+    pauses = cast(list[Any], cninfo.get("pause_events"))
     distinct_pdfs = request_count - retry_count
-    if distinct_pdfs < 0 or retry_count > (CNINFO_MAX_PDF_ATTEMPTS - 1) * distinct_pdfs:
+    if distinct_pdfs < 0 or retry_count > (CNINFO_MAX_PDF_ATTEMPTS - 1) * (
+        distinct_pdfs + len(pauses)
+    ):
         return False
-    attempts_by_url: dict[str, list[int]] = {}
     for event in events:
         if (
             not isinstance(event, Mapping)
@@ -998,14 +1094,7 @@ def _valid_transport_retry_evidence(
             or float(cast(float, event["monotonic_offset_seconds"])) < 0.0
         ):
             return False
-        attempts_by_url.setdefault(cast(str, event["url_sha256"]), []).append(
-            cast(int, event["attempt"])
-        )
-    return all(
-        attempts == list(range(1, len(attempts) + 1))
-        and len(attempts) <= CNINFO_MAX_PDF_ATTEMPTS - 1
-        for attempts in attempts_by_url.values()
-    )
+    return _valid_retry_attempt_segments(events, pauses)
 
 
 def _validate_request_pacing(value: object, *, transport_retry_recorded: bool) -> None:
@@ -1037,7 +1126,11 @@ def _validate_request_pacing(value: object, *, transport_retry_recorded: bool) -
             "median_observed_start_to_start_seconds",
             "violation_count",
             "retry_count",
-            *(("transport_retry_policy", "retry_events") if transport_retry_recorded else ()),
+            *(
+                ("transport_retry_policy", "retry_events", "pause_events")
+                if transport_retry_recorded
+                else ()
+            ),
         },
         "materialization.request_pacing.cninfo_pdf",
     )

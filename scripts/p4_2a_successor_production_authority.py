@@ -40,43 +40,45 @@ from jsonschema import Draft202012Validator, FormatChecker
 # and retry_events, so a v1-labelled manifest can no longer describe this shape. The
 # only production materialize attempt under the v1 string published zero artifacts.
 MATERIALIZATION_MANIFEST_SCHEMA = (
-    "p4.2a-successor-production-integration-v2-materialization-manifest-v1"
+    "p4.2a-successor-production-integration-v3-materialization-manifest-v1"
 )
 PREFIX = "docs/phase4/reports/P4.2a-successor-production-integration-v1-"
 V2_PREFIX = "docs/phase4/reports/P4.2a-successor-production-integration-v2-"
-RELEASE_RELATIVE = V2_PREFIX + "production-release-20260908.json"
+V3_PREFIX = "docs/phase4/reports/P4.2a-successor-production-integration-v3-"
+RELEASE_RELATIVE = V3_PREFIX + "production-release-20260909.json"
 PREREG_RELATIVE = PREFIX + "preregistration-20260907.json"
-EXCEPTION_RELATIVE = V2_PREFIX + "owner-backup-window-exception-20260908.json"
-REVIEW_RELATIVE = V2_PREFIX + "independent-implementation-review-20260908.json"
+EXCEPTION_RELATIVE = V3_PREFIX + "owner-download-retry-budget-exception-20260909.json"
+REVIEW_RELATIVE = V3_PREFIX + "independent-implementation-review-20260909.json"
 SCHEMA_RELATIVE = (
-    "config/schemas/p4_2a_successor_production_integration_v2_release_authorization.schema.json"
+    "config/schemas/p4_2a_successor_production_integration_v3_release_authorization.schema.json"
 )
-# The landed v1 production release this version supersedes; its bytes stay in history.
-SUPERSEDED_RELEASE_RELATIVE = PREFIX + "production-release-20260907.json"
-SUPERSEDED_RELEASE_SHA = "5cd8401b1c35afa865c64c1d2a835a09b79fe68aabdfb9a8eacad85c0001ad48"
-SUPERSEDED_RELEASE_COMMIT = "06d1ffbb37a06ea89248b1181af8a63afe1bd3dc"
+# The landed v2 production release this version supersedes; its bytes stay in history.
+SUPERSEDED_RELEASE_RELATIVE = V2_PREFIX + "production-release-20260908.json"
+SUPERSEDED_RELEASE_SHA = "f34ef195700760ced01efd4af913a9f50f58ab9272a4d93567a9df4ca5eafee6"
+SUPERSEDED_RELEASE_COMMIT = "3a4b79062ccc6a3d27e674a10b56ed2ba84ab74f"
 MODULE_RELATIVE = "scripts/p4_2a_successor_production_authority.py"
 PREPARE_RELATIVE = "scripts/prepare_p4_2a_v2_heldout.py"
 EVALUATE_RELATIVE = "scripts/evaluate_p4_2a_v2_heldout.py"
-# The implementation base is the commit that records the owner backup-window
-# exception; it adds only that document, so the prepare base bytes are unchanged.
-BASE_COMMIT = "9eb06d6a473481aef47fc950f35e96f1e8981660"
+# The implementation base is the commit that records the owner download-retry
+# budget exception; it adds only that document, so the prepare base bytes are
+# unchanged.
+BASE_COMMIT = "3efa8fb905f5217adcf775e2c9bc0102aea40d99"
 PREREG_COMMIT = "c59ba4f7e2a8c82a678b040e57145600d1c4564b"
-EXCEPTION_COMMIT = "9eb06d6a473481aef47fc950f35e96f1e8981660"
-SUPERSEDED_EXCEPTION_RELATIVE = PREFIX + "owner-exact-surface-exception-20260907.json"
-SUPERSEDED_EXCEPTION_SHA = "3f95b0d1958fb5eb4f04238fa089eb2619dd5ece225c031f875eb56a1bb8959a"
-SUPERSEDED_EXCEPTION_COMMIT = "d7a1f3c001a6243150eb12e1c58efe473c238892"
+EXCEPTION_COMMIT = "3efa8fb905f5217adcf775e2c9bc0102aea40d99"
+SUPERSEDED_EXCEPTION_RELATIVE = V2_PREFIX + "owner-backup-window-exception-20260908.json"
+SUPERSEDED_EXCEPTION_SHA = "df771b4b726750853d58d61bad84491a5a33bd31a93e82b1ed12bacd0f730ba4"
+SUPERSEDED_EXCEPTION_COMMIT = "9eb06d6a473481aef47fc950f35e96f1e8981660"
 PREREG_SHA = "32f136bfdd4d04474fedf2ee8f0ba3f2c2c4fb160f4ece2712bd1c54810c9bcb"
-EXCEPTION_SHA = "df771b4b726750853d58d61bad84491a5a33bd31a93e82b1ed12bacd0f730ba4"
-PREPARE_BASE_SHA = "fdcb7fc9063b563ca02fcd630f36e450c1dd04d5b99aa9b2811c11c81eaba1d5"
-PREPARE_TARGET_SHA = "35e9e2c445f7b67f008a4429017e89db99adb29a20dea89111a321d9bc7f843f"
+EXCEPTION_SHA = "e67c73aa67a9c122d056c7ed49e01d0ece88896205dda505a2b1861279c7aca9"
+PREPARE_BASE_SHA = "35e9e2c445f7b67f008a4429017e89db99adb29a20dea89111a321d9bc7f843f"
+PREPARE_TARGET_SHA = "bd9c28c997c1c039dff248dd89a754914a08758063a5f06b64458ff63a0a5bb5"
 # SHA-256 of the exact prepare patch, reproducible read-only from the commits
 # themselves. --full-index prints 40-hex blob ids, so the bytes do not depend on
 # the repository's object count (core.abbrev):
 #   git -C <root> diff --no-ext-diff --no-color --no-renames --full-index \
-#       9eb06d6a473481aef47fc950f35e96f1e8981660 <implementation_commit> \
+#       3efa8fb905f5217adcf775e2c9bc0102aea40d99 <implementation_commit> \
 #       -- scripts/prepare_p4_2a_v2_heldout.py
-PATCH_SHA = "e903bf8626fa476bf9f777dad16f7ff85e2d15299718110be6e49449221d810c"
+PATCH_SHA = "e193c91c14494d1a7d41c7166929118a098a274919ec7f9d1051d390f140e802"
 # Owner decision of 2026-09-08 relaxing the real-stage backup start rule. Every other
 # preparation policy value stays identical to the registered preregistration.
 _RELAXED_RUNTIME_START_POLICY = {
@@ -578,7 +580,7 @@ def validate_implementation_binding(
     _require(
         manifest
         == {
-            "schema_version": "p4.2a-successor-production-integration-v2-build-manifest",
+            "schema_version": "p4.2a-successor-production-integration-v3-build-manifest",
             "implementation_commit": commit,
             "source_closure": closure,
             "changed_paths": changes,
@@ -761,11 +763,11 @@ def _review(
     _require(set(review) == required, "independent review fields drifted")
     _require(
         review["schema_version"]
-        == "p4.2a-successor-production-integration-v2-independent-implementation-review",
+        == "p4.2a-successor-production-integration-v3-independent-implementation-review",
         "independent review schema mismatch",
     )
     _require(
-        review["verdict"] == "PASS_SUCCESSOR_PRODUCTION_INTEGRATION_V2_IMPLEMENTATION_REVIEW",
+        review["verdict"] == "PASS_SUCCESSOR_PRODUCTION_INTEGRATION_V3_IMPLEMENTATION_REVIEW",
         "independent implementation review not PASS",
     )
     _require(
