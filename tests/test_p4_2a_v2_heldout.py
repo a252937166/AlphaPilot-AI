@@ -26,6 +26,7 @@ from scripts import evaluate_p4_2a_v2_heldout as evaluator
 from scripts import p4_2a_successor_production_authority as authority
 from scripts import p4_2a_v2_dev_common as common
 from scripts import prepare_p4_2a_v2_heldout as runner
+from scripts import run_p4_2a_offline_extract as offline_extract
 from scripts import run_p4_2a_v2_dev_calibration as dev_runner
 from scripts.run_p4_2a_offline_extract import (
     ChatJsonCallable,
@@ -2496,6 +2497,57 @@ def test_heldout_wrapper_overriding_an_unlisted_key_is_refused() -> None:
     for reached_past in ("temperature", "prompt", "schema", "endpoint"):
         unexpected = (live_keys | {reached_past}) - runner.HELDOUT_WRAPPER_LLM_KEYS
         assert sorted(unexpected)[:1] == [reached_past]
+
+
+def test_real_stage_admission_rehearsal_accepts_the_landed_contract(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Every pre-call validator accepts the contract that is actually on disk.
+
+    Not a fixture and not a synthetic contract: the landed
+    config/p4_event_extract_eval_v3-heldout.yaml, loaded through the same
+    functions the real stage uses before its first model call. Two admission
+    attempts were spent discovering that a downstream constant had not followed
+    the contract; this converts that whole class into a test-time failure.
+
+    The keyed-digest leg is stubbed, and only that leg: the salt lives in the
+    operator's environment and is never read here. Everything the stub bypasses
+    is the one thing this test is not for, and the real stage still checks it.
+    """
+    contract_path = runner.PROJECT_ROOT / runner.HELDOUT_CONTRACT_PATH
+    assert contract_path.is_file(), "the landed held-out contract must exist on disk"
+    assert common.sha256_file(contract_path) == runner.HELDOUT_CONTRACT_SHA256
+
+    # 1. The loader: wrapper allowlist, inherited semantics, llm control block.
+    contract = runner._load_selected_contract(runner.PROJECT_ROOT)
+    assert contract.model == runner.MODEL
+    assert contract.provider == runner.HELDOUT_PROVIDER
+    assert contract.endpoint_hmac_sha256 == runner.HELDOUT_ENDPOINT_HMAC_SHA256
+    assert contract.endpoint is None
+
+    # 2. The binding the platform lane verifies, with only the secret stubbed.
+    from alphapilot.llm import providers
+
+    monkeypatch.setattr(
+        providers, "endpoint_binding_digest", lambda settings=None: contract.endpoint_hmac_sha256
+    )
+
+    # 3. _model_settings and, inside it, _validate_runtime_contract. This is the
+    #    exact pair that refused the contract 151 seconds into a real stage.
+    settings = dev_runner._model_settings(_safe_settings(), contract)
+    assert settings.llm_model == runner.MODEL
+    assert settings.llm_purpose_models[contract.purpose] == runner.MODEL
+    # The operator's address must survive: blanking it here is what produced
+    # "Settings .env does not contain a complete LLM configuration".
+    assert (settings.llm_base_url or "").strip()
+
+    # 4. The drift check itself, called directly, so a future scalar constant
+    #    that stops covering a registered deadline fails here and not in a stage.
+    offline_extract._validate_runtime_contract(contract, settings)
+    assert contract.timeout in offline_extract.ACCEPTED_TIMEOUT_SECONDS
+    assert contract.max_retries == offline_extract.EXPECTED_MAX_RETRIES
+    assert contract.max_tokens == offline_extract.EXPECTED_MAX_TOKENS
+    assert contract.purpose == offline_extract.EXPECTED_PURPOSE
 
 
 def test_registered_surfaces_disclose_no_network_address() -> None:

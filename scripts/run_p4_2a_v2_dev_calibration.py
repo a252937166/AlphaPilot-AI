@@ -1058,13 +1058,19 @@ def _settings_safety(settings: Settings) -> JsonObject:
 def _model_settings(base: Settings, contract: EventExtractContract) -> Settings:
     purpose_models = dict(base.llm_purpose_models)
     purpose_models[contract.purpose] = contract.model
-    result = base.model_copy(
-        update={
-            "llm_base_url": contract.endpoint,
-            "llm_model": contract.model,
-            "llm_purpose_models": purpose_models,
-        }
-    )
+    update: dict[str, object] = {
+        "llm_model": contract.model,
+        "llm_purpose_models": purpose_models,
+    }
+    if contract.endpoint is not None:
+        update["llm_base_url"] = contract.endpoint
+    else:
+        # A platform contract carries no address, so copying contract.endpoint here
+        # would blank the operator's configuration and then fail the completeness
+        # check two frames later. Carry the provider instead and leave the
+        # platform's own settings untouched.
+        update["llm_provider"] = contract.provider
+    result = base.model_copy(update=update)
     _validate_runtime_contract(contract, result)
     return result
 
