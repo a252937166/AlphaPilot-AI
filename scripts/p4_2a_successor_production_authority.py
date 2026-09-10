@@ -50,10 +50,10 @@ V5_PREFIX = "docs/phase4/reports/P4.2a-successor-production-integration-v5-"
 V6_PREFIX = "docs/phase4/reports/P4.2a-successor-production-integration-v6-"
 RELEASE_RELATIVE = V6_PREFIX + "production-release-20260910.json"
 PREREG_RELATIVE = PREFIX + "preregistration-20260907.json"
-EXCEPTION_RELATIVE = V6_PREFIX + "owner-exception-20260910.json"
-REVIEW_RELATIVE = V6_PREFIX + "independent-implementation-review-20260910.json"
+EXCEPTION_RELATIVE = V6_PREFIX + "owner-exception-r2-20260910.json"
+REVIEW_RELATIVE = V6_PREFIX + "independent-implementation-review-r2-20260910.json"
 SCHEMA_RELATIVE = (
-    "config/schemas/p4_2a_successor_production_integration_v6_release_authorization.schema.json"
+    "config/schemas/p4_2a_successor_production_integration_v6_r2_release_authorization.schema.json"
 )
 # The landed v2 production release this version supersedes; its bytes stay in history.
 SUPERSEDED_RELEASE_RELATIVE = V5_PREFIX + "production-release-20260910.json"
@@ -66,14 +66,14 @@ HELDOUT_CONTRACT_RELATIVE = "config/p4_event_extract_eval_v3-heldout.yaml"
 # The implementation base is the commit that records the owner inference
 # post-validation exception; it adds only that document, so the prepare base
 # bytes are unchanged.
-BASE_COMMIT = "f41eff7fcf9e6e1fea6099498e5f0bc6a99af04f"
+BASE_COMMIT = "8ed235bd142cae68820891c2539052469de0747e"
 PREREG_COMMIT = "c59ba4f7e2a8c82a678b040e57145600d1c4564b"
-EXCEPTION_COMMIT = "f41eff7fcf9e6e1fea6099498e5f0bc6a99af04f"
-SUPERSEDED_EXCEPTION_RELATIVE = V5_PREFIX + "owner-exception-20260910.json"
-SUPERSEDED_EXCEPTION_SHA = "f615d63230101f987a3c610096226f8f4d8c5d24a785cd2fcf8e829b15d2ef00"
-SUPERSEDED_EXCEPTION_COMMIT = "d197a63f813774f8a470a12e4835e71c32f37585"
+EXCEPTION_COMMIT = "8ed235bd142cae68820891c2539052469de0747e"
+SUPERSEDED_EXCEPTION_RELATIVE = V6_PREFIX + "owner-exception-20260910.json"
+SUPERSEDED_EXCEPTION_SHA = "7b01f4bf98ef2ce9aaeb50c6f974b06dc49bd59f24e5ba04ad920e4eae7041f3"
+SUPERSEDED_EXCEPTION_COMMIT = "f41eff7fcf9e6e1fea6099498e5f0bc6a99af04f"
 PREREG_SHA = "32f136bfdd4d04474fedf2ee8f0ba3f2c2c4fb160f4ece2712bd1c54810c9bcb"
-EXCEPTION_SHA = "7b01f4bf98ef2ce9aaeb50c6f974b06dc49bd59f24e5ba04ad920e4eae7041f3"
+EXCEPTION_SHA = "4d80fbae06c2b6e202ea25344e51e037945fbd0160dc05b3cb6eafad31ea7237"
 # v6 changes no prepare bytes: the four defects are downstream of it. Base and
 # target are therefore the same landed digest and the patch is empty, which is
 # recorded honestly rather than by inventing a change.
@@ -83,7 +83,7 @@ PREPARE_TARGET_SHA = "fb8afa6d915189f6e876f31509d2060b713fe4c35b8a5dd498a9cd5182
 # themselves. --full-index prints 40-hex blob ids, so the bytes do not depend on
 # the repository's object count (core.abbrev):
 #   git -C <root> diff --no-ext-diff --no-color --no-renames --full-index \
-#       f41eff7fcf9e6e1fea6099498e5f0bc6a99af04f <implementation_commit> \
+#       8ed235bd142cae68820891c2539052469de0747e <implementation_commit> \
 #       -- scripts/prepare_p4_2a_v2_heldout.py
 PATCH_SHA = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
 # Owner decision of 2026-09-08 relaxing the real-stage backup start rule. Every other
@@ -102,14 +102,10 @@ ALLOWED_STAGES = ("materialize", "infer", "select-blind", "seal-draft", "build-a
 _HELDOUT_LANE_CHANGES = {
     MODULE_RELATIVE: "M",
     SCHEMA_RELATIVE: "A",
-    # The admission path that refused the landed contract before any model call.
-    "scripts/run_p4_2a_offline_extract.py": "M",
-    "scripts/run_p4_2a_v2_dev_calibration.py": "M",
-    "tests/test_p4_2a_v2_heldout.py": "M",
     "tests/test_p4_2a_successor_production_authority.py": "M",
-    "tests/test_p4_2a_successor_preparation_integration.py": "M",
 }
-# v6 carries no platform-lane change: those files landed with v5 and are untouched.
+# One lane and three paths. This round repairs version-string literals inside the
+# gate itself and moves no scientific term, so nothing the pass executes is touched.
 _CHANGE_LANES = {
     "heldout": _HELDOUT_LANE_CHANGES,
 }
@@ -785,11 +781,11 @@ def _review(
     _require(set(review) == required, "independent review fields drifted")
     _require(
         review["schema_version"]
-        == "p4.2a-successor-production-integration-v5-independent-implementation-review",
+        == "p4.2a-successor-production-integration-v6-independent-implementation-review",
         "independent review schema mismatch",
     )
     _require(
-        review["verdict"] == "PASS_SUCCESSOR_PRODUCTION_INTEGRATION_V5_IMPLEMENTATION_REVIEW",
+        review["verdict"] == "PASS_SUCCESSOR_PRODUCTION_INTEGRATION_V6_IMPLEMENTATION_REVIEW",
         "independent implementation review not PASS",
     )
     _require(

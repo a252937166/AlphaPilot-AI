@@ -29,7 +29,7 @@ RELEASE_PATH = Path(
     "docs/phase4/reports/P4.2a-successor-production-integration-v6-production-release-20260910.json"
 )
 SCHEMA_PATH = Path(
-    "config/schemas/p4_2a_successor_production_integration_v6_release_authorization.schema.json"
+    "config/schemas/p4_2a_successor_production_integration_v6_r2_release_authorization.schema.json"
 )
 SUPERSEDED_RELEASE_PATH = Path(
     "docs/phase4/reports/P4.2a-successor-production-integration-v5-production-release-20260910.json"
@@ -37,7 +37,7 @@ SUPERSEDED_RELEASE_PATH = Path(
 SUPERSEDED_RELEASE_SHA = "54b8823ff5850cf98005c68a1568ad5af5124b88834cb65070413bbc014c5755"
 EXCEPTION_PATH = Path(
     "docs/phase4/reports/P4.2a-successor-production-integration-v6"
-    "-owner-exception-20260910.json"
+    "-owner-exception-r2-20260910.json"
 )
 SUPERSEDED_RELEASE_COMMIT = "2f225adfab62f36377a9ac0709fb9f86834bcb26"
 MODULE_PATH = Path("scripts/p4_2a_successor_production_authority.py")
@@ -46,15 +46,11 @@ EVALUATE_PATH = Path("scripts/evaluate_p4_2a_v2_heldout.py")
 PREPARE_TARGET_SHA = "fb8afa6d915189f6e876f31509d2060b713fe4c35b8a5dd498a9cd5182d26302"
 PREPARE_BASE_SHA = "fb8afa6d915189f6e876f31509d2060b713fe4c35b8a5dd498a9cd5182d26302"
 PREPARE_PATCH_SHA = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-BASE_HEAD = "f41eff7fcf9e6e1fea6099498e5f0bc6a99af04f"
+BASE_HEAD = "8ed235bd142cae68820891c2539052469de0747e"
 HELDOUT_LANE_FILES = (
     MODULE_PATH,
     SCHEMA_PATH,
-    Path("scripts/run_p4_2a_offline_extract.py"),
-    Path("scripts/run_p4_2a_v2_dev_calibration.py"),
-    Path("tests/test_p4_2a_v2_heldout.py"),
     Path("tests/test_p4_2a_successor_production_authority.py"),
-    Path("tests/test_p4_2a_successor_preparation_integration.py"),
 )
 IMPLEMENTATION_FILES = HELDOUT_LANE_FILES
 PREPARATION_STAGES = ("materialize", "infer", "select-blind", "seal-draft", "build-adjudication-ui")
@@ -249,12 +245,12 @@ def test_release_schema_is_closed_and_keeps_the_owner_day_as_a_pattern() -> None
     assert schema["additionalProperties"] is False
     assert schema["$id"] == (
         "https://alphapilot.local/schemas/"
-        "p4_2a_successor_production_integration_v6_release_authorization.schema.json"
+        "p4_2a_successor_production_integration_v6_r2_release_authorization.schema.json"
     )
     identity = schema["properties"]["authorization_id"]
     assert "pattern" in identity and "const" not in identity
     assert schema["properties"]["verdict"]["const"] == (
-        "APPROVE_SUCCESSOR_PRODUCTION_INTEGRATION_V5_HELDOUT_PREPARATION_ONLY"
+        "APPROVE_SUCCESSOR_PRODUCTION_INTEGRATION_V6_HELDOUT_PREPARATION_ONLY"
     )
     assert schema["properties"]["authorized_stages"]["const"] == list(PREPARATION_STAGES)
     assert "supersedes" in schema["required"]
@@ -311,7 +307,7 @@ def _structural_release_document() -> dict[str, Any]:
         "preregistration": authority_ref(prefix + "preregistration-20260907.json"),
         "release_schema": {"path": SCHEMA_PATH.as_posix(), "sha256": "6" * 64, "bytes": 1},
         "owner_exception": authority_ref(
-            v6_prefix + "owner-exception-20260910.json"
+            v6_prefix + "owner-exception-r2-20260910.json"
         ),
         "h0_evidence_acceptance": authority_ref(
             "docs/phase4/reports/P4.2a-v2-heldout-rehearsal-v2-2-release-authorization-20260811.json"
@@ -345,7 +341,7 @@ def _structural_release_document() -> dict[str, Any]:
     return {
         "schema_version": "p4.2a-successor-production-integration-v6-production-release",
         "authorization_id": "P4.2A-SUCCESSOR-PRODUCTION-INTEGRATION-V6-PRODUCTION-RELEASE-20260910",
-        "verdict": "APPROVE_SUCCESSOR_PRODUCTION_INTEGRATION_V5_HELDOUT_PREPARATION_ONLY",
+        "verdict": "APPROVE_SUCCESSOR_PRODUCTION_INTEGRATION_V6_HELDOUT_PREPARATION_ONLY",
         "created_at_utc": "2026-09-09T01:00:00Z",
         "created_at_shanghai": "2026-09-09T09:00:00+08:00",
         "reviewed_repository_head": "8" * 40,
@@ -357,7 +353,7 @@ def _structural_release_document() -> dict[str, Any]:
             "still_gated": copy.deepcopy(prereg["still_gated"]),
         },
         "independent_implementation_review_ref": authority_ref(
-            v6_prefix + "independent-implementation-review-20260910.json"
+            v6_prefix + "independent-implementation-review-r2-20260910.json"
         ),
         "reviewer": reviewer,
         "lineage": lineage,
@@ -1000,11 +996,7 @@ def test_registered_change_surface_is_exactly_the_reviewed_v5_file_set() -> None
     expected_changes = {
         MODULE_PATH.as_posix(): "M",
         SCHEMA_PATH.as_posix(): "A",
-        "scripts/run_p4_2a_offline_extract.py": "M",
-        "scripts/run_p4_2a_v2_dev_calibration.py": "M",
-        "tests/test_p4_2a_v2_heldout.py": "M",
         "tests/test_p4_2a_successor_production_authority.py": "M",
-        "tests/test_p4_2a_successor_preparation_integration.py": "M",
     }
     assert set(authority._CHANGE_LANES) == {"heldout"}
     assert len(expected_changes) == sum(
