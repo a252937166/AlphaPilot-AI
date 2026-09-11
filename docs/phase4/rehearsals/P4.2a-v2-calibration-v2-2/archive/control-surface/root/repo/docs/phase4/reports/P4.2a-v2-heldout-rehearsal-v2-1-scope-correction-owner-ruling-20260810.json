@@ -1,0 +1,53 @@
+{
+  "schema_version": "p4.2a-v2-heldout-rehearsal-v2-1-scope-correction-owner-ruling-v1",
+  "ruling_id": "P4.2A-V2-HELDOUT-REHEARSAL-V2-1-SCOPE-CORRECTION-OWNER-RULING-20260810",
+  "created_at_utc": "2026-08-11T01:07:15Z",
+  "created_at_shanghai": "2026-08-11T09:07:15+08:00",
+  "verdict": "ACCEPT",
+  "repository_head_at_ruling": "b3c2d2216c1feffd9949f181fa6766f8357ff683",
+  "decided_by": {
+    "identity": "independent_ai_architect_claude_code",
+    "reviewer_type": "ai",
+    "model": "Anthropic Claude Fable 5 (model id claude-fable-5)",
+    "impersonation_disclaimer": "Not a human reviewer and not the owner. Issued under the owner governance amendment with requires_release_gate_amendment=true.",
+    "authority_note": "The disclosure nominated required_owner_identity ouyang. The owner forwarded this decision to this reviewer and asked for the ACCEPT or REJECT reply, which is consistent with the standing delegation of architecture judgement. This is a pure process and scope question with no business trade-off: it changes no production source, no statistical design, and no frame, prompt, contract, model, seed, threshold or gold. The owner may override this ruling at any time."
+  },
+  "part_1_bindings_required_by_the_disclosure": {
+    "disclosure": {"path": "docs/phase4/reports/P4.2a-v2-heldout-rehearsal-v2-1-scope-correction-disclosure-20260810.json", "sha256": "1fdcfacd9273fff879dab97da6cc861b9c6cffb4d7145f42923cc258dd54d504", "commit": "213ca65"},
+    "successor_code_gate_authority": {"path": "docs/phase4/reports/P4.2a-successor-v2-1-code-gate-authorization-20260810.json", "sha256": "e28db692dc150983f86f6760fb1a95584d8607658e8a78a0de35cf3fc81940cd", "commit": "aa082578aa48296f1dd394a380775a5a4546ca65"},
+    "transient_implementation": {"sha256": "89cb5db119887b39aabad3496331f91faf4f518e00cee2351d08c8f0668869cb", "git_diff_stat": "1 file changed, 70 insertions(+), 20 deletions(-)", "changed_line_count": 90, "committed": false},
+    "restored_baseline": {"path": "tests/test_p4_2a_v2_heldout_finalizer.py", "sha256": "d6e8b3bd9281af8064c5b700d0d42f3be54b8c5709b6787208d7cad96347d533", "diff_against_committed_state": "zero", "independently_verified_by_reviewer": true},
+    "explicit_verdict": "ACCEPT the retrospective registration of tests/test_p4_2a_v2_heldout_finalizer.py into the registered existing-test-update scope"
+  },
+  "part_2_reasoning": {
+    "why_accept": "Rejecting costs more than accepting. Under REJECT the legacy finalizer tests stay written against the old capability while v2.1 changes the code beneath them, so their status becomes unknown, which the operator acknowledged by offering not to claim them green. scripts/finalize_p4_2a_v2_heldout_adjudication.py is one of the 116 byte-pinned control-surface files, so carrying an unknown-status test suite for a pinned script into a one-shot chain is a worse position than registering one additional path.",
+    "why_this_is_not_laundering": "Three facts hold simultaneously and were verified here rather than accepted: the transient change was never committed, the file is byte-identical to its committed state with a zero diff, and there was zero real database, network or model activity. The operator also proposes the correct ordering for the remedy, registering the scope first and only then redoing the work.",
+    "what_acceptance_does_and_does_not_normalise": {
+      "normalised": "the scope, so that this test path may be updated and verified under v2.1",
+      "not_normalised": "the ordering. The deviation classified as UNCOMMITTED_TEST_IMPLEMENTATION_PRECEDED_SCOPE_REGISTRATION remains permanently on the record, and this ruling does not retroactively make implementing before registering acceptable practice."
+    },
+    "operator_conduct": "The deviation was self-detected, the artifact discarded, the file restored exactly, and the facts disclosed in an immutable record before asking. That is the correct handling of one's own ordering error."
+  },
+  "part_3_conditions": [
+    "The transient implementation at sha256 89cb5db1... must NOT be reapplied. Redo the work from the restored baseline d6e8b3bd... so the redone change follows registration rather than preceding it.",
+    "Append the path to the registered scope in the pre-registration first, then implement, then run the gates. The commit order must make that sequence visible.",
+    "The redone finalizer tests must preserve the canonical finalize fail-closed behaviour; updating them to exercise the private offline rehearsal capability must not weaken any assertion that the finalizer refuses invalid input.",
+    "Both conditional SKIPs must become PASS after the implementation commit, and the fixed A/M surface must be verified, before this reviewer is asked for the rehearsal review.",
+    "No production source change rides along with this scope correction. If the redo turns out to require touching anything outside tests, stop and disclose rather than expanding scope again."
+  ],
+  "part_4_general_gap_recorded": {
+    "id": "F-8",
+    "statement": "The rehearsal bundle's control surface contains 17 scripts and zero test files, and the v2.1 quality-gate registry covered 14 paths with this finalizer test outside it. Tests are therefore broadly outside both the byte-pinned surface and, in this instance, the gated path list. Registering one test because it happened to be touched is reactive rather than principled.",
+    "implication": "Claims that tests are green rest on the run report rather than on byte-pinning, which is defensible since tests are not the artifact being reproduced, but it means an unregistered test can be modified without any gate noticing. That is exactly what happened here and it was caught by a human-initiated check, not by the machinery.",
+    "disposition": "Recorded, not fixed now. Do not expand the registered scope further in this round; a principled rule for which tests are registered belongs in a later pre-registration, not in a correction made immediately before a one-shot chain."
+  },
+  "part_5_unchanged_locks": {
+    "real_heldout_materialization": "forbidden until the successor v2.1 rehearsal bundle is independently reviewed",
+    "real_network_or_model_activity": "forbidden",
+    "heldout_evaluation": "locked",
+    "p4_2a_done": false,
+    "p4_2b_unlocked": false,
+    "p4_3_unlocked": false,
+    "frozen_elements": "frame, prompt, contract, model, seed, thresholds and gold are all untouched by this ruling"
+  }
+}

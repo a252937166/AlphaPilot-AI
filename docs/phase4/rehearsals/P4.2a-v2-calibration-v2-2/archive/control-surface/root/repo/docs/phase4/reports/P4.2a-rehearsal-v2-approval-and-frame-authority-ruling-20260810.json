@@ -1,0 +1,76 @@
+{
+  "schema_version": "p4.2a-independent-adjudication-v1",
+  "adjudication_id": "p4.2a-rehearsal-v2-approval-and-frame-authority-20260810-r1",
+  "created_at_utc": "2026-08-10T10:49:46Z",
+  "created_at_shanghai": "2026-08-10T18:49:46+08:00",
+  "verdicts": {
+    "successor_rehearsal_v2_implementation": "APPROVE",
+    "successor_rehearsal_v2_execution": "APPROVE",
+    "frame_authority": "available_time over three audited sources, 4,048 rows, is authoritative"
+  },
+  "blockers": [],
+  "repository_head_at_adjudication": "bccf2e66ed749d0e2fc7460f132cadb7ea39e126",
+  "reviewer": {
+    "identity": "independent_ai_architect_claude_code",
+    "reviewer_type": "ai",
+    "model": "Anthropic Claude Fable 5 (model id claude-fable-5)",
+    "impersonation_disclaimer": "Not a human reviewer. Issued under the owner governance amendment with requires_release_gate_amendment=true.",
+    "method": "read-only. No materialization, no inference, no model call, no production write. Bundle claims were re-derived rather than accepted."
+  },
+  "part_1_frame_authority_ruling": {
+    "question_raised_by_operator": "The frozen design's authoritative frame appears to be available_time over three sources at 4,048 rows, while the reviewer's accepted cost figure of 4,727 corresponds to published_at over two sources. These are different sets.",
+    "ruling": "The operator is correct. The authoritative candidate frame is available_time over the three audited sources, 4,048 rows for 2026-08-06 through 08-08 Shanghai.",
+    "evidence": {
+      "shipped_code_is_decisive": "scripts/build_p4_2a_gold_sample.py, _heldout_candidate_rows, filters on start <= row.available_time < end. This is the byte-frozen code path both v1.7 and v2 use; the question is settled by what the selector actually does, not by prose.",
+      "v1_7_reproduction": "Recomputing the v1.7 window 2026-08-04 to 08-05 with available_time over the three audited sources yields cninfo 1,982 plus akshare_ths 875 plus sina 213 equals exactly 3,070, which reproduces the recorded raw candidate count for that round precisely. No other framing reproduces it.",
+      "v2_window_measured": {"cninfo": 2824, "akshare_ths": 1021, "sina_company_news": 203, "total": 4048},
+      "set_difference": {"intersection": 3839, "published_at_only": 888, "available_time_only": 209, "note": "the two sets genuinely differ; this was not a rounding or counting slip"}
+    },
+    "why_available_time_is_also_semantically_right": "available_time is the point-in-time ingestion instant and is never backfilled. It defines what the system actually knew and when, which is the population an extractor operating in production would see. published_at would silently pull in items that only reached the database later through the backlog migration, which the system did not have at the time.",
+    "my_error": {
+      "id": "C-4",
+      "statement": "The 4,727 figure I accepted was computed on the wrong field and the wrong source set: published_at rather than available_time, and two sources rather than three. It was not a conservative reading of the design; it was a different query.",
+      "pattern": "This is the third cost or volume figure I have had to correct in two days, after C-1 and C-3, and all three ran in the same direction. The rule I set for myself in C-3, derive figures from measured pool sizes, was not sufficient: the measurement must also use the field the shipped selector uses. Any future frame size I quote must be produced by the selector's own predicate, not by a hand-written query."
+    },
+    "disposition_of_4727": "It stands only as a conservative upper bound on the cost already accepted. The accepted ceiling is not reduced by this ruling, so no new cost acceptance is required, but the realised figures will be lower.",
+    "corrected_projection": {"calls": 4048, "cost_cny": 57, "serial_hours": 3.6, "versus_previously_stated": "4,727 calls, 66 CNY, 4.2 hours"}
+  },
+  "part_2_design_ambiguity_finding": {
+    "id": "F-7",
+    "statement": "The frozen v2 design's heldout_frame_v2.source_window declares only a timezone and start and end instants. Neither available_time nor published_at appears anywhere in config/p4_event_evaluation_v2.yaml. The authoritative field is therefore recoverable only by reading the selector implementation.",
+    "why_this_matters": "A pre-registered frame whose population cannot be determined from the pre-registration itself is under-specified. Two competent parties read it differently within one day, which is the practical demonstration.",
+    "disposition_now": "Do NOT amend config/p4_event_evaluation_v2.yaml. Its SHA 18a2428a is bound to the sealed development frame, the dev45 gold and three recorded calibration rounds. Changing its bytes to fix prose would break those bindings for no evaluative gain. This record is the authoritative interpretation instead, and must be cited by the heldout round evidence.",
+    "required_in_future_designs": "Any future evaluation design must name the timestamp field and the exact source set in the window declaration, so the population is determinable from the pre-registration without reading code."
+  },
+  "part_3_rehearsal_v2_review": {
+    "verdict": "APPROVE",
+    "implementation_commit": "1de2786d04467593ac3b6260b453ca0dfe8d3a5f",
+    "evidence_commit": "bccf2e66ed749d0e2fc7460f132cadb7ea39e126",
+    "independently_verified": {
+      "bundle_sha256": "0f3cbb3fe0251994da457e1a8d36a09b06ba127a8f0b584a2d924eb02e47b01f",
+      "review_request_sha256": "c6d818eb2e67cb1b9b47f282526e93757dc6e5d6231f1abf3d1486a4e43434e1",
+      "control_surface_rehash": "116 of 116 files rehashed from the archive against the manifest, zero mismatches, zero missing",
+      "determinism": "run_a_root_sha256 equals run_b_root_sha256 at bd24b408...; 14 of 14 artifacts byte-identical across two runs with distinct temp roots and mismatch_count zero",
+      "path_hygiene": "temp roots outside the repository and destination, no temp root values persisted, posix relative paths only, temp_root_leak_count zero",
+      "nondeterminism_control": "deterministic monotonic clock reset per run and uuid5 derived from a logical record type plus a stable business key, so identity does not depend on wall clock or randomness",
+      "lineage": "git merge-base confirms 1de2786 descends from d710e88, the commit that permanently fail-closed the invalid v1 rehearsal; the bundle's no_v1_fallback and implementation_commit_descends_from_v1_fail_close assertions are consistent with the repository",
+      "isolation": "real model calls 0, real network calls 0, real database reads 0, production writes false, real heldout metrics not computed and not disclosed; docs/phase4/eval/v2-calibration contains only development, so the real heldout root still does not exist",
+      "quality_gates": "Ruff all checks passed; strict mypy no issues in 157 source files"
+    },
+    "operator_conduct_commended": "The bundle records remaining_blockers.cost_and_strata_authority_conflict as BLOCKED_PENDING_OWNER_CLARIFICATION rather than silently choosing a frame size. Encoding an unresolved question as a blocker inside the very artifact that would otherwise look complete is the correct behaviour, and it is what surfaced my error.",
+    "scope_of_this_approval": "the deterministic rehearsal harness and its single offline execution only; it authorises no real materialization, inference or evaluation"
+  },
+  "part_4_authorised_next_steps": {
+    "now_unblocked": ["materialize the real heldout candidate pool for the 2026-08-06 to 08-08 window using the available_time three-source frame", "run the one-shot full-pool inference with qwen3.6-plus", "stratify and sample 40 predicted positive and 20 predicted negative", "blind, draft by a non-evaluated model, then owner human adjudication"],
+    "still_gated": ["the one-shot heldout evaluation itself, which requires a further independent review after the owner adjudication and the synthetic full-path rehearsal plus read-only dry run"],
+    "execution_conditions_restated": [
+      "one item per call, exactly as Rounds 1 to 3 were calibrated; no batching, no body truncation, no pre-filter in this round",
+      "the full-pool inference is one-shot with a single started event and zero retries",
+      "respect the frozen per-source request interval; unextractable documents are excluded with a recorded reason and never retried into the pool",
+      "report the realised call count, cost, pool size, ineligible counts and predicted-positive rate against the accepted ceiling and against the v1.7 rate of 0.299",
+      "schedule the roughly 3.6 hour run away from the P4.1 polling peaks and the 900-second database backup job, per watch item W-1"
+    ]
+  },
+  "phase_locks_unchanged": {"p4_2a_done": false, "heldout_evaluation_unlocked": false, "p4_2b_unlocked": false, "p4_3_unlocked": false},
+  "p4_1_unaffected": "observation window running for 2026-08-10 through 08-12; 51 polls since it opened with zero failures at the time of this record"
+}

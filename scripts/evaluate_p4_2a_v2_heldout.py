@@ -30,6 +30,7 @@ from collections import Counter
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime
+from itertools import pairwise
 from pathlib import Path
 from typing import Any, NoReturn, cast
 from urllib.parse import urlparse
@@ -63,8 +64,8 @@ SELECTED_FREEZE_PATH = Path(
     "docs/phase4/eval/v2-calibration/development/P4.2a-development-v2-selected-contract-freeze.json"
 )
 SELECTED_FREEZE_SHA256 = "0ebc5362055af7ef6409155befc5e09d345cd4f2d8d128ea0791a0c293f66f75"
-HELDOUT_CONTRACT_PATH = Path("config/p4_event_extract_eval_v2-heldout-qwen3.6-plus.yaml")
-HELDOUT_CONTRACT_SHA256 = "26be1765204b122908e7bd09cac857c33bd3140233df47dc3358bc590e020199"
+HELDOUT_CONTRACT_PATH = Path("config/p4_event_extract_eval_v3-heldout.yaml")
+HELDOUT_CONTRACT_SHA256 = "ed4844244b8b995147318e45d38f3fe35c05526de5378e3c9cb4974650800366"
 ROUND3_CONTRACT_PATH = Path("config/p4_event_extract_eval_v2-r3-qwen3.6-plus.yaml")
 ROUND3_CONTRACT_SHA256 = "fa75a6cf33065745d02f74fe39e4f102723da43f37ac549058bb34fa8256a181"
 PROMPT_PATH = Path("config/prompts/p4_news_event_extract_v2-r3.txt")
@@ -108,7 +109,13 @@ SUCCESSOR_RELEASE_AUTHORIZATION_PATH = Path(
 MATERIALIZATION_MANIFEST_SCHEMA = "p4.2a-v2-heldout-materialization-manifest-v2"
 
 FRAME_ID = "p4.2a-heldout-frame-v2"
-MODEL = "qwen3.6-plus"
+# The model the preregistration and the frozen development lineage recorded. It is
+# NOT the model this pass runs: the owner's 2026-09-10 decision moved the held-out
+# pass to MODEL below. Comparisons against frozen documents keep this value, so a
+# frozen document is never re-read as if it had been rewritten; the difference
+# between the two constants is the deviation itself.
+PREREGISTERED_MODEL = "qwen3.6-plus"
+MODEL = "kimi-k3"
 EXPECTED_DRAFTER_ID = "OpenAI Codex GPT-5"
 EXPECTED_ADJUDICATOR_ID = "ouyang"
 EXPECTED_REVIEWER_ID = "independent_ai_architect_claude_code"
@@ -116,6 +123,89 @@ EXPECTED_REVIEWER_TYPE = "ai"
 EXPECTED_REVIEWER_ROLE = "independent_ai_architect_claude_code"
 EXPECTED_REVIEWER_MODEL = "claude-fable-5"
 EXPECTED_RAW_COUNT = 4048
+# Owner decision 2026-09-08: bounded CNInfo transport retry inside one materialize.
+CNINFO_MAX_PDF_ATTEMPTS = 12
+CNINFO_RETRY_BACKOFF_SECONDS = (2.0, 4.0, 8.0, 15.0, 30.0, 30.0, 30.0, 60.0, 60.0, 60.0, 60.0)
+CNINFO_STALL_PAUSE_WINDOW = 20
+CNINFO_STALL_PAUSE_WINDOW_STALLS = 15
+CNINFO_STALL_PAUSE_SECONDS = 600.0
+CNINFO_STALL_PAUSE_MAX = 3
+CNINFO_UNAVAILABLE_HTTP_STATUSES = (404, 410)
+CNINFO_UNAVAILABLE_REASON = "pdf_unavailable_http_404"
+CNINFO_UNAVAILABLE_GATE_STATUS = 200
+CNINFO_DETERMINISTIC_INELIGIBLE_REASONS = (
+    "pdf_text_below_min_char_gate",
+    "pdf_exceeds_size_bound",
+    CNINFO_UNAVAILABLE_REASON,
+)
+CNINFO_MATERIALIZE_WALL_CLOCK_CAP_SECONDS = 43200
+CNINFO_RETRIED_ERROR_CLASSES = (
+    "httpx.TransportError",
+    "OSError",
+    "gold_sample_http_status_502",
+    "gold_sample_http_status_503",
+    "gold_sample_http_status_504",
+)
+CNINFO_NON_RETRIED_FAILURES = (
+    "candidate_document_ineligible",
+    "content_length_invalid",
+    "content_not_pdf",
+    "http_status_other_than_502_503_504",
+    "pdf_text_extraction_failure",
+)
+_CNINFO_RETRY_EVENT_LABEL = re.compile(
+    r"^(?:gold_sample_http_status_(?:502|503|504)"
+    r"|httpx\.[A-Za-z_][A-Za-z0-9_]*"
+    r"|(?!gold_sample_http_status_)[A-Za-z_][A-Za-z0-9_]*)$"
+)
+
+INFERENCE_EXTRACT_FAILED_RATIO_CEILING = 0.02
+INFERENCE_RECORDED_FAILURE_CATEGORIES = {
+    "post_validation_failed": "post_validation_constraint",
+    "schema_validation_failed": "response_schema_violation",
+    "event_contract_failed": "model_output_contract_violation",
+}
+
+
+def _expected_category_counts(entries: object) -> JsonObject:
+    """Per-category counts recomputed from a recorded census."""
+    counts = dict.fromkeys(sorted(set(INFERENCE_RECORDED_FAILURE_CATEGORIES.values())), 0)
+    if isinstance(entries, list):
+        for entry in entries:
+            if isinstance(entry, Mapping) and entry.get("category") in counts:
+                counts[cast(str, entry["category"])] += 1
+    return cast(JsonObject, counts)
+
+
+def _extract_failed_census_ids(entries: object) -> list[int] | None:
+    """Sorted news_item_ids from a recorded census, or None when it is malformed."""
+    if not isinstance(entries, list):
+        return None
+    identifiers: list[int] = []
+    for entry in entries:
+        if not isinstance(entry, Mapping):
+            return None
+        identifier = entry.get("news_item_id")
+        if isinstance(identifier, bool) or not isinstance(identifier, int) or identifier <= 0:
+            return None
+        reason = entry.get("reason")
+        if (
+            not isinstance(reason, str)
+            or reason not in INFERENCE_RECORDED_FAILURE_CATEGORIES
+            or entry.get("category") != INFERENCE_RECORDED_FAILURE_CATEGORIES[reason]
+            or set(entry) - {"news_item_id", "category", "reason", "field", "constraint"}
+            or ("field" in entry) != ("constraint" in entry)
+            or any(
+                not isinstance(entry[key], str) or not entry[key]
+                for key in ("field", "constraint")
+                if key in entry
+            )
+        ):
+            return None
+        identifiers.append(identifier)
+    return sorted(identifiers)
+
+
 EXPECTED_RAW_BY_SOURCE = {
     "akshare_ths": 1021,
     "cninfo": 2824,
@@ -521,9 +611,9 @@ def load_control_bundle(root: Path = PROJECT_ROOT) -> ControlBundle:
         != "PREREGISTERED_BEFORE_SYNTHETIC_REHEARSAL_AND_ANY_HELDOUT_ARTIFACT"
         or design.get("schema_version") != "p4.2a-evaluation-design-v2"
         or design.get("production_writes_allowed") is not False
-        or outcome.get("selected_model") != MODEL
-        or freeze.get("selected_model") != MODEL
-        or heldout_contract.get("schema_version") != "p4.2a-heldout-event-extract-contract-v2"
+        or outcome.get("selected_model") != PREREGISTERED_MODEL
+        or freeze.get("selected_model") != PREREGISTERED_MODEL
+        or heldout_contract.get("schema_version") != "p4.2a-heldout-event-extract-contract-v3"
         or round3_contract.get("schema_version") != "p4.2a-development-event-extract-contract-v2-r3"
     ):
         raise HeldoutEvaluationError("P4.2a v2 held-out control versions drifted")
@@ -531,7 +621,7 @@ def load_control_bundle(root: Path = PROJECT_ROOT) -> ControlBundle:
     request = _mapping(prereg.get("request_contract"), "prereg.request_contract")
     metrics = _mapping(prereg.get("metrics"), "prereg.metrics")
     if (
-        selected.get("model") != MODEL
+        selected.get("model") != PREREGISTERED_MODEL
         or _mapping(selected.get("round_3_prompt"), "round_3_prompt").get("sha256") != PROMPT_SHA256
         or _mapping(selected.get("round_3_contract"), "round_3_contract").get("sha256")
         != ROUND3_CONTRACT_SHA256
@@ -921,7 +1011,189 @@ def _validate_execution_authority(value: object) -> str:
     return mode
 
 
-def _validate_request_pacing(value: object) -> None:
+def _valid_stall_pause_events(value: object) -> bool:
+    """Pauses are bounded, window-justified and ordered; they are not requests."""
+    if not isinstance(value, list) or len(value) > CNINFO_STALL_PAUSE_MAX:
+        return False
+    previous = 0.0
+    for index, event in enumerate(value, 1):
+        stalls = event.get("window_stalls") if isinstance(event, Mapping) else None
+        if (
+            not isinstance(event, Mapping)
+            or set(event)
+            != {
+                "pause_index",
+                "window_size",
+                "window_stalls",
+                "pause_seconds",
+                "monotonic_offset_seconds",
+                "current_url_sha256",
+            }
+            or isinstance(event.get("pause_index"), bool)
+            or event.get("pause_index") != index
+            or isinstance(event.get("window_size"), bool)
+            or event.get("window_size") != CNINFO_STALL_PAUSE_WINDOW
+            or isinstance(stalls, bool)
+            or not isinstance(stalls, int)
+            or not CNINFO_STALL_PAUSE_WINDOW_STALLS <= stalls <= CNINFO_STALL_PAUSE_WINDOW
+            or isinstance(event.get("pause_seconds"), bool)
+            or not isinstance(event.get("pause_seconds"), (int, float))
+            or float(cast(float, event["pause_seconds"])) != CNINFO_STALL_PAUSE_SECONDS
+            or not isinstance(event.get("current_url_sha256"), str)
+            or re.fullmatch(r"[0-9a-f]{64}", cast(str, event["current_url_sha256"])) is None
+            or isinstance(event.get("monotonic_offset_seconds"), bool)
+            or not isinstance(event.get("monotonic_offset_seconds"), (int, float))
+            or not math.isfinite(float(cast(float, event["monotonic_offset_seconds"])))
+            or float(cast(float, event["monotonic_offset_seconds"])) < previous
+        ):
+            return False
+        previous = float(cast(float, event["monotonic_offset_seconds"]))
+    return True
+
+
+def _valid_retry_attempt_segments(events: list[Any], pauses: list[Any]) -> bool:
+    """Each PDF's attempts run 1..k; a restart at 1 needs a pause naming that PDF."""
+    by_url: dict[str, list[tuple[int, float]]] = {}
+    for event in events:
+        by_url.setdefault(cast(str, event["url_sha256"]), []).append(
+            (cast(int, event["attempt"]), float(cast(float, event["monotonic_offset_seconds"])))
+        )
+    for url, entries in by_url.items():
+        segments: list[list[tuple[int, float]]] = []
+        for attempt, offset in entries:
+            if attempt == 1 or not segments:
+                segments.append([])
+            segments[-1].append((attempt, offset))
+        for segment in segments:
+            attempts = [attempt for attempt, _offset in segment]
+            if attempts != list(range(1, len(attempts) + 1)):
+                return False
+            if len(attempts) > CNINFO_MAX_PDF_ATTEMPTS - 1:
+                return False
+        for previous, following in pairwise(segments):
+            closed, opened = previous[-1][1], following[0][1]
+            if not any(
+                pause["current_url_sha256"] == url
+                and closed <= float(pause["monotonic_offset_seconds"]) <= opened
+                for pause in pauses
+            ):
+                return False
+    return True
+
+
+def _valid_http_unavailable_events(value: object, count: object) -> bool:
+    """Every 404/410 candidate is itemised once and matches the recorded count."""
+    if (
+        not isinstance(value, list)
+        or isinstance(count, bool)
+        or not isinstance(count, int)
+        or count != len(value)
+    ):
+        return False
+    previous = 0.0
+    for event in value:
+        if (
+            not isinstance(event, Mapping)
+            or set(event) != {"url_sha256", "http_status", "monotonic_offset_seconds"}
+            or not isinstance(event.get("url_sha256"), str)
+            or re.fullmatch(r"[0-9a-f]{64}", cast(str, event["url_sha256"])) is None
+            or isinstance(event.get("http_status"), bool)
+            or event.get("http_status") not in CNINFO_UNAVAILABLE_HTTP_STATUSES
+            or isinstance(event.get("monotonic_offset_seconds"), bool)
+            or not isinstance(event.get("monotonic_offset_seconds"), (int, float))
+            or not math.isfinite(float(cast(float, event["monotonic_offset_seconds"])))
+            or float(cast(float, event["monotonic_offset_seconds"])) < previous
+        ):
+            return False
+        previous = float(cast(float, event["monotonic_offset_seconds"]))
+    return True
+
+
+def _valid_transport_retry_evidence(
+    cninfo: Mapping[str, Any],
+    *,
+    request_count: int,
+    retry_count: int,
+) -> bool:
+    """Recorded retry policy is the registered one and every retry is itemised."""
+    policy = cninfo.get("transport_retry_policy")
+    events = cninfo.get("retry_events")
+    if not isinstance(policy, Mapping) or not isinstance(events, list):
+        return False
+    backoff = policy.get("backoff_seconds")
+    if (
+        set(policy)
+        != {
+            "max_attempts_per_pdf",
+            "backoff_seconds",
+            "retried_error_classes",
+            "non_retried",
+            "stall_pause_policy",
+            "wall_clock_cap_seconds",
+            "unavailable_http_statuses",
+        }
+        or isinstance(policy.get("max_attempts_per_pdf"), bool)
+        or policy.get("max_attempts_per_pdf") != CNINFO_MAX_PDF_ATTEMPTS
+        or not isinstance(backoff, list)
+        or len(backoff) != len(CNINFO_RETRY_BACKOFF_SECONDS)
+        or any(
+            isinstance(item, bool)
+            or not isinstance(item, (int, float))
+            or float(item) != expected
+            for item, expected in zip(backoff, CNINFO_RETRY_BACKOFF_SECONDS, strict=True)
+        )
+        or policy.get("retried_error_classes") != list(CNINFO_RETRIED_ERROR_CLASSES)
+        or policy.get("non_retried") != list(CNINFO_NON_RETRIED_FAILURES)
+        or policy.get("stall_pause_policy")
+        != {
+            "window_size": CNINFO_STALL_PAUSE_WINDOW,
+            "window_stall_threshold": CNINFO_STALL_PAUSE_WINDOW_STALLS,
+            "pause_seconds": CNINFO_STALL_PAUSE_SECONDS,
+            "max_pauses": CNINFO_STALL_PAUSE_MAX,
+        }
+        or isinstance(policy.get("wall_clock_cap_seconds"), bool)
+        or policy.get("wall_clock_cap_seconds") != CNINFO_MATERIALIZE_WALL_CLOCK_CAP_SECONDS
+        or policy.get("unavailable_http_statuses") != list(CNINFO_UNAVAILABLE_HTTP_STATUSES)
+    ):
+        return False
+    if not _valid_http_unavailable_events(
+        cninfo.get("http_unavailable_events"), cninfo.get("http_unavailable_count")
+    ):
+        return False
+    if not _valid_stall_pause_events(cninfo.get("pause_events")):
+        return False
+    if len(events) != retry_count:
+        return False
+    # Distinct PDFs are the request starts that were not themselves retries, and
+    # each PDF may contribute at most MAX-1 retries.
+    pauses = cast(list[Any], cninfo.get("pause_events"))
+    distinct_pdfs = request_count - retry_count
+    if distinct_pdfs < 0 or retry_count > (CNINFO_MAX_PDF_ATTEMPTS - 1) * (
+        distinct_pdfs + len(pauses)
+    ):
+        return False
+    for event in events:
+        if (
+            not isinstance(event, Mapping)
+            or set(event)
+            != {"url_sha256", "attempt", "exception_type", "monotonic_offset_seconds"}
+            or not _is_sha(event.get("url_sha256"))
+            or isinstance(event.get("attempt"), bool)
+            or not isinstance(event.get("attempt"), int)
+            or not 1 <= cast(int, event["attempt"]) < CNINFO_MAX_PDF_ATTEMPTS
+            or not isinstance(event.get("exception_type"), str)
+            or _CNINFO_RETRY_EVENT_LABEL.fullmatch(cast(str, event["exception_type"])) is None
+            or isinstance(event.get("monotonic_offset_seconds"), bool)
+            or not isinstance(event.get("monotonic_offset_seconds"), (int, float))
+            or not math.isfinite(float(cast(float, event["monotonic_offset_seconds"])))
+            or float(cast(float, event["monotonic_offset_seconds"])) < 0.0
+        ):
+            return False
+    return _valid_retry_attempt_segments(events, pauses)
+
+
+def _validate_request_pacing(value: object, *, transport_retry_recorded: bool) -> None:
+    """Same two-shape rule as prepare: legacy evidence proves zero retries."""
     pacing = _mapping(value, "materialization.request_pacing")
     _exact_keys(
         pacing,
@@ -949,6 +1221,17 @@ def _validate_request_pacing(value: object) -> None:
             "median_observed_start_to_start_seconds",
             "violation_count",
             "retry_count",
+            *(
+                (
+                    "transport_retry_policy",
+                    "retry_events",
+                    "pause_events",
+                    "http_unavailable_count",
+                    "http_unavailable_events",
+                )
+                if transport_retry_recorded
+                else ()
+            ),
         },
         "materialization.request_pacing.cninfo_pdf",
     )
@@ -973,11 +1256,17 @@ def _validate_request_pacing(value: object) -> None:
         or cninfo.get("configured_min_start_to_start_seconds") != 1.0
         or cninfo.get("clock") != "monotonic"
         or cninfo.get("first_request_delayed") is not False
-        or request_count != EXPECTED_RAW_BY_SOURCE["cninfo"]
+        or request_count != EXPECTED_RAW_BY_SOURCE["cninfo"] + retry_count
         or gap_count != max(request_count - 1, 0)
         or not gap_statistics_valid
         or violation_count != 0
-        or retry_count != 0
+        or (
+            not _valid_transport_retry_evidence(
+                cninfo, request_count=request_count, retry_count=retry_count
+            )
+            if transport_retry_recorded
+            else retry_count != 0
+        )
     ):
         raise HeldoutEvaluationError("CNInfo request pacing evidence drifted")
 
@@ -1073,13 +1362,13 @@ def _validate_runtime_start_preflight(value: object, *, authority_mode: str) -> 
         },
         "runtime operator attestation",
     )
-    expected_date = observed_shanghai.date().isoformat()
     backup_created_utc = _aware_datetime(
         backup.get("created_at_utc"), "verified backup created_at_utc"
     )
     backup_created_shanghai = _aware_datetime(
         backup.get("created_at_shanghai"), "verified backup created_at_shanghai"
     )
+    expected_date = backup_created_shanghai.date().isoformat()
     operator_start = _aware_datetime(
         attestation.get("observed_start_cst"), "operator observed_start_cst"
     )
@@ -1100,8 +1389,7 @@ def _validate_runtime_start_preflight(value: object, *, authority_mode: str) -> 
         or not _is_sha(backup.get("manifest_sha256"))
         or not _is_sha(backup.get("backup_sha256"))
         or backup_created_utc.astimezone(UTC) != backup_created_shanghai.astimezone(UTC)
-        or backup_created_shanghai.date().isoformat() != expected_date
-        or backup_created_shanghai.hour < 22
+        or backup_created_utc.astimezone(UTC) > observed_utc.astimezone(UTC)
         or backup.get("quick_check") != "ok"
         or backup.get("verify_database_backup_passed") is not True
         or operator_start.astimezone(UTC) != observed_utc.astimezone(UTC)
@@ -1165,7 +1453,9 @@ def _validate_materialization_manifest(
         "materialization manifest",
     )
     authority_mode = _validate_execution_authority(manifest.get("execution_authority"))
-    _validate_request_pacing(manifest.get("request_pacing"))
+    _validate_request_pacing(
+        manifest.get("request_pacing"), transport_retry_recorded=False
+    )
     _validate_runtime_start_preflight(
         manifest.get("runtime_start_preflight"), authority_mode=authority_mode
     )
@@ -1418,7 +1708,7 @@ def _validate_materialization_manifest(
         )
         identifier = _positive_int(row.get("news_item_id"), "ineligible candidate ID")
         reason = row.get("reason")
-        if reason not in {"pdf_text_below_min_char_gate", "pdf_exceeds_size_bound"}:
+        if reason not in set(CNINFO_DETERMINISTIC_INELIGIBLE_REASONS):
             raise HeldoutEvaluationError("materialization ineligible reason drifted")
         measured = _nonnegative_int(row.get("measured_value"), "ineligible measured value")
         gate = _positive_int(row.get("gate_value"), "ineligible gate value")
@@ -1446,6 +1736,14 @@ def _validate_materialization_manifest(
             or (
                 reason == "pdf_exceeds_size_bound"
                 and (gate != maximum_pdf_bytes or measured <= gate)
+            )
+            or (
+                reason == CNINFO_UNAVAILABLE_REASON
+                and (
+                    gate != CNINFO_UNAVAILABLE_GATE_STATUS
+                    or measured not in CNINFO_UNAVAILABLE_HTTP_STATUSES
+                    or pdf_sha is not None
+                )
             )
         ):
             raise HeldoutEvaluationError("materialization ineligible evidence drifted")
@@ -1616,6 +1914,20 @@ def _validate_inference_chain(
         },
         "inference started event",
     )
+    # v5: the census of deterministic post-validation failures binds three layers.
+    # Artefacts published before the decision carry no census and must prove zero
+    # failures, exactly as they did; neither shape is accepted in the other's place.
+    census_recorded = "extract_failed_count" in prediction_manifest
+    failed_ids = sorted(
+        cast(int, row["news_item_id"])
+        for row in predictions
+        if row.get("status") != "ok"
+    )
+    failed_count = len(failed_ids)
+    if not census_recorded and failed_count:
+        raise HeldoutEvaluationError("inference failures without a recorded census")
+    if failed_count > INFERENCE_EXTRACT_FAILED_RATIO_CEILING * len(predictions):
+        raise HeldoutEvaluationError("inference extract_failed ratio exceeded its ceiling")
     _exact_keys(
         completed,
         {
@@ -1626,6 +1938,11 @@ def _validate_inference_chain(
             "materialization_manifest_sha256",
             "completed_at_utc",
             "prediction_count",
+            *(
+                ("extract_failed_count", "extract_failed_ids", "extract_failed_by_category")
+                if census_recorded
+                else ()
+            ),
             "predictions_sha256",
             "prediction_manifest_sha256",
             "production_snapshot_unchanged",
@@ -1648,6 +1965,16 @@ def _validate_inference_chain(
             "prediction_count",
             "status_ok_count",
             "status_failed_count",
+            *(
+                (
+                    "extract_failed_count",
+                    "extract_failed_ids",
+                    "extract_failed_by_category",
+                    "extract_failed_ratio_ceiling",
+                )
+                if census_recorded
+                else ()
+            ),
             "one_news_item_per_request",
             "one_request_per_eligible_candidate",
             "automatic_retries",
@@ -1740,8 +2067,25 @@ def _validate_inference_chain(
         or prediction_manifest.get("model") != MODEL
         or prediction_manifest.get("candidate_count") != len(candidates)
         or prediction_manifest.get("prediction_count") != len(predictions)
-        or prediction_manifest.get("status_ok_count") != len(predictions)
-        or prediction_manifest.get("status_failed_count") != 0
+        or prediction_manifest.get("status_ok_count") != len(predictions) - failed_count
+        or prediction_manifest.get("status_failed_count") != failed_count
+        or (
+            census_recorded
+            and (
+                prediction_manifest.get("extract_failed_count") != failed_count
+                or _extract_failed_census_ids(prediction_manifest.get("extract_failed_ids"))
+                != failed_ids
+                or prediction_manifest.get("extract_failed_ratio_ceiling")
+                != INFERENCE_EXTRACT_FAILED_RATIO_CEILING
+                or prediction_manifest.get("extract_failed_by_category")
+                != _expected_category_counts(prediction_manifest.get("extract_failed_ids"))
+                or completed.get("extract_failed_by_category")
+                != _expected_category_counts(completed.get("extract_failed_ids"))
+                or completed.get("extract_failed_count") != failed_count
+                or _extract_failed_census_ids(completed.get("extract_failed_ids"))
+                != failed_ids
+            )
+        )
         or prediction_manifest.get("one_news_item_per_request") is not True
         or prediction_manifest.get("one_request_per_eligible_candidate") is not True
         or prediction_manifest.get("automatic_retries") != 0
@@ -1875,10 +2219,17 @@ def _validate_selection(
         raise HeldoutEvaluationError("deterministic without-replacement selection drifted")
     selected_ids = {cast(int, row["news_item_id"]) for row in expected_selected}
     audit = _mapping(selection.get("audit"), "selection.audit")
+    # v5: candidates refused by a deterministic post-validation constraint are
+    # reported here and excluded from both sampled strata.
+    selection_failed_count = sum(
+        predictions_by_id[cast(int, row["news_item_id"])].get("status") != "ok"
+        for row in candidates
+        if cast(int, row["news_item_id"]) in predictions_by_id
+    )
     expected_audit = {
         "eligible_candidate_count": len(candidates),
-        "successful_prediction_count": len(candidates),
-        "extract_failed_count": 0,
+        "successful_prediction_count": len(candidates) - selection_failed_count,
+        "extract_failed_count": selection_failed_count,
         "available_by_stratum": dict(stratum_counts),
         "retired_selected_intersection_count": len(selected_ids.intersection(retired_ids)),
         "input_prediction_identity_match": True,

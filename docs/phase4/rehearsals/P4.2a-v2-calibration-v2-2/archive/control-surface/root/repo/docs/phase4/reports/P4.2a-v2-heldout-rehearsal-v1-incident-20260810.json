@@ -1,0 +1,119 @@
+{
+  "schema_version": "p4.2a-v2-heldout-rehearsal-v1-incident-v1",
+  "incident_id": "P4.2A-V2-HELDOUT-REHEARSAL-V1-INVALID-20260810",
+  "recorded_at_utc": "2026-08-10T06:45:58Z",
+  "status": "OPEN_REMEDIATION_REQUIRED",
+  "decision": {
+    "receipt_generation_may_be_retained_as_historical_evidence": true,
+    "v1_materialization_gate_unlock_allowed": false,
+    "v1_receipt_permanently_retired": true,
+    "v1_receipt_reuse_or_reissue_allowed": false,
+    "affected_four_files_must_remain_immutable": true
+  },
+  "affected_artifacts": {
+    "directory": "docs/phase4/rehearsals/P4.2a-v2-calibration",
+    "contract": {
+      "path": "docs/phase4/rehearsals/P4.2a-v2-calibration/contract.json",
+      "sha256": "61ff631b0dc025bf7441fd3bd04636d0d6d34e5085b0ca570e6f8e2fcfd298ac"
+    },
+    "inputs": {
+      "path": "docs/phase4/rehearsals/P4.2a-v2-calibration/inputs.jsonl",
+      "sha256": "a6c5e6e0da6341cecf01df038b36964af6d8bb433b72babf953b385addc87707"
+    },
+    "expected": {
+      "path": "docs/phase4/rehearsals/P4.2a-v2-calibration/expected.json",
+      "sha256": "557433d6ebdd6e3585aad18c6204e28c1cae6417ab3b1b3591474c5f0189b9ac"
+    },
+    "receipt": {
+      "path": "docs/phase4/rehearsals/P4.2a-v2-calibration/pass-receipt.json",
+      "schema_version": "p4.2a-v2-heldout-full-path-rehearsal-pass-receipt-v1",
+      "sha256": "2610a8b3885426e44a7f32c1d964defcaa46a118bb531a2ecc9b0f3aefa1e0f5"
+    }
+  },
+  "findings": [
+    {
+      "finding_id": "B1",
+      "severity": "blocker",
+      "title": "internal artifact digests are neither reproducible nor verified by the materialization gate",
+      "independent_replay": {
+        "published_non_receipt_artifact_sha256_matches": 3,
+        "published_non_receipt_artifact_sha256_total": 3,
+        "tested_code_sha256_matches": 10,
+        "tested_code_sha256_total": 10,
+        "internal_artifact_sha256_matches": 6,
+        "internal_artifact_sha256_total": 14,
+        "matching_internal_artifacts": [
+          "ai_draft",
+          "human_adjudicated",
+          "materialization_manifest",
+          "materialized_inputs",
+          "owner_blind",
+          "owner_export"
+        ],
+        "drifted_internal_artifacts": [
+          "adjudication_ui",
+          "evaluation_state",
+          "inference_state",
+          "owner_completion",
+          "prediction_manifest",
+          "predictions",
+          "private_selection",
+          "synthetic_report"
+        ],
+        "observed_nondeterminism": [
+          "uuid4",
+          "current timestamps",
+          "absolute report paths"
+        ]
+      },
+      "fail_open_probe": {
+        "mutation": "replace any internal_artifact_sha256 value with 64 zeroes while preserving a syntactically valid lowercase SHA-256",
+        "v1_gate_result": "accepted",
+        "root_cause": "the v1 gate validates only the internal artifact key set and SHA-256 syntax; it does not bind those digests to independently reproduced bytes"
+      }
+    },
+    {
+      "finding_id": "B2",
+      "severity": "blocker",
+      "title": "tested-code closure omits a directly imported executed module",
+      "receipt_tested_code_entry_count": 10,
+      "missing_direct_dependency": {
+        "path": "scripts/p4_2a_v2_dev_common.py",
+        "sha256_at_incident_recording": "6001ffbd0671f596cc7a2580b0d3f7bb4ecf5ff6cf5e1007edb84c00b52dd61d"
+      },
+      "impact": "the receipt cannot prove the complete executable byte lineage used by the rehearsal"
+    }
+  ],
+  "execution_safety": {
+    "rehearsal_real_database_reads": 0,
+    "rehearsal_real_network_calls": 0,
+    "rehearsal_real_model_calls": 0,
+    "rehearsal_production_writes": false,
+    "incident_replay_was_offline_and_read_only": true,
+    "real_heldout_materialization_started": false,
+    "real_heldout_inference_started": false
+  },
+  "remediation_required": {
+    "required": true,
+    "requirements": [
+      "register a new rehearsal design and receipt schema on new create-only paths",
+      "make replay-relevant internal outputs deterministic or normalize only fields explicitly preregistered as nondeterministic",
+      "independently reproduce every internal artifact and compare its actual bytes to every recorded internal digest",
+      "bind the full directly imported executable-code closure including scripts/p4_2a_v2_dev_common.py",
+      "keep this v1 receipt permanently incapable of unlocking materialization"
+    ],
+    "this_incident_does_not_authorize_v2_design_or_execution": true
+  },
+  "locks": {
+    "p4_2a_done": false,
+    "p4_2b_unlocked": false,
+    "p4_3_unlocked": false,
+    "heldout_materialization_unlocked": false,
+    "heldout_inference_unlocked": false,
+    "proposals_or_orders_allowed": false,
+    "trading_mode": "research",
+    "live_trading_enabled": false,
+    "paper_auto_trading_enabled": false,
+    "unlock_trade_permanently_blocked": true
+  }
+}

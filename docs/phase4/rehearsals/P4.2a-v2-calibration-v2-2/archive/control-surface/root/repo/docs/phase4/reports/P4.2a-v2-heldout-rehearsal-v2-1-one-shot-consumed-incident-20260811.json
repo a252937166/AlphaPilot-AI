@@ -1,0 +1,317 @@
+{
+  "schema_version": "p4.2a-v2-heldout-rehearsal-v2-1-one-shot-incident-v1",
+  "incident_id": "P4.2A-V2-HELDOUT-REHEARSAL-V2-1-ONE-SHOT-CONSUMED-20260811",
+  "created_at_utc": "2026-08-11T07:08:39Z",
+  "created_at_shanghai": "2026-08-11T15:08:39+08:00",
+  "finalized_at_utc": "2026-08-11T07:15:34Z",
+  "finalized_at_shanghai": "2026-08-11T15:15:34+08:00",
+  "status": "OPEN_OWNER_REMEDIATION_DECISION_REQUIRED",
+  "verdict": "REGISTERED_REHEARSAL_ONE_SHOT_CONSUMED_WITHOUT_BUNDLE",
+  "severity": "blocker",
+  "summary": "The single authorized registered v2.1 synthetic rehearsal ran exactly once and failed closed after both isolated synthetic pipelines returned but before any registered bundle bytes were staged, independently validated as the registered candidate, or published. The durable claim remains and permanently forbids retrying v2.1. No bundle or success review request exists.",
+  "authority_and_lineage": {
+    "action_time_owner_authorization": {
+      "owner_identity": "ouyang",
+      "source": "the owner message in the current Codex task immediately preceding execution",
+      "durable_repository_receipt": false,
+      "binding": "transcript-bound",
+      "authorized_scope": "execute exactly one registered offline v2.1 synthetic rehearsal from implementation commit 4fce89e89fe2dba656694a7cffdc0ee1af0305c0, then create-only publish and validate a bundle only if the runner succeeds",
+      "explicit_exclusions": [
+        "approval of the rehearsal result",
+        "real heldout materialization",
+        "real network access",
+        "real model inference",
+        "heldout evaluation",
+        "retry after any failure"
+      ]
+    },
+    "base_preregistration": {
+      "path": "docs/phase4/reports/P4.2a-v2-heldout-rehearsal-v2-1-preregistration-20260810.json",
+      "sha256": "c303cfb13a42ecbb7e0acaec04de12a9e9169b89cf9e93ea79d0f120d1439d3e",
+      "creating_commit": "b302d5889f01296568340bcc15041cc554ceb2c7"
+    },
+    "prediction_timing_preregistration": {
+      "path": "docs/phase4/reports/P4.2a-v2-heldout-rehearsal-v2-1-prediction-timing-seam-preregistration-20260810.json",
+      "sha256": "1052c7a33268572fc794517844dae4b6c1ea504121712ad2f55ec814a7446f9a",
+      "creating_commit": "b3c2d2216c1feffd9949f181fa6766f8357ff683"
+    },
+    "successor_code_gate_authorization": {
+      "path": "docs/phase4/reports/P4.2a-successor-v2-1-code-gate-authorization-20260810.json",
+      "sha256": "e28db692dc150983f86f6760fb1a95584d8607658e8a78a0de35cf3fc81940cd",
+      "creating_commit": "aa082578aa48296f1dd394a380775a5a4546ca65"
+    },
+    "scope_correction_ruling": {
+      "path": "docs/phase4/reports/P4.2a-v2-heldout-rehearsal-v2-1-scope-correction-owner-ruling-20260810.json",
+      "sha256": "36a3baea9ce5e4c28c7e6aff9e77c09691024a870513f49f2094b07963f3582e",
+      "creating_commit": "88690ef488925f9de922569f961ec4ff1a23bb78"
+    },
+    "control_plane_registry_authorization": {
+      "path": "docs/phase4/reports/P4.2a-v2-1-control-plane-registry-expansion-authorization-20260811.json",
+      "sha256": "ab85a0ddd90728c7d41051e640b59f7dc777f2f2aec3c8290286206979251796",
+      "creating_commit": "d37040be87644977ddaad60b2590ac2e62b2aeed"
+    },
+    "implementation_commit": "4fce89e89fe2dba656694a7cffdc0ee1af0305c0",
+    "implementation_parent": "d37040be87644977ddaad60b2590ac2e62b2aeed",
+    "implementation_review": {
+      "path": "docs/phase4/reports/P4.2a-v2-1-implementation-independent-review-20260811.json",
+      "sha256": "d144f77d4e7a2946f00e618fb768960b0abdd6e40caf5831f4f198700762d276",
+      "creating_commit": "ed59a0ce6057145068b7c87fc681dd0aeea47270",
+      "verdict": "APPROVE_IMPLEMENTATION"
+    },
+    "execution_source": {
+      "checkout_mode": "temporary_detached_head",
+      "commit": "4fce89e89fe2dba656694a7cffdc0ee1af0305c0",
+      "reason": "the implementation review authorized the single registered rehearsal specifically from this source commit",
+      "branch_restored_after_failure": "main",
+      "restored_head": "ed59a0ce6057145068b7c87fc681dd0aeea47270"
+    },
+    "registered_source_sha256": {
+      "scripts/prepare_p4_2a_v2_heldout.py": "ac2b3eb92ac9fadf823dfc081a1983af57132a77b36bb4f1419297c488eb9394",
+      "scripts/rehearse_p4_2a_v2_1_heldout_full_path.py": "5fb771df602876e467e0882e9f7f1e43679203a37c401c5ebae777a7a3aae73e",
+      "scripts/validate_p4_2a_v2_1_heldout_rehearsal_bundle.py": "bb5ea8602f5b9e485e0c365136b43b79c08c200879df20028f03f0ced121413e"
+    }
+  },
+  "official_execution": {
+    "authorized_attempts": 1,
+    "attempt_ordinal": 1,
+    "invocation_count": 1,
+    "retry_count": 0,
+    "exit_code": 1,
+    "durable_claim_acquired_at_utc": "2026-08-11T06:52:25.228939Z",
+    "process_start_and_exit_timestamps": {
+      "persisted_by_runner": false,
+      "statement": "The runner persisted only the durable claim birth time before failing; no separate start or terminal event artifact was written, so no invented process timestamps are reported."
+    },
+    "launcher": "/usr/bin/env",
+    "argv": [
+      "/usr/bin/env",
+      "-i",
+      "LANG=C.UTF-8",
+      "LC_ALL=C.UTF-8",
+      "OPENBLAS_MAIN_FREE=1",
+      "PYTHONDONTWRITEBYTECODE=1",
+      "PYTHONHASHSEED=0",
+      "PYTHONNOUSERSITE=1",
+      "PYTHONPYCACHEPREFIX=/dev/null",
+      "PYTHONSAFEPATH=1",
+      "TZ=UTC",
+      "__CF_USER_TEXT_ENCODING=0x1F5:0x0:0x0",
+      "PATH=/usr/bin:/bin",
+      "ALPHAPILOT_P42A_REHEARSAL_V2_1_ENV_LOCKED=1",
+      "/Users/ouyangduning/Documents/project/interesting/AlphaPilot-AI/.venv/bin/python",
+      "-S",
+      "-P",
+      "-B",
+      "/Users/ouyangduning/Documents/project/interesting/AlphaPilot-AI/scripts/rehearse_p4_2a_v2_1_heldout_full_path.py",
+      "--execute"
+    ],
+    "one_shot_claim": {
+      "path": "/Users/ouyangduning/Documents/project/interesting/.alphapilot-p4-2a-v2-1-execution-claim-52378ddcda558a8489795c62a5c4d290687700801320508c03c51589c202e962",
+      "birth_time_utc": "2026-08-11T06:52:25.228939Z",
+      "mode": "0700",
+      "object_type": "directory",
+      "symlink": false,
+      "uid": 501,
+      "gid": 20,
+      "link_count": 2,
+      "entry_count": 0,
+      "retained_after_failure": true,
+      "retry_forbidden": true,
+      "claim_seed_eligible": false,
+      "must_remain_immutable_and_present": true,
+      "deletion_rename_or_reuse_allowed": false,
+      "effect": "all future v2.1 registered rehearsal invocations are permanently forbidden"
+    }
+  },
+  "execution_boundary": {
+    "preclaim_control_and_source_validation_passed": true,
+    "durable_claim_acquired": true,
+    "synthetic_run_a_returned": true,
+    "synthetic_run_b_returned": true,
+    "dual_replay_roots_removed": true,
+    "production_heldout_fingerprint_rechecked": true,
+    "retired_v1_fingerprints_rechecked": true,
+    "in_memory_bundle_candidate_constructed": true,
+    "synthetic_release_probe_entered": true,
+    "synthetic_release_probe_nested_validation_started": true,
+    "registered_staging_directory_created": true,
+    "registered_staging_directory_is_the_empty_durable_claim": true,
+    "registered_bundle_byte_write_started": false,
+    "registered_bundle_independent_validation_started": false,
+    "registered_atomic_publication_started": false,
+    "registered_bundle_published": false,
+    "success_review_request_published": false,
+    "reachability_evidence_basis": "These reached-stage statements are supported by the control-flow location of the observed exception, the source ordering, and the clean post-state; no durable run artifact survived.",
+    "evidence_limit": "The two returned runs and in-memory candidate were not persisted as a registered bundle and cannot now be independently rehashed. They must not be described as a published 14/14 PASS and must not be reconstructed from memory or temporary state."
+  },
+  "failure": {
+    "outer_exception": "scripts.prepare_p4_2a_v2_heldout.HeldoutPreparationError",
+    "outer_safe_message": "successor rehearsal bundle failed full independent validation",
+    "root_exception": "__main__.RehearsalV21Error",
+    "root_safe_message": "offline replay attempted an external filesystem write",
+    "call_chain": [
+      "scripts/rehearse_p4_2a_v2_1_heldout_full_path.py:_run_rehearsal_to",
+      "scripts/rehearse_p4_2a_v2_1_heldout_full_path.py:_synthetic_release_receipt_probe",
+      "scripts/prepare_p4_2a_v2_heldout.py:validate_v2_1_release_authorization",
+      "scripts/prepare_p4_2a_v2_heldout.py:_validate_successor_bundle",
+      "scripts/validate_p4_2a_v2_1_heldout_rehearsal_bundle.py:validate_bundle",
+      "scripts/rehearse_p4_2a_v2_1_heldout_full_path.py:_temporary_authority_scope",
+      "tempfile.mkdtemp",
+      "os.mkdir",
+      "__main__:_audit_hook",
+      "__main__:_require_audited_write_path"
+    ],
+    "source_frames_at_incident_bytes": {
+      "dual_runs": "scripts/rehearse_p4_2a_v2_1_heldout_full_path.py:4607-4618",
+      "bundle_candidate": "scripts/rehearse_p4_2a_v2_1_heldout_full_path.py:4629-4634",
+      "synthetic_release_probe": "scripts/rehearse_p4_2a_v2_1_heldout_full_path.py:4635-4640",
+      "first_registered_bundle_write_not_reached": "scripts/rehearse_p4_2a_v2_1_heldout_full_path.py:4643",
+      "registered_atomic_publication_not_reached": "scripts/rehearse_p4_2a_v2_1_heldout_full_path.py:4655",
+      "nested_validator_authority_creation": "scripts/validate_p4_2a_v2_1_heldout_rehearsal_bundle.py:2100-2106",
+      "audit_rejection": "scripts/rehearse_p4_2a_v2_1_heldout_full_path.py:1300-1303"
+    },
+    "root_cause": {
+      "category": "registered_bootstrap_module_identity_split",
+      "mechanism": "The official CLI loaded the runner as __main__. The independent validator then imported the same file as scripts.rehearse_p4_2a_v2_1_heldout_full_path, creating a second module instance with different _TEMP_AUTHORITY and _AUDIT_POLICY ContextVars. The imported validator-side runner could not see the outer temporary authority and attempted to create a new authority under /private/tmp. The already-installed process-wide audit hook from __main__ still enforced the synthetic-Git container as the only write root and rejected that mkdir.",
+      "why_existing_tests_missed_it": "The passing in-process module tests used one imported runner identity and did not exercise the exact OS -S -P -B __main__ bootstrap followed by the validator's nested package import of the runner."
+    }
+  },
+  "persistent_artifact_state": {
+    "observed_at_utc": "2026-08-11T07:15:34Z",
+    "observed_at_shanghai": "2026-08-11T15:15:34+08:00",
+    "current_repository_state": {
+      "branch": "main",
+      "head": "ed59a0ce6057145068b7c87fc681dd0aeea47270",
+      "detached_checkout_started_at_utc": "2026-08-11T06:50:31Z",
+      "main_checkout_restored_at_utc": "2026-08-11T06:59:55Z"
+    },
+    "registered_destination": {
+      "path": "docs/phase4/rehearsals/P4.2a-v2-calibration-v2-1",
+      "state": "ABSENT"
+    },
+    "registered_bundle": {
+      "path": "docs/phase4/rehearsals/P4.2a-v2-calibration-v2-1/bundle.json",
+      "state": "ABSENT"
+    },
+    "success_review_request": {
+      "path": "docs/phase4/reports/P4.2a-v2-heldout-rehearsal-v2-1-implementation-and-execution-review-request-20260810.json",
+      "state": "ABSENT",
+      "must_remain_absent_for_this_failed_round": true
+    },
+    "release_authorization": {
+      "path": "docs/phase4/reports/P4.2a-v2-heldout-rehearsal-v2-1-release-authorization-20260810.json",
+      "state": "ABSENT"
+    },
+    "real_heldout_root": {
+      "path": "docs/phase4/eval/v2-calibration/heldout",
+      "state": "ABSENT"
+    },
+    "matching_temp_processes": 0,
+    "matching_temp_directories_under_private_tmp": 0,
+    "new_repository_pyc_artifacts_observed": 0,
+    "git_object_integrity": {
+      "command": "git fsck --full --no-dangling --no-reflogs",
+      "exit_code": 0,
+      "stdout": "",
+      "stderr": ""
+    }
+  },
+  "attributable_persistent_side_effects": {
+    "durable_empty_claim": true,
+    "head_reflog": [
+      {
+        "at_utc": "2026-08-11T06:50:31Z",
+        "event": "checkout: moving from main at ed59a0ce6057145068b7c87fc681dd0aeea47270 to detached 4fce89e89fe2dba656694a7cffdc0ee1af0305c0"
+      },
+      {
+        "at_utc": "2026-08-11T06:59:55Z",
+        "event": "checkout: moving from detached 4fce89e89fe2dba656694a7cffdc0ee1af0305c0 to main at ed59a0ce6057145068b7c87fc681dd0aeea47270"
+      }
+    ],
+    "git_object_metadata": "The synthetic git clone --local may have changed hard-link or ctime metadata under .git/objects. Git fsck passed; this record makes no claim of Git object content drift or an exact net link-count change attributable to the rehearsal.",
+    "temporary_directory_metadata": "Create, remove and fsync metadata may remain on /private/tmp and repository-parent directories even though no matching temporary directory remains.",
+    "process_and_terminal_accounting": true
+  },
+  "retired_v1_integrity": [
+    {
+      "path": "docs/phase4/rehearsals/P4.2a-v2-calibration/contract.json",
+      "sha256": "61ff631b0dc025bf7441fd3bd04636d0d6d34e5085b0ca570e6f8e2fcfd298ac",
+      "links": 1,
+      "object_type": "regular_file"
+    },
+    {
+      "path": "docs/phase4/rehearsals/P4.2a-v2-calibration/inputs.jsonl",
+      "sha256": "a6c5e6e0da6341cecf01df038b36964af6d8bb433b72babf953b385addc87707",
+      "links": 1,
+      "object_type": "regular_file"
+    },
+    {
+      "path": "docs/phase4/rehearsals/P4.2a-v2-calibration/expected.json",
+      "sha256": "557433d6ebdd6e3585aad18c6204e28c1cae6417ab3b1b3591474c5f0189b9ac",
+      "links": 1,
+      "object_type": "regular_file"
+    },
+    {
+      "path": "docs/phase4/rehearsals/P4.2a-v2-calibration/pass-receipt.json",
+      "sha256": "2610a8b3885426e44a7f32c1d964defcaa46a118bb531a2ecc9b0f3aefa1e0f5",
+      "links": 1,
+      "object_type": "regular_file"
+    }
+  ],
+  "safety": {
+    "scope": "effects attributable to the official rehearsal process, not global host activity during the same wall-clock interval",
+    "official_process_real_database_accesses_observed": 0,
+    "official_process_real_network_calls_observed": 0,
+    "official_process_real_model_calls_observed": 0,
+    "official_process_real_materialization_started": false,
+    "official_process_real_inference_started": false,
+    "official_process_heldout_evaluation_started": false,
+    "official_process_production_heldout_writes_observed": 0,
+    "official_process_registered_bundle_writes_observed": 0,
+    "p4_1_effect_attributable_to_official_process_observed": false,
+    "evidence_basis": "The registered audit guards and offline capabilities fail closed on real network, model and production-path access; post-run read-only state review found no rehearsal JobRun, LLM-call, proposal or order attributable to this process.",
+    "concurrent_host_activity_caveat": "Production database and WAL metadata changed during the same interval because the scheduler continued operating. This incident does not infer rehearsal access from file mtimes and does not claim packet-capture proof of zero network activity."
+  },
+  "unrelated_worktree_preservation": {
+    "before_and_after_equal": true,
+    "git_status_short_entries": [
+      " M apps/web/src/components/NotificationBell.vue",
+      "?? docs/AlphaPilot-AI-UI-16x9/",
+      "?? docs/phase4/eval/P4.2a-gold-heldout40-blind-sample-v1.7.adjudication.html"
+    ],
+    "statement": "No unrelated tracked or untracked user work was reverted, staged, or modified by the rehearsal handling."
+  },
+  "governance_effect": {
+    "v2_1_rehearsal_retry_allowed": false,
+    "claim_deletion_or_recovery_allowed": false,
+    "bundle_reconstruction_from_memory_or_temp_allowed": false,
+    "same_destination_or_claim_reuse_allowed": false,
+    "success_review_request_may_be_created_for_v2_1": false,
+    "successor_version_new_destination_and_new_claim_required": true,
+    "owner_decision_required_before_successor_preregistration": true,
+    "this_incident_authorizes_code_changes": false,
+    "this_incident_authorizes_successor_execution": false,
+    "o6_prelaunch_authorization_count_fact": "NO_FOURTH_PRELAUNCH_AUTHORIZATION_WAS_NEEDED",
+    "o6_preregistration_adequacy_inference_from_implementation_review_part_9": "WITHDRAWN_AND_OVERTAKEN_BY_THIS_INCIDENT",
+    "o6_updated_finding": "The exact OS __main__ bootstrap followed by the validator package import was absent from the preregistered test proof, so the earlier inference that the preregistration surface was adequate is no longer supportable. This does not rewrite the narrow historical fact that no fourth prelaunch authorization occurred.",
+    "f8_status": "OPEN_NOT_EXPANDED_BY_THIS_INCIDENT"
+  },
+  "required_successor_control": {
+    "exact_bootstrap_test": "Run the exact fixed OS interpreter with -S -P -B so the registered runner is __main__, then exercise the nested independent validator import and its temporary-authority creation under the outer audit policy.",
+    "must_use_new_version": true,
+    "must_use_new_registered_destination": true,
+    "must_use_new_durable_claim": true,
+    "must_be_preregistered_and_independently_reviewed": true,
+    "must_not_delete_or_mutate_this_claim": true
+  },
+  "locks": {
+    "p4_2a_done": false,
+    "heldout_materialization_unlocked": false,
+    "heldout_inference_unlocked": false,
+    "heldout_evaluation_unlocked": false,
+    "p4_2b_unlocked": false,
+    "p4_3_unlocked": false,
+    "trading_mode": "research",
+    "non_simulate_orders_allowed": false
+  }
+}

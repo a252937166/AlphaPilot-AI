@@ -1,0 +1,21 @@
+{
+  "schema_version": "p4.2a-owner-decision-record-v1",
+  "record_id": "p4.2a-owner-decision-rerun-rehearsal-series-2-20260823-r1",
+  "created_at_utc": "2026-08-23T05:03:54Z",
+  "created_at_shanghai": "2026-08-23T13:03:54+08:00",
+  "recorded_by": {"identity": "independent_ai_architect_claude_code", "reviewer_type": "ai", "impersonation_disclaimer": "Not the owner. The decision below was given by the owner in person and is transcript-bound."},
+  "cites": {"incident": "docs/phase4/reports/P4.2a-v2-2-sealed-ledger-loss-incident-20260823.json", "commit": "a7cea63"},
+  "decision": {
+    "question": "after the sealed v2.2 ledger bytes were lost, run the rehearsal again as a new series or pause P4.2a",
+    "answer": "run it again",
+    "binding": "transcript-bound, owner in person, 2026-08-23 CST"
+  },
+  "reviewer_requirements_for_the_series_2_design": [
+    "a preregistration amendment that records the loss by citing a7cea63, carries the lost series' digest chain as history, and defines series 2 with a fresh series token under DISCLOSED_REPEATABLE_SERIES_V1; gates, thresholds, samples, seeds, models, prompts, contracts and gold stay byte-identical",
+    "an explicit epoch-origin rule so a fresh ledger whose first attempt binds the current landed epoch can build and validate its bundle; the [2,4]-only special case and the sealed-bundle recovery machinery of the unlanded epoch-5 candidates are not required and should not be landed unless the design shows a concrete need",
+    "a visible, unmistakably named ledger location outside any directory used for disk cleanup, registered in the implementation constants, plus a seal-time byte-exact copy of every attempt to a second location the owner designates, verified by digest",
+    "the smallest implementation epoch that achieves the above on top of the currently landed registered bytes, with F-12 and the persistent gate unchanged",
+    "ordering: the cninfo capacity change lands first as an independent production fix; the series-2 epoch lands next; from that landing until release nothing touches any control-surface member; the reverted backup-retention fix re-lands only after release"
+  ],
+  "boundaries": {"heldout_evaluation_one_shot": "unconsumed", "trading": "zero non-SIMULATE", "phase_locks": {"p4_2a_done": false, "p4_2b_unlocked": false, "p4_3_unlocked": false}}
+}

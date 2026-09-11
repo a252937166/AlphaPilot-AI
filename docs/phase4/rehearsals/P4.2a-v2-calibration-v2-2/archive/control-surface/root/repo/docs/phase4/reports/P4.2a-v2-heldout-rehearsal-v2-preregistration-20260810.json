@@ -1,0 +1,460 @@
+{
+  "schema_version": "p4.2a-v2-heldout-rehearsal-v2-preregistration-v1",
+  "preregistration_id": "P4.2A-V2-HELDOUT-REHEARSAL-V2-PREREGISTERED-20260810",
+  "created_at_utc": "2026-08-10T07:00:00Z",
+  "created_at_shanghai": "2026-08-10T15:00:00+08:00",
+  "status": "PREREGISTERED_NOT_EXECUTED",
+  "purpose": "Replace the permanently retired v1 synthetic rehearsal with a byte-reproducible, fully archived, independently rehashable successor without unlocking real held-out work.",
+  "lineage": {
+    "parent_heldout_preregistration": {
+      "path": "docs/phase4/reports/P4.2a-v2-heldout-preregistration-20260810.json",
+      "sha256": "ccecbf5ca7b48b16e445318b8c94a08927432f92c7e8c12f8ab40f2916578705"
+    },
+    "v1_incident": {
+      "path": "docs/phase4/reports/P4.2a-v2-heldout-rehearsal-v1-incident-20260810.json",
+      "sha256": "c3224b288f5181131351ae711a673ce94ec603375925d0cc968cef85d103e785"
+    },
+    "commits": {
+      "tooling_base": "bb5ced1adc83bfe88fa4c86f9b70513a3de97503",
+      "v1_evidence": "924ddd6efe6da1437e4ea613f30603feb595573f",
+      "v1_fail_close": "d710e885b49006eedf4f70ea09cb81fe15d176a3",
+      "successor_implementation_requirement": "must_be_a_descendant_of_d710e885b49006eedf4f70ea09cb81fe15d176a3_and_record_its_exact_commit_in_the_bundle"
+    },
+    "implementation_commit_binding": {
+      "commit_field": "bundle.lineage.implementation_commit",
+      "object_check": "git cat-file -e <implementation_commit>^{commit} must succeed",
+      "ancestor_check": "git merge-base --is-ancestor d710e885b49006eedf4f70ea09cb81fe15d176a3 <implementation_commit> must succeed",
+      "required_ancestor": "d710e885b49006eedf4f70ea09cb81fe15d176a3",
+      "repository_origin_source_kinds": [
+        "python_source",
+        "package_initializer",
+        "frozen_control",
+        "project_manifest",
+        "lockfile"
+      ],
+      "per_file_binding": "for every repository-origin control record require SHA256(git show <implementation_commit>:<repository_path>) == record.sha256 == SHA256(archived_bytes)",
+      "runtime_inventory_exceptions": [
+        "python_runtime",
+        "package_inventory"
+      ],
+      "generated_control_manifest_exception": "control_manifest is generated evidence, is Merkle-bound, and has repository_path null",
+      "missing_commit_missing_path_non_blob_or_hash_mismatch": "fail_closed",
+      "full_worktree_clean_required": false,
+      "reason_worktree_clean_not_required": "The gate binds every repository-origin byte it consumes to the named commit; unrelated worktree files are outside the archived execution surface."
+    },
+    "frozen_inputs": {
+      "evaluation_design": {
+        "path": "config/p4_event_evaluation_v2.yaml",
+        "sha256": "18a2428a4ec04bfea6e4f4d70692f38ea82fbaee5a223f30f2465b895b238e21"
+      },
+      "heldout_execution_contract": {
+        "path": "config/p4_event_extract_eval_v2-heldout-qwen3.6-plus.yaml",
+        "sha256": "26be1765204b122908e7bd09cac857c33bd3140233df47dc3358bc590e020199"
+      },
+      "round3_prompt": {
+        "path": "config/prompts/p4_news_event_extract_v2-r3.txt",
+        "sha256": "0291dc882aac42878ba00c4ed3970da72f19508308cd39211467b4fd92294f44"
+      },
+      "round3_plus_contract": {
+        "path": "config/p4_event_extract_eval_v2-r3-qwen3.6-plus.yaml",
+        "sha256": "fa75a6cf33065745d02f74fe39e4f102723da43f37ac549058bb34fa8256a181"
+      },
+      "owner_model_selection_amendment": {
+        "path": "docs/phase4/reports/P4.2a-round3-adjudication-and-model-selection-override-20260810.json",
+        "sha256": "2f8d0309c4071373d85d8835e01128468db15e3cdfb596331060ebd41d73957c"
+      },
+      "cost_correction_and_p4_2b_backlog": {
+        "path": "docs/phase4/reports/P4.2a-cost-correction-and-P4.2b-throughput-backlog-20260810.json",
+        "sha256": "e42eeb2342412662a84ce0304015e6f236661069b1e725f18fd8f4dfd3fd05c5"
+      }
+    },
+    "retired_v1_artifacts": [
+      {
+        "path": "docs/phase4/rehearsals/P4.2a-v2-calibration/contract.json",
+        "sha256": "61ff631b0dc025bf7441fd3bd04636d0d6d34e5085b0ca570e6f8e2fcfd298ac"
+      },
+      {
+        "path": "docs/phase4/rehearsals/P4.2a-v2-calibration/inputs.jsonl",
+        "sha256": "a6c5e6e0da6341cecf01df038b36964af6d8bb433b72babf953b385addc87707"
+      },
+      {
+        "path": "docs/phase4/rehearsals/P4.2a-v2-calibration/expected.json",
+        "sha256": "557433d6ebdd6e3585aad18c6204e28c1cae6417ab3b1b3591474c5f0189b9ac"
+      },
+      {
+        "path": "docs/phase4/rehearsals/P4.2a-v2-calibration/pass-receipt.json",
+        "sha256": "2610a8b3885426e44a7f32c1d964defcaa46a118bb531a2ecc9b0f3aefa1e0f5"
+      }
+    ],
+    "retired_v1_policy": {
+      "immutable": true,
+      "accepted_by_successor_gate": false,
+      "fallback_or_reissue_allowed": false,
+      "must_rehash_unchanged_before_and_after_successor_execution": true
+    }
+  },
+  "bundle_contract": {
+    "schema": {
+      "path": "config/schemas/p4_2a_v2_heldout_rehearsal_bundle_v2.schema.json",
+      "sha256": "f5ff0516c58f2285302dab5d1a03daafd70ea887d4f323387d44c7c19623a8bc"
+    },
+    "destination": "docs/phase4/rehearsals/P4.2a-v2-calibration-v2",
+    "manifest": "docs/phase4/rehearsals/P4.2a-v2-calibration-v2/bundle.json",
+    "publication": {
+      "create_only": true,
+      "destination_must_be_absent_before_execution": true,
+      "stage_entire_directory_outside_repository_and_destination": true,
+      "fsync_regular_files_and_directories_before_publish": true,
+      "single_atomic_directory_rename": true,
+      "partial_publish_or_overwrite_forbidden": true,
+      "symlinks_hardlinks_special_files_and_casefold_collisions_forbidden": true
+    },
+    "archive_layout": {
+      "run_a_root": "archive/run-a/root",
+      "run_b_root": "archive/run-b/root",
+      "control_surface_root": "archive/control-surface/root",
+      "control_surface_manifest": {
+        "logical_name": "control_surface_manifest",
+        "bundle_relative_path": "archive/control-surface/manifest.json",
+        "source_kind": "control_manifest",
+        "repository_path": null,
+        "must_record_bytes_and_sha256_in_bundle": true,
+        "must_be_a_control_tree_leaf": true,
+        "self_reference_policy": "manifest bytes contain the ordered control-file records but must not contain their own digest, the control-tree root, or the bundle root"
+      },
+      "artifact_storage_rule": "archive/<run-label>/root/<source-relative-path>",
+      "control_file_storage_rule": "archive/control-surface/root/<repository-or-runtime-relative-path>",
+      "preserve_raw_generated_bytes": true,
+      "post_generation_normalization_forbidden": true
+    }
+  },
+  "dual_run_determinism": {
+    "temp_root_count": 2,
+    "temp_roots_must_be_distinct": true,
+    "temp_roots_must_be_outside_repository_destination_and_each_other": true,
+    "each_run_starts_from_the_same_frozen_control_surface": true,
+    "artifact_inventory": [
+      {
+        "logical_name": "materialized_inputs",
+        "source_relative_path": "docs/phase4/eval/v2-calibration/heldout/materialization/candidate-inputs.jsonl"
+      },
+      {
+        "logical_name": "materialization_manifest",
+        "source_relative_path": "docs/phase4/eval/v2-calibration/heldout/materialization/manifest.json"
+      },
+      {
+        "logical_name": "inference_state",
+        "source_relative_path": "docs/phase4/eval/v2-calibration/heldout/P4.2a-heldout-v2-inference.state.jsonl"
+      },
+      {
+        "logical_name": "predictions",
+        "source_relative_path": "docs/phase4/eval/v2-calibration/heldout/P4.2a-heldout-v2.predictions.jsonl"
+      },
+      {
+        "logical_name": "prediction_manifest",
+        "source_relative_path": "docs/phase4/eval/v2-calibration/heldout/P4.2a-heldout-v2.predictions.manifest.json"
+      },
+      {
+        "logical_name": "private_selection",
+        "source_relative_path": "docs/phase4/eval/v2-calibration/heldout/P4.2a-heldout-frame-v2.selection.json"
+      },
+      {
+        "logical_name": "owner_blind",
+        "source_relative_path": "docs/phase4/eval/v2-calibration/heldout/P4.2a-heldout-frame-v2.blind.jsonl"
+      },
+      {
+        "logical_name": "ai_draft",
+        "source_relative_path": "docs/phase4/eval/v2-calibration/heldout/P4.2a-heldout-frame-v2.labels-ai-drafted.jsonl"
+      },
+      {
+        "logical_name": "adjudication_ui",
+        "source_relative_path": "docs/phase4/eval/v2-calibration/heldout/P4.2a-heldout-frame-v2.adjudication.html"
+      },
+      {
+        "logical_name": "owner_export",
+        "source_relative_path": "docs/phase4/eval/v2-calibration/heldout/P4.2a-heldout-frame-v2.owner-export.jsonl"
+      },
+      {
+        "logical_name": "human_adjudicated",
+        "source_relative_path": "docs/phase4/eval/v2-calibration/heldout/P4.2a-heldout-frame-v2.human-adjudicated.jsonl"
+      },
+      {
+        "logical_name": "owner_completion",
+        "source_relative_path": "docs/phase4/eval/v2-calibration/heldout/P4.2a-heldout-frame-v2.owner-completion.json"
+      },
+      {
+        "logical_name": "evaluation_state",
+        "source_relative_path": "docs/phase4/eval/v2-calibration/heldout/P4.2a-heldout-v2-evaluation.state.jsonl"
+      },
+      {
+        "logical_name": "synthetic_report",
+        "source_relative_path": "docs/phase4/eval/v2-calibration/heldout/report/P4.2a-heldout-v2-evaluation-result.json"
+      }
+    ],
+    "required_result": {
+      "run_a_artifact_count": 14,
+      "run_b_artifact_count": 14,
+      "byte_identical_artifact_count": 14,
+      "mismatch_count": 0,
+      "missing_artifact_count": 0,
+      "unexpected_artifact_count": 0
+    },
+    "nondeterminism_elimination": {
+      "wall_clock": {
+        "policy": "every_injected_wall_clock_read_returns_the_same_value",
+        "value_utc": "2026-08-10T08:15:00Z"
+      },
+      "monotonic_clock": {
+        "policy": "deterministic_counter_advance_per_read",
+        "initial_seconds": 1000.0,
+        "step_seconds": 0.001,
+        "reset_for_each_run": true
+      },
+      "uuid": {
+        "algorithm": "uuid5_sha1_rfc4122",
+        "namespace": "4a8a9839-d0a6-509a-b193-ddf4b5700780",
+        "name_formula": "logical_record_type + NUL + stable_business_key",
+        "uuid4_forbidden": true
+      },
+      "paths": {
+        "persisted_values": "posix_relative_to_synthetic_root_never_absolute",
+        "archive_manifest_values": "relative_to_bundle_directory",
+        "temporary_root_name_or_uri_may_appear_in_archived_bytes": false,
+        "temporary_root_leak_scan_required_for_both_exact_root_strings_and_file_uris": true
+      },
+      "locale_timezone_and_hash_seed": {
+        "locale": "C.UTF-8",
+        "timezone": "UTC",
+        "python_hash_seed": "0"
+      }
+    }
+  },
+  "control_surface": {
+    "archive_every_file_in_exact_replay_surface": true,
+    "archive_record_contract": {
+      "required_fields": [
+        "logical_name",
+        "bundle_relative_path",
+        "source_kind",
+        "repository_path",
+        "bytes",
+        "sha256"
+      ],
+      "repository_origin_path_rule": "bundle_relative_path == 'archive/control-surface/root/repo/' + repository_path",
+      "runtime_inventory_path_rule": "bundle_relative_path == 'archive/control-surface/root/runtime/' + logical_name + '.json'",
+      "all_manifest_and_record_paths_are_bundle_relative_posix_paths": true,
+      "duplicate_logical_name_path_or_casefold_path": "fail_closed"
+    },
+    "required_seed_paths": [
+      "scripts/rehearse_p4_2a_v2_heldout_full_path.py",
+      "docs/phase4/reports/P4.2a-v2-heldout-rehearsal-v2-preregistration-20260810.json",
+      "config/schemas/p4_2a_v2_heldout_rehearsal_bundle_v2.schema.json",
+      "docs/phase4/reports/P4.2a-v2-heldout-preregistration-20260810.json",
+      "docs/phase4/reports/P4.2a-v2-heldout-rehearsal-v1-incident-20260810.json",
+      "config/p4_event_evaluation_v2.yaml",
+      "config/p4_event_extract_eval_v2-heldout-qwen3.6-plus.yaml",
+      "config/prompts/p4_news_event_extract_v2-r3.txt",
+      "config/p4_event_extract_eval_v2-r3-qwen3.6-plus.yaml",
+      "docs/phase4/reports/P4.2a-round3-adjudication-and-model-selection-override-20260810.json",
+      "docs/phase4/reports/P4.2a-cost-correction-and-P4.2b-throughput-backlog-20260810.json",
+      "pyproject.toml",
+      "uv.lock"
+    ],
+    "python_local_import_closure": {
+      "parser": "stdlib_ast_from_the_archived_source_bytes",
+      "entrypoint": "scripts/rehearse_p4_2a_v2_heldout_full_path.py",
+      "local_namespaces": [
+        "scripts",
+        "alphapilot"
+      ],
+      "module_roots": {
+        "scripts": "scripts",
+        "alphapilot": "src/alphapilot"
+      },
+      "algorithm": [
+        "parse every discovered Python file with ast.parse",
+        "resolve every Import and ImportFrom target that belongs to a local namespace",
+        "for from-import statements include the base module and every alias that resolves to a local module or package",
+        "include each resolved module .py or package __init__.py",
+        "include every existing ancestor package __init__.py from the module root through the resolved module",
+        "repeat in lexicographic POSIX-path order to a fixed point",
+        "reject unresolved or ambiguous imports inside a local namespace",
+        "reject runtime dynamic local imports unless their modules are separately preregistered as supplemental seeds",
+        "compare the recomputed closure with the archived python_source plus package_initializer set for exact equality"
+      ],
+      "supplemental_dynamic_local_import_seeds": [],
+      "scripts_p4_2a_v2_dev_common_must_be_in_closure": true,
+      "third_party_modules_archived_as_source": false,
+      "third_party_versions_bound_by_package_inventory": true
+    },
+    "non_python_control_discovery": {
+      "set_formula": "required_seed_paths union every regular repository file opened for read by both instrumented synthetic runs",
+      "both_runs_must_observe_the_same_set_and_hashes": true,
+      "production_database_env_files_secrets_devices_and_network_resources_forbidden": true,
+      "all_paths_posix_relative_to_repository_root": true,
+      "repository_origin_bytes_source": "git show <implementation_commit>:<repository_path>, never unbound worktree bytes",
+      "worktree_copy_may_be_used_only_after_exact_equality_with_commit_blob_is_proven": true,
+      "missing_changed_unexpected_or_unreadable_control_file": "fail_closed"
+    },
+    "execution_environment": {
+      "pyproject": {
+        "path": "pyproject.toml",
+        "sha256": "b38481e57b0ba88d1b9b728c2a57583d55cf175262a8a803b483cf4823e13e29"
+      },
+      "uv_lock": {
+        "path": "uv.lock",
+        "sha256": "10829f7ef74adfcbd4401000112b5539c899a899d09d8a3f78fdf8d95803a673"
+      },
+      "python": {
+        "implementation": "CPython",
+        "version": "3.12.0",
+        "cache_tag": "cpython-312",
+        "abi_flags": "",
+        "canonicalization": "canonical_json_object_with_keys_abi_flags_cache_tag_implementation_version_and_trailing_newline",
+        "canonical_json_path_in_archive": "runtime/python.json",
+        "sha256": "ab3e067417027bb98ea4335e9086d2046ac9dfd4eaf857acc8622dc8f0a13a31"
+      },
+      "packages": {
+        "source_call": "importlib.metadata.distributions(path=derived_absolute_selected_path_roots)",
+        "path_scope": "deduplicated_resolved_sysconfig_purelib_and_platlib_only_no_sys_path_fallback",
+        "sysconfig_path_keys_in_order": [
+          "purelib",
+          "platlib"
+        ],
+        "path_selection_algorithm": "at validation time resolve sysconfig.get_path for purelib then platlib, deduplicate identical absolute paths while preserving first occurrence, require every absolute path to be within project_root, project each through relative_to(project_root), require exact equality with selected_path_roots_project_relative, and pass only the derived non-persisted absolute list through distributions(path=...)",
+        "absolute_path_roots_policy": "derived_at_validation_time_not_persisted",
+        "selected_path_roots_project_relative": [
+          ".venv/lib/python3.12/site-packages"
+        ],
+        "selected_path_roots_canonical_json_sha256": "fae235892c0988d4093d1ad12b034a6126d116e436393e837a8b2f71601fbd12",
+        "derived_absolute_roots_projected_relative_must_match_frozen_list_exactly": true,
+        "sys_path_fallback_allowed": false,
+        "editable_repository_metadata_excluded": true,
+        "excluded_repository_metadata_path": "src/alphapilot_ai.egg-info",
+        "source_code_and_project_metadata_binding": "repository source and pyproject are independently bound through the implementation commit tree and must not be reintroduced through editable egg-info discovery",
+        "canonicalization": "sorted_unique_pep503_normalized_name_and_importlib_metadata_version_as_canonical_json_array_newline",
+        "raw_distribution_count": 84,
+        "count": 84,
+        "sha256": "c3c7792eb31679c0eb7d3140e067d691df330cd3af302d2350bf15b74ac8ec42",
+        "canonical_json_path_in_archive": "runtime/packages.json",
+        "duplicate_normalized_name_count": 0,
+        "duplicate_normalized_package_name_policy": "fail_closed"
+      }
+    }
+  },
+  "merkle_contract": {
+    "hash": "sha256",
+    "path_encoding": "utf-8-posix-relative",
+    "sort_order": "ascending_unsigned_utf8_path_bytes",
+    "file_digest": "SHA256(file_bytes)",
+    "leaf_formula": "SHA256(utf8('p4.2a-rehearsal-leaf-v2\\0') || utf8(relative_path) || NUL || SHA256(file_bytes).digest())",
+    "node_formula": "SHA256(utf8('p4.2a-rehearsal-node-v2\\0') || left_digest_32_bytes || right_digest_32_bytes)",
+    "odd_leaf_policy": "duplicate_last_digest_at_each_level",
+    "empty_tree_policy": "forbidden",
+    "run_tree_path_basis": "the fourteen source_relative_path values in artifact_inventory",
+    "control_tree_path_basis": "bundle-relative paths for archive/control-surface/manifest.json plus every file below archive/control-surface/root",
+    "control_manifest_leaf": {
+      "logical_name": "control_surface_manifest",
+      "relative_path": "archive/control-surface/manifest.json",
+      "formula": "SHA256(utf8('p4.2a-rehearsal-leaf-v2\\0') || utf8('archive/control-surface/manifest.json') || NUL || SHA256(control_manifest_bytes).digest())"
+    },
+    "control_manifest_is_included_in_control_tree": true,
+    "control_tree_member_count_rule": "tree_member_count == archived_control_root_file_count + 1_control_manifest_leaf",
+    "control_manifest_self_reference_forbidden_fields": [
+      "control_manifest_sha256",
+      "control_surface_root_sha256",
+      "bundle_root_sha256"
+    ],
+    "bundle_root_formula": "SHA256(utf8('p4.2a-rehearsal-bundle-v2\\0') || run_a_root_digest_32_bytes || run_b_root_digest_32_bytes || control_surface_root_digest_32_bytes)",
+    "bundle_manifest_is_not_a_member_of_any_merkle_tree": true
+  },
+  "successor_gate": {
+    "input": "docs/phase4/rehearsals/P4.2a-v2-calibration-v2/bundle.json",
+    "strict_json": {
+      "duplicate_object_keys_rejected": true,
+      "nan_infinity_and_negative_zero_rejected": true,
+      "utf8_only": true
+    },
+    "ordered_checks": [
+      "rehash this preregistration and the registered bundle schema",
+      "validate bundle.json against the exact Draft 2020-12 schema with unknown fields rejected",
+      "rehash every lineage authority and all four retired v1 artifacts",
+      "require git cat-file to resolve implementation_commit as a commit and require d710e885b49006eedf4f70ea09cb81fe15d176a3 to be its ancestor",
+      "for every repository-origin control record require the archived bytes and record SHA to equal SHA256(git show implementation_commit:repository_path)",
+      "reject symlinks hardlinks special files path traversal casefold collisions missing files and unexpected files",
+      "rehash every byte of both fourteen-artifact archive roots and the complete control-surface archive",
+      "rehash archive/control-surface/manifest.json from its archived bytes and include its exact bundle-relative path as a control-tree leaf",
+      "require 14 of 14 run artifacts to be byte-identical with zero mismatch and no normalization",
+      "recompute every file digest every Merkle leaf every Merkle node all three subtree roots and the bundle root",
+      "recompute the AST local-import closure including package __init__.py files and require exact control-file set equality",
+      "recompute pyproject uv.lock and Python bindings",
+      "derive and deduplicate the absolute purelib and platlib roots without persisting them, project each through relative_to(project_root), require exact equality with the single frozen project-relative root, and call importlib.metadata.distributions only with the derived absolute list",
+      "recompute the 84-row package inventory, require zero duplicate normalized names, and prove repository editable egg-info was outside the selected path scope",
+      "run every registered materialization inference selection blindness adjudication and evaluator semantic validator against each archived run",
+      "verify zero temp-root leakage zero real database network model calls and zero production mutation",
+      "return PASS_REHEARSAL_V2_ONLY_REAL_HELDOUT_REMAINS_BLOCKED only if every prior check passes"
+    ],
+    "any_missing_mismatch_unexpected_or_unverifiable_field": "fail_closed",
+    "required_negative_tests": {
+      "control_manifest_single_byte_mutation": "must_change_the_recomputed_control_tree_and_bundle_roots_and_be_rejected_against_the_recorded_roots",
+      "repository_origin_archive_single_byte_mutation": "must_fail_the_commit_blob_sha256_equality_before_any_pass_decision",
+      "injected_second_same_normalized_package_metadata": "must_fail_closed_before_inventory_hash_acceptance_even_when_name_spelling_differs_only_by_PEP503_normalization",
+      "unrelated_or_non_descendant_implementation_commit": "must_fail_before_archive_semantic_validation",
+      "v1_receipt_substitution": "must_fail_without_fallback"
+    },
+    "v1_schema_receipt_gate_or_directory_fallback_allowed": false,
+    "v1_pass_receipt_can_unlock_materialization": false,
+    "schema_shape_without_full_rehash_and_semantic_validation_is_sufficient": false
+  },
+  "execution_safety": {
+    "real_database_reads": 0,
+    "real_network_calls": 0,
+    "real_model_calls": 0,
+    "production_writes": false,
+    "production_heldout_artifact_writes": false,
+    "real_heldout_metrics_computed": false,
+    "real_metrics_disclosed": false,
+    "scheduler_changes": false,
+    "p4_1_observation_window_mutation": false,
+    "proposals_orders_or_trades": false
+  },
+  "locks": {
+    "trading_mode": "research",
+    "live_trading_enabled": false,
+    "paper_trading_enabled": false,
+    "paper_auto_trading_enabled": false,
+    "futu_enable_trade": false,
+    "futu_enable_account_mutation": false,
+    "unlock_trade_permanently_blocked": true,
+    "p4_2a_done": false,
+    "p4_2b_unlocked": false,
+    "p4_3_unlocked": false
+  },
+  "remaining_blockers": {
+    "cost_and_strata_authority_conflict": {
+      "status": "BLOCKED_PENDING_OWNER_CLARIFICATION",
+      "description": "The frozen 40-positive/20-negative strata require predictions over the full eligible 2026-08-06 through 2026-08-08 pool, while the cost record describes a negligible sixty-item held-out round. A synthetic rehearsal cannot resolve or silently choose between those authorities."
+    },
+    "real_heldout_materialization_unlocked": false,
+    "real_heldout_inference_unlocked": false,
+    "heldout_metric_evaluation_unlocked": false,
+    "successor_rehearsal_pass_effect": "proves_the_offline_tool_path_only_and_does_not_unlock_any_real_heldout_stage"
+  },
+  "authorization": {
+    "allowed_after_this_preregistration_is_committed_and_independently_reviewed": [
+      "implement_successor_rehearsal_v2_without_changing_frozen_inputs",
+      "run_offline_synthetic_successor_exactly_once_to_publish_the_create_only_bundle",
+      "independently_rehash_and_semantically_validate_the_published_bundle"
+    ],
+    "forbidden": [
+      "modify_or_reissue_the_v1_rehearsal_files",
+      "run_real_heldout_materialization_or_inference",
+      "resolve_the_cost_and_strata_conflict_by_implementation_choice",
+      "compute_heldout_metrics",
+      "change_prompt_model_contract_threshold_seed_sample_or_gold",
+      "unlock_p4_2b_or_p4_3",
+      "make_any_proposal_order_or_trade"
+    ],
+    "this_document_executes_nothing": true
+  }
+}

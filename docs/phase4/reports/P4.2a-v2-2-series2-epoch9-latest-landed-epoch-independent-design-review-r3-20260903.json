@@ -1,0 +1,305 @@
+{
+  "schema_version": "p4.2a-v2-2-series2-epoch9-latest-landed-epoch-independent-design-review-r3-v1",
+  "review_id": "P4.2A-V2-2-SERIES2-EPOCH9-LATEST-LANDED-EPOCH-INDEPENDENT-DESIGN-REVIEW-R3-20260903",
+  "created_at_utc": "2026-09-03T02:26:36Z",
+  "created_at_shanghai": "2026-09-03T10:26:36+08:00",
+  "reviewer": {
+    "identity": "codex_subagent_epoch9_r3_incremental_design_reviewer_20260903",
+    "reviewer_type": "ai",
+    "role": "INDEPENDENT_READ_ONLY_INCREMENTAL_DESIGN_REVIEWER",
+    "independent_from_design_authoring": true,
+    "independent_from_candidate_implementation": true,
+    "independent_from_operator_gate": true,
+    "is_owner": false,
+    "is_human": false,
+    "is_third_party_organization": false,
+    "modified_reviewed_bytes": false,
+    "implemented_candidate_code": false,
+    "ran_F12": false,
+    "ran_preflight_recovery_or_release": false,
+    "independence_limit": "task-level AI subagent separation only; no human or organizational third-party independence is claimed"
+  },
+  "reviewed_design": {
+    "path": "docs/phase4/reports/P4.2a-v2-2-series2-epoch9-latest-landed-epoch-design-r3-20260903.md",
+    "creating_commit": "7bf6d7fd0b054d6be775c36583085b443e0769f2",
+    "parent": "6936f4531eb52a6a343bf8a20e879dac1503bbdd",
+    "sha256": "5f99c0ac8cf708467e6c37c4516a30941af313cebbcd9d3141bd8b048e1460d9",
+    "bytes": 45262,
+    "unique_a": true,
+    "composite_rule": "r1 plus r2 plus r3; r2 controls the failed-preflight evidence channel and r3 controls latest-live-epoch closure, historical-contract separation, the four-file surface, and every conflicting downstream requirement"
+  },
+  "review_scope": {
+    "sources_read": [
+      "r1 source-projection identity proposal and its committed review/companion chain",
+      "r2 failure-channel correction",
+      "r3 latest-landed execution epoch closure",
+      "producer implementation at r3 parent",
+      "validator implementation at r3 parent",
+      "registered runner and validator tests at r3 parent",
+      "epoch-8 companion and its immutable nested recovery contract",
+      "sealed series-2 ordinal-1 and ordinal-2 primary-ledger records"
+    ],
+    "method": "read-only source, AST, call-site, Git-topology, field-count, schema-alias, and sealed-record comparison",
+    "files_modified_by_review": 0,
+    "tests_executed": 0,
+    "F12_classification": "NOT_EXECUTED_DESIGN_REVIEW_ONLY"
+  },
+  "incremental_findings": {
+    "exact_epoch9_latest_landed_contract": {
+      "status": "PASS",
+      "top_level_field_count": 12,
+      "exact_top_level_fields": [
+        "schema_version",
+        "implementation_epoch",
+        "governing_adjudication",
+        "superseded_two_file_authority",
+        "historical_epoch_8_recovery_contract",
+        "latest_landed_authority_contract",
+        "registered_preflight_dispatch_contract",
+        "dual_byte_anchor_transition_contract",
+        "recovery_qrb_live_binding_contract",
+        "recovery_claim_and_receipt_live_binding_contract",
+        "recovered_publication_and_release_live_binding_contract",
+        "authority_census_and_effect_lock_contract"
+      ],
+      "nested_field_sets_exact_not_extensible": true,
+      "future_commit_placeholders_forbidden": true,
+      "future_runtime_values_bound_in_order": [
+        "landing report",
+        "registered-root preflight",
+        "Q",
+        "R",
+        "B"
+      ]
+    },
+    "epoch_meaning_separation": {
+      "status": "PASS",
+      "historical_recovery_governance_epoch": 8,
+      "historical_selected_attempt_epoch": 6,
+      "latest_live_execution_epoch": 9,
+      "landing_preflight_schema_origin_epoch": 8,
+      "sealed_attempt_epoch_table": [
+        5,
+        6
+      ],
+      "no_epoch_7_8_or_9_synthetic_attempt_row": true,
+      "historical_selected_require_current": false,
+      "latest_live_require_current": true,
+      "no_fallback_to_epoch8_or_active_replay": true
+    },
+    "producer_epoch_hardpin_audit": {
+      "status": "PASS",
+      "implementation_epoch_constant_consumers_enumerated": 17,
+      "all_17_have_purpose_specific_disposition": true,
+      "bare_landing_epoch_literal_sites": 1,
+      "bare_literal_replaced_by_required_no_default_expected_live_epoch": true,
+      "historical_epoch8_live_epoch9_and_schema_origin_constants_remain_distinct": true
+    },
+    "validator_epoch_hardpin_audit": {
+      "status": "PASS",
+      "implementation_epoch_constant_consumers_enumerated": 12,
+      "all_12_have_purpose_specific_disposition": true,
+      "bare_landing_epoch_literal_sites": 1,
+      "bare_literal_replaced_by_required_no_default_expected_live_epoch": true,
+      "producer_result_not_trusted_as_validator_verdict": true
+    },
+    "non_epoch_number_live_hardpins": {
+      "status": "PASS",
+      "site_count": 5,
+      "sites": [
+        "producer _validate_epoch_8_landing_authority owner path/SHA/source",
+        "producer _live_execution_anchor_with_census owner path/SHA/source",
+        "validator _validate_epoch_8_q_preflight owner path/SHA/source",
+        "validator _validate_live_execution_anchor_identity implementation parent and exact diff base",
+        "validator _validate_live_execution_anchor_identity owner path/SHA/source"
+      ],
+      "epoch9_disposition": "derive independently from the validated epoch-9 overlay and actual landing chain",
+      "historical_epoch8_checks_retained_separately": true,
+      "static_AST_callsite_guard_required": true
+    },
+    "historical_epoch8_governance_projection": {
+      "status": "PASS",
+      "governance_reference_count": 5,
+      "references": [
+        "epoch-8 design proposal",
+        "epoch-8 independent design review",
+        "epoch-8 governing adjudication",
+        "epoch-8 companion",
+        "epoch-8 surface authority"
+      ],
+      "producer_previous_next_wall_identified": "generic first-parent-only validate_unique_a_authority would see d9838923 projection instead of each pinned logical source",
+      "required_repair": "bounded LOGICAL_SOURCE_WITH_LAWFUL_PROJECTIONS classification for all five while preserving pinned source bytes, SHA, byte count, and exact source-parent chain",
+      "validator_existing_source_aware_behavior_retained": true,
+      "symmetric_real_projection_tests_required": true
+    },
+    "census_registry_closure": {
+      "status": "PASS",
+      "fixed_rows_added_to_both_modules": [
+        "new epoch-9 governing adjudication",
+        "new epoch-9 companion",
+        "replacement epoch-9 four-file surface authority"
+      ],
+      "runtime_rows_not_invented_before_creation": [
+        "independent implementation review",
+        "merge projection",
+        "landing report",
+        "Q",
+        "R",
+        "B"
+      ],
+      "initial_final_census_equality_preserved": true,
+      "only_existing_explicit_Q_R_B_delta_allowed": true,
+      "same_path_conflict_fails_before_git_traversal": true
+    },
+    "schema_and_field_preservation": {
+      "status": "PASS",
+      "Q_v2_top_level_fields": 13,
+      "R_v1_top_level_fields": 19,
+      "B_v1_top_level_fields": 12,
+      "started_v1_top_level_fields": 19,
+      "terminal_v1_top_level_fields": 25,
+      "mirror_receipt_v1_top_level_fields": 25,
+      "recovered_publication_capability_fields": 40,
+      "counts_match_producer_and_validator_code": true,
+      "tracked_schema_files_changed": false,
+      "schema_version_strings_changed": false,
+      "exact_field_lists_changed": false,
+      "validation_strength_reduced": false,
+      "live_paths_use_series2_purpose_aliases": true,
+      "epoch8_aliases_retained_only_for_literal_historical_contract_validation": true
+    },
+    "terminal_execution_binding": {
+      "status": "PASS",
+      "terminal_has_direct_execution_epoch_field": false,
+      "terminal_has_direct_execution_head_field": false,
+      "new_terminal_fields_added": false,
+      "binding_chain": "R exact execution envelope -> started.execution_epoch and started.execution_head -> terminal in the R-SHA-derived claim with matching authorization, owner binding, and recovery_id -> mirror receipt with matching recovery_id plus execution epoch, implementation, and started execution head -> capability and release validation",
+      "producer_and_validator_independent_recomputation_required": true
+    },
+    "end_to_end_consumer_closure": {
+      "status": "PASS",
+      "covered_stages": [
+        "epoch-9 landing document and topology",
+        "registered-root preflight dispatch and exact v2 output",
+        "Q v2 embedded preflight",
+        "R v1 execution envelope",
+        "B v1 topology and owner confirmation binding",
+        "recovery identity and locked bootstrap",
+        "claim and paired mirror receipts",
+        "passive recovered bundle",
+        "recovered-publication capability",
+        "passive recovered release"
+      ],
+      "cross_epoch_8_9_mixes_rejected": true,
+      "historical_epoch6_selected_bytes_never_required_current": true,
+      "epoch9_producer_and_validator_bytes_required_current": true,
+      "active_replay_fallback_forbidden": true,
+      "deterministic_next_wall_found": false
+    },
+    "implementation_surface": {
+      "status": "PASS",
+      "exact_change_count": 4,
+      "exact_surface": [
+        {
+          "path": "scripts/p4_2a_v2_2_heldout_rehearsal.py",
+          "status": "M"
+        },
+        {
+          "path": "scripts/validate_p4_2a_v2_2_heldout_rehearsal_bundle.py",
+          "status": "M"
+        },
+        {
+          "path": "tests/test_p4_2a_v2_2_heldout_rehearsal_runner.py",
+          "status": "M"
+        },
+        {
+          "path": "tests/test_p4_2a_v2_2_heldout_rehearsal_validator.py",
+          "status": "M"
+        }
+      ],
+      "minimal": true,
+      "sufficient": true,
+      "validator_change_required_for_independent_live_epoch_and_recovered_mode_validation": true,
+      "shim_schema_threshold_sample_seed_model_prompt_gold_ledger_mirror_unchanged": true
+    },
+    "registered_test_plan": {
+      "status": "PASS",
+      "real_epoch9_source_projection_landing_positive": true,
+      "locked_exact_os_epoch9_preflight_positive": true,
+      "real_Q_R_B_recovery_bundle_release_positive": true,
+      "historical_epoch8_five_governance_projection_positive": true,
+      "cross_epoch_negative_matrix": true,
+      "tamper_negatives_reject_before_unauthorized_resource_access": true,
+      "before_after_fingerprints_equal_on_rejection": true,
+      "source_discovery_and_recovery_work_bounds_fail_fast": true,
+      "static_call_graph_proves_no_active_pipeline_heldout_model_network_database_or_trading_reachability": true,
+      "runner_collect_floor": 230,
+      "validator_collect_floor": 323,
+      "combined_collect_floor": 553,
+      "fresh_F15_required": true,
+      "fresh_independent_F12_required": true,
+      "no_prior_test_or_gate_inheritance": true
+    },
+    "sealed_facts_readback": {
+      "status": "PASS",
+      "attempt_ordinals": [
+        1,
+        2
+      ],
+      "attempt_implementation_epochs": [
+        5,
+        6
+      ],
+      "selected_attempt_ordinal": 2,
+      "selected_implementation_epoch": 6,
+      "selected_implementation_commit": "e5aab9772793a7b0465f100cb48f99a1bc4e45dc",
+      "selected_started_sha256": "4166a58d1c4b118d74ca402ef6f1635f98aab7cd0402dfda918e1e30bebd246c",
+      "selected_candidate_sha256": "e1d67123469ce63739936b7db8a520f4f0cc8dda969455a7117246cda4485086",
+      "selected_terminal_sha256": "3f41d80d63214af379bd8423ab7e0c61d6508ab19339f9bc7bf9a1d9ac4e0bf5",
+      "history_root_sha256": "832559b59a8edc09c04b0f5a7c09cea71e5c3597c2bdc0831072a4122bf016e7",
+      "live_ledger_root_sha256": "ab08612ba2e11e45c3a3415ca7079117f2a739bf470719abf4f204958272574d",
+      "ledger_or_mirror_write_performed_by_review": false
+    },
+    "effect_and_lock_preservation": {
+      "status": "PASS",
+      "future_contract_recovery_start_limit_after_separate_Q_R_B_authorization": 1,
+      "pipeline_starts": 0,
+      "automatic_retries": 0,
+      "ordinal_3_forbidden": true,
+      "heldout_evaluation_unconsumed_and_locked": true,
+      "p4_2a_done": false,
+      "p4_2b_unlocked": false,
+      "p4_3_unlocked": false,
+      "non_simulate_trading_unlocked": false,
+      "six_amendment_time_absence_facts_remain_false": true,
+      "sealed_ledger_mirrors_receipts_and_snapshots_remain_read_only": true
+    }
+  },
+  "review_conclusion": {
+    "design_conflict_classification_accepted": "BLOCKED_BY_DESIGN_CONTRACT_CONFLICT",
+    "old_two_file_authority_sufficient": false,
+    "old_two_file_authority_must_remain_immutable": true,
+    "replacement_four_file_authority_required": true,
+    "r3_incremental_design_approved": true,
+    "remaining_blockers": [],
+    "deterministic_next_wall_found": false
+  },
+  "authorization_boundary": {
+    "this_report_authorizes_implementation": false,
+    "this_report_authorizes_tests_or_F12": false,
+    "this_report_authorizes_gate": false,
+    "this_report_authorizes_merge": false,
+    "this_report_authorizes_registered_root_preflight": false,
+    "this_report_authorizes_Q_R_B": false,
+    "this_report_authorizes_recovery_or_release": false,
+    "this_report_authorizes_ledger_or_mirror_write": false,
+    "this_report_authorizes_heldout_or_trading": false,
+    "required_next_governance": [
+      "governing adjudication",
+      "new epoch-9 companion with exact 12-field latest-landed contract",
+      "owner approval of a new exact six-field four-file surface authority"
+    ]
+  },
+  "blockers": [],
+  "verdict": "PASS_INCREMENTAL_EPOCH9_R3_DESIGN_REVIEW"
+}

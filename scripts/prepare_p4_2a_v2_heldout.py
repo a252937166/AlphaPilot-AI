@@ -15,12 +15,13 @@ import sys
 import tempfile
 import time
 import uuid
-from collections import Counter
+from collections import Counter, deque
 from collections.abc import Callable, Iterator, Mapping, Sequence
 from contextlib import contextmanager, suppress
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from functools import lru_cache
+from itertools import pairwise
 from pathlib import Path
 from typing import Any, NoReturn, cast
 from urllib.parse import urlparse
@@ -30,10 +31,16 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 if __package__ in {None, ""}:
     sys.path[:0] = [str(PROJECT_ROOT), str(PROJECT_ROOT / "src")]
 
+import httpx  # noqa: E402
 import yaml  # noqa: E402
 from jsonschema import Draft202012Validator, FormatChecker  # noqa: E402
 from scripts import build_p4_2a_gold_sample as gold_builder  # noqa: E402
 from scripts import p4_2a_v2_dev_common as common  # noqa: E402
+# New protocol dependency: must be implemented, registered and reviewed separately.
+from scripts import p4_2a_successor_production_authority as production_authority  # noqa: E402
+from scripts.p4_2a_successor_production_authority import (  # noqa: E402
+    ProductionPreparationAuthorization,
+)
 from scripts import run_p4_2a_offline_extract as offline_extract  # noqa: E402
 from scripts import run_p4_2a_v2_dev_calibration as dev_runner  # noqa: E402
 from scripts.run_p4_2a_heldout_predictions import HeldoutPredictionError  # noqa: E402
@@ -73,8 +80,17 @@ PREREGISTRATION_PATH = Path("docs/phase4/reports/P4.2a-v2-heldout-preregistratio
 PREREGISTRATION_SHA256 = "ccecbf5ca7b48b16e445318b8c94a08927432f92c7e8c12f8ab40f2916578705"
 DESIGN_PATH = Path("config/p4_event_evaluation_v2.yaml")
 DESIGN_SHA256 = "18a2428a4ec04bfea6e4f4d70692f38ea82fbaee5a223f30f2465b895b238e21"
-HELDOUT_CONTRACT_PATH = Path("config/p4_event_extract_eval_v2-heldout-qwen3.6-plus.yaml")
-HELDOUT_CONTRACT_SHA256 = "26be1765204b122908e7bd09cac857c33bd3140233df47dc3358bc590e020199"
+HELDOUT_CONTRACT_PATH = Path("config/p4_event_extract_eval_v3-heldout.yaml")
+HELDOUT_CONTRACT_SHA256 = "ed4844244b8b995147318e45d38f3fe35c05526de5378e3c9cb4974650800366"
+# What the frozen preregistration recorded. The pass now binds the v3 contract
+# above under the owner's 2026-09-10 decision; this pair keeps the preregistered
+# values so the frozen document is still read as itself.
+PREREGISTERED_HELDOUT_CONTRACT_PATH = Path(
+    "config/p4_event_extract_eval_v2-heldout-qwen3.6-plus.yaml"
+)
+PREREGISTERED_HELDOUT_CONTRACT_SHA256 = (
+    "26be1765204b122908e7bd09cac857c33bd3140233df47dc3358bc590e020199"
+)
 ROUND3_CONTRACT_PATH = Path("config/p4_event_extract_eval_v2-r3-qwen3.6-plus.yaml")
 ROUND3_CONTRACT_SHA256 = "fa75a6cf33065745d02f74fe39e4f102723da43f37ac549058bb34fa8256a181"
 ROUND3_PROMPT_PATH = Path("config/prompts/p4_news_event_extract_v2-r3.txt")
@@ -191,7 +207,79 @@ SUCCESSOR_V2_1_RELEASE_VERDICT = (
     "APPROVE_SUCCESSOR_V2_1_REAL_HELDOUT_PREPARATION"
 )
 MATERIALIZATION_MANIFEST_V2_SCHEMA = "p4.2a-v2-heldout-materialization-manifest-v2"
+# Owner decision 2026-09-09 (v5): a completed model request whose output is refused
+# by a deterministic, non-retryable post-validation constraint is recorded as one
+# extract_failed candidate and the pass continues. Every other outcome stays
+# terminal. The ratio ceiling is evaluated as the run proceeds, but only once the
+# completed-request count has reached the minimum below, so a single failure can
+# never trip it on an early candidate.
+INFERENCE_EXTRACT_FAILED_RATIO_CEILING = 0.02
+INFERENCE_EXTRACT_FAILED_CEILING_MIN_COMPLETED = 50
+# The recorded reasons mean "the model answered and the answer was refused
+# deterministically". Everything else - transport, audit, configuration, unknown -
+# stays terminal, so a misconfigured or unreachable provider can never be absorbed
+# as a candidate-level failure. A new provider reason must be added here
+# deliberately; an unrecognised reason is terminal by construction.
+INFERENCE_RECORDED_FAILURE_CATEGORIES = {
+    "post_validation_failed": "post_validation_constraint",
+    "schema_validation_failed": "response_schema_violation",
+    "event_contract_failed": "model_output_contract_violation",
+}
 CNINFO_MIN_START_TO_START_SECONDS = 1.0
+# Owner decision 2026-09-08: a single CNInfo PDF download may be retried after a
+# transient transport failure. Candidate pool, request order, eligibility and the
+# inference stage's one-item-once-zero-retry rule are untouched.
+# Owner decision 2026-09-09 (v3): the budget is widened after two real materialize
+# runs died on CNInfo withholding any HTTP response for 27-45% of requests at
+# several hours, on both the proxy and the direct path, independent of pacing.
+CNINFO_MAX_PDF_ATTEMPTS = 12
+CNINFO_RETRY_BACKOFF_SECONDS = (2.0, 4.0, 8.0, 15.0, 30.0, 30.0, 30.0, 60.0, 60.0, 60.0, 60.0)
+# Server-side stall breaker, settled by delegated decision D-8: a sliding window
+# over the outcomes of the last attempts across all PDFs, successes included. When
+# the window is full and at least this many outcomes were transport stalls, pause
+# once and carry on. A fourth trigger fails the materialization.
+CNINFO_STALL_PAUSE_WINDOW = 20
+CNINFO_STALL_PAUSE_WINDOW_STALLS = 15
+CNINFO_STALL_PAUSE_SECONDS = 600.0
+CNINFO_STALL_PAUSE_MAX = 3
+# Whole-materialization wall clock, measured from the first request start.
+CNINFO_MATERIALIZE_WALL_CLOCK_CAP_SECONDS = 43200
+CNINFO_RETRIED_ERROR_CLASSES = (
+    "httpx.TransportError",
+    "OSError",
+    "gold_sample_http_status_502",
+    "gold_sample_http_status_503",
+    "gold_sample_http_status_504",
+)
+CNINFO_NON_RETRIED_FAILURES = (
+    "candidate_document_ineligible",
+    "content_length_invalid",
+    "content_not_pdf",
+    "http_status_other_than_502_503_504",
+    "pdf_text_extraction_failure",
+)
+# build_p4_2a_gold_sample.download_cninfo_pdf raises its own GoldSampleError for a
+# non-200 response, so the status is only visible in the message it formats.
+_CNINFO_RETRYABLE_STATUS = re.compile(r"^CNInfo PDF returned non-success HTTP (502|503|504)$")
+# Owner decision 2026-09-09 (v4): a registered CNInfo URL that is gone is a
+# deterministic candidate property, not a run failure. Every other non-2xx status
+# keeps its v3 handling.
+CNINFO_UNAVAILABLE_HTTP_STATUSES = (404, 410)
+CNINFO_UNAVAILABLE_REASON = "pdf_unavailable_http_404"
+CNINFO_UNAVAILABLE_GATE_STATUS = 200
+CNINFO_DETERMINISTIC_INELIGIBLE_REASONS = (
+    "pdf_text_below_min_char_gate",
+    "pdf_exceeds_size_bound",
+    CNINFO_UNAVAILABLE_REASON,
+)
+_CNINFO_UNAVAILABLE_STATUS = re.compile(r"^CNInfo PDF returned non-success HTTP (404|410)$")
+# The three label shapes _retryable_download_failure can produce; matched literally
+# so the same recorded bytes validate identically in every process.
+_CNINFO_RETRY_EVENT_LABEL = re.compile(
+    r"^(?:gold_sample_http_status_(?:502|503|504)"
+    r"|httpx\.[A-Za-z_][A-Za-z0-9_]*"
+    r"|(?!gold_sample_http_status_)[A-Za-z_][A-Za-z0-9_]*)$"
+)
 _SHANGHAI = ZoneInfo("Asia/Shanghai")
 _REAL_ALLOWED_STAGES = frozenset(
     {
@@ -220,7 +308,70 @@ _OFFLINE_CAPABILITY_NONCE = object()
 _PREVALIDATED_STAGE_AUTHORITY_NONCE = object()
 
 FRAME_ID = "p4.2a-heldout-frame-v2"
-MODEL = "qwen3.6-plus"
+# The model the preregistration and the frozen development lineage recorded. It is
+# NOT the model this pass runs: the owner's 2026-09-10 decision moved the held-out
+# pass to MODEL below. Comparisons against frozen documents keep this value, so a
+# frozen document is never re-read as if it had been rewritten; the difference
+# between the two constants is the deviation itself.
+PREREGISTERED_MODEL = "qwen3.6-plus"
+MODEL = "kimi-k3"
+# Owner decision 2026-09-10: the held-out pass runs on an internal OpenAI-compatible
+# platform. The platform is identified by an opaque provider name and the request
+# address is bound by a keyed digest, never by the address itself: this repository is
+# public. The salt lives only in the operator's gitignored environment, so the digest
+# below cannot be used to recover the address by guessing.
+HELDOUT_PROVIDER = "friday"
+HELDOUT_ENDPOINT_HMAC_SHA256 = (
+    "b4c42d19ade073e7390020a4567caa776b40ae06a472462009632d630a3031cf"
+)
+# A held-out wrapper inherits inference semantics byte-for-byte from the round-3
+# development contract. The 2026-09-10 decision is the first that legitimately
+# needs a wrapper to override an inherited inference field, so the wrapper's
+# authority is widened deliberately and narrowly: exactly these llm: keys, and
+# nothing else. The prompt and the schema are not in the list and stay frozen. A
+# wrapper carrying any other key is a hard load error naming that key, so a future
+# wrapper cannot widen this by accident.
+HELDOUT_WRAPPER_LLM_KEYS = frozenset(
+    {
+        "purpose",
+        "model",
+        "provider",
+        "endpoint_hmac_sha256",
+        "enable_thinking",
+        "max_output_tokens",
+        "total_deadline_seconds",
+        "max_retries",
+        "max_items_per_run",
+        "response_format",
+        "explicit_cache",
+    }
+)
+# The subset that actually overrides a field on the contract object the pass calls
+# with. The rest are asserted against registered values and carry no override.
+HELDOUT_WRAPPER_OVERRIDES = {
+    "model": "model",
+    "provider": "provider",
+    "endpoint_hmac_sha256": "endpoint_hmac_sha256",
+    "total_deadline_seconds": "timeout",
+    "max_output_tokens": "max_tokens",
+    "max_retries": "max_retries",
+}
+# Owner decision 2026-09-10: the platform rejects about a tenth of requests with
+# HTTP 429, and the rejection rate is invariant to pacing between unpaced and 20 s
+# spacing, so the pass must NOT be paced and a rejection is waited out and re-sent.
+# A rejected request never produced an answer, so a re-send is not a candidate retry:
+# automatic_retries stays 0 and this counter is separate. These are registered
+# constants, not settings, so an operator cannot widen them at runtime.
+RATE_LIMIT_STATUS = 429
+RATE_LIMIT_BACKOFF_SECONDS = (5.0, 10.0, 20.0, 30.0, 45.0, 60.0)
+RATE_LIMIT_PER_CANDIDATE_RESENDS = 6
+RATE_LIMIT_PER_PASS_RESEND_CAP = 2000
+RATE_LIMIT_PER_PASS_WALL_CLOCK_CAP_SECONDS = 50400.0
+# A platform-supplied delay is honoured only inside this window. Zero is legal HTTP
+# meaning "resend now" and is floored rather than refused; a value past the ceiling
+# is the quota being gone, not a longer wait, and is terminal.
+RATE_LIMIT_SUPPLIED_DELAY_FLOOR_SECONDS = 1.0
+RATE_LIMIT_SUPPLIED_DELAY_CEILING_SECONDS = 120.0
 WINDOW_START_UTC = "2026-08-05T16:00:00Z"
 WINDOW_END_UTC = "2026-08-08T16:00:00Z"
 SQLITE_WINDOW_START_UTC = "2026-08-05 16:00:00"
@@ -284,6 +435,19 @@ _SNAPSHOT_FIELDS = {
 
 class HeldoutPreparationError(RuntimeError):
     """The frozen v2 held-out preparation contract was violated."""
+
+
+class HeldoutRateLimitAbort(HeldoutPreparationError):
+    """Terminal: the transport stopped waiting out rate limits, with its census.
+
+    A rejected request never produced a model answer, so this is never recorded as
+    a candidate-level failure and never enters the extract_failed census.
+    """
+
+    def __init__(self, message: str, *, reason: str, evidence: Mapping[str, Any]) -> None:
+        super().__init__(message)
+        self.reason = reason
+        self.evidence: dict[str, Any] = dict(evidence)
 
 
 @dataclass(frozen=True, slots=True)
@@ -367,7 +531,13 @@ class _OfflineRehearsalCapability:
         raise TypeError("offline rehearsal capability is not serializable")
 
 
-ExecutionContext = V21ReleaseAuthorization | _OfflineRehearsalCapability | None
+# A distinct production protocol; never a V21 subclass or offline capability.
+StageAuthorization = (
+    V21ReleaseAuthorization
+    | ProductionPreparationAuthorization
+    | _OfflineRehearsalCapability
+)
+ExecutionContext = StageAuthorization | None
 
 
 @dataclass(frozen=True, slots=True)
@@ -396,7 +566,7 @@ class _PrevalidatedStageAuthority:
     _nonce: object
     project_root: Path
     validated_stage: str
-    authorization: V21ReleaseAuthorization | _OfflineRehearsalCapability
+    authorization: StageAuthorization
 
     def __reduce__(self) -> NoReturn:
         raise TypeError("prevalidated stage authority is not serializable")
@@ -1069,9 +1239,22 @@ def _validate_canonical_runtime_module_origins(
     binding: HeldoutBinding,
     *,
     stage: str,
-    authorization: V21ReleaseAuthorization,
+    authorization: V21ReleaseAuthorization | ProductionPreparationAuthorization,
 ) -> None:
     """Classify origins only after the locked child validated committed source."""
+
+    if type(authorization) is ProductionPreparationAuthorization:
+        try:
+            production_authority.validate_registered_production_sources(
+                binding.root.resolve(),
+                authorization,
+                stage=stage,
+            )
+        except (production_authority.ProductionAuthorityError, OSError) as exc:
+            raise HeldoutPreparationError(
+                "successor production source or runtime verification failed"
+            ) from exc
+        return
 
     root = binding.root.resolve()
     for relative in _registered_successor_implementation_paths(root):
@@ -2039,12 +2222,54 @@ def _validate_v2_1_offline_capability(
     return capability
 
 
+def _production_release_candidate(root: Path) -> bool:
+    """Select only the new fixed path; an invalid candidate must never fall back."""
+    try:
+        present = production_authority.has_registered_release_candidate(root)
+    except (production_authority.ProductionAuthorityError, OSError) as exc:
+        raise HeldoutPreparationError(
+            "successor production release candidate inspection failed"
+        ) from exc
+    if type(present) is not bool:
+        raise HeldoutPreparationError("production candidate presence is not boolean")
+    if present and os.path.lexists(root / SUCCESSOR_V2_1_RELEASE_PATH):
+        raise HeldoutPreparationError("ambiguous legacy and production releases")
+    return present
+
+
+def _validate_production_release_facts(
+    root: Path,
+    *,
+    stage: str | None,
+) -> ProductionPreparationAuthorization:
+    """Recompute stable facts; stage=None is read-only diagnosis, never admission."""
+    if root.resolve() != PROJECT_ROOT.resolve():
+        raise HeldoutPreparationError("production release requires the canonical root")
+    if not _production_release_candidate(root):
+        raise HeldoutPreparationError("registered production release is absent")
+    try:
+        observed = production_authority.validate_preparation_authorization(
+            root,
+            stage=stage,
+        )
+    except (production_authority.ProductionAuthorityError, OSError) as exc:
+        raise HeldoutPreparationError(
+            "successor production authorization failed independent validation"
+        ) from exc
+    if (
+        type(observed) is not ProductionPreparationAuthorization
+        or observed.project_root != root.resolve()
+    ):
+        raise HeldoutPreparationError("production authorization type or root drifted")
+    return observed
+
+
 def validate_v2_1_stage_authorization(
     binding: HeldoutBinding,
     *,
     stage: str,
     execution_context: ExecutionContext = None,
-) -> V21ReleaseAuthorization | _OfflineRehearsalCapability:
+) -> StageAuthorization:
     """Fail closed at every successor mutating stage before business input reads."""
 
     if stage not in _OFFLINE_ALLOWED_STAGES:
@@ -2065,6 +2290,26 @@ def validate_v2_1_stage_authorization(
             "synthetic successor receipt cannot unlock a noncanonical real stage"
         )
     _validate_canonical_runtime_environment(binding, stage=stage)
+    if _production_release_candidate(binding.root):
+        if (
+            execution_context is not None
+            and type(execution_context) is not ProductionPreparationAuthorization
+        ):
+            raise HeldoutPreparationError("production execution context is forged")
+        production_observed = _validate_production_release_facts(
+            binding.root,
+            stage=stage,
+        )
+        _validate_canonical_runtime_module_origins(
+            binding,
+            stage=stage,
+            authorization=production_observed,
+        )
+        if execution_context is not None and execution_context != production_observed:
+            raise HeldoutPreparationError("production release context drifted")
+        return production_observed
+    if type(execution_context) is ProductionPreparationAuthorization:
+        raise HeldoutPreparationError("production context has no registered release")
     observed = validate_v2_1_release_authorization(binding.root)
     _validate_canonical_runtime_module_origins(
         binding,
@@ -2083,7 +2328,7 @@ def _prevalidated_stage_authority_identity_api() -> tuple[
     Callable[..., _PrevalidatedStageAuthority],
     Callable[
         [HeldoutBinding, _PrevalidatedStageAuthority, str],
-        V21ReleaseAuthorization | _OfflineRehearsalCapability,
+        StageAuthorization,
     ],
 ]:
     minted: dict[int, _PrevalidatedStageAuthority] = {}
@@ -2112,7 +2357,34 @@ def _prevalidated_stage_authority_identity_api() -> tuple[
         binding: HeldoutBinding,
         delegated: _PrevalidatedStageAuthority,
         validated_stage: str,
-    ) -> V21ReleaseAuthorization | _OfflineRehearsalCapability:
+    ) -> StageAuthorization:
+        if (
+            type(delegated) is _PrevalidatedStageAuthority
+            and type(delegated.authorization) is ProductionPreparationAuthorization
+        ):
+            if (
+                delegated._nonce is not _PREVALIDATED_STAGE_AUTHORITY_NONCE
+                or minted.get(id(delegated)) is not delegated
+                or delegated.project_root != binding.root.resolve()
+                or delegated.validated_stage != validated_stage
+                or validated_stage not in _REAL_ALLOWED_STAGES
+            ):
+                raise HeldoutPreparationError(
+                    "production prevalidated authority is forged, cross-stage, or drifted"
+                )
+            production_observed = validate_v2_1_stage_authorization(
+                binding,
+                stage=validated_stage,
+                execution_context=delegated.authorization,
+            )
+            if (
+                type(production_observed) is not ProductionPreparationAuthorization
+                or production_observed != delegated.authorization
+            ):
+                raise HeldoutPreparationError(
+                    "production prevalidated authority changed during revalidation"
+                )
+            return production_observed
         if (
             delegated._nonce is not _PREVALIDATED_STAGE_AUTHORITY_NONCE
             or minted.get(id(delegated)) is not delegated
@@ -2155,7 +2427,7 @@ def _pure_revalidation_authority(
     execution_context: ExecutionContext,
     prevalidated_authority: _PrevalidatedStageAuthority | None,
 ) -> tuple[
-    V21ReleaseAuthorization | _OfflineRehearsalCapability,
+    StageAuthorization,
     _PrevalidatedStageAuthority,
 ]:
     if prevalidated_authority is not None:
@@ -2191,6 +2463,10 @@ class _CninfoStartPacer:
         self._monotonic = monotonic
         self._sleep = sleep
         self._starts: list[float] = []
+        self._retry_events: list[JsonObject] = []
+        self._pause_events: list[JsonObject] = []
+        self._window: deque[bool] = deque(maxlen=CNINFO_STALL_PAUSE_WINDOW)
+        self._unavailable_events: list[JsonObject] = []
 
     @staticmethod
     def _valid_clock_value(value: object) -> float:
@@ -2220,6 +2496,85 @@ class _CninfoStartPacer:
             raise HeldoutPreparationError("CNInfo pacing floor was not reached")
         self._starts.append(observed)
 
+    def _offset(self, observed: float) -> float:
+        return observed - self._starts[0] if self._starts else 0.0
+
+    def note_success(self) -> None:
+        """A completed fetch is one more outcome in the stall window."""
+        self._window.append(False)
+
+    def check_wall_clock(self) -> None:
+        """Refuse a further attempt once the whole materialization is out of time."""
+        if not self._starts:
+            return
+        observed = self._valid_clock_value(self._monotonic())
+        if observed - self._starts[0] > CNINFO_MATERIALIZE_WALL_CLOCK_CAP_SECONDS:
+            raise HeldoutPreparationError(
+                "CNInfo materialization exceeded its wall-clock cap"
+            )
+
+    def record_unavailable(self, *, url_sha256: str, http_status: int) -> None:
+        """Itemise one registered URL the host no longer serves."""
+        observed = self._valid_clock_value(self._monotonic())
+        self._unavailable_events.append(
+            {
+                "url_sha256": url_sha256,
+                "http_status": http_status,
+                "monotonic_offset_seconds": self._offset(observed),
+            }
+        )
+
+    def record_stall(
+        self,
+        *,
+        url_sha256: str,
+        attempt: int,
+        label: str,
+        backoff_seconds: float | None,
+    ) -> bool:
+        """Record one transport stall; return True when a stall pause fired.
+
+        A stall that will be retried inside the current attempt budget is itemised
+        and followed by its backoff. The exhausting attempt is not itemised: it
+        either ends the materialization or is rescued by a pause, after which the
+        PDF starts a fresh budget.
+        """
+        self._window.append(True)
+        if backoff_seconds is not None:
+            observed = self._valid_clock_value(self._monotonic())
+            self._retry_events.append(
+                {
+                    "url_sha256": url_sha256,
+                    "attempt": attempt,
+                    "exception_type": label,
+                    "monotonic_offset_seconds": self._offset(observed),
+                }
+            )
+            self._sleep(backoff_seconds)
+        if (
+            len(self._window) < CNINFO_STALL_PAUSE_WINDOW
+            or sum(self._window) < CNINFO_STALL_PAUSE_WINDOW_STALLS
+        ):
+            return False
+        if len(self._pause_events) >= CNINFO_STALL_PAUSE_MAX:
+            raise HeldoutPreparationError(
+                "CNInfo stall pauses exhausted; the host is not serving this run"
+            )
+        paused_at = self._valid_clock_value(self._monotonic())
+        self._pause_events.append(
+            {
+                "pause_index": len(self._pause_events) + 1,
+                "window_size": CNINFO_STALL_PAUSE_WINDOW,
+                "window_stalls": sum(self._window),
+                "pause_seconds": CNINFO_STALL_PAUSE_SECONDS,
+                "monotonic_offset_seconds": self._offset(paused_at),
+                "current_url_sha256": url_sha256,
+            }
+        )
+        self._sleep(CNINFO_STALL_PAUSE_SECONDS)
+        self._window.clear()
+        return True
+
     def evidence(self) -> JsonObject:
         gaps = [
             right - left
@@ -2239,8 +2594,100 @@ class _CninfoStartPacer:
             if gaps
             else None,
             "violation_count": violations,
-            "retry_count": 0,
+            "retry_count": len(self._retry_events),
+            "transport_retry_policy": {
+                "max_attempts_per_pdf": CNINFO_MAX_PDF_ATTEMPTS,
+                "backoff_seconds": list(CNINFO_RETRY_BACKOFF_SECONDS),
+                "retried_error_classes": list(CNINFO_RETRIED_ERROR_CLASSES),
+                "non_retried": list(CNINFO_NON_RETRIED_FAILURES),
+                "stall_pause_policy": {
+                    "window_size": CNINFO_STALL_PAUSE_WINDOW,
+                    "window_stall_threshold": CNINFO_STALL_PAUSE_WINDOW_STALLS,
+                    "pause_seconds": CNINFO_STALL_PAUSE_SECONDS,
+                    "max_pauses": CNINFO_STALL_PAUSE_MAX,
+                },
+                "wall_clock_cap_seconds": CNINFO_MATERIALIZE_WALL_CLOCK_CAP_SECONDS,
+                "unavailable_http_statuses": list(CNINFO_UNAVAILABLE_HTTP_STATUSES),
+            },
+            "retry_events": [dict(event) for event in self._retry_events],
+            "pause_events": [dict(event) for event in self._pause_events],
+            "http_unavailable_count": len(self._unavailable_events),
+            "http_unavailable_events": [dict(event) for event in self._unavailable_events],
         }
+
+
+def _retryable_download_failure(error: gold_builder.GoldSampleError) -> str | None:
+    """Name the transient transport failure to retry, or None to fail at once.
+
+    Content, eligibility and every other status failure keep the registered
+    complete-or-nothing behaviour.
+    """
+    cause = error.__cause__
+    if isinstance(cause, httpx.TransportError):
+        return f"httpx.{type(cause).__name__}"
+    if isinstance(cause, OSError):
+        return type(cause).__name__
+    status = _CNINFO_RETRYABLE_STATUS.fullmatch(str(error))
+    if status is not None:
+        return f"gold_sample_http_status_{status.group(1)}"
+    return None
+
+
+def _last_prediction_row(path: Path, expected_line_count: int) -> JsonObject:
+    """Read only the row this candidate just appended; predictions are append-only."""
+    with path.open("rb") as stream:
+        stream.seek(0, os.SEEK_END)
+        size = stream.tell()
+        window = min(size, 1 << 20)
+        stream.seek(size - window)
+        tail = stream.read(window)
+    lines = [line for line in tail.split(b"\n") if line.strip()]
+    if not lines or expected_line_count < 1:
+        raise HeldoutPreparationError("held-out prediction row is unreadable")
+    try:
+        row = json.loads(lines[-1].decode("utf-8"))
+    except (ValueError, UnicodeError) as exc:
+        raise HeldoutPreparationError("held-out prediction row is not JSON") from exc
+    if not isinstance(row, dict):
+        raise HeldoutPreparationError("held-out prediction row is not an object")
+    return cast(JsonObject, row)
+
+
+def _accepted_post_validation_failure(
+    row: Mapping[str, Any], news_item_id: int
+) -> JsonObject | None:
+    """Return the census entry for a failure v5 records, else None.
+
+    Only a completed request whose answer was refused deterministically qualifies:
+    the recorded reason must be non-retryable and must name one of the registered
+    refusal categories. Transport failures, audit failures, configuration failures,
+    retryable failures and unrecognised reasons return None and stay terminal.
+    """
+    if (
+        row.get("status") != "extract_failed"
+        or row.get("news_item_id") != news_item_id
+        or row.get("prediction") is not None
+    ):
+        return None
+    failure = row.get("extract_failed")
+    if not isinstance(failure, Mapping) or failure.get("retryable") is not False:
+        return None
+    reason = failure.get("reason")
+    if not isinstance(reason, str) or reason not in INFERENCE_RECORDED_FAILURE_CATEGORIES:
+        return None
+    entry: JsonObject = {
+        "news_item_id": news_item_id,
+        "category": INFERENCE_RECORDED_FAILURE_CATEGORIES[reason],
+        "reason": reason,
+    }
+    # The frozen extractor only attaches a field/constraint pair to validation and
+    # schema refusals; a contract refusal carries none and is recorded without them.
+    field = failure.get("field")
+    constraint = failure.get("constraint")
+    if isinstance(field, str) and field and isinstance(constraint, str) and constraint:
+        entry["field"] = field
+        entry["constraint"] = constraint
+    return entry
 
 
 def _paced_pdf_boundaries(
@@ -2252,16 +2699,57 @@ def _paced_pdf_boundaries(
         url: str,
         policy: gold_builder.AnnouncementBodyPolicy,
     ) -> bytes:
-        pacer.before_fetch()
-        try:
-            payload: bytes = pdf_fetcher(url, policy)
-            return payload
-        except gold_builder.CandidateDocumentIneligible as exc:
-            if exc.reason != "pdf_exceeds_size_bound":
-                raise HeldoutPreparationError(
-                    f"unknown deterministic candidate reason: {exc.reason}"
-                ) from exc
-            raise
+        url_sha256 = common.sha256_bytes(url.encode("utf-8"))
+        while True:
+            paused = False
+            for attempt in range(1, CNINFO_MAX_PDF_ATTEMPTS + 1):
+                pacer.check_wall_clock()
+                pacer.before_fetch()
+                try:
+                    payload: bytes = pdf_fetcher(url, policy)
+                    pacer.note_success()
+                    return payload
+                except gold_builder.CandidateDocumentIneligible as exc:
+                    if exc.reason not in {
+                        "pdf_exceeds_size_bound",
+                        CNINFO_UNAVAILABLE_REASON,
+                    }:
+                        raise HeldoutPreparationError(
+                            f"unknown deterministic candidate reason: {exc.reason}"
+                        ) from exc
+                    raise
+                except gold_builder.GoldSampleError as exc:
+                    unavailable = _CNINFO_UNAVAILABLE_STATUS.fullmatch(str(exc))
+                    if unavailable is not None:
+                        status = int(unavailable.group(1))
+                        pacer.record_unavailable(url_sha256=url_sha256, http_status=status)
+                        raise gold_builder.CandidateDocumentIneligible(
+                            reason=CNINFO_UNAVAILABLE_REASON,
+                            measured_value=status,
+                            gate_value=CNINFO_UNAVAILABLE_GATE_STATUS,
+                            pdf_sha256=None,
+                        ) from exc
+                    label = _retryable_download_failure(exc)
+                    if label is None:
+                        raise
+                    last_attempt = attempt >= CNINFO_MAX_PDF_ATTEMPTS
+                    paused = pacer.record_stall(
+                        url_sha256=url_sha256,
+                        attempt=attempt,
+                        label=label,
+                        backoff_seconds=(
+                            None if last_attempt else CNINFO_RETRY_BACKOFF_SECONDS[attempt - 1]
+                        ),
+                    )
+                    if paused:
+                        # D-8: the server was unavailable, not this PDF. Start a
+                        # fresh budget for the same URL; earlier attempts stay
+                        # itemised in their own segment.
+                        break
+                    if last_attempt:
+                        raise
+            if not paused:
+                raise HeldoutPreparationError("CNInfo PDF retry budget was not enforced")
 
     def checked_extract(
         pdf_bytes: bytes,
@@ -2478,17 +2966,10 @@ def _verified_backup_evidence(binding: HeldoutBinding, observed_at: datetime) ->
         created_at = _parse_aware_timestamp(
             manifest.get("created_at"), "database backup created_at"
         )
-        created_shanghai = created_at.astimezone(_SHANGHAI)
-        observed_shanghai = observed_at.astimezone(_SHANGHAI)
-        if (
-            created_shanghai.date() != observed_shanghai.date()
-            or created_shanghai.hour < 22
-        ):
-            continue
         candidates.append((created_at, manifest_path, manifest))
     if not candidates:
         raise HeldoutPreparationError(
-            "no current Shanghai-date post-22:00 database backup manifest is available"
+            "no database backup manifest is available"
         )
     created_at, manifest_path, manifest = max(candidates, key=lambda item: item[0])
     if (
@@ -2552,16 +3033,30 @@ def _real_runtime_start_preflight(
         attestation, observed_start_shanghai=observed_shanghai
     )
     runtime_directory = _database_backup_runtime_directory()
+    # The LaunchAgent and lock probes still run before any manifest is read, so a
+    # concurrent backup is refused first. The stamp is probed last because it is now
+    # checked against the backup this preflight actually binds.
+    launchagent = _launchagent_evidence()
+    lock = _backup_lock_evidence(runtime_directory)
+    verified_backup = _verified_backup_evidence(binding, observed_at)
+    bound_backup_shanghai_date = (
+        _parse_aware_timestamp(
+            verified_backup["created_at_shanghai"], "verified backup created_at_shanghai"
+        )
+        .astimezone(_SHANGHAI)
+        .date()
+        .isoformat()
+    )
     return {
         "mode": "real",
         "observed_at_utc": observed_at.isoformat().replace("+00:00", "Z"),
         "observed_at_shanghai": observed_shanghai.isoformat(),
         "backup_stamp": _backup_stamp_evidence(
-            runtime_directory, observed_shanghai.date().isoformat()
+            runtime_directory, bound_backup_shanghai_date
         ),
-        "database_backup_launchagent": _launchagent_evidence(),
-        "database_backup_lock": _backup_lock_evidence(runtime_directory),
-        "verified_backup": _verified_backup_evidence(binding, observed_at),
+        "database_backup_launchagent": launchagent,
+        "database_backup_lock": lock,
+        "verified_backup": verified_backup,
         "operator_timing_attestation": operator,
     }
 
@@ -2575,8 +3070,16 @@ def _offline_runtime_start_preflight() -> JsonObject:
 
 
 def _execution_authority_evidence(
-    context: V21ReleaseAuthorization | _OfflineRehearsalCapability,
+    context: StageAuthorization,
 ) -> JsonObject:
+    if type(context) is ProductionPreparationAuthorization:
+        try:
+            evidence = production_authority.execution_authority_evidence(context)
+        except (production_authority.ProductionAuthorityError, OSError) as exc:
+            raise HeldoutPreparationError(
+                "production execution-authority evidence validation failed"
+            ) from exc
+        return _mapping(evidence, "production execution authority")
     common_fields: JsonObject = {
         "frame_authority": {
             "path": FRAME_AUTHORITY_PATH.as_posix(),
@@ -2699,7 +3202,10 @@ def _load_selected_contract(root: Path) -> EventExtractContract:
         preregistration_sha256=cast(str, dev_runner.ROUND_3_PREREGISTRATION_SHA256),
     )
     bindings = dev_runner._load_contracts(root, prereg, round_binding)
-    selected = next((item.contract for item in bindings if item.model_slug == MODEL), None)
+    selected = next(
+        (item.contract for item in bindings if item.model_slug == PREREGISTERED_MODEL),
+        None,
+    )
     if selected is None or selected.path != (root / ROUND3_CONTRACT_PATH).resolve():
         raise HeldoutPreparationError("Round 3 selected contract is unavailable")
     if selected.sha256 != ROUND3_CONTRACT_SHA256:
@@ -2737,8 +3243,8 @@ def _load_selected_contract(root: Path) -> EventExtractContract:
             key: llm.get(key)
             for key in (
                 "model",
-                "endpoint",
-                "temperature",
+                "provider",
+                "endpoint_hmac_sha256",
                 "enable_thinking",
                 "max_output_tokens",
                 "total_deadline_seconds",
@@ -2748,26 +3254,41 @@ def _load_selected_contract(root: Path) -> EventExtractContract:
         },
         {
             "model": MODEL,
-            "endpoint": "https://dashscope.aliyuncs.com/compatible-mode/v1",
-            "temperature": 0.2,
+            "provider": HELDOUT_PROVIDER,
+            "endpoint_hmac_sha256": HELDOUT_ENDPOINT_HMAC_SHA256,
             "enable_thinking": False,
             "max_output_tokens": 2000,
-            "total_deadline_seconds": 20.0,
+            "total_deadline_seconds": 90.0,
             "max_retries": 0,
-            "response_format": "json_object",
+            "response_format": "prompt_enforced_json",
         },
         "held-out LLM controls",
     )
+    unexpected = set(llm) - HELDOUT_WRAPPER_LLM_KEYS
+    if unexpected:
+        raise HeldoutPreparationError(
+            "held-out wrapper may not override inherited inference key: "
+            + sorted(unexpected)[0]
+        )
     request = _mapping(document.get("request_shape"), "request_shape")
     for key in ("one_news_item_per_request", "one_request_per_eligible_candidate"):
         _assert_exact(request.get(key), True, key)
     _assert_exact(request.get("failed_candidate_retries"), 0, "failed candidate retries")
     _assert_exact(request.get("automatic_retries"), 0, "automatic retries")
+    # The wrapper names the platform and the model; without applying them here the
+    # object the pass calls with would keep the inherited round-3 values while every
+    # artefact row recorded the wrapper's, which no later read of the rows could
+    # detect. The prompt and the schema are deliberately not overridable.
+    overrides = {
+        field: llm[key] for key, field in HELDOUT_WRAPPER_OVERRIDES.items() if key in llm
+    }
     return replace(
         selected,
         path=heldout_path.resolve(),
         sha256=HELDOUT_CONTRACT_SHA256,
         max_items_per_run=EXPECTED_RAW_COUNT,
+        endpoint=None,
+        **overrides,
     )
 
 
@@ -2838,7 +3359,7 @@ def load_binding(project_root: Path = PROJECT_ROOT) -> HeldoutBinding:
         "selected freeze SHA",
     )
     selected = _mapping(prereg.get("selected_extractor"), "selected_extractor")
-    _assert_exact(selected.get("model"), MODEL, "selected model")
+    _assert_exact(selected.get("model"), PREREGISTERED_MODEL, "preregistered selected model")
     _assert_exact(
         selected.get("round_3_prompt"),
         {
@@ -2859,8 +3380,11 @@ def load_binding(project_root: Path = PROJECT_ROOT) -> HeldoutBinding:
     )
     _assert_exact(
         selected.get("heldout_execution_contract"),
-        {"path": HELDOUT_CONTRACT_PATH.as_posix(), "sha256": HELDOUT_CONTRACT_SHA256},
-        "held-out contract binding",
+        {
+            "path": PREREGISTERED_HELDOUT_CONTRACT_PATH.as_posix(),
+            "sha256": PREREGISTERED_HELDOUT_CONTRACT_SHA256,
+        },
+        "preregistered held-out contract binding",
     )
     source = _mapping(prereg.get("source_frame"), "source_frame")
     _assert_exact(source.get("frame_id"), FRAME_ID, "frame id")
@@ -3220,6 +3744,7 @@ def _synthetic_prediction(
 def _synthetic_production_materialization_fixture(
     binding: HeldoutBinding,
     *,
+    transport_retry_recorded: bool = False,
     execution_context: ExecutionContext = None,
 ) -> tuple[list[JsonObject], JsonObject]:
     """Build a legal production-shaped offline fixture for deep validator tests."""
@@ -3378,6 +3903,36 @@ def _synthetic_production_materialization_fixture(
                 "median_observed_start_to_start_seconds": 1.0,
                 "violation_count": 0,
                 "retry_count": 0,
+                **(
+                    {
+                        "transport_retry_policy": {
+                            "max_attempts_per_pdf": CNINFO_MAX_PDF_ATTEMPTS,
+                            "backoff_seconds": list(CNINFO_RETRY_BACKOFF_SECONDS),
+                            "retried_error_classes": list(CNINFO_RETRIED_ERROR_CLASSES),
+                            "non_retried": list(CNINFO_NON_RETRIED_FAILURES),
+                            "stall_pause_policy": {
+                                "window_size": CNINFO_STALL_PAUSE_WINDOW,
+                                "window_stall_threshold": (
+                                    CNINFO_STALL_PAUSE_WINDOW_STALLS
+                                ),
+                                "pause_seconds": CNINFO_STALL_PAUSE_SECONDS,
+                                "max_pauses": CNINFO_STALL_PAUSE_MAX,
+                            },
+                            "wall_clock_cap_seconds": (
+                                CNINFO_MATERIALIZE_WALL_CLOCK_CAP_SECONDS
+                            ),
+                            "unavailable_http_statuses": list(
+                                CNINFO_UNAVAILABLE_HTTP_STATUSES
+                            ),
+                        },
+                        "retry_events": [],
+                        "pause_events": [],
+                        "http_unavailable_count": 0,
+                        "http_unavailable_events": [],
+                    }
+                    if transport_retry_recorded
+                    else {}
+                ),
             },
             "akshare_ths": "not_applicable_no_external_document_fetch",
             "sina_company_news": "not_applicable_no_external_document_fetch",
@@ -3543,6 +4098,103 @@ def _write_synthetic_production_execution_fixture(
     return candidates, predictions, execution_id
 
 
+def _extract_failed_category_counts(entries: Sequence[Mapping[str, Any]]) -> JsonObject:
+    """Per-category counts, every registered category present even when zero."""
+    counts = dict.fromkeys(sorted(set(INFERENCE_RECORDED_FAILURE_CATEGORIES.values())), 0)
+    for entry in entries:
+        counts[cast(str, entry["category"])] += 1
+    return cast(JsonObject, counts)
+
+
+def _extract_failed_census_ids(entries: object) -> list[int] | None:
+    """Sorted news_item_ids from a recorded census, or None when it is malformed."""
+    if not isinstance(entries, list):
+        return None
+    identifiers: list[int] = []
+    for entry in entries:
+        if not isinstance(entry, Mapping):
+            return None
+        identifier = entry.get("news_item_id")
+        if isinstance(identifier, bool) or not isinstance(identifier, int) or identifier <= 0:
+            return None
+        reason = entry.get("reason")
+        if (
+            not isinstance(reason, str)
+            or reason not in INFERENCE_RECORDED_FAILURE_CATEGORIES
+            or entry.get("category") != INFERENCE_RECORDED_FAILURE_CATEGORIES[reason]
+            or set(entry) - {"news_item_id", "category", "reason", "field", "constraint"}
+            or ("field" in entry) != ("constraint" in entry)
+            or any(
+                not isinstance(entry[key], str) or not entry[key]
+                for key in ("field", "constraint")
+                if key in entry
+            )
+        ):
+            return None
+        identifiers.append(identifier)
+    return sorted(identifiers)
+
+
+def _validate_extract_failed_census(
+    binding: HeldoutBinding,
+    predictions: Sequence[Mapping[str, Any]],
+    failures: int,
+) -> None:
+    """The sampling layer and the inference census must name the same candidates."""
+    observed = sorted(
+        _positive_news_item_id(row, "failed prediction row")
+        for row in predictions
+        if row.get("status") != "ok"
+    )
+    if len(observed) != failures or len(set(observed)) != len(observed):
+        raise HeldoutPreparationError("extract_failed census count drifted")
+    manifest_path = binding.artifacts["prediction_manifest"]
+    if not manifest_path.is_file():
+        if failures:
+            raise HeldoutPreparationError(
+                "full eligible inference contains failures without a recorded census"
+            )
+        return
+    manifest = _load_json(manifest_path, "prediction manifest")
+    if "extract_failed_count" not in manifest:
+        # Pre-v5 manifests carry no census and must still prove zero failures.
+        if failures:
+            raise HeldoutPreparationError(
+                "full eligible inference contains failures without a recorded census"
+            )
+        return
+    recorded_count = manifest.get("extract_failed_count")
+    recorded_ids = _extract_failed_census_ids(manifest.get("extract_failed_ids"))
+    if (
+        isinstance(recorded_count, bool)
+        or not isinstance(recorded_count, int)
+        or recorded_count != failures
+        or recorded_ids != observed
+    ):
+        raise HeldoutPreparationError(
+            "extract_failed census disagrees with the prediction manifest"
+        )
+    state_path = binding.artifacts["inference_state"]
+    if not state_path.is_file():
+        raise HeldoutPreparationError("inference state is unavailable for the census")
+    completed = [
+        descriptor
+        for descriptor in _load_jsonl(state_path, "inference state")
+        if descriptor.get("status") == "completed_all_eligible_candidates_once"
+    ]
+    if not completed:
+        raise HeldoutPreparationError("inference state lacks a completion descriptor")
+    final = completed[-1]
+    if (
+        final.get("extract_failed_count") != failures
+        or _extract_failed_census_ids(final.get("extract_failed_ids")) != observed
+    ):
+        raise HeldoutPreparationError(
+            "extract_failed census disagrees with the inference state"
+        )
+    _validate_rate_limit_evidence(final, len(predictions))
+
+
 def _positive_news_item_id(row: Mapping[str, Any], label: str) -> int:
     identifier = row.get("news_item_id")
     if isinstance(identifier, bool) or not isinstance(identifier, int) or identifier <= 0:
@@ -3623,10 +4275,11 @@ def select_and_blind(
         joined.append((candidate, prediction, stratum))
     if len(joined) + failures != len(inputs):
         raise HeldoutPreparationError("full eligible pool was not inferred exactly once")
-    if failures != 0:
-        raise HeldoutPreparationError(
-            "full eligible inference contains failures; sampling is forbidden"
-        )
+    # v5: extract_failed candidates are reported and excluded from both sampled
+    # strata, exactly as the registered stratum already prescribes. They are only
+    # tolerated here when the inference stage itemised them; any disagreement
+    # between this layer and that census is terminal.
+    _validate_extract_failed_census(binding, prediction_rows, failures)
     by_stratum: dict[str, list[tuple[JsonObject, JsonObject, str]]] = {
         "predicted_positive": [],
         "predicted_negative": [],
@@ -4307,10 +4960,7 @@ def run_materialize(
         pdf_fetcher=paced_fetcher,
         pdf_text_extractor=checked_extractor,
     )
-    allowed_ineligible_reasons = {
-        "pdf_text_below_min_char_gate",
-        "pdf_exceeds_size_bound",
-    }
+    allowed_ineligible_reasons = set(CNINFO_DETERMINISTIC_INELIGIBLE_REASONS)
     observed_reasons = set(materialized.reason_counts)
     if not observed_reasons <= allowed_ineligible_reasons or any(
         row.get("reason") not in allowed_ineligible_reasons
@@ -4390,6 +5040,8 @@ def run_materialize(
         },
         "runtime_start_preflight": runtime_start_preflight,
     }
+    if type(authorized) is ProductionPreparationAuthorization:
+        manifest["schema_version"] = production_authority.MATERIALIZATION_MANIFEST_SCHEMA
     _publish_create_only(
         (
             (binding.artifacts["materialized_inputs"], input_payload),
@@ -4440,7 +5092,7 @@ def _exclusive_inference_state(path: Path) -> Iterator[int]:
 
 
 def _validate_v2_1_inference_seams(
-    authorized: V21ReleaseAuthorization | _OfflineRehearsalCapability,
+    authorized: StageAuthorization,
     *,
     settings: Settings | None,
     chat_json_fn: ChatJsonCallable | None,
@@ -4450,6 +5102,21 @@ def _validate_v2_1_inference_seams(
     prediction_recorded_at_clock: RecordedAtClock | None,
     prediction_monotonic_ns_clock: MonotonicNsClock | None,
 ) -> None:
+    if type(authorized) is ProductionPreparationAuthorization:
+        if (
+            settings is not None
+            or chat_json_fn is not None
+            or snapshot_loader is not dev_runner._production_snapshot
+            or clock is not _system_clock
+            or execution_id_factory is not _random_execution_id
+            or prediction_recorded_at_clock is not None
+            or prediction_monotonic_ns_clock is not None
+        ):
+            raise HeldoutPreparationError(
+                "real held-out inference forbids injected settings, model, snapshot, "
+                "clock, or id seams"
+            )
+        return
     if isinstance(authorized, V21ReleaseAuthorization):
         if (
             settings is not None
@@ -4476,6 +5143,143 @@ def _validate_v2_1_inference_seams(
     ):
         raise HeldoutPreparationError(
             "offline held-out inference seams differ from the minted capability"
+        )
+
+
+def _extract_one_candidate(*args: Any, **kwargs: Any) -> Any:
+    """One candidate, with a named rate-limit give-up turned into a stage failure.
+
+    The four give-up rules are distinct outcomes: a candidate that burned its own
+    guard, a pass that spent its resend budget, a wait that would wake past the
+    wall clock, and a platform-supplied delay past the ceiling that says the quota
+    is gone. Collapsing them into one transport error would lose exactly what the
+    census is for, so the reason and the counters travel with the failure.
+    """
+    from alphapilot.llm import providers
+
+    try:
+        return extract_records(*args, **kwargs)
+    except providers.RateLimitAbort as abort:
+        raise HeldoutRateLimitAbort(
+            f"held-out inference stopped on a rate-limit rule: {abort.reason}",
+            reason=abort.reason,
+            evidence=abort.evidence,
+        ) from abort
+
+
+def _rate_limit_policy_evidence() -> JsonObject:
+    """The registered transport policy, as recorded in every inference artefact."""
+    return {
+        "status": RATE_LIMIT_STATUS,
+        "fallback_backoff_seconds": list(RATE_LIMIT_BACKOFF_SECONDS),
+        "per_candidate_resends": RATE_LIMIT_PER_CANDIDATE_RESENDS,
+        "per_pass_resend_cap": RATE_LIMIT_PER_PASS_RESEND_CAP,
+        "per_pass_wall_clock_cap_seconds": RATE_LIMIT_PER_PASS_WALL_CLOCK_CAP_SECONDS,
+        "supplied_delay_floor_seconds": RATE_LIMIT_SUPPLIED_DELAY_FLOOR_SECONDS,
+        "supplied_delay_ceiling_seconds": RATE_LIMIT_SUPPLIED_DELAY_CEILING_SECONDS,
+        "pacing": "none_measured_rejection_rate_is_invariant_to_spacing",
+        "resend_is_not_a_candidate_retry": True,
+    }
+
+
+_RATE_LIMIT_POLICY_KEYS = frozenset(_rate_limit_policy_evidence())
+
+
+def _validate_rate_limit_evidence(
+    inference: Mapping[str, Any], eligible_candidate_count: int
+) -> None:
+    """The recorded policy is the registered one and every request is accounted for.
+
+    Two shapes are accepted and never interchanged: an artefact published before
+    this decision carries no transport block at all, and one published after it
+    must carry the whole block. A partial block is a drift, not a default.
+    """
+    policy = inference.get("rate_limit_policy")
+    accounting = inference.get("request_accounting")
+    if policy is None and accounting is None:
+        return
+    if not isinstance(policy, Mapping) or not isinstance(accounting, Mapping):
+        raise HeldoutPreparationError("transport rate-limit evidence is incomplete")
+    if set(policy) != _RATE_LIMIT_POLICY_KEYS:
+        raise HeldoutPreparationError("transport rate-limit policy key set drifted")
+    if dict(policy) != _rate_limit_policy_evidence():
+        raise HeldoutPreparationError("transport rate-limit policy is not the registered one")
+    if set(accounting) != {
+        "requests_started",
+        "answers_served",
+        "rate_limited_responses",
+        "rate_limit_waits",
+        "rate_limit_wait_seconds",
+        "rate_limit_wait_items",
+    }:
+        raise HeldoutPreparationError("transport request accounting key set drifted")
+    served = accounting.get("answers_served")
+    started = accounting.get("requests_started")
+    waits = accounting.get("rate_limit_waits")
+    rejected = accounting.get("rate_limited_responses")
+    items = accounting.get("rate_limit_wait_items")
+    if not isinstance(items, list) or len(items) != waits:
+        raise HeldoutPreparationError("transport wait items do not match the wait count")
+    # One answer per eligible candidate, and every extra request is a re-send.
+    if served != eligible_candidate_count:
+        raise HeldoutPreparationError("answers served is not the eligible candidate count")
+    if started != served + waits:
+        raise HeldoutPreparationError("requests started is not candidates plus re-sends")
+    if not isinstance(rejected, int) or rejected < waits:
+        raise HeldoutPreparationError("more re-sends than rejections were recorded")
+    if waits > RATE_LIMIT_PER_PASS_RESEND_CAP:
+        raise HeldoutPreparationError("re-sends exceeded the registered per-pass cap")
+    if sum(items) > RATE_LIMIT_PER_PASS_WALL_CLOCK_CAP_SECONDS:
+        raise HeldoutPreparationError("rate-limit waiting exceeded the registered cap")
+
+
+def _assert_registered_platform_admission(
+    binding: HeldoutBinding, authorized: StageAuthorization
+) -> None:
+    """Bind the pass to the registered platform before any candidate is read.
+
+    Three things must agree: the contract bytes (already checked when the contract
+    was loaded), the provider identity the contract pins, and - on a real stage -
+    the keyed digest recomputed from the operator's live configuration. The
+    address, the salt and the digest never appear in any message raised here, so a
+    failure is safe to paste into a report from a public repository.
+    """
+    # Imported inside the function: a new top-level import would change the frozen
+    # real-stage bootstrap's runtime origin census.
+    import hmac
+
+    from alphapilot.llm import providers
+
+    pinned = providers.contract_provider(binding.contract)
+    if pinned != HELDOUT_PROVIDER:
+        raise HeldoutPreparationError(
+            "held-out contract does not pin the registered platform provider"
+        )
+    if binding.contract.endpoint_hmac_sha256 != HELDOUT_ENDPOINT_HMAC_SHA256:
+        raise HeldoutPreparationError(
+            "held-out contract endpoint binding digest is not the registered one"
+        )
+    if providers.active_provider(contract=binding.contract) != HELDOUT_PROVIDER:
+        raise HeldoutPreparationError(
+            "resolved active provider is not the registered platform provider"
+        )
+    real_stage = type(authorized) is ProductionPreparationAuthorization or isinstance(
+        authorized, V21ReleaseAuthorization
+    )
+    if not real_stage:
+        # A synthetic stage injects its own seams and never reaches the platform,
+        # so there is no live configuration to bind against.
+        return
+    settings = _settings_from_project_env(binding.root)
+    try:
+        observed = providers.endpoint_binding_digest(settings)
+    except providers.ProviderConfigurationError as exc:
+        raise HeldoutPreparationError(
+            "platform endpoint binding is not configured for the real held-out stage"
+        ) from exc
+    if not hmac.compare_digest(observed, HELDOUT_ENDPOINT_HMAC_SHA256):
+        raise HeldoutPreparationError(
+            "configured platform endpoint does not match the registered binding"
         )
 
 
@@ -4511,6 +5315,7 @@ def run_infer(
         prediction_recorded_at_clock=prediction_recorded_at_clock,
         prediction_monotonic_ns_clock=prediction_monotonic_ns_clock,
     )
+    _assert_registered_platform_admission(binding, authorized)
     candidates = _load_jsonl(binding.artifacts["materialized_inputs"], "held-out inputs")
     manifest = _load_json(binding.artifacts["materialization_manifest"], "materialization manifest")
     inputs_payload = common.canonical_jsonl_bytes(candidates)
@@ -4582,13 +5387,31 @@ def run_infer(
                 ),
             },
         )
+        extract_failed_census: list[JsonObject] = []
+        # Imported here, not at module scope: this module is the frozen real-stage
+        # bootstrap entry and a new top-level import changes its origin census.
+        from alphapilot.llm.client import RateLimitPolicy, RequestAccounting
+
+        # The caps are registered constants read from this module, so the gate sees
+        # them; "opt-in" is satisfied by the registered caller rather than by a
+        # default that could be flipped elsewhere.
+        rate_limit_policy = RateLimitPolicy(
+            per_candidate_resends=RATE_LIMIT_PER_CANDIDATE_RESENDS,
+            per_pass_resend_cap=RATE_LIMIT_PER_PASS_RESEND_CAP,
+            per_pass_wall_clock_cap_seconds=RATE_LIMIT_PER_PASS_WALL_CLOCK_CAP_SECONDS,
+        )
+        request_accounting = RequestAccounting()
+        # The wall-clock cap is measured from the first request instant and counts
+        # waiting time. Setting it here rather than leaving it None is what makes
+        # the cap enforceable at all.
+        request_accounting.pass_started_at = time.monotonic()
         try:
             for index, candidate in enumerate(candidates, start=1):
                 active_candidate_index = index
                 active_candidate_id = _positive_news_item_id(
                     candidate, f"eligible candidate {index}"
                 )
-                summary = extract_records(
+                summary = _extract_one_candidate(
                     binding.contract,
                     [_extract_record(candidate)],
                     output_path=binding.artifacts["predictions"],
@@ -4599,15 +5422,38 @@ def run_infer(
                     chat_json_fn=chat_json_fn,
                     recorded_at_clock=prediction_recorded_at_clock,
                     monotonic_ns_clock=prediction_monotonic_ns_clock,
+                    rate_limit=rate_limit_policy,
+                    accounting=request_accounting,
                 )
                 if (
                     summary.newly_attempted_count != 1
-                    or summary.success_count != 1
-                    or summary.failure_count != 0
+                    or summary.success_count + summary.failure_count != 1
+                    or summary.retried_failure_count != 0
                 ):
                     raise HeldoutPreparationError(
                         f"candidate {candidate['news_item_id']} failed; inference is terminal"
                     )
+                if summary.success_count != 1:
+                    accepted = _accepted_post_validation_failure(
+                        _last_prediction_row(binding.artifacts["predictions"], index),
+                        active_candidate_id,
+                    )
+                    if accepted is None:
+                        raise HeldoutPreparationError(
+                            f"candidate {candidate['news_item_id']} failed; "
+                            "inference is terminal"
+                        )
+                    extract_failed_census.append(accepted)
+                    if (
+                        index >= INFERENCE_EXTRACT_FAILED_CEILING_MIN_COMPLETED
+                        and len(extract_failed_census)
+                        > INFERENCE_EXTRACT_FAILED_RATIO_CEILING * index
+                    ):
+                        raise HeldoutPreparationError(
+                            "held-out inference exceeded the registered extract_failed "
+                            f"ceiling: {len(extract_failed_census)} of {index} completed "
+                            "requests"
+                        )
                 if summary.retried_failure_count != 0:
                     raise HeldoutPreparationError("a held-out candidate was retried")
                 if index != summary.output_line_count:
@@ -4628,6 +5474,14 @@ def run_infer(
                 "prediction_count": len(predictions),
                 "status_ok_count": sum(row.get("status") == "ok" for row in predictions),
                 "status_failed_count": sum(row.get("status") != "ok" for row in predictions),
+                "extract_failed_count": len(extract_failed_census),
+                "extract_failed_ids": [dict(entry) for entry in extract_failed_census],
+                "extract_failed_by_category": _extract_failed_category_counts(
+                    extract_failed_census
+                ),
+                "extract_failed_ratio_ceiling": INFERENCE_EXTRACT_FAILED_RATIO_CEILING,
+                "rate_limit_policy": _rate_limit_policy_evidence(),
+                "request_accounting": request_accounting.as_evidence(),
                 "one_news_item_per_request": True,
                 "one_request_per_eligible_candidate": True,
                 "automatic_retries": 0,
@@ -4663,6 +5517,11 @@ def run_infer(
                     "materialization_manifest_sha256": materialization_sha256,
                     "completed_at_utc": clock().astimezone(UTC).isoformat().replace("+00:00", "Z"),
                     "prediction_count": len(predictions),
+                    "extract_failed_count": len(extract_failed_census),
+                    "extract_failed_ids": [dict(entry) for entry in extract_failed_census],
+                    "extract_failed_by_category": _extract_failed_category_counts(
+                        extract_failed_census
+                    ),
                     "predictions_sha256": common.sha256_file(binding.artifacts["predictions"]),
                     "prediction_manifest_sha256": common.sha256_file(
                         binding.artifacts["prediction_manifest"]
@@ -4707,11 +5566,202 @@ def _relative_artifact_path(binding: HeldoutBinding, name: str) -> str:
     return binding.artifacts[name].relative_to(binding.root).as_posix()
 
 
+def _valid_stall_pause_events(value: object) -> bool:
+    """Pauses are bounded, window-justified and ordered; they are not requests."""
+    if not isinstance(value, list) or len(value) > CNINFO_STALL_PAUSE_MAX:
+        return False
+    previous = 0.0
+    for index, event in enumerate(value, 1):
+        stalls = event.get("window_stalls") if isinstance(event, Mapping) else None
+        if (
+            not isinstance(event, Mapping)
+            or set(event)
+            != {
+                "pause_index",
+                "window_size",
+                "window_stalls",
+                "pause_seconds",
+                "monotonic_offset_seconds",
+                "current_url_sha256",
+            }
+            or isinstance(event.get("pause_index"), bool)
+            or event.get("pause_index") != index
+            or isinstance(event.get("window_size"), bool)
+            or event.get("window_size") != CNINFO_STALL_PAUSE_WINDOW
+            or isinstance(stalls, bool)
+            or not isinstance(stalls, int)
+            or not CNINFO_STALL_PAUSE_WINDOW_STALLS <= stalls <= CNINFO_STALL_PAUSE_WINDOW
+            or isinstance(event.get("pause_seconds"), bool)
+            or not isinstance(event.get("pause_seconds"), (int, float))
+            or float(cast(float, event["pause_seconds"])) != CNINFO_STALL_PAUSE_SECONDS
+            or not isinstance(event.get("current_url_sha256"), str)
+            or re.fullmatch(r"[0-9a-f]{64}", cast(str, event["current_url_sha256"])) is None
+            or isinstance(event.get("monotonic_offset_seconds"), bool)
+            or not isinstance(event.get("monotonic_offset_seconds"), (int, float))
+            or not math.isfinite(float(cast(float, event["monotonic_offset_seconds"])))
+            or float(cast(float, event["monotonic_offset_seconds"])) < previous
+        ):
+            return False
+        previous = float(cast(float, event["monotonic_offset_seconds"]))
+    return True
+
+
+def _valid_retry_attempt_segments(events: list[Any], pauses: list[Any]) -> bool:
+    """Each PDF's attempts run 1..k; a restart at 1 needs a pause naming that PDF."""
+    by_url: dict[str, list[tuple[int, float]]] = {}
+    for event in events:
+        by_url.setdefault(cast(str, event["url_sha256"]), []).append(
+            (cast(int, event["attempt"]), float(cast(float, event["monotonic_offset_seconds"])))
+        )
+    for url, entries in by_url.items():
+        segments: list[list[tuple[int, float]]] = []
+        for attempt, offset in entries:
+            if attempt == 1 or not segments:
+                segments.append([])
+            segments[-1].append((attempt, offset))
+        for segment in segments:
+            attempts = [attempt for attempt, _offset in segment]
+            if attempts != list(range(1, len(attempts) + 1)):
+                return False
+            if len(attempts) > CNINFO_MAX_PDF_ATTEMPTS - 1:
+                return False
+        for previous, following in pairwise(segments):
+            closed, opened = previous[-1][1], following[0][1]
+            if not any(
+                pause["current_url_sha256"] == url
+                and closed <= float(pause["monotonic_offset_seconds"]) <= opened
+                for pause in pauses
+            ):
+                return False
+    return True
+
+
+def _valid_http_unavailable_events(value: object, count: object) -> bool:
+    """Every 404/410 candidate is itemised once and matches the recorded count."""
+    if (
+        not isinstance(value, list)
+        or isinstance(count, bool)
+        or not isinstance(count, int)
+        or count != len(value)
+    ):
+        return False
+    previous = 0.0
+    for event in value:
+        if (
+            not isinstance(event, Mapping)
+            or set(event) != {"url_sha256", "http_status", "monotonic_offset_seconds"}
+            or not isinstance(event.get("url_sha256"), str)
+            or re.fullmatch(r"[0-9a-f]{64}", cast(str, event["url_sha256"])) is None
+            or isinstance(event.get("http_status"), bool)
+            or event.get("http_status") not in CNINFO_UNAVAILABLE_HTTP_STATUSES
+            or isinstance(event.get("monotonic_offset_seconds"), bool)
+            or not isinstance(event.get("monotonic_offset_seconds"), (int, float))
+            or not math.isfinite(float(cast(float, event["monotonic_offset_seconds"])))
+            or float(cast(float, event["monotonic_offset_seconds"])) < previous
+        ):
+            return False
+        previous = float(cast(float, event["monotonic_offset_seconds"]))
+    return True
+
+
+def _valid_transport_retry_evidence(
+    cninfo: Mapping[str, Any],
+    *,
+    request_count: int,
+    retry_count: int,
+) -> bool:
+    """The recorded policy is the registered one and every retry is accounted for."""
+    policy = cninfo.get("transport_retry_policy")
+    events = cninfo.get("retry_events")
+    if not isinstance(policy, Mapping) or not isinstance(events, list):
+        return False
+    backoff = policy.get("backoff_seconds")
+    if (
+        set(policy)
+        != {
+            "max_attempts_per_pdf",
+            "backoff_seconds",
+            "retried_error_classes",
+            "non_retried",
+            "stall_pause_policy",
+            "wall_clock_cap_seconds",
+            "unavailable_http_statuses",
+        }
+        or isinstance(policy.get("max_attempts_per_pdf"), bool)
+        or policy.get("max_attempts_per_pdf") != CNINFO_MAX_PDF_ATTEMPTS
+        or not isinstance(backoff, list)
+        or len(backoff) != len(CNINFO_RETRY_BACKOFF_SECONDS)
+        or any(
+            isinstance(item, bool)
+            or not isinstance(item, (int, float))
+            or float(item) != expected
+            for item, expected in zip(backoff, CNINFO_RETRY_BACKOFF_SECONDS, strict=True)
+        )
+        or policy.get("retried_error_classes") != list(CNINFO_RETRIED_ERROR_CLASSES)
+        or policy.get("non_retried") != list(CNINFO_NON_RETRIED_FAILURES)
+        or policy.get("stall_pause_policy")
+        != {
+            "window_size": CNINFO_STALL_PAUSE_WINDOW,
+            "window_stall_threshold": CNINFO_STALL_PAUSE_WINDOW_STALLS,
+            "pause_seconds": CNINFO_STALL_PAUSE_SECONDS,
+            "max_pauses": CNINFO_STALL_PAUSE_MAX,
+        }
+        or isinstance(policy.get("wall_clock_cap_seconds"), bool)
+        or policy.get("wall_clock_cap_seconds") != CNINFO_MATERIALIZE_WALL_CLOCK_CAP_SECONDS
+        or policy.get("unavailable_http_statuses") != list(CNINFO_UNAVAILABLE_HTTP_STATUSES)
+    ):
+        return False
+    if not _valid_http_unavailable_events(
+        cninfo.get("http_unavailable_events"), cninfo.get("http_unavailable_count")
+    ):
+        return False
+    if not _valid_stall_pause_events(cninfo.get("pause_events")):
+        return False
+    # Every retry is itemised, and the budget bounds the total across all PDFs.
+    if len(events) != retry_count:
+        return False
+    # Distinct PDFs are the request starts that were not themselves retries, and
+    # each PDF may contribute at most MAX-1 retries.
+    pauses = cast(list[Any], cninfo.get("pause_events"))
+    distinct_pdfs = request_count - retry_count
+    if distinct_pdfs < 0 or retry_count > (CNINFO_MAX_PDF_ATTEMPTS - 1) * (
+        distinct_pdfs + len(pauses)
+    ):
+        return False
+    for event in events:
+        if (
+            not isinstance(event, Mapping)
+            or set(event)
+            != {"url_sha256", "attempt", "exception_type", "monotonic_offset_seconds"}
+            or not isinstance(event.get("url_sha256"), str)
+            or re.fullmatch(r"[0-9a-f]{64}", str(event.get("url_sha256"))) is None
+            or isinstance(event.get("attempt"), bool)
+            or not isinstance(event.get("attempt"), int)
+            or not 1 <= cast(int, event["attempt"]) < CNINFO_MAX_PDF_ATTEMPTS
+            or not isinstance(event.get("exception_type"), str)
+            or _CNINFO_RETRY_EVENT_LABEL.fullmatch(cast(str, event["exception_type"])) is None
+            or isinstance(event.get("monotonic_offset_seconds"), bool)
+            or not isinstance(event.get("monotonic_offset_seconds"), (int, float))
+            or not math.isfinite(float(cast(float, event["monotonic_offset_seconds"])))
+            or float(cast(float, event["monotonic_offset_seconds"])) < 0.0
+        ):
+            return False
+    return _valid_retry_attempt_segments(events, pauses)
+
+
 def _validate_request_pacing_evidence(
     value: object,
     *,
     expected_cninfo_requests: int,
+    transport_retry_recorded: bool,
 ) -> None:
+    """Validate CNInfo pacing evidence in exactly the shape its generation records.
+
+    Manifests published before the owner's 2026-09-08 download decision carry no
+    retry policy and must still prove zero retries; manifests published after it
+    must itemise every retry. Neither shape is accepted in the other's place, so
+    frozen rehearsal evidence stays valid without weakening the new rule.
+    """
     pacing = _mapping(value, "materialization request_pacing")
     if set(pacing) != {"cninfo_pdf", "akshare_ths", "sina_company_news"}:
         raise HeldoutPreparationError("materialization request_pacing schema drifted")
@@ -4735,6 +5785,14 @@ def _validate_request_pacing_evidence(
         "violation_count",
         "retry_count",
     }
+    if transport_retry_recorded:
+        fields |= {
+            "transport_retry_policy",
+            "retry_events",
+            "pause_events",
+            "http_unavailable_count",
+            "http_unavailable_events",
+        }
     if set(cninfo) != fields:
         raise HeldoutPreparationError("materialization CNInfo pacing schema drifted")
     request_count = cninfo.get("request_start_count")
@@ -4772,11 +5830,17 @@ def _validate_request_pacing_evidence(
         or float(configured_floor) != CNINFO_MIN_START_TO_START_SECONDS
         or cninfo.get("clock") != "monotonic"
         or cninfo.get("first_request_delayed") is not False
-        or request_count != expected_cninfo_requests
+        or request_count != expected_cninfo_requests + cast(int, retry_count)
         or gap_count != max(request_count - 1, 0)
         or violations != 0
-        or retry_count != 0
         or not valid_statistics
+        or (
+            not _valid_transport_retry_evidence(
+                cninfo, request_count=request_count, retry_count=cast(int, retry_count)
+            )
+            if transport_retry_recorded
+            else retry_count != 0
+        )
     ):
         raise HeldoutPreparationError("materialization CNInfo pacing evidence drifted")
 
@@ -4784,7 +5848,7 @@ def _validate_request_pacing_evidence(
 def _validate_runtime_preflight_evidence(
     binding: HeldoutBinding,
     value: object,
-    context: V21ReleaseAuthorization | _OfflineRehearsalCapability,
+    context: StageAuthorization,
 ) -> None:
     evidence = _mapping(value, "materialization runtime_start_preflight")
     if isinstance(context, _OfflineRehearsalCapability):
@@ -4830,7 +5894,6 @@ def _validate_runtime_preflight_evidence(
         != {"path", "expected_shanghai_date", "observed_value", "regular_file", "symlink", "mode"}
         or stamp.get("path")
         != str(runtime_directory / "last-success-shanghai-date")
-        or stamp.get("expected_shanghai_date") != observed_shanghai.date().isoformat()
         or stamp.get("observed_value") != stamp.get("expected_shanghai_date")
         or stamp.get("regular_file") is not True
         or stamp.get("symlink") is not False
@@ -4875,6 +5938,11 @@ def _validate_runtime_preflight_evidence(
     backup_created_shanghai = _parse_aware_timestamp(
         verified.get("created_at_shanghai"), "verified backup created_at_shanghai"
     )
+    if (
+        stamp.get("expected_shanghai_date")
+        != backup_created_shanghai.astimezone(_SHANGHAI).date().isoformat()
+    ):
+        raise HeldoutPreparationError("runtime backup stamp evidence drifted")
     raw_backup_directory = binding.root / "data/backups"
     backup_directory = raw_backup_directory.resolve()
     manifest_path_raw = verified.get("manifest_path")
@@ -4919,9 +5987,6 @@ def _validate_runtime_preflight_evidence(
         or backup_manifest_evidence.get("sha256") != recorded_backup_sha
         or backup_created_utc.astimezone(UTC)
         != backup_created_shanghai.astimezone(UTC)
-        or backup_created_shanghai.astimezone(_SHANGHAI).date()
-        != observed_shanghai.date()
-        or backup_created_shanghai.astimezone(_SHANGHAI).hour < 22
         or backup_created_utc.astimezone(UTC) > observed_utc.astimezone(UTC)
         or verified.get("quick_check") != "ok"
         or verified.get("verify_database_backup_passed") is not True
@@ -4963,6 +6028,81 @@ def _validate_runtime_preflight_evidence(
         raise HeldoutPreparationError("runtime operator timing attestation drifted")
 
 
+def _validate_production_materialization_manifest(
+    binding: HeldoutBinding,
+    manifest: Mapping[str, Any],
+    candidates: Sequence[Mapping[str, Any]],
+    *,
+    inputs_sha256: str,
+    authorization: ProductionPreparationAuthorization,
+) -> None:
+    """Validate the new authority version plus every unchanged business check."""
+    expected_top_level = {
+        "schema_version",
+        "frame_id",
+        "lineage",
+        "artifacts",
+        "counts",
+        "layers",
+        "production_database",
+        "execution_authority",
+        "request_pacing",
+        "runtime_start_preflight",
+    }
+    if (
+        set(manifest) != expected_top_level
+        or manifest.get("schema_version")
+        != production_authority.MATERIALIZATION_MANIFEST_SCHEMA
+    ):
+        raise HeldoutPreparationError("production materialization manifest schema drifted")
+    if manifest.get("execution_authority") != _execution_authority_evidence(authorization):
+        raise HeldoutPreparationError("production materialization authority drifted")
+    layers = _mapping(manifest.get("layers"), "materialization layers")
+    all_candidates = layers.get("all_candidates")
+    if not isinstance(all_candidates, list):
+        raise HeldoutPreparationError("materialization all-candidate layer is invalid")
+    expected_cninfo_requests = sum(
+        isinstance(row, Mapping) and row.get("source") == "cninfo"
+        for row in all_candidates
+    )
+    _validate_request_pacing_evidence(
+        manifest.get("request_pacing"),
+        expected_cninfo_requests=expected_cninfo_requests,
+        transport_retry_recorded=True,
+    )
+    # The itemised 404/410 candidates and the pacing counter describe one fact.
+    cninfo_pacing = _mapping(
+        _mapping(manifest.get("request_pacing"), "materialization request_pacing").get(
+            "cninfo_pdf"
+        ),
+        "materialization CNInfo pacing",
+    )
+    unavailable_rows = sum(
+        isinstance(row, Mapping) and row.get("reason") == CNINFO_UNAVAILABLE_REASON
+        for row in layers.get("ineligible_candidates") or []
+    )
+    if cninfo_pacing.get("http_unavailable_count") != unavailable_rows:
+        raise HeldoutPreparationError(
+            "materialization unavailable-candidate evidence drifted"
+        )
+    _validate_runtime_preflight_evidence(
+        binding,
+        manifest.get("runtime_start_preflight"),
+        authorization,
+    )
+    # The pre-existing scientific projection is unchanged; no V21 receipt is minted.
+    legacy_projection = copy.deepcopy(dict(manifest))
+    for field in ("execution_authority", "request_pacing", "runtime_start_preflight"):
+        legacy_projection.pop(field)
+    legacy_projection["schema_version"] = "p4.2a-v2-heldout-materialization-manifest-v1"
+    _validate_materialization_for_selection(
+        binding,
+        legacy_projection,
+        candidates,
+        inputs_sha256=inputs_sha256,
+    )
+
+
 def validate_v2_1_materialization_manifest(
     binding: HeldoutBinding,
     manifest: Mapping[str, Any],
@@ -4981,6 +6121,15 @@ def validate_v2_1_materialization_manifest(
         prevalidated_authority=prevalidated_authority,
         validated_stage=validated_stage,
     )
+    if type(authorized) is ProductionPreparationAuthorization:
+        _validate_production_materialization_manifest(
+            binding,
+            manifest,
+            candidates,
+            inputs_sha256=inputs_sha256,
+            authorization=authorized,
+        )
+        return
     expected_top_level = {
         "schema_version",
         "frame_id",
@@ -5011,6 +6160,7 @@ def validate_v2_1_materialization_manifest(
     _validate_request_pacing_evidence(
         manifest.get("request_pacing"),
         expected_cninfo_requests=expected_cninfo_requests,
+        transport_retry_recorded=False,
     )
     _validate_runtime_preflight_evidence(
         binding,
@@ -5330,7 +6480,7 @@ def _validate_materialization_for_selection(
         url_value = row.get("url")
         parsed_url = urlparse(url_value) if isinstance(url_value, str) else None
         if (
-            reason not in {"pdf_text_below_min_char_gate", "pdf_exceeds_size_bound"}
+            reason not in set(CNINFO_DETERMINISTIC_INELIGIBLE_REASONS)
             or isinstance(measured, bool)
             or not isinstance(measured, int)
             or measured < 0
@@ -5363,6 +6513,14 @@ def _validate_materialization_for_selection(
             or (
                 reason == "pdf_exceeds_size_bound"
                 and (gate != maximum_pdf_bytes or measured <= gate)
+            )
+            or (
+                reason == CNINFO_UNAVAILABLE_REASON
+                and (
+                    gate != CNINFO_UNAVAILABLE_GATE_STATUS
+                    or measured not in CNINFO_UNAVAILABLE_HTTP_STATUSES
+                    or pdf_sha is not None
+                )
             )
         ):
             raise HeldoutPreparationError("materialization ineligible evidence drifted")
@@ -5859,6 +7017,34 @@ def main(argv: Sequence[str] | None = None) -> NoReturn:
     parser = _parser()
     args = parser.parse_args(argv)
     binding = load_binding(args.project_root)
+    if args.stage == "validate":
+        try:
+            if _production_release_candidate(binding.root):
+                production_release = _validate_production_release_facts(
+                    binding.root,
+                    stage=None,
+                )
+                production_result = {
+                    "status": "valid_successor_production_preparation_authority",
+                    "valid": True,
+                    "release_receipt_sha256": production_release.receipt_sha256,
+                    "implementation_commit": production_release.implementation_commit,
+                    "read_only_authority_validation": True,
+                    "stage_started": False,
+                    "runtime_start_preflight_performed": False,
+                }
+                print(json.dumps(production_result, ensure_ascii=False, sort_keys=True))
+                raise SystemExit(0)
+        except HeldoutPreparationError as exc:
+            production_blocked = {
+                "status": "BLOCKED_PENDING_SUCCESSOR_PRODUCTION_PREPARATION_AUTHORITY",
+                "valid": False,
+                "reason": str(exc),
+                "stage_started": False,
+                "runtime_start_preflight_performed": False,
+            }
+            print(json.dumps(production_blocked, ensure_ascii=False, sort_keys=True))
+            raise SystemExit(2) from None
     if args.stage == "validate":
         try:
             release = validate_v2_1_release_authorization(binding.root)

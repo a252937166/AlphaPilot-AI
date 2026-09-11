@@ -1,0 +1,134 @@
+{
+  "schema_version": "p4.2a-v2-heldout-rehearsal-v2-1-prediction-timing-seam-preregistration-v1",
+  "preregistration_id": "P4.2A-V2-HELDOUT-REHEARSAL-V2-1-PREDICTION-TIMING-SEAM-20260810",
+  "created_at_utc": "2026-08-10T14:24:20Z",
+  "created_at_shanghai": "2026-08-10T22:24:20+08:00",
+  "finalized_at_utc": "2026-08-10T14:28:46Z",
+  "finalized_at_shanghai": "2026-08-10T22:28:46+08:00",
+  "status": "PREREGISTERED_BEFORE_TIMING_SEAM_IMPLEMENTATION",
+  "authority": {
+    "successor_code_gate": {
+      "path": "docs/phase4/reports/P4.2a-successor-v2-1-code-gate-authorization-20260810.json",
+      "sha256": "e28db692dc150983f86f6760fb1a95584d8607658e8a78a0de35cf3fc81940cd",
+      "commit": "aa082578aa48296f1dd394a380775a5a4546ca65"
+    },
+    "base_successor_preregistration": {
+      "path": "docs/phase4/reports/P4.2a-v2-heldout-rehearsal-v2-1-preregistration-20260810.json",
+      "sha256": "c303cfb13a42ecbb7e0acaec04de12a9e9169b89cf9e93ea79d0f120d1439d3e",
+      "commit": "b302d5889f01296568340bcc15041cc554ceb2c7"
+    }
+  },
+  "blocking_observation": {
+    "registered_real_entry_calls": "scripts.prepare_p4_2a_v2_heldout.run_infer",
+    "downstream_extractor": "scripts.run_p4_2a_offline_extract.extract_records",
+    "uncontrolled_record_timestamp_source": "scripts.run_p4_2a_offline_extract._utc_now",
+    "uncontrolled_latency_source": "scripts.run_p4_2a_offline_extract.monotonic_ns",
+    "effect": [
+      "prediction recorded_at_utc can fall outside the fixed rehearsal state interval",
+      "run-a and run-b prediction bytes cannot be deterministic",
+      "the current successor rehearsal would fail before its 14-of-14 byte comparison"
+    ],
+    "monkeypatch_is_forbidden": true,
+    "historical_file_must_not_be_modified_before_this_preregistration_commit": true
+  },
+  "prospective_scope_extension": {
+    "operation": "append_two_paths_to_registered_implementation_control_surface",
+    "paths": [
+      {
+        "path": "scripts/run_p4_2a_offline_extract.py",
+        "role": "existing_extractor_source_add_two_explicit_timing_dependencies",
+        "current_sha256": "5889341f1336f9d75891793b06c689e7b5bfb7180e135a6ff361cdf83e4ef21b",
+        "current_diff_against_head": "none"
+      },
+      {
+        "path": "tests/test_p4_2a_offline_extract.py",
+        "role": "existing_extractor_tests_for_default_and_injected_timing_semantics",
+        "current_sha256": "76570178cf5de80dbed29ffc1317574daf75db863cd06da5e49cad3b2681886d",
+        "current_diff_against_head": "none"
+      }
+    ],
+    "implementation_commit_must_descend_from_this_preregistration_commit": true,
+    "both_paths_must_equal_the_recorded_implementation_commit_blobs": true,
+    "both_paths_must_be_archived_and_included_in_the_control_merkle_root": true
+  },
+  "governance_precedence": {
+    "narrow_supersession": "for this successor v2.1 implementation only, this preregistration supersedes base_preregistration.implementation_contract.historical_v1_and_v2_files_modified=false solely for the two exact source-and-test paths listed above",
+    "all_other_historical_source_files_remain_unmodified": true,
+    "all_historical_v1_and_v2_rehearsal_evidence_bundles_states_receipts_and_artifacts_remain_byte_frozen": true,
+    "no_other_implementation_or_test_path_is_added": true,
+    "reason": "the registered real run_infer path otherwise cannot eliminate extractor timestamp and monotonic nondeterminism without forbidden monkeypatching"
+  },
+  "self_binding_and_ordering": {
+    "this_preregistration_path": "docs/phase4/reports/P4.2a-v2-heldout-rehearsal-v2-1-prediction-timing-seam-preregistration-20260810.json",
+    "create_only_commit_required_before_either_registered_target_changes": true,
+    "preregistration_and_target_implementation_must_not_share_one_commit": true,
+    "git_history_requirement": "this fixed preregistration path has exactly one touch and it is status A with current bytes equal to that creating commit blob and no later M_D_R_C_or_readd",
+    "implementation_commit_must_descend_from_the_unique_preregistration_creation_commit": true,
+    "prepare_runner_and_validator_must_pin_this_path_sha256_and_unique_creation_commit": true,
+    "complete_control_archive_and_control_merkle_root_must_include_this_exact_blob": true,
+    "bundle_review_request_must_report_this_path_sha256_and_creation_commit": true,
+    "owner_release_indirect_binding": "the fixed release schema remains unchanged; its required binding to the fully rehashed bundle SHA256 and bundle Merkle root transitively binds this preregistration control leaf",
+    "post_creation_change_to_this_preregistration": "fail_closed_and_requires_a_new_create_only_successor_preregistration",
+    "required_order": [
+      "commit this preregistration alone while both target paths remain at the recorded clean SHA256 values",
+      "implement the two timing dependencies and all registered successor consumers and tests",
+      "create an implementation commit descending from this preregistration creation commit",
+      "run commit-bound offline tests and the single registered successor rehearsal",
+      "publish and independently validate the create-only bundle",
+      "submit the bundle and review request for owner review",
+      "only a later valid owner release may unlock real materialization and inference"
+    ]
+  },
+  "exact_interface_contract": {
+    "extract_records_new_keyword_only_arguments": {
+      "recorded_at_clock": {
+        "type": "Callable[[], str] | None",
+        "default": "None_resolved_at_call_time_to_the_existing_module_function__utc_now",
+        "purpose": "supply each output row recorded_at_utc"
+      },
+      "monotonic_ns_clock": {
+        "type": "Callable[[], int] | None",
+        "default": "None_resolved_at_call_time_to_the_existing_imported_time_monotonic_ns_function",
+        "purpose": "supply start deadline and elapsed latency measurements"
+      }
+    },
+    "existing_callers_that_omit_both_arguments": "runtime_resolution_preserves_existing_module_clock_lookup_and_behavior",
+    "prepare_run_infer_real_mode": "must_pass_the_two_exact_None_defaults_and_reject_injected_timing_dependencies_before_candidate_input_read",
+    "prepare_run_infer_offline_mode": "must_use_the_two_exact_callable_identities_bound_into_the_private_minted_capability",
+    "successor_runner": "must_construct_deterministic_timing_callables_before_mint_and_pass_the_same_identities_to_mint_and_run_infer",
+    "recorded_at_clock_validation": "must_return_one_timezone_aware_UTC_ISO_8601_string_accepted_by_the_existing_inference_timeline_validator",
+    "monotonic_ns_clock_validation": "must_return_non_boolean_integers_and_must_not_move_backward_within_one_candidate_attempt",
+    "latency_floor": "zero",
+    "automatic_retries": 0
+  },
+  "required_tests_and_rehearsal_evidence": {
+    "legacy_default_timing_path_still_uses_existing_module_clock_functions": true,
+    "explicit_deterministic_clocks_produce_exact_recorded_at_and_latency": true,
+    "backward_non_integer_or_boolean_monotonic_values_fail_closed": true,
+    "invalid_recorded_at_value_fails_closed": true,
+    "real_run_infer_rejects_custom_prediction_timing_before_input_read": true,
+    "offline_run_infer_rejects_timing_identity_not_bound_to_minted_capability": true,
+    "run_a_and_run_b_prediction_bytes_identical": true,
+    "all_prediction_timestamps_within_started_and_completed_state_interval": true,
+    "one_item_per_call_full_pool_and_zero_retry_semantics_unchanged": true
+  },
+  "unchanged_frozen_semantics": {
+    "frame": "available_time_three_source_4048",
+    "model": "qwen3.6-plus",
+    "prompt_and_contract": "Round_3_byte_frozen",
+    "sampling": "40_predicted_positive_plus_20_predicted_negative",
+    "no_batching_truncation_prescreen_or_retry": true,
+    "materiality_thresholds_seed_gold_and_owner_discipline_changed": false,
+    "production_timing_evidence_is_not_replaced_by_fixed_rehearsal_time": true,
+    "historical_v1_or_v2_artifacts_modified": false
+  },
+  "authorization_effect": "registers_only_the_two_timing_seam_paths_and_does_not_approve_implementation_rehearsal_release_real_execution_or_evaluation",
+  "unchanged_locks": {
+    "real_materialization_network_or_model": "forbidden_before_new_bundle_owner_release",
+    "canonical_finalize_owner_adjudication": "REJECTED_PENDING_OWNER_ADJUDICATION_AUTHORITY",
+    "heldout_evaluation": "locked",
+    "p4_2a_done": false,
+    "p4_2b_unlocked": false,
+    "p4_3_unlocked": false
+  }
+}

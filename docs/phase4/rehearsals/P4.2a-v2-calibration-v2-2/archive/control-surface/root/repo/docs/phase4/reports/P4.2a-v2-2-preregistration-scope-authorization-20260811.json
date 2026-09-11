@@ -1,0 +1,64 @@
+{
+  "schema_version": "p4.2a-independent-adjudication-v1",
+  "adjudication_id": "p4.2a-v2-2-preregistration-scope-authorization-20260811-r1",
+  "created_at_utc": "2026-08-11T07:47:52Z",
+  "created_at_shanghai": "2026-08-11T15:47:52+08:00",
+  "verdict": "APPROVE_V2_2_PREREGISTRATION_SCOPE_ONLY",
+  "repository_head_at_adjudication": "530f2dc9f89360ad7c12776d85c3bf369f209214",
+  "issued_by": {
+    "identity": "independent_ai_architect_claude_code",
+    "reviewer_type": "ai",
+    "model": "Anthropic Claude Fable 5 (model id claude-fable-5)",
+    "impersonation_disclaimer": "Not a human reviewer and not the owner. Issued under the owner governance amendment with requires_release_gate_amendment=true; the owner may override.",
+    "method": "read-only. Every claim reproduced from the repository and the shipped source."
+  },
+  "part_1_incident_verified": {
+    "one_shot_consumed": true,
+    "durable_claim": "empty directory at mode 0700, present and retained",
+    "bundle_produced": false,
+    "registered_destination_created": false,
+    "release_receipt": false,
+    "real_heldout_root": "still absent; docs/phase4/eval/v2-calibration contains only development",
+    "trading_state": "1 proposal, 0 non-SIMULATE orders, unchanged",
+    "p4_1_observation_window": "108 polls since it opened, zero failures, no attributable impact",
+    "unrelated_worktree": "preserved; the three pre-existing dirty entries are unchanged"
+  },
+  "part_2_root_cause_confirmed": {
+    "mechanism": "The runner executes as __main__ under the fixed -S -P -B interpreter, while validate_p4_2a_v2_1_heldout_rehearsal_bundle.py line 406 does 'from scripts import rehearse_p4_2a_v2_1_heldout_full_path as runner'. Python therefore holds two distinct module objects for the same file, each with its own _AUDIT_POLICY and _TEMP_AUTHORITY ContextVars. The temporary authority the validator registered in the package copy was invisible to the audit guard living in the __main__ copy, which then correctly classified the write as external and refused it.",
+    "the_guard_worked": "The failure is a harness defect, not a guard defect. Refusing an unauthorised write is exactly what that guard exists to do, and it fired before any bundle bytes were produced.",
+    "why_tests_could_not_have_caught_it": "In the test suite the runner is imported, so the test and the validator share one module object and one set of ContextVars. The dual identity only exists when the file is executed as __main__, which is precisely the real registered path. The difference between how tests load the module and how the real run loads it IS the bug, so no amount of testing in the existing style could have surfaced it.",
+    "class": "This is the same shape as every earlier defect in this phase: it lives on the path that is only ever exercised for real."
+  },
+  "part_3_my_share": {
+    "statement": "I approved the v2.1 implementation and did not catch this. The validator's 'from scripts import ...' line appeared in my own review output; I read it as an import-graph fact and did not reason about module identity under __main__ execution.",
+    "not_the_same_as_the_v1_7_incident": "There I consumed a one-shot by choosing to run. Here the operator ran under explicit authorization and the defect was in code I had approved. The distinction matters for the record but not for the lesson.",
+    "process_change_for_me": "When a review covers a harness that executes one of its own registered files as a script, I will check module identity explicitly: whether any consumer imports the same file that the entry point runs as __main__, and whether cross-module state such as ContextVars, module-level singletons or registries is expected to be shared across that boundary."
+  },
+  "part_4_authorization": {
+    "granted": "APPROVE_V2_2_PREREGISTRATION_SCOPE_ONLY",
+    "permits_exactly": "creating the three v2.2 pre-registration and schema documents described in the remediation review request",
+    "does_not_permit": ["any code change", "any rehearsal execution", "any real materialization, inference or evaluation", "reusing the v2.1 destination, durable claim or bundle path", "deleting or recovering the consumed claim", "reconstructing a bundle from memory or temporary state", "creating a success review request for v2.1"],
+    "next_gate": "the v2.2 pre-registration documents come back for independent review before any implementation begins"
+  },
+  "part_5_direction_for_the_v2_2_preregistration": {
+    "must_address_the_specific_defect": {
+      "required_control": "A test that runs the registered runner exactly as the real path does, as __main__ under the fixed -S -P -B interpreter, and then exercises the nested independent validator import together with its temporary-authority creation under the outer audit policy. The operator already identified this in the incident's required_successor_control and it is endorsed.",
+      "preferred_structural_fix": "Better than testing around the dual identity is removing it. Make the registered entry point a thin __main__ shim that imports the implementation from a single package module, so exactly one module object holds the audit policy and temporary authority. A test can then still prove the shim behaves, but the failure mode no longer exists to be tested. This is a recommendation, not a mandate; the operator may propose an alternative that provably removes the dual identity."
+    },
+    "must_reconsider_the_one_shot_property_of_the_rehearsal": {
+      "observation": "Three rehearsal generations have now been lost without ever producing a reviewed bundle: v1 retired and permanently fail-closed, v2 approved but operationally superseded when its source had to change, and v2.1 consumed by this defect. The evaluation one-shot protects test-set integrity and must stay. It is much less clear what the rehearsal one-shot protects.",
+      "the_legitimate_concern": "A repeatable rehearsal could be run until a determinism check passes by luck, which would hollow out the determinism proof.",
+      "a_design_that_keeps_the_property_without_the_brittleness": "Make the rehearsal repeatable but make every attempt immutably recorded and mandatorily disclosed, with the bundle binding the full attempt history rather than a single success. Running until it passes then becomes visible in the record as five failed attempts, which is the property actually wanted. A single-use rehearsal does not prevent iteration; it only forces each iteration to cost a version cycle and an incident report.",
+      "requirement": "The v2.2 pre-registration must state explicitly which property the rehearsal one-shot is protecting, and either justify keeping it or replace it with disclosed repeatability. Carrying it forward unexamined into a fourth generation is not acceptable."
+    },
+    "must_not_expand_scope": "v2.2 changes the rehearsal harness. It must not touch the evaluation design, gates, frame, prompt, contract, model, seed, thresholds, gold, or the CNInfo pacing specification already fixed at 1.0 second."
+  },
+  "part_6_unchanged": {
+    "heldout_evaluation_one_shot": "still unconsumed; this incident spent a rehearsal, not the evaluation",
+    "frame_authority": "available_time over three audited sources, 4,048 rows",
+    "selected_model": "qwen3.6-plus per the owner amendment",
+    "development_gate": "cleared at Round 3",
+    "phase_locks": {"p4_2a_done": false, "heldout_materialization_unlocked": false, "heldout_inference_unlocked": false, "heldout_evaluation_unlocked": false, "p4_2b_unlocked": false, "p4_3_unlocked": false},
+    "p4_1": "observation window closes 2026-08-12; acceptance evidence due after 08-13 00:10 CST and is unaffected by any of this"
+  }
+}

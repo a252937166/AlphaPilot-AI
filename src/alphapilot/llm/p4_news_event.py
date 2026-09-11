@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import hmac
 import json
 import math
 import re
@@ -18,7 +19,8 @@ from jsonschema.exceptions import SchemaError, ValidationError
 from sqlalchemy.orm import Session
 
 from alphapilot.core.config import Settings
-from alphapilot.llm.client import chat_json
+from alphapilot.llm import providers
+from alphapilot.llm.client import RateLimitPolicy, RequestAccounting, chat_json
 
 JsonObject = dict[str, Any]
 
@@ -91,6 +93,17 @@ _SYMBOL_IN_TEXT = re.compile(r"(?<!\d)([0-9]{6})(?!\d)")
 _CHINESE = re.compile(r"[\u3400-\u9fff]")
 _SHA256 = re.compile(r"^[0-9a-f]{64}$")
 _MODEL_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,99}$")
+# Response-format identifiers. The vendor supports a real JSON mode; the internal
+# platform does not, so its contracts declare that structure is prompt-enforced
+# and validated by brace-balanced extraction instead.
+VENDOR_RESPONSE_FORMAT = "json_object"
+PLATFORM_RESPONSE_FORMAT = "prompt_enforced_json"
+# Per-call deadline ceilings. The vendor arm is unchanged. The platform arm is
+# raised because a breach is a transport error and therefore terminal with
+# max_retries at zero, and its measured tail (26.6s over thirty calls) would trip
+# a 20s ceiling often enough to guarantee a dead pass over thousands of records.
+VENDOR_DEADLINE_CEILING_SECONDS = 20.0
+PLATFORM_DEADLINE_CEILING_SECONDS = 90.0
 EXACT_EVIDENCE_SPAN_MATCH_MODE = "exact_contiguous_substring_v1"
 WHITESPACE_NORMALIZED_EVIDENCE_SPAN_MATCH_MODE = "unicode_whitespace_elided_contiguous_substring_v1"
 EVIDENCE_CANDIDATE_ALGORITHM_VERSION = "ordered-raw-partition-unicode-whitespace-display-v1"
@@ -131,6 +144,13 @@ class EventExtractContract:
     schema: JsonObject
     model: str
     endpoint: str | None
+    # Platform binding for a contract that names no public endpoint: the provider
+    # identity plus a keyed digest of the request URL. Exactly one of `endpoint`
+    # and (`provider`, `endpoint_hmac_sha256`) must be present; a contract that
+    # pins neither is refused at load, because an unpinned contract would let a
+    # run proceed against whatever address the settings happened to hold.
+    provider: str | None
+    endpoint_hmac_sha256: str | None
     purpose: str
     timeout: float
     max_tokens: int
@@ -464,8 +484,55 @@ def _validate_result_schema(
             raise EventExtractContractError("evidence_span schema constraints drifted")
 
 
+_ENDPOINT_DIGEST = re.compile(r"^[0-9a-f]{64}$")
+
+
+def _validate_endpoint_binding(
+    llm: Mapping[str, Any],
+    endpoint: str | None,
+    *,
+    allow_unpinned: bool = False,
+) -> tuple[str | None, str | None]:
+    """Require exactly one endpoint binding, and refuse a contract with none.
+
+    A contract may pin the public vendor URL, or it may name a provider plus a
+    keyed digest of the request URL for a platform whose address cannot be
+    committed. What it may not do is pin neither: an unpinned contract silently
+    accepts whatever address the settings happen to hold, which is precisely the
+    drift the pin exists to catch.
+
+    ``allow_unpinned`` exists for one grandfathered case only. The oldest
+    pre-registered contract predates endpoint pinning altogether, and its bytes
+    are frozen against a pre-registered SHA-256, so it cannot be swapped for
+    another contract in the way the pin guards against. Every version that has
+    ever carried a binding must keep carrying one, and every new contract must.
+    """
+    provider_raw = llm.get("provider")
+    digest_raw = llm.get("endpoint_hmac_sha256")
+    if provider_raw is None and digest_raw is None:
+        if endpoint is None and not allow_unpinned:
+            raise EventExtractContractError(
+                "P4.2a contract must pin llm.endpoint, or llm.provider with "
+                "llm.endpoint_hmac_sha256"
+            )
+        return None, None
+    if endpoint is not None:
+        raise EventExtractContractError(
+            "P4.2a contract must pin exactly one endpoint binding, not both"
+        )
+    if not isinstance(provider_raw, str) or not provider_raw.strip():
+        raise EventExtractContractError("P4.2a llm.provider must be a non-blank string")
+    if not isinstance(digest_raw, str) or _ENDPOINT_DIGEST.fullmatch(digest_raw) is None:
+        raise EventExtractContractError(
+            "P4.2a llm.endpoint_hmac_sha256 must be 64 lowercase hex characters"
+        )
+    return provider_raw.strip().lower(), digest_raw
+
+
 def _validate_budget_and_isolation(
     document: Mapping[str, Any],
+    *,
+    allow_unpinned_endpoint: bool = False,
 ) -> tuple[
     str,
     str,
@@ -497,6 +564,9 @@ def _validate_budget_and_isolation(
     )
     if endpoint_raw is not None and endpoint != endpoint_raw:
         raise EventExtractContractError("P4.2a endpoint must use canonical URL bytes")
+    provider, _ = _validate_endpoint_binding(
+        llm, endpoint, allow_unpinned=allow_unpinned_endpoint
+    )
     explicit_cache_raw = llm.get("explicit_cache")
     explicit_cache_enabled = False
     if explicit_cache_raw is not None:
@@ -509,12 +579,28 @@ def _validate_budget_and_isolation(
             raise EventExtractContractError(
                 "P4.2a explicit cache must remain disabled for this contract"
             )
-    if (
-        llm.get("temperature") != 0.2
-        or llm.get("enable_thinking") is not False
-        or llm.get("response_format") != "json_object"
-    ):
+    if llm.get("enable_thinking") is not False:
         raise EventExtractContractError("P4.2a deterministic request settings drifted")
+    if provider is None:
+        # Vendor arm: JSON mode and the sampling temperature stay pinned exactly
+        # as before, so every existing artefact keeps verifying.
+        if (
+            llm.get("response_format") != VENDOR_RESPONSE_FORMAT
+            or llm.get("temperature") != 0.2
+        ):
+            raise EventExtractContractError("P4.2a deterministic request settings drifted")
+    else:
+        # Platform arm: the gateway has no JSON mode and rejects `temperature`
+        # outright, so a contract claiming either would describe a request that
+        # cannot be sent. Structure is carried by the prompt instead.
+        if llm.get("response_format") != PLATFORM_RESPONSE_FORMAT:
+            raise EventExtractContractError(
+                "P4.2a platform contract must not claim a JSON mode the platform lacks"
+            )
+        if "temperature" in llm:
+            raise EventExtractContractError(
+                "P4.2a platform contract must not pin a temperature the gateway rejects"
+            )
     max_tokens = _positive_int(llm.get("max_output_tokens"), "llm.max_output_tokens")
     timeout = _positive_number(
         llm.get("total_deadline_seconds"),
@@ -522,9 +608,14 @@ def _validate_budget_and_isolation(
     )
     max_items = _positive_int(llm.get("max_items_per_run"), "llm.max_items_per_run")
     max_retries = llm.get("max_retries")
+    deadline_ceiling = (
+        VENDOR_DEADLINE_CEILING_SECONDS
+        if provider is None
+        else PLATFORM_DEADLINE_CEILING_SECONDS
+    )
     if (
         max_tokens > 2_000
-        or timeout > 20.0
+        or timeout > deadline_ceiling
         or max_items > 2_000
         or isinstance(max_retries, bool)
         or not isinstance(max_retries, int)
@@ -626,8 +717,13 @@ def _validate_budget_and_isolation(
 def validate_event_extract_contract_controls(
     document: Mapping[str, Any],
 ) -> tuple[str, str, str | None, float, int, int, int, int, bool]:
-    """Validate and return the contract-controlled runtime settings."""
-    return _validate_budget_and_isolation(document)
+    """Validate and return the contract-controlled runtime settings.
+
+    Endpoint pinning is not enforced here: this entry point receives a bare
+    document with no version context, and the pre-endpoint contract is a valid
+    input. ``load_event_extract_contract`` is where the binding is required.
+    """
+    return _validate_budget_and_isolation(document, allow_unpinned_endpoint=True)
 
 
 def _validate_candidate_selection_input(document: Mapping[str, Any]) -> None:
@@ -801,7 +897,22 @@ def load_event_extract_contract(
         max_items,
         max_input_characters,
         explicit_cache_enabled,
-    ) = _validate_budget_and_isolation(document)
+    ) = _validate_budget_and_isolation(
+        document,
+        # Only the pre-endpoint contract version may omit a binding.
+        allow_unpinned_endpoint=not (
+            is_v1_3 or is_v1_4 or is_v1_5 or is_v1_6 or is_v1_7
+        ),
+    )
+    # Re-derived from the same pure validator rather than widened into the
+    # nine-field accessor above: that tuple's shape is consumed by frozen
+    # scripts, and moving their bytes would drag them into the change set for
+    # no behavioural reason.
+    provider, endpoint_hmac_sha256 = _validate_endpoint_binding(
+        _mapping(document.get("llm"), "llm"),
+        endpoint,
+        allow_unpinned=True,
+    )
     input_contract = _mapping(document.get("input"), "input")
     evidence_span_match_mode = cast(
         str,
@@ -825,6 +936,8 @@ def load_event_extract_contract(
         schema=schema,
         model=model,
         endpoint=endpoint,
+        provider=provider,
+        endpoint_hmac_sha256=endpoint_hmac_sha256,
         purpose=purpose,
         timeout=timeout,
         max_tokens=max_tokens,
@@ -1305,6 +1418,50 @@ def _settings_model(settings: Settings, purpose: str) -> str | None:
     return model.strip() if isinstance(model, str) and model.strip() else None
 
 
+def _assert_settings_match_contract_endpoint(
+    contract: EventExtractContract,
+    settings: Settings,
+) -> None:
+    """Assert the settings resolve to the endpoint the contract pins.
+
+    Both arms are mandatory. The vendor arm compares the public literal; the
+    platform arm compares provider identity plus the keyed digest in constant
+    time. A contract pinning neither never reaches here -- it is refused at load
+    -- so there is no path on which this check quietly does nothing.
+    """
+    if contract.endpoint is not None:
+        if _settings_endpoint(settings) != contract.endpoint:
+            raise EventExtractContractError(
+                "resolved LLM endpoint differs from the frozen contract"
+            )
+        return
+    if contract.provider is None and contract.endpoint_hmac_sha256 is None:
+        # Reachable only for the grandfathered pre-endpoint contract, which the
+        # loader refuses to accept for any version that has ever pinned one.
+        return
+    if contract.provider is None or contract.endpoint_hmac_sha256 is None:
+        raise EventExtractContractError("frozen contract pins a partial endpoint binding")
+    # Comparing against active_provider() here would be vacuous: that function
+    # resolves the contract first, so it always returns what the contract says.
+    # The real assertion is that the binding belongs to a provider we can verify,
+    # and then that the configured address digests to the pinned value.
+    if contract.provider != providers.FRIDAY.name:
+        raise EventExtractContractError(
+            "frozen contract pins an endpoint binding for an unsupported provider"
+        )
+    try:
+        observed = providers.endpoint_binding_digest(settings)
+    except providers.ProviderConfigurationError as exc:
+        # The chained cause carries variable names only, never an address.
+        raise EventExtractContractError(
+            "resolved LLM endpoint binding is not configured"
+        ) from exc
+    if not hmac.compare_digest(observed, contract.endpoint_hmac_sha256):
+        raise EventExtractContractError(
+            "resolved LLM endpoint binding differs from the frozen contract"
+        )
+
+
 def _settings_endpoint(settings: Settings) -> str | None:
     value = settings.llm_base_url
     if not isinstance(value, str) or not value.strip():
@@ -1329,12 +1486,20 @@ def extract_news_event(
     universe_symbols: Collection[str],
     settings: Settings,
     session: Session,
+    rate_limit: RateLimitPolicy | None = None,
+    accounting: RequestAccounting | None = None,
 ) -> JsonObject:
-    """Extract and strictly validate one event using an explicit audit session."""
+    """Extract and strictly validate one event using an explicit audit session.
+
+    ``rate_limit`` and ``accounting`` are forwarded unchanged to the transport.
+    They are not defaulted here on purpose: the registered caller owns the
+    constants and passes them down, so this layer stays plumbing. Passing
+    neither preserves the previous behaviour, where a gateway rate-limit
+    rejection surfaces immediately.
+    """
     if _settings_model(settings, contract.purpose) != contract.model:
         raise EventExtractContractError("resolved purpose model differs from the frozen contract")
-    if contract.endpoint is not None and _settings_endpoint(settings) != contract.endpoint:
-        raise EventExtractContractError("resolved LLM endpoint differs from the frozen contract")
+    _assert_settings_match_contract_endpoint(contract, settings)
     if contract.explicit_cache_enabled:
         raise EventExtractContractError("explicit cache is not implemented by this evaluator")
     user_json = build_event_extract_user_input(
@@ -1356,6 +1521,11 @@ def extract_news_event(
         timeout=contract.timeout,
         max_tokens=contract.max_tokens,
         max_retries=contract.max_retries,
+        # Per-contract resolution: a contract that pins a provider decides,
+        # and the process-wide default only applies when it pins none.
+        provider=providers.active_provider(settings, contract=contract),
+        rate_limit=rate_limit,
+        accounting=accounting,
         settings=settings,
         session=session,
     )

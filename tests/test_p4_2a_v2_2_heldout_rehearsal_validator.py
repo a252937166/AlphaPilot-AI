@@ -5780,6 +5780,11 @@ EPOCH_8_AUTHORITY_RELATIVE = Path(
 )
 EPOCH_8_AUTHORITY_SHA256 = "4547a2231c23a0fff96dced033028c279c4247c76130e79360e2ec602f8dd016"
 EPOCH_8_AUTHORITY_COMMIT = "73a703a422b5209115f5b244490db36e06b1f15d"
+EPOCH_9_AUTHORITY_RELATIVE = Path(
+    "docs/phase4/reports/P4.2a-v2-2-series2-epoch9-r3-surface-authority-20260903.json"
+)
+EPOCH_9_AUTHORITY_SHA256 = "ecbd909ba56158e644403a5a3f38f63e5714bee7b638fc9f72b9ba0541b97458"
+EPOCH_9_AUTHORITY_COMMIT = "cc64e0b79fbb3a667eb8545c7617e7e8e59115e4"
 EPOCH_8_CONTRACT_FIELDS = {
     "schema_version",
     "governing_adjudication",
@@ -5925,6 +5930,7 @@ def _epoch_eight_validator_governance_fixture(
     *,
     mutation: str | None = None,
 ) -> dict[str, Any]:
+    """Build the current epoch-9 live path over immutable epoch-8 history."""
     validator = _validator_module()
     producer = importlib.import_module(IMPLEMENTATION_MODULE)
     root = tmp_path / f"epoch-eight-validator-{mutation or 'positive'}"
@@ -5938,7 +5944,7 @@ def _epoch_eight_validator_governance_fixture(
         "--quiet",
         "--no-tags",
         "source",
-        f"+{EPOCH_8_AUTHORITY_COMMIT}:refs/remotes/source/epoch-eight-authority",
+        f"+{EPOCH_9_AUTHORITY_COMMIT}:refs/remotes/source/epoch-nine-authority",
     )
     _fixture_git(
         validator,
@@ -5947,9 +5953,23 @@ def _epoch_eight_validator_governance_fixture(
         "--quiet",
         "-b",
         "main",
-        "refs/remotes/source/epoch-eight-authority",
+        "refs/remotes/source/epoch-nine-authority^",
     )
-    _fixture_git(validator, root, "switch", "--quiet", "-c", "epoch-eight-candidate")
+    fresh_main_base = _fixture_commit_file(
+        validator,
+        root,
+        Path("docs/phase4/reports/synthetic-epoch9-main-advance.json"),
+        _epoch_eight_json_bytes({"purpose": "independent first-parent advance"}),
+    )
+    _fixture_git(
+        validator,
+        root,
+        "switch",
+        "--quiet",
+        "-c",
+        "epoch-eight-candidate",
+        EPOCH_9_AUTHORITY_COMMIT,
+    )
     changed = (
         IMPLEMENTATION_RELATIVE,
         VALIDATOR_RELATIVE,
@@ -5969,7 +5989,7 @@ def _epoch_eight_validator_governance_fixture(
     review_payload = _epoch_eight_json_bytes(
         {
             "schema_version": "p4.2a-v2-2-synthetic-review-v1",
-            "verdict": "APPROVE_EPOCH_8_IMPLEMENTATION",
+            "verdict": "APPROVE_EPOCH_9_IMPLEMENTATION",
             "reviewed_implementation_commit": implementation_commit,
             "blockers": [],
         }
@@ -5985,9 +6005,7 @@ def _epoch_eight_validator_governance_fixture(
         root,
         "switch",
         "--quiet",
-        "-C",
         "main",
-        EPOCH_8_AUTHORITY_COMMIT,
     )
     _fixture_git(
         validator,
@@ -6006,11 +6024,11 @@ def _epoch_eight_validator_governance_fixture(
         .strip()
         for index in (1, 2)
     ]
-    assert merge_parents == [EPOCH_8_AUTHORITY_COMMIT, source_review_commit]
+    assert merge_parents == [fresh_main_base, source_review_commit]
     owner = {
-        "path": EPOCH_8_AUTHORITY_RELATIVE.as_posix(),
-        "sha256": EPOCH_8_AUTHORITY_SHA256,
-        "creating_commit": EPOCH_8_AUTHORITY_COMMIT,
+        "path": EPOCH_9_AUTHORITY_RELATIVE.as_posix(),
+        "sha256": EPOCH_9_AUTHORITY_SHA256,
+        "creating_commit": EPOCH_9_AUTHORITY_COMMIT,
         "unique_a_history_verified": True,
     }
     review = {
@@ -6036,9 +6054,9 @@ def _epoch_eight_validator_governance_fixture(
         )
     )
     landing_document = {
-        "schema_version": "p4.2a-v2-2-synthetic-epoch8-landing-v1",
-        "status": "PASS_SYNTHETIC_EPOCH_8_LANDING",
-        "implementation_epoch": 8,
+        "schema_version": "p4.2a-v2-2-synthetic-epoch9-landing-v1",
+        "status": "PASS_SYNTHETIC_EPOCH_9_LANDING",
+        "implementation_epoch": 9,
         "implementation_commit": implementation_commit,
         "owner_exact_surface_authorization": owner,
         "independent_implementation_review": review,
@@ -6097,6 +6115,9 @@ def _epoch_eight_validator_governance_fixture(
     contract = json.loads((root / EPOCH_8_COMPANION_RELATIVE).read_bytes())[
         "epoch_8_recovery_contract"
     ]
+    latest_contract = json.loads(
+        (root / validator.EPOCH_9_COMPANION_RELATIVE).read_bytes()
+    )["epoch_9_latest_landed_execution_contract"]
     fixed = contract["registered_preflight_contract"]["fixed_values"]
     r_fixed = contract["recovery_authorization_contract"]["fixed_values"]
     sealed_series = copy.deepcopy(r_fixed["sealed_series_values"])
@@ -6197,11 +6218,11 @@ def _epoch_eight_validator_governance_fixture(
         "stdout_persistence_controlled_by_caller": True,
     }
     preflight = {
-        "schema_version": validator.EPOCH_8_READ_ONLY_PREFLIGHT_SCHEMA,
+        "schema_version": validator.SERIES_2_READ_ONLY_PREFLIGHT_SCHEMA,
         "status": "PASS_READ_ONLY_IMPLEMENTATION_PREFLIGHT",
         "mode": "NONREGISTERED_READ_ONLY_TEST",
         "execution_head": landing_commit,
-        "implementation_epoch": 8,
+        "implementation_epoch": 9,
         "implementation_commit": implementation_commit,
         "owner_exact_surface_authorization": owner,
         "independent_implementation_review": review,
@@ -6255,7 +6276,7 @@ def _epoch_eight_validator_governance_fixture(
         (root / SHIM_RELATIVE).as_posix(),
         "--preflight-only",
         "--implementation-epoch",
-        "8",
+        "9",
         "--implementation-commit",
         implementation_commit,
         "--owner-surface-authorization",
@@ -6267,7 +6288,7 @@ def _epoch_eight_validator_governance_fixture(
     ]
     census_summary = validator._census_summary(census)
     execution_epoch = {
-        "epoch": 8,
+        "epoch": 9,
         "implementation_commit": implementation_commit,
         "owner_exact_surface_authorization": owner,
         "independent_implementation_review": review,
@@ -6307,7 +6328,7 @@ def _epoch_eight_validator_governance_fixture(
         "paired_receipts_required": True,
     }
     r_document = {
-        "schema_version": validator.EPOCH_8_RECOVERY_AUTHORIZATION_SCHEMA,
+        "schema_version": validator.SERIES_2_RECOVERY_AUTHORIZATION_SCHEMA,
         "authorization_id": "synthetic-validator-epoch-eight-recovery",
         "created_at_utc": "2026-09-02T12:00:00Z",
         "created_at_shanghai": "2026-09-02T20:00:00+08:00",
@@ -6370,6 +6391,11 @@ def _epoch_eight_validator_governance_fixture(
         r_document["interpreter"]["unregistered"] = True
     elif mutation == "r-locks-true":
         r_document["locks"]["p4_2a_done"] = True
+    elif mutation == "r-live-epoch-eight":
+        r_document["execution_epoch"] = copy.deepcopy(execution_epoch)
+        r_document["execution_epoch"]["epoch"] = 8
+    elif mutation == "r-and-q-live-epoch-eight":
+        r_document["execution_epoch"]["epoch"] = 8
     r_payload = _epoch_eight_json_bytes(r_document)
     r_sha = hashlib.sha256(r_payload).hexdigest()
     confirmation = (
@@ -6379,7 +6405,7 @@ def _epoch_eight_validator_governance_fixture(
     )
     preflight_payload = _epoch_eight_json_bytes(preflight)
     q_document = {
-        "schema_version": validator.EPOCH_8_RECOVERY_REVIEW_REQUEST_SCHEMA,
+        "schema_version": validator.SERIES_2_RECOVERY_REVIEW_REQUEST_SCHEMA,
         "request_id": "synthetic-validator-epoch-eight-review",
         "created_at_utc": "2026-09-02T12:00:00Z",
         "created_at_shanghai": "2026-09-02T20:00:00+08:00",
@@ -6480,11 +6506,13 @@ def _epoch_eight_validator_governance_fixture(
         q_document["requested_owner_action_time_confirmation"]["unregistered"] = True
     elif mutation == "q-locks-drift":
         q_document["current_locks"]["p4_2a_done"] = True
+    elif mutation == "q-live-epoch-eight":
+        q_document["landed_execution_epoch"]["epoch"] = 8
     q_payload = _epoch_eight_json_bytes(q_document)
     q_commit = _fixture_commit_file(validator, root, q_relative, q_payload)
     r_commit = _fixture_commit_file(validator, root, r_relative, r_payload)
     b_document = {
-        "schema_version": validator.EPOCH_8_RECOVERY_OWNER_BINDING_SCHEMA,
+        "schema_version": validator.SERIES_2_RECOVERY_OWNER_BINDING_SCHEMA,
         "binding_id": "synthetic-validator-epoch-eight-binding",
         "created_at_utc": "2026-09-02T12:01:00Z",
         "created_at_shanghai": "2026-09-02T20:01:00+08:00",
@@ -6556,6 +6584,7 @@ def _epoch_eight_validator_governance_fixture(
     return {
         "root": root,
         "contract": contract,
+        "latest_contract": latest_contract,
         "implementation_commit": implementation_commit,
         "owner": owner,
         "review": review,
@@ -6609,6 +6638,18 @@ def test_epoch_7_companion_and_contract_are_independently_byte_bound() -> None:
 def test_epoch_8_governance_chain_companion_and_authority_are_byte_bound() -> None:
     validator = _validator_module()
     expected = (
+        (
+            validator.EPOCH_8_DESIGN_RELATIVE,
+            validator.EPOCH_8_DESIGN_SHA256,
+            validator.EPOCH_8_DESIGN_COMMIT,
+            "7b9aa18372410baa5d96bd9560fa10a2c6a3d8ac",
+        ),
+        (
+            validator.EPOCH_8_DESIGN_REVIEW_RELATIVE,
+            validator.EPOCH_8_DESIGN_REVIEW_SHA256,
+            validator.EPOCH_8_DESIGN_REVIEW_COMMIT,
+            validator.EPOCH_8_DESIGN_COMMIT,
+        ),
         (
             EPOCH_8_ADJUDICATION_RELATIVE,
             EPOCH_8_ADJUDICATION_SHA256,
@@ -6830,6 +6871,301 @@ def test_epoch_8_preflight_q_and_fixed_lineage_contract_are_closed() -> None:
     }
 
 
+def test_epoch_9_latest_landed_overlay_is_exact_and_independently_bound() -> None:
+    validator = _validator_module()
+    companion_payload = (PROJECT_ROOT / validator.EPOCH_9_COMPANION_RELATIVE).read_bytes()
+    authority_payload = (
+        PROJECT_ROOT / validator.EPOCH_9_SURFACE_AUTHORITY_RELATIVE
+    ).read_bytes()
+    assert len(companion_payload) == validator.EPOCH_9_COMPANION_BYTES
+    assert hashlib.sha256(companion_payload).hexdigest() == validator.EPOCH_9_COMPANION_SHA256
+    assert len(authority_payload) == validator.EPOCH_9_SURFACE_AUTHORITY_BYTES
+    assert (
+        hashlib.sha256(authority_payload).hexdigest()
+        == validator.EPOCH_9_SURFACE_AUTHORITY_SHA256
+    )
+    companion = json.loads(companion_payload)
+    contract = companion["epoch_9_latest_landed_execution_contract"]
+    assert set(contract) == validator.EPOCH_9_LATEST_LANDED_CONTRACT_FIELDS
+    assert hashlib.sha256(validator._canonical_json_bytes(contract)).hexdigest() == (
+        validator.EPOCH_9_LATEST_LANDED_CONTRACT_CANONICAL_SHA256
+    )
+    assert contract["implementation_epoch"] == validator.LATEST_LANDED_EXECUTION_EPOCH == 9
+    assert contract["registered_preflight_dispatch_contract"] == {
+        **contract["registered_preflight_dispatch_contract"],
+        "landing_preflight_origin_epoch": validator.LANDING_PREFLIGHT_ORIGIN_EPOCH,
+        "latest_official_epoch": validator.LATEST_LANDED_EXECUTION_EPOCH,
+    }
+    assert contract["dual_byte_anchor_transition_contract"][
+        "historical_selected_anchor"
+    ]["implementation_epoch"] == 6
+    assert contract["dual_byte_anchor_transition_contract"]["live_execution_anchor"] == {
+        **contract["dual_byte_anchor_transition_contract"]["live_execution_anchor"],
+        "implementation_epoch": 9,
+        "require_current": True,
+    }
+    head = subprocess.run(
+        ["/usr/bin/git", "-C", PROJECT_ROOT.as_posix(), "rev-parse", "HEAD"],
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+    assert validator.validate_epoch_9_latest_landed_execution_contract(
+        PROJECT_ROOT,
+        execution_head=head,
+    ) == contract
+    authority = json.loads(authority_payload)
+    assert authority["base_commit"] == validator.EPOCH_9_COMPANION_COMMIT
+    assert authority["implementation_epoch"] == 9
+    assert authority["exact_surface"] == [
+        {"path": IMPLEMENTATION_RELATIVE.as_posix(), "status": "M"},
+        {"path": VALIDATOR_RELATIVE.as_posix(), "status": "M"},
+        {"path": RUNNER_TEST_RELATIVE.as_posix(), "status": "M"},
+        {"path": VALIDATOR_TEST_RELATIVE.as_posix(), "status": "M"},
+    ]
+    census = {spec.path: spec for spec in validator._base_authority_census_specs()}
+    for relative, digest, creating_commit in (
+        (
+            validator.EPOCH_9_ADJUDICATION_RELATIVE,
+            validator.EPOCH_9_ADJUDICATION_SHA256,
+            validator.EPOCH_9_ADJUDICATION_COMMIT,
+        ),
+        (
+            validator.EPOCH_9_COMPANION_RELATIVE,
+            validator.EPOCH_9_COMPANION_SHA256,
+            validator.EPOCH_9_COMPANION_COMMIT,
+        ),
+        (
+            validator.EPOCH_9_SURFACE_AUTHORITY_RELATIVE,
+            validator.EPOCH_9_SURFACE_AUTHORITY_SHA256,
+            validator.EPOCH_9_SURFACE_AUTHORITY_COMMIT,
+        ),
+    ):
+        spec = census[relative.as_posix()]
+        assert spec.pinned_sha256 == digest
+        assert spec.pinned_creating_commit == creating_commit
+        assert spec.role is validator.AuthorityCensusRole.PINNED_SOURCE
+
+
+def test_epoch_9_live_consumers_cannot_reference_epoch_8_authority_hardpins() -> None:
+    validator = _validator_module()
+    for function in (
+        validator._validate_epoch_8_landing_document_bindings,
+        validator._validate_epoch_8_landing_authority,
+        validator._validate_epoch_8_q_preflight,
+    ):
+        assert inspect.signature(function).parameters["expected_live_epoch"].default is (
+            inspect.Parameter.empty
+        )
+    historical_source = inspect.getsource(validator.validate_epoch_8_recovery_contract)
+    for name in (
+        "EPOCH_8_COMPANION_RELATIVE",
+        "EPOCH_8_CONTRACT_CANONICAL_SHA256",
+        "EPOCH_8_SURFACE_AUTHORITY_COMMIT",
+        "HISTORICAL_EPOCH_8_RECOVERY_GOVERNANCE_EPOCH",
+    ):
+        assert name in historical_source
+    for function in (
+        validator._validate_epoch_8_q_preflight,
+        validator._live_anchor_from_recovery_governance,
+        validator._validate_live_execution_anchor_identity,
+        validator._validate_live_module_identity,
+    ):
+        source = inspect.getsource(function)
+        assert "EPOCH_8_SURFACE_AUTHORITY_RELATIVE" not in source
+        assert "EPOCH_8_SURFACE_AUTHORITY_SHA256" not in source
+        assert "EPOCH_8_SURFACE_AUTHORITY_COMMIT" not in source
+        assert "EPOCH_8_IMPLEMENTATION_EPOCH" not in source
+    live_source = inspect.getsource(validator._validate_live_execution_anchor_identity)
+    assert "EPOCH_9_SURFACE_AUTHORITY_COMMIT" in live_source
+    assert "LATEST_LANDED_EXECUTION_EPOCH" in live_source
+
+
+@pytest.mark.parametrize(
+    ("constant_name", "replacement", "message"),
+    (
+        (
+            "EPOCH_9_LATEST_LANDED_CONTRACT_CANONICAL_SHA256",
+            "00" * 32,
+            "epoch-9 latest-landed contract identity drifted",
+        ),
+        (
+            "EPOCH_9_COMPANION_SHA256",
+            "00" * 32,
+            "epoch-9 latest-landed companion bytes or unique-A identity drifted",
+        ),
+        (
+            "EPOCH_9_SURFACE_AUTHORITY_SHA256",
+            "00" * 32,
+            "epoch-9 four-file surface authority bytes or unique-A identity drifted",
+        ),
+        (
+            "LATEST_LANDED_EXECUTION_EPOCH",
+            8,
+            "epoch-9 latest-landed contract identity drifted",
+        ),
+    ),
+)
+def test_epoch_9_latest_landed_overlay_rejects_every_pinned_binding_drift(
+    monkeypatch: pytest.MonkeyPatch,
+    constant_name: str,
+    replacement: object,
+    message: str,
+) -> None:
+    validator = _validator_module()
+    monkeypatch.setattr(validator, constant_name, replacement)
+    with pytest.raises(validator.RehearsalV22ValidationError, match=message):
+        validator.validate_epoch_9_latest_landed_execution_contract(PROJECT_ROOT)
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    (
+        "latest_landing_fields",
+        "latest_topology_requirements",
+        "latest_runtime_chain",
+        "latest_unknown_policy",
+        "dispatch_historical_policy",
+        "dispatch_unknown_policy",
+        "dispatch_runtime_order",
+        "live_required_surfaces",
+        "live_required_lineage",
+        "live_runtime_source",
+        "qrb_runtime_fields",
+        "qrb_cross_epoch_policy",
+        "claim_live_rules",
+        "publication_historical_rule",
+        "publication_live_rule",
+        "census_fixed_rows",
+        "census_dynamic_rows",
+        "census_effect_limits",
+        "census_lock_values",
+    ),
+)
+def test_epoch_9_overlay_semantics_reject_every_nested_contract_mutation(
+    mutation: str,
+) -> None:
+    validator = _validator_module()
+    companion = json.loads((PROJECT_ROOT / validator.EPOCH_9_COMPANION_RELATIVE).read_bytes())
+    contract = copy.deepcopy(companion["epoch_9_latest_landed_execution_contract"])
+    authority = json.loads(
+        (PROJECT_ROOT / validator.EPOCH_9_SURFACE_AUTHORITY_RELATIVE).read_bytes()
+    )
+    validator._validate_epoch_9_latest_landed_contract_semantics(contract, authority)
+    if mutation == "latest_landing_fields":
+        contract["latest_landed_authority_contract"][
+            "landing_document_required_fields"
+        ].append("drift")
+    elif mutation == "latest_topology_requirements":
+        contract["latest_landed_authority_contract"]["topology_requirements"].append(
+            "drift"
+        )
+    elif mutation == "latest_runtime_chain":
+        contract["latest_landed_authority_contract"]["runtime_binding_chain"].reverse()
+    elif mutation == "latest_unknown_policy":
+        contract["latest_landed_authority_contract"]["unknown_values_policy"] = "drift"
+    elif mutation == "dispatch_historical_policy":
+        contract["registered_preflight_dispatch_contract"]["historical_epoch_8_policy"] = (
+            "drift"
+        )
+    elif mutation == "dispatch_unknown_policy":
+        contract["registered_preflight_dispatch_contract"]["unknown_later_epoch_policy"] = (
+            "drift"
+        )
+    elif mutation == "dispatch_runtime_order":
+        contract["registered_preflight_dispatch_contract"]["runtime_binding_order"].reverse()
+    elif mutation == "live_required_surfaces":
+        contract["dual_byte_anchor_transition_contract"]["live_execution_anchor"][
+            "required_current_surfaces"
+        ].append("drift")
+    elif mutation == "live_required_lineage":
+        contract["dual_byte_anchor_transition_contract"]["live_execution_anchor"][
+            "required_lineage_objects"
+        ].append("drift")
+    elif mutation == "live_runtime_source":
+        contract["dual_byte_anchor_transition_contract"]["live_execution_anchor"][
+            "runtime_value_source"
+        ] = "drift"
+    elif mutation == "qrb_runtime_fields":
+        contract["recovery_qrb_live_binding_contract"]["runtime_live_binding_fields"].append(
+            "drift"
+        )
+    elif mutation == "qrb_cross_epoch_policy":
+        contract["recovery_qrb_live_binding_contract"]["cross_epoch_policy"] = "drift"
+    elif mutation == "claim_live_rules":
+        contract["recovery_claim_and_receipt_live_binding_contract"][
+            "live_binding_rules"
+        ].append("drift")
+    elif mutation == "publication_historical_rule":
+        contract["recovered_publication_and_release_live_binding_contract"][
+            "historical_binding_rule"
+        ] = "drift"
+    elif mutation == "publication_live_rule":
+        contract["recovered_publication_and_release_live_binding_contract"][
+            "live_binding_rule"
+        ] = "drift"
+    elif mutation == "census_fixed_rows":
+        contract["authority_census_and_effect_lock_contract"]["fixed_base_governance_rows"][
+            0
+        ]["binding_rule"] = "drift"
+    elif mutation == "census_dynamic_rows":
+        contract["authority_census_and_effect_lock_contract"]["dynamic_runtime_rows"].append(
+            "drift"
+        )
+    elif mutation == "census_effect_limits":
+        contract["authority_census_and_effect_lock_contract"]["effect_limits"][
+            "pipeline_starts"
+        ] = 1
+    else:
+        assert mutation == "census_lock_values"
+        contract["authority_census_and_effect_lock_contract"]["lock_values"][
+            "p4_2a_done"
+        ] = True
+    with pytest.raises(validator.RehearsalV22ValidationError, match="epoch-9"):
+        validator._validate_epoch_9_latest_landed_contract_semantics(contract, authority)
+
+
+def test_epoch_9_contract_governance_sources_share_one_operation_work_budget(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    validator = _validator_module()
+    original_snapshot = validator._git_all_ref_commits
+    original_payload = validator._epoch_8_governance_payload
+    all_ref_calls: list[tuple[int, tuple[str, ...]]] = []
+    payload_trackers: list[Any] = []
+    payload_snapshots: list[tuple[str, ...]] = []
+
+    def tracked_snapshot(root: Path, *, work_tracker: Any) -> tuple[str, ...]:
+        observed = original_snapshot(root, work_tracker=work_tracker)
+        all_ref_calls.append((id(work_tracker), observed))
+        return observed
+
+    def tracked_payload(*args: Any, **kwargs: Any) -> bytes:
+        payload_trackers.append(kwargs["work_tracker"])
+        payload_snapshots.append(tuple(kwargs["all_ref_commits"]))
+        return original_payload(*args, **kwargs)
+
+    monkeypatch.setattr(validator, "_git_all_ref_commits", tracked_snapshot)
+    monkeypatch.setattr(validator, "_epoch_8_governance_payload", tracked_payload)
+    observed = validator.validate_epoch_9_latest_landed_execution_contract(PROJECT_ROOT)
+    assert observed["implementation_epoch"] == 9
+    assert len(all_ref_calls) == 1
+    assert len(payload_trackers) == 10
+    assert len({id(tracker) for tracker in payload_trackers}) == 1
+    assert id(payload_trackers[0]) == all_ref_calls[0][0]
+    assert all(snapshot == all_ref_calls[0][1] for snapshot in payload_snapshots)
+    total = payload_trackers[0].snapshot()
+    assert 0 < total["git_objects_read"] <= validator.RECOVERY_WORK_LIMITS[
+        "git_objects_read"
+    ]
+    recovery_source = inspect.getsource(validator._validate_recovery_governance)
+    live_source = inspect.getsource(validator._live_anchor_from_recovery_governance)
+    assert "validate_epoch_8_recovery_contract(" not in recovery_source
+    assert "validate_epoch_8_recovery_contract(" not in live_source
+    assert recovery_source.count("validate_epoch_9_latest_landed_execution_contract(") == 1
+    assert live_source.count("validate_epoch_9_latest_landed_execution_contract(") == 1
+
+
 _EPOCH_EIGHT_LIVE_ANCHOR_PROBE = r"""
 import json
 import sys
@@ -6871,7 +7207,7 @@ expected_control = producer.build_control_surface(
     require_current=True,
 )
 anchor = validator.LiveExecutionAnchor(
-    implementation_epoch=producer.EPOCH_8_IMPLEMENTATION_EPOCH,
+    implementation_epoch=validator.LATEST_LANDED_EXECUTION_EPOCH,
     implementation_commit=request["implementation_commit"],
     control_merkle_root_sha256=expected_control.merkle_root_sha256,
     control_record_count=len(expected_control.records),
@@ -6912,7 +7248,7 @@ else:
 sys.stdout.buffer.write(
     validator._canonical_json_bytes(
         {
-            "schema_version": "p4.2a-v2.2-epoch8-live-anchor-probe-v1",
+            "schema_version": "p4.2a-v2.2-epoch9-live-anchor-probe-v1",
             "status": "PASS_LOCKED_LIVE_ANCHOR_PROBE",
             "bootstrap_main_path": validator_path.as_posix(),
             "observed_root": observed_root.as_posix(),
@@ -6980,7 +7316,7 @@ def _epoch_eight_locked_live_anchor_probe(fixture: dict[str, Any]) -> dict[str, 
     return document
 
 
-def test_epoch_8_validator_independently_accepts_complete_synthetic_preflight_qrb(
+def test_epoch_9_validator_independently_accepts_complete_synthetic_preflight_qrb(
     tmp_path: Path,
 ) -> None:
     validator = _validator_module()
@@ -6998,7 +7334,19 @@ def test_epoch_8_validator_independently_accepts_complete_synthetic_preflight_qr
             "stdout_canonical_json"
         ]
     )
+    assert observed.contract == fixture["contract"]
+    assert observed.latest_landed_contract == fixture["latest_contract"]
     assert observed.preflight_census == fixture["census"]
+    owner_row = next(
+        row
+        for row in fixture["census"]["rows"]
+        if row["path"] == fixture["owner"]["path"]
+    )
+    assert owner_row["verdict"] == "PASS_ONE_LOGICAL_SOURCE_AND_ONLY_LAWFUL_PROJECTIONS"
+    assert any(
+        touch["classification"] == "FIRST_PARENT_MERGE_PROJECTION"
+        for touch in owner_row["touches"]
+    )
     assert observed.landed_execution_epoch == fixture["q_document"][
         "landed_execution_epoch"
     ]
@@ -7006,7 +7354,7 @@ def test_epoch_8_validator_independently_accepts_complete_synthetic_preflight_qr
     assert observed.r_document == fixture["r_document"]
     assert observed.b_document == fixture["b_document"]
     probe = _epoch_eight_locked_live_anchor_probe(fixture)
-    assert probe["schema_version"] == "p4.2a-v2.2-epoch8-live-anchor-probe-v1"
+    assert probe["schema_version"] == "p4.2a-v2.2-epoch9-live-anchor-probe-v1"
     assert probe["status"] == "PASS_LOCKED_LIVE_ANCHOR_PROBE"
     assert probe["bootstrap_main_path"] == (fixture["root"] / VALIDATOR_RELATIVE).as_posix()
     assert probe["observed_root"] == fixture["root"].as_posix()
@@ -7017,7 +7365,7 @@ def test_epoch_8_validator_independently_accepts_complete_synthetic_preflight_qr
     assert probe["control_record_count"] > 0
     assert IMPLEMENTATION_RELATIVE.as_posix() in probe["loaded_repository_sources"]
     assert VALIDATOR_RELATIVE.as_posix() in probe["loaded_repository_sources"]
-    assert probe["negative_error"] == "live epoch-8 control root or count drifted"
+    assert probe["negative_error"] == "live epoch-9 control root or count drifted"
     assert _tree_fingerprint(fixture["root"]) == before_root
     assert _all_real_path_fingerprints() == before_real
 
@@ -7035,7 +7383,7 @@ def test_epoch_8_validator_independently_accepts_complete_synthetic_preflight_qr
         "landing-noncanonical",
     ),
 )
-def test_epoch_8_validator_rejects_every_landing_topology_or_binding_drift(
+def test_epoch_9_validator_rejects_every_landing_topology_or_binding_drift(
     tmp_path: Path,
     mutation: str,
 ) -> None:
@@ -7068,6 +7416,8 @@ def test_epoch_8_validator_rejects_every_landing_topology_or_binding_drift(
     ):
         validator._validate_epoch_8_landing_authority(
             fixture["root"],
+            expected_live_epoch=9,
+            expected_owner=fixture["owner"],
             execution_head=(
                 _fixture_git(validator, fixture["root"], "rev-parse", "HEAD")
                 .decode()
@@ -7128,6 +7478,7 @@ def test_epoch_8_validator_named_landing_bindings_reject_alias_collisions() -> N
     }
     validate = validator._validate_epoch_8_landing_document_bindings
     arguments = {
+        "expected_live_epoch": 8,
         "implementation_commit": implementation_commit,
         "owner": owner,
         "review": review,
@@ -7218,7 +7569,7 @@ def test_epoch_8_validator_named_landing_bindings_reject_alias_collisions() -> N
         ),
     ),
 )
-def test_epoch_8_validator_rejects_noncanonical_or_cross_mode_preflight_stdout(
+def test_epoch_9_validator_rejects_noncanonical_or_cross_mode_preflight_stdout(
     tmp_path: Path,
     mutation: str,
     message: str,
@@ -7265,6 +7616,8 @@ def test_epoch_8_validator_rejects_synthetic_mode_at_the_registered_root(
         validator._validate_epoch_8_q_preflight(
             fixture["root"],
             contract=fixture["contract"],
+            expected_live_epoch=9,
+            expected_owner=fixture["owner"],
             q=fixture["q_document"],
             q_commit=fixture["q_commit"],
         )
@@ -7277,6 +7630,15 @@ def test_epoch_8_validator_rejects_synthetic_mode_at_the_registered_root(
         ("q-requester-extra", r"Q requester"),
         ("q-confirmation-extra", r"Q requested owner confirmation"),
         ("q-locks-drift", r"recovery Q requester/confirmation/locks drifted"),
+        ("q-live-epoch-eight", r"Q landed epoch identity or topology drifted"),
+        (
+            "r-and-q-live-epoch-eight",
+            r"Q landed epoch identity or topology drifted",
+        ),
+        (
+            "r-live-epoch-eight",
+            r"recovery R differs from Q landed execution epoch: epoch",
+        ),
         ("r-owner-extra", r"recovery R owner"),
         ("r-destination-extra", r"recovery R destination"),
         ("r-interpreter-extra", r"recovery R interpreter"),
@@ -7285,7 +7647,7 @@ def test_epoch_8_validator_rejects_synthetic_mode_at_the_registered_root(
         ("b-exclusions-false", r"recovery B owner or machine scope drifted"),
     ),
 )
-def test_epoch_8_validator_rejects_every_qrb_nested_shape_or_registered_value_drift(
+def test_epoch_9_validator_rejects_every_qrb_nested_shape_or_registered_value_drift(
     tmp_path: Path,
     mutation: str,
     message: str,
@@ -7733,7 +8095,7 @@ def _freeze_live_control_cache(
         "authority_worktree",
     ),
 )
-def test_epoch_8_publication_guard_rejects_every_mutable_live_span(
+def test_epoch_9_publication_guard_rejects_every_mutable_live_span(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
     drift: str,
@@ -7754,7 +8116,7 @@ def test_epoch_8_publication_guard_rejects_every_mutable_live_span(
         implementation.VALIDATOR_RELATIVE.as_posix(): b"validator",
     }
     execution_epoch = {
-        "epoch": implementation.EPOCH_8_IMPLEMENTATION_EPOCH,
+        "epoch": implementation.LATEST_LIVE_EPOCH_9,
         "binding": "registered",
     }
     expected_execution_epoch_payload = implementation._canonical_json_bytes(execution_epoch)
@@ -8583,3 +8945,129 @@ def test_epoch_7_lineage_registry_deduplicates_exact_refs_and_rejects_conflicts(
         match="authority census registry has conflicting specs",
     ):
         validator._canonical_authority_registry((conflicting,))
+
+
+def _runner_epoch_nine_e2e_support() -> Any:
+    """Load the registered runner fixture as data setup, not as a trusted verdict."""
+
+    module_name = "_p4_2a_epoch_nine_runner_fixture_for_validator"
+    cached = sys.modules.get(module_name)
+    if cached is not None:
+        return cached
+    source = PROJECT_ROOT / RUNNER_TEST_RELATIVE
+    spec = importlib.util.spec_from_file_location(module_name, source)
+    if spec is None or spec.loader is None:
+        raise AssertionError("cannot load the registered runner fixture module")
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[module_name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+@pytest.fixture(scope="module")
+def epoch_nine_passive_validator_evidence(
+    tmp_path_factory: pytest.TempPathFactory,
+) -> dict[str, Any]:
+    """Run one real issued-capability flow, then expose only durable bytes for recheck."""
+
+    support = _runner_epoch_nine_e2e_support()
+    fixture_function = support._epoch_nine_exact_os_e2e
+    builder = getattr(fixture_function, "__wrapped__", None)
+    if not callable(builder):
+        raise AssertionError("registered epoch-nine runner fixture is not directly reusable")
+    evidence = builder(tmp_path_factory)
+    if not isinstance(evidence, dict):
+        raise AssertionError("registered epoch-nine runner fixture returned another shape")
+    return evidence
+
+
+def test_epoch_nine_validator_passive_recovered_bundle_recomputes_real_evidence(
+    epoch_nine_passive_validator_evidence: dict[str, Any],
+) -> None:
+    validator = _validator_module()
+    producer = importlib.import_module(IMPLEMENTATION_MODULE)
+    evidence = epoch_nine_passive_validator_evidence
+    binding = evidence["binding"]
+    bundle_path = binding.destination / validator.BUNDLE_FILENAME
+    bundle_payload = bundle_path.read_bytes()
+    bundle = validator._strict_canonical_json_loads(
+        bundle_payload,
+        label="epoch-nine passive recovered bundle",
+    )
+    schema = json.loads((PROJECT_ROOT / SERIES_2_BUNDLE_SCHEMA_RELATIVE).read_bytes())
+    assert list(Draft202012Validator(schema).iter_errors(bundle)) == []
+    assert hashlib.sha256(bundle_payload).hexdigest() == evidence["recovery_result"][
+        "bundle_sha256"
+    ]
+    claim_root = Path(evidence["qrb"]["primary_recovery_container"]) / (
+        f"CLAIM-{evidence['qrb']['r_sha256']}"
+    )
+    started_payload = (claim_root / "started.json").read_bytes()
+    terminal_payload = (claim_root / "terminal.json").read_bytes()
+    assert validator._canonical_json_bytes(json.loads(started_payload)) == started_payload
+    assert validator._canonical_json_bytes(json.loads(terminal_payload)) == terminal_payload
+    primary_receipt = Path(evidence["claim_terminal"]["primary_receipt"]).read_bytes()
+    secondary_receipt = Path(evidence["claim_terminal"]["secondary_receipt"]).read_bytes()
+    assert primary_receipt == secondary_receipt
+    assert evidence["recovery_result"]["pipeline_starts"] == 0
+    assert evidence["recovery_result"]["automatic_retry_count"] == 0
+    recovery_source = inspect.getsource(producer._execute_authorized_bundle_recovery)
+    assert 'getattr(validator_module, "validate_recovered_bundle", None)' in recovery_source
+    assert "validated_document = validator_api(" in recovery_source
+
+
+def test_epoch_nine_validator_passive_recovered_release_recomputes_real_evidence(
+    epoch_nine_passive_validator_evidence: dict[str, Any],
+) -> None:
+    validator = _validator_module()
+    producer = importlib.import_module(IMPLEMENTATION_MODULE)
+    evidence = epoch_nine_passive_validator_evidence
+    binding = evidence["binding"]
+    bundle_path = binding.destination / validator.BUNDLE_FILENAME
+    bundle_payload = bundle_path.read_bytes()
+    bundle = validator._strict_canonical_json_loads(
+        bundle_payload,
+        label="epoch-nine passive recovered-release bundle",
+    )
+    release_path = binding.project_root / producer.RELEASE_RELATIVE
+    release_payload = release_path.read_bytes()
+    release = validator._strict_canonical_json_loads(
+        release_payload,
+        label="epoch-nine passive recovered release",
+    )
+    schema = json.loads((PROJECT_ROOT / SERIES_2_RELEASE_SCHEMA_RELATIVE).read_bytes())
+    assert list(Draft202012Validator(schema).iter_errors(release)) == []
+    validator._cross_validate_release(bundle=bundle, receipt=release)
+    release_commit = (
+        _fixture_git(
+            validator,
+            binding.project_root,
+            "log",
+            "-1",
+            "--format=%H",
+            "--",
+            producer.RELEASE_RELATIVE.as_posix(),
+        )
+        .decode("ascii")
+        .strip()
+    )
+    assert _fixture_git(
+        validator,
+        binding.project_root,
+        "show",
+        f"{release_commit}:{producer.RELEASE_RELATIVE.as_posix()}",
+    ) == release_payload
+    result = evidence["consume_result"]
+    assert result["release_sha256"] == hashlib.sha256(release_payload).hexdigest()
+    assert result["bundle_sha256"] == hashlib.sha256(bundle_payload).hexdigest()
+    assert result["historical_selected_anchor"]["implementation_epoch"] == 6
+    assert result["live_execution_anchor"]["implementation_epoch"] == 9
+    assert all(
+        value == 0
+        for key, value in result["effect_summary"].items()
+        if key != "before_after_equal"
+    )
+    assert result["effect_summary"]["before_after_equal"] is True
+    release_source = inspect.getsource(producer.consume_recovered_release_authorization)
+    assert '"validate_recovered_release_authorization"' in release_source
+    assert "result = validator_api(" in release_source

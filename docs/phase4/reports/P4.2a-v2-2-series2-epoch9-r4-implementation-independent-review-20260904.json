@@ -1,0 +1,1070 @@
+{
+  "schema_version": "p4.2a-v2-2-series2-epoch9-r4-implementation-independent-review-v1",
+  "review_id": "p4.2a-v2-2-series2-epoch9-r4-implementation-independent-review-20260904-r1",
+  "created_at_utc": "2026-09-04T15:53:30Z",
+  "created_at_shanghai": "2026-09-04T23:53:30+08:00",
+  "status": "PASS_INDEPENDENT_F12_AND_IMPLEMENTATION_REVIEW_READY_FOR_FRESH_PERSISTENT_GATE",
+  "verdict": "APPROVE_EPOCH9_R4_IMPLEMENTATION_FOR_FRESH_PERSISTENT_GATE_REVIEW",
+  "reviewer": {
+    "identity": "independent_ai_architect_claude_code",
+    "reviewer_type": "ai",
+    "platform": "Claude Code (Anthropic)",
+    "model": "Anthropic Claude Fable 5.1 (model id claude-fable-5-1)",
+    "impersonation_disclaimer": "Not a human reviewer, not the owner, not the operator (Codex), not the candidate implementer, and not the epoch-7 r2 or epoch-8 r9 reviewer identities.",
+    "not_owner": true,
+    "not_human": true,
+    "not_third_party_organization": true,
+    "not_candidate_implementer": true,
+    "not_operator_f15_executor": true,
+    "organizational_third_party_independence_asserted": false,
+    "performed_candidate_implementation": false,
+    "modified_candidate_bytes": false,
+    "operator_f15_conclusion_inherited": false,
+    "prior_f12_result_inherited": false,
+    "actual_independent_f12_execution_performed": true,
+    "method": "fresh full non-shallow no-alternates clone from the GitHub remote; detached candidate; governance chain, surface, baseline and contract digests recomputed independently; independent compile/AST and collect; one natural strictly serial execution of each complete registered module via nohup with /usr/bin/time -l; runner JUnit independently parsed before the validator started; pre/post candidate identity and sealed-state comparison; design-conformance read of the complete four-file diff against design r1+r2+r3 and the r3 companion"
+  },
+  "appointment_and_scope": {
+    "appointment_source": "owner instruction in the current Claude Code session on 2026-09-04 (\"开始，然后告诉codex那边需要做什么\") after the owner asked for the current state of the project",
+    "succession_route": "SECTION_10_B_NEW_INDEPENDENT_REVIEWER",
+    "succession_contract_read_and_followed": true,
+    "succession_contract_sections_applied": [
+      2,
+      3,
+      4,
+      5,
+      7,
+      10
+    ],
+    "review_scope": "epoch-9 r4 candidate implementation, complete registered F-12 modules, and design conformance only",
+    "prior_operator_f15_is_background_only": true,
+    "prior_operator_f15_verdict_used_as_evidence": false,
+    "operator_f15_evidence_for_r4_found_in_repository_or_evidence_roots": false,
+    "r3_candidate_relationship": {
+      "r3_commit": "94d10defc13afd55195b537a42ae875bc61c3ebc",
+      "r3_parent": [
+        "cc64e0b79fbb3a667eb8545c7617e7e8e59115e4"
+      ],
+      "r4_replaces_r3": true,
+      "r4_minus_r3": "33 added lines in tests/test_p4_2a_v2_2_heldout_rehearsal_runner.py registering the epoch-9 r3 authority and implementation HEAD topologies in test_preregistration_commit_shape_and_current_implementation_topology and two module fixtures in the registered fixture allowlist; producer and validator bytes identical between r3 and r4",
+      "r3_reviewed_by_this_report": false
+    }
+  },
+  "candidate": {
+    "remote": "https://github.com/a252937166/AlphaPilot-AI.git",
+    "branch": "codex/p4-2a-v2-2-series2-epoch9-r4",
+    "commit": "92a47995882ca6b04d495a5ed6927eb932c2a513",
+    "parent": [
+      "cc64e0b79fbb3a667eb8545c7617e7e8e59115e4"
+    ],
+    "parent_is_six_field_surface_authority_commit": true,
+    "tree": "467c90728c134e9f4216f9297b089ae6cb42c457",
+    "direct_single_parent_child": true,
+    "remote_branch_tip_equal": true,
+    "author_date": "2026-09-03T03:40:25-04:00",
+    "committer_date": "2026-09-03T12:14:49-04:00",
+    "clean_before_run": true,
+    "clean_after_run": true,
+    "head_unchanged_after_run": true
+  },
+  "governance_provenance": {
+    "succession_contract": {
+      "path": "docs/phase4/reports/P4.2a-independent-review-succession-contract-20260829.md",
+      "sha256": "e9cb608330b46311b9bceb5fbbc9b3f7a6ab702c5444ff76840239e79c6f0f84"
+    },
+    "governance_chain_recomputed": [
+      {
+        "role": "design_r1",
+        "path": "docs/phase4/reports/P4.2a-v2-2-series2-epoch9-source-projection-identity-design-proposal-20260903.md",
+        "creating_commit": "094816f11bdb26f9d4141db6c5ddf46de1f735cb",
+        "pinned_sha256": "2f479639273f374ccea36fa6c4dafa0aa2023817ad4fd377df7e78b02db9e23c",
+        "recomputed_sha256": "2f479639273f374ccea36fa6c4dafa0aa2023817ad4fd377df7e78b02db9e23c",
+        "pinned_bytes": 16719,
+        "recomputed_bytes": 16719
+      },
+      {
+        "role": "design_r2",
+        "path": "docs/phase4/reports/P4.2a-v2-2-series2-epoch9-source-projection-identity-design-proposal-r2-20260903.md",
+        "creating_commit": "fce157432a505c7d0cd09263b0d7db8dd3f049da",
+        "pinned_sha256": "afaf02b0cc2f53cd891e0ec65a8ad125ce8d7508cd7555b7d651274b8c6e541a",
+        "recomputed_sha256": "afaf02b0cc2f53cd891e0ec65a8ad125ce8d7508cd7555b7d651274b8c6e541a",
+        "pinned_bytes": 3232,
+        "recomputed_bytes": 3232
+      },
+      {
+        "role": "design_r1_r2_review",
+        "path": "docs/phase4/reports/P4.2a-v2-2-series2-epoch9-source-projection-identity-independent-design-review-20260903.json",
+        "creating_commit": "7481b9477dd9721275a549d47cc0af80e703e606",
+        "pinned_sha256": "b79cce702ff7d0070ad669edc168402604e939679ff4f0934ab760b5812b9686",
+        "recomputed_sha256": "b79cce702ff7d0070ad669edc168402604e939679ff4f0934ab760b5812b9686",
+        "pinned_bytes": 8390,
+        "recomputed_bytes": 8390
+      },
+      {
+        "role": "superseded_companion",
+        "path": "docs/phase4/reports/P4.2a-series2-epoch9-companion-20260903.json",
+        "creating_commit": "261a483d4d199d6e113b8b20231079985b36472a",
+        "pinned_sha256": "e98e105ffac69f3a57b455cc4782e29ba00429b6525dc4d0921a58c7411c8f58",
+        "recomputed_sha256": "e98e105ffac69f3a57b455cc4782e29ba00429b6525dc4d0921a58c7411c8f58",
+        "pinned_bytes": 12830,
+        "recomputed_bytes": 12830
+      },
+      {
+        "role": "superseded_two_file_authority",
+        "path": "docs/phase4/reports/P4.2a-v2-2-series2-epoch9-surface-authority-20260903.json",
+        "creating_commit": "6936f4531eb52a6a343bf8a20e879dac1503bbdd",
+        "pinned_sha256": "e5501e387d85be43fabe131b1e3d5067ad189db2e81a255744ad29b99446379e",
+        "recomputed_sha256": "e5501e387d85be43fabe131b1e3d5067ad189db2e81a255744ad29b99446379e",
+        "pinned_bytes": 517,
+        "recomputed_bytes": 517
+      },
+      {
+        "role": "design_r3",
+        "path": "docs/phase4/reports/P4.2a-v2-2-series2-epoch9-latest-landed-epoch-design-r3-20260903.md",
+        "creating_commit": "7bf6d7fd0b054d6be775c36583085b443e0769f2",
+        "pinned_sha256": "5f99c0ac8cf708467e6c37c4516a30941af313cebbcd9d3141bd8b048e1460d9",
+        "recomputed_sha256": "5f99c0ac8cf708467e6c37c4516a30941af313cebbcd9d3141bd8b048e1460d9",
+        "pinned_bytes": 45262,
+        "recomputed_bytes": 45262
+      },
+      {
+        "role": "design_r3_independent_review",
+        "path": "docs/phase4/reports/P4.2a-v2-2-series2-epoch9-latest-landed-epoch-independent-design-review-r3-20260903.json",
+        "creating_commit": "dad5d0d332752bf99beeb9c5be55d1d2323bafab",
+        "pinned_sha256": "24c66b7027d30b3fc168ae3ffa9dff0a0fe707d61130c5102b67e3386c6425f9",
+        "recomputed_sha256": "24c66b7027d30b3fc168ae3ffa9dff0a0fe707d61130c5102b67e3386c6425f9",
+        "pinned_bytes": 13519,
+        "recomputed_bytes": 13519
+      },
+      {
+        "role": "governing_adjudication",
+        "path": "docs/phase4/reports/P4.2a-series2-epoch9-r3-design-conflict-adjudication-20260903.json",
+        "creating_commit": "5c58141fd5c2622e147daa8f48f15c486515378d",
+        "pinned_sha256": "204f0a4814d25f37390db154d6000b37fca36aa6e54ea35617c415308721cece",
+        "recomputed_sha256": "204f0a4814d25f37390db154d6000b37fca36aa6e54ea35617c415308721cece",
+        "pinned_bytes": 9387,
+        "recomputed_bytes": 9387
+      }
+    ],
+    "governance_chain_digests_all_match": true,
+    "linear_source_chain_from_87c73ce": [
+      {
+        "commit": "094816f11bdb26f9d4141db6c5ddf46de1f735cb",
+        "parents": [
+          "87c73ce601a84779295f4ee5e82b14822ea93f42"
+        ],
+        "direct_single_parent_child_of_previous": true
+      },
+      {
+        "commit": "fce157432a505c7d0cd09263b0d7db8dd3f049da",
+        "parents": [
+          "094816f11bdb26f9d4141db6c5ddf46de1f735cb"
+        ],
+        "direct_single_parent_child_of_previous": true
+      },
+      {
+        "commit": "7481b9477dd9721275a549d47cc0af80e703e606",
+        "parents": [
+          "fce157432a505c7d0cd09263b0d7db8dd3f049da"
+        ],
+        "direct_single_parent_child_of_previous": true
+      },
+      {
+        "commit": "3eaa6cade1eb1dfdeb903559a06c72f9d2c45e17",
+        "parents": [
+          "7481b9477dd9721275a549d47cc0af80e703e606"
+        ],
+        "direct_single_parent_child_of_previous": true
+      },
+      {
+        "commit": "261a483d4d199d6e113b8b20231079985b36472a",
+        "parents": [
+          "3eaa6cade1eb1dfdeb903559a06c72f9d2c45e17"
+        ],
+        "direct_single_parent_child_of_previous": true
+      },
+      {
+        "commit": "6936f4531eb52a6a343bf8a20e879dac1503bbdd",
+        "parents": [
+          "261a483d4d199d6e113b8b20231079985b36472a"
+        ],
+        "direct_single_parent_child_of_previous": true
+      },
+      {
+        "commit": "7bf6d7fd0b054d6be775c36583085b443e0769f2",
+        "parents": [
+          "6936f4531eb52a6a343bf8a20e879dac1503bbdd"
+        ],
+        "direct_single_parent_child_of_previous": true
+      },
+      {
+        "commit": "dad5d0d332752bf99beeb9c5be55d1d2323bafab",
+        "parents": [
+          "7bf6d7fd0b054d6be775c36583085b443e0769f2"
+        ],
+        "direct_single_parent_child_of_previous": true
+      },
+      {
+        "commit": "5c58141fd5c2622e147daa8f48f15c486515378d",
+        "parents": [
+          "dad5d0d332752bf99beeb9c5be55d1d2323bafab"
+        ],
+        "direct_single_parent_child_of_previous": true
+      },
+      {
+        "commit": "20ed6a747c66a775ad3793167fe3f511f1c16ab8",
+        "parents": [
+          "5c58141fd5c2622e147daa8f48f15c486515378d"
+        ],
+        "direct_single_parent_child_of_previous": true
+      },
+      {
+        "commit": "cc64e0b79fbb3a667eb8545c7617e7e8e59115e4",
+        "parents": [
+          "20ed6a747c66a775ad3793167fe3f511f1c16ab8"
+        ],
+        "direct_single_parent_child_of_previous": true
+      },
+      {
+        "commit": "92a47995882ca6b04d495a5ed6927eb932c2a513",
+        "parents": [
+          "cc64e0b79fbb3a667eb8545c7617e7e8e59115e4"
+        ],
+        "direct_single_parent_child_of_previous": true
+      }
+    ],
+    "linear_source_chain_verified": true,
+    "epoch_9_r3_companion": {
+      "path": "docs/phase4/reports/P4.2a-series2-epoch9-r3-companion-20260903.json",
+      "creating_commit": "20ed6a747c66a775ad3793167fe3f511f1c16ab8",
+      "sha256": "b3f5769a5ed9dd74d72e29dcad6612313e936d0f6c0537801bed82338ba74667",
+      "bytes": 26612,
+      "verdict": "EPOCH9_R3_COMPANION_READY_FOR_OWNER_APPROVED_FOUR_FILE_SURFACE_AUTHORITY",
+      "owner_transcript_binding": "本人 ouyang 明确批准上一条所列 epoch-9 r3 全部 11 项决定及授权边界：仅授权提交 governing adjudication、创建 companion、准备六字段 4M authority 草案；其余实现、测试、门禁、合并、preflight、Q/R/B、recovery、release、heldout 与 trading 暂不授权。"
+    },
+    "epoch_9_r3_six_field_surface_authority": {
+      "path": "docs/phase4/reports/P4.2a-v2-2-series2-epoch9-r3-surface-authority-20260903.json",
+      "creating_commit": "cc64e0b79fbb3a667eb8545c7617e7e8e59115e4",
+      "sha256": "ecbd909ba56158e644403a5a3f38f63e5714bee7b638fc9f72b9ba0541b97458",
+      "bytes": 726,
+      "field_count": 6,
+      "base_commit": "20ed6a747c66a775ad3793167fe3f511f1c16ab8",
+      "implementation_epoch": 9,
+      "verdict": "APPROVE_EXACT_V2_2_IMPLEMENTATION_EPOCH_SURFACE",
+      "owner": {
+        "identity": "ouyang",
+        "approved": true
+      }
+    },
+    "epoch_9_latest_landed_contract_canonical_sha256": {
+      "recomputed": "4d2c9d58c4e6b851de741d5f52861a4c18ff6b707280714debac829a1079272d",
+      "pinned_in_producer_and_validator": true,
+      "expected": "4d2c9d58c4e6b851de741d5f52861a4c18ff6b707280714debac829a1079272d"
+    }
+  },
+  "exact_candidate_surface": [
+    {
+      "status": "M",
+      "path": "scripts/p4_2a_v2_2_heldout_rehearsal.py",
+      "sha256": "b9058e7c2bd3f7fade0b758e6729186e963888c0fb013494010ffb7cba7764fb",
+      "bytes": 929638,
+      "baseline_sha256_at_authority": "df85ef29b5adb6dfcf68a5a7bf519000ed8157120380a77446765c97e83570e8",
+      "baseline_bytes": 875044
+    },
+    {
+      "status": "M",
+      "path": "scripts/validate_p4_2a_v2_2_heldout_rehearsal_bundle.py",
+      "sha256": "a3f960eec374a22730f4eed17cd8fb0877e9c29fe1441771265dbbc7344438c2",
+      "bytes": 583040,
+      "baseline_sha256_at_authority": "8587181dac7b7f2ee301ca3febf60f7e5d76aed249bc508d458cb8dd3def83d4",
+      "baseline_bytes": 534271
+    },
+    {
+      "status": "M",
+      "path": "tests/test_p4_2a_v2_2_heldout_rehearsal_runner.py",
+      "sha256": "8433ef3f3110414a97c70dec4797045ac1f725d485e312541c9d75de9234f159",
+      "bytes": 499480,
+      "baseline_sha256_at_authority": "e3b1be5b4f20ed087a4104020cd7c9529b7d64bc89a08a055010c04efc0d0505",
+      "baseline_bytes": 452318
+    },
+    {
+      "status": "M",
+      "path": "tests/test_p4_2a_v2_2_heldout_rehearsal_validator.py",
+      "sha256": "8524a0615d2d623318abddd081a3f095ebe8e915c03a1c441bb05b7cb3e37a50",
+      "bytes": 348053,
+      "baseline_sha256_at_authority": "23f427720784576dfb6eee74eb195c9914b7bb9874e70b81819bb19abc2e19c6",
+      "baseline_bytes": 326825
+    }
+  ],
+  "surface_verification": {
+    "expected_path_count": 4,
+    "observed_path_count": 4,
+    "all_status_values_exactly_M": true,
+    "path_order_utf8_sorted": true,
+    "unexpected_paths": [],
+    "missing_paths": [],
+    "baseline_sha256_and_bytes_match_companion_baseline_files": true,
+    "surface_equals_authority_exact_surface": true,
+    "compile_passed_for_all_four": true,
+    "ast_parse_passed_for_all_four": true
+  },
+  "design_conformance_review": {
+    "normative_inputs": "design r1 (094816f) + r2 (fce1574) + r3 (7bf6d7f) with r3 precedence, the r3 independent design review (dad5d0d), the r3 governing adjudication (5c58141), the r3 companion (20ed6a7) and the six-field four-file surface authority (cc64e0b); the complete diff cc64e0b..92a4799 of all four files was read (2174 + 1796 + 1574 + 870 diff lines)",
+    "section_3_1_immutable_epoch8_contract": "PASS: producer validate_epoch_8_recovery_contract resolves the five epoch-8 governance references through the new _validate_logical_source_authority classifier (LOGICAL_SOURCE_WITH_LAWFUL_PROJECTIONS) instead of first-parent-only validate_unique_a_authority, keeps pinned source commit, bytes, SHA-256, byte count and the exact source-parent chain, and keeps HISTORICAL_EPOCH_8 for the contract epoch and the epoch-8 authority document; validator validate_epoch_8_recovery_contract keeps its source-aware _unique_a_authority discovery and HISTORICAL_EPOCH_8_RECOVERY_GOVERNANCE_EPOCH at all five listed consumers (contract, authority, dual-anchor live declaration, capability required values, R fixed values); the epoch-8 contract canonical SHA-256 36b1ae71... is recomputed identically by this reviewer",
+    "section_3_2_latest_landed_contract": "PASS: both modules define the exact 12-field set, the nested exact sets from the design table, and the pinned canonical digest 4d2c9d58...; producer validate_epoch_9_latest_landed_execution_contract and validator validate_epoch_9_latest_landed_execution_contract each validate the epoch-8 contract first, then the five epoch-9 r3 references (design r3, design review r3, adjudication, companion, authority) by bytes, byte count, unique-A or logical-source identity and the exact linear source chain (r3 design parent 6936f45 -> review -> adjudication -> companion -> authority; validator additionally pins r1 parent 87c73ce and r2 parent r1), verdict strings, schema, epoch 9, canonical digest, and every nested semantic predicate independently (_validate_epoch_9_latest_landed_contract_semantics in each module recomputes the expected structure from its own constants; neither imports the other's parsed result); no placeholder, TBD or empty digest present in the companion",
+    "section_4_landing_document_and_topology": "PASS: producer and validator _validate_epoch_8_landing_document_bindings gain a required no-default expected_live_epoch parameter (type(x) is int, producer additionally restricts to {8, 9}) and compare the landing document epoch to it; the bare literal 8 is gone in both; _validate_epoch_8_landing_authority in both modules gains expected_live_epoch and expected_owner and rejects an owner reference different from the dispatch-selected authority tuple; registered runner test test_epoch_nine_landing_document_requires_epoch_nine_and_exact_bindings rejects 8, True, 9.0 and '9' and every wrong binding, and the validator drift matrix is re-parametrized at epoch 9",
+    "section_5_dispatch_and_dual_anchor": "PASS: producer _preflight_epoch_dispatch is a closed dispatch executed before any Git, storage or ledger read (registered test proves no _git_/_regular_bytes/storage symbol in its source): non-int or <1 rejected; >9 rejected as not governed; epoch 8 at REGISTERED_PROJECT_ROOT rejected after the epoch-9 landing; 9 -> LATEST_LIVE_EPOCH_9; 8 -> HISTORICAL_EPOCH_8 (synthetic/historical proof only); 7 and earlier -> HISTORICAL; the only >= comparisons left use LANDING_PREFLIGHT_ORIGIN_EPOCH for the v2 schema family, the registered_recovery_storage key, the exact v2 field-set check and the CLI landing-argument rule, exactly as the design permits; the epoch-9 branch requires a landing report, validates the epoch-9 contract, the landing authority at epoch 9 with the epoch-9 owner tuple, and feeds owner/review/landing/merge into the live census; the historical selected anchor stays epoch 6 with require_current=False and the live anchor is epoch 9 with require_current=True in both modules",
+    "section_6_qrb_recovery_release": "PASS: producer _validate_bundle_recovery_authorization validates the epoch-9 contract first and requires R execution epoch 9; _validate_recovery_owner_binding derives the reconstructed preflight argv epoch and the embedded preflight epoch from R instead of a constant and calls the new _validate_epoch_9_qrb_live_cross_binding, which rejects every Q/R/preflight/census cross-epoch or cross-value mix before storage access (registered matrix test_epoch_nine_qrb_cross_epoch_matrix_rejects_before_storage); validator _validate_recovery_governance validates the epoch-9 overlay, re-verifies the epoch-8 contract digest, passes expected_live_epoch=9 and the epoch-9 owner tuple into Q preflight validation, and adds q-live-epoch-eight, r-live-epoch-eight and r-and-q-live-epoch-eight negatives; recovery remains rehydrate-not-replay with the unchanged one-claim staged protocol; started and mirror receipt bind the live anchor epoch (started.execution_epoch and receipt.execution_epoch compared to live_anchor.execution_epoch rather than a global constant), the terminal schema gains no field; release path consumes the epoch-9 live anchor and the registered tests prove consume_recovered_release_authorization contains no active replay call",
+    "section_7_locks_and_absence_facts": "PASS: the six amendment absence facts remain exactly false, sealed attempt epochs [5,6], ordinal 3 forbidden, p4_2a_done/p4_2b_unlocked/p4_3_unlocked false, held-out and non-SIMULATE trading locked, one future recovery start after fresh Q/R/B, zero pipeline starts, zero automatic retries; both modules verify these values in the epoch-9 contract and the runner/validator tests assert them",
+    "section_8_constant_split_and_call_sites": "PASS: producer defines HISTORICAL_EPOCH_8 = 8, LATEST_LIVE_EPOCH_9 = 9, LANDING_PREFLIGHT_ORIGIN_EPOCH = 8; validator defines HISTORICAL_EPOCH_8_RECOVERY_GOVERNANCE_EPOCH = 8, LANDING_PREFLIGHT_ORIGIN_EPOCH = 8, LATEST_LANDED_EXECUTION_EPOCH = 9; EPOCH_8_IMPLEMENTATION_EPOCH has zero remaining occurrences in either module; all 17 producer and 12 validator consumers listed in design section 8 were located in the diff with the required disposition; SERIES_2_* schema aliases are byte-identical to the EPOCH_8_* values and live paths use them while the immutable epoch-8 contract validation keeps the EPOCH_8_* names; producer _authority_census_registry and validator _base_authority_census_specs each add exactly three PINNED_SOURCE rows (r3 adjudication, r3 companion, r3 surface authority) with independently pinned path, SHA-256, byte count and source commit; review, merge and landing still enter through the runtime additional-reference path; section 8.6 hardpins are replaced by the dispatch-selected expected_owner / EPOCH_9_R3_* tuple in producer _validate_epoch_8_landing_authority and _live_execution_anchor_with_census and validator _validate_epoch_8_q_preflight and _validate_live_execution_anchor_identity (implementation parent must be the epoch-9 r3 authority commit with exactly the four M paths); static AST/source tests in both modules (test_epoch_nine_live_and_historical_epoch_constants_are_purpose_separated, test_epoch_nine_recovery_live_chain_uses_nine_without_schema_or_history_rewrite, test_epoch_9_live_consumers_cannot_reference_epoch_8_authority_hardpins) enumerate the live functions and fail on any epoch-8 authority constant while proving the historical validator still references every pinned epoch-8 value",
+    "section_9_surface_and_supersession": "PASS: the candidate diff-tree is exactly the four M paths in UTF-8 order; the candidate is the direct single-parent child of the six-field authority cc64e0b whose base_commit is the r3 companion 20ed6a7; the superseded two-file authority 6936f45 and r1 companion 261a483 remain immutable and are pinned as SUPERSEDED_FOR_IMPLEMENTATION_ONLY / superseded-where-r3-conflicts; no amend, rebase, squash or cherry-pick is visible in the governance chain (each document is a unique A in its creating commit on a linear chain from 87c73ce)",
+    "section_10_registered_test_plan": "PASS with observations: all eight named section 10.1 runner nodes collect; the validator suite adds exact overlay validation, pinned-binding drift, a 19-case nested mutation matrix, the shared work-budget proof, epoch-9 landing topology, synthetic preflight/Q-R-B acceptance with the owner row proven as PASS_ONE_LOGICAL_SOURCE_AND_ONLY_LAWFUL_PROJECTIONS through a FIRST_PARENT_MERGE_PROJECTION touch, a cross-epoch negative matrix, publication-guard live-span drifts at epoch 9, and passive recovered bundle / release recomputation over the real e2e evidence (loaded as data via the runner fixture's __wrapped__ builder, not as a trusted verdict); floors 230/323/553 are exceeded at 251/354/605 and no test body was dropped (see node-set delta)",
+    "section_11_sequence": "This report is step 6-7 of design section 11 (independent F-12 from a clean candidate-bound checkout, no old F-12 inherited, review committed as the candidate's direct single-parent unique-A child); steps 8-13 remain unauthorized by this report",
+    "static_hygiene_outside_the_registered_gate": "ruff check passes; ruff format would reformat all four files exactly as it would the baseline (pre-existing); strict mypy is clean at the baseline and reports four new errors in the candidate (finding R-1, non-blocking because neither the registered F-12 modules nor the registered persistent gate harness run mypy)",
+    "section_12_effect_preservation": "PASS: no test fabricates a passing preflight, capability, claim, receipt, bundle or release where the production path can construct the real object (the e2e fixture drives the real registered CLI and real recovery/release paths in a disposable tree); every reviewed negative asserts registered real-path fingerprints equal before/after; sealed ledger and mirror fingerprints were unchanged across this reviewer's complete F-12 run"
+  },
+  "registered_test_collection": {
+    "pytest_version": "8.4.2",
+    "runner_floor": 230,
+    "runner_observed": 251,
+    "validator_floor": 323,
+    "validator_observed": 354,
+    "combined_floor": 553,
+    "combined_observed": 605,
+    "node_count_shrink": false,
+    "required_section_10_1_runner_nodes_present": {
+      "test_epoch_nine_latest_landed_preflight_exact_os_passes_real_topology": true,
+      "test_epoch_nine_landing_document_requires_epoch_nine_and_exact_bindings": true,
+      "test_epoch_nine_dispatch_separates_historical_epoch_eight_from_latest_live": true,
+      "test_epoch_nine_dual_anchor_keeps_selected_six_and_live_nine": true,
+      "test_epoch_nine_qrb_round_trip_binds_preflight_and_live_epoch": true,
+      "test_epoch_nine_recovery_rehydrates_once_with_zero_pipeline_or_retry": true,
+      "test_epoch_nine_recovered_release_uses_live_nine_historical_six": true,
+      "test_epoch_eight_recovery_contract_bytes_and_series_history_remain_exact": true
+    },
+    "node_set_delta_versus_epoch8_r9_f12": {
+      "runner": {
+        "epoch8_f12_node_count": 230,
+        "candidate_node_count": 251,
+        "removed_names_count": 3,
+        "removed_names": [
+          "test_epoch_eight_companion_is_the_exact_byte_authority_for_one_thirteen_field_contract",
+          "test_epoch_eight_historical_and_live_anchors_are_explicit_non_substitutable_types",
+          "test_exact_os_epoch_eight_real_preflight_qrb_five_six_recovery_and_release_are_zero_pipeline"
+        ],
+        "removed_names_with_epoch_8_to_9_rename_successor": {},
+        "removed_names_without_rename_successor": [
+          "test_epoch_eight_companion_is_the_exact_byte_authority_for_one_thirteen_field_contract",
+          "test_epoch_eight_historical_and_live_anchors_are_explicit_non_substitutable_types",
+          "test_exact_os_epoch_eight_real_preflight_qrb_five_six_recovery_and_release_are_zero_pipeline"
+        ],
+        "added_names_count": 24
+      },
+      "validator": {
+        "epoch8_f12_node_count": 323,
+        "candidate_node_count": 354,
+        "removed_names_count": 33,
+        "removed_names": [
+          "test_epoch_8_publication_guard_rejects_every_mutable_live_span[authority_worktree]",
+          "test_epoch_8_publication_guard_rejects_every_mutable_live_span[control_member]",
+          "test_epoch_8_publication_guard_rejects_every_mutable_live_span[execution_epoch]",
+          "test_epoch_8_publication_guard_rejects_every_mutable_live_span[head]",
+          "test_epoch_8_publication_guard_rejects_every_mutable_live_span[implementation_module]",
+          "test_epoch_8_publication_guard_rejects_every_mutable_live_span[refs]",
+          "test_epoch_8_publication_guard_rejects_every_mutable_live_span[runtime_inventory]",
+          "test_epoch_8_publication_guard_rejects_every_mutable_live_span[validator_module]",
+          "test_epoch_8_validator_independently_accepts_complete_synthetic_preflight_qrb",
+          "test_epoch_8_validator_rejects_every_landing_topology_or_binding_drift[landing-control-count]",
+          "test_epoch_8_validator_rejects_every_landing_topology_or_binding_drift[landing-control-root]",
+          "test_epoch_8_validator_rejects_every_landing_topology_or_binding_drift[landing-declared-merge]",
+          "test_epoch_8_validator_rejects_every_landing_topology_or_binding_drift[landing-document-merge]",
+          "test_epoch_8_validator_rejects_every_landing_topology_or_binding_drift[landing-noncanonical]",
+          "test_epoch_8_validator_rejects_every_landing_topology_or_binding_drift[landing-outside-reports]",
+          "test_epoch_8_validator_rejects_every_landing_topology_or_binding_drift[landing-parent-gap]",
+          "test_epoch_8_validator_rejects_every_landing_topology_or_binding_drift[landing-reference-sha]",
+          "test_epoch_8_validator_rejects_every_qrb_nested_shape_or_registered_value_drift[b-confirmation-extra-recovery owner confirmation]",
+          "test_epoch_8_validator_rejects_every_qrb_nested_shape_or_registered_value_drift[b-exclusions-false-recovery B owner or machine scope drifted]",
+          "test_epoch_8_validator_rejects_every_qrb_nested_shape_or_registered_value_drift[q-confirmation-extra-Q requested owner confirmation]",
+          "test_epoch_8_validator_rejects_every_qrb_nested_shape_or_registered_value_drift[q-locks-drift-recovery Q requester/confirmation/locks drifted]",
+          "test_epoch_8_validator_rejects_every_qrb_nested_shape_or_registered_value_drift[q-requester-extra-Q requester]",
+          "test_epoch_8_validator_rejects_every_qrb_nested_shape_or_registered_value_drift[q-v1-alias-bundle recovery review request]",
+          "test_epoch_8_validator_rejects_every_qrb_nested_shape_or_registered_value_drift[r-destination-extra-recovery R destination]",
+          "test_epoch_8_validator_rejects_every_qrb_nested_shape_or_registered_value_drift[r-interpreter-extra-recovery R interpreter]",
+          "test_epoch_8_validator_rejects_every_qrb_nested_shape_or_registered_value_drift[r-locks-true-recovery R nested identity or registered values drifted]",
+          "test_epoch_8_validator_rejects_every_qrb_nested_shape_or_registered_value_drift[r-owner-extra-recovery R owner]",
+          "test_epoch_8_validator_rejects_noncanonical_or_cross_mode_preflight_stdout[preflight-official-on-synthetic-official/synthetic preflight root classification drifted]",
+          "test_epoch_8_validator_rejects_noncanonical_or_cross_mode_preflight_stdout[preflight-old-storage-epoch-8 preflight]",
+          "test_epoch_8_validator_rejects_noncanonical_or_cross_mode_preflight_stdout[preflight-sealed-work-extra-preflight (?:work counters|sealed inputs)]",
+          "test_epoch_8_validator_rejects_noncanonical_or_cross_mode_preflight_stdout[preflight-series-storage-extra-preflight series-2]",
+          "test_epoch_8_validator_rejects_noncanonical_or_cross_mode_preflight_stdout[preflight-surface-extra-preflight registered surface drifted]",
+          "test_epoch_8_validator_rejects_noncanonical_or_cross_mode_preflight_stdout[preflight-v1-(?:Q registered preflight|epoch-8 preflight)]"
+        ],
+        "removed_names_with_epoch_8_to_9_rename_successor": {
+          "test_epoch_8_publication_guard_rejects_every_mutable_live_span[authority_worktree]": "test_epoch_9_publication_guard_rejects_every_mutable_live_span[authority_worktree]",
+          "test_epoch_8_publication_guard_rejects_every_mutable_live_span[control_member]": "test_epoch_9_publication_guard_rejects_every_mutable_live_span[control_member]",
+          "test_epoch_8_publication_guard_rejects_every_mutable_live_span[execution_epoch]": "test_epoch_9_publication_guard_rejects_every_mutable_live_span[execution_epoch]",
+          "test_epoch_8_publication_guard_rejects_every_mutable_live_span[head]": "test_epoch_9_publication_guard_rejects_every_mutable_live_span[head]",
+          "test_epoch_8_publication_guard_rejects_every_mutable_live_span[implementation_module]": "test_epoch_9_publication_guard_rejects_every_mutable_live_span[implementation_module]",
+          "test_epoch_8_publication_guard_rejects_every_mutable_live_span[refs]": "test_epoch_9_publication_guard_rejects_every_mutable_live_span[refs]",
+          "test_epoch_8_publication_guard_rejects_every_mutable_live_span[runtime_inventory]": "test_epoch_9_publication_guard_rejects_every_mutable_live_span[runtime_inventory]",
+          "test_epoch_8_publication_guard_rejects_every_mutable_live_span[validator_module]": "test_epoch_9_publication_guard_rejects_every_mutable_live_span[validator_module]",
+          "test_epoch_8_validator_independently_accepts_complete_synthetic_preflight_qrb": "test_epoch_9_validator_independently_accepts_complete_synthetic_preflight_qrb",
+          "test_epoch_8_validator_rejects_every_landing_topology_or_binding_drift[landing-control-count]": "test_epoch_9_validator_rejects_every_landing_topology_or_binding_drift[landing-control-count]",
+          "test_epoch_8_validator_rejects_every_landing_topology_or_binding_drift[landing-control-root]": "test_epoch_9_validator_rejects_every_landing_topology_or_binding_drift[landing-control-root]",
+          "test_epoch_8_validator_rejects_every_landing_topology_or_binding_drift[landing-declared-merge]": "test_epoch_9_validator_rejects_every_landing_topology_or_binding_drift[landing-declared-merge]",
+          "test_epoch_8_validator_rejects_every_landing_topology_or_binding_drift[landing-document-merge]": "test_epoch_9_validator_rejects_every_landing_topology_or_binding_drift[landing-document-merge]",
+          "test_epoch_8_validator_rejects_every_landing_topology_or_binding_drift[landing-noncanonical]": "test_epoch_9_validator_rejects_every_landing_topology_or_binding_drift[landing-noncanonical]",
+          "test_epoch_8_validator_rejects_every_landing_topology_or_binding_drift[landing-outside-reports]": "test_epoch_9_validator_rejects_every_landing_topology_or_binding_drift[landing-outside-reports]",
+          "test_epoch_8_validator_rejects_every_landing_topology_or_binding_drift[landing-parent-gap]": "test_epoch_9_validator_rejects_every_landing_topology_or_binding_drift[landing-parent-gap]",
+          "test_epoch_8_validator_rejects_every_landing_topology_or_binding_drift[landing-reference-sha]": "test_epoch_9_validator_rejects_every_landing_topology_or_binding_drift[landing-reference-sha]",
+          "test_epoch_8_validator_rejects_every_qrb_nested_shape_or_registered_value_drift[b-confirmation-extra-recovery owner confirmation]": "test_epoch_9_validator_rejects_every_qrb_nested_shape_or_registered_value_drift[b-confirmation-extra-recovery owner confirmation]",
+          "test_epoch_8_validator_rejects_every_qrb_nested_shape_or_registered_value_drift[b-exclusions-false-recovery B owner or machine scope drifted]": "test_epoch_9_validator_rejects_every_qrb_nested_shape_or_registered_value_drift[b-exclusions-false-recovery B owner or machine scope drifted]",
+          "test_epoch_8_validator_rejects_every_qrb_nested_shape_or_registered_value_drift[q-confirmation-extra-Q requested owner confirmation]": "test_epoch_9_validator_rejects_every_qrb_nested_shape_or_registered_value_drift[q-confirmation-extra-Q requested owner confirmation]",
+          "test_epoch_8_validator_rejects_every_qrb_nested_shape_or_registered_value_drift[q-locks-drift-recovery Q requester/confirmation/locks drifted]": "test_epoch_9_validator_rejects_every_qrb_nested_shape_or_registered_value_drift[q-locks-drift-recovery Q requester/confirmation/locks drifted]",
+          "test_epoch_8_validator_rejects_every_qrb_nested_shape_or_registered_value_drift[q-requester-extra-Q requester]": "test_epoch_9_validator_rejects_every_qrb_nested_shape_or_registered_value_drift[q-requester-extra-Q requester]",
+          "test_epoch_8_validator_rejects_every_qrb_nested_shape_or_registered_value_drift[q-v1-alias-bundle recovery review request]": "test_epoch_9_validator_rejects_every_qrb_nested_shape_or_registered_value_drift[q-v1-alias-bundle recovery review request]",
+          "test_epoch_8_validator_rejects_every_qrb_nested_shape_or_registered_value_drift[r-destination-extra-recovery R destination]": "test_epoch_9_validator_rejects_every_qrb_nested_shape_or_registered_value_drift[r-destination-extra-recovery R destination]",
+          "test_epoch_8_validator_rejects_every_qrb_nested_shape_or_registered_value_drift[r-interpreter-extra-recovery R interpreter]": "test_epoch_9_validator_rejects_every_qrb_nested_shape_or_registered_value_drift[r-interpreter-extra-recovery R interpreter]",
+          "test_epoch_8_validator_rejects_every_qrb_nested_shape_or_registered_value_drift[r-locks-true-recovery R nested identity or registered values drifted]": "test_epoch_9_validator_rejects_every_qrb_nested_shape_or_registered_value_drift[r-locks-true-recovery R nested identity or registered values drifted]",
+          "test_epoch_8_validator_rejects_every_qrb_nested_shape_or_registered_value_drift[r-owner-extra-recovery R owner]": "test_epoch_9_validator_rejects_every_qrb_nested_shape_or_registered_value_drift[r-owner-extra-recovery R owner]",
+          "test_epoch_8_validator_rejects_noncanonical_or_cross_mode_preflight_stdout[preflight-official-on-synthetic-official/synthetic preflight root classification drifted]": "test_epoch_9_validator_rejects_noncanonical_or_cross_mode_preflight_stdout[preflight-official-on-synthetic-official/synthetic preflight root classification drifted]",
+          "test_epoch_8_validator_rejects_noncanonical_or_cross_mode_preflight_stdout[preflight-old-storage-epoch-8 preflight]": "test_epoch_9_validator_rejects_noncanonical_or_cross_mode_preflight_stdout[preflight-old-storage-epoch-8 preflight]",
+          "test_epoch_8_validator_rejects_noncanonical_or_cross_mode_preflight_stdout[preflight-sealed-work-extra-preflight (?:work counters|sealed inputs)]": "test_epoch_9_validator_rejects_noncanonical_or_cross_mode_preflight_stdout[preflight-sealed-work-extra-preflight (?:work counters|sealed inputs)]",
+          "test_epoch_8_validator_rejects_noncanonical_or_cross_mode_preflight_stdout[preflight-series-storage-extra-preflight series-2]": "test_epoch_9_validator_rejects_noncanonical_or_cross_mode_preflight_stdout[preflight-series-storage-extra-preflight series-2]",
+          "test_epoch_8_validator_rejects_noncanonical_or_cross_mode_preflight_stdout[preflight-surface-extra-preflight registered surface drifted]": "test_epoch_9_validator_rejects_noncanonical_or_cross_mode_preflight_stdout[preflight-surface-extra-preflight registered surface drifted]",
+          "test_epoch_8_validator_rejects_noncanonical_or_cross_mode_preflight_stdout[preflight-v1-(?:Q registered preflight|epoch-8 preflight)]": "test_epoch_9_validator_rejects_noncanonical_or_cross_mode_preflight_stdout[preflight-v1-(?:Q registered preflight|epoch-8 preflight)]"
+        },
+        "removed_names_without_rename_successor": [],
+        "added_names_count": 64
+      }
+    },
+    "removed_runner_nodes_disposition": {
+      "test_exact_os_epoch_eight_real_preflight_qrb_five_six_recovery_and_release_are_zero_pipeline": "converted into the module-scoped fixture _epoch_nine_exact_os_e2e (live epoch 9) consumed by test_epoch_nine_latest_landed_preflight_exact_os_passes_real_topology, test_epoch_nine_qrb_round_trip_binds_preflight_and_live_epoch, test_epoch_nine_recovery_rehydrates_once_with_zero_pipeline_or_retry, test_epoch_nine_recovered_release_uses_live_nine_historical_six, test_epoch_nine_landing_document_requires_epoch_nine_and_exact_bindings and test_epoch_eight_recovery_contract_bytes_and_series_history_remain_exact; the epoch-8 live positive is retired by design (registered root rejects epoch 8 as the live epoch after epoch 9 lands) and historical epoch-8 proof moves to the _epoch_eight_historical_preflight fixture (real preflight CLI with --implementation-epoch 8 in a synthetic tree) consumed by test_epoch_nine_dispatch_separates_historical_epoch_eight_from_latest_live",
+      "test_epoch_eight_companion_is_the_exact_byte_authority_for_one_thirteen_field_contract": "renamed to test_epoch_eight_recovery_contract_bytes_and_series_history_remain_exact with the original body retained plus sealed-history assertions (ordinals [1,2], epochs [5,6], selected 2/6, six permanent absence facts)",
+      "test_epoch_eight_historical_and_live_anchors_are_explicit_non_substitutable_types": "renamed to test_epoch_nine_dual_anchor_keeps_selected_six_and_live_nine; asserts LATEST_LIVE_EPOCH_9 in the live anchor source and the absence of EPOCH_8_IMPLEMENTATION_EPOCH"
+    },
+    "removed_validator_nodes_disposition": "all 33 removed validator names are exact epoch_8 -> epoch_9 renames of the live-path synthetic preflight/Q-R-B/landing/publication-guard tests whose fixture now builds the epoch-9 live path over immutable epoch-8 history; no validator test body was dropped"
+  },
+  "execution_policy": {
+    "interpreter": "/Users/ouyangduning/Documents/project/interesting/AlphaPilot-AI/.venv/bin/python",
+    "working_directory": "/Users/ouyangduning/AlphaPilot-INDEPENDENT-REVIEW-CLONES-DO-NOT-DELETE/P4.2a-F12-epoch9-r4-92a47995-20260904-r1",
+    "pytest_addopts_unset": true,
+    "pythondontwritebytecode": "1",
+    "strictly_serial": true,
+    "runner_completed_and_was_independently_parsed_before_validator_started": true,
+    "selection_filter": null,
+    "xdist": false,
+    "outer_timeout": false,
+    "retry_count": 0,
+    "timing_tool": "/usr/bin/time -l",
+    "process_launch": "nohup bash <evidence>/f12-<module>-command.sh (exact commands retained in the evidence directory)",
+    "running_logs_read_during_execution": "log tail size and basetemp size were observed for progress; no test output was acted upon",
+    "reviewer_process_input_or_signal": false,
+    "basetemps": {
+      "runner": "/Users/ouyangduning/AlphaPilot-INDEPENDENT-REVIEW-CLONES-DO-NOT-DELETE/P4.2a-F12-epoch9-r4-92a47995-20260904-r1-basetemp-runner",
+      "validator": "/Users/ouyangduning/AlphaPilot-INDEPENDENT-REVIEW-CLONES-DO-NOT-DELETE/P4.2a-F12-epoch9-r4-92a47995-20260904-r1-basetemp-validator",
+      "distinct": true,
+      "initially_empty": true,
+      "outside_official_state": true
+    }
+  },
+  "host_preconditions": {
+    "minimum_data_available_gib": 40,
+    "runner_prestart": {
+      "captured_at_utc": "2026-09-04T09:06:00Z",
+      "data_volume_available_kib": 81217356,
+      "vm_swapusage": "total = 5120.00M  used = 4132.81M  free = 987.19M  (encrypted)",
+      "vm_stat_swapouts_pages": 663697,
+      "on_ac_power": false,
+      "power": "-InternalBattery-0 (id=20578403)\t82%; discharging; 4:09 remaining present: true",
+      "load_averages": "{ 7.49 5.85 5.53 }",
+      "storage_scan_process_present": false,
+      "scheduler_launchagent_running": true
+    },
+    "validator_prestart": {
+      "captured_at_utc": "2026-09-04T13:12:27Z",
+      "data_volume_available_kib": 69629952,
+      "vm_swapusage": "total = 5120.00M  used = 4390.75M  free = 729.25M  (encrypted)",
+      "vm_stat_swapouts_pages": 825165,
+      "on_ac_power": true,
+      "power": "-InternalBattery-0 (id=20578403)\t100%; charged; 0:00 remaining present: true",
+      "load_averages": "{ 3.58 3.99 4.30 }",
+      "storage_scan_process_present": false,
+      "scheduler_launchagent_running": true
+    },
+    "final": {
+      "captured_at_utc": "2026-09-04T15:48:06Z",
+      "data_volume_available_kib": 51595996,
+      "vm_swapusage": "total = 9216.00M  used = 7920.56M  free = 1295.44M  (encrypted)",
+      "vm_stat_swapouts_pages": 1409901,
+      "on_ac_power": false,
+      "power": "-InternalBattery-0 (id=20578403)\t51%; discharging; 1:03 remaining present: true",
+      "load_averages": "{ 17.12 13.82 13.72 }"
+    },
+    "host_local_timezone_observed": "PDT",
+    "on_ac_power_used_as_blocking_gate": false,
+    "swapouts_used_as_blocking_gate": false,
+    "scheduler_overlap_disclosure": "the com.alphapilot.scheduler LaunchAgent kept running; its daily sync_daily_bars / sync_valuation_daily / sync_adj_factors jobs (10:40-12:45 UTC) overlapped the run; recorded truthfully, not used as a gate, and not used to excuse any result"
+  },
+  "host_sleep_disclosure": {
+    "source": "pmset -g log, filtered to the runner-start..validator-end window",
+    "event_count": 30,
+    "sleep_entries": 10,
+    "events": [
+      {
+        "at_utc": "2026-09-04T10:53:03Z",
+        "kind": "Sleep",
+        "detail": "Entering Sleep state due to 'Clamshell Sleep':TCPKeepAlive=active Using Batt (Charge:100%) 11 secs"
+      },
+      {
+        "at_utc": "2026-09-04T10:53:05Z",
+        "kind": "Wake",
+        "detail": "Requests       \t[*process=dasd request=SleepService deltaSecs=1061 wakeAt=2026-09-04 04:10:46 info=\"com.apple.dasd:501:com.apple.intelligenceplatform.Intelligen"
+      },
+      {
+        "at_utc": "2026-09-04T10:53:14Z",
+        "kind": "DarkWake",
+        "detail": "DarkWake from Deep Idle [CDNP] : due to smc.70070000 wifibt SMC.OutboxNotEmpty bluetooth-pcie/ Using BATT (Charge:100%) 12 secs"
+      },
+      {
+        "at_utc": "2026-09-04T10:53:26Z",
+        "kind": "Sleep",
+        "detail": "Entering Sleep state due to 'Maintenance Sleep':TCPKeepAlive=active Using Batt (Charge:100%) 2 secs"
+      },
+      {
+        "at_utc": "2026-09-04T10:53:28Z",
+        "kind": "Wake",
+        "detail": "Requests       \t[*process=dasd request=SleepService deltaSecs=1070 wakeAt=2026-09-04 04:11:17 info=\"com.apple.dasd:501:com.apple.intelligenceplatform.Intelligen"
+      },
+      {
+        "at_utc": "2026-09-04T10:53:28Z",
+        "kind": "DarkWake",
+        "detail": "DarkWake from Deep Idle [CDNP] : due to smc.70070000 wifibt SMC.OutboxNotEmpty bluetooth-pcie/ Using BATT (Charge:100%) 8 secs"
+      },
+      {
+        "at_utc": "2026-09-04T10:53:36Z",
+        "kind": "Sleep",
+        "detail": "Entering Sleep state due to 'Maintenance Sleep':TCPKeepAlive=active Using Batt (Charge:100%) 9 secs"
+      },
+      {
+        "at_utc": "2026-09-04T10:53:37Z",
+        "kind": "Wake",
+        "detail": "Requests       \t[*process=dasd request=SleepService deltaSecs=948 wakeAt=2026-09-04 04:09:26 info=\"com.apple.dasd:501:com.apple.intelligenceplatform.Intelligenc"
+      },
+      {
+        "at_utc": "2026-09-04T10:53:45Z",
+        "kind": "DarkWake",
+        "detail": "DarkWake from Deep Idle [CDNP] : due to smc.70070000 wifibt SMC.OutboxNotEmpty/ Using BATT (Charge:100%) 37 secs"
+      },
+      {
+        "at_utc": "2026-09-04T10:54:22Z",
+        "kind": "Sleep",
+        "detail": "Entering Sleep state due to 'Maintenance Sleep':TCPKeepAlive=active Using Batt (Charge:100%) 1024 secs"
+      },
+      {
+        "at_utc": "2026-09-04T10:54:23Z",
+        "kind": "Wake",
+        "detail": "Requests       \t[*process=dasd request=SleepService deltaSecs=1022 wakeAt=2026-09-04 04:11:26 info=\"com.apple.dasd:501:com.apple.proactive.ProactiveHarvesting.H"
+      },
+      {
+        "at_utc": "2026-09-04T11:11:26Z",
+        "kind": "DarkWake",
+        "detail": "DarkWake from Deep Idle [CDNP] : due to NUB.SPMI0Sw3IRQ nub-spmi0.0x02 rtc/SleepService Using BATT (Charge:100%) 14 secs"
+      },
+      {
+        "at_utc": "2026-09-04T11:11:40Z",
+        "kind": "Sleep",
+        "detail": "Entering Sleep state due to 'Sleep Service Back to Sleep':TCPKeepAlive=active Using Batt (Charge:100%) 904 secs"
+      },
+      {
+        "at_utc": "2026-09-04T11:11:42Z",
+        "kind": "Wake",
+        "detail": "Requests       \t[*process=dasd request=SleepService deltaSecs=902 wakeAt=2026-09-04 04:26:44 info=\"com.apple.dasd:501:com.apple.chronod.nextScheduledTimelineRef"
+      },
+      {
+        "at_utc": "2026-09-04T11:26:44Z",
+        "kind": "DarkWake",
+        "detail": "DarkWake from Deep Idle [CDNP] : due to NUB.SPMI0Sw3IRQ nub-spmi0.0x02 rtc/SleepService Using BATT (Charge:100%) 2 secs"
+      },
+      {
+        "at_utc": "2026-09-04T11:26:46Z",
+        "kind": "Sleep",
+        "detail": "Entering Sleep state due to 'Sleep Service Back to Sleep':TCPKeepAlive=active Using Batt (Charge:100%) 1025 secs"
+      },
+      {
+        "at_utc": "2026-09-04T11:26:49Z",
+        "kind": "Wake",
+        "detail": "Requests       \t[*process=dasd request=SleepService deltaSecs=1022 wakeAt=2026-09-04 04:43:51 info=\"com.apple.dasd:501:com.apple.chronod.nextScheduledTimelineRe"
+      },
+      {
+        "at_utc": "2026-09-04T11:43:51Z",
+        "kind": "DarkWake",
+        "detail": "DarkWake from Deep Idle [CDNP] : due to NUB.SPMI0Sw3IRQ nub-spmi0.0x02 rtc/SleepService Using BATT (Charge:100%) 2 secs"
+      },
+      {
+        "at_utc": "2026-09-04T11:43:53Z",
+        "kind": "Sleep",
+        "detail": "Entering Sleep state due to 'Sleep Service Back to Sleep':TCPKeepAlive=active Using Batt (Charge:100%) 922 secs"
+      },
+      {
+        "at_utc": "2026-09-04T11:43:56Z",
+        "kind": "Wake",
+        "detail": "Requests       \t[*process=dasd request=SleepService deltaSecs=919 wakeAt=2026-09-04 04:59:15 info=\"com.apple.dasd:501:com.apple.chronod.nextScheduledTimelineRef"
+      },
+      {
+        "at_utc": "2026-09-04T11:59:15Z",
+        "kind": "DarkWake",
+        "detail": "DarkWake from Deep Idle [CDNP] : due to NUB.SPMI0Sw3IRQ nub-spmi0.0x02 rtc/SleepService Using BATT (Charge:100%) 2 secs"
+      },
+      {
+        "at_utc": "2026-09-04T11:59:17Z",
+        "kind": "Sleep",
+        "detail": "Entering Sleep state due to 'Sleep Service Back to Sleep':TCPKeepAlive=active Using Batt (Charge:100%) 975 secs"
+      },
+      {
+        "at_utc": "2026-09-04T11:59:20Z",
+        "kind": "Wake",
+        "detail": "Requests       \t[*process=dasd request=SleepService deltaSecs=972 wakeAt=2026-09-04 05:15:32 info=\"com.apple.dasd:501:com.apple.chronod.nextScheduledTimelineRef"
+      },
+      {
+        "at_utc": "2026-09-04T12:15:32Z",
+        "kind": "DarkWake",
+        "detail": "DarkWake from Deep Idle [CDNP] : due to NUB.SPMI0Sw3IRQ nub-spmi0.0x02 rtc/SleepService Using BATT (Charge:100%) 2 secs"
+      },
+      {
+        "at_utc": "2026-09-04T12:15:34Z",
+        "kind": "Sleep",
+        "detail": "Entering Sleep state due to 'Sleep Service Back to Sleep':TCPKeepAlive=active Using Batt (Charge:100%) 311 secs"
+      },
+      {
+        "at_utc": "2026-09-04T12:15:37Z",
+        "kind": "Wake",
+        "detail": "Requests       \t[*process=dasd request=SleepService deltaSecs=932 wakeAt=2026-09-04 05:31:09 info=\"com.apple.dasd:501:com.apple.chronod.nextScheduledTimelineRef"
+      },
+      {
+        "at_utc": "2026-09-04T12:20:45Z",
+        "kind": "DarkWake",
+        "detail": "DarkWake from Deep Idle [CDNP] : due to smc.70070000 wifibt SMC.OutboxNotEmpty/ Using BATT (Charge:100%) 7 secs"
+      },
+      {
+        "at_utc": "2026-09-04T12:20:52Z",
+        "kind": "Sleep",
+        "detail": "Entering Sleep state due to 'Maintenance Sleep':TCPKeepAlive=active Using Batt (Charge:100%) 23 secs"
+      },
+      {
+        "at_utc": "2026-09-04T12:20:54Z",
+        "kind": "Wake",
+        "detail": "Requests       \t[*process=dasd request=SleepService deltaSecs=909 wakeAt=2026-09-04 05:36:02 info=\"com.apple.dasd:501:com.apple.intelligenceplatform.Intelligenc"
+      },
+      {
+        "at_utc": "2026-09-04T12:21:15Z",
+        "kind": "Wake",
+        "detail": "Wake from Deep Idle [CDNVA] : due to smc.70070000 lid SMC.OutboxNotEmpty/HID Activity Using BATT (Charge:100%)"
+      }
+    ],
+    "effect_on_measurements": "processes were suspended while asleep; Python 3.12 time.monotonic() on this host is mach_absolute_time(), which does not advance during sleep, so subprocess timeouts and monotonic budgets were not consumed by sleep; /usr/bin/time real seconds and JUnit per-test times (time.time()) do include sleep; every test still ran to its natural completion",
+    "used_as_blocking_gate": false
+  },
+  "f12_results": {
+    "runner": {
+      "module": "tests/test_p4_2a_v2_2_heldout_rehearsal_runner.py",
+      "natural_returncode": 0,
+      "started_at_utc": "2026-09-04T09:07:15Z",
+      "finished_at_utc": "2026-09-04T13:11:37Z",
+      "collect_only_observed": 251,
+      "tests": 251,
+      "suite_attr": {
+        "suite_attr_tests": 251,
+        "suite_attr_failures": 0,
+        "suite_attr_errors": 0,
+        "suite_attr_skipped": 0
+      },
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "disabled": 0,
+      "finite_nonnegative_testcase_times": 251,
+      "junit_suite_time_seconds": 9480.381,
+      "sum_testcase_time_seconds": 9479.725,
+      "time_l_real_seconds": 14662.68,
+      "time_l_user_seconds": 4050.4,
+      "time_l_sys_seconds": 3715.38,
+      "maximum_resident_set_size": 1574780928,
+      "pytest_summary_passed": null,
+      "pytest_summary_seconds": null,
+      "pytest_summary_line": null,
+      "log_path": "f12-runner.log",
+      "log_sha256": "a696d625a3a810b9055ff8033195423fb1a06ecf33fae3495491c1771e8926f3",
+      "log_bytes": 1237,
+      "junit_path": "f12-runner.junit.xml",
+      "junit_sha256": "1aa23abd2659723b50c1278d228786ab0f7cb4049cea396a11e4dad4d077db34",
+      "junit_bytes": 43865
+    },
+    "validator": {
+      "module": "tests/test_p4_2a_v2_2_heldout_rehearsal_validator.py",
+      "natural_returncode": 0,
+      "started_at_utc": "2026-09-04T13:12:28Z",
+      "finished_at_utc": "2026-09-04T15:47:08Z",
+      "collect_only_observed": 354,
+      "tests": 354,
+      "suite_attr": {
+        "suite_attr_tests": 354,
+        "suite_attr_failures": 0,
+        "suite_attr_errors": 0,
+        "suite_attr_skipped": 0
+      },
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "disabled": 0,
+      "finite_nonnegative_testcase_times": 354,
+      "junit_suite_time_seconds": 9279.843,
+      "sum_testcase_time_seconds": 9279.399,
+      "time_l_real_seconds": 9280.52,
+      "time_l_user_seconds": 2569.18,
+      "time_l_sys_seconds": 3830.41,
+      "maximum_resident_set_size": 597262336,
+      "pytest_summary_passed": null,
+      "pytest_summary_seconds": null,
+      "pytest_summary_line": null,
+      "log_path": "f12-validator.log",
+      "log_sha256": "7a7e6f460cea2c340d1cba42f683f7c53955bd658cfbeb8816f15162d710e363",
+      "log_bytes": 1320,
+      "junit_path": "f12-validator.junit.xml",
+      "junit_sha256": "e8db0ba0ac122b2825a7ac21361e3322f9ef9b30e5919051a45ecd0f890edd51",
+      "junit_bytes": 66374
+    },
+    "combined": {
+      "tests": 605,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "disabled": 0,
+      "finite_nonnegative_testcase_times": 605,
+      "junit_suite_time_seconds": 18760.224,
+      "time_l_real_seconds": 23943.2,
+      "status": "PASS_605_OF_605"
+    }
+  },
+  "candidate_invariance": {
+    "pre_run_head": "92a47995882ca6b04d495a5ed6927eb932c2a513",
+    "post_run_head": "92a47995882ca6b04d495a5ed6927eb932c2a513",
+    "head_equal": true,
+    "head_now": "92a47995882ca6b04d495a5ed6927eb932c2a513",
+    "pre_run_clean": true,
+    "post_run_clean": true,
+    "four_source_sha256_equal_before_and_after": true,
+    "four_source_sha256": {
+      "scripts/p4_2a_v2_2_heldout_rehearsal.py": "b9058e7c2bd3f7fade0b758e6729186e963888c0fb013494010ffb7cba7764fb",
+      "scripts/validate_p4_2a_v2_2_heldout_rehearsal_bundle.py": "a3f960eec374a22730f4eed17cd8fb0877e9c29fe1441771265dbbc7344438c2",
+      "tests/test_p4_2a_v2_2_heldout_rehearsal_runner.py": "8433ef3f3110414a97c70dec4797045ac1f725d485e312541c9d75de9234f159",
+      "tests/test_p4_2a_v2_2_heldout_rehearsal_validator.py": "8524a0615d2d623318abddd081a3f095ebe8e915c03a1c441bb05b7cb3e37a50"
+    },
+    "candidate_files_modified_by_reviewer": 0
+  },
+  "sealed_state_invariance": {
+    "roots": [
+      {
+        "root": "/Users/ouyangduning/AlphaPilot-EVIDENCE-DO-NOT-DELETE/P4.2a",
+        "files": 50,
+        "bytes": 50240051,
+        "fingerprint_before": "031ea557114e0909de3bc270d238b8a81302da4a0b67e979ec580855ad213da5",
+        "fingerprint_after": "031ea557114e0909de3bc270d238b8a81302da4a0b67e979ec580855ad213da5",
+        "equal": true
+      },
+      {
+        "root": "/Users/ouyangduning/AlphaPilot-EVIDENCE-MIRROR-DO-NOT-DELETE/P4.2a",
+        "files": 59,
+        "bytes": 50249212,
+        "fingerprint_before": "276d6b7b49d26dba5220459ba48c23967564ac11e32fcd61f94b58ff552d4d56",
+        "fingerprint_after": "276d6b7b49d26dba5220459ba48c23967564ac11e32fcd61f94b58ff552d4d56",
+        "equal": true
+      }
+    ],
+    "all_equal": true,
+    "captured_before_utc": "2026-09-04T09:05:17Z",
+    "captured_after_utc": "2026-09-04T15:48:06Z"
+  },
+  "supplementary_static_checks": {
+    "ruff_check": {
+      "result": "All checks passed!",
+      "files": [
+        "scripts/p4_2a_v2_2_heldout_rehearsal.py",
+        "scripts/validate_p4_2a_v2_2_heldout_rehearsal_bundle.py",
+        "tests/test_p4_2a_v2_2_heldout_rehearsal_runner.py",
+        "tests/test_p4_2a_v2_2_heldout_rehearsal_validator.py"
+      ]
+    },
+    "ruff_format_check": {
+      "result": "Would reformat: scripts/p4_2a_v2_2_heldout_rehearsal.py\nWould reformat: scripts/validate_p4_2a_v2_2_heldout_rehearsal_bundle.py\nWould reformat: tests/test_p4_2a_v2_2_heldout_rehearsal_runner.py\nWould reformat: tests/test_p4_2a_v2_2_heldout_rehearsal_validator.py\n4 files would be reformatted",
+      "baseline_at_authority_would_also_reformat_all_four": true,
+      "classification": "PRE_EXISTING_NOT_A_REGRESSION; CI enforces ruff check only"
+    },
+    "mypy_strict": {
+      "tool": "mypy 1.20.2, --strict --explicit-package-bases --cache-dir=/dev/null, project pyproject [tool.mypy] (strict, pydantic plugin) applies",
+      "targets": [
+        "scripts/p4_2a_v2_2_heldout_rehearsal.py",
+        "scripts/validate_p4_2a_v2_2_heldout_rehearsal_bundle.py"
+      ],
+      "attempt_history": [
+        "attempt 1: --strict without --explicit-package-bases exited 2 on both trees with 'Source file found twice under different module names' (invocation error, retained as attempt1-invocation-error-* files)",
+        "attempt 2 baseline: run inside a four-file-only copy of the authority tree exited 1 with 8 attr-defined errors caused by the missing sibling scripts (retained as attempt2-partial-tree-* files); superseded by the full-tree baseline below",
+        "final: candidate in the fresh clone at 92a4799; baseline from a complete git-archive export of the authority commit cc64e0b"
+      ],
+      "candidate_rc": 1,
+      "candidate_summary_line": "Found 4 errors in 2 files (checked 2 source files)",
+      "candidate_errors": [
+        "scripts/p4_2a_v2_2_heldout_rehearsal.py:22004: error: Redundant cast to \"int\"  [redundant-cast]",
+        "scripts/p4_2a_v2_2_heldout_rehearsal.py:22006: error: Redundant cast to \"int\"  [redundant-cast]",
+        "scripts/validate_p4_2a_v2_2_heldout_rehearsal_bundle.py:5888: error: Incompatible types in assignment (expression has type \"tuple[str, str, str, str, str, str, str, str, str, str, str, str, str, str, str, str, str, str, str, str, str, str, str, str, str]\", variable has type \"tuple[str, str, str, str, str, str, str, str, str, str, str, str, str] | tuple[str, str, str, str, str, str, str, str, str, str, str, str, str, str, str, str, str, str, str] | tuple[str, str, str, str, str, str, str, str, str, str, str, str] | tuple[str, str, str, str, str, str]\")  [assignment]",
+        "scripts/validate_p4_2a_v2_2_heldout_rehearsal_bundle.py:5888: error: Incompatible types in assignment (expression has type \"tuple[str, str, str, str, str]\", variable has type \"tuple[str, str, str, str, str, str, str, str, str, str, str, str, str] | tuple[str, str, str, str, str, str, str, str, str, str, str, str, str, str, str, str, str, str, str] | tuple[str, str, str, str, str, str, str, str, str, str, str, str] | tuple[str, str, str, str, str, str]\")  [assignment]"
+      ],
+      "baseline_rc": 0,
+      "baseline_summary_line": "Success: no issues found in 2 source files",
+      "baseline_errors": [],
+      "registered_gate_precedent": "the epoch-8 r9 persistent gate harness (gate_module.sh, harness_static_check.sh, precheck_run.sh, postcheck.py) runs pytest, AST parsing and SHA-256 manifests only; it does not invoke mypy or ruff; Makefile typecheck covers src/alphapilot only; CI runs ruff check and pytest",
+      "classification": "SUPPLEMENTARY_STATIC_EVIDENCE_NOT_A_REGISTERED_F12_MODULE_AND_NOT_A_REGISTERED_GATE_STEP"
+    },
+    "classification": "supplementary evidence outside the registered F-12 modules; the persistent gate remains the registered static gate"
+  },
+  "evidence": {
+    "primary_root": "/Users/ouyangduning/AlphaPilot-EVIDENCE-DO-NOT-DELETE/P4.2a-F12-epoch9-r4-92a47995-20260904-r1",
+    "mirror_root": "/Users/ouyangduning/AlphaPilot-EVIDENCE-MIRROR-DO-NOT-DELETE/P4.2a-F12-epoch9-r4-92a47995-20260904-r1",
+    "primary_root_mode": "0700",
+    "mirror_root_mode": "0700",
+    "manifest_path": "SHA256SUMS",
+    "manifest_note": "manifest, mirror receipt and mirror comparison are appended after this report is frozen (see mirror-receipt.json)",
+    "retained_files": [
+      "attempt1-invocation-error-mypy-finished-utc.txt",
+      "attempt1-invocation-error-mypy-strict-baseline.log",
+      "attempt1-invocation-error-mypy-strict-baseline.rc",
+      "attempt1-invocation-error-mypy-strict.log",
+      "attempt1-invocation-error-mypy-strict.rc",
+      "attempt2-partial-tree-mypy-strict-baseline.log",
+      "attempt2-partial-tree-mypy-strict-baseline.rc",
+      "build_review.py",
+      "clone-started-utc.txt",
+      "collect-runner-nodeids.log",
+      "collect-runner.log",
+      "collect-validator-nodeids.log",
+      "collect-validator.log",
+      "commit_review.sh",
+      "f12-runner-command.sh",
+      "f12-runner-finished-utc.txt",
+      "f12-runner-nohup.out",
+      "f12-runner-started-utc.txt",
+      "f12-runner.junit.xml",
+      "f12-runner.log",
+      "f12-runner.pid",
+      "f12-runner.rc",
+      "f12-validator-command.sh",
+      "f12-validator-finished-utc.txt",
+      "f12-validator-nohup.out",
+      "f12-validator-started-utc.txt",
+      "f12-validator.junit.xml",
+      "f12-validator.log",
+      "f12-validator.pid",
+      "f12-validator.rc",
+      "final-snapshot.json",
+      "finalize_capture.sh",
+      "midrun-four-file-sha256.txt",
+      "mirror_evidence.py",
+      "mypy-finished-utc.txt",
+      "mypy-nohup.out",
+      "mypy-started-utc.txt",
+      "mypy-strict-baseline.log",
+      "mypy-strict-baseline.rc",
+      "mypy-strict.log",
+      "mypy-strict.rc",
+      "mypy_run.sh",
+      "post-run-four-file-sha256.txt",
+      "post-run-head.txt",
+      "post-run-status.txt",
+      "pre-run-four-file-sha256.txt",
+      "pre-run-head.txt",
+      "pre-run-status.txt",
+      "ruff-check.log",
+      "ruff-format-check.log",
+      "runner-junit-independent-parse.txt",
+      "runner-prestart-snapshot.json",
+      "sealed-state-after.json",
+      "sealed-state-before.json",
+      "sealed_state.py",
+      "snapshot.py",
+      "validator-junit-independent-parse.txt",
+      "validator-prestart-snapshot.json"
+    ]
+  },
+  "prior_operator_evidence_on_this_candidate": {
+    "operator_f15": {
+      "evidence_root": "/Users/ouyangduning/Documents/project/interesting/.alphapilot-p42a-series2-epoch9-r4-f15-92a47995-evidence-20260904",
+      "classification": "OPERATOR_F15_NOT_INDEPENDENT_F12_NOT_INHERITED",
+      "summary_path": "f15-summary.json",
+      "summary_sha256": "dc3e5a84617b0ea812e03145a52c2792232983b28d6b51411bb370747a9599ff",
+      "manifest_sha256": "85272f969b3d7831b9c631a9ff58e44ca1968b19bf7883c5469f5f91d7d38eeb",
+      "status_claimed_by_operator": "PASS_OPERATOR_F15_AWAITING_INDEPENDENT_REVIEW",
+      "candidate_commit": "92a47995882ca6b04d495a5ed6927eb932c2a513",
+      "runner": {
+        "tests": 251,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0,
+        "wall_seconds": 10015.54,
+        "log_sha256": "7e709f465568f98dd05cc6939452aa54c688bd9db4637fc1b40ab2d98a3b0844",
+        "junit_sha256": "6610b474f9f51d7713325421fa1d8cccd4ae7d0300efde949a60826de2a2d704"
+      },
+      "validator": {
+        "tests": 354,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0,
+        "wall_seconds": 7417.36,
+        "log_sha256": "39502a5ef806120fbe09459d876d561f3ced7c1300d2f609895c79e4af37c891",
+        "junit_sha256": "bab97c9562380d125358d3d40be919653efe3be339cb5824881875c4b46caa13"
+      },
+      "candidate_matches_this_review": true,
+      "durability_note": "stored in a hidden dot-directory under the project parent, the location class lost on 2026-08-23 (W-7); copy to a visible durable root before the landing report cites it"
+    },
+    "operator_subagent_f12_attempt": {
+      "evidence_root": "/Users/ouyangduning/Documents/project/interesting/.alphapilot-p42a-series2-epoch9-r4-f12-independent-92a47995-evidence-20260904",
+      "reviewer_identity_claimed": "openai_codex_ai_subagent_epoch9_r4_f12_independent",
+      "started_at_utc": "2026-09-03T22:44:05Z",
+      "ended_at_utc": "2026-09-04T00:38:39Z",
+      "natural_returncode": 1,
+      "junit": {
+        "tests": 251,
+        "passed": 242,
+        "failures": 1,
+        "errors": 8,
+        "skipped": 0,
+        "suite_time_seconds": 6873.301,
+        "testcase_count": 251,
+        "testcase_time_count": 251,
+        "finite_nonnegative_testcase_times": true
+      },
+      "result_claimed": "FAIL_CLOSED_REVIEWER_CLONE_OBJECT_COVERAGE_INVALID_RUNNER",
+      "terminal_disposition_claimed": "FAIL_CLOSED_AFTER_RUNNER_NATURAL_RC_1",
+      "validator_started": false,
+      "summary_sha256": "67411d4991e089893175d8223f587f5538d59c96513e93bc5d40b67391143a21",
+      "post_sha256": "d720fd555d42ee3788a5a8423d283526d66cd61e7db891489400f48e1072f95e",
+      "log_sha256": "219dd46154f673423acbe5945d892f6ea1d10188bdebe0b4c20767063c525e01",
+      "junit_sha256": "85f983bfd2920689a3e92c49db44824d72bb6af9ae7d045bb42913cdafe2931e",
+      "manifest_sha256": "3ced034a0ac196e1fe82ed17e9f17a29c724d66bce801b4fdf68b0207dd9b530",
+      "failed_or_errored_nodes": [
+        "failure: tests.test_p4_2a_v2_2_heldout_rehearsal_runner::test_epoch_seven_fixture_imports_pinned_commits_from_local_main_only_source",
+        "error: tests.test_p4_2a_v2_2_heldout_rehearsal_runner::test_epoch_nine_latest_landed_preflight_exact_os_passes_real_topology",
+        "error: tests.test_p4_2a_v2_2_heldout_rehearsal_runner::test_epoch_nine_qrb_round_trip_binds_preflight_and_live_epoch",
+        "error: tests.test_p4_2a_v2_2_heldout_rehearsal_runner::test_epoch_nine_qrb_cross_epoch_matrix_rejects_before_storage",
+        "error: tests.test_p4_2a_v2_2_heldout_rehearsal_runner::test_epoch_nine_recovery_rehydrates_once_with_zero_pipeline_or_retry",
+        "error: tests.test_p4_2a_v2_2_heldout_rehearsal_runner::test_epoch_nine_recovered_release_uses_live_nine_historical_six",
+        "error: tests.test_p4_2a_v2_2_heldout_rehearsal_runner::test_epoch_eight_recovery_contract_bytes_and_series_history_remain_exact",
+        "error: tests.test_p4_2a_v2_2_heldout_rehearsal_runner::test_epoch_nine_dispatch_separates_historical_epoch_eight_from_latest_live",
+        "error: tests.test_p4_2a_v2_2_heldout_rehearsal_runner::test_epoch_nine_landing_document_requires_epoch_nine_and_exact_bindings"
+      ],
+      "root_cause_stated_by_that_reviewer": "The reviewer cloned with --single-branch. Although the clone was non-shallow and non-partial, it did not carry all remote branch tips or the two required historical design objects. This fails the intended full object-coverage prerequisite and directly caused the registered fixture fetch failure.",
+      "this_reviewer_independent_reading": {
+        "every_failure_and_error_is_the_same_fixture_fetch": true,
+        "fetch_source_is_the_checkout_under_test": true,
+        "missing_objects_in_that_single_branch_clone": [
+          "9cd424c292d658c1ddb1092f618049e6283aabaf",
+          "1e2e23f8948aa88376dfba45b01b2666b5c9ddaf"
+        ],
+        "same_objects_present_in_this_reviewer_full_clone": {
+          "06336a9f593ede4132be73a8c8a087df18db904b": true,
+          "9cd424c292d658c1ddb1092f618049e6283aabaf": true,
+          "1e2e23f8948aa88376dfba45b01b2666b5c9ddaf": true
+        },
+        "classification": "REVIEWER_SETUP_DEFECT_SINGLE_BRANCH_CLONE_NOT_A_CANDIDATE_DEFECT",
+        "candidate_bytes_identical_to_this_review": true
+      },
+      "relationship_to_this_review": "not a retry of that attempt and not inherited: this review is a separate independent F-12 by a different reviewer identity from a fresh full clone whose object coverage was verified before execution; the failed attempt is preserved unchanged as fail-closed evidence and is disclosed here so the owner sees that two F-12 executions exist on this candidate"
+    }
+  },
+  "observations_non_blocking": [
+    {
+      "id": "O-1",
+      "title": "Three runner nodes and thirty-three validator nodes from the epoch-8 r9 F-12 set no longer collect under their old names",
+      "disposition": "not a blocker: total collect grew 230->251 and 323->354; each removed name is a documented rename or fixture conversion (see registered_test_collection); the epoch-8 live-path positives are retired by design because the registered root now rejects epoch 8 as the live epoch, and historical epoch-8 proof is retained via _epoch_eight_historical_preflight and validate_epoch_8_recovery_contract at the real repository root"
+    },
+    {
+      "id": "O-2",
+      "title": "Design section 8.5 negative list is covered partially by the new epoch-9 fixture",
+      "disposition": "not a blocker: _epoch_nine_source_projection_fixture exercises projection_bytes_differ, second_parent_diff, wrong_second_parent, second_source, extra_touch (later modification then restore) and current_drift; deletion, rename and copy touch variants and 'one of the five epoch-8 documents omitted or substituted' are not exercised as separate epoch-9 cases (substitution is covered on the validator side by the pinned-binding drift matrix; the epoch-7 unique-A suites still run unchanged); recorded for the owner, no code change requested"
+    },
+    {
+      "id": "O-3",
+      "title": "B owner-confirmation source remains hard-pinned to '业主向复核方当面确认，由复核方转达' in both modules",
+      "disposition": "unchanged by epoch 9 and consistent with design section 6.2 (B semantics unchanged); with an independent reviewer present again the literal text can be truthfully satisfied only if the owner confirms to the independent reviewer who relays it; a direct owner-to-operator confirmation would require its own governance change before Q/R/B, per succession contract section 2"
+    },
+    {
+      "id": "O-4",
+      "title": "ruff format --check would reformat all four files",
+      "disposition": "pre-existing: the authority baseline versions produce the same result; ruff check passes; CI enforces ruff check only; not a regression"
+    },
+    {
+      "id": "O-5",
+      "title": "Operator F-15 for r4 exists only in a hidden directory under the project parent, and an earlier operator-subagent F-12 attempt on the same candidate failed closed",
+      "disposition": "both are bound in prior_operator_evidence_on_this_candidate; neither is inherited; the F-15 passed 251/354/605 and is operator evidence (its own summary says independent_review false); the subagent F-12 failed on a reviewer-side clone-shape defect (--single-branch clone lacking pinned fixture commits), which this reviewer confirmed from its log and did not reproduce in a full clone; the F-15 evidence lives in a hidden dot-directory of the kind that was lost on 2026-08-23 (W-7) and should be copied to a visible durable location before the landing report cites it"
+    },
+    {
+      "id": "O-6",
+      "title": "Runner test test_epoch_nine_authority_identity_mode_is_required_closed_and_precedes_reads reads the call-site map from the superseded r1 companion (261a483)",
+      "disposition": "consistent with composite precedence (r1 plus r2 plus r3; the identity-resolution contract is not in conflict with r3); the eight call sites match the producer AST; recorded only"
+    },
+    {
+      "id": "O-7",
+      "title": "Host ran on battery power, slept for about 70 minutes with the lid closed, and ran under the daily scheduler sync during the F-12 window",
+      "disposition": "recorded truthfully (host_sleep_disclosure, host_preconditions); every test ran to natural completion; not used as a gate; no result is excused by it"
+    },
+    {
+      "id": "R-1",
+      "title": "The candidate introduces four strict-mypy errors against a baseline that is clean",
+      "disposition": "FINDING, not a blocker for the registered F-12 or the registered persistent gate: mypy --strict --explicit-package-bases reports 'Success: no issues found' at the authority baseline cc64e0b and four errors at 92a4799: two redundant casts in the producer _preflight_epoch_dispatch (lines 22004 and 22006, cast(int, ...) after type(...) is int narrowing) and two incompatible-types-in-assignment errors in the validator _validate_epoch_9_latest_landed_contract_semantics (line 5888, a for-loop over heterogeneous tuples whose registered field-order constants have different lengths); none changes runtime behaviour and the registered gate harness does not run mypy, so this review does not withhold approval for it; the owner may either accept it as type-hygiene debt to be repaired in the next byte-touching round (any repair is a new candidate with fresh F-15 and F-12 because the four-file bytes would change) or require an r5 now; this reviewer recommends recording the choice in the landing report rather than fixing silently"
+    }
+  ],
+  "blockers": [],
+  "merge_authorized": false,
+  "persistent_gate_execution_authorized": false,
+  "report_topology_contract": {
+    "report_path": "docs/phase4/reports/P4.2a-v2-2-series2-epoch9-r4-implementation-independent-review-20260904.json",
+    "review_branch": "codex/p4-2a-v2-2-series2-epoch9-r4-independent-review",
+    "required_parent": "92a47995882ca6b04d495a5ed6927eb932c2a513",
+    "required_parent_count": 1,
+    "required_diff": [
+      {
+        "status": "A",
+        "path": "docs/phase4/reports/P4.2a-v2-2-series2-epoch9-r4-implementation-independent-review-20260904.json"
+      }
+    ],
+    "main_push_or_merge_permitted_by_this_report": false,
+    "landing_report_must_reference": "this report's path, SHA-256, creating commit and its lawful first-parent merge projection, per latest_landed_authority_contract.review_identity_mode = FIRST_PARENT_VISIBLE_UNIQUE_A"
+  },
+  "boundaries": {
+    "this_report_is_f12_and_implementation_review_only": true,
+    "candidate_or_production_code_modified": false,
+    "persistent_gate_run": false,
+    "main_merge_or_push": false,
+    "registered_root_preflight_run": false,
+    "Q_R_B_created_or_run": false,
+    "recovery_run": false,
+    "release_run": false,
+    "heldout_materialization_inference_or_evaluation": false,
+    "official_ledger_write": false,
+    "official_sealed_mirror_write": false,
+    "database_or_network_business_action": false,
+    "trading_action": false,
+    "p4_2a_done": false,
+    "p4_2b_unlocked": false,
+    "p4_3_unlocked": false
+  },
+  "next_permitted_steps_for_operator": [
+    "operator (Codex): read this report and the F-12 evidence roots; do not inherit its counts into F-15",
+    "operator: create the review branch landing exactly as the topology contract requires: this report must already be the direct single-parent unique-A child of 92a4799 on codex/p4-2a-v2-2-series2-epoch9-r4-independent-review (created by the reviewer)",
+    "owner: explicit harness authorization for a fresh epoch-9 persistent gate bound to the candidate and this review's hashes and the actual collect counts 251/354/605",
+    "operator: precheck, full Runner, full Validator, postcheck/freeze in the persistent gate; create-only landing report naming implementation_epoch 9, the owner authority, implementation commit, this review's source and projection, ordered merge parents [fresh_main_base, review_commit], merge commit, landing commit and parent, control root and count, runner/validator/combined counts and gate evidence digests",
+    "independent reviewer: review the landing evidence before the merge-only landing",
+    "operator: no-ff merge-only landing with ordered parents [fresh_main_base, review_commit]; landing report committed as the merge's direct single-parent unique-A child; normal non-force push",
+    "owner: create the two empty 0700 recovery containers if absent; operator: exactly one fresh registered-root preflight with --implementation-epoch 9",
+    "operator/reviewer/owner: fresh Q v2, independent R v1, transcript-bound B v1 as the only main movement after the preflight; then exactly one passive recovery, paired receipts, bundle review, release governance"
+  ]
+}

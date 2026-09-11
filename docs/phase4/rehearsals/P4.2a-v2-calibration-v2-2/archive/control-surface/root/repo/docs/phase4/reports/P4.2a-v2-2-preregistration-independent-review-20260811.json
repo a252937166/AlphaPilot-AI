@@ -1,0 +1,72 @@
+{
+  "schema_version": "p4.2a-independent-review-v1",
+  "review_id": "p4.2a-v2-2-preregistration-review-20260811-r1",
+  "created_at_utc": "2026-08-11T11:34:13Z",
+  "created_at_shanghai": "2026-08-11T19:34:13+08:00",
+  "verdict": "APPROVE_V2_2_PREREGISTRATION_AND_AUTHORIZE_IMPLEMENTATION",
+  "blockers": [],
+  "reviewed_commit": "be6423506f598c290db7ad944b002763fdf806ab",
+  "reviewer": {
+    "identity": "independent_ai_architect_claude_code",
+    "reviewer_type": "ai",
+    "model": "Anthropic Claude Fable 5 (model id claude-fable-5)",
+    "impersonation_disclaimer": "Not a human reviewer. Issued under the owner governance amendment with requires_release_gate_amendment=true.",
+    "method": "read-only; every claim re-derived from the repository, both schemas re-validated against Draft 2020-12 by this reviewer"
+  },
+  "commit_shape": {
+    "parent": "5fe756401f20e67ff5c868bf29f099c1bfe5b4d3",
+    "parent_is_the_scope_authorization": true,
+    "single_parent": true,
+    "surface": "exactly three added files, nothing modified",
+    "digests_match_report": true
+  },
+  "directive_1_dual_identity": {
+    "requirement": "remove the __main__ versus package-import module split, or prove it harmless",
+    "delivered": "THIN_MAIN_SHIM_AND_SINGLE_PACKAGE_IMPLEMENTATION_MODULE — the structural fix this reviewer recommended, taken rather than tested around",
+    "verified_properties": [
+      "shim may import only os and sys before handing to the package module, holds zero authority state, zero contextvars, never imports the validator, contains no pipeline logic",
+      "the implementation module is sole owner of _AUDIT_POLICY, _TEMP_AUTHORITY, the capability registry and the series ledger state machine, and rejects direct __main__ execution before any authority exists",
+      "the validator imports the implementation module and never the shim",
+      "runtime identity proofs are required, not assumed: the sys.modules entry must be the validator's module object, and the id() of both ContextVars must be equal as observed from the outer runner and the nested validator, with module bytes bound to the implementation commit blob"
+    ],
+    "negative_tests_cover": ["validator importing the shim is rejected", "direct __main__ execution of the implementation module is rejected", "a second authority-owning module object is rejected", "forged or wrongly-scoped delegated authority is rejected", "runpy wrappers, sitecustomize, altered orig_argv, environment drift, module shadowing and stale pyc are rejected before load"],
+    "assessment": "the defect that consumed v2.1 is removed by construction and additionally fenced by tests that run the real bootstrap"
+  },
+  "directive_2_one_shot_property": {
+    "requirement": "state what the rehearsal one-shot protects, then justify it or replace it with disclosed repeatability",
+    "delivered": "DISCLOSED_REPEATABLE_SERIES_V1, with the protected property stated in one sentence: a determinism claim must not be obtained by silently rerunning and cherry-picking one passing attempt",
+    "verified_properties": [
+      "every attempt needs its own action-time owner authorization; zero retries inside an attempt",
+      "attempts are contiguous ordinals in a create-only fsynced ledger, each token hash-chained over the previous history root, so omission, reordering, renumbering and suppression are all detectable",
+      "the first validated candidate closes the series and forbids every later attempt, so a passing bundle cannot be replaced by a later, different passing bundle",
+      "the final bundle archives the complete ledger including failures, and the release receipt rehashes the live ledger against the archive",
+      "the v2.1 single-use rules are superseded narrowly, with each superseded clause cited by source path and old and new value"
+    ],
+    "threat_model_honesty": "the not_claimed list is explicit that this is fail-stop governance against governed code and a cooperating operator, not cryptographic append-only storage against a malicious same-UID user or host administrator; claiming less than the mechanism could be read to promise is the right direction",
+    "assessment": "this is the design the adjudication asked for, specified more rigorously than the sketch"
+  },
+  "scope_discipline": {
+    "evaluation_design_gates_frame_prompt_contract_model_seed_thresholds_gold": "untouched",
+    "cninfo_pacing": "carried forward verbatim at 1.0 second start-to-start, monotonic clock, no first delay, zero retries",
+    "v2_1_empty_claim": "preserved and marked must-preserve in locks",
+    "heldout_evaluation_one_shot": "explicitly unchanged and unconsumed",
+    "new_ledger_root": "a fresh content-addressed path, distinct from the consumed v2.1 claim"
+  },
+  "schemas": {
+    "bundle_schema": "Draft 2020-12 valid, additionalProperties false, 21 required top-level fields",
+    "release_schema": "Draft 2020-12 valid, additionalProperties false, 20 required top-level fields",
+    "note": "release receipt accepts rehearsal evidence only and unlocks no real stage, matching the scope authorization"
+  },
+  "what_this_authorizes": {
+    "granted": "implement the v2.2 harness exactly as preregistered: the shim, the implementation module, the validator, the series ledger, and the registered tests",
+    "implementation_conditions": [
+      "pre-register nothing further; the surface is this preregistration's declared file set and its registered tests",
+      "the implementation commit must descend from be64235 with no intervening commit",
+      "all required positive and negative tests pass with zero skips before the implementation is submitted",
+      "no rehearsal attempt, ledger creation, destination creation, or real execution before the implementation passes independent review"
+    ],
+    "not_granted": ["any rehearsal attempt", "ledger or destination creation", "real materialization, inference or evaluation", "any change outside the declared v2.2 surface"]
+  },
+  "locks_unchanged": {"p4_2a_done": false, "heldout_evaluation_one_shot": "unconsumed", "p4_2b_unlocked": false, "p4_3_unlocked": false},
+  "p4_1_note": "the observation window's final day completes tonight; acceptance evidence is due after 2026-08-13 00:10 CST and is unaffected"
+}
