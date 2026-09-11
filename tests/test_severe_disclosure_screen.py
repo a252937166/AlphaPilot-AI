@@ -123,15 +123,28 @@ def test_screen_emits_pit_events_once_and_only_notifies_severe(
                 _news(
                     5, "002731", "关于公司股票存在可能因市值被终止上市的第一次风险提示公告", stale
                 ),
+                # Backfilled by a poller catch-up: ingested now, published a month ago.
+                NewsItem(
+                    id=6,
+                    source="cninfo",
+                    symbol="688121",
+                    title="关于公司立案调查进展暨退市风险提示公告",
+                    url="https://static.cninfo.com.cn/finalpage/2026-07-12/6.PDF",
+                    published_at=stale,
+                    available_time=fresh,
+                    content_hash="hash-6",
+                    raw_payload={"secCode": "688121"},
+                ),
             ]
         )
         session.commit()
 
     first = screen.run_severe_disclosure_screen(now=now)
-    assert first["scanned"] == 4  # the stale row is outside the lookback
-    assert first["matched"] == 3 and first["unsymboled"] == 1
+    assert first["scanned"] == 5  # the stale-ingested row is outside the lookback
+    assert first["matched"] == 4 and first["unsymboled"] == 1
+    assert first["stale_skipped"] == 1  # backfilled old announcement is not a fresh warning
     assert first["emitted"] == 2 and first["existing"] == 0
-    assert first["by_subtype"] == {"investigation": 2, "penalty_decision": 1}
+    assert first["by_subtype"] == {"investigation": 3, "penalty_decision": 1}
 
     with Session(engine) as session:
         events = session.scalars(

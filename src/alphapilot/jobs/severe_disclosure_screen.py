@@ -5,8 +5,10 @@ nothing downstream read them. This job scans the recent announcements, applies
 the title rules in ``services.severe_disclosure`` and emits one negative
 ``DomainEvent`` per matching announcement, keyed by ``news:<id>`` so re-runs are
 idempotent. ``occurred_at`` is the announcement's point-in-time ``available_time``
-(the ingestion instant) and is never back-dated. Events with strength >= 0.6
-raise a notification, and the thesis-drift engine already treats any event with
+(the ingestion instant) and is never back-dated. An announcement whose own
+publication date is older than the lookback (a poller catch-up backfilling old
+days) is counted as stale and skipped: it is history, not a fresh warning.
+Events with strength >= 0.6 raise a notification, and the thesis-drift engine already treats any event with
 direction <= -0.5 inside its lookback as a reason to re-examine a holding.
 """
 
@@ -52,6 +54,7 @@ def run_severe_disclosure_screen(
         "emitted": 0,
         "existing": 0,
         "unsymboled": 0,
+        "stale_skipped": 0,
         "by_subtype": {},
     }
     with get_session() as session:
@@ -70,6 +73,9 @@ def run_severe_disclosure_screen(
             by_subtype[found.subtype] = by_subtype.get(found.subtype, 0) + 1
             if item.symbol is None:
                 stats["unsymboled"] += 1
+                continue
+            if item.published_at is not None and _as_utc(item.published_at) < floor:
+                stats["stale_skipped"] += 1
                 continue
             source_ref = f"news:{item.id}"
             already = session.scalar(
