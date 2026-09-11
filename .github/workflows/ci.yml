@@ -32,6 +32,12 @@ jobs:
       # environment, and their approved source commits.  They are executed in
       # full by backend-frozen-rehearsals below; the portable matrix still runs
       # every current, cross-platform test on each supported Python version.
+      # The two successor-production-integration modules bind the P4.2a
+      # held-out preparation gate to the v6 receipt's frozen source closure
+      # (commit 190f65a5). The owner closed that program on 2026-09-10 after
+      # the sealed partial run; any later change to a registered source such
+      # as the news poller fails them by design. They stay in the tree as the
+      # historical record and run only on demand.
       - name: Run portable test suite
         run: >-
           pytest
@@ -44,6 +50,8 @@ jobs:
           --ignore=tests/test_p4_2a_v2_1_heldout_rehearsal_validator.py
           --ignore=tests/test_p4_2a_v2_2_heldout_rehearsal_runner.py
           --ignore=tests/test_p4_2a_v2_2_heldout_rehearsal_validator.py
+          --ignore=tests/test_p4_2a_successor_production_authority.py
+          --ignore=tests/test_p4_2a_successor_preparation_integration.py
 
   backend-frozen-rehearsals:
     name: backend (frozen P4.2a rehearsals)
