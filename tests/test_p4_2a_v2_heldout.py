@@ -5,6 +5,7 @@ import inspect
 import json
 import os
 import pickle
+import re
 import shutil
 import sqlite3
 import stat
@@ -17,10 +18,15 @@ from types import SimpleNamespace
 from typing import Any, NoReturn, TypeVar
 from zoneinfo import ZoneInfo
 
+import httpx
 import pytest
+import yaml
 from scripts import build_p4_2a_gold_sample as gold_builder
+from scripts import evaluate_p4_2a_v2_heldout as evaluator
+from scripts import p4_2a_successor_production_authority as authority
 from scripts import p4_2a_v2_dev_common as common
 from scripts import prepare_p4_2a_v2_heldout as runner
+from scripts import run_p4_2a_offline_extract as offline_extract
 from scripts import run_p4_2a_v2_dev_calibration as dev_runner
 from scripts.run_p4_2a_offline_extract import (
     ChatJsonCallable,
@@ -35,6 +41,70 @@ _TestCallable = TypeVar("_TestCallable", bound=Callable[..., object])
 _parametrize: Callable[..., Callable[[_TestCallable], _TestCallable]] = (
     pytest.mark.parametrize
 )
+
+
+_EXPECTED_RETRY_POLICY = {
+    "max_attempts_per_pdf": 12,
+    "backoff_seconds": [2.0, 4.0, 8.0, 15.0, 30.0, 30.0, 30.0, 60.0, 60.0, 60.0, 60.0],
+    "retried_error_classes": [
+        "httpx.TransportError",
+        "OSError",
+        "gold_sample_http_status_502",
+        "gold_sample_http_status_503",
+        "gold_sample_http_status_504",
+    ],
+    "non_retried": [
+        "candidate_document_ineligible",
+        "content_length_invalid",
+        "content_not_pdf",
+        "http_status_other_than_502_503_504",
+        "pdf_text_extraction_failure",
+    ],
+    "stall_pause_policy": {
+        "window_size": 20,
+        "window_stall_threshold": 15,
+        "pause_seconds": 600.0,
+        "max_pauses": 3,
+    },
+    "wall_clock_cap_seconds": 43200,
+    "unavailable_http_statuses": [404, 410],
+}
+
+
+def _pacing_evidence(cninfo: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "cninfo_pdf": cninfo,
+        "akshare_ths": "not_applicable_no_external_document_fetch",
+        "sina_company_news": "not_applicable_no_external_document_fetch",
+    }
+
+
+def _recorded_cninfo_pacing(
+    *,
+    pdf_count: int,
+    retry_events: list[dict[str, Any]],
+    pause_events: list[dict[str, Any]] | None = None,
+) -> dict[str, Any]:
+    """Shaped like the real pacer records it: one request start per attempt."""
+    request_count = pdf_count + len(retry_events)
+    return {
+        "host": "static.cninfo.com.cn",
+        "policy": "minimum_start_to_start",
+        "configured_min_start_to_start_seconds": 1.0,
+        "clock": "monotonic",
+        "first_request_delayed": False,
+        "request_start_count": request_count,
+        "observed_gap_count": max(request_count - 1, 0),
+        "minimum_observed_start_to_start_seconds": 1.0 if request_count > 1 else None,
+        "median_observed_start_to_start_seconds": 1.0 if request_count > 1 else None,
+        "violation_count": 0,
+        "retry_count": len(retry_events),
+        "transport_retry_policy": copy.deepcopy(_EXPECTED_RETRY_POLICY),
+        "retry_events": copy.deepcopy(retry_events),
+        "pause_events": copy.deepcopy(pause_events or []),
+        "http_unavailable_count": 0,
+        "http_unavailable_events": [],
+    }
 
 
 def _test_pdf_policy() -> gold_builder.AnnouncementBodyPolicy:
@@ -194,7 +264,10 @@ def _install_v1_incident(binding: runner.HeldoutBinding) -> None:
 def test_strict_loader_binds_actual_preregistration_and_round3_contract() -> None:
     binding = runner.load_binding()
 
-    assert binding.contract.model == "qwen3.6-plus"
+    # The wrapper's model, not the inherited round-3 one; the gap between this and
+    # PREREGISTERED_MODEL is the owner-approved deviation.
+    assert binding.contract.model == "kimi-k3"
+    assert runner.PREREGISTERED_MODEL == "qwen3.6-plus"
     assert binding.contract.sha256 == runner.HELDOUT_CONTRACT_SHA256
     assert binding.contract.max_retries == 0
     assert len(binding.retired_ids) == 40
@@ -296,9 +369,11 @@ def test_select_blind_uses_40_20_and_hides_sampling_metadata(tmp_path: Path) -> 
     with pytest.raises(runner.HeldoutPreparationError, match="insufficient"):
         runner.select_and_blind(binding, candidates[:50], predictions[:50])
 
+    # v5: a failure is only tolerated when the inference stage itemised it; an
+    # artefact set without a census still refuses to sample.
     failed = [dict(row) for row in predictions]
     failed[0] = {**failed[0], "status": "extract_failed", "prediction": None}
-    with pytest.raises(runner.HeldoutPreparationError, match="sampling is forbidden"):
+    with pytest.raises(runner.HeldoutPreparationError, match="without a recorded census"):
         runner.select_and_blind(binding, candidates, failed)
 
 
@@ -1754,7 +1829,1099 @@ def test_cninfo_start_pacer_has_no_first_delay_and_exact_monotonic_evidence() ->
         "median_observed_start_to_start_seconds": 1.0,
         "violation_count": 0,
         "retry_count": 0,
+        "transport_retry_policy": _EXPECTED_RETRY_POLICY,
+        "retry_events": [],
+        "pause_events": [],
+        "http_unavailable_count": 0,
+        "http_unavailable_events": [],
     }
+
+
+def _transport_failure(cause: BaseException) -> gold_builder.GoldSampleError:
+    """Shaped exactly like build_p4_2a_gold_sample.download_cninfo_pdf raises."""
+    error = gold_builder.GoldSampleError(
+        f"CNInfo PDF download failed: {type(cause).__name__}"
+    )
+    error.__cause__ = cause
+    return error
+
+
+def _stepping_clock(
+    step: float = 1.0,
+) -> tuple[Callable[[], float], Callable[[float], None], list[float]]:
+    now = 1_000.0
+    sleeps: list[float] = []
+
+    def monotonic() -> float:
+        nonlocal now
+        now += step
+        return now
+
+    def sleep(duration: float) -> None:
+        nonlocal now
+        sleeps.append(duration)
+        now += duration
+
+    return monotonic, sleep, sleeps
+
+
+def test_transient_transport_failures_are_retried_within_the_registered_budget() -> None:
+    """The owner-decided bounded retry: 3 attempts, 2 s then 4 s, pacing floor kept."""
+    monotonic, sleep, sleeps = _stepping_clock()
+    pacer = runner._CninfoStartPacer(monotonic, sleep)
+    attempts = 0
+
+    def fetch(_url: str, _policy: gold_builder.AnnouncementBodyPolicy) -> bytes:
+        nonlocal attempts
+        attempts += 1
+        if attempts == 1:
+            raise _transport_failure(httpx.ReadTimeout("read timed out"))
+        if attempts == 2:
+            raise gold_builder.GoldSampleError("CNInfo PDF returned non-success HTTP 503")
+        return b"%PDF-recovered"
+
+    paced, _extract = runner._paced_pdf_boundaries(pacer, fetch, _unused_pdf_extractor)
+    url = "https://static.cninfo.com.cn/finalpage/2026-09-08/1.PDF"
+    assert paced(url, _test_pdf_policy()) == b"%PDF-recovered"
+    assert attempts == 3
+    # Both backoffs happened; no pacing sleep was needed because the backoff had
+    # already carried the clock past the one-second start-to-start floor.
+    assert sleeps == [2.0, 4.0]
+
+    evidence = pacer.evidence()
+    assert evidence["request_start_count"] == 3
+    assert evidence["retry_count"] == 2
+    assert evidence["violation_count"] == 0
+    assert evidence["transport_retry_policy"] == _EXPECTED_RETRY_POLICY
+    digest = common.sha256_bytes(url.encode("utf-8"))
+    assert [event["url_sha256"] for event in evidence["retry_events"]] == [digest, digest]
+    assert [event["attempt"] for event in evidence["retry_events"]] == [1, 2]
+    assert [event["exception_type"] for event in evidence["retry_events"]] == [
+        "httpx.ReadTimeout",
+        "gold_sample_http_status_503",
+    ]
+    assert all(
+        isinstance(event["monotonic_offset_seconds"], float)
+        and event["monotonic_offset_seconds"] >= 0.0
+        for event in evidence["retry_events"]
+    )
+    # One PDF plus two retries is three paced request starts for one candidate row.
+    runner._validate_request_pacing_evidence(
+        _pacing_evidence(evidence), expected_cninfo_requests=1, transport_retry_recorded=True
+    )
+
+
+def test_exhausted_transport_retries_fail_the_whole_materialization() -> None:
+    monotonic, sleep, sleeps = _stepping_clock()
+    pacer = runner._CninfoStartPacer(monotonic, sleep)
+    attempts = 0
+
+    def always_timeout(_url: str, _policy: gold_builder.AnnouncementBodyPolicy) -> bytes:
+        nonlocal attempts
+        attempts += 1
+        raise _transport_failure(httpx.ConnectTimeout("connect timed out"))
+
+    paced, _extract = runner._paced_pdf_boundaries(pacer, always_timeout, _unused_pdf_extractor)
+    with pytest.raises(gold_builder.GoldSampleError, match="download failed"):
+        paced("https://static.cninfo.com.cn/finalpage/2026-09-08/2.PDF", _test_pdf_policy())
+    assert attempts == runner.CNINFO_MAX_PDF_ATTEMPTS == 12
+    assert sleeps == list(runner.CNINFO_RETRY_BACKOFF_SECONDS)
+    assert pacer.evidence()["retry_count"] == 11
+
+
+@_parametrize(
+    "error",
+    [
+        gold_builder.GoldSampleError("CNInfo response does not start with %PDF-"),
+        gold_builder.GoldSampleError("CNInfo PDF Content-Length must be non-negative"),
+        gold_builder.GoldSampleError("CNInfo PDF returned non-success HTTP 404"),
+        gold_builder.GoldSampleError("CNInfo PDF returned non-success HTTP 500"),
+    ],
+)
+def test_content_and_other_status_failures_are_never_retried(
+    error: gold_builder.GoldSampleError,
+) -> None:
+    monotonic, sleep, sleeps = _stepping_clock()
+    pacer = runner._CninfoStartPacer(monotonic, sleep)
+    attempts = 0
+
+    def fetch(_url: str, _policy: gold_builder.AnnouncementBodyPolicy) -> bytes:
+        nonlocal attempts
+        attempts += 1
+        raise error
+
+    paced, _extract = runner._paced_pdf_boundaries(pacer, fetch, _unused_pdf_extractor)
+    with pytest.raises(gold_builder.GoldSampleError):
+        paced("https://static.cninfo.com.cn/finalpage/2026-09-08/3.PDF", _test_pdf_policy())
+    assert attempts == 1
+    assert sleeps == []
+    assert pacer.evidence()["retry_count"] == 0
+
+
+def test_content_length_value_error_cause_is_not_a_transport_retry() -> None:
+    """Content-Length parsing raises with a ValueError cause; it must not retry."""
+    invalid = gold_builder.GoldSampleError("CNInfo PDF Content-Length is invalid")
+    invalid.__cause__ = ValueError("invalid literal for int()")
+    assert runner._retryable_download_failure(invalid) is None
+    ineligible = gold_builder.CandidateDocumentIneligible(
+        reason="pdf_exceeds_size_bound", measured_value=9, gate_value=8, pdf_sha256=None
+    )
+    assert runner._retryable_download_failure(ineligible) is None
+    assert (
+        runner._retryable_download_failure(_transport_failure(OSError("connection reset")))
+        == "OSError"
+    )
+
+
+def test_retry_keeps_the_pacing_floor_and_fails_closed_on_a_frozen_clock() -> None:
+    """A clock that never advances cannot satisfy the floor on the second attempt."""
+    attempts = 0
+
+    def fetch(_url: str, _policy: gold_builder.AnnouncementBodyPolicy) -> bytes:
+        nonlocal attempts
+        attempts += 1
+        raise _transport_failure(httpx.ReadTimeout("read timed out"))
+
+    frozen, _extract = runner._paced_pdf_boundaries(
+        runner._CninfoStartPacer(lambda: 100.0, lambda _duration: None),
+        fetch,
+        _unused_pdf_extractor,
+    )
+    with pytest.raises(runner.HeldoutPreparationError, match="did not advance"):
+        frozen("https://static.cninfo.com.cn/finalpage/2026-09-08/4.PDF", _test_pdf_policy())
+    assert attempts == 1
+
+    # With a real sleeper the floor is met by the backoff itself, never violated.
+    monotonic, sleep, sleeps = _stepping_clock(step=0.0)
+    pacer = runner._CninfoStartPacer(monotonic, sleep)
+    calls = 0
+
+    def recovering(_url: str, _policy: gold_builder.AnnouncementBodyPolicy) -> bytes:
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            raise _transport_failure(httpx.ProxyError("proxy stalled"))
+        return b"%PDF-ok"
+
+    paced, _extract = runner._paced_pdf_boundaries(pacer, recovering, _unused_pdf_extractor)
+    assert paced("https://static.cninfo.com.cn/finalpage/2026-09-08/5.PDF", _test_pdf_policy())
+    assert sleeps == [2.0]
+    evidence = pacer.evidence()
+    assert evidence["violation_count"] == 0
+    assert evidence["minimum_observed_start_to_start_seconds"] >= 1.0
+
+
+def test_gold_builder_still_formats_the_status_message_the_retry_rule_matches() -> None:
+    """The status retry is matched on the frozen downloader's own message text."""
+    source = inspect.getsource(gold_builder.download_cninfo_pdf)
+    assert 'f"CNInfo PDF returned non-success HTTP {response.status_code}"' in source
+    assert runner._CNINFO_RETRYABLE_STATUS.fullmatch(
+        f"CNInfo PDF returned non-success HTTP {503}"
+    )
+
+
+def test_real_pacer_evidence_with_a_retry_passes_both_validators_unmodified(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """R-V3-1: every attempt is a paced request start, so retries widen the count."""
+    monotonic, sleep, sleeps = _stepping_clock()
+    pacer = runner._CninfoStartPacer(monotonic, sleep)
+    failed_once: set[str] = set()
+
+    def fetch(url: str, _policy: gold_builder.AnnouncementBodyPolicy) -> bytes:
+        if url not in failed_once:
+            failed_once.add(url)
+            raise _transport_failure(httpx.ReadTimeout("read timed out"))
+        return b"%PDF-ok"
+
+    paced, _extract = runner._paced_pdf_boundaries(pacer, fetch, _unused_pdf_extractor)
+    policy = _test_pdf_policy()
+    documents = 4
+    urls = [
+        f"https://static.cninfo.com.cn/finalpage/2026-09-08/{index}.PDF"
+        for index in range(documents)
+    ]
+    # Only the first URL is allowed to stumble; the rest succeed on attempt one.
+    failed_once.update(urls[1:])
+    for url in urls:
+        assert paced(url, policy) == b"%PDF-ok"
+
+    evidence = pacer.evidence()
+    assert evidence["request_start_count"] == documents + 1
+    assert evidence["observed_gap_count"] == documents
+    assert evidence["retry_count"] == 1
+    assert evidence["violation_count"] == 0
+    assert sleeps == [2.0]
+    assert [event["attempt"] for event in evidence["retry_events"]] == [1]
+    assert evidence["retry_events"][0]["url_sha256"] == common.sha256_bytes(
+        urls[0].encode("utf-8")
+    )
+
+    # Unmodified, this is exactly what a real materialize would record.
+    runner._validate_request_pacing_evidence(
+        _pacing_evidence(copy.deepcopy(evidence)),
+        expected_cninfo_requests=documents,
+        transport_retry_recorded=True,
+    )
+    monkeypatch.setitem(evaluator.EXPECTED_RAW_BY_SOURCE, "cninfo", documents)
+    evaluator._validate_request_pacing(
+        _pacing_evidence(copy.deepcopy(evidence)), transport_retry_recorded=True
+    )
+
+    # The mirror negative: the shape a validator-only fixture would have fabricated.
+    fabricated = dict(copy.deepcopy(evidence), request_start_count=documents)
+    with pytest.raises(runner.HeldoutPreparationError, match="CNInfo pacing"):
+        runner._validate_request_pacing_evidence(
+            _pacing_evidence(fabricated),
+            expected_cninfo_requests=documents,
+            transport_retry_recorded=True,
+        )
+    with pytest.raises(evaluator.HeldoutEvaluationError, match="pacing"):
+        evaluator._validate_request_pacing(
+            _pacing_evidence(copy.deepcopy(fabricated)), transport_retry_recorded=True
+        )
+
+
+def test_v3_budget_is_twelve_attempts_with_the_registered_backoff_schedule() -> None:
+    """Owner decision 2026-09-09: eleven retries per PDF on the registered ladder."""
+    assert runner.CNINFO_MAX_PDF_ATTEMPTS == 12
+    assert runner.CNINFO_RETRY_BACKOFF_SECONDS == (
+        2.0, 4.0, 8.0, 15.0, 30.0, 30.0, 30.0, 60.0, 60.0, 60.0, 60.0,
+    )
+    assert len(runner.CNINFO_RETRY_BACKOFF_SECONDS) == runner.CNINFO_MAX_PDF_ATTEMPTS - 1
+    assert evaluator.CNINFO_MAX_PDF_ATTEMPTS == runner.CNINFO_MAX_PDF_ATTEMPTS
+    assert evaluator.CNINFO_RETRY_BACKOFF_SECONDS == runner.CNINFO_RETRY_BACKOFF_SECONDS
+
+    monotonic, sleep, sleeps = _stepping_clock()
+    pacer = runner._CninfoStartPacer(monotonic, sleep)
+    attempts = 0
+
+    def fetch(_url: str, _policy: gold_builder.AnnouncementBodyPolicy) -> bytes:
+        nonlocal attempts
+        attempts += 1
+        if attempts < runner.CNINFO_MAX_PDF_ATTEMPTS:
+            raise _transport_failure(httpx.ReadTimeout("read timed out"))
+        return b"%PDF-late"
+
+    paced, _extract = runner._paced_pdf_boundaries(pacer, fetch, _unused_pdf_extractor)
+    assert paced("https://static.cninfo.com.cn/f/1.PDF", _test_pdf_policy()) == b"%PDF-late"
+    assert attempts == 12
+    assert sleeps == list(runner.CNINFO_RETRY_BACKOFF_SECONDS)
+    evidence = pacer.evidence()
+    assert evidence["retry_count"] == 11
+    assert [event["attempt"] for event in evidence["retry_events"]] == list(range(1, 12))
+    assert evidence["pause_events"] == []
+    runner._validate_request_pacing_evidence(
+        _pacing_evidence(evidence), expected_cninfo_requests=1, transport_retry_recorded=True
+    )
+
+
+def _stalling_fetcher(stalls_per_url: int) -> Callable[..., bytes]:
+    """Each URL stalls a fixed number of times, then succeeds."""
+    seen: dict[str, int] = {}
+
+    def fetch(url: str, _policy: gold_builder.AnnouncementBodyPolicy) -> bytes:
+        seen[url] = seen.get(url, 0) + 1
+        if seen[url] <= stalls_per_url:
+            raise _transport_failure(httpx.ReadTimeout("read timed out"))
+        return b"%PDF-ok"
+
+    return fetch
+
+
+def test_stall_pause_fires_on_the_sliding_window_and_restarts_the_current_pdf() -> None:
+    """D-8: 15 stalls in the last 20 attempts pause once; the PDF starts over."""
+    monotonic, sleep, sleeps = _stepping_clock()
+    pacer = runner._CninfoStartPacer(monotonic, sleep)
+    paced, _extract = runner._paced_pdf_boundaries(
+        pacer, _stalling_fetcher(3), _unused_pdf_extractor
+    )
+    policy = _test_pdf_policy()
+    documents = 6
+    urls = [f"https://static.cninfo.com.cn/f/{index}.PDF" for index in range(documents)]
+    for url in urls:
+        assert paced(url, policy) == b"%PDF-ok"
+
+    evidence = pacer.evidence()
+    assert len(evidence["pause_events"]) == 1
+    pause = evidence["pause_events"][0]
+    assert pause["pause_index"] == 1
+    assert pause["window_size"] == runner.CNINFO_STALL_PAUSE_WINDOW == 20
+    assert pause["window_stalls"] >= runner.CNINFO_STALL_PAUSE_WINDOW_STALLS == 15
+    assert pause["pause_seconds"] == runner.CNINFO_STALL_PAUSE_SECONDS == 600.0
+    # The pause names the PDF that was being fetched when it fired.
+    assert pause["current_url_sha256"] == common.sha256_bytes(urls[-1].encode("utf-8"))
+    assert runner.CNINFO_STALL_PAUSE_SECONDS in sleeps
+
+    # That PDF restarted its budget: its attempts are two segments, each from 1.
+    attempts = [
+        event["attempt"]
+        for event in evidence["retry_events"]
+        if event["url_sha256"] == pause["current_url_sha256"]
+    ]
+    assert attempts == [1, 1, 2]
+    assert evidence["request_start_count"] == documents + evidence["retry_count"]
+
+    runner._validate_request_pacing_evidence(
+        _pacing_evidence(copy.deepcopy(evidence)),
+        expected_cninfo_requests=documents,
+        transport_retry_recorded=True,
+    )
+
+
+def test_real_pacer_evidence_with_retries_and_pauses_passes_both_validators(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The unmodified real-pacer evidence, pause included, satisfies both sides."""
+    monotonic, sleep, sleeps = _stepping_clock()
+    pacer = runner._CninfoStartPacer(monotonic, sleep)
+    paced, _extract = runner._paced_pdf_boundaries(
+        pacer, _stalling_fetcher(3), _unused_pdf_extractor
+    )
+    documents = 6
+    for index in range(documents):
+        paced(f"https://static.cninfo.com.cn/f/{index}.PDF", _test_pdf_policy())
+    evidence = pacer.evidence()
+    assert len(evidence["pause_events"]) == 1
+    assert runner.CNINFO_STALL_PAUSE_SECONDS in sleeps
+
+    runner._validate_request_pacing_evidence(
+        _pacing_evidence(copy.deepcopy(evidence)),
+        expected_cninfo_requests=documents,
+        transport_retry_recorded=True,
+    )
+    monkeypatch.setitem(evaluator.EXPECTED_RAW_BY_SOURCE, "cninfo", documents)
+    evaluator._validate_request_pacing(
+        _pacing_evidence(copy.deepcopy(evidence)), transport_retry_recorded=True
+    )
+
+    # A restart at attempt 1 with no pause to justify it is refused by both.
+    forged = copy.deepcopy(evidence)
+    forged["pause_events"] = []
+    with pytest.raises(runner.HeldoutPreparationError, match="CNInfo pacing"):
+        runner._validate_request_pacing_evidence(
+            _pacing_evidence(forged),
+            expected_cninfo_requests=documents,
+            transport_retry_recorded=True,
+        )
+    with pytest.raises(evaluator.HeldoutEvaluationError, match="pacing"):
+        evaluator._validate_request_pacing(
+            _pacing_evidence(copy.deepcopy(forged)), transport_retry_recorded=True
+        )
+
+
+def test_no_pause_below_the_window_threshold_and_the_window_clears_after_one() -> None:
+    """Fourteen stalls in twenty attempts is not enough; the window then resets."""
+    monotonic, sleep, sleeps = _stepping_clock()
+    pacer = runner._CninfoStartPacer(monotonic, sleep)
+    paced, _extract = runner._paced_pdf_boundaries(
+        pacer, _stalling_fetcher(2), _unused_pdf_extractor
+    )
+    # Two stalls then a success per PDF is 2/3 stalls - below 15/20.
+    for index in range(10):
+        paced(f"https://static.cninfo.com.cn/g/{index}.PDF", _test_pdf_policy())
+    assert pacer.evidence()["pause_events"] == []
+    assert runner.CNINFO_STALL_PAUSE_SECONDS not in sleeps
+
+    # After a pause the window is cleared, so the next pause needs a fresh 15/20.
+    cleared_monotonic, cleared_sleep, _cleared_sleeps = _stepping_clock()
+    cleared = runner._CninfoStartPacer(cleared_monotonic, cleared_sleep)
+    cleared.before_fetch()
+    for index in range(runner.CNINFO_STALL_PAUSE_WINDOW):
+        assert (
+            cleared.record_stall(
+                url_sha256=common.sha256_bytes(f"h{index // 11}".encode()),
+                attempt=index % 11 + 1,
+                label="httpx.ReadTimeout",
+                backoff_seconds=2.0,
+            )
+            is (index == runner.CNINFO_STALL_PAUSE_WINDOW - 1)
+        )
+    assert len(cleared.evidence()["pause_events"]) == 1
+    # The very next stall cannot pause again: the window holds one outcome.
+    assert (
+        cleared.record_stall(
+            url_sha256="f" * 64, attempt=1, label="OSError", backoff_seconds=2.0
+        )
+        is False
+    )
+
+
+def test_fourth_stall_pause_fails_the_whole_materialization() -> None:
+    monotonic, sleep, _sleeps = _stepping_clock()
+    pacer = runner._CninfoStartPacer(monotonic, sleep)
+    pacer.before_fetch()
+    window = runner.CNINFO_STALL_PAUSE_WINDOW
+    with pytest.raises(runner.HeldoutPreparationError, match="stall pauses exhausted"):
+        for index in range(window * (runner.CNINFO_STALL_PAUSE_MAX + 1)):
+            pacer.record_stall(
+                url_sha256=common.sha256_bytes(f"i{index // 11}".encode()),
+                attempt=index % 11 + 1,
+                label="httpx.ReadTimeout",
+                backoff_seconds=2.0,
+            )
+    assert len(pacer.evidence()["pause_events"]) == runner.CNINFO_STALL_PAUSE_MAX
+
+
+def test_wall_clock_cap_fails_the_whole_materialization() -> None:
+    """The cap is measured from the first request start, before each attempt."""
+    assert runner.CNINFO_MATERIALIZE_WALL_CLOCK_CAP_SECONDS == 43200
+    now = 0.0
+
+    def monotonic() -> float:
+        nonlocal now
+        now += runner.CNINFO_MATERIALIZE_WALL_CLOCK_CAP_SECONDS / 4
+        return now
+
+    def sleep(duration: float) -> None:
+        nonlocal now
+        now += duration
+
+    pacer = runner._CninfoStartPacer(monotonic, sleep)
+
+    def always_stall(_url: str, _policy: gold_builder.AnnouncementBodyPolicy) -> bytes:
+        raise _transport_failure(httpx.ReadTimeout("read timed out"))
+
+    paced, _extract = runner._paced_pdf_boundaries(pacer, always_stall, _unused_pdf_extractor)
+    with pytest.raises(runner.HeldoutPreparationError, match="wall-clock cap"):
+        paced("https://static.cninfo.com.cn/f/2.PDF", _test_pdf_policy())
+
+
+def test_cninfo_404_and_410_make_the_candidate_deterministically_ineligible() -> None:
+    """Owner decision 2026-09-09: a vanished announcement is a candidate property."""
+    monotonic, sleep, _sleeps = _stepping_clock()
+    pacer = runner._CninfoStartPacer(monotonic, sleep)
+    calls = 0
+
+    def fetch(url: str, _policy: gold_builder.AnnouncementBodyPolicy) -> bytes:
+        nonlocal calls
+        calls += 1
+        if "gone" in url:
+            raise gold_builder.GoldSampleError("CNInfo PDF returned non-success HTTP 404")
+        if "moved" in url:
+            raise gold_builder.GoldSampleError("CNInfo PDF returned non-success HTTP 410")
+        return b"%PDF-ok"
+
+    paced, _extract = runner._paced_pdf_boundaries(pacer, fetch, _unused_pdf_extractor)
+    policy = _test_pdf_policy()
+    for name, status in (("gone", 404), ("moved", 410)):
+        url = f"https://static.cninfo.com.cn/{name}.PDF"
+        with pytest.raises(gold_builder.CandidateDocumentIneligible) as raised:
+            paced(url, policy)
+        assert raised.value.reason == runner.CNINFO_UNAVAILABLE_REASON
+        assert raised.value.measured_value == status
+        assert raised.value.gate_value == runner.CNINFO_UNAVAILABLE_GATE_STATUS
+        assert raised.value.pdf_sha256 is None
+    # Materialization continues: the next candidate is fetched normally.
+    assert paced("https://static.cninfo.com.cn/ok.PDF", policy) == b"%PDF-ok"
+    assert calls == 3
+
+    evidence = pacer.evidence()
+    assert evidence["http_unavailable_count"] == 2
+    assert [event["http_status"] for event in evidence["http_unavailable_events"]] == [404, 410]
+    assert evidence["http_unavailable_events"][0]["url_sha256"] == common.sha256_bytes(
+        b"https://static.cninfo.com.cn/gone.PDF"
+    )
+    assert evidence["transport_retry_policy"]["unavailable_http_statuses"] == [404, 410]
+    assert evidence["retry_count"] == 0
+    runner._validate_request_pacing_evidence(
+        _pacing_evidence(evidence), expected_cninfo_requests=3, transport_retry_recorded=True
+    )
+
+
+@_parametrize("status", [400, 403, 429, 451, 500])
+def test_other_non_success_statuses_remain_fatal(status: int) -> None:
+    monotonic, sleep, _sleeps = _stepping_clock()
+    pacer = runner._CninfoStartPacer(monotonic, sleep)
+
+    def fetch(_url: str, _policy: gold_builder.AnnouncementBodyPolicy) -> bytes:
+        raise gold_builder.GoldSampleError(
+            f"CNInfo PDF returned non-success HTTP {status}"
+        )
+
+    paced, _extract = runner._paced_pdf_boundaries(pacer, fetch, _unused_pdf_extractor)
+    with pytest.raises(gold_builder.GoldSampleError, match=str(status)):
+        paced("https://static.cninfo.com.cn/f/9.PDF", _test_pdf_policy())
+    assert pacer.evidence()["http_unavailable_count"] == 0
+
+
+def test_gold_builder_still_formats_the_status_message_the_404_rule_matches() -> None:
+    """The 404/410 rule reads the frozen downloader's own message text."""
+    source = inspect.getsource(gold_builder.download_cninfo_pdf)
+    assert 'f"CNInfo PDF returned non-success HTTP {response.status_code}"' in source
+    for status in runner.CNINFO_UNAVAILABLE_HTTP_STATUSES:
+        assert runner._CNINFO_UNAVAILABLE_STATUS.fullmatch(
+            f"CNInfo PDF returned non-success HTTP {status}"
+        )
+    for status in (403, 500, 502):
+        assert (
+            runner._CNINFO_UNAVAILABLE_STATUS.fullmatch(
+                f"CNInfo PDF returned non-success HTTP {status}"
+            )
+            is None
+        )
+    # The frozen builder still declares only the two registered reasons; the third
+    # lives in the successor layer, which is exactly the recorded deviation.
+    assert gold_builder.MATERIALIZATION_INELIGIBLE_REASONS == (
+        "pdf_text_below_min_char_gate",
+        "pdf_exceeds_size_bound",
+    )
+    assert (
+        *gold_builder.MATERIALIZATION_INELIGIBLE_REASONS,
+        runner.CNINFO_UNAVAILABLE_REASON,
+    ) == runner.CNINFO_DETERMINISTIC_INELIGIBLE_REASONS
+
+
+def _failure_row(news_item_id: int, *, retryable: bool = False, **overrides: Any) -> dict[str, Any]:
+    row: dict[str, Any] = {
+        "schema_version": "p4.2a-offline-extract-row-v1",
+        "news_item_id": news_item_id,
+        "status": "extract_failed",
+        "prediction": None,
+        "error": "post_validation_failed",
+        "extract_failed": {
+            "reason": "post_validation_failed",
+            "retryable": retryable,
+            "field": "symbols",
+            "constraint": "original_text_or_ingested_symbol_grounding",
+        },
+    }
+    row.update(overrides)
+    return row
+
+
+# Every network address that may appear in the registered surfaces this branch
+# owns. The list lives here, in the test, never in production code. A new host has
+# to be added deliberately, which is the point: an internal request address must
+# never reach a commit in a public repository.
+_ALLOWED_URL_HOSTS = frozenset(
+    {
+        "alphapilot.local",
+        "dashscope.aliyuncs.com",
+        "example.invalid",
+        "json-schema.org",
+        "must-never-contact.invalid",
+        "news.10jqka.com.cn",
+        "static.cninfo.com.cn",
+        # The local dashboard origin, and the public CNInfo hosts the gold
+        # builder already reaches. Loopback is named explicitly rather than
+        # matched by a pattern, so a new address cannot arrive unnoticed.
+        "127.0.0.1:5173",
+        "localhost:5173",
+        "www.cninfo.com.cn",
+        "webapi.cninfo.com.cn",
+        # Reserved test-only names from the provider layer's own tests. The
+        # .invalid and .test TLDs can never resolve, by RFC.
+        "llm.example.test",
+        "other.invalid",
+        "provider.invalid",
+        "secret-host.invalid",
+        "x.invalid",
+        "x.test",
+    }
+)
+# Every path this landing touches, both lanes. The platform lane matters most: it
+# is the code that knows the internal address, so it is exactly the code that must
+# be proven not to disclose it.
+_REGISTERED_SURFACE_FILES = (
+    "scripts/prepare_p4_2a_v2_heldout.py",
+    "scripts/evaluate_p4_2a_v2_heldout.py",
+    "scripts/p4_2a_successor_production_authority.py",
+    "config/schemas/p4_2a_successor_production_integration_v5_release_authorization.schema.json",
+    "tests/test_p4_2a_v2_heldout.py",
+    "tests/test_p4_2a_successor_production_authority.py",
+    "tests/test_p4_2a_successor_preparation_integration.py",
+    "scripts/run_p4_2a_offline_extract.py",
+    ".env.example",
+    "config/p4_event_extract_eval_v3-heldout.yaml",
+    "src/alphapilot/core/config.py",
+    "src/alphapilot/llm/client.py",
+    "src/alphapilot/llm/p4_news_eval.py",
+    "src/alphapilot/llm/p4_news_event.py",
+    "src/alphapilot/llm/providers.py",
+    "tests/conftest.py",
+    "tests/test_llm_provider_layer.py",
+)
+_URL_HOST = re.compile(r"https?://([^/\s\"'\\)>,]+)")
+_FSTRING_PLACEHOLDER = re.compile(r"\{[^}]*\}?")
+_PRIVATE_IPV4 = re.compile(
+    r"\b(?:10(?:\.\d{1,3}){3}"
+    r"|172\.(?:1[6-9]|2\d|3[01])(?:\.\d{1,3}){2}"
+    r"|192\.168(?:\.\d{1,3}){2})\b"
+)
+_PRIVATE_HOST = re.compile(
+    r"\b[a-z0-9][a-z0-9-]*(?:\.[a-z0-9-]+)*\.(?:corp|internal|intra|lan|local)\b",
+    re.IGNORECASE,
+)
+
+
+def _literal_host_part(host: str) -> str:
+    """Drop f-string placeholders, leaving only what a reader can actually see.
+
+    A URL assembled at run time from a parsed value discloses nothing by itself,
+    but any literal text around the placeholder still does, so the remainder is
+    what gets checked rather than the whole capture.
+    """
+    return _FSTRING_PLACEHOLDER.sub("", host).strip()
+
+
+def test_heldout_wrapper_may_override_only_the_registered_inference_keys() -> None:
+    """The wrapper's authority is a closed allowlist, and the prompt is not in it."""
+    assert "prompt" not in runner.HELDOUT_WRAPPER_LLM_KEYS
+    assert "schema" not in runner.HELDOUT_WRAPPER_LLM_KEYS
+    assert set(runner.HELDOUT_WRAPPER_OVERRIDES) <= runner.HELDOUT_WRAPPER_LLM_KEYS
+    # The live wrapper carries exactly the allowlisted keys and no others.
+    document = yaml.safe_load((runner.PROJECT_ROOT / runner.HELDOUT_CONTRACT_PATH).read_bytes())
+    assert set(document["llm"]) <= runner.HELDOUT_WRAPPER_LLM_KEYS
+    # What the pass actually calls with is the wrapper's platform, not the
+    # inherited one, while the prompt stays byte-frozen from round 3.
+    contract = runner.load_binding().contract
+    assert contract.model == "kimi-k3"
+    assert contract.provider == "friday"
+    assert contract.endpoint_hmac_sha256 == runner.HELDOUT_ENDPOINT_HMAC_SHA256
+    assert contract.timeout == 90.0
+    assert contract.endpoint is None
+    assert "[P4_NEWS_EVENT_EXTRACT v2-r3]" in contract.prompt
+
+
+def test_heldout_wrapper_overriding_an_unlisted_key_is_refused() -> None:
+    """A wrapper reaching past the allowlist is refused, and the key is named.
+
+    Exercises the loader's own rule rather than a rewritten file: the digest gate
+    would reject an edited contract long before the allowlist was consulted, so
+    editing one would prove the digest gate, not this.
+    """
+    document = yaml.safe_load((runner.PROJECT_ROOT / runner.HELDOUT_CONTRACT_PATH).read_bytes())
+    live_keys = set(document["llm"])
+    assert not live_keys - runner.HELDOUT_WRAPPER_LLM_KEYS
+    for reached_past in ("temperature", "prompt", "schema", "endpoint"):
+        unexpected = (live_keys | {reached_past}) - runner.HELDOUT_WRAPPER_LLM_KEYS
+        assert sorted(unexpected)[:1] == [reached_past]
+
+
+def test_real_stage_admission_rehearsal_accepts_the_landed_contract(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Every pre-call validator accepts the contract that is actually on disk.
+
+    Not a fixture and not a synthetic contract: the landed
+    config/p4_event_extract_eval_v3-heldout.yaml, loaded through the same
+    functions the real stage uses before its first model call. Two admission
+    attempts were spent discovering that a downstream constant had not followed
+    the contract; this converts that whole class into a test-time failure.
+
+    The keyed-digest leg is stubbed, and only that leg: the salt lives in the
+    operator's environment and is never read here. Everything the stub bypasses
+    is the one thing this test is not for, and the real stage still checks it.
+    """
+    contract_path = runner.PROJECT_ROOT / runner.HELDOUT_CONTRACT_PATH
+    assert contract_path.is_file(), "the landed held-out contract must exist on disk"
+    assert common.sha256_file(contract_path) == runner.HELDOUT_CONTRACT_SHA256
+
+    # 1. The loader: wrapper allowlist, inherited semantics, llm control block.
+    contract = runner._load_selected_contract(runner.PROJECT_ROOT)
+    assert contract.model == runner.MODEL
+    assert contract.provider == runner.HELDOUT_PROVIDER
+    assert contract.endpoint_hmac_sha256 == runner.HELDOUT_ENDPOINT_HMAC_SHA256
+    assert contract.endpoint is None
+
+    # 2. The binding the platform lane verifies, with only the secret stubbed.
+    from alphapilot.llm import providers
+
+    monkeypatch.setattr(
+        providers, "endpoint_binding_digest", lambda settings=None: contract.endpoint_hmac_sha256
+    )
+
+    # 3. _model_settings and, inside it, _validate_runtime_contract. This is the
+    #    exact pair that refused the contract 151 seconds into a real stage.
+    settings = dev_runner._model_settings(_safe_settings(), contract)
+    assert settings.llm_model == runner.MODEL
+    assert settings.llm_purpose_models[contract.purpose] == runner.MODEL
+    # The operator's address must survive: blanking it here is what produced
+    # "Settings .env does not contain a complete LLM configuration".
+    assert (settings.llm_base_url or "").strip()
+
+    # 4. The drift check itself, called directly, so a future scalar constant
+    #    that stops covering a registered deadline fails here and not in a stage.
+    offline_extract._validate_runtime_contract(contract, settings)
+    assert contract.timeout in offline_extract.ACCEPTED_TIMEOUT_SECONDS
+    assert contract.max_retries == offline_extract.EXPECTED_MAX_RETRIES
+    assert contract.max_tokens == offline_extract.EXPECTED_MAX_TOKENS
+    assert contract.purpose == offline_extract.EXPECTED_PURPOSE
+
+
+def test_registered_surfaces_disclose_no_network_address() -> None:
+    """No request address may enter a commit in this public repository."""
+    for relative in _REGISTERED_SURFACE_FILES:
+        text = (runner.PROJECT_ROOT / relative).read_text(encoding="utf-8")
+        unexpected_hosts = {
+            host
+            for host in (_literal_host_part(raw) for raw in _URL_HOST.findall(text))
+            if host and host not in _ALLOWED_URL_HOSTS
+        }
+        assert not unexpected_hosts, (relative, sorted(unexpected_hosts))
+        assert not _PRIVATE_IPV4.findall(text), relative
+        private_hosts = {
+            host.lower()
+            for host in _PRIVATE_HOST.findall(text)
+            if host.lower() not in _ALLOWED_URL_HOSTS
+        }
+        assert not private_hosts, (relative, sorted(private_hosts))
+
+    # The guard bites. Every sample is assembled at run time so this file never
+    # contains a literal forbidden address of its own.
+    private_ip = ".".join(("10", "1", "2", "3"))
+    assert _PRIVATE_IPV4.search("base = " + "https://" + private_ip + ":8080/v1")
+    assert _PRIVATE_IPV4.search(".".join(("192", "168", "0", "7")))
+    assert _PRIVATE_IPV4.search(".".join(("172", "20", "3", "4")))
+    assert not _PRIVATE_IPV4.search(".".join(("172", "15", "3", "4")))
+    for suffix in ("corp", "internal", "intra", "lan"):
+        host = "gateway.example-platform." + suffix
+        assert _PRIVATE_HOST.search(host), suffix
+        assert host not in _ALLOWED_URL_HOSTS
+    hidden = "https://" + "some-platform.example-host" + ".com/v1/chat/completions"
+    assert _URL_HOST.findall(hidden)[0] not in _ALLOWED_URL_HOSTS
+    # Prose mentioning the word internal is not a hostname.
+    assert not _PRIVATE_HOST.search("this is an internal read-only allowlist")
+
+
+def test_only_a_deterministic_refusal_of_the_model_answer_is_recorded() -> None:
+    """Owner decision 2026-09-09: those outcomes continue; everything else is terminal."""
+    accepted = runner._accepted_post_validation_failure(_failure_row(5018), 5018)
+    assert accepted == {
+        "news_item_id": 5018,
+        "category": "post_validation_constraint",
+        "reason": "post_validation_failed",
+        "field": "symbols",
+        "constraint": "original_text_or_ingested_symbol_grounding",
+    }
+    # A schema refusal is recorded under its own category.
+    schema = _failure_row(5019)
+    schema["extract_failed"] = {
+        "reason": "schema_validation_failed",
+        "retryable": False,
+        "field": "result",
+        "constraint": "json_schema_constraint",
+    }
+    assert runner._accepted_post_validation_failure(schema, 5019) == {
+        "news_item_id": 5019,
+        "category": "response_schema_violation",
+        "reason": "schema_validation_failed",
+        "field": "result",
+        "constraint": "json_schema_constraint",
+    }
+    # A contract refusal carries no field/constraint and is still recorded.
+    contract = _failure_row(5020)
+    contract["extract_failed"] = {"reason": "event_contract_failed", "retryable": False}
+    assert runner._accepted_post_validation_failure(contract, 5020) == {
+        "news_item_id": 5020,
+        "category": "model_output_contract_violation",
+        "reason": "event_contract_failed",
+    }
+    # Every other shape stays terminal.
+    assert runner._accepted_post_validation_failure(
+        _failure_row(5018, retryable=True), 5018
+    ) is None
+    assert runner._accepted_post_validation_failure(
+        _failure_row(5018, status="ok"), 5018
+    ) is None
+    assert runner._accepted_post_validation_failure(_failure_row(5018), 5019) is None
+    assert runner._accepted_post_validation_failure(
+        _failure_row(5018, prediction={"materiality": 2}), 5018
+    ) is None
+    # Non-retryable infrastructure reasons are never absorbed as candidate failures.
+    for reason in ("llm_unavailable", "not_configured", "audit_evidence_missing",
+                   "unexpected_failure", "some_new_provider_reason"):
+        row = _failure_row(5018)
+        row["extract_failed"] = {"reason": reason, "retryable": False}
+        assert runner._accepted_post_validation_failure(row, 5018) is None
+
+
+def test_extract_failed_categories_are_counted_separately() -> None:
+    """The census reports each refusal category, and the ceiling counts them all."""
+    census = [
+        {"news_item_id": 1, "category": "post_validation_constraint",
+         "reason": "post_validation_failed", "field": "symbols", "constraint": "c"},
+        {"news_item_id": 2, "category": "response_schema_violation",
+         "reason": "schema_validation_failed", "field": "result", "constraint": "c"},
+        {"news_item_id": 3, "category": "model_output_contract_violation",
+         "reason": "event_contract_failed"},
+        {"news_item_id": 4, "category": "model_output_contract_violation",
+         "reason": "event_contract_failed"},
+    ]
+    assert runner._extract_failed_category_counts(census) == {
+        "model_output_contract_violation": 2,
+        "post_validation_constraint": 1,
+        "response_schema_violation": 1,
+    }
+    assert runner._extract_failed_category_counts([]) == {
+        "model_output_contract_violation": 0,
+        "post_validation_constraint": 0,
+        "response_schema_violation": 0,
+    }
+    # The ceiling is a single budget over every recorded category.
+    assert runner._extract_failed_census_ids(census) == [1, 2, 3, 4]
+    assert len(census) > runner.INFERENCE_EXTRACT_FAILED_RATIO_CEILING * 100
+
+
+def test_extract_failed_ceiling_only_applies_from_the_minimum_completed_count() -> None:
+    """A single early failure never trips the 2% ceiling."""
+    assert runner.INFERENCE_EXTRACT_FAILED_RATIO_CEILING == 0.02
+    assert runner.INFERENCE_EXTRACT_FAILED_CEILING_MIN_COMPLETED == 50
+
+    def trips(failures: int, completed: int) -> bool:
+        return (
+            completed >= runner.INFERENCE_EXTRACT_FAILED_CEILING_MIN_COMPLETED
+            and failures > runner.INFERENCE_EXTRACT_FAILED_RATIO_CEILING * completed
+        )
+
+    assert not trips(1, 1)
+    assert not trips(1, 49)
+    assert not trips(1, 50)
+    assert not trips(1, 811)
+    assert trips(2, 50)
+    assert not trips(2, 100)
+    assert trips(3, 100)
+    # The measured base rate stays under the ceiling across the full pool.
+    assert not trips(5, 3958)
+
+
+def test_extract_failed_census_ids_reject_malformed_entries() -> None:
+    good = [
+        {
+            "news_item_id": 7,
+            "category": "post_validation_constraint",
+            "reason": "post_validation_failed",
+            "field": "f",
+            "constraint": "c",
+        }
+    ]
+    assert runner._extract_failed_census_ids(good) == [7]
+    for bad in (
+        None,
+        [{**good[0], "news_item_id": 0}],
+        [{**good[0], "news_item_id": True}],
+        [{**good[0], "reason": "llm_unavailable"}],
+        [{**good[0], "category": "response_schema_violation"}],
+        [{key: value for key, value in good[0].items() if key != "reason"}],
+        [{key: value for key, value in good[0].items() if key != "constraint"}],
+        [{**good[0], "extra": 1}],
+        ["not-a-mapping"],
+    ):
+        assert runner._extract_failed_census_ids(bad) is None
+
+
+def test_v2_shaped_retry_policy_is_no_longer_accepted() -> None:
+    """A manifest recorded under the superseded three-attempt budget is refused."""
+    expected = runner.EXPECTED_BY_SOURCE["cninfo"]
+    v2_shaped = _recorded_cninfo_pacing(pdf_count=expected, retry_events=[])
+    v2_shaped["transport_retry_policy"] = {
+        "max_attempts_per_pdf": 3,
+        "backoff_seconds": [2.0, 4.0],
+        "retried_error_classes": list(runner.CNINFO_RETRIED_ERROR_CLASSES),
+        "non_retried": list(runner.CNINFO_NON_RETRIED_FAILURES),
+    }
+    del v2_shaped["pause_events"]
+    with pytest.raises(runner.HeldoutPreparationError, match="CNInfo pacing"):
+        runner._validate_request_pacing_evidence(
+            _pacing_evidence(copy.deepcopy(v2_shaped)),
+            expected_cninfo_requests=expected,
+            transport_retry_recorded=True,
+        )
+    with pytest.raises(evaluator.HeldoutEvaluationError, match="pacing"):
+        evaluator._validate_request_pacing(
+            _pacing_evidence(copy.deepcopy(v2_shaped)), transport_retry_recorded=True
+        )
+
+
+def test_production_manifest_schema_version_comes_from_the_authority_constant() -> None:
+    """The writer and the checker both read the bumped constant, never a literal."""
+    assert authority.MATERIALIZATION_MANIFEST_SCHEMA == (
+        "p4.2a-successor-production-integration-v5-materialization-manifest-v1"
+    )
+    source = Path(runner.__file__).read_text(encoding="utf-8")
+    for retired in ("v1", "v2", "v3", "v4", "v5"):
+        assert f"successor-production-integration-{retired}-materialization-manifest" not in source
+    writer = inspect.getsource(runner.run_materialize)
+    assert (
+        'manifest["schema_version"] = production_authority.MATERIALIZATION_MANIFEST_SCHEMA'
+        in writer
+    )
+    checker = inspect.getsource(runner._validate_production_materialization_manifest)
+    assert "production_authority.MATERIALIZATION_MANIFEST_SCHEMA" in checker
+
+
+def test_pacing_validators_accept_itemised_retries_and_reject_inconsistent_evidence() -> None:
+    digest = common.sha256_bytes(b"https://static.cninfo.com.cn/finalpage/2026-09-08/6.PDF")
+    event = {
+        "url_sha256": digest,
+        "attempt": 1,
+        "exception_type": "httpx.ReadTimeout",
+        "monotonic_offset_seconds": 3.5,
+    }
+    expected = runner.EXPECTED_BY_SOURCE["cninfo"]
+    accepted = _recorded_cninfo_pacing(pdf_count=expected, retry_events=[event])
+    runner._validate_request_pacing_evidence(
+        _pacing_evidence(accepted),
+        expected_cninfo_requests=expected,
+        transport_retry_recorded=True,
+    )
+    evaluator._validate_request_pacing(
+        _pacing_evidence(copy.deepcopy(accepted)), transport_retry_recorded=True
+    )
+
+    # A post-decision manifest that simply had no transient failure still passes.
+    zero = _recorded_cninfo_pacing(pdf_count=expected, retry_events=[])
+    runner._validate_request_pacing_evidence(
+        _pacing_evidence(zero),
+        expected_cninfo_requests=expected,
+        transport_retry_recorded=True,
+    )
+    evaluator._validate_request_pacing(
+        _pacing_evidence(copy.deepcopy(zero)), transport_retry_recorded=True
+    )
+
+    # Frozen evidence published before the decision has no retry policy at all and
+    # must keep validating exactly as it did; neither shape is accepted in the
+    # other's place.
+    legacy = _recorded_cninfo_pacing(pdf_count=expected, retry_events=[])
+    del legacy["transport_retry_policy"]
+    del legacy["retry_events"]
+    del legacy["pause_events"]
+    del legacy["http_unavailable_count"]
+    del legacy["http_unavailable_events"]
+    runner._validate_request_pacing_evidence(
+        _pacing_evidence(copy.deepcopy(legacy)),
+        expected_cninfo_requests=expected,
+        transport_retry_recorded=False,
+    )
+    evaluator._validate_request_pacing(
+        _pacing_evidence(copy.deepcopy(legacy)), transport_retry_recorded=False
+    )
+    with pytest.raises(runner.HeldoutPreparationError, match="CNInfo pacing"):
+        runner._validate_request_pacing_evidence(
+            _pacing_evidence(copy.deepcopy(legacy)),
+            expected_cninfo_requests=expected,
+            transport_retry_recorded=True,
+        )
+    with pytest.raises(runner.HeldoutPreparationError, match="CNInfo pacing"):
+        runner._validate_request_pacing_evidence(
+            _pacing_evidence(copy.deepcopy(accepted)),
+            expected_cninfo_requests=expected,
+            transport_retry_recorded=False,
+        )
+    legacy_with_retry = dict(legacy, retry_count=1)
+    with pytest.raises(runner.HeldoutPreparationError, match="CNInfo pacing"):
+        runner._validate_request_pacing_evidence(
+            _pacing_evidence(legacy_with_retry),
+            expected_cninfo_requests=expected,
+            transport_retry_recorded=False,
+        )
+    with pytest.raises(evaluator.HeldoutEvaluationError, match="pacing"):
+        evaluator._validate_request_pacing(
+            _pacing_evidence(copy.deepcopy(legacy_with_retry)), transport_retry_recorded=False
+        )
+
+    mutations: list[Callable[[dict[str, Any]], None]] = [
+        lambda value: value.__setitem__("retry_count", 2),
+        # The fabricated shape: retries recorded but not counted as request starts.
+        lambda value: value.__setitem__(
+            "request_start_count", value["request_start_count"] - value["retry_count"]
+        ),
+        lambda value: value.__setitem__(
+            "request_start_count", value["request_start_count"] + 1
+        ),
+        lambda value: value["retry_events"][0].__setitem__("attempt", 2),
+        lambda value: value.__setitem__("retry_events", []),
+        lambda value: value["retry_events"][0].__setitem__(
+            "attempt", runner.CNINFO_MAX_PDF_ATTEMPTS
+        ),
+        lambda value: value.__setitem__(
+            "pause_events",
+            [
+                {
+                    "pause_index": 1,
+                    "window_size": 20,
+                    "window_stalls": 14,
+                    "current_url_sha256": "a" * 64,
+                    "pause_seconds": 600.0,
+                    "monotonic_offset_seconds": 1.0,
+                }
+            ],
+        ),
+        lambda value: value.__setitem__(
+            "pause_events",
+            [
+                {
+                    "pause_index": index,
+                    "window_size": 20,
+                    "window_stalls": 15,
+                    "current_url_sha256": "a" * 64,
+                    "pause_seconds": 600.0,
+                    "monotonic_offset_seconds": float(index),
+                }
+                for index in range(1, runner.CNINFO_STALL_PAUSE_MAX + 2)
+            ],
+        ),
+        lambda value: value["transport_retry_policy"].__setitem__(
+            "wall_clock_cap_seconds", 1
+        ),
+        lambda value: value["transport_retry_policy"]["stall_pause_policy"].__setitem__(
+            "max_pauses", 4
+        ),
+        lambda value: value["transport_retry_policy"]["stall_pause_policy"].__setitem__(
+            "window_stall_threshold", 10
+        ),
+        lambda value: value.pop("pause_events"),
+        lambda value: value.__setitem__("http_unavailable_count", 1),
+        lambda value: value.__setitem__(
+            "http_unavailable_events",
+            [{"url_sha256": "a" * 64, "http_status": 403, "monotonic_offset_seconds": 1.0}],
+        ),
+        lambda value: value["transport_retry_policy"].__setitem__(
+            "unavailable_http_statuses", [404]
+        ),
+        lambda value: value["retry_events"][0].__setitem__("attempt", 0),
+        lambda value: value["retry_events"][0].__setitem__("url_sha256", "not-a-digest"),
+        lambda value: value["retry_events"][0].__setitem__("exception_type", "not a label"),
+        lambda value: value["retry_events"][0].__setitem__(
+            "exception_type", "gold_sample_http_status_500"
+        ),
+        lambda value: value["retry_events"][0].__setitem__("monotonic_offset_seconds", -1.0),
+        lambda value: value["retry_events"][0].pop("url_sha256"),
+        lambda value: value["transport_retry_policy"].__setitem__("max_attempts_per_pdf", 4),
+        lambda value: value["transport_retry_policy"].__setitem__("backoff_seconds", [2.0]),
+        lambda value: value["transport_retry_policy"]["non_retried"].append("anything"),
+        lambda value: value.pop("transport_retry_policy"),
+    ]
+    for mutate in mutations:
+        drifted = _recorded_cninfo_pacing(pdf_count=expected, retry_events=[dict(event)])
+        mutate(drifted)
+        with pytest.raises(runner.HeldoutPreparationError, match="CNInfo pacing"):
+            runner._validate_request_pacing_evidence(
+                _pacing_evidence(drifted),
+                expected_cninfo_requests=expected,
+                transport_retry_recorded=True,
+            )
+        # A removed key is refused by the exact-key gate, a bad value by the predicate.
+        with pytest.raises(evaluator.HeldoutEvaluationError, match="pacing"):
+            evaluator._validate_request_pacing(
+                _pacing_evidence(copy.deepcopy(drifted)), transport_retry_recorded=True
+            )
+
+    # The budget bounds the total retries across every PDF in the run.
+    over_budget = _recorded_cninfo_pacing(
+        pdf_count=1,
+        retry_events=[
+            dict(event, attempt=index) for index in range(1, runner.CNINFO_MAX_PDF_ATTEMPTS + 1)
+        ],
+    )
+    with pytest.raises(runner.HeldoutPreparationError, match="CNInfo pacing"):
+        runner._validate_request_pacing_evidence(
+            _pacing_evidence(over_budget),
+            expected_cninfo_requests=1,
+            transport_retry_recorded=True,
+        )
 
 
 def test_cninfo_noop_sleeper_rejects_before_second_fetch_and_never_retries() -> None:
@@ -2202,6 +3369,103 @@ def test_launchagent_parser_is_pure_and_fail_closed() -> None:
             )
 
 
+def _v21_context(binding: runner.HeldoutBinding) -> runner.V21ReleaseAuthorization:
+    return runner.V21ReleaseAuthorization(
+        project_root=binding.root,
+        receipt_path=binding.root / runner.SUCCESSOR_V2_1_RELEASE_PATH,
+        receipt_sha256="1" * 64,
+        receipt_creating_commit="1" * 40,
+        preregistration_commit=runner.SUCCESSOR_V2_1_PREREGISTRATION_COMMIT,
+        implementation_commit="2" * 40,
+        rehearsal_evidence_commit="3" * 40,
+        bundle_path=binding.root / runner.SUCCESSOR_V2_1_BUNDLE_PATH,
+        bundle_sha256="4" * 64,
+        bundle_root_sha256="5" * 64,
+    )
+
+
+def _publish_backup(binding: runner.HeldoutBinding, created_at_utc: str) -> Path:
+    """Publish one genuine verified backup dated at the given instant."""
+    return Path(
+        database_backup.create_database_backup(
+            binding.root / "data/alphapilot.db",
+            binding.root / "data/backups",
+            retain=7,
+            minimum_free_bytes=1,
+            now=datetime.fromisoformat(created_at_utc.replace("Z", "+00:00")),
+        )["backup_path"]
+    )
+
+
+def _recorded_preflight_evidence(
+    binding: runner.HeldoutBinding,
+    runtime_directory: Path,
+    backup_path: Path,
+    *,
+    observed_at_utc: str,
+    stamp_shanghai_date: str | None = None,
+) -> dict[str, Any]:
+    """Build evidence in exactly the shape a real preflight records."""
+    manifest_path = database_backup.manifest_path_for(backup_path)
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    created_at = datetime.fromisoformat(str(manifest["created_at"]).replace("Z", "+00:00"))
+    created_shanghai = created_at.astimezone(ZoneInfo("Asia/Shanghai"))
+    observed = datetime.fromisoformat(observed_at_utc.replace("Z", "+00:00"))
+    observed_shanghai = observed.astimezone(ZoneInfo("Asia/Shanghai"))
+    stamp_date = stamp_shanghai_date or created_shanghai.date().isoformat()
+    return {
+        "mode": "real",
+        "observed_at_utc": observed.astimezone(UTC).isoformat().replace("+00:00", "Z"),
+        "observed_at_shanghai": observed_shanghai.isoformat(),
+        "backup_stamp": {
+            "path": str(runtime_directory / "last-success-shanghai-date"),
+            "expected_shanghai_date": stamp_date,
+            "observed_value": stamp_date,
+            "regular_file": True,
+            "symlink": False,
+            "mode": "0600",
+        },
+        "database_backup_launchagent": {
+            "label": "com.alphapilot.database-backup",
+            "target": f"gui/{os.getuid()}/com.alphapilot.database-backup",
+            "loaded": True,
+            "state": "not running",
+            "last_exit_code": 0,
+        },
+        "database_backup_lock": {
+            "path": str(runtime_directory / ".daily-backup.lock"),
+            "nonblocking_exclusive_flock_acquired": True,
+            "held": False,
+        },
+        "verified_backup": {
+            "manifest_path": str(manifest_path.resolve()),
+            "manifest_sha256": common.sha256_file(manifest_path),
+            "backup_path": str(backup_path.resolve()),
+            "backup_sha256": manifest["backup"]["sha256"],
+            "created_at_utc": created_at.astimezone(UTC).isoformat().replace("+00:00", "Z"),
+            "created_at_shanghai": created_shanghai.isoformat(),
+            "quick_check": "ok",
+            "verify_database_backup_passed": True,
+        },
+        "operator_timing_attestation": {
+            "observed_start_cst": observed_shanghai.isoformat(),
+            "attester_identity": "owner-ouyang",
+            "explicitly_supplied": True,
+            "input_channel": (
+                "required_real_CLI_flags_or_required_typed_run_materialize_argument_no_default"
+            ),
+            "cninfo_midnight_batch_assessment": "clear_for_start",
+            "p4_1_dense_poll_slot_assessment": "clear_for_start",
+            "decision": (
+                "launched_outside_owner_identified_CNInfo_midnight_and_dense_P4_1_slots"
+            ),
+            "automatic_blackout_verification": False,
+            "authority_path": runner.SUCCESSOR_CODE_GATE_AUTHORITY_PATH.as_posix(),
+            "authority_sha256": runner.SUCCESSOR_CODE_GATE_AUTHORITY_SHA256,
+        },
+    }
+
+
 def test_runtime_preflight_evidence_is_bound_to_exact_paths_and_current_manifest(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -2282,18 +3546,7 @@ def test_runtime_preflight_evidence_is_bound_to_exact_paths_and_current_manifest
             "authority_sha256": runner.SUCCESSOR_CODE_GATE_AUTHORITY_SHA256,
         },
     }
-    context = runner.V21ReleaseAuthorization(
-        project_root=binding.root,
-        receipt_path=binding.root / runner.SUCCESSOR_V2_1_RELEASE_PATH,
-        receipt_sha256="1" * 64,
-        receipt_creating_commit="1" * 40,
-        preregistration_commit=runner.SUCCESSOR_V2_1_PREREGISTRATION_COMMIT,
-        implementation_commit="2" * 40,
-        rehearsal_evidence_commit="3" * 40,
-        bundle_path=binding.root / runner.SUCCESSOR_V2_1_BUNDLE_PATH,
-        bundle_sha256="4" * 64,
-        bundle_root_sha256="5" * 64,
-    )
+    context = _v21_context(binding)
 
     runner._validate_runtime_preflight_evidence(binding, evidence, context)
 
@@ -2301,6 +3554,13 @@ def test_runtime_preflight_evidence_is_bound_to_exact_paths_and_current_manifest
     wrong_stamp["backup_stamp"]["path"] = str(tmp_path / "attacker-stamp")
     with pytest.raises(runner.HeldoutPreparationError, match="stamp evidence"):
         runner._validate_runtime_preflight_evidence(binding, wrong_stamp, context)
+
+    # The stamp is now bound to the backup it was recorded with, not to "today".
+    foreign_stamp_date = copy.deepcopy(evidence)
+    foreign_stamp_date["backup_stamp"]["expected_shanghai_date"] = "2026-08-09"
+    foreign_stamp_date["backup_stamp"]["observed_value"] = "2026-08-09"
+    with pytest.raises(runner.HeldoutPreparationError, match="stamp evidence"):
+        runner._validate_runtime_preflight_evidence(binding, foreign_stamp_date, context)
 
     utc_operator = copy.deepcopy(evidence)
     utc_operator["operator_timing_attestation"]["observed_start_cst"] = observed_utc
@@ -2323,8 +3583,11 @@ def test_runtime_preflight_never_falls_back_from_newer_invalid_backup_manifest(
     tmp_path: Path,
 ) -> None:
     binding = _temporary_binding(tmp_path)
+    # A genuine, fully verifiable backup from the previous Shanghai day. Under the
+    # relaxed rule it is an eligible candidate, so it is the fallback the newest
+    # manifest must never be allowed to degrade to.
+    previous_day_backup = _publish_backup(binding, "2026-08-09T14:10:00Z")
     backup_directory = binding.root / "data/backups"
-    backup_directory.mkdir(parents=True)
     old_backup = backup_directory / "alphapilot-full-old.db"
     new_backup = backup_directory / "alphapilot-full-new.db"
     old_backup.write_bytes(b"old")
@@ -2411,6 +3674,141 @@ def test_runtime_preflight_never_falls_back_from_newer_invalid_backup_manifest(
             binding,
             datetime(2026, 8, 10, 15, 0, tzinfo=UTC),
         )
+
+    # Removing every newer manifest is the only way the previous day's backup is
+    # reached; no failure above silently selected it.
+    for manifest in backup_directory.glob("alphapilot-full-*.manifest.json"):
+        if manifest != database_backup.manifest_path_for(previous_day_backup):
+            manifest.unlink()
+    recovered = runner._verified_backup_evidence(
+        binding,
+        datetime(2026, 8, 10, 15, 0, tzinfo=UTC),
+    )
+    assert recovered["backup_path"] == str(previous_day_backup.resolve())
+    assert recovered["created_at_shanghai"].startswith("2026-08-09T22:10:00")
+
+
+def test_runtime_preflight_binds_the_newest_manifest_even_from_a_previous_day(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    binding = _temporary_binding(tmp_path)
+    runtime_directory = tmp_path / "runtime"
+    runtime_directory.mkdir()
+    monkeypatch.setattr(
+        runner, "_database_backup_runtime_directory", lambda: runtime_directory
+    )
+    older = _publish_backup(binding, "2026-08-08T14:10:00Z")
+    newest = _publish_backup(binding, "2026-08-09T14:10:00Z")
+
+    # Observed a day later, at a time no backup has yet run: the newest verified
+    # manifest is bound with no calendar-day or hour condition.
+    selected = runner._verified_backup_evidence(
+        binding, datetime(2026, 8, 10, 14, 30, tzinfo=UTC)
+    )
+    assert selected["backup_path"] == str(newest.resolve())
+    assert selected["backup_path"] != str(older.resolve())
+    assert selected["created_at_shanghai"].startswith("2026-08-09T22:10:00")
+
+    evidence = _recorded_preflight_evidence(
+        binding, runtime_directory, newest, observed_at_utc="2026-08-10T14:30:00Z"
+    )
+    assert evidence["backup_stamp"]["expected_shanghai_date"] == "2026-08-09"
+    assert evidence["observed_at_shanghai"].startswith("2026-08-10T22:30:00")
+    runner._validate_runtime_preflight_evidence(binding, evidence, _v21_context(binding))
+    evaluator._validate_runtime_start_preflight(
+        evidence, authority_mode="real_owner_released"
+    )
+
+
+def test_runtime_preflight_rejects_a_stamp_date_that_is_not_the_bound_backup_date(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    binding = _temporary_binding(tmp_path)
+    runtime_directory = tmp_path / "runtime"
+    runtime_directory.mkdir()
+    monkeypatch.setattr(
+        runner, "_database_backup_runtime_directory", lambda: runtime_directory
+    )
+    backup = _publish_backup(binding, "2026-08-09T14:10:00Z")
+    context = _v21_context(binding)
+    for stamp_date in ("2026-08-10", "2026-08-08"):
+        evidence = _recorded_preflight_evidence(
+            binding,
+            runtime_directory,
+            backup,
+            observed_at_utc="2026-08-10T14:30:00Z",
+            stamp_shanghai_date=stamp_date,
+        )
+        with pytest.raises(runner.HeldoutPreparationError, match="stamp evidence"):
+            runner._validate_runtime_preflight_evidence(binding, evidence, context)
+        with pytest.raises(evaluator.HeldoutEvaluationError, match="preflight drifted"):
+            evaluator._validate_runtime_start_preflight(
+                evidence, authority_mode="real_owner_released"
+            )
+
+
+def test_runtime_preflight_still_rejects_a_future_dated_backup(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    binding = _temporary_binding(tmp_path)
+    runtime_directory = tmp_path / "runtime"
+    runtime_directory.mkdir()
+    monkeypatch.setattr(
+        runner, "_database_backup_runtime_directory", lambda: runtime_directory
+    )
+    backup = _publish_backup(binding, "2026-08-11T14:10:00Z")
+    with pytest.raises(runner.HeldoutPreparationError, match="future-dated"):
+        runner._verified_backup_evidence(
+            binding, datetime(2026, 8, 10, 14, 30, tzinfo=UTC)
+        )
+    evidence = _recorded_preflight_evidence(
+        binding, runtime_directory, backup, observed_at_utc="2026-08-10T14:30:00Z"
+    )
+    with pytest.raises(runner.HeldoutPreparationError, match="verified backup evidence"):
+        runner._validate_runtime_preflight_evidence(
+            binding, evidence, _v21_context(binding)
+        )
+    with pytest.raises(evaluator.HeldoutEvaluationError, match="preflight drifted"):
+        evaluator._validate_runtime_start_preflight(
+            evidence, authority_mode="real_owner_released"
+        )
+
+
+def test_same_day_post_2200_recorded_preflight_still_passes_both_validators(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The shape recorded under the previous rule must survive the relaxation."""
+    binding = _temporary_binding(tmp_path)
+    runtime_directory = tmp_path / "runtime"
+    runtime_directory.mkdir()
+    monkeypatch.setattr(
+        runner, "_database_backup_runtime_directory", lambda: runtime_directory
+    )
+    _publish_backup(binding, "2026-09-07T14:05:00Z")
+    backup = _publish_backup(binding, "2026-09-08T14:05:00Z")
+    observed = datetime(2026, 9, 8, 14, 20, tzinfo=UTC)
+
+    selected = runner._verified_backup_evidence(binding, observed)
+    assert selected["backup_path"] == str(backup.resolve())
+
+    evidence = _recorded_preflight_evidence(
+        binding, runtime_directory, backup, observed_at_utc="2026-09-08T14:20:00Z"
+    )
+    # Same Shanghai day, backup after 22:00, stamp equal to that day: exactly what
+    # the unchanged runtime records tonight.
+    assert evidence["backup_stamp"]["expected_shanghai_date"] == "2026-09-08"
+    assert evidence["verified_backup"]["created_at_shanghai"].startswith(
+        "2026-09-08T22:05:00"
+    )
+    assert evidence["observed_at_shanghai"].startswith("2026-09-08T22:20:00")
+    runner._validate_runtime_preflight_evidence(binding, evidence, _v21_context(binding))
+    evaluator._validate_runtime_start_preflight(
+        evidence, authority_mode="real_owner_released"
+    )
 
 
 def test_operator_attestation_requires_explicit_nonblank_clear_decision() -> None:

@@ -1,0 +1,581 @@
+{
+  "schema_version": "p4.2a-v2-2-series2-epoch9-r3-companion-v1",
+  "companion_id": "P4.2A-V2-2-SERIES2-EPOCH9-R3-LATEST-LANDED-EXECUTION-COMPANION-20260903",
+  "created_at_utc": "2026-09-03T04:43:27Z",
+  "created_at_shanghai": "2026-09-03T12:43:27+08:00",
+  "purpose": "machine-readable governance contract that preserves the immutable epoch-8 recovery contract and sealed epoch-6 selected history while binding every future live execution, preflight, recovery-publication, and release identity to the latest landed epoch 9",
+  "governance_chain": {
+    "design_r1": {
+      "path": "docs/phase4/reports/P4.2a-v2-2-series2-epoch9-source-projection-identity-design-proposal-20260903.md",
+      "creating_commit": "094816f11bdb26f9d4141db6c5ddf46de1f735cb",
+      "sha256": "2f479639273f374ccea36fa6c4dafa0aa2023817ad4fd377df7e78b02db9e23c",
+      "bytes": 16719
+    },
+    "design_r2": {
+      "path": "docs/phase4/reports/P4.2a-v2-2-series2-epoch9-source-projection-identity-design-proposal-r2-20260903.md",
+      "creating_commit": "fce157432a505c7d0cd09263b0d7db8dd3f049da",
+      "sha256": "afaf02b0cc2f53cd891e0ec65a8ad125ce8d7508cd7555b7d651274b8c6e541a",
+      "bytes": 3232
+    },
+    "design_r1_r2_review": {
+      "path": "docs/phase4/reports/P4.2a-v2-2-series2-epoch9-source-projection-identity-independent-design-review-20260903.json",
+      "creating_commit": "7481b9477dd9721275a549d47cc0af80e703e606",
+      "sha256": "b79cce702ff7d0070ad669edc168402604e939679ff4f0934ab760b5812b9686",
+      "bytes": 8390
+    },
+    "superseded_companion": {
+      "path": "docs/phase4/reports/P4.2a-series2-epoch9-companion-20260903.json",
+      "creating_commit": "261a483d4d199d6e113b8b20231079985b36472a",
+      "sha256": "e98e105ffac69f3a57b455cc4782e29ba00429b6525dc4d0921a58c7411c8f58",
+      "bytes": 12830,
+      "disposition": "IMMUTABLE_HISTORICAL_EVIDENCE_SUPERSEDED_WHERE_R3_CONFLICTS"
+    },
+    "superseded_two_file_authority": {
+      "path": "docs/phase4/reports/P4.2a-v2-2-series2-epoch9-surface-authority-20260903.json",
+      "creating_commit": "6936f4531eb52a6a343bf8a20e879dac1503bbdd",
+      "sha256": "e5501e387d85be43fabe131b1e3d5067ad189db2e81a255744ad29b99446379e",
+      "bytes": 517,
+      "disposition": "SUPERSEDED_FOR_IMPLEMENTATION_ONLY"
+    },
+    "design_r3": {
+      "path": "docs/phase4/reports/P4.2a-v2-2-series2-epoch9-latest-landed-epoch-design-r3-20260903.md",
+      "creating_commit": "7bf6d7fd0b054d6be775c36583085b443e0769f2",
+      "sha256": "5f99c0ac8cf708467e6c37c4516a30941af313cebbcd9d3141bd8b048e1460d9",
+      "bytes": 45262
+    },
+    "design_r3_independent_review": {
+      "path": "docs/phase4/reports/P4.2a-v2-2-series2-epoch9-latest-landed-epoch-independent-design-review-r3-20260903.json",
+      "creating_commit": "dad5d0d332752bf99beeb9c5be55d1d2323bafab",
+      "sha256": "24c66b7027d30b3fc168ae3ffa9dff0a0fe707d61130c5102b67e3386c6425f9",
+      "bytes": 13519,
+      "verdict": "PASS_INCREMENTAL_EPOCH9_R3_DESIGN_REVIEW"
+    },
+    "governing_adjudication": {
+      "path": "docs/phase4/reports/P4.2a-series2-epoch9-r3-design-conflict-adjudication-20260903.json",
+      "creating_commit": "5c58141fd5c2622e147daa8f48f15c486515378d",
+      "sha256": "204f0a4814d25f37390db154d6000b37fca36aa6e54ea35617c415308721cece",
+      "bytes": 9387
+    },
+    "composite_precedence": "r1 plus r2 plus r3; r2 controls the failed-preflight evidence channel and r3 controls latest-live-epoch closure, historical-contract separation, the four-file implementation surface, and every conflicting downstream requirement"
+  },
+  "owner_binding": {
+    "owner_identity": "ouyang",
+    "transcript_bound": true,
+    "exact_text": "本人 ouyang 明确批准上一条所列 epoch-9 r3 全部 11 项决定及授权边界：仅授权提交 governing adjudication、创建 companion、准备六字段 4M authority 草案；其余实现、测试、门禁、合并、preflight、Q/R/B、recovery、release、heldout 与 trading 暂不授权。",
+    "accepted_owner_decision_count": 11,
+    "rejected_owner_decision_count": 0,
+    "companion_creation_authorized": true,
+    "surface_authority_draft_authorized": true,
+    "surface_authority_commit_authorized": false
+  },
+  "design_conflict_and_supersession": {
+    "classification": "BLOCKED_BY_DESIGN_CONTRACT_CONFLICT",
+    "conflict": "r1 section 4.3 fixed the live execution epoch to 8 while r1 sections 6.2 and 7 required the latest landed execution epoch; after epoch 9 lands those requirements cannot both hold",
+    "resolution": "preserve the immutable epoch-8 recovery contract and selected epoch-6 historical anchor, add the exact epoch-9 latest-landed live execution contract, and replace the insufficient two-file implementation authority with a future owner-approved exact four-file authority",
+    "old_two_file_authority_immutable": true,
+    "old_two_file_authority_sufficient_for_r3_implementation": false,
+    "old_two_file_authority_may_be_amended_rewritten_or_used_as_r3_base": false,
+    "new_companion_required": true,
+    "new_exact_six_field_four_file_authority_required": true
+  },
+  "epoch_9_latest_landed_execution_contract": {
+    "schema_version": "p4.2a-v2-2-series2-epoch9-latest-landed-execution-contract-v1",
+    "implementation_epoch": 9,
+    "governing_adjudication": {
+      "path": "docs/phase4/reports/P4.2a-series2-epoch9-r3-design-conflict-adjudication-20260903.json",
+      "sha256": "204f0a4814d25f37390db154d6000b37fca36aa6e54ea35617c415308721cece",
+      "bytes": 9387,
+      "creating_commit": "5c58141fd5c2622e147daa8f48f15c486515378d",
+      "unique_a_history_verified": true
+    },
+    "superseded_two_file_authority": {
+      "path": "docs/phase4/reports/P4.2a-v2-2-series2-epoch9-surface-authority-20260903.json",
+      "sha256": "e5501e387d85be43fabe131b1e3d5067ad189db2e81a255744ad29b99446379e",
+      "bytes": 517,
+      "creating_commit": "6936f4531eb52a6a343bf8a20e879dac1503bbdd",
+      "disposition": "SUPERSEDED_FOR_IMPLEMENTATION_ONLY"
+    },
+    "historical_epoch_8_recovery_contract": {
+      "companion_path": "docs/phase4/reports/P4.2a-series2-epoch8-companion-20260901.json",
+      "companion_sha256": "4d25ba645c81b3e0d6a3458a47d9e10c80b7cd61f9ad16a28404160af91226ed",
+      "companion_bytes": 53282,
+      "companion_creating_commit": "a39c0263fefcfbdb1886100fec1b71ec374b43a4",
+      "contract_schema_version": "p4.2a-v2-2-series2-epoch8-recovery-contract-v1",
+      "contract_canonical_sha256": "36b1ae714faf2746f677e3c5aa452d2dc1822234dd10d687aa11d804ac606dbf",
+      "preservation": "IMMUTABLE_HISTORICAL_CONTRACT_BYTE_FOR_BYTE"
+    },
+    "latest_landed_authority_contract": {
+      "expected_implementation_epoch": 9,
+      "owner_identity_mode": "LOGICAL_SOURCE_WITH_LAWFUL_PROJECTIONS",
+      "review_identity_mode": "FIRST_PARENT_VISIBLE_UNIQUE_A",
+      "landing_identity_mode": "FIRST_PARENT_VISIBLE_UNIQUE_A",
+      "landing_document_required_fields": [
+        "implementation_epoch",
+        "owner_exact_surface_authorization",
+        "implementation_commit",
+        "independent_review_source_and_projection",
+        "ordered_merge_parents",
+        "merge_commit",
+        "landing_commit_and_parent",
+        "control_merkle_root_sha256",
+        "control_record_count",
+        "runner_validator_and_combined_test_counts",
+        "gate_evidence_digests"
+      ],
+      "topology_requirements": [
+        "owner authority is one logical source with only lawful byte-identical first-parent projections",
+        "implementation is the authority source commit direct single-parent exact-four-M child",
+        "independent review is the implementation direct single-parent unique-A report",
+        "no-ff merge ordered parents are fresh_main_base then review_commit and preserve reviewed implementation bytes",
+        "landing report is the merge direct single-parent unique-A child",
+        "every named commit is on execution lineage and every named document matches immutable Git and required current bytes"
+      ],
+      "runtime_binding_chain": [
+        "landing_report",
+        "registered_read_only_preflight",
+        "recovery_review_request_Q",
+        "recovery_authorization_R",
+        "owner_confirmation_binding_B"
+      ],
+      "unknown_values_policy": "future implementation, review, merge, landing, control-root, and census values must be obtained from the actual validated runtime chain and may never be defaulted, guessed, left empty, or represented by a placeholder"
+    },
+    "registered_preflight_dispatch_contract": {
+      "landing_preflight_origin_epoch": 8,
+      "latest_official_epoch": 9,
+      "historical_epoch_8_policy": "validate the immutable epoch-8 recovery contract and historical or synthetic proof but reject epoch 8 as the latest official execution epoch after epoch 9 lands",
+      "unknown_later_epoch_policy": "FAIL_CLOSED_UNTIL_SEPARATELY_GOVERNED",
+      "output_schema_version": "p4.2a-v2-2-read-only-implementation-preflight-v2",
+      "zero_effect_required": true,
+      "runtime_binding_order": [
+        "locked process interpreter environment and complete CLI",
+        "immutable epoch-8 historical contract",
+        "epoch-9 companion authority review landing and topology",
+        "epoch-9 current control and loaded module bytes plus first real-lineage census",
+        "series storage recovery containers sealed ledger and mirror",
+        "second identical census complete before-after equality and one canonical stdout line"
+      ]
+    },
+    "dual_byte_anchor_transition_contract": {
+      "historical_selected_anchor": {
+        "selected_attempt_ordinal": 2,
+        "implementation_epoch": 6,
+        "implementation_commit": "e5aab9772793a7b0465f100cb48f99a1bc4e45dc",
+        "history_root_sha256": "832559b59a8edc09c04b0f5a7c09cea71e5c3597c2bdc0831072a4122bf016e7",
+        "live_ledger_root_sha256": "ab08612ba2e11e45c3a3415ca7079117f2a739bf470719abf4f204958272574d",
+        "require_current": false
+      },
+      "live_execution_anchor": {
+        "implementation_epoch": 9,
+        "require_current": true,
+        "required_current_surfaces": [
+          "complete registered control-surface bytes",
+          "loaded producer module origin and digest",
+          "loaded validator module origin and digest"
+        ],
+        "required_lineage_objects": [
+          "epoch-9 four-file owner surface authority",
+          "epoch-9 implementation",
+          "epoch-9 independent implementation review source and projection",
+          "epoch-9 ordered-parent no-ff merge",
+          "epoch-9 unique-A landing report"
+        ],
+        "runtime_value_source": "the validated epoch-9 landing report followed by the one real preflight and exact Q then R then B byte chain"
+      },
+      "sealed_attempt_epoch_table": [
+        5,
+        6
+      ]
+    },
+    "recovery_qrb_live_binding_contract": {
+      "q_schema": "p4.2a-v2-2-series2-sealed-bundle-recovery-review-request-v2",
+      "q_top_level_fields": [
+        "schema_version",
+        "request_id",
+        "created_at_utc",
+        "created_at_shanghai",
+        "status",
+        "requester",
+        "landed_execution_epoch",
+        "registered_read_only_recovery_preflight",
+        "preflight_before_after_equality",
+        "proposed_recovery_authorization",
+        "requested_owner_action_time_confirmation",
+        "post_confirmation_plan_not_yet_executed",
+        "current_locks"
+      ],
+      "r_schema": "p4.2a-v2-2-series2-sealed-bundle-recovery-authorization-v1",
+      "r_top_level_fields": [
+        "schema_version",
+        "authorization_id",
+        "created_at_utc",
+        "created_at_shanghai",
+        "verdict",
+        "owner",
+        "sealed_series",
+        "execution_epoch",
+        "destination",
+        "exact_argv",
+        "command_sha256",
+        "exact_environment",
+        "environment_sha256",
+        "authorized_bundle_recovery_starts",
+        "authorized_pipeline_starts",
+        "automatic_retry_count",
+        "effect_authorization",
+        "interpreter",
+        "locks"
+      ],
+      "b_schema": "p4.2a-v2-2-series2-sealed-bundle-recovery-owner-confirmation-binding-v1",
+      "b_top_level_fields": [
+        "schema_version",
+        "binding_id",
+        "created_at_utc",
+        "created_at_shanghai",
+        "status",
+        "review_request",
+        "recovery_authorization",
+        "owner_confirmation",
+        "authorized_scope",
+        "explicit_exclusions",
+        "registered_read_only_recovery_preflight",
+        "machine_boundary"
+      ],
+      "runtime_live_binding_fields": [
+        "execution epoch 9",
+        "epoch-9 implementation authority review merge and landing",
+        "epoch-9 control root count and real-lineage census",
+        "selected sealed epoch 6 and attempts [5,6]",
+        "exact argv and environment hashes",
+        "owner identity topology destination storage roots and claim naming"
+      ],
+      "cross_epoch_policy": "reject every epoch-8 and epoch-9 mixture across Q, R, B, embedded preflight, owner, review, merge, landing, control, and census before storage access",
+      "counters": {
+        "authorized_bundle_recovery_starts_after_fresh_Q_R_B": 1,
+        "authorized_pipeline_starts": 0,
+        "automatic_retry_count": 0
+      }
+    },
+    "recovery_claim_and_receipt_live_binding_contract": {
+      "started_schema": "p4.2a-v2-2-series2-bundle-recovery-started-v1",
+      "started_top_level_fields": [
+        "schema_version",
+        "recovery_id",
+        "authorization",
+        "owner_confirmation_binding",
+        "created_at_utc",
+        "created_at_shanghai",
+        "execution_head",
+        "execution_epoch",
+        "sealed_history_root_sha256",
+        "sealed_live_ledger_root_sha256",
+        "sealed_mirror_receipt_sha256",
+        "destination",
+        "destination_stage",
+        "secondary_snapshot_stage",
+        "secondary_snapshot_target",
+        "state",
+        "authorized_bundle_recovery_starts",
+        "authorized_pipeline_starts",
+        "automatic_retry_count"
+      ],
+      "terminal_schema": "p4.2a-v2-2-series2-bundle-recovery-terminal-v1",
+      "terminal_top_level_fields": [
+        "schema_version",
+        "recovery_id",
+        "authorization",
+        "owner_confirmation_binding",
+        "completed_at_utc",
+        "completed_at_shanghai",
+        "outcome",
+        "reached_stage",
+        "sealed_ledger_before_sha256",
+        "sealed_ledger_after_sha256",
+        "sealed_mirror_before_sha256",
+        "sealed_mirror_after_sha256",
+        "destination",
+        "published_bundle_sha256",
+        "published_tree_sha256",
+        "secondary_snapshot",
+        "secondary_snapshot_tree_sha256",
+        "primary_receipt",
+        "secondary_receipt",
+        "paired_receipts_byte_identical",
+        "destination_stage_absent",
+        "secondary_snapshot_stage_absent",
+        "pipeline_starts",
+        "automatic_retry_count",
+        "error"
+      ],
+      "mirror_receipt_schema": "p4.2a-v2-2-series2-bundle-recovery-mirror-receipt-v1",
+      "mirror_receipt_top_level_fields": [
+        "schema_version",
+        "recovery_authorization_sha256",
+        "owner_confirmation_binding_sha256",
+        "recovery_id",
+        "series_id",
+        "series_token_sha256",
+        "sealed_history_root_sha256",
+        "sealed_live_ledger_root_sha256",
+        "selected_attempt_ordinal",
+        "selected_implementation_epoch",
+        "selected_implementation_commit",
+        "execution_epoch",
+        "execution_implementation_commit",
+        "execution_head",
+        "destination",
+        "published_bundle_sha256",
+        "published_tree_sha256",
+        "secondary_snapshot",
+        "secondary_snapshot_tree_sha256",
+        "destination_and_snapshot_byte_identical",
+        "pipeline_starts",
+        "automatic_retry_count",
+        "sealed_ledger_before_after_equal",
+        "sealed_mirror_before_after_equal",
+        "verified_at_utc"
+      ],
+      "live_binding_rules": [
+        "started.execution_head and started.execution_epoch bind the epoch-9 live anchor",
+        "mirror receipt execution_epoch execution_implementation_commit and execution_head equal the same epoch-9 live anchor and started record",
+        "terminal has no execution epoch or head field and gains none",
+        "terminal identity is proven through exact R and B references claim path recovery_id receipt references and the paired receipt live tuple",
+        "producer and validator independently recompute the complete chain before accepting any recovered output"
+      ]
+    },
+    "recovered_publication_and_release_live_binding_contract": {
+      "capability_top_level_fields": [
+        "recovery_authorization_path",
+        "recovery_authorization_sha256",
+        "recovery_authorization_creating_commit",
+        "owner_binding_path",
+        "owner_binding_sha256",
+        "owner_binding_creating_commit",
+        "claim_root",
+        "claim_started_sha256",
+        "claim_terminal_sha256",
+        "series_token_sha256",
+        "selected_attempt_ordinal",
+        "selected_implementation_epoch",
+        "selected_implementation_commit",
+        "sealed_history_root_sha256",
+        "sealed_live_ledger_root_sha256",
+        "destination",
+        "published_bundle_sha256",
+        "published_tree_sha256",
+        "secondary_snapshot",
+        "secondary_snapshot_tree_sha256",
+        "primary_receipt_path",
+        "secondary_receipt_path",
+        "paired_receipt_sha256",
+        "paired_receipt_bytes",
+        "execution_epoch",
+        "execution_implementation_commit",
+        "execution_control_merkle_root_sha256",
+        "recovery_starts",
+        "pipeline_starts",
+        "automatic_retry_count",
+        "sealed_ledger_before_after_equal",
+        "sealed_mirror_before_after_equal",
+        "selected_candidate_sha256",
+        "selected_terminal_sha256",
+        "selected_evidence_tree_root_sha256",
+        "historical_run_a_root_sha256",
+        "historical_run_b_root_sha256",
+        "historical_run_a_probe_sha256",
+        "historical_run_b_probe_sha256",
+        "historical_full_downstream_replay_verified"
+      ],
+      "historical_binding_rule": "selected ordinal 2 epoch 6 implementation commit and sealed candidate terminal evidence history ledger and run roots are recomputed from immutable Git and sealed evidence with require_current false",
+      "live_binding_rule": "execution epoch 9 implementation owner review merge landing current control bytes loaded module bytes and final real-lineage census are independently recomputed with require_current true",
+      "bundle_mode": "PASSIVE_RECOVERED_BUNDLE",
+      "release_mode": "PASSIVE_RECOVERED_RELEASE",
+      "active_fallback_forbidden": true,
+      "zero_effect_rule": {
+        "filesystem_and_git_writes": 0,
+        "ledger_and_mirror_writes": 0,
+        "pipeline_starts": 0,
+        "automatic_retries": 0,
+        "model_network_database_and_heldout_accesses": 0,
+        "trading_effects": 0
+      }
+    },
+    "authority_census_and_effect_lock_contract": {
+      "fixed_base_governance_rows": [
+        {
+          "identity": "immutable registered authority registry and epoch-8 governance chain",
+          "binding_rule": "preserve every pinned source path raw byte SHA byte count source parent role and lawful projection rule"
+        },
+        {
+          "identity": "epoch-9 r3 governing adjudication",
+          "binding_rule": "use the exact governing_adjudication tuple in this contract as a PINNED_SOURCE"
+        },
+        {
+          "identity": "this epoch-9 r3 companion",
+          "binding_rule": "derive its exact path SHA bytes and unique-A creating commit from the future authority base commit and verify its direct parent is the governing adjudication"
+        },
+        {
+          "identity": "future epoch-9 four-file surface authority",
+          "binding_rule": "derive its exact path SHA bytes and unique-A source commit from the caller-supplied authority and require its base_commit to equal this companion creating commit"
+        }
+      ],
+      "dynamic_runtime_rows": [
+        "epoch-9 independent implementation review source and lawful first-parent projection",
+        "epoch-9 no-ff merge",
+        "epoch-9 unique-A landing report",
+        "fresh Q then R then B exact linear ref delta at recovery start"
+      ],
+      "permanent_absence_fields": {
+        "official_series_2_bundle_emits_void_epoch_1": false,
+        "void_epoch_3_added": false,
+        "two_four_exception_added": false,
+        "sealed_bundle_recovery_added": false,
+        "recover_sealed_bundle_cli_added": false,
+        "consume_recovered_release_cli_added": false
+      },
+      "sealed_attempt_epochs": [
+        5,
+        6
+      ],
+      "effect_limits": {
+        "future_recovery_starts_after_separately_authorized_fresh_Q_R_B": 1,
+        "pipeline_starts": 0,
+        "automatic_retries": 0,
+        "preflight_Q_drafting_validation_release_revalidation_and_review_writes": 0
+      },
+      "lock_values": {
+        "ordinal_3_forbidden": true,
+        "synthetic_attempt_rows_for_epochs_7_8_9_forbidden": true,
+        "ledger_and_sealed_mirror_read_only": true,
+        "p4_2a_done": false,
+        "p4_2b_unlocked": false,
+        "p4_3_unlocked": false,
+        "heldout_materialization_inference_evaluation_locked": true,
+        "non_simulate_trading_locked": true,
+        "active_replay_fallback_forbidden": true
+      }
+    }
+  },
+  "implementation_surface_contract": {
+    "implementation_epoch": 9,
+    "exact_surface_utf8_sorted": [
+      {
+        "path": "scripts/p4_2a_v2_2_heldout_rehearsal.py",
+        "status": "M"
+      },
+      {
+        "path": "scripts/validate_p4_2a_v2_2_heldout_rehearsal_bundle.py",
+        "status": "M"
+      },
+      {
+        "path": "tests/test_p4_2a_v2_2_heldout_rehearsal_runner.py",
+        "status": "M"
+      },
+      {
+        "path": "tests/test_p4_2a_v2_2_heldout_rehearsal_validator.py",
+        "status": "M"
+      }
+    ],
+    "baseline_files": [
+      {
+        "path": "scripts/p4_2a_v2_2_heldout_rehearsal.py",
+        "sha256": "df85ef29b5adb6dfcf68a5a7bf519000ed8157120380a77446765c97e83570e8",
+        "bytes": 875044
+      },
+      {
+        "path": "scripts/validate_p4_2a_v2_2_heldout_rehearsal_bundle.py",
+        "sha256": "8587181dac7b7f2ee301ca3febf60f7e5d76aed249bc508d458cb8dd3def83d4",
+        "bytes": 534271
+      },
+      {
+        "path": "tests/test_p4_2a_v2_2_heldout_rehearsal_runner.py",
+        "sha256": "e3b1be5b4f20ed087a4104020cd7c9529b7d64bc89a08a055010c04efc0d0505",
+        "bytes": 452318
+      },
+      {
+        "path": "tests/test_p4_2a_v2_2_heldout_rehearsal_validator.py",
+        "sha256": "23f427720784576dfb6eee74eb195c9914b7bb9874e70b81819bb19abc2e19c6",
+        "bytes": 326825
+      }
+    ],
+    "tracked_schema_files_changed": false,
+    "shim_changed": false,
+    "thresholds_samples_seeds_models_prompts_gold_changed": false,
+    "ledger_or_mirror_changed": false,
+    "new_capability_added": false
+  },
+  "registered_test_contract": {
+    "runner_collect_floor": 230,
+    "validator_collect_floor": 323,
+    "combined_collect_floor": 553,
+    "required_semantic_nodes": [
+      "real epoch-9 latest-landed preflight topology",
+      "epoch-9 landing exact bindings",
+      "historical epoch-8 and latest-live epoch-9 dispatch separation",
+      "historical selected epoch-6 and current live epoch-9 dual anchor",
+      "real canonical Q R B round trip and cross-epoch rejection",
+      "single rehydrate-not-replay recovery with zero pipeline and retry",
+      "passive recovered bundle and release with no active fallback",
+      "immutable epoch-8 contract and sealed series history",
+      "producer and validator symmetric census and effect-lock validation"
+    ],
+    "F_15": "fresh full Runner and Validator modules required after implementation",
+    "F_12": "fresh full Runner and Validator modules by an independent reviewer required after candidate delivery",
+    "persistent_gate": "fresh candidate and review bound full registered gate required after explicit harness authorization",
+    "prior_test_F15_F12_or_gate_inheritance": false,
+    "any_collect_decrease_or_required_node_absence_policy": "FAIL_CLOSED"
+  },
+  "future_surface_authority_contract": {
+    "exact_field_count": 6,
+    "exact_fields": [
+      "schema_version",
+      "verdict",
+      "owner",
+      "implementation_epoch",
+      "base_commit",
+      "exact_surface"
+    ],
+    "schema_version": "p4.2a-v2-2-implementation-epoch-surface-authorization-v1",
+    "verdict": "APPROVE_EXACT_V2_2_IMPLEMENTATION_EPOCH_SURFACE",
+    "owner": {
+      "identity": "ouyang",
+      "approved": true
+    },
+    "implementation_epoch": 9,
+    "base_commit_rule": "exactly the creating commit of this companion",
+    "exact_surface_rule": "exactly four unique UTF-8-byte-sorted M rows equal to implementation_surface_contract.exact_surface_utf8_sorted",
+    "topology": "after separate owner approval of its exact bytes and SHA-256, the authority is this companion direct single-parent unique-A child; implementation is the authority direct single-parent exact-four-M child",
+    "owner_must_approve_exact_future_sha256_and_bytes": true,
+    "authority_commit_currently_authorized": false
+  },
+  "state_and_effect_locks": {
+    "official_ledger_read_only": true,
+    "sealed_mirror_read_only": true,
+    "future_recovery_start_limit_after_fresh_separately_authorized_Q_R_B": 1,
+    "pipeline_start_limit": 0,
+    "automatic_retry_limit": 0,
+    "heldout_materialization_locked": true,
+    "heldout_inference_locked": true,
+    "heldout_evaluation_locked": true,
+    "p4_2a_done": false,
+    "p4_2b_unlocked": false,
+    "p4_3_unlocked": false,
+    "non_simulate_trading_locked": true,
+    "current_recovery_starts_authorized": 0,
+    "current_pipeline_starts_authorized": 0
+  },
+  "authorization_boundaries": {
+    "governing_adjudication_commit_authorized_and_complete": true,
+    "companion_creation_authorized": true,
+    "surface_authority_draft_preparation_authorized": true,
+    "surface_authority_commit_authorized": false,
+    "implementation_authorized": false,
+    "tests_F15_or_F12_authorized": false,
+    "harness_or_persistent_gate_authorized": false,
+    "merge_main_authorized": false,
+    "registered_root_preflight_authorized": false,
+    "Q_R_B_authorized": false,
+    "recovery_or_release_authorized": false,
+    "ledger_mirror_heldout_or_trading_write_authorized": false
+  },
+  "verdict": "EPOCH9_R3_COMPANION_READY_FOR_OWNER_APPROVED_FOUR_FILE_SURFACE_AUTHORITY"
+}

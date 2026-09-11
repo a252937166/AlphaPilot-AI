@@ -1,0 +1,78 @@
+{
+  "schema_version": "p4.2a-independent-adjudication-v1",
+  "adjudication_id": "p4.2a-successor-v2-1-code-gate-authorization-20260810-r1",
+  "created_at_utc": "2026-08-10T11:46:03Z",
+  "created_at_shanghai": "2026-08-10T19:46:03+08:00",
+  "verdict": "BLOCKERS_CONFIRMED; AUTHORIZE_SUCCESSOR_V2_1_CODE_GATE",
+  "repository_head_at_adjudication": "da374342781d6fde2f2c6d87d23582050bc8edaa",
+  "reviewer": {
+    "identity": "independent_ai_architect_claude_code",
+    "reviewer_type": "ai",
+    "model": "Anthropic Claude Fable 5 (model id claude-fable-5)",
+    "impersonation_disclaimer": "Not a human reviewer. Issued under the owner governance amendment with requires_release_gate_amendment=true.",
+    "method": "read-only. Every blocker was reproduced against the shipped source rather than accepted from the operator's report."
+  },
+  "part_1_blockers_confirmed": {
+    "blocker_1_entry_gate": {
+      "status": "confirmed",
+      "evidence": "prepare_p4_2a_v2_heldout.py calls _validate_full_path_rehearsal_gate first, and that function's first statement is an unconditional _reject_retired_rehearsal_v1. Its own comment states the guard must remain first until a separately pre-registered replacement schema is implemented.",
+      "meaning": "Approving rehearsal v2 does not wire itself into the entry point. The ruling exists as a document; the code still routes through the v1 rejection. The operator was right to stop rather than look for a way around it."
+    },
+    "blocker_2_no_throttling": {
+      "status": "confirmed",
+      "evidence": "A search of build_p4_2a_gold_sample.py for sleep, min_interval, rate_limit, throttle and monotonic returns nothing. The materialization loop iterates rows and download_cninfo_pdf sets timeouts but no inter-request delay. About 2,824 CNInfo PDFs would be requested back to back.",
+      "my_error": {
+        "id": "C-5",
+        "statement": "My execution condition said to respect the frozen per-source request interval. No such control exists anywhere in the P4.2a chain; the interval I was thinking of lives in the P4.1 news-poll config, a different subsystem. The condition was unenforceable as written and would have been silently ignored had the operator not checked.",
+        "kind": "This is a different failure from C-1, C-3 and C-4. Those were wrong numbers. This was a condition that referenced a control that does not exist, which is worse, because a wrong number gets corrected on contact with data while an unenforceable condition just evaporates."
+      },
+      "historical_honesty": "The v1.7 materialization already fetched roughly 1,982 CNInfo PDFs with no throttling. This is not a new standard being imposed on the operator; it is a control that should have existed then and did not."
+    },
+    "blocker_3_approval_invalidation": {
+      "status": "confirmed",
+      "evidence": "validate_p4_2a_v2_heldout_rehearsal_bundle.py compares each archived control file against the current repository bytes and raises when they differ. scripts/prepare_p4_2a_v2_heldout.py is one of the 116 control-surface files, pinned at sha256 9b6d4520...",
+      "meaning": "Any edit to prepare.py invalidates the approved bundle. That is the bundle behaving exactly as designed: it prevents approve-then-modify. A wrapper or monkeypatch would be worse, since it would create an entry point that no rehearsal ever covered.",
+      "conclusion": "The fix cannot ride on the existing approval. A successor code gate with its own rehearsal and its own review is the only sound path."
+    },
+    "operator_conduct": "Three real blockers, each reproduced here from the shipped source, found before any materialization, network call or model inference. The one-shot is unconsumed and the real heldout root still does not exist. Stopping at a hard gate and asking rather than patching around it is the behaviour this regime is built to produce."
+  },
+  "part_2_frozen_request_interval": {
+    "ruling": "The CNInfo announcement-body fetch interval is fixed here, since the authoritative chain lacks one.",
+    "specification": {
+      "scope": "CNInfo announcement PDF downloads performed by the P4.2a materialization path",
+      "min_start_to_start_seconds": 1.0,
+      "clock": "monotonic",
+      "first_request_delay": "none",
+      "retries": 0,
+      "akshare_ths": "not_applicable, no external document fetch",
+      "sina_company_news": "not_applicable, no external document fetch"
+    },
+    "why_1_0_seconds": "It is not an invented number. config/p4_news_poll_v2_1.yaml, frozen at 9d56e137 and running in production, specifies min_interval_seconds 1.0 for CNInfo. Reusing the project's own already-frozen value for the same publisher is more defensible than picking a fresh constant, and it keeps the two subsystems consistent.",
+    "cost_in_time": "About 2,824 downloads at a one-second floor adds roughly 47 minutes of pacing on top of transfer and extraction. For an unattended overnight run this is immaterial.",
+    "must_be_recorded": "The realised interval statistics, minimum and median observed start-to-start gaps and any violation count, must appear in the round evidence so the control can be verified rather than assumed."
+  },
+  "part_3_successor_v2_1_authorization": {
+    "authorized_scope": [
+      "wire this ruling and the frame-authority ruling into the real entry point, replacing the unconditional v1 rejection with a gate bound to the successor rehearsal bundle",
+      "implement the CNInfo request interval exactly as specified above, inside the materialization path rather than in a wrapper",
+      "produce a new rehearsal bundle whose offline double run covers the real run_materialize() path, not a synthetic substitute for it",
+      "pre-register the successor v2.1 code gate before implementing it, as was done for v2"
+    ],
+    "explicitly_not_authorized": ["any wrapper, monkeypatch or alternate entry point that bypasses the registered gate", "reusing the v2 bundle or the v2 approval for modified source", "any real materialization, network fetch or model inference before the successor rehearsal is independently reviewed", "any change to the evaluation design, gates, sample, seed, prompt, contract or selected model"],
+    "rehearsal_requirements": ["byte-identical double run with distinct temporary roots, as v2 achieved", "coverage of run_materialize() including the interval control, with the fetcher stubbed so the rehearsal itself makes zero network calls", "a negative case proving the interval control actually delays, so the rehearsal cannot pass with a no-op limiter", "Merkle roots, control-surface manifest and lineage binding in the same form as the v2 bundle"],
+    "status_of_the_v2_approval": "The rehearsal v2 approval in da37434 remains valid as a record of what was reviewed and found sound. It is superseded operationally the moment prepare.py changes, and it must not be cited as authorising the modified code."
+  },
+  "part_4_execution_timing": {
+    "ruling": "The operator's timing discipline is endorsed and adopted as a condition.",
+    "rule": "Do not start on a fixed wall-clock time. Start only after the day's database backup has completed, its stamp has updated, its last exit code is zero and no lock is held. The suggested window of roughly 22:17 to 22:21 CST is a consequence of that condition, not a substitute for checking it.",
+    "why": "Watch item W-1 records that the 900-second backup job performs whole-database input and output and already produced one health timeout. A roughly four-hour materialization and inference run colliding with it risks both, and the collision would be hard to attribute afterwards.",
+    "also_avoid": "the CNInfo 00:00 CST batch ingestion peak, and the P4.1 observation window's denser trading-hour polling slots"
+  },
+  "part_5_unchanged": {
+    "frame_authority": "available_time over three audited sources, 4,048 rows, per the ruling in da37434",
+    "cost_ceiling": "already accepted; realised figures expected near 4,048 calls, 57 CNY and 3.6 hours of inference plus roughly 47 minutes of fetch pacing",
+    "model_prompt_contract": "qwen3.6-plus with the Round 3 byte-frozen prompt and contract, one item per call, no batching, no truncation, no pre-filter",
+    "phase_locks": {"p4_2a_done": false, "heldout_materialized": false, "heldout_evaluation_unlocked": false, "p4_2b_unlocked": false, "p4_3_unlocked": false},
+    "p4_1": "observation window for 2026-08-10 through 08-12 unaffected and healthy"
+  }
+}

@@ -1,0 +1,741 @@
+{
+  "H0_completion": {
+    "authorized_stages": [],
+    "completion_receipt": {
+      "bytes": 3597,
+      "path": "/Users/ouyangduning/Documents/project/interesting/AlphaPilot-EVIDENCE-DO-NOT-DELETE-epoch9-forward-rebaseline-compatibility-20260906.tYa303/independent-review-H0-evidence-acceptance-completion-receipt.json",
+      "sha256": "201a8fc52a09dc6670147ac71f48fce8ca5477ce81e81408cbc1188331600422"
+    },
+    "registered_consume": {
+      "historical_result_only_not_rerun_in_H1a": true,
+      "mode": "PASSIVE_RECOVERED_RELEASE",
+      "status": "PASS_READ_ONLY_RECOVERED_RELEASE_REVALIDATION",
+      "stdout": {
+        "bytes": 2193,
+        "path": "/Users/ouyangduning/Documents/project/interesting/AlphaPilot-EVIDENCE-DO-NOT-DELETE-H0b-push-continuation-v3-20260906.4a4b860d9931/CONSUME/commands/002-registered-consume-readonly-once/stdout",
+        "sha256": "7cc85a621c23a3ac2b680bb6d87f0287fbf9b8a3d188e17f3a8dbdae6de05429"
+      }
+    },
+    "registered_receipt": {
+      "blob_at_main_verified": true,
+      "creating_commit": "902bfa3c4dbc2b4b5e95884479a95e4bf91c2859",
+      "path": "docs/phase4/reports/P4.2a-v2-heldout-rehearsal-v2-2-release-authorization-20260811.json",
+      "reviewer_independent_verification": "126 checks PASS (verify_h0_draft.py)",
+      "sha256": "2ede11c0bc3a1dbdbaff489f6c6f155f456e7a6685fda8b31ce1772ca005ad40"
+    },
+    "reviewer_attested_repository_state": {
+      "main": "902bfa3c4dbc2b4b5e95884479a95e4bf91c2859",
+      "origin_main": "902bfa3c4dbc2b4b5e95884479a95e4bf91c2859",
+      "real_remote_main": "902bfa3c4dbc2b4b5e95884479a95e4bf91c2859",
+      "refs_sha256": "3484e2aae5c17ca38303341fb38bec489aa34eec1d04194d9f9d4b6bc38fe82b"
+    },
+    "status": "H0_EVIDENCE_ACCEPTANCE_COMPLETE_VERIFIED",
+    "this_acceptance_unlocks_real_stages": false
+  },
+  "admission_path_repair": {
+    "four_defects_repaired": [
+      {
+        "now": "ACCEPTED_TIMEOUT_SECONDS, a closed set of the registered deadlines of the contracts this module serves: 20.0 for the round-3 development contract and 90.0 for the v3 held-out contract. Still a drift check, no longer a single value that silently becomes wrong when a contract legitimately pins another.",
+        "was": "EXPECTED_TIMEOUT_SECONDS = 20.0, a scalar, while the v5 contract pins 90.0",
+        "where": "scripts/run_p4_2a_offline_extract.py, the deadline constant"
+      },
+      {
+        "now": "both-or-neither: a contract naming no public address must carry provider and endpoint_hmac_sha256, and the configured binding is compared with hmac.compare_digest. This is the same fail-open already closed at p4_news_event.py:1336, in a second copy of the same call path; a binding enforced in only one entry into a path is not enforced.",
+        "was": "guarded by `if contract.endpoint is not None`, so a platform contract skipped it entirely",
+        "where": "scripts/run_p4_2a_offline_extract.py, the endpoint check"
+      },
+      {
+        "now": "applies to the public-endpoint arm only; the platform arm is bound by the keyed digest instead",
+        "was": "required a non-empty llm_base_url and llm_api_key unconditionally",
+        "where": "scripts/run_p4_2a_offline_extract.py, the completeness check"
+      },
+      {
+        "now": "sets llm_base_url only when the contract names one, and otherwise carries the contract's provider through untouched",
+        "was": "copied llm_base_url = contract.endpoint, which is None on the platform arm and blanked the operator's configuration",
+        "where": "scripts/run_p4_2a_v2_dev_calibration.py, _model_settings"
+      }
+    ],
+    "is_the_timeout_constant_a_registered_value": {
+      "answer": "no",
+      "deviation_count_stays": 3,
+      "reasoning": "EXPECTED_TIMEOUT_SECONDS was a second copy of a value the contract already pins as llm.total_deadline_seconds, in a module downstream of the contract. The registered values live in the preregistration and in the contract file, whose bytes are digest-pinned and whose llm block prepare asserts against registered constants. A downstream mirror of a registered value can only ever agree with it or be wrong; it registers nothing of its own. So this is an implementation constant that must track the contract, and no fourth deviation is recorded."
+    },
+    "left_alone_deliberately": {
+      "path": "scripts/run_p4_2a_v2_dev_calibration.py pin block",
+      "reason": "it validates the inherited round-3 development contract, which legitimately still pins the vendor endpoint, temperature 0.2, a 20 s deadline and json_object. Changing it would corrupt the frozen lineage the held-out contract inherits from."
+    },
+    "regression_guard": {
+      "surface": "tests/test_p4_2a_v2_heldout.py, part of the registered change surface",
+      "test": "test_real_stage_admission_rehearsal_accepts_the_landed_contract",
+      "verified_to_bite": "with the deadline constant restored to the scalar 20.0 the test fails with the exact production error, 'frozen LLM purpose, model, or budget drifted'",
+      "what_it_does": "loads the landed config/p4_event_extract_eval_v3-heldout.yaml from disk, not a fixture, and runs _load_selected_contract, _model_settings and _validate_runtime_contract, the validators the real stage runs before its first model call, asserting each accepts it. Only the keyed-digest leg is stubbed, because the salt is never read here; the real stage still checks it.",
+      "why": "two admission attempts were spent discovering downstream constants refusing the contract; this converts that class into a test-time failure"
+    },
+    "triggering_natural_failure": {
+      "bytes": 3912,
+      "id": "N-H5V5-1",
+      "observed": "run_p4_2a_offline_extract.py _validate_runtime_contract raised 'frozen LLM purpose, model, or budget drifted'",
+      "path": "/Users/ouyangduning/Documents/project/interesting/AlphaPilot-EVIDENCE-DO-NOT-DELETE-epoch9-forward-rebaseline-compatibility-20260906.tYa303/independent-review-H5v5-natural-failure-N-H5V5-1-frozen-timeout-drift-20260910.json",
+      "sha256": "376c6230fb206ee406c30501339ce3c8928267c8039ba7f70a0bf6029428cc71"
+    },
+    "why_a_new_version_with_no_new_policy": "The three deviations are unchanged. This version exists because the real INFER stage refused the v5 contract 151 seconds in, at a frozen constant, before any model call. Zero cost and zero side effects; the tool directory sealed itself."
+  },
+  "authorized_stages": [],
+  "created_at_shanghai": "2026-09-10T06:43:27.783182+08:00",
+  "created_at_utc": "2026-09-09T22:43:27.783182Z",
+  "document_id": "P4.2A-SUCCESSOR-PRODUCTION-INTEGRATION-V6-OWNER-EXCEPTION-20260910",
+  "failure_policy": {
+    "amend_or_overwrite_existing_evidence": false,
+    "automatic_retries": 0,
+    "new_attempt_requires_separate_explicit_authority": true,
+    "on_any_natural_failure": "PRESERVE_ORIGINAL_EVIDENCE_AND_STOP_FOR_INDEPENDENT_REVIEW",
+    "repair_or_retry_in_same_consumed_stage": false
+  },
+  "implementation_scope_limits": {
+    "heldout_evaluation_authorized": false,
+    "implementation_requires_all_preconditions": true,
+    "new_version_must_not_claim_historical_candidate_identity": true,
+    "only_listed_seven_file_surface": true,
+    "pipeline_authorized": false,
+    "real_preparation_authorized": false,
+    "recovery_authorized": false,
+    "release_decision_authorized": false,
+    "test_plan_is_not_blanket_source_modification_authority": true,
+    "test_requirements_ref": {
+      "json_pointer": "/registered_tests",
+      "path": "docs/phase4/reports/P4.2a-successor-production-integration-v1-preregistration-20260907.json",
+      "sha256": "32f136bfdd4d04474fedf2ee8f0ba3f2c2c4fb160f4ece2712bd1c54810c9bcb"
+    }
+  },
+  "independent_scope_review": {
+    "attestation": null,
+    "future_registered_report": {
+      "accepted_verdict": "PASS_SUCCESSOR_PRODUCTION_INTEGRATION_V6_IMPLEMENTATION_REVIEW",
+      "other_natural_verdicts": [
+        "BLOCK_SUCCESSOR_PRODUCTION_INTEGRATION_V6_IMPLEMENTATION_REVIEW",
+        "REJECT_SUCCESSOR_PRODUCTION_INTEGRATION_V6_IMPLEMENTATION_REVIEW"
+      ],
+      "path": "docs/phase4/reports/P4.2a-successor-production-integration-v6-independent-implementation-review-20260910.json",
+      "schema_version": "p4.2a-successor-production-integration-v6-independent-implementation-review"
+    }
+  },
+  "locks": {
+    "heldout_evaluation_unlocked": false,
+    "non_simulate_orders_allowed": false,
+    "p4_2a_done": false,
+    "p4_2b_unlocked": false,
+    "p4_3_unlocked": false,
+    "trading_mode": "research"
+  },
+  "materialization_manifest_schema": {
+    "decided_by": "implementer, for independent review",
+    "new": "p4.2a-successor-production-integration-v5-materialization-manifest-v1",
+    "previous": "p4.2a-successor-production-integration-v4-materialization-manifest-v1",
+    "reason": "the inference state and prediction manifest gain extract_failed_count, extract_failed_ids and extract_failed_ratio_ceiling, plus the transport rate_limit_policy and request_accounting blocks, and the gate pins the manifest string per version"
+  },
+  "new_module_interface": {
+    "new_module": null,
+    "note": "no new module; existing authority module modified"
+  },
+  "operator": {
+    "action": "DRAFTING_FOR_INDEPENDENT_REVIEW",
+    "identity": "Claude Opus 5 stand-in",
+    "independent_of_reviewer": true,
+    "role": "operator",
+    "under_owner_authorization_sha256": "278a228457a1ed64b12efef20c0f521e50711a7f22b10ad37db491b5dfe3fc5f"
+  },
+  "owner_decisions": [
+    {
+      "decision_id": "inference_post_validation_v5",
+      "decision_relay": {
+        "bytes": 3594,
+        "path": "/Users/ouyangduning/Documents/project/interesting/AlphaPilot-EVIDENCE-DO-NOT-DELETE-epoch9-forward-rebaseline-compatibility-20260906.tYa303/owner-inference-post-validation-v5-decision-relay-20260909.json",
+        "sha256": "5eebc416b00be25b48338ddc65496542ecc30632ff8ecb6e8ba163cf7f8bacf8"
+      },
+      "identity": "ouyang",
+      "proposal_document": {
+        "bytes": 3612,
+        "path": "/Users/ouyangduning/Documents/project/interesting/AlphaPilot-EVIDENCE-DO-NOT-DELETE-epoch9-forward-rebaseline-compatibility-20260906.tYa303/independent-review-inference-post-validation-v5-proposal-r1-20260909.md",
+        "sha256": "25969baa466010c500fdd8428a732dd1f8008242cfb01c6a4c3a2a75248b3a49"
+      },
+      "reviewer_decision_item_accepted": {
+        "bytes": 1797,
+        "excluded_first_line_is_reviewer_header": true,
+        "excluded_trailing_empty_line": true,
+        "path": "/Users/ouyangduning/Documents/project/interesting/AlphaPilot-EVIDENCE-DO-NOT-DELETE-epoch9-forward-rebaseline-compatibility-20260906.tYa303/reviewer-inference-post-validation-v5-decision-item-as-presented-to-owner-20260909.txt",
+        "sha256": "de7423afd7ccfeff7c1a9f7fedcf894ec2ef3b656c92daa6d8cf7bdce8e3480b",
+        "verbatim_lines": [
+          "",
+          "事项：真实推理阶段遇到\"模型答案被确定性后校验拒绝\"时，是整轮作废，还是记为一条 extract_failed 继续跑完。",
+          "",
+          "事实：今晚推理跑到第 811 个候选（news_item_id 5018）时，模型请求正常完成，但返回的股票代码不在原文里也不等于入库标的，",
+          "被登记的接地校验拒绝（retryable: false）。前 810 条全部正常，零重试。按预登记\"任一候选失败即整轮终止、不抽样、不重试\"，",
+          "整轮推理终止，工具目录已自封。已花 811 次调用约 11.3 元。",
+          "",
+          "关键点：预登记里另有一条，早就为这种情况留了位置——extract_failed 单列一层，不进 60 条样本，如实上报，不算负例；",
+          "落地代码也已经这么写了。两条规则彼此矛盾，按实测频率（811 次 1 次），3958 个候选期望约 5 次，",
+          "不改的话这一轮永远跑不完。",
+          "",
+          "提案（v5，只窄化一处）：请求已完成、输出被确定性后校验拒绝且不可重试时，记为 extract_failed 并继续；",
+          "该候选不进两个抽样层、不算负例、逐条上报 id 与原因。其余全部不变：传输错误、协议错误、可重试失败、任何重试仍整轮终止；",
+          "模型、提示、参数、数据窗口、40/20、种子、金标、阈值、请求顺序、每候选一次请求全部不动。",
+          "另设 extract_failed 比例上限 2%，超过则整轮终止并上报。",
+          "",
+          "代价：v5 重跑一整轮 = 物化约 55 分钟 + 推理约 3.3 小时，约 55 元；落地链条约 2 小时。",
+          "",
+          "需要业主的一句话：同意 v5 这样改，还是另有指示。（这是科学契约条款，不在常设授权范围内，我不能替业主决定。）"
+        ]
+      },
+      "second_sentence_is_a_question_not_an_authorization": "the reply opens with 同意, which answers the decision item; the remainder asks how much API cost remains and was answered by the reviewer. It authorises nothing.",
+      "source": "业主向复核方当面确认，由复核方转达",
+      "transcription_rule": "UTF8_DECODE_ONLY_NO_TRIM_NO_NEWLINE_OR_WORD_CHANGES",
+      "triggering_natural_failure": {
+        "bytes": 5400,
+        "id": "N-H5PPPP-1",
+        "measured": "811 completed model requests over 3958 eligible candidates; candidate index 811, news_item_id 5018, refused by original_text_or_ingested_symbol_grounding with retryable false; 810 rows ok, one row extract_failed, zero retries",
+        "path": "/Users/ouyangduning/Documents/project/interesting/AlphaPilot-EVIDENCE-DO-NOT-DELETE-epoch9-forward-rebaseline-compatibility-20260906.tYa303/independent-review-H5pppp-natural-failure-N-H5PPPP-1-inference-post-validation-terminal-20260909.json",
+        "sha256": "aec28c3caa4ab65af3ae673fe5e7a8bda52c33a12050e9ea074bbed97448706a"
+      },
+      "verbatim": "同意，现在还需要花费多少api费用",
+      "verbatim_bytes": 45,
+      "verbatim_sha256": "60a800cdb500ddb277a3d37c2b4274ef606b19720d4199c0d7a13cc8c21f39f8",
+      "verbatim_source": {
+        "bytes": 45,
+        "path": "/Users/ouyangduning/Documents/project/interesting/AlphaPilot-EVIDENCE-DO-NOT-DELETE-epoch9-forward-rebaseline-compatibility-20260906.tYa303/owner-inference-post-validation-v5-decision-20260909.txt",
+        "sha256": "60a800cdb500ddb277a3d37c2b4274ef606b19720d4199c0d7a13cc8c21f39f8"
+      }
+    },
+    {
+      "decision_id": "heldout_model_and_platform_k3",
+      "decision_relay": {
+        "bytes": 3790,
+        "path": "/Users/ouyangduning/Documents/project/interesting/AlphaPilot-EVIDENCE-DO-NOT-DELETE-epoch9-forward-rebaseline-compatibility-20260906.tYa303/owner-heldout-model-k3-confirmation-relay-20260910.json",
+        "sha256": "fd5cbcc16f14fe338faf813e1f73b0d4569beb8702c7471502c14316171b7f63"
+      },
+      "identity": "ouyang",
+      "prior_statement_same_matter": {
+        "bytes": 5,
+        "path": "/Users/ouyangduning/Documents/project/interesting/AlphaPilot-EVIDENCE-DO-NOT-DELETE-epoch9-forward-rebaseline-compatibility-20260906.tYa303/owner-heldout-model-switch-k3-decision-20260909.txt",
+        "relay": {
+          "bytes": 3509,
+          "path": "/Users/ouyangduning/Documents/project/interesting/AlphaPilot-EVIDENCE-DO-NOT-DELETE-epoch9-forward-rebaseline-compatibility-20260906.tYa303/owner-heldout-model-switch-k3-decision-relay-20260909.json",
+          "sha256": "f3b2da7f22064b37b7d6bdf4376c8cbc7e14c631dbf5706b22750fcdfe249399"
+        },
+        "sha256": "8a5121ad42bac3113c1f1e6a16417f6b91cbb6a4fcf10e1642f5c99a388200da",
+        "verbatim": "用k3"
+      },
+      "question_put_to_owner": "two-way: wait for platform quota, or run tonight on the current model, with costs for each",
+      "source": "业主向复核方当面确认，由复核方转达",
+      "transcription_rule": "UTF8_DECODE_ONLY_NO_TRIM_NO_NEWLINE_OR_WORD_CHANGES",
+      "verbatim": "k3",
+      "verbatim_bytes": 2,
+      "verbatim_sha256": "2f5052c9fd15b19a18c584d01363568198613f0c34e84409ef7938709a159ec2",
+      "verbatim_source": {
+        "bytes": 2,
+        "path": "/Users/ouyangduning/Documents/project/interesting/AlphaPilot-EVIDENCE-DO-NOT-DELETE-epoch9-forward-rebaseline-compatibility-20260906.tYa303/owner-heldout-model-k3-confirmation-20260910.txt",
+        "sha256": "2f5052c9fd15b19a18c584d01363568198613f0c34e84409ef7938709a159ec2"
+      }
+    }
+  ],
+  "preconditions": {
+    "H0_evidence_acceptance_completed": {
+      "receipt": {
+        "bytes": 3597,
+        "path": "/Users/ouyangduning/Documents/project/interesting/AlphaPilot-EVIDENCE-DO-NOT-DELETE-epoch9-forward-rebaseline-compatibility-20260906.tYa303/independent-review-H0-evidence-acceptance-completion-receipt.json",
+        "sha256": "201a8fc52a09dc6670147ac71f48fce8ca5477ce81e81408cbc1188331600422"
+      },
+      "satisfied_by_bound_evidence": true
+    },
+    "independent_PASS_before_apply": {
+      "exact_required_verdict": "PASS_SUCCESSOR_PRODUCTION_INTEGRATION_V6_IMPLEMENTATION_REVIEW",
+      "path": "docs/phase4/reports/P4.2a-successor-production-integration-v6-independent-implementation-review-20260910.json"
+    },
+    "void_real_runs": [
+      {
+        "bytes": 4654,
+        "natural_failure_id": "N-H5P-1",
+        "path": "/Users/ouyangduning/Documents/project/interesting/AlphaPilot-EVIDENCE-DO-NOT-DELETE-epoch9-forward-rebaseline-compatibility-20260906.tYa303/independent-review-H5p-natural-failure-N-H5P-1-cninfo-readtimeout-20260908.json",
+        "run": "OKkWYXqZ",
+        "sha256": "25688c30927d72111683b37c7433144b000794dab5cf9aa3a4c9cf7136129e8d"
+      },
+      {
+        "bytes": 3669,
+        "natural_failure_id": "N-H5PP-1",
+        "path": "/Users/ouyangduning/Documents/project/interesting/AlphaPilot-EVIDENCE-DO-NOT-DELETE-epoch9-forward-rebaseline-compatibility-20260906.tYa303/independent-review-H5pp-natural-failure-N-H5PP-1-cninfo-readtimeout-20260909.json",
+        "run": "r2PdYMwG",
+        "sha256": "4132263c3177c13bb54426df0d38a8ada735087b2b71dc24c1ec1ef0fb1bdefa"
+      },
+      {
+        "bytes": 3372,
+        "natural_failure_id": "N-H5PPP-1",
+        "path": "/Users/ouyangduning/Documents/project/interesting/AlphaPilot-EVIDENCE-DO-NOT-DELETE-epoch9-forward-rebaseline-compatibility-20260906.tYa303/independent-review-H5ppp-natural-failure-N-H5PPP-1-cninfo-404-20260909.json",
+        "run": "CrGwIKvE",
+        "sha256": "e1c4395a8522dd9d1f4f624dc02dadc493093828592220fa03cb427bee23476b"
+      },
+      {
+        "bytes": 5400,
+        "natural_failure_id": "N-H5PPPP-1",
+        "path": "/Users/ouyangduning/Documents/project/interesting/AlphaPilot-EVIDENCE-DO-NOT-DELETE-epoch9-forward-rebaseline-compatibility-20260906.tYa303/independent-review-H5pppp-natural-failure-N-H5PPPP-1-inference-post-validation-terminal-20260909.json",
+        "run": "inference terminal at candidate index 811",
+        "sha256": "aec28c3caa4ab65af3ae673fe5e7a8bda52c33a12050e9ea074bbed97448706a"
+      }
+    ]
+  },
+  "prepare_exception": {
+    "added_lines": 0,
+    "allowed_modified_existing_source_paths": [
+      "scripts/p4_2a_successor_production_authority.py",
+      "scripts/run_p4_2a_offline_extract.py",
+      "scripts/run_p4_2a_v2_dev_calibration.py",
+      "tests/test_p4_2a_successor_preparation_integration.py",
+      "tests/test_p4_2a_successor_production_authority.py",
+      "tests/test_p4_2a_v2_heldout.py"
+    ],
+    "allowed_new_paths": [
+      "config/schemas/p4_2a_successor_production_integration_v6_release_authorization.schema.json"
+    ],
+    "analysis_ref": null,
+    "base_sha256": "fb8afa6d915189f6e876f31509d2060b713fe4c35b8a5dd498a9cd5182d26302",
+    "lanes": {
+      "heldout": 7,
+      "note": "seven paths, one lane. v6 carries no platform-lane change: those files landed with v5 and are untouched, so listing them would make the gate compare a file set the commit cannot contain."
+    },
+    "note": "v6 changes no prepare bytes; the four defects are downstream of it. The patch is empty and its digest is the SHA-256 of zero bytes, recorded rather than disguised.",
+    "patch_command": "git -C <repository_root> diff --no-ext-diff --no-color --no-renames --full-index f3a5f88fa5346a8c17e7bbf9b1f828598c3056c9 <implementation_commit> -- scripts/prepare_p4_2a_v2_heldout.py",
+    "patch_command_base_note": "This document's own creating commit adds only its own path and does not modify scripts/prepare_p4_2a_v2_heldout.py, so substituting that commit for f3a5f88fa5346a8c17e7bbf9b1f828598c3056c9 yields byte-identical patch output.",
+    "patch_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "removed_lines": 0,
+    "target_path": "scripts/prepare_p4_2a_v2_heldout.py",
+    "target_sha256": "fb8afa6d915189f6e876f31509d2060b713fe4c35b8a5dd498a9cd5182d26302"
+  },
+  "preregistration_deviations": [
+    {
+      "ceiling_minimum_completed_requests": 50,
+      "ceiling_rule": "evaluated after each recorded failure, but only once the completed-request count has reached 50, so a single failure can never trip the ceiling on an early candidate; the run is terminal when recorded failures exceed 2% of completed requests, and the census is reported with the error",
+      "decided_value": "completed_request_refused_by_deterministic_non_retryable_post_validation_is_recorded_as_extract_failed_and_the_pass_continues",
+      "decision_source": {
+        "decision_id": "inference_post_validation_v5",
+        "decision_relay": {
+          "bytes": 3594,
+          "path": "/Users/ouyangduning/Documents/project/interesting/AlphaPilot-EVIDENCE-DO-NOT-DELETE-epoch9-forward-rebaseline-compatibility-20260906.tYa303/owner-inference-post-validation-v5-decision-relay-20260909.json",
+          "sha256": "5eebc416b00be25b48338ddc65496542ecc30632ff8ecb6e8ba163cf7f8bacf8"
+        },
+        "identity": "ouyang",
+        "proposal_document": {
+          "bytes": 3612,
+          "path": "/Users/ouyangduning/Documents/project/interesting/AlphaPilot-EVIDENCE-DO-NOT-DELETE-epoch9-forward-rebaseline-compatibility-20260906.tYa303/independent-review-inference-post-validation-v5-proposal-r1-20260909.md",
+          "sha256": "25969baa466010c500fdd8428a732dd1f8008242cfb01c6a4c3a2a75248b3a49"
+        },
+        "reviewer_decision_item_accepted": {
+          "bytes": 1797,
+          "excluded_first_line_is_reviewer_header": true,
+          "excluded_trailing_empty_line": true,
+          "path": "/Users/ouyangduning/Documents/project/interesting/AlphaPilot-EVIDENCE-DO-NOT-DELETE-epoch9-forward-rebaseline-compatibility-20260906.tYa303/reviewer-inference-post-validation-v5-decision-item-as-presented-to-owner-20260909.txt",
+          "sha256": "de7423afd7ccfeff7c1a9f7fedcf894ec2ef3b656c92daa6d8cf7bdce8e3480b",
+          "verbatim_lines": [
+            "",
+            "事项：真实推理阶段遇到\"模型答案被确定性后校验拒绝\"时，是整轮作废，还是记为一条 extract_failed 继续跑完。",
+            "",
+            "事实：今晚推理跑到第 811 个候选（news_item_id 5018）时，模型请求正常完成，但返回的股票代码不在原文里也不等于入库标的，",
+            "被登记的接地校验拒绝（retryable: false）。前 810 条全部正常，零重试。按预登记\"任一候选失败即整轮终止、不抽样、不重试\"，",
+            "整轮推理终止，工具目录已自封。已花 811 次调用约 11.3 元。",
+            "",
+            "关键点：预登记里另有一条，早就为这种情况留了位置——extract_failed 单列一层，不进 60 条样本，如实上报，不算负例；",
+            "落地代码也已经这么写了。两条规则彼此矛盾，按实测频率（811 次 1 次），3958 个候选期望约 5 次，",
+            "不改的话这一轮永远跑不完。",
+            "",
+            "提案（v5，只窄化一处）：请求已完成、输出被确定性后校验拒绝且不可重试时，记为 extract_failed 并继续；",
+            "该候选不进两个抽样层、不算负例、逐条上报 id 与原因。其余全部不变：传输错误、协议错误、可重试失败、任何重试仍整轮终止；",
+            "模型、提示、参数、数据窗口、40/20、种子、金标、阈值、请求顺序、每候选一次请求全部不动。",
+            "另设 extract_failed 比例上限 2%，超过则整轮终止并上报。",
+            "",
+            "代价：v5 重跑一整轮 = 物化约 55 分钟 + 推理约 3.3 小时，约 55 元；落地链条约 2 小时。",
+            "",
+            "需要业主的一句话：同意 v5 这样改，还是另有指示。（这是科学契约条款，不在常设授权范围内，我不能替业主决定。）"
+          ]
+        },
+        "second_sentence_is_a_question_not_an_authorization": "the reply opens with 同意, which answers the decision item; the remainder asks how much API cost remains and was answered by the reviewer. It authorises nothing.",
+        "source": "业主向复核方当面确认，由复核方转达",
+        "transcription_rule": "UTF8_DECODE_ONLY_NO_TRIM_NO_NEWLINE_OR_WORD_CHANGES",
+        "triggering_natural_failure": {
+          "bytes": 5400,
+          "id": "N-H5PPPP-1",
+          "measured": "811 completed model requests over 3958 eligible candidates; candidate index 811, news_item_id 5018, refused by original_text_or_ingested_symbol_grounding with retryable false; 810 rows ok, one row extract_failed, zero retries",
+          "path": "/Users/ouyangduning/Documents/project/interesting/AlphaPilot-EVIDENCE-DO-NOT-DELETE-epoch9-forward-rebaseline-compatibility-20260906.tYa303/independent-review-H5pppp-natural-failure-N-H5PPPP-1-inference-post-validation-terminal-20260909.json",
+          "sha256": "aec28c3caa4ab65af3ae673fe5e7a8bda52c33a12050e9ea074bbed97448706a"
+        },
+        "verbatim": "同意，现在还需要花费多少api费用",
+        "verbatim_bytes": 45,
+        "verbatim_sha256": "60a800cdb500ddb277a3d37c2b4274ef606b19720d4199c0d7a13cc8c21f39f8",
+        "verbatim_source": {
+          "bytes": 45,
+          "path": "/Users/ouyangduning/Documents/project/interesting/AlphaPilot-EVIDENCE-DO-NOT-DELETE-epoch9-forward-rebaseline-compatibility-20260906.tYa303/owner-inference-post-validation-v5-decision-20260909.txt",
+          "sha256": "60a800cdb500ddb277a3d37c2b4274ef606b19720d4199c0d7a13cc8c21f39f8"
+        }
+      },
+      "extract_failed_ratio_ceiling": 0.02,
+      "extract_failed_stratum_unchanged": {
+        "json_pointer": "/eligibility_and_sampling/strata/extract_failed",
+        "note": "the registered stratum already prescribes selected_count 0 and disposition excluded_reported_not_negative; it was unreachable while any candidate failure was terminal, and this narrowing makes it reachable without changing it",
+        "registered_value": {
+          "disposition": "excluded_reported_not_negative",
+          "selected_count": 0
+        },
+        "unchanged": true
+      },
+      "json_pointer": "/request_contract/any_candidate_failure",
+      "preregistration_ref": {
+        "bytes": 11149,
+        "path": "docs/phase4/reports/P4.2a-v2-heldout-preregistration-20260810.json",
+        "sha256": "ccecbf5ca7b48b16e445318b8c94a08927432f92c7e8c12f8ab40f2916578705"
+      },
+      "recorded_failure_reasons": {
+        "accepted": {
+          "event_contract_failed": "model_output_contract_violation",
+          "post_validation_failed": "post_validation_constraint",
+          "schema_validation_failed": "response_schema_violation"
+        },
+        "closed_allowlist": true,
+        "implementation_constant": "INFERENCE_RECORDED_FAILURE_CATEGORIES",
+        "note": "These three reasons are the only ones that describe a completed request whose model answer was then refused by a deterministic, non-retryable check. Each is recorded as one extract_failed row, is reported by id with its category, and counts toward the 2% ceiling. The map is a closed allowlist, so any reason outside it is terminal by construction and needs no further code to stay terminal. A request that was rejected before any answer was produced, or that failed in transport, is not a model answer: no transport-level reason (http_status_429 among them) is accepted here, and this deviation adds none.",
+        "unrecognised_reason_is_terminal": true
+      },
+      "registered_value": "terminal_inference_failed_no_sampling_no_retry",
+      "still_terminal": [
+        "transport errors",
+        "protocol errors",
+        "any retryable failure",
+        "summary.newly_attempted_count != 1",
+        "any retried_failure_count != 0",
+        "prediction line-count drift",
+        "any request-count anomaly",
+        "any request rejected before an answer was produced or failed in transport, http_status_429 included, because a rejected request is not a model answer"
+      ],
+      "unchanged": [
+        "model, prompt, parameters, data window",
+        "candidate pool and eligibility rules including the v4 404/410 rule",
+        "40/20 split, seed, gold, thresholds",
+        "request ordering, one request per eligible candidate",
+        "zero automatic retries and zero failed-candidate retries"
+      ]
+    },
+    {
+      "address_is_never_committed": {
+        "endpoint_hmac_sha256": "b4c42d19ade073e7390020a4567caa776b40ae06a472462009632d630a3031cf",
+        "guard": "a registered-surface test refuses any URL host outside an explicit allowlist, and any private IPv4 or corp/internal/intra/lan/local hostname, across all seventeen paths",
+        "public_repository": true,
+        "recorded_instead": "opaque provider identity plus HMAC-SHA256(salt, base_url + completions_path)",
+        "salt_location": "operator's gitignored environment only; never in the repository",
+        "why_keyed_not_bare": "an unsalted digest over a short URL is a guess-verification oracle"
+      },
+      "admission_triple": {
+        "checks": [
+          "the contract file's sha256 equals the registered constant",
+          "the contract pins the registered provider identity",
+          "hmac.compare_digest against the digest recomputed from live settings"
+        ],
+        "messages_never_contain": [
+          "the address",
+          "the salt",
+          "the digest",
+          "any credential"
+        ],
+        "real_path_only_leg": "the keyed-digest leg, gated on the production authorization type, under which every injected seam must be None",
+        "when": "real-stage admission, before any candidate is read"
+      },
+      "decided_value": "heldout_pass_runs_model_kimi-k3_on_an_internal_openai_compatible_platform_bound_by_a_keyed_digest",
+      "decision_source": {
+        "decision_id": "heldout_model_and_platform_k3",
+        "identity": "ouyang",
+        "see": "/owner_decisions/1"
+      },
+      "json_pointer": "/selected_extractor/model",
+      "loader_widening": {
+        "allowlist_constant": "HELDOUT_WRAPPER_LLM_KEYS",
+        "how_it_was_caught": "the provider leg of the real-stage admission triple, which compares the contract's provider against the registered constant. The tautological form of that guard, comparing active_provider(settings, contract=contract) against the contract's own provider, would have passed cleanly, because active_provider resolves the contract first and both sides read the same absent value.",
+        "override_map_constant": "HELDOUT_WRAPPER_OVERRIDES",
+        "second_defect_found_and_fixed": "the held-out call path did not forward the contract's provider to the client at all, so the contract's platform pin was ignored even once the contract carried it",
+        "unlisted_key_is_a_hard_load_error_naming_the_key": true,
+        "what": "a held-out wrapper declaring inheritance inference_semantics_byte_frozen may now override a closed allowlist of llm: keys; every other inherited field, above all the prompt and the schema, stays byte-frozen from round 3",
+        "why_it_was_needed": "Before this change the wrapper named the new model and platform while the contract object the pass actually calls with kept the inherited round-3 values: model qwen3.6-plus, provider None, endpoint_hmac_sha256 None. The pass would therefore have run the previous model, and with no contract pin visible the provider would have fallen back to the process-wide default platform, while every artefact row recorded the new model and the new contract digest from module constants. The rows would have been uniformly and confidently wrong, and no later re-reading of them could have detected it."
+      },
+      "new_contract_file": {
+        "derived_from": {
+          "path": "config/p4_event_extract_eval_v2-heldout-qwen3.6-plus.yaml",
+          "sha256": "26be1765204b122908e7bd09cac857c33bd3140233df47dc3358bc590e020199"
+        },
+        "differences_and_nothing_else": [
+          "schema_version -> p4.2a-heldout-event-extract-contract-v3",
+          "llm.model -> kimi-k3",
+          "llm.endpoint replaced by llm.provider and llm.endpoint_hmac_sha256",
+          "llm.temperature removed: the platform rejects the field, so sampling temperature is the platform default",
+          "llm.response_format -> prompt_enforced_json: the platform has no JSON mode; structured output comes from the prompt plus brace-balanced extraction",
+          "llm.total_deadline_seconds 20.0 -> 90.0: measured latency is 7.63 s median with a 26.6 s maximum over thirty calls, and 20 s would trip terminally on the tail"
+        ],
+        "path": "config/p4_event_extract_eval_v3-heldout.yaml",
+        "prompt_and_schema_byte_identical": true,
+        "sha256": "ed4844244b8b995147318e45d38f3fe35c05526de5378e3c9cb4974650800366"
+      },
+      "preregistered_values_are_kept_not_rewritten": {
+        "PREREGISTERED_HELDOUT_CONTRACT_PATH": "config/p4_event_extract_eval_v2-heldout-qwen3.6-plus.yaml",
+        "PREREGISTERED_HELDOUT_CONTRACT_SHA256": "26be1765204b122908e7bd09cac857c33bd3140233df47dc3358bc590e020199",
+        "PREREGISTERED_MODEL": "qwen3.6-plus",
+        "note": "Comparisons against the frozen preregistration keep the preregistered values while the pass runs the deviated ones. Folding the two together would mean either rejecting the frozen document or reading it as though it had been rewritten. The gap between these constants and the active MODEL and HELDOUT_CONTRACT_* values is the deviation itself."
+      },
+      "preregistration_ref": {
+        "bytes": 11149,
+        "path": "docs/phase4/reports/P4.2a-v2-heldout-preregistration-20260810.json",
+        "sha256": "ccecbf5ca7b48b16e445318b8c94a08927432f92c7e8c12f8ab40f2916578705"
+      },
+      "registered_value": "qwen3.6-plus_on_the_vendor_endpoint",
+      "unchanged": [
+        "prompt and schema bytes",
+        "data window",
+        "candidate pool and eligibility rules including the v4 404/410 rule",
+        "40/20 split, seed, gold, thresholds",
+        "request ordering, one request per eligible candidate",
+        "zero automatic retries and zero failed-candidate retries"
+      ]
+    },
+    {
+      "a_resend_is_not_a_candidate_retry": "The gateway refused the request before processing it, so the candidate never received an answer. Re-sending produces one answer to one question, not a second sample of the same question. automatic_retries stays 0 and keeps its meaning; the resend counter is separate and separately named.",
+      "accounting_identity": {
+        "answers_served": "equals the eligible candidate count",
+        "every_wait_itemised": true,
+        "policy_block_has_its_own_exact_key_set_assertion": true,
+        "recorded_in": [
+          "inference state",
+          "prediction manifest"
+        ],
+        "requests_started": "equals the eligible candidate count plus the resend total"
+      },
+      "decided_value": "an_http_429_rejection_is_waited_out_and_the_request_re_sent_within_registered_caps",
+      "decision_source": {
+        "decision_id": "heldout_model_and_platform_k3",
+        "identity": "ouyang",
+        "see": "/owner_decisions/1"
+      },
+      "give_up_is_named_never_a_bare_429": {
+        "mapped_to": "a terminal stage failure carrying the reason and the census",
+        "reasons": [
+          "rate_limit_candidate_guard_exceeded",
+          "rate_limit_pass_resend_cap_exceeded",
+          "rate_limit_wall_clock_cap_exceeded",
+          "rate_limit_supplied_delay_above_ceiling"
+        ],
+        "why": "quota exhaustion and a transient blip both surface as HTTP 429; a pass that dies as a generic transport error cannot tell them apart afterwards"
+      },
+      "honest_residual": "honour_retry_after defaults true and the [0, 120] second window with its one-second effective floor takes effect the moment the platform ever sends a delay header. Across sixteen observed rejections the platform sent no Retry-After and no rate-limit headers of any kind, so that path ships exercised only by tests. This is the intended behaviour and is stated here rather than discovered later.",
+      "http_status_429_is_not_in_the_acceptance_map": "A rejected request is not a model answer. The three-entry recorded-failure map is unchanged and no transport reason is or becomes acceptable in it.",
+      "json_pointer": "/request_contract/automatic_retries",
+      "measured_basis": {
+        "end_to_end_throughput_with_resends": "429 requests per hour, about 9.2 hours for 3958 candidates",
+        "invariant_to_pacing_between_unpaced_and_20s": true,
+        "observed_rejections": 16,
+        "quality_at_65_calls": "zero quality failures, no unparseable JSON, no schema violation, no post-validation refusal",
+        "rejection_rate": "9 to 11 percent",
+        "share_of_time_spent_waiting": "7.9 percent",
+        "therefore_the_pass_is_not_paced": true
+      },
+      "preregistration_ref": {
+        "bytes": 11149,
+        "path": "docs/phase4/reports/P4.2a-v2-heldout-preregistration-20260810.json",
+        "sha256": "ccecbf5ca7b48b16e445318b8c94a08927432f92c7e8c12f8ab40f2916578705"
+      },
+      "registered_caps": {
+        "constants_not_settings": "an operator cannot widen them at runtime",
+        "fallback_backoff_seconds": [
+          5.0,
+          10.0,
+          20.0,
+          30.0,
+          45.0,
+          60.0
+        ],
+        "per_candidate_resends": 6,
+        "per_pass_resend_cap": 2000,
+        "per_pass_wall_clock_cap_seconds": 50400.0,
+        "status": 429,
+        "supplied_delay_ceiling_seconds": 120.0,
+        "supplied_delay_floor_seconds": 1.0,
+        "wall_clock_is_checked_against_the_projected_wake_instant_before_sleeping": true
+      },
+      "registered_value": "automatic_retries_0_and_any_transport_failure_is_terminal",
+      "unchanged": [
+        "model answers, prompt and schema",
+        "candidate pool, ordering and sampling",
+        "the extract_failed acceptance map",
+        "automatic_retries and failed_candidate_retries, both 0"
+      ]
+    }
+  ],
+  "preregistration_ref": {
+    "bytes": 62949,
+    "creating_commit_resolution": "DERIVE_FROM_REAL_SINGLE_PARENT_UNIQUE_A_HISTORY_AFTER_REGISTRATION",
+    "path": "docs/phase4/reports/P4.2a-successor-production-integration-v1-preregistration-20260907.json",
+    "registration_status_at_document_creation": "NOT_YET_REGISTERED",
+    "sha256": "32f136bfdd4d04474fedf2ee8f0ba3f2c2c4fb160f4ece2712bd1c54810c9bcb"
+  },
+  "recording_responsibility": "OPERATOR_RECORDS_EXISTING_OWNER_TEXT_ONLY_DOES_NOT_AUTHOR_OWNER_OR_REVIEWER_WORDS",
+  "registered_path": "docs/phase4/reports/P4.2a-successor-production-integration-v6-owner-exception-20260910.json",
+  "reviewer_settled_details": {
+    "D-11": {
+      "bytes": 1755,
+      "decision": "撤回 D-10 的分开落地，改为一轮：一份例外文书记录三项偏离，一次实现提交（跨两条线），一次独立复核，一张收据，一次起跑工具重建。",
+      "labelled": "reviewer's words, copied from the registered decision file",
+      "path": "/Users/ouyangduning/Documents/project/interesting/AlphaPilot-EVIDENCE-DO-NOT-DELETE-epoch9-forward-rebaseline-compatibility-20260906.tYa303/independent-review-delegated-decision-D-11-refold-platform-switch-20260910.json",
+      "scope_not_delegated": "五处契约钉子的具体取值与限流重发的上限值：由复核方按实测提出、业主已就方向拍板；任何进一步放宽仍须业主本人决定",
+      "sha256": "1ccafc503877713f66d6318fb5f15b93eeac1ff349dfd76be3b3cf1e36b1246b",
+      "supersedes_as_history_only": {
+        "D-10": "edf81c491d17cdb915c967cf80c1bb0f378f55b027e508b819cd42322120a836",
+        "D-9": "347559b03eaaef0e2bc69adaa962fca78a7fed94bc4fe73bbd402a5bc9a9a112"
+      }
+    },
+    "D-8": {
+      "bytes": 3560,
+      "decided_at_utc": "2026-09-09T02:30:31Z",
+      "decision": {
+        "current_pdf_after_pause": "the PDF being fetched when the pause fires gets a fresh attempt counter (its attempts restart at 1 after the pause; the pause means the server was unavailable, not that the PDF failed)",
+        "evidence": "pause_events {pause_index, window_size 20, window_stalls, pause_seconds 600.0, monotonic_offset_seconds, current_url_sha256}; retry_events unchanged; validators require per-url attempt sequences 1..k (k ≤ 11) that may restart at 1 only immediately after a pause event naming that url; retry_count ≤ 11 × (distinct_pdfs + pauses); pause count ≤ 3; window_stalls ≥ 15",
+        "limits": "at most 3 pauses per materialization; a fourth trigger fails the whole materialization (no partial publish); the 12 h wall-clock cap stands",
+        "trigger": "sliding window over the last 20 attempts across all PDFs (successes included): when at least 15 of them were transport stalls, record a pause event and sleep 600 s, then clear the window",
+        "unchanged": "12 attempts per PDF per healthy period; backoff schedule; transient-only classification; itemised recording; complete-or-nothing; inference zero-retry; extraction failures fatal"
+      },
+      "decision_id": "D-8",
+      "path": "/Users/ouyangduning/Documents/project/interesting/AlphaPilot-EVIDENCE-DO-NOT-DELETE-epoch9-forward-rebaseline-compatibility-20260906.tYa303/independent-review-delegated-decision-D-8-stall-pause-trigger-20260909.json",
+      "reviewer": "independent_ai_architect_claude_code",
+      "reviewer_words_not_owner_words": true,
+      "settles": "the stall-pause trigger left unreachable by the as-presented '20 consecutive attempts' wording",
+      "sha256": "82744c73a17c671306d8b3ec27ee56d2561def7b2429323a7c4268a80040facf"
+    }
+  },
+  "schema_version": "p4.2a-successor-production-integration-v5-owner-inference-post-validation-exception",
+  "scientific_contract_immutability": [
+    {
+      "authority": {
+        "json_pointer": "/lineage",
+        "path": "docs/phase4/reports/P4.2a-v2-heldout-rehearsal-v2-2-release-authorization-20260811.json",
+        "sha256": "2ede11c0bc3a1dbdbaff489f6c6f155f456e7a6685fda8b31ce1772ca005ad40"
+      },
+      "id": "candidate_and_model_identity",
+      "implementation_review_required": true,
+      "rule": "PRESERVE_EXISTING_REGISTERED_BYTES_VALUES_AND_SEMANTICS"
+    },
+    {
+      "authority": {
+        "json_pointer": "/lineage",
+        "path": "docs/phase4/reports/P4.2a-v2-heldout-rehearsal-v2-2-release-authorization-20260811.json",
+        "sha256": "2ede11c0bc3a1dbdbaff489f6c6f155f456e7a6685fda8b31ce1772ca005ad40"
+      },
+      "id": "model_prompt_parameters_and_scientific_contract",
+      "implementation_review_required": true,
+      "rule": "PRESERVE_EXISTING_REGISTERED_BYTES_VALUES_AND_SEMANTICS"
+    },
+    {
+      "authority": {
+        "json_pointer": "/lineage",
+        "path": "docs/phase4/reports/P4.2a-v2-heldout-rehearsal-v2-2-release-authorization-20260811.json",
+        "sha256": "2ede11c0bc3a1dbdbaff489f6c6f155f456e7a6685fda8b31ce1772ca005ad40"
+      },
+      "id": "data_window_and_eligibility",
+      "implementation_review_required": true,
+      "rule": "PRESERVE_EXISTING_REGISTERED_BYTES_VALUES_AND_SEMANTICS"
+    },
+    {
+      "authority": {
+        "json_pointer": "/lineage",
+        "path": "docs/phase4/reports/P4.2a-v2-heldout-rehearsal-v2-2-release-authorization-20260811.json",
+        "sha256": "2ede11c0bc3a1dbdbaff489f6c6f155f456e7a6685fda8b31ce1772ca005ad40"
+      },
+      "id": "sampling_40_20_and_seed",
+      "implementation_review_required": true,
+      "rule": "PRESERVE_EXISTING_REGISTERED_BYTES_VALUES_AND_SEMANTICS"
+    },
+    {
+      "authority": {
+        "json_pointer": "/lineage",
+        "path": "docs/phase4/reports/P4.2a-v2-heldout-rehearsal-v2-2-release-authorization-20260811.json",
+        "sha256": "2ede11c0bc3a1dbdbaff489f6c6f155f456e7a6685fda8b31ce1772ca005ad40"
+      },
+      "id": "gold_and_owner_blind_adjudication",
+      "implementation_review_required": true,
+      "rule": "PRESERVE_EXISTING_REGISTERED_BYTES_VALUES_AND_SEMANTICS"
+    },
+    {
+      "authority": {
+        "json_pointer": "/lineage",
+        "path": "docs/phase4/reports/P4.2a-v2-heldout-rehearsal-v2-2-release-authorization-20260811.json",
+        "sha256": "2ede11c0bc3a1dbdbaff489f6c6f155f456e7a6685fda8b31ce1772ca005ad40"
+      },
+      "id": "scientific_predicates_and_thresholds",
+      "implementation_review_required": true,
+      "rule": "PRESERVE_EXISTING_REGISTERED_BYTES_VALUES_AND_SEMANTICS"
+    },
+    {
+      "authority": {
+        "json_pointer": "/lineage",
+        "path": "docs/phase4/reports/P4.2a-v2-heldout-rehearsal-v2-2-release-authorization-20260811.json",
+        "sha256": "2ede11c0bc3a1dbdbaff489f6c6f155f456e7a6685fda8b31ce1772ca005ad40"
+      },
+      "id": "request_order_and_pacing",
+      "implementation_review_required": true,
+      "rule": "PRESERVE_EXISTING_REGISTERED_BYTES_VALUES_AND_SEMANTICS"
+    },
+    {
+      "authority": {
+        "json_pointer": "/lineage",
+        "path": "docs/phase4/reports/P4.2a-v2-heldout-rehearsal-v2-2-release-authorization-20260811.json",
+        "sha256": "2ede11c0bc3a1dbdbaff489f6c6f155f456e7a6685fda8b31ce1772ca005ad40"
+      },
+      "id": "one_item_once_zero_automatic_retry",
+      "implementation_review_required": true,
+      "rule": "PRESERVE_EXISTING_REGISTERED_BYTES_VALUES_AND_SEMANTICS"
+    },
+    {
+      "authority": {
+        "json_pointer": "/lineage",
+        "path": "docs/phase4/reports/P4.2a-v2-heldout-rehearsal-v2-2-release-authorization-20260811.json",
+        "sha256": "2ede11c0bc3a1dbdbaff489f6c6f155f456e7a6685fda8b31ce1772ca005ad40"
+      },
+      "id": "old_v2_1_release_and_offline_capability_guards",
+      "implementation_review_required": true,
+      "rule": "PRESERVE_EXISTING_REGISTERED_BYTES_VALUES_AND_SEMANTICS"
+    },
+    {
+      "authority": {
+        "json_pointer": "/lineage",
+        "path": "docs/phase4/reports/P4.2a-v2-heldout-rehearsal-v2-2-release-authorization-20260811.json",
+        "sha256": "2ede11c0bc3a1dbdbaff489f6c6f155f456e7a6685fda8b31ce1772ca005ad40"
+      },
+      "id": "backup_frame_and_runtime_start_guards",
+      "implementation_review_required": true,
+      "rule": "PRESERVE_EXISTING_REGISTERED_BYTES_VALUES_AND_SEMANTICS"
+    },
+    {
+      "authority": {
+        "json_pointer": "/lineage",
+        "path": "docs/phase4/reports/P4.2a-v2-heldout-rehearsal-v2-2-release-authorization-20260811.json",
+        "sha256": "2ede11c0bc3a1dbdbaff489f6c6f155f456e7a6685fda8b31ce1772ca005ad40"
+      },
+      "id": "sealed_history_ledger_mirror_and_consumed_attempts",
+      "implementation_review_required": true,
+      "rule": "PRESERVE_EXISTING_REGISTERED_BYTES_VALUES_AND_SEMANTICS"
+    }
+  ],
+  "still_gated": [
+    "finalize-owner-adjudication",
+    "heldout-evaluation",
+    "p4.2a-done",
+    "p4.2b",
+    "p4.3",
+    "trading"
+  ],
+  "supersedes_exception": {
+    "bytes": 43811,
+    "creating_commit": "d197a63f813774f8a470a12e4835e71c32f37585",
+    "note": "the three deviations below are carried forward unchanged from it",
+    "path": "docs/phase4/reports/P4.2a-successor-production-integration-v5-owner-exception-20260910.json",
+    "sha256": "f615d63230101f987a3c610096226f8f4d8c5d24a785cd2fcf8e829b15d2ef00"
+  },
+  "verdict": "AUTHORIZE_SUCCESSOR_PRODUCTION_INTEGRATION_V5_INFERENCE_POST_VALIDATION_IMPLEMENTATION_ONLY"
+}

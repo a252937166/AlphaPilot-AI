@@ -265,7 +265,9 @@ EPOCH_8_SURFACE_AUTHORITY_SHA256 = (
 )
 EPOCH_8_SURFACE_AUTHORITY_BYTES = 726
 EPOCH_8_SURFACE_AUTHORITY_COMMIT = "73a703a422b5209115f5b244490db36e06b1f15d"
-EPOCH_8_IMPLEMENTATION_EPOCH = 8
+HISTORICAL_EPOCH_8_RECOVERY_GOVERNANCE_EPOCH = 8
+LANDING_PREFLIGHT_ORIGIN_EPOCH = 8
+LATEST_LANDED_EXECUTION_EPOCH = 9
 EPOCH_8_RECOVERY_CONTRACT_SCHEMA = "p4.2a-v2-2-series2-epoch8-recovery-contract-v1"
 EPOCH_8_RECOVERY_REVIEW_REQUEST_SCHEMA = (
     "p4.2a-v2-2-series2-sealed-bundle-recovery-review-request-v2"
@@ -282,6 +284,88 @@ EPOCH_8_RECOVERY_MIRROR_RECEIPT_SCHEMA = (
     "p4.2a-v2-2-series2-bundle-recovery-mirror-receipt-v1"
 )
 EPOCH_8_READ_ONLY_PREFLIGHT_SCHEMA = "p4.2a-v2-2-read-only-implementation-preflight-v2"
+SERIES_2_RECOVERY_REVIEW_REQUEST_SCHEMA = (
+    "p4.2a-v2-2-series2-sealed-bundle-recovery-review-request-v2"
+)
+SERIES_2_RECOVERY_AUTHORIZATION_SCHEMA = (
+    "p4.2a-v2-2-series2-sealed-bundle-recovery-authorization-v1"
+)
+SERIES_2_RECOVERY_OWNER_BINDING_SCHEMA = (
+    "p4.2a-v2-2-series2-sealed-bundle-recovery-owner-confirmation-binding-v1"
+)
+SERIES_2_RECOVERY_STARTED_SCHEMA = "p4.2a-v2-2-series2-bundle-recovery-started-v1"
+SERIES_2_RECOVERY_TERMINAL_SCHEMA = "p4.2a-v2-2-series2-bundle-recovery-terminal-v1"
+SERIES_2_RECOVERY_MIRROR_RECEIPT_SCHEMA = (
+    "p4.2a-v2-2-series2-bundle-recovery-mirror-receipt-v1"
+)
+SERIES_2_READ_ONLY_PREFLIGHT_SCHEMA = "p4.2a-v2-2-read-only-implementation-preflight-v2"
+EPOCH_9_DESIGN_R1_RELATIVE = Path(
+    "docs/phase4/reports/"
+    "P4.2a-v2-2-series2-epoch9-source-projection-identity-design-proposal-20260903.md"
+)
+EPOCH_9_DESIGN_R1_SHA256 = "2f479639273f374ccea36fa6c4dafa0aa2023817ad4fd377df7e78b02db9e23c"
+EPOCH_9_DESIGN_R1_BYTES = 16_719
+EPOCH_9_DESIGN_R1_COMMIT = "094816f11bdb26f9d4141db6c5ddf46de1f735cb"
+EPOCH_9_DESIGN_R2_RELATIVE = Path(
+    "docs/phase4/reports/"
+    "P4.2a-v2-2-series2-epoch9-source-projection-identity-design-proposal-r2-20260903.md"
+)
+EPOCH_9_DESIGN_R2_SHA256 = "afaf02b0cc2f53cd891e0ec65a8ad125ce8d7508cd7555b7d651274b8c6e541a"
+EPOCH_9_DESIGN_R2_BYTES = 3_232
+EPOCH_9_DESIGN_R2_COMMIT = "fce157432a505c7d0cd09263b0d7db8dd3f049da"
+EPOCH_9_DESIGN_R3_RELATIVE = Path(
+    "docs/phase4/reports/"
+    "P4.2a-v2-2-series2-epoch9-latest-landed-epoch-design-r3-20260903.md"
+)
+EPOCH_9_DESIGN_R3_SHA256 = "5f99c0ac8cf708467e6c37c4516a30941af313cebbcd9d3141bd8b048e1460d9"
+EPOCH_9_DESIGN_R3_BYTES = 45_262
+EPOCH_9_DESIGN_R3_COMMIT = "7bf6d7fd0b054d6be775c36583085b443e0769f2"
+EPOCH_9_DESIGN_REVIEW_R3_RELATIVE = Path(
+    "docs/phase4/reports/"
+    "P4.2a-v2-2-series2-epoch9-latest-landed-epoch-independent-design-review-r3-"
+    "20260903.json"
+)
+EPOCH_9_DESIGN_REVIEW_R3_SHA256 = (
+    "24c66b7027d30b3fc168ae3ffa9dff0a0fe707d61130c5102b67e3386c6425f9"
+)
+EPOCH_9_DESIGN_REVIEW_R3_BYTES = 13_519
+EPOCH_9_DESIGN_REVIEW_R3_COMMIT = "dad5d0d332752bf99beeb9c5be55d1d2323bafab"
+EPOCH_9_ADJUDICATION_RELATIVE = Path(
+    "docs/phase4/reports/P4.2a-series2-epoch9-r3-design-conflict-adjudication-20260903.json"
+)
+EPOCH_9_ADJUDICATION_SHA256 = "204f0a4814d25f37390db154d6000b37fca36aa6e54ea35617c415308721cece"
+EPOCH_9_ADJUDICATION_BYTES = 9_387
+EPOCH_9_ADJUDICATION_COMMIT = "5c58141fd5c2622e147daa8f48f15c486515378d"
+EPOCH_9_COMPANION_RELATIVE = Path(
+    "docs/phase4/reports/P4.2a-series2-epoch9-r3-companion-20260903.json"
+)
+EPOCH_9_COMPANION_SHA256 = "b3f5769a5ed9dd74d72e29dcad6612313e936d0f6c0537801bed82338ba74667"
+EPOCH_9_COMPANION_BYTES = 26_612
+EPOCH_9_COMPANION_COMMIT = "20ed6a747c66a775ad3793167fe3f511f1c16ab8"
+EPOCH_9_LATEST_LANDED_CONTRACT_SCHEMA = (
+    "p4.2a-v2-2-series2-epoch9-latest-landed-execution-contract-v1"
+)
+EPOCH_9_LATEST_LANDED_CONTRACT_CANONICAL_SHA256 = (
+    "4d2c9d58c4e6b851de741d5f52861a4c18ff6b707280714debac829a1079272d"
+)
+EPOCH_9_SUPERSEDED_SURFACE_AUTHORITY_RELATIVE = Path(
+    "docs/phase4/reports/P4.2a-v2-2-series2-epoch9-surface-authority-20260903.json"
+)
+EPOCH_9_SUPERSEDED_SURFACE_AUTHORITY_SHA256 = (
+    "e5501e387d85be43fabe131b1e3d5067ad189db2e81a255744ad29b99446379e"
+)
+EPOCH_9_SUPERSEDED_SURFACE_AUTHORITY_BYTES = 517
+EPOCH_9_SUPERSEDED_SURFACE_AUTHORITY_COMMIT = (
+    "6936f4531eb52a6a343bf8a20e879dac1503bbdd"
+)
+EPOCH_9_SURFACE_AUTHORITY_RELATIVE = Path(
+    "docs/phase4/reports/P4.2a-v2-2-series2-epoch9-r3-surface-authority-20260903.json"
+)
+EPOCH_9_SURFACE_AUTHORITY_SHA256 = (
+    "ecbd909ba56158e644403a5a3f38f63e5714bee7b638fc9f72b9ba0541b97458"
+)
+EPOCH_9_SURFACE_AUTHORITY_BYTES = 726
+EPOCH_9_SURFACE_AUTHORITY_COMMIT = "cc64e0b79fbb3a667eb8545c7617e7e8e59115e4"
 EPOCH_7_LIVE_REVIEW_RELATIVE = Path(
     "docs/phase4/reports/"
     "P4.2a-v2-2-series2-epoch7-r2-implementation-independent-review-20260831.json"
@@ -1003,6 +1087,235 @@ EPOCH_8_RECOVERY_CONTRACT_FIELDS = frozenset(
         "legacy_absence_and_locks",
     }
 )
+EPOCH_9_LATEST_LANDED_CONTRACT_FIELDS = frozenset(
+    {
+        "schema_version",
+        "implementation_epoch",
+        "governing_adjudication",
+        "superseded_two_file_authority",
+        "historical_epoch_8_recovery_contract",
+        "latest_landed_authority_contract",
+        "registered_preflight_dispatch_contract",
+        "dual_byte_anchor_transition_contract",
+        "recovery_qrb_live_binding_contract",
+        "recovery_claim_and_receipt_live_binding_contract",
+        "recovered_publication_and_release_live_binding_contract",
+        "authority_census_and_effect_lock_contract",
+    }
+)
+EPOCH_9_LATEST_LANDED_NESTED_FIELDS: Mapping[str, frozenset[str]] = {
+    "governing_adjudication": frozenset(
+        {"path", "sha256", "bytes", "creating_commit", "unique_a_history_verified"}
+    ),
+    "superseded_two_file_authority": frozenset(
+        {"path", "sha256", "bytes", "creating_commit", "disposition"}
+    ),
+    "historical_epoch_8_recovery_contract": frozenset(
+        {
+            "companion_path",
+            "companion_sha256",
+            "companion_bytes",
+            "companion_creating_commit",
+            "contract_schema_version",
+            "contract_canonical_sha256",
+            "preservation",
+        }
+    ),
+    "latest_landed_authority_contract": frozenset(
+        {
+            "expected_implementation_epoch",
+            "owner_identity_mode",
+            "review_identity_mode",
+            "landing_identity_mode",
+            "landing_document_required_fields",
+            "topology_requirements",
+            "runtime_binding_chain",
+            "unknown_values_policy",
+        }
+    ),
+    "registered_preflight_dispatch_contract": frozenset(
+        {
+            "landing_preflight_origin_epoch",
+            "latest_official_epoch",
+            "historical_epoch_8_policy",
+            "unknown_later_epoch_policy",
+            "output_schema_version",
+            "zero_effect_required",
+            "runtime_binding_order",
+        }
+    ),
+    "dual_byte_anchor_transition_contract": frozenset(
+        {"historical_selected_anchor", "live_execution_anchor", "sealed_attempt_epoch_table"}
+    ),
+    "recovery_qrb_live_binding_contract": frozenset(
+        {
+            "q_schema",
+            "q_top_level_fields",
+            "r_schema",
+            "r_top_level_fields",
+            "b_schema",
+            "b_top_level_fields",
+            "runtime_live_binding_fields",
+            "cross_epoch_policy",
+            "counters",
+        }
+    ),
+    "recovery_claim_and_receipt_live_binding_contract": frozenset(
+        {
+            "started_schema",
+            "started_top_level_fields",
+            "terminal_schema",
+            "terminal_top_level_fields",
+            "mirror_receipt_schema",
+            "mirror_receipt_top_level_fields",
+            "live_binding_rules",
+        }
+    ),
+    "recovered_publication_and_release_live_binding_contract": frozenset(
+        {
+            "capability_top_level_fields",
+            "historical_binding_rule",
+            "live_binding_rule",
+            "bundle_mode",
+            "release_mode",
+            "active_fallback_forbidden",
+            "zero_effect_rule",
+        }
+    ),
+    "authority_census_and_effect_lock_contract": frozenset(
+        {
+            "fixed_base_governance_rows",
+            "dynamic_runtime_rows",
+            "permanent_absence_fields",
+            "sealed_attempt_epochs",
+            "effect_limits",
+            "lock_values",
+        }
+    ),
+}
+EPOCH_9_LANDING_DOCUMENT_REQUIRED_FIELDS = (
+    "implementation_epoch",
+    "owner_exact_surface_authorization",
+    "implementation_commit",
+    "independent_review_source_and_projection",
+    "ordered_merge_parents",
+    "merge_commit",
+    "landing_commit_and_parent",
+    "control_merkle_root_sha256",
+    "control_record_count",
+    "runner_validator_and_combined_test_counts",
+    "gate_evidence_digests",
+)
+EPOCH_9_LATEST_TOPOLOGY_REQUIREMENTS = (
+    "owner authority is one logical source with only lawful byte-identical first-parent "
+    "projections",
+    "implementation is the authority source commit direct single-parent exact-four-M child",
+    "independent review is the implementation direct single-parent unique-A report",
+    "no-ff merge ordered parents are fresh_main_base then review_commit and preserve reviewed "
+    "implementation bytes",
+    "landing report is the merge direct single-parent unique-A child",
+    "every named commit is on execution lineage and every named document matches immutable Git "
+    "and required current bytes",
+)
+EPOCH_9_RUNTIME_BINDING_CHAIN = (
+    "landing_report",
+    "registered_read_only_preflight",
+    "recovery_review_request_Q",
+    "recovery_authorization_R",
+    "owner_confirmation_binding_B",
+)
+EPOCH_9_UNKNOWN_VALUES_POLICY = (
+    "future implementation, review, merge, landing, control-root, and census values must be "
+    "obtained from the actual validated runtime chain and may never be defaulted, guessed, "
+    "left empty, or represented by a placeholder"
+)
+EPOCH_9_HISTORICAL_EPOCH_8_POLICY = (
+    "validate the immutable epoch-8 recovery contract and historical or synthetic proof but "
+    "reject epoch 8 as the latest official execution epoch after epoch 9 lands"
+)
+EPOCH_9_PREFLIGHT_RUNTIME_BINDING_ORDER = (
+    "locked process interpreter environment and complete CLI",
+    "immutable epoch-8 historical contract",
+    "epoch-9 companion authority review landing and topology",
+    "epoch-9 current control and loaded module bytes plus first real-lineage census",
+    "series storage recovery containers sealed ledger and mirror",
+    "second identical census complete before-after equality and one canonical stdout line",
+)
+EPOCH_9_REQUIRED_CURRENT_SURFACES = (
+    "complete registered control-surface bytes",
+    "loaded producer module origin and digest",
+    "loaded validator module origin and digest",
+)
+EPOCH_9_REQUIRED_LINEAGE_OBJECTS = (
+    "epoch-9 four-file owner surface authority",
+    "epoch-9 implementation",
+    "epoch-9 independent implementation review source and projection",
+    "epoch-9 ordered-parent no-ff merge",
+    "epoch-9 unique-A landing report",
+)
+EPOCH_9_LIVE_RUNTIME_VALUE_SOURCE = (
+    "the validated epoch-9 landing report followed by the one real preflight and exact Q then "
+    "R then B byte chain"
+)
+EPOCH_9_QRB_RUNTIME_LIVE_BINDING_FIELDS = (
+    "execution epoch 9",
+    "epoch-9 implementation authority review merge and landing",
+    "epoch-9 control root count and real-lineage census",
+    "selected sealed epoch 6 and attempts [5,6]",
+    "exact argv and environment hashes",
+    "owner identity topology destination storage roots and claim naming",
+)
+EPOCH_9_QRB_CROSS_EPOCH_POLICY = (
+    "reject every epoch-8 and epoch-9 mixture across Q, R, B, embedded preflight, owner, "
+    "review, merge, landing, control, and census before storage access"
+)
+EPOCH_9_CLAIM_LIVE_BINDING_RULES = (
+    "started.execution_head and started.execution_epoch bind the epoch-9 live anchor",
+    "mirror receipt execution_epoch execution_implementation_commit and execution_head equal "
+    "the same epoch-9 live anchor and started record",
+    "terminal has no execution epoch or head field and gains none",
+    "terminal identity is proven through exact R and B references claim path recovery_id "
+    "receipt references and the paired receipt live tuple",
+    "producer and validator independently recompute the complete chain before accepting any "
+    "recovered output",
+)
+EPOCH_9_PUBLICATION_HISTORICAL_BINDING_RULE = (
+    "selected ordinal 2 epoch 6 implementation commit and sealed candidate terminal evidence "
+    "history ledger and run roots are recomputed from immutable Git and sealed evidence with "
+    "require_current false"
+)
+EPOCH_9_PUBLICATION_LIVE_BINDING_RULE = (
+    "execution epoch 9 implementation owner review merge landing current control bytes loaded "
+    "module bytes and final real-lineage census are independently recomputed with "
+    "require_current true"
+)
+EPOCH_9_CENSUS_FIXED_BASE_ROWS = (
+    (
+        "immutable registered authority registry and epoch-8 governance chain",
+        "preserve every pinned source path raw byte SHA byte count source parent role and "
+        "lawful projection rule",
+    ),
+    (
+        "epoch-9 r3 governing adjudication",
+        "use the exact governing_adjudication tuple in this contract as a PINNED_SOURCE",
+    ),
+    (
+        "this epoch-9 r3 companion",
+        "derive its exact path SHA bytes and unique-A creating commit from the future authority "
+        "base commit and verify its direct parent is the governing adjudication",
+    ),
+    (
+        "future epoch-9 four-file surface authority",
+        "derive its exact path SHA bytes and unique-A source commit from the caller-supplied "
+        "authority and require its base_commit to equal this companion creating commit",
+    ),
+)
+EPOCH_9_CENSUS_DYNAMIC_RUNTIME_ROWS = (
+    "epoch-9 independent implementation review source and lawful first-parent projection",
+    "epoch-9 no-ff merge",
+    "epoch-9 unique-A landing report",
+    "fresh Q then R then B exact linear ref delta at recovery start",
+)
 EPOCH_7_RECOVERY_REVIEW_REQUEST_FIELDS = frozenset(
     {
         "schema_version",
@@ -1057,6 +1370,7 @@ EPOCH_8_READ_ONLY_PREFLIGHT_FIELDS = frozenset(
         "effect_summary",
     }
 )
+SERIES_2_READ_ONLY_PREFLIGHT_FIELDS = EPOCH_8_READ_ONLY_PREFLIGHT_FIELDS
 RECOVERY_AUTHORIZATION_FIELDS = frozenset(
     {
         "schema_version",
@@ -1322,6 +1636,7 @@ EPOCH_8_READ_ONLY_PREFLIGHT_FIELD_ORDER = (
     "sealed_recovery_inputs",
     "effect_summary",
 )
+SERIES_2_READ_ONLY_PREFLIGHT_FIELD_ORDER = EPOCH_8_READ_ONLY_PREFLIGHT_FIELD_ORDER
 RECOVERY_AUTHORIZATION_FIELD_ORDER = (
     "schema_version",
     "authorization_id",
@@ -1699,6 +2014,7 @@ class RecoveredPublicationCapability:
 @dataclass(frozen=True, slots=True)
 class _ValidatedRecoveryGovernance:
     contract: JsonObject
+    latest_landed_contract: JsonObject
     preflight_document: JsonObject
     preflight_census: JsonObject
     landed_execution_epoch: JsonObject
@@ -3377,6 +3693,7 @@ def _unique_a_authority(
     *,
     require_worktree: bool,
     work_tracker: _IndependentRecoveryWorkTracker | None = None,
+    all_ref_commits: Sequence[str] | None = None,
 ) -> bytes:
     tracker = _IndependentRecoveryWorkTracker() if work_tracker is None else work_tracker
     path = _relative(reference.get("path"), "authority path")
@@ -3395,7 +3712,14 @@ def _unique_a_authority(
         path=path,
         pinned_payload=payload,
         source_commit=creating_commit,
-        touches=_all_ref_path_touches(root, path, work_tracker=tracker),
+        touches=_all_ref_path_touches(
+            root,
+            path,
+            all_ref_commit_count=(
+                None if all_ref_commits is None else len(all_ref_commits)
+            ),
+            work_tracker=tracker,
+        ),
         work_tracker=tracker,
     )
     if require_worktree:
@@ -3983,6 +4307,24 @@ def _base_authority_census_specs() -> tuple[AuthorityCensusSpec, ...]:
                 path=EPOCH_8_SURFACE_AUTHORITY_RELATIVE.as_posix(),
                 pinned_sha256=EPOCH_8_SURFACE_AUTHORITY_SHA256,
                 pinned_creating_commit=EPOCH_8_SURFACE_AUTHORITY_COMMIT,
+                role=AuthorityCensusRole.PINNED_SOURCE,
+            ),
+            AuthorityCensusSpec(
+                path=EPOCH_9_ADJUDICATION_RELATIVE.as_posix(),
+                pinned_sha256=EPOCH_9_ADJUDICATION_SHA256,
+                pinned_creating_commit=EPOCH_9_ADJUDICATION_COMMIT,
+                role=AuthorityCensusRole.PINNED_SOURCE,
+            ),
+            AuthorityCensusSpec(
+                path=EPOCH_9_COMPANION_RELATIVE.as_posix(),
+                pinned_sha256=EPOCH_9_COMPANION_SHA256,
+                pinned_creating_commit=EPOCH_9_COMPANION_COMMIT,
+                role=AuthorityCensusRole.PINNED_SOURCE,
+            ),
+            AuthorityCensusSpec(
+                path=EPOCH_9_SURFACE_AUTHORITY_RELATIVE.as_posix(),
+                pinned_sha256=EPOCH_9_SURFACE_AUTHORITY_SHA256,
+                pinned_creating_commit=EPOCH_9_SURFACE_AUTHORITY_COMMIT,
                 role=AuthorityCensusRole.PINNED_SOURCE,
             ),
         )
@@ -4767,12 +5109,20 @@ def _epoch_8_governance_payload(
     expected_bytes: int,
     creating_commit: str,
     label: str,
+    work_tracker: _IndependentRecoveryWorkTracker | None = None,
+    all_ref_commits: Sequence[str] | None = None,
 ) -> bytes:
     payload = _regular_bytes(root / relative, label)
     if (
         len(payload) != expected_bytes
         or _sha256(payload) != digest
-        or _git_blob(root, creating_commit, relative.as_posix()) != payload
+        or _git_blob(
+            root,
+            creating_commit,
+            relative.as_posix(),
+            work_tracker=work_tracker,
+        )
+        != payload
         or _unique_a_authority(
             root,
             {
@@ -4782,6 +5132,8 @@ def _epoch_8_governance_payload(
                 "unique_a_history_verified": True,
             },
             require_worktree=True,
+            work_tracker=work_tracker,
+            all_ref_commits=all_ref_commits,
         )
         != payload
     ):
@@ -4793,12 +5145,35 @@ def validate_epoch_8_recovery_contract(
     project_root: Path,
     *,
     execution_head: str | None = None,
+    work_tracker: _IndependentRecoveryWorkTracker | None = None,
+    all_ref_commits: Sequence[str] | None = None,
 ) -> JsonObject:
     """Independently validate the epoch-8 companion's exact 13-field contract."""
 
     root = project_root.resolve(strict=True)
+    if (work_tracker is None) != (all_ref_commits is None):
+        raise RehearsalV22ValidationError(
+            "epoch-8 contract work tracker and all-ref snapshot must be supplied together"
+        )
+    tracker = _IndependentRecoveryWorkTracker() if work_tracker is None else work_tracker
+    commits = (
+        _git_all_ref_commits(root, work_tracker=tracker)
+        if all_ref_commits is None
+        else tuple(all_ref_commits)
+    )
+    if (
+        not commits
+        or len(commits) != len(set(commits))
+        or any(_COMMIT_PATTERN.fullmatch(commit) is None for commit in commits)
+    ):
+        raise RehearsalV22ValidationError("epoch-8 contract all-ref snapshot is malformed")
     if execution_head is not None:
-        head = _git_commit(root, execution_head, "epoch-8 contract execution HEAD")
+        head = _git_commit(
+            root,
+            execution_head,
+            "epoch-8 contract execution HEAD",
+            work_tracker=tracker,
+        )
         for commit in (
             EPOCH_8_DESIGN_COMMIT,
             EPOCH_8_DESIGN_REVIEW_COMMIT,
@@ -4806,7 +5181,7 @@ def validate_epoch_8_recovery_contract(
             EPOCH_8_COMPANION_COMMIT,
             EPOCH_8_SURFACE_AUTHORITY_COMMIT,
         ):
-            if not _git_is_ancestor(root, commit, head):
+            if not _git_is_ancestor(root, commit, head, work_tracker=tracker):
                 raise RehearsalV22ValidationError(
                     "epoch-8 governance is outside the requested execution HEAD"
                 )
@@ -4840,6 +5215,8 @@ def validate_epoch_8_recovery_contract(
             expected_bytes=expected_bytes,
             creating_commit=commit,
             label=label,
+            work_tracker=tracker,
+            all_ref_commits=commits,
         )
     payload = _epoch_8_governance_payload(
         root,
@@ -4848,8 +5225,14 @@ def validate_epoch_8_recovery_contract(
         expected_bytes=EPOCH_8_COMPANION_BYTES,
         creating_commit=EPOCH_8_COMPANION_COMMIT,
         label="epoch-8 recovery companion",
+        work_tracker=tracker,
+        all_ref_commits=commits,
     )
-    if _git_parents(root, EPOCH_8_COMPANION_COMMIT) != (EPOCH_8_ADJUDICATION_COMMIT,):
+    if _git_parents(
+        root,
+        EPOCH_8_COMPANION_COMMIT,
+        work_tracker=tracker,
+    ) != (EPOCH_8_ADJUDICATION_COMMIT,):
         raise RehearsalV22ValidationError("epoch-8 companion parent drifted")
     document = _object(
         strict_json_loads(payload, label="epoch-8 recovery companion"),
@@ -4866,7 +5249,7 @@ def validate_epoch_8_recovery_contract(
     )
     _require_equal(
         contract.get("implementation_epoch"),
-        EPOCH_8_IMPLEMENTATION_EPOCH,
+        HISTORICAL_EPOCH_8_RECOVERY_GOVERNANCE_EPOCH,
         "epoch-8 contract epoch",
     )
     _require_equal(
@@ -4892,6 +5275,8 @@ def validate_epoch_8_recovery_contract(
         expected_bytes=EPOCH_8_SURFACE_AUTHORITY_BYTES,
         creating_commit=EPOCH_8_SURFACE_AUTHORITY_COMMIT,
         label="epoch-8 surface authority",
+        work_tracker=tracker,
+        all_ref_commits=commits,
     )
     owner_document = _object(
         strict_json_loads(owner_payload, label="epoch-8 surface authority"),
@@ -4917,13 +5302,17 @@ def validate_epoch_8_recovery_contract(
             "schema_version": "p4.2a-v2-2-implementation-epoch-surface-authorization-v1",
             "verdict": "APPROVE_EXACT_V2_2_IMPLEMENTATION_EPOCH_SURFACE",
             "owner": {"identity": "ouyang", "approved": True},
-            "implementation_epoch": EPOCH_8_IMPLEMENTATION_EPOCH,
+            "implementation_epoch": HISTORICAL_EPOCH_8_RECOVERY_GOVERNANCE_EPOCH,
             "base_commit": EPOCH_8_COMPANION_COMMIT,
             "exact_surface": expected_surface,
         },
         "epoch-8 surface authority",
     )
-    if _git_parents(root, EPOCH_8_SURFACE_AUTHORITY_COMMIT) != (EPOCH_8_COMPANION_COMMIT,):
+    if _git_parents(
+        root,
+        EPOCH_8_SURFACE_AUTHORITY_COMMIT,
+        work_tracker=tracker,
+    ) != (EPOCH_8_COMPANION_COMMIT,):
         raise RehearsalV22ValidationError("epoch-8 surface authority parent drifted")
     owner_approval = _object(document.get("part_2_owner_approval"), "epoch-8 owner approval")
     if (
@@ -5166,7 +5555,8 @@ def validate_epoch_8_recovery_contract(
         or historical.get("selected_control_merkle_root_sha256")
         != HISTORICAL_SELECTED_CONTROL_ROOT_SHA256
         or historical.get("require_current") is not False
-        or live.get("implementation_epoch") != EPOCH_8_IMPLEMENTATION_EPOCH
+        or live.get("implementation_epoch")
+        != HISTORICAL_EPOCH_8_RECOVERY_GOVERNANCE_EPOCH
         or live.get("require_current") is not True
     ):
         raise RehearsalV22ValidationError("epoch-8 dual-byte anchors drifted")
@@ -5175,7 +5565,7 @@ def validate_epoch_8_recovery_contract(
         {
             "selected_attempt_ordinal": 2,
             "selected_implementation_epoch": HISTORICAL_SELECTED_EPOCH,
-            "execution_epoch": EPOCH_8_IMPLEMENTATION_EPOCH,
+            "execution_epoch": HISTORICAL_EPOCH_8_RECOVERY_GOVERNANCE_EPOCH,
             "recovery_starts": 1,
             "pipeline_starts": 0,
             "automatic_retry_count": 0,
@@ -5215,7 +5605,8 @@ def validate_epoch_8_recovery_contract(
     )
     fixed_r = _object(r.get("fixed_values"), "epoch-8 R fixed values")
     if (
-        fixed_r.get("execution_epoch") != EPOCH_8_IMPLEMENTATION_EPOCH
+        fixed_r.get("execution_epoch")
+        != HISTORICAL_EPOCH_8_RECOVERY_GOVERNANCE_EPOCH
         or fixed_r.get("selected_implementation_epoch") != HISTORICAL_SELECTED_EPOCH
         or fixed_r.get("selected_implementation_commit")
         != HISTORICAL_SELECTED_IMPLEMENTATION_COMMIT
@@ -5295,6 +5686,755 @@ def validate_epoch_8_recovery_contract(
     )
     if "fresh epoch-8 current census" not in _string(census.get("timing"), "census timing"):
         raise RehearsalV22ValidationError("recovered-release fresh census requirement drifted")
+    tracker.snapshot()
+    return contract
+
+
+def _validate_epoch_9_latest_landed_contract_semantics(
+    contract: Mapping[str, Any],
+    authority: Mapping[str, Any],
+) -> None:
+    """Recompute every registered epoch-9 overlay predicate from raw fields."""
+
+    _require_exact_keys(
+        contract,
+        EPOCH_9_LATEST_LANDED_CONTRACT_FIELDS,
+        "epoch-9 latest-landed execution contract",
+    )
+    nodes: dict[str, JsonObject] = {}
+    for name, exact_fields in EPOCH_9_LATEST_LANDED_NESTED_FIELDS.items():
+        node = _object(contract.get(name), f"epoch-9 contract {name}")
+        _require_exact_keys(node, exact_fields, f"epoch-9 contract {name}")
+        nodes[name] = node
+
+    governing = nodes["governing_adjudication"]
+    superseded = nodes["superseded_two_file_authority"]
+    historical_contract = nodes["historical_epoch_8_recovery_contract"]
+    latest = nodes["latest_landed_authority_contract"]
+    dispatch = nodes["registered_preflight_dispatch_contract"]
+    anchors = nodes["dual_byte_anchor_transition_contract"]
+    historical = _object(anchors.get("historical_selected_anchor"), "epoch-9 historical anchor")
+    live = _object(anchors.get("live_execution_anchor"), "epoch-9 live anchor")
+    _require_exact_keys(
+        historical,
+        frozenset(
+            {
+                "selected_attempt_ordinal",
+                "implementation_epoch",
+                "implementation_commit",
+                "history_root_sha256",
+                "live_ledger_root_sha256",
+                "require_current",
+            }
+        ),
+        "epoch-9 historical anchor",
+    )
+    _require_exact_keys(
+        live,
+        frozenset(
+            {
+                "implementation_epoch",
+                "require_current",
+                "required_current_surfaces",
+                "required_lineage_objects",
+                "runtime_value_source",
+            }
+        ),
+        "epoch-9 live anchor",
+    )
+    _require_equal(
+        governing,
+        {
+            "path": EPOCH_9_ADJUDICATION_RELATIVE.as_posix(),
+            "sha256": EPOCH_9_ADJUDICATION_SHA256,
+            "bytes": EPOCH_9_ADJUDICATION_BYTES,
+            "creating_commit": EPOCH_9_ADJUDICATION_COMMIT,
+            "unique_a_history_verified": True,
+        },
+        "epoch-9 governing adjudication",
+    )
+    _require_equal(
+        superseded,
+        {
+            "path": EPOCH_9_SUPERSEDED_SURFACE_AUTHORITY_RELATIVE.as_posix(),
+            "sha256": EPOCH_9_SUPERSEDED_SURFACE_AUTHORITY_SHA256,
+            "bytes": EPOCH_9_SUPERSEDED_SURFACE_AUTHORITY_BYTES,
+            "creating_commit": EPOCH_9_SUPERSEDED_SURFACE_AUTHORITY_COMMIT,
+            "disposition": "SUPERSEDED_FOR_IMPLEMENTATION_ONLY",
+        },
+        "epoch-9 superseded two-file authority",
+    )
+    _require_equal(
+        historical_contract,
+        {
+            "companion_path": EPOCH_8_COMPANION_RELATIVE.as_posix(),
+            "companion_sha256": EPOCH_8_COMPANION_SHA256,
+            "companion_bytes": EPOCH_8_COMPANION_BYTES,
+            "companion_creating_commit": EPOCH_8_COMPANION_COMMIT,
+            "contract_schema_version": EPOCH_8_RECOVERY_CONTRACT_SCHEMA,
+            "contract_canonical_sha256": EPOCH_8_CONTRACT_CANONICAL_SHA256,
+            "preservation": "IMMUTABLE_HISTORICAL_CONTRACT_BYTE_FOR_BYTE",
+        },
+        "epoch-9 historical epoch-8 contract reference",
+    )
+    _require_equal(
+        tuple(_array(latest.get("landing_document_required_fields"), "landing fields")),
+        EPOCH_9_LANDING_DOCUMENT_REQUIRED_FIELDS,
+        "epoch-9 landing required fields",
+    )
+    _require_equal(
+        tuple(_array(latest.get("topology_requirements"), "topology requirements")),
+        EPOCH_9_LATEST_TOPOLOGY_REQUIREMENTS,
+        "epoch-9 topology requirements",
+    )
+    _require_equal(
+        tuple(_array(latest.get("runtime_binding_chain"), "runtime binding chain")),
+        EPOCH_9_RUNTIME_BINDING_CHAIN,
+        "epoch-9 runtime binding chain",
+    )
+    if (
+        latest.get("expected_implementation_epoch") != LATEST_LANDED_EXECUTION_EPOCH
+        or latest.get("owner_identity_mode")
+        != "LOGICAL_SOURCE_WITH_LAWFUL_PROJECTIONS"
+        or latest.get("review_identity_mode") != "FIRST_PARENT_VISIBLE_UNIQUE_A"
+        or latest.get("landing_identity_mode") != "FIRST_PARENT_VISIBLE_UNIQUE_A"
+        or latest.get("unknown_values_policy") != EPOCH_9_UNKNOWN_VALUES_POLICY
+    ):
+        raise RehearsalV22ValidationError("epoch-9 latest authority semantics drifted")
+    _require_equal(
+        tuple(_array(dispatch.get("runtime_binding_order"), "preflight runtime order")),
+        EPOCH_9_PREFLIGHT_RUNTIME_BINDING_ORDER,
+        "epoch-9 preflight runtime order",
+    )
+    if (
+        dispatch.get("landing_preflight_origin_epoch") != LANDING_PREFLIGHT_ORIGIN_EPOCH
+        or dispatch.get("latest_official_epoch") != LATEST_LANDED_EXECUTION_EPOCH
+        or dispatch.get("historical_epoch_8_policy") != EPOCH_9_HISTORICAL_EPOCH_8_POLICY
+        or dispatch.get("unknown_later_epoch_policy")
+        != "FAIL_CLOSED_UNTIL_SEPARATELY_GOVERNED"
+        or dispatch.get("output_schema_version") != SERIES_2_READ_ONLY_PREFLIGHT_SCHEMA
+        or dispatch.get("zero_effect_required") is not True
+    ):
+        raise RehearsalV22ValidationError("epoch-9 preflight dispatch semantics drifted")
+    _require_equal(
+        historical,
+        {
+            "selected_attempt_ordinal": 2,
+            "implementation_epoch": HISTORICAL_SELECTED_EPOCH,
+            "implementation_commit": HISTORICAL_SELECTED_IMPLEMENTATION_COMMIT,
+            "history_root_sha256": SEALED_SERIES_HISTORY_ROOT_SHA256,
+            "live_ledger_root_sha256": SEALED_SERIES_LIVE_ROOT_SHA256,
+            "require_current": False,
+        },
+        "epoch-9 historical selected anchor",
+    )
+    _require_equal(
+        tuple(_array(live.get("required_current_surfaces"), "live current surfaces")),
+        EPOCH_9_REQUIRED_CURRENT_SURFACES,
+        "epoch-9 live current surfaces",
+    )
+    _require_equal(
+        tuple(_array(live.get("required_lineage_objects"), "live lineage objects")),
+        EPOCH_9_REQUIRED_LINEAGE_OBJECTS,
+        "epoch-9 live lineage objects",
+    )
+    if (
+        live.get("implementation_epoch") != LATEST_LANDED_EXECUTION_EPOCH
+        or live.get("require_current") is not True
+        or live.get("runtime_value_source") != EPOCH_9_LIVE_RUNTIME_VALUE_SOURCE
+        or anchors.get("sealed_attempt_epoch_table") != [5, 6]
+    ):
+        raise RehearsalV22ValidationError("epoch-9 live or sealed anchor semantics drifted")
+
+    qrb = nodes["recovery_qrb_live_binding_contract"]
+    qrb_counters = _object(qrb.get("counters"), "epoch-9 Q/R/B counters")
+    _require_exact_keys(
+        qrb_counters,
+        frozenset(
+            {
+                "authorized_bundle_recovery_starts_after_fresh_Q_R_B",
+                "authorized_pipeline_starts",
+                "automatic_retry_count",
+            }
+        ),
+        "epoch-9 Q/R/B counters",
+    )
+    for observed, expected, label in (
+        (qrb.get("q_top_level_fields"), RECOVERY_REVIEW_REQUEST_FIELD_ORDER, "Q fields"),
+        (qrb.get("r_top_level_fields"), RECOVERY_AUTHORIZATION_FIELD_ORDER, "R fields"),
+        (qrb.get("b_top_level_fields"), RECOVERY_OWNER_BINDING_FIELD_ORDER, "B fields"),
+        (
+            qrb.get("runtime_live_binding_fields"),
+            EPOCH_9_QRB_RUNTIME_LIVE_BINDING_FIELDS,
+            "Q/R/B live binding fields",
+        ),
+    ):
+        _require_equal(tuple(_array(observed, label)), expected, f"epoch-9 {label}")
+    if (
+        qrb.get("q_schema") != SERIES_2_RECOVERY_REVIEW_REQUEST_SCHEMA
+        or qrb.get("r_schema") != SERIES_2_RECOVERY_AUTHORIZATION_SCHEMA
+        or qrb.get("b_schema") != SERIES_2_RECOVERY_OWNER_BINDING_SCHEMA
+        or qrb.get("cross_epoch_policy") != EPOCH_9_QRB_CROSS_EPOCH_POLICY
+        or qrb_counters
+        != {
+            "authorized_bundle_recovery_starts_after_fresh_Q_R_B": 1,
+            "authorized_pipeline_starts": 0,
+            "automatic_retry_count": 0,
+        }
+    ):
+        raise RehearsalV22ValidationError("epoch-9 Q/R/B semantics drifted")
+
+    claim = nodes["recovery_claim_and_receipt_live_binding_contract"]
+    for observed, expected, label in (
+        (claim.get("started_top_level_fields"), RECOVERY_STARTED_FIELD_ORDER, "started fields"),
+        (claim.get("terminal_top_level_fields"), RECOVERY_TERMINAL_FIELD_ORDER, "terminal fields"),
+        (
+            claim.get("mirror_receipt_top_level_fields"),
+            RECOVERY_MIRROR_RECEIPT_FIELD_ORDER,
+            "mirror receipt fields",
+        ),
+        (claim.get("live_binding_rules"), EPOCH_9_CLAIM_LIVE_BINDING_RULES, "claim rules"),
+    ):
+        _require_equal(tuple(_array(observed, label)), expected, f"epoch-9 {label}")
+    if (
+        claim.get("started_schema") != SERIES_2_RECOVERY_STARTED_SCHEMA
+        or claim.get("terminal_schema") != SERIES_2_RECOVERY_TERMINAL_SCHEMA
+        or claim.get("mirror_receipt_schema") != SERIES_2_RECOVERY_MIRROR_RECEIPT_SCHEMA
+    ):
+        raise RehearsalV22ValidationError("epoch-9 claim or receipt schemas drifted")
+
+    publication = nodes["recovered_publication_and_release_live_binding_contract"]
+    zero_effects = _object(publication.get("zero_effect_rule"), "epoch-9 zero effects")
+    _require_exact_keys(
+        zero_effects,
+        frozenset(
+            {
+                "filesystem_and_git_writes",
+                "ledger_and_mirror_writes",
+                "pipeline_starts",
+                "automatic_retries",
+                "model_network_database_and_heldout_accesses",
+                "trading_effects",
+            }
+        ),
+        "epoch-9 zero effects",
+    )
+    _require_equal(
+        tuple(
+            _array(
+                publication.get("capability_top_level_fields"),
+                "recovered-publication capability fields",
+            )
+        ),
+        RECOVERED_PUBLICATION_CAPABILITY_FIELDS,
+        "epoch-9 recovered-publication capability fields",
+    )
+    if (
+        publication.get("historical_binding_rule")
+        != EPOCH_9_PUBLICATION_HISTORICAL_BINDING_RULE
+        or publication.get("live_binding_rule") != EPOCH_9_PUBLICATION_LIVE_BINDING_RULE
+        or publication.get("bundle_mode") != BundleValidationMode.PASSIVE_RECOVERED_BUNDLE.value
+        or publication.get("release_mode") != BundleValidationMode.PASSIVE_RECOVERED_RELEASE.value
+        or publication.get("active_fallback_forbidden") is not True
+        or any(value != 0 for value in zero_effects.values())
+    ):
+        raise RehearsalV22ValidationError("epoch-9 publication semantics drifted")
+
+    census = nodes["authority_census_and_effect_lock_contract"]
+    fixed_rows = _array(census.get("fixed_base_governance_rows"), "fixed census rows")
+    observed_fixed_rows: list[tuple[str, str]] = []
+    for row_value in fixed_rows:
+        row = _object(row_value, "fixed census row")
+        _require_exact_keys(row, frozenset({"identity", "binding_rule"}), "fixed census row")
+        observed_fixed_rows.append(
+            (
+                _string(row.get("identity"), "fixed census identity"),
+                _string(row.get("binding_rule"), "fixed census binding rule"),
+            )
+        )
+    _require_equal(
+        tuple(observed_fixed_rows),
+        EPOCH_9_CENSUS_FIXED_BASE_ROWS,
+        "epoch-9 fixed census rows",
+    )
+    _require_equal(
+        tuple(_array(census.get("dynamic_runtime_rows"), "dynamic census rows")),
+        EPOCH_9_CENSUS_DYNAMIC_RUNTIME_ROWS,
+        "epoch-9 dynamic census rows",
+    )
+    permanent_absence = _object(
+        census.get("permanent_absence_fields"),
+        "epoch-9 permanent absence fields",
+    )
+    effect_limits = _object(census.get("effect_limits"), "epoch-9 effect limits")
+    locks = _object(census.get("lock_values"), "epoch-9 lock values")
+    _require_exact_keys(
+        permanent_absence,
+        frozenset(LEGACY_AMENDMENT_ABSENCE_FIELDS),
+        "epoch-9 permanent absence fields",
+    )
+    _require_exact_keys(
+        effect_limits,
+        frozenset(
+            {
+                "future_recovery_starts_after_separately_authorized_fresh_Q_R_B",
+                "pipeline_starts",
+                "automatic_retries",
+                "preflight_Q_drafting_validation_release_revalidation_and_review_writes",
+            }
+        ),
+        "epoch-9 effect limits",
+    )
+    _require_exact_keys(
+        locks,
+        frozenset(
+            {
+                "ordinal_3_forbidden",
+                "synthetic_attempt_rows_for_epochs_7_8_9_forbidden",
+                "ledger_and_sealed_mirror_read_only",
+                "p4_2a_done",
+                "p4_2b_unlocked",
+                "p4_3_unlocked",
+                "heldout_materialization_inference_evaluation_locked",
+                "non_simulate_trading_locked",
+                "active_replay_fallback_forbidden",
+            }
+        ),
+        "epoch-9 lock values",
+    )
+    _require_equal(
+        permanent_absence,
+        {name: False for name in LEGACY_AMENDMENT_ABSENCE_FIELDS},
+        "epoch-9 permanent absence values",
+    )
+    _require_equal(
+        effect_limits,
+        {
+            "future_recovery_starts_after_separately_authorized_fresh_Q_R_B": 1,
+            "pipeline_starts": 0,
+            "automatic_retries": 0,
+            "preflight_Q_drafting_validation_release_revalidation_and_review_writes": 0,
+        },
+        "epoch-9 effect limits",
+    )
+    _require_equal(
+        locks,
+        {
+            "ordinal_3_forbidden": True,
+            "synthetic_attempt_rows_for_epochs_7_8_9_forbidden": True,
+            "ledger_and_sealed_mirror_read_only": True,
+            "p4_2a_done": False,
+            "p4_2b_unlocked": False,
+            "p4_3_unlocked": False,
+            "heldout_materialization_inference_evaluation_locked": True,
+            "non_simulate_trading_locked": True,
+            "active_replay_fallback_forbidden": True,
+        },
+        "epoch-9 lock values",
+    )
+    if census.get("sealed_attempt_epochs") != [5, 6]:
+        raise RehearsalV22ValidationError("epoch-9 sealed attempt epochs drifted")
+
+    _require_exact_keys(
+        authority,
+        frozenset(
+            {
+                "schema_version",
+                "verdict",
+                "owner",
+                "implementation_epoch",
+                "base_commit",
+                "exact_surface",
+            }
+        ),
+        "epoch-9 four-file surface authority",
+    )
+    _require_equal(
+        authority,
+        {
+            "schema_version": "p4.2a-v2-2-implementation-epoch-surface-authorization-v1",
+            "verdict": "APPROVE_EXACT_V2_2_IMPLEMENTATION_EPOCH_SURFACE",
+            "owner": {"identity": "ouyang", "approved": True},
+            "implementation_epoch": LATEST_LANDED_EXECUTION_EPOCH,
+            "base_commit": EPOCH_9_COMPANION_COMMIT,
+            "exact_surface": [
+                {"path": "scripts/p4_2a_v2_2_heldout_rehearsal.py", "status": "M"},
+                {
+                    "path": "scripts/validate_p4_2a_v2_2_heldout_rehearsal_bundle.py",
+                    "status": "M",
+                },
+                {"path": "tests/test_p4_2a_v2_2_heldout_rehearsal_runner.py", "status": "M"},
+                {
+                    "path": "tests/test_p4_2a_v2_2_heldout_rehearsal_validator.py",
+                    "status": "M",
+                },
+            ],
+        },
+        "epoch-9 four-file surface authority",
+    )
+
+
+def validate_epoch_9_latest_landed_execution_contract(
+    project_root: Path,
+    *,
+    execution_head: str | None = None,
+) -> JsonObject:
+    """Independently validate the epoch-9 12-field live overlay.
+
+    The epoch-8 contract remains the immutable recovery-history authority.  This
+    overlay contributes only the latest-landed execution identity used by
+    preflight, Q/R/B, recovery publication, and recovered-release validation.
+    """
+
+    root = project_root.resolve(strict=True)
+    tracker = _IndependentRecoveryWorkTracker()
+    all_ref_commits = _git_all_ref_commits(root, work_tracker=tracker)
+    validate_epoch_8_recovery_contract(
+        root,
+        execution_head=execution_head,
+        work_tracker=tracker,
+        all_ref_commits=all_ref_commits,
+    )
+    if execution_head is not None:
+        head = _git_commit(
+            root,
+            execution_head,
+            "epoch-9 contract execution HEAD",
+            work_tracker=tracker,
+        )
+        for commit in (
+            EPOCH_9_DESIGN_R3_COMMIT,
+            EPOCH_9_DESIGN_REVIEW_R3_COMMIT,
+            EPOCH_9_ADJUDICATION_COMMIT,
+            EPOCH_9_COMPANION_COMMIT,
+            EPOCH_9_SURFACE_AUTHORITY_COMMIT,
+        ):
+            if not _git_is_ancestor(root, commit, head, work_tracker=tracker):
+                raise RehearsalV22ValidationError(
+                    "epoch-9 governance is outside the requested execution HEAD"
+                )
+
+    for relative, digest, expected_bytes, commit, label in (
+        (
+            EPOCH_9_DESIGN_R3_RELATIVE,
+            EPOCH_9_DESIGN_R3_SHA256,
+            EPOCH_9_DESIGN_R3_BYTES,
+            EPOCH_9_DESIGN_R3_COMMIT,
+            "epoch-9 design r3",
+        ),
+        (
+            EPOCH_9_DESIGN_REVIEW_R3_RELATIVE,
+            EPOCH_9_DESIGN_REVIEW_R3_SHA256,
+            EPOCH_9_DESIGN_REVIEW_R3_BYTES,
+            EPOCH_9_DESIGN_REVIEW_R3_COMMIT,
+            "epoch-9 design review r3",
+        ),
+        (
+            EPOCH_9_ADJUDICATION_RELATIVE,
+            EPOCH_9_ADJUDICATION_SHA256,
+            EPOCH_9_ADJUDICATION_BYTES,
+            EPOCH_9_ADJUDICATION_COMMIT,
+            "epoch-9 governing adjudication",
+        ),
+    ):
+        _epoch_8_governance_payload(
+            root,
+            relative=relative,
+            digest=digest,
+            expected_bytes=expected_bytes,
+            creating_commit=commit,
+            label=label,
+            work_tracker=tracker,
+            all_ref_commits=all_ref_commits,
+        )
+    if (
+        _git_parents(root, EPOCH_9_DESIGN_R1_COMMIT, work_tracker=tracker)
+        != ("87c73ce601a84779295f4ee5e82b14822ea93f42",)
+        or _git_parents(root, EPOCH_9_DESIGN_R2_COMMIT, work_tracker=tracker)
+        != (EPOCH_9_DESIGN_R1_COMMIT,)
+        or _git_parents(root, EPOCH_9_DESIGN_R3_COMMIT, work_tracker=tracker)
+        != (EPOCH_9_SUPERSEDED_SURFACE_AUTHORITY_COMMIT,)
+        or _git_parents(root, EPOCH_9_DESIGN_REVIEW_R3_COMMIT, work_tracker=tracker)
+        != (EPOCH_9_DESIGN_R3_COMMIT,)
+        or _git_parents(root, EPOCH_9_ADJUDICATION_COMMIT, work_tracker=tracker)
+        != (EPOCH_9_DESIGN_REVIEW_R3_COMMIT,)
+        or _git_parents(root, EPOCH_9_COMPANION_COMMIT, work_tracker=tracker)
+        != (EPOCH_9_ADJUDICATION_COMMIT,)
+        or _git_parents(root, EPOCH_9_SURFACE_AUTHORITY_COMMIT, work_tracker=tracker)
+        != (EPOCH_9_COMPANION_COMMIT,)
+    ):
+        raise RehearsalV22ValidationError("epoch-9 governance parent chain drifted")
+
+    companion_payload = _epoch_8_governance_payload(
+        root,
+        relative=EPOCH_9_COMPANION_RELATIVE,
+        digest=EPOCH_9_COMPANION_SHA256,
+        expected_bytes=EPOCH_9_COMPANION_BYTES,
+        creating_commit=EPOCH_9_COMPANION_COMMIT,
+        label="epoch-9 latest-landed companion",
+        work_tracker=tracker,
+        all_ref_commits=all_ref_commits,
+    )
+    companion = _object(
+        strict_json_loads(companion_payload, label="epoch-9 latest-landed companion"),
+        "epoch-9 latest-landed companion",
+    )
+    review_document = _object(
+        strict_json_loads(
+            _regular_bytes(
+                root / EPOCH_9_DESIGN_REVIEW_R3_RELATIVE,
+                "epoch-9 design review r3",
+            ),
+            label="epoch-9 design review r3",
+        ),
+        "epoch-9 design review r3",
+    )
+    adjudication_document = _object(
+        strict_json_loads(
+            _regular_bytes(
+                root / EPOCH_9_ADJUDICATION_RELATIVE,
+                "epoch-9 governing adjudication",
+            ),
+            label="epoch-9 governing adjudication",
+        ),
+        "epoch-9 governing adjudication",
+    )
+    contract = _object(
+        companion.get("epoch_9_latest_landed_execution_contract"),
+        "epoch-9 latest-landed execution contract",
+    )
+    _require_exact_keys(
+        contract,
+        EPOCH_9_LATEST_LANDED_CONTRACT_FIELDS,
+        "epoch-9 latest-landed execution contract",
+    )
+    if (
+        _sha256(_canonical_json_bytes(contract))
+        != EPOCH_9_LATEST_LANDED_CONTRACT_CANONICAL_SHA256
+        or review_document.get("verdict") != "PASS_INCREMENTAL_EPOCH9_R3_DESIGN_REVIEW"
+        or adjudication_document.get("verdict")
+        != "APPROVE_EPOCH9_R3_DESIGN_AND_GOVERNANCE_PREPARATION"
+        or companion.get("verdict")
+        != "EPOCH9_R3_COMPANION_READY_FOR_OWNER_APPROVED_FOUR_FILE_SURFACE_AUTHORITY"
+        or contract.get("schema_version") != EPOCH_9_LATEST_LANDED_CONTRACT_SCHEMA
+        or contract.get("implementation_epoch") != LATEST_LANDED_EXECUTION_EPOCH
+    ):
+        raise RehearsalV22ValidationError("epoch-9 latest-landed contract identity drifted")
+    nodes: dict[str, JsonObject] = {}
+    for name, exact_fields in EPOCH_9_LATEST_LANDED_NESTED_FIELDS.items():
+        node = _object(contract.get(name), f"epoch-9 contract {name}")
+        _require_exact_keys(node, exact_fields, f"epoch-9 contract {name}")
+        nodes[name] = node
+
+    _require_equal(
+        nodes["governing_adjudication"],
+        {
+            "path": EPOCH_9_ADJUDICATION_RELATIVE.as_posix(),
+            "sha256": EPOCH_9_ADJUDICATION_SHA256,
+            "bytes": EPOCH_9_ADJUDICATION_BYTES,
+            "creating_commit": EPOCH_9_ADJUDICATION_COMMIT,
+            "unique_a_history_verified": True,
+        },
+        "epoch-9 governing adjudication",
+    )
+    _require_equal(
+        nodes["superseded_two_file_authority"],
+        {
+            "path": EPOCH_9_SUPERSEDED_SURFACE_AUTHORITY_RELATIVE.as_posix(),
+            "sha256": EPOCH_9_SUPERSEDED_SURFACE_AUTHORITY_SHA256,
+            "bytes": EPOCH_9_SUPERSEDED_SURFACE_AUTHORITY_BYTES,
+            "creating_commit": EPOCH_9_SUPERSEDED_SURFACE_AUTHORITY_COMMIT,
+            "disposition": "SUPERSEDED_FOR_IMPLEMENTATION_ONLY",
+        },
+        "epoch-9 superseded two-file authority",
+    )
+    _require_equal(
+        nodes["historical_epoch_8_recovery_contract"],
+        {
+            "companion_path": EPOCH_8_COMPANION_RELATIVE.as_posix(),
+            "companion_sha256": EPOCH_8_COMPANION_SHA256,
+            "companion_bytes": EPOCH_8_COMPANION_BYTES,
+            "companion_creating_commit": EPOCH_8_COMPANION_COMMIT,
+            "contract_schema_version": EPOCH_8_RECOVERY_CONTRACT_SCHEMA,
+            "contract_canonical_sha256": EPOCH_8_CONTRACT_CANONICAL_SHA256,
+            "preservation": "IMMUTABLE_HISTORICAL_CONTRACT_BYTE_FOR_BYTE",
+        },
+        "epoch-9 historical epoch-8 contract reference",
+    )
+
+    authority_payload = _epoch_8_governance_payload(
+        root,
+        relative=EPOCH_9_SURFACE_AUTHORITY_RELATIVE,
+        digest=EPOCH_9_SURFACE_AUTHORITY_SHA256,
+        expected_bytes=EPOCH_9_SURFACE_AUTHORITY_BYTES,
+        creating_commit=EPOCH_9_SURFACE_AUTHORITY_COMMIT,
+        label="epoch-9 four-file surface authority",
+        work_tracker=tracker,
+        all_ref_commits=all_ref_commits,
+    )
+    authority = _object(
+        strict_json_loads(authority_payload, label="epoch-9 four-file surface authority"),
+        "epoch-9 four-file surface authority",
+    )
+    _validate_epoch_9_latest_landed_contract_semantics(contract, authority)
+    expected_surface = [
+        {"path": "scripts/p4_2a_v2_2_heldout_rehearsal.py", "status": "M"},
+        {"path": "scripts/validate_p4_2a_v2_2_heldout_rehearsal_bundle.py", "status": "M"},
+        {"path": "tests/test_p4_2a_v2_2_heldout_rehearsal_runner.py", "status": "M"},
+        {"path": "tests/test_p4_2a_v2_2_heldout_rehearsal_validator.py", "status": "M"},
+    ]
+    _require_equal(
+        authority,
+        {
+            "schema_version": "p4.2a-v2-2-implementation-epoch-surface-authorization-v1",
+            "verdict": "APPROVE_EXACT_V2_2_IMPLEMENTATION_EPOCH_SURFACE",
+            "owner": {"identity": "ouyang", "approved": True},
+            "implementation_epoch": LATEST_LANDED_EXECUTION_EPOCH,
+            "base_commit": EPOCH_9_COMPANION_COMMIT,
+            "exact_surface": expected_surface,
+        },
+        "epoch-9 four-file surface authority",
+    )
+
+    latest = nodes["latest_landed_authority_contract"]
+    dispatch = nodes["registered_preflight_dispatch_contract"]
+    anchors = nodes["dual_byte_anchor_transition_contract"]
+    historical = _object(anchors.get("historical_selected_anchor"), "epoch-9 historical anchor")
+    live = _object(anchors.get("live_execution_anchor"), "epoch-9 live anchor")
+    _require_exact_keys(
+        historical,
+        frozenset(
+            {
+                "selected_attempt_ordinal",
+                "implementation_epoch",
+                "implementation_commit",
+                "history_root_sha256",
+                "live_ledger_root_sha256",
+                "require_current",
+            }
+        ),
+        "epoch-9 historical anchor",
+    )
+    _require_exact_keys(
+        live,
+        frozenset(
+            {
+                "implementation_epoch",
+                "require_current",
+                "required_current_surfaces",
+                "required_lineage_objects",
+                "runtime_value_source",
+            }
+        ),
+        "epoch-9 live anchor",
+    )
+    if (
+        latest.get("expected_implementation_epoch") != LATEST_LANDED_EXECUTION_EPOCH
+        or latest.get("owner_identity_mode")
+        != "LOGICAL_SOURCE_WITH_LAWFUL_PROJECTIONS"
+        or latest.get("review_identity_mode") != "FIRST_PARENT_VISIBLE_UNIQUE_A"
+        or latest.get("landing_identity_mode") != "FIRST_PARENT_VISIBLE_UNIQUE_A"
+        or dispatch.get("landing_preflight_origin_epoch") != LANDING_PREFLIGHT_ORIGIN_EPOCH
+        or dispatch.get("latest_official_epoch") != LATEST_LANDED_EXECUTION_EPOCH
+        or dispatch.get("unknown_later_epoch_policy")
+        != "FAIL_CLOSED_UNTIL_SEPARATELY_GOVERNED"
+        or dispatch.get("output_schema_version") != SERIES_2_READ_ONLY_PREFLIGHT_SCHEMA
+        or dispatch.get("zero_effect_required") is not True
+        or historical
+        != {
+            "selected_attempt_ordinal": 2,
+            "implementation_epoch": HISTORICAL_SELECTED_EPOCH,
+            "implementation_commit": HISTORICAL_SELECTED_IMPLEMENTATION_COMMIT,
+            "history_root_sha256": SEALED_SERIES_HISTORY_ROOT_SHA256,
+            "live_ledger_root_sha256": SEALED_SERIES_LIVE_ROOT_SHA256,
+            "require_current": False,
+        }
+        or live.get("implementation_epoch") != LATEST_LANDED_EXECUTION_EPOCH
+        or live.get("require_current") is not True
+        or anchors.get("sealed_attempt_epoch_table") != [5, 6]
+    ):
+        raise RehearsalV22ValidationError("epoch-9 dispatch or dual-anchor semantics drifted")
+
+    qrb = nodes["recovery_qrb_live_binding_contract"]
+    claim = nodes["recovery_claim_and_receipt_live_binding_contract"]
+    publication = nodes["recovered_publication_and_release_live_binding_contract"]
+    census_locks = nodes["authority_census_and_effect_lock_contract"]
+    for observed, expected, label in (
+        (qrb.get("q_top_level_fields"), RECOVERY_REVIEW_REQUEST_FIELD_ORDER, "epoch-9 Q fields"),
+        (qrb.get("r_top_level_fields"), RECOVERY_AUTHORIZATION_FIELD_ORDER, "epoch-9 R fields"),
+        (qrb.get("b_top_level_fields"), RECOVERY_OWNER_BINDING_FIELD_ORDER, "epoch-9 B fields"),
+        (
+            claim.get("started_top_level_fields"),
+            RECOVERY_STARTED_FIELD_ORDER,
+            "epoch-9 started fields",
+        ),
+        (
+            claim.get("terminal_top_level_fields"),
+            RECOVERY_TERMINAL_FIELD_ORDER,
+            "epoch-9 terminal fields",
+        ),
+        (
+            claim.get("mirror_receipt_top_level_fields"),
+            RECOVERY_MIRROR_RECEIPT_FIELD_ORDER,
+            "epoch-9 mirror receipt fields",
+        ),
+        (
+            publication.get("capability_top_level_fields"),
+            RECOVERED_PUBLICATION_CAPABILITY_FIELDS,
+            "epoch-9 recovered-publication fields",
+        ),
+    ):
+        _require_equal(tuple(_array(observed, label)), expected, label)
+    if (
+        qrb.get("q_schema") != SERIES_2_RECOVERY_REVIEW_REQUEST_SCHEMA
+        or qrb.get("r_schema") != SERIES_2_RECOVERY_AUTHORIZATION_SCHEMA
+        or qrb.get("b_schema") != SERIES_2_RECOVERY_OWNER_BINDING_SCHEMA
+        or qrb.get("counters")
+        != {
+            "authorized_bundle_recovery_starts_after_fresh_Q_R_B": 1,
+            "authorized_pipeline_starts": 0,
+            "automatic_retry_count": 0,
+        }
+        or claim.get("started_schema") != SERIES_2_RECOVERY_STARTED_SCHEMA
+        or claim.get("terminal_schema") != SERIES_2_RECOVERY_TERMINAL_SCHEMA
+        or claim.get("mirror_receipt_schema") != SERIES_2_RECOVERY_MIRROR_RECEIPT_SCHEMA
+        or publication.get("bundle_mode") != BundleValidationMode.PASSIVE_RECOVERED_BUNDLE.value
+        or publication.get("release_mode") != BundleValidationMode.PASSIVE_RECOVERED_RELEASE.value
+        or publication.get("active_fallback_forbidden") is not True
+        or publication.get("zero_effect_rule")
+        != {
+            "filesystem_and_git_writes": 0,
+            "ledger_and_mirror_writes": 0,
+            "pipeline_starts": 0,
+            "automatic_retries": 0,
+            "model_network_database_and_heldout_accesses": 0,
+            "trading_effects": 0,
+        }
+        or census_locks.get("sealed_attempt_epochs") != [5, 6]
+        or census_locks.get("permanent_absence_fields")
+        != {name: False for name in LEGACY_AMENDMENT_ABSENCE_FIELDS}
+        or census_locks.get("effect_limits")
+        != {
+            "future_recovery_starts_after_separately_authorized_fresh_Q_R_B": 1,
+            "pipeline_starts": 0,
+            "automatic_retries": 0,
+            "preflight_Q_drafting_validation_release_revalidation_and_review_writes": 0,
+        }
+        or census_locks.get("lock_values")
+        != {
+            "ordinal_3_forbidden": True,
+            "synthetic_attempt_rows_for_epochs_7_8_9_forbidden": True,
+            "ledger_and_sealed_mirror_read_only": True,
+            "p4_2a_done": False,
+            "p4_2b_unlocked": False,
+            "p4_3_unlocked": False,
+            "heldout_materialization_inference_evaluation_locked": True,
+            "non_simulate_trading_locked": True,
+            "active_replay_fallback_forbidden": True,
+        }
+    ):
+        raise RehearsalV22ValidationError("epoch-9 recovery or effect-lock semantics drifted")
+    tracker.snapshot()
     return contract
 
 
@@ -5438,6 +6578,7 @@ def _document_contains_exact_value(value: object, expected: object) -> bool:
 def _validate_epoch_8_landing_document_bindings(
     document: Mapping[str, Any],
     *,
+    expected_live_epoch: int,
     implementation_commit: str,
     owner: Mapping[str, Any],
     review: Mapping[str, Any],
@@ -5447,6 +6588,9 @@ def _validate_epoch_8_landing_document_bindings(
     control_count: object,
 ) -> None:
     """Independently reject named landing fields masked by unrelated aliases."""
+
+    if type(expected_live_epoch) is not int:
+        raise RehearsalV22ValidationError("landing expected live epoch is not an integer")
 
     topology_value = document.get("topology")
     if "topology" in document and not isinstance(topology_value, Mapping):
@@ -5494,7 +6638,7 @@ def _validate_epoch_8_landing_document_bindings(
         raise RehearsalV22ValidationError("epoch-8 landing authority drifted")
     if (
         type(document.get("implementation_epoch")) is not int
-        or document["implementation_epoch"] != 8
+        or document["implementation_epoch"] != expected_live_epoch
     ):
         raise RehearsalV22ValidationError("epoch-8 landing authority drifted")
     if (
@@ -5524,6 +6668,8 @@ def _validate_epoch_8_landing_document_bindings(
 def _validate_epoch_8_landing_authority(
     root: Path,
     *,
+    expected_live_epoch: int,
+    expected_owner: Mapping[str, Any],
     execution_head: str,
     implementation_commit: str,
     owner: Mapping[str, Any],
@@ -5534,6 +6680,9 @@ def _validate_epoch_8_landing_authority(
     control_count: object,
 ) -> None:
     """Independently prove review projection, merge order, and landing bindings."""
+
+    if type(expected_live_epoch) is not int or owner != expected_owner:
+        raise RehearsalV22ValidationError("landing epoch or owner authority drifted")
 
     merge_commit = _git_commit(root, declared_merge_commit, "epoch-8 landing merge")
     landing_path = _relative(landing.get("path"), "epoch-8 landing report path")
@@ -5567,6 +6716,7 @@ def _validate_epoch_8_landing_authority(
     )
     _validate_epoch_8_landing_document_bindings(
         landing_document,
+        expected_live_epoch=expected_live_epoch,
         implementation_commit=implementation_commit,
         owner=owner,
         review=review,
@@ -5654,13 +6804,17 @@ def _validate_epoch_8_q_preflight(
     root: Path,
     *,
     contract: Mapping[str, Any],
+    expected_live_epoch: int,
+    expected_owner: Mapping[str, Any],
     q: Mapping[str, Any],
     q_commit: str,
 ) -> tuple[JsonObject, JsonObject, JsonObject]:
+    if type(expected_live_epoch) is not int:
+        raise RehearsalV22ValidationError("Q expected live epoch is not an integer")
     q_contract = _object(contract.get("recovery_review_request_contract"), "epoch-8 Q contract")
     q_nested = _object(q_contract.get("nested_exact_field_sets"), "epoch-8 Q nested fields")
     if (
-        q.get("schema_version") != EPOCH_8_RECOVERY_REVIEW_REQUEST_SCHEMA
+        q.get("schema_version") != SERIES_2_RECOVERY_REVIEW_REQUEST_SCHEMA
         or q.get("status") != "AWAITING_INDEPENDENT_REVIEW_AND_OWNER_CONFIRMATION"
         or "landed_epoch_7" in q
     ):
@@ -5759,14 +6913,8 @@ def _validate_epoch_8_q_preflight(
         "Q landed implementation",
     )
     if (
-        landed.get("epoch") != EPOCH_8_IMPLEMENTATION_EPOCH
-        or owner
-        != {
-            "path": EPOCH_8_SURFACE_AUTHORITY_RELATIVE.as_posix(),
-            "sha256": EPOCH_8_SURFACE_AUTHORITY_SHA256,
-            "creating_commit": EPOCH_8_SURFACE_AUTHORITY_COMMIT,
-            "unique_a_history_verified": True,
-        }
+        landed.get("epoch") != expected_live_epoch
+        or owner != expected_owner
         or not _git_is_ancestor(root, implementation_commit, merge_commit)
         or _git_parents(root, q_commit) != (cast(str, landing["creating_commit"]),)
         or _git_commit(root, landing["creating_commit"], "Q landing")
@@ -5776,6 +6924,8 @@ def _validate_epoch_8_q_preflight(
     _unique_a_authority(root, owner, require_worktree=True)
     _validate_epoch_8_landing_authority(
         root,
+        expected_live_epoch=expected_live_epoch,
+        expected_owner=expected_owner,
         execution_head=q_commit,
         implementation_commit=implementation_commit,
         owner=owner,
@@ -5800,7 +6950,7 @@ def _validate_epoch_8_q_preflight(
     )
     stdout_payload = stdout_text.encode("utf-8")
     preflight = _strict_canonical_json_loads(stdout_payload, label="Q preflight stdout")
-    _require_exact_keys(preflight, EPOCH_8_READ_ONLY_PREFLIGHT_FIELDS, "epoch-8 preflight")
+    _require_exact_keys(preflight, SERIES_2_READ_ONLY_PREFLIGHT_FIELDS, "epoch-8 preflight")
     if _canonical_json_bytes(preflight) != stdout_payload:
         raise RehearsalV22ValidationError("Q preflight stdout is not canonical JSON bytes")
     census = _validated_census_document(
@@ -5809,9 +6959,9 @@ def _validate_epoch_8_q_preflight(
     )
     summary = _census_summary(census)
     if (
-        preflight.get("schema_version") != EPOCH_8_READ_ONLY_PREFLIGHT_SCHEMA
+        preflight.get("schema_version") != SERIES_2_READ_ONLY_PREFLIGHT_SCHEMA
         or preflight.get("status") != "PASS_READ_ONLY_IMPLEMENTATION_PREFLIGHT"
-        or preflight.get("implementation_epoch") != EPOCH_8_IMPLEMENTATION_EPOCH
+        or preflight.get("implementation_epoch") != expected_live_epoch
         or preflight.get("implementation_commit") != implementation_commit
         or preflight.get("owner_exact_surface_authorization") != owner
         or preflight.get("independent_implementation_review") != review
@@ -6063,7 +7213,7 @@ def _validate_epoch_8_q_preflight(
         (root / "scripts/rehearse_p4_2a_v2_2_heldout_full_path.py").as_posix(),
         "--preflight-only",
         "--implementation-epoch",
-        str(EPOCH_8_IMPLEMENTATION_EPOCH),
+        str(expected_live_epoch),
         "--implementation-commit",
         implementation_commit,
         "--owner-surface-authorization",
@@ -6221,12 +7371,33 @@ def _validate_recovery_governance(
     expected_series_token_sha256: str,
 ) -> _ValidatedRecoveryGovernance:
     root = project_root.resolve(strict=True)
-    contract = validate_epoch_8_recovery_contract(
+    execution_head = _git_bytes(root, "rev-parse", "HEAD").decode(
+        "ascii", errors="strict"
+    ).strip()
+    latest_landed_contract = validate_epoch_9_latest_landed_execution_contract(
         root,
-        execution_head=_git_bytes(root, "rev-parse", "HEAD")
-        .decode("ascii", errors="strict")
-        .strip(),
+        execution_head=execution_head,
     )
+    historical_companion = _object(
+        strict_json_loads(
+            _regular_bytes(root / EPOCH_8_COMPANION_RELATIVE, "epoch-8 companion"),
+            label="epoch-8 companion",
+        ),
+        "epoch-8 companion",
+    )
+    contract = _object(
+        historical_companion.get("epoch_8_recovery_contract"),
+        "epoch-8 recovery contract",
+    )
+    _require_exact_keys(contract, EPOCH_8_RECOVERY_CONTRACT_FIELDS, "epoch-8 recovery contract")
+    if _sha256(_canonical_json_bytes(contract)) != EPOCH_8_CONTRACT_CANONICAL_SHA256:
+        raise RehearsalV22ValidationError("epoch-8 recovery contract drifted after validation")
+    expected_owner = {
+        "path": EPOCH_9_SURFACE_AUTHORITY_RELATIVE.as_posix(),
+        "sha256": EPOCH_9_SURFACE_AUTHORITY_SHA256,
+        "creating_commit": EPOCH_9_SURFACE_AUTHORITY_COMMIT,
+        "unique_a_history_verified": True,
+    }
     r, r_payload, r_sha, r_commit, r_relative = _canonical_committed_report(
         root,
         recovery_authorization_path,
@@ -6287,6 +7458,8 @@ def _validate_recovery_governance(
     preflight, preflight_census, landed_execution = _validate_epoch_8_q_preflight(
         root,
         contract=contract,
+        expected_live_epoch=LATEST_LANDED_EXECUTION_EPOCH,
+        expected_owner=expected_owner,
         q=q,
         q_commit=q_commit,
     )
@@ -6508,7 +7681,7 @@ def _validate_recovery_governance(
             "recovery R nested identity or registered values drifted"
         )
     if (
-        r.get("schema_version") != EPOCH_8_RECOVERY_AUTHORIZATION_SCHEMA
+        r.get("schema_version") != SERIES_2_RECOVERY_AUTHORIZATION_SCHEMA
         or r.get("verdict")
         != "APPROVE_EXACTLY_ONE_SEALED_BUNDLE_RECOVERY_ZERO_PIPELINE_START_ZERO_AUTOMATIC_RETRY"
         or r.get("authorized_bundle_recovery_starts") != 1
@@ -6568,7 +7741,7 @@ def _validate_recovery_governance(
         "Q requested owner confirmation",
     )
     if (
-        b.get("schema_version") != EPOCH_8_RECOVERY_OWNER_BINDING_SCHEMA
+        b.get("schema_version") != SERIES_2_RECOVERY_OWNER_BINDING_SCHEMA
         or b.get("status") != "OWNER_CONFIRMATION_BOUND"
         or owner_confirmation.get("identity") != "ouyang"
         or owner_confirmation.get("source") != "业主向复核方当面确认，由复核方转达"
@@ -6613,6 +7786,7 @@ def _validate_recovery_governance(
     )
     return _ValidatedRecoveryGovernance(
         contract=contract,
+        latest_landed_contract=latest_landed_contract,
         preflight_document=preflight,
         preflight_census=preflight_census,
         landed_execution_epoch=landed_execution,
@@ -6670,12 +7844,18 @@ def _live_anchor_from_recovery_governance(
         governance.r_document.get("execution_epoch"),
         "recovery execution epoch",
     )
-    contract = validate_epoch_8_recovery_contract(
+    contract = governance.contract
+    latest_landed_contract = validate_epoch_9_latest_landed_execution_contract(
         root,
         execution_head=_git_bytes(root, "rev-parse", "HEAD")
         .decode("ascii", errors="strict")
         .strip(),
     )
+    if (
+        contract != governance.contract
+        or latest_landed_contract != governance.latest_landed_contract
+    ):
+        raise RehearsalV22ValidationError("recovery governance contracts drifted")
     expected_execution_fields = tuple(
         _object(
             _object(
@@ -6686,8 +7866,8 @@ def _live_anchor_from_recovery_governance(
         )["execution_epoch"]
     )
     _require_exact_keys(execution, frozenset(expected_execution_fields), "recovery execution epoch")
-    if execution.get("epoch") != EPOCH_8_IMPLEMENTATION_EPOCH:
-        raise RehearsalV22ValidationError("recovery execution epoch is not 8")
+    if execution.get("epoch") != LATEST_LANDED_EXECUTION_EPOCH:
+        raise RehearsalV22ValidationError("recovery execution epoch is not latest landed epoch 9")
     implementation_commit = _git_commit(
         root,
         execution.get("implementation_commit"),
@@ -6754,7 +7934,7 @@ def _live_anchor_from_recovery_governance(
         )
     census_sha = _sha256(_canonical_json_bytes(census))
     anchor = LiveExecutionAnchor(
-        implementation_epoch=EPOCH_8_IMPLEMENTATION_EPOCH,
+        implementation_epoch=LATEST_LANDED_EXECUTION_EPOCH,
         implementation_commit=implementation_commit,
         control_merkle_root_sha256=_sha(
             execution.get("control_merkle_root_sha256"),
@@ -7478,18 +8658,18 @@ def _validate_live_execution_anchor_identity(
 ) -> tuple[Path, str, _ControlSurfaceCacheEnvelope]:
     root = project_root.resolve(strict=True)
     if (
-        anchor.implementation_epoch != EPOCH_8_IMPLEMENTATION_EPOCH
+        anchor.implementation_epoch != LATEST_LANDED_EXECUTION_EPOCH
         or anchor.require_current is not True
     ):
         raise RehearsalV22ValidationError("live execution anchor epoch or current policy drifted")
     implementation_commit = _git_commit(
         root,
         anchor.implementation_commit,
-        "live epoch-8 implementation commit",
+        "live epoch-9 implementation commit",
     )
     if (
-        _git_parents(root, implementation_commit) != (EPOCH_8_SURFACE_AUTHORITY_COMMIT,)
-        or _diff_name_status(root, EPOCH_8_SURFACE_AUTHORITY_COMMIT, implementation_commit)
+        _git_parents(root, implementation_commit) != (EPOCH_9_SURFACE_AUTHORITY_COMMIT,)
+        or _diff_name_status(root, EPOCH_9_SURFACE_AUTHORITY_COMMIT, implementation_commit)
         != (
             ("M", "scripts/p4_2a_v2_2_heldout_rehearsal.py"),
             ("M", "scripts/validate_p4_2a_v2_2_heldout_rehearsal_bundle.py"),
@@ -7497,28 +8677,28 @@ def _validate_live_execution_anchor_identity(
             ("M", "tests/test_p4_2a_v2_2_heldout_rehearsal_validator.py"),
         )
     ):
-        raise RehearsalV22ValidationError("live epoch-8 implementation surface drifted")
+        raise RehearsalV22ValidationError("live epoch-9 implementation surface drifted")
     execution_head = _git_commit(root, anchor.execution_head, "live execution HEAD")
     if not _git_is_ancestor(root, implementation_commit, execution_head):
         raise RehearsalV22ValidationError("live implementation is outside execution HEAD")
     owner = _validate_authority_ref(
         anchor.owner_surface_authorization,
-        "live epoch-8 owner surface authority",
+        "live epoch-9 owner surface authority",
     )
     _require_equal(
         owner,
         {
-            "path": EPOCH_8_SURFACE_AUTHORITY_RELATIVE.as_posix(),
-            "sha256": EPOCH_8_SURFACE_AUTHORITY_SHA256,
-            "creating_commit": EPOCH_8_SURFACE_AUTHORITY_COMMIT,
+            "path": EPOCH_9_SURFACE_AUTHORITY_RELATIVE.as_posix(),
+            "sha256": EPOCH_9_SURFACE_AUTHORITY_SHA256,
+            "creating_commit": EPOCH_9_SURFACE_AUTHORITY_COMMIT,
             "unique_a_history_verified": True,
         },
-        "live epoch-8 owner surface authority",
+        "live epoch-9 owner surface authority",
     )
     _unique_a_authority(root, owner, require_worktree=True)
     review = _validate_authority_ref(
         anchor.independent_implementation_review,
-        "live epoch-8 implementation review",
+        "live epoch-9 implementation review",
     )
     _validate_implementation_review_authority(
         root,
@@ -7527,16 +8707,16 @@ def _validate_live_execution_anchor_identity(
         execution_head=execution_head,
         require_worktree=True,
     )
-    landing = _git_commit(root, anchor.landing_commit, "live epoch-8 landing commit")
+    landing = _git_commit(root, anchor.landing_commit, "live epoch-9 landing commit")
     if not _git_is_ancestor(root, implementation_commit, landing) or not _git_is_ancestor(
         root,
         landing,
         execution_head,
     ):
-        raise RehearsalV22ValidationError("live epoch-8 landing topology drifted")
+        raise RehearsalV22ValidationError("live epoch-9 landing topology drifted")
     landing_report = _validate_authority_ref(
         anchor.landing_report,
-        "live epoch-8 landing report",
+        "live epoch-9 landing report",
     )
     _unique_a_authority(root, landing_report, require_worktree=True)
     if cached_current_control is None:
@@ -7571,7 +8751,7 @@ def _validate_live_execution_anchor_identity(
         control.merkle_root_sha256 != anchor.control_merkle_root_sha256
         or len(control.records) != anchor.control_record_count
     ):
-        raise RehearsalV22ValidationError("live epoch-8 control root or count drifted")
+        raise RehearsalV22ValidationError("live epoch-9 control root or count drifted")
     _validate_live_module_identity(root, anchor)
     return root, execution_head, control
 
@@ -8072,7 +9252,7 @@ def _validate_live_module_identity(
     anchor: LiveExecutionAnchor,
 ) -> None:
     if (
-        anchor.implementation_epoch != EPOCH_8_IMPLEMENTATION_EPOCH
+        anchor.implementation_epoch != LATEST_LANDED_EXECUTION_EPOCH
         or anchor.require_current is not True
     ):
         raise RehearsalV22ValidationError("live module anchor drifted")
@@ -12825,7 +14005,7 @@ def _validate_durable_recovery_evidence(
     destination_stage = destination.parent / f".{destination.name}.recovery-stage-{r_sha}"
     secondary_stage = secondary_container / f".bundle-snapshot-stage-{r_sha}"
     if (
-        started.get("schema_version") != EPOCH_8_RECOVERY_STARTED_SCHEMA
+        started.get("schema_version") != SERIES_2_RECOVERY_STARTED_SCHEMA
         or started.get("recovery_id") != recovery_id
         or started.get("authorization") != r_reference
         or started.get("owner_confirmation_binding") != b_reference
@@ -12898,7 +14078,7 @@ def _validate_durable_recovery_evidence(
     ):
         raise RehearsalV22ValidationError("recovery durable bytes or tree roots drifted")
     expected_receipt = {
-        "schema_version": EPOCH_8_RECOVERY_MIRROR_RECEIPT_SCHEMA,
+        "schema_version": SERIES_2_RECOVERY_MIRROR_RECEIPT_SCHEMA,
         "recovery_authorization_sha256": r_sha,
         "owner_confirmation_binding_sha256": _sha256(governance.b_payload),
         "recovery_id": recovery_id,
@@ -12926,7 +14106,7 @@ def _validate_durable_recovery_evidence(
     }
     _require_equal(receipt, expected_receipt, "recovery paired receipt semantics")
     if (
-        terminal.get("schema_version") != EPOCH_8_RECOVERY_TERMINAL_SCHEMA
+        terminal.get("schema_version") != SERIES_2_RECOVERY_TERMINAL_SCHEMA
         or terminal.get("recovery_id") != recovery_id
         or terminal.get("authorization") != r_reference
         or terminal.get("owner_confirmation_binding") != b_reference

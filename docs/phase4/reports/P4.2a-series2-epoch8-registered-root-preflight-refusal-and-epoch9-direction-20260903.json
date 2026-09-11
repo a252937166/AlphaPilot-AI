@@ -1,0 +1,159 @@
+{
+  "schema_version": "p4.2a-v2-2-series2-owner-adjudication-v1",
+  "adjudication_id": "P4.2A-SERIES2-EPOCH8-REGISTERED-PREFLIGHT-REFUSAL-AND-EPOCH9-DIRECTION-20260903",
+  "created_at_utc": "2026-09-03T01:15:26Z",
+  "created_at_shanghai": "2026-09-03T09:15:26+08:00",
+  "recorder": {
+    "identity": "codex_operator_epoch9_governance_recorder",
+    "role": "OWNER_DECISION_RECORDER",
+    "is_owner": false,
+    "is_independent_reviewer": false,
+    "impersonation_disclaimer": "The owner decision is transcript-bound and copied from the current Codex task; this recorder does not originate or enlarge it."
+  },
+  "owner_decision": {
+    "owner_identity": "ouyang",
+    "binding": "owner reply immediately approved the exact decision text displayed in the preceding assistant turn",
+    "exact_decision_text_approved": "本人 ouyang 接受 `VALID_NON_CONSUMING_EPOCH8_PREFLIGHT_REFUSAL`、`LOGICAL_SOURCE_FIRST_PARENT_PROJECTION_ROLE_COLLISION` 与 `NO_LEGAL_OPERATIONAL_BYPASS`；批准 epoch 9 采用 owner logical-source、review first-parent-projection、landing unique-A 三角色分离设计，保持 direct-parent、require_current、unique-A/census 与全部状态锁不变；批准实现面严格限于 `scripts/p4_2a_v2_2_heldout_rehearsal.py` 和 `tests/test_p4_2a_v2_2_heldout_rehearsal_runner.py` 两路径 M，并创建 governing adjudication 与 epoch-9 companion。此批准尚不授权六字段 authority 提交、实现、测试、门禁、合并、preflight、Q/R/B、recovery、release、heldout 或 trading。",
+    "exact_owner_reply": "批准，我不是说了自主推进吗",
+    "approved": true,
+    "standing_operational_direction": "continue autonomously on reversible low- and medium-risk work; stop only where an exact owner-bound authority or materially high-risk state transition is required"
+  },
+  "incident": {
+    "verdict": "VALID_NON_CONSUMING_EPOCH8_PREFLIGHT_REFUSAL",
+    "root_cause": "LOGICAL_SOURCE_FIRST_PARENT_PROJECTION_ROLE_COLLISION",
+    "operational_workaround": "NO_LEGAL_OPERATIONAL_BYPASS",
+    "natural_returncode": 1,
+    "failure_channel": "TASK_TRANSCRIPT_BOUND_COMBINED_STDERR_FAILURE_LINE",
+    "failure_json_sha256": "501ec855f9dc8d1676fd132899afc825d02c29a0979962969fd6fb753d48e72a",
+    "failure_json_bytes": 219,
+    "failure_message_sha256": "abe073515c9331979eb00eeeccd5210c28b63a9ed7a76b2840da77d97f17d18a",
+    "failure_message": "later epoch authority is not the direct child of its base",
+    "failure_output_persisted_as_file": false,
+    "failure_file_provenance_claimed": false,
+    "preflight_retry_count": 0,
+    "Q_R_B_created": false,
+    "recovery_claim_created": false,
+    "pipeline_starts": 0,
+    "automatic_retries": 0,
+    "registered_destination_created": false,
+    "ledger_or_mirror_writes": false,
+    "heldout_or_trading_effects": 0
+  },
+  "landed_epoch8": {
+    "implementation_commit": "c286e7cc2fb837bb636f45f8c11215dd676525c5",
+    "independent_review_commit": "ef701e326ebf77e5f18d48544f1da5975253cd5b",
+    "merge_commit": "d9838923b54932eee1785c209b1ff85fbdf8d523",
+    "merge_ordered_parents": [
+      "7b9aa18372410baa5d96bd9560fa10a2c6a3d8ac",
+      "ef701e326ebf77e5f18d48544f1da5975253cd5b"
+    ],
+    "landing_commit": "87c73ce601a84779295f4ee5e82b14822ea93f42",
+    "landing_report_path": "docs/phase4/reports/P4.2a-v2-2-series2-epoch8-r9-registered-gate-landing-report-20260902.json",
+    "landing_report_sha256": "3120c0e93c1a09aecd8339f36d7fb3b6034aeba94d5aac06b45868bccc5f1e97",
+    "persistent_gate": {
+      "runner": 230,
+      "validator": 323,
+      "total": 553,
+      "failures_errors_skips_disabled": 0
+    }
+  },
+  "source_projection_facts": {
+    "authority_path": "docs/phase4/reports/P4.2a-v2-2-series2-epoch8-surface-authority-20260901.json",
+    "logical_source": {
+      "commit": "73a703a422b5209115f5b244490db36e06b1f15d",
+      "parent": "a39c0263fefcfbdb1886100fec1b71ec374b43a4",
+      "sha256": "4547a2231c23a0fff96dced033028c279c4247c76130e79360e2ec602f8dd016",
+      "bytes": 726
+    },
+    "first_parent_projection": {
+      "commit": "d9838923b54932eee1785c209b1ff85fbdf8d523",
+      "ordered_parents": [
+        "7b9aa18372410baa5d96bd9560fa10a2c6a3d8ac",
+        "ef701e326ebf77e5f18d48544f1da5975253cd5b"
+      ],
+      "sha256": "4547a2231c23a0fff96dced033028c279c4247c76130e79360e2ec602f8dd016",
+      "bytes": 726
+    },
+    "source_and_projection_byte_identical": true,
+    "source_role": "direct-parent authority and pinned bytes",
+    "projection_role": "registered first-parent landing representation only"
+  },
+  "approved_composite_design": {
+    "r1": {
+      "path": "docs/phase4/reports/P4.2a-v2-2-series2-epoch9-source-projection-identity-design-proposal-20260903.md",
+      "creating_commit": "094816f11bdb26f9d4141db6c5ddf46de1f735cb",
+      "sha256": "2f479639273f374ccea36fa6c4dafa0aa2023817ad4fd377df7e78b02db9e23c",
+      "bytes": 16719
+    },
+    "r2": {
+      "path": "docs/phase4/reports/P4.2a-v2-2-series2-epoch9-source-projection-identity-design-proposal-r2-20260903.md",
+      "creating_commit": "fce157432a505c7d0cd09263b0d7db8dd3f049da",
+      "sha256": "afaf02b0cc2f53cd891e0ec65a8ad125ce8d7508cd7555b7d651274b8c6e541a",
+      "bytes": 3232
+    },
+    "independent_design_review": {
+      "path": "docs/phase4/reports/P4.2a-v2-2-series2-epoch9-source-projection-identity-independent-design-review-20260903.json",
+      "creating_commit": "7481b9477dd9721275a549d47cc0af80e703e606",
+      "sha256": "b79cce702ff7d0070ad669edc168402604e939679ff4f0934ab760b5812b9686",
+      "bytes": 8390,
+      "verdict": "PASS_COMPOSITE_EPOCH9_DESIGN_REVIEW"
+    }
+  },
+  "approved_epoch9_direction": {
+    "implementation_epoch": 9,
+    "sealed_attempt_epoch_table_unchanged": [
+      5,
+      6
+    ],
+    "identity_modes": [
+      "LOGICAL_SOURCE_WITH_LAWFUL_PROJECTIONS",
+      "FIRST_PARENT_VISIBLE_UNIQUE_A"
+    ],
+    "owner_role": "LOGICAL_SOURCE_WITH_LAWFUL_PROJECTIONS",
+    "review_role": "FIRST_PARENT_VISIBLE_UNIQUE_A",
+    "landing_role": "FIRST_PARENT_VISIBLE_UNIQUE_A",
+    "direct_parent_predicates_unchanged": true,
+    "require_current_unchanged": true,
+    "generic_unique_a_semantics_unchanged": true,
+    "validator_existing_classifier_unchanged": true,
+    "exact_surface_utf8_sorted": [
+      {
+        "path": "scripts/p4_2a_v2_2_heldout_rehearsal.py",
+        "status": "M"
+      },
+      {
+        "path": "tests/test_p4_2a_v2_2_heldout_rehearsal_runner.py",
+        "status": "M"
+      }
+    ]
+  },
+  "required_future_sequence": [
+    "create and independently verify the epoch-9 companion",
+    "prepare the exact six-field surface-authority bytes",
+    "obtain owner transcript-bound approval of that exact SHA-256 and byte count",
+    "commit the authority as the companion's direct single-parent unique-A child",
+    "implement exactly the approved two-M surface as the authority's direct child",
+    "run targeted real-topology and exact-OS preflight tests",
+    "run full F-15 and independent F-12 over both registered modules",
+    "run a fresh persistent gate and create-only landing report",
+    "perform independently reviewed merge-only landing",
+    "run one fresh registered-root preflight",
+    "create fresh Q v2, independent R v1, and transcript-bound B v1",
+    "run exactly one passive recovery with zero pipeline starts and zero automatic retry"
+  ],
+  "authorization_boundaries": {
+    "governing_adjudication_creation": true,
+    "epoch9_companion_creation": true,
+    "surface_authority_draft_preparation": true,
+    "surface_authority_commit": false,
+    "implementation": false,
+    "tests_or_gate": false,
+    "merge": false,
+    "preflight": false,
+    "Q_R_B": false,
+    "recovery_or_release": false,
+    "ledger_or_mirror_write": false,
+    "heldout_or_trading": false
+  },
+  "verdict": "APPROVE_EPOCH9_DIRECTION_AND_COMPANION_PREPARATION"
+}

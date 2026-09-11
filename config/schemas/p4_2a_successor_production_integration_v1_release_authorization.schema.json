@@ -1,0 +1,1241 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://alphapilot.local/schemas/p4_2a_successor_production_integration_v1_release_authorization.schema.json",
+  "title": "AlphaPilot successor production integration v1: owner release for heldout preparation only",
+  "description": "Closed contract for a future, separately issued owner production release. Admission also verifies exact source bytes, registered Git lineage, complete implementation and scientific source closure, independent review evidence, owner and cost sources, timestamps, and runtime preconditions. This schema authorizes no action by itself.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "authorization_id",
+    "verdict",
+    "created_at_utc",
+    "created_at_shanghai",
+    "reviewed_repository_head",
+    "owner_decision_source",
+    "owner_identity",
+    "owner_decision_scope",
+    "independent_implementation_review_ref",
+    "reviewer",
+    "lineage",
+    "production_implementation_binding",
+    "historical_anchor_h0",
+    "registered_checks",
+    "authorized_stages",
+    "still_gated",
+    "runtime_start_policy",
+    "locks",
+    "execution_limits",
+    "external_cost_confirmation",
+    "failure_policy",
+    "supporting_evidence_manifest"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "p4.2a-successor-production-integration-v1-production-release"
+    },
+    "authorization_id": {
+      "type": "string",
+      "pattern": "^P4\\.2A-SUCCESSOR-PRODUCTION-INTEGRATION-V1-PRODUCTION-RELEASE-[0-9]{8}$",
+      "description": "Suffix is the actual owner issuance date in Asia/Shanghai and is cross-checked against the issuance evidence. The registered receipt path remains dated 20260907."
+    },
+    "verdict": {
+      "const": "APPROVE_SUCCESSOR_PRODUCTION_INTEGRATION_V1_HELDOUT_PREPARATION_ONLY"
+    },
+    "created_at_utc": {
+      "$ref": "#/$defs/utcTime"
+    },
+    "created_at_shanghai": {
+      "$ref": "#/$defs/shanghaiTime"
+    },
+    "reviewed_repository_head": {
+      "$ref": "#/$defs/gitCommit"
+    },
+    "owner_decision_source": {
+      "$ref": "#/$defs/externalVerbatimSource"
+    },
+    "owner_identity": {
+      "const": "ouyang"
+    },
+    "owner_decision_scope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "scope",
+        "authorized_stages",
+        "still_gated"
+      ],
+      "properties": {
+        "scope": {
+          "const": "HELDOUT_PREPARATION_ONLY"
+        },
+        "authorized_stages": {
+          "type": "array",
+          "const": [
+            "materialize",
+            "infer",
+            "select-blind",
+            "seal-draft",
+            "build-adjudication-ui"
+          ]
+        },
+        "still_gated": {
+          "type": "array",
+          "const": [
+            "finalize-owner-adjudication",
+            "heldout-evaluation",
+            "p4.2a-done",
+            "p4.2b",
+            "p4.3",
+            "trading"
+          ]
+        }
+      }
+    },
+    "independent_implementation_review_ref": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "sha256",
+        "creating_commit"
+      ],
+      "properties": {
+        "path": {
+          "const": "docs/phase4/reports/P4.2a-successor-production-integration-v1-independent-implementation-review-20260907.json"
+        },
+        "sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "creating_commit": {
+          "$ref": "#/$defs/gitCommit"
+        }
+      }
+    },
+    "reviewer": {
+      "$ref": "#/$defs/reviewAttestation"
+    },
+    "lineage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "preregistration",
+        "release_schema",
+        "owner_exception",
+        "h0_evidence_acceptance",
+        "h0_completion",
+        "recovered_bundle",
+        "paired_recovery_receipts",
+        "q",
+        "r",
+        "b"
+      ],
+      "properties": {
+        "preregistration": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "path",
+            "sha256",
+            "creating_commit"
+          ],
+          "properties": {
+            "path": {
+              "const": "docs/phase4/reports/P4.2a-successor-production-integration-v1-preregistration-20260907.json"
+            },
+            "sha256": {
+              "$ref": "#/$defs/sha256"
+            },
+            "creating_commit": {
+              "$ref": "#/$defs/gitCommit"
+            }
+          }
+        },
+        "release_schema": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "path",
+            "sha256",
+            "bytes"
+          ],
+          "properties": {
+            "path": {
+              "const": "config/schemas/p4_2a_successor_production_integration_v1_release_authorization.schema.json"
+            },
+            "sha256": {
+              "$ref": "#/$defs/sha256"
+            },
+            "bytes": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        },
+        "owner_exception": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "path",
+            "sha256",
+            "creating_commit"
+          ],
+          "properties": {
+            "path": {
+              "const": "docs/phase4/reports/P4.2a-successor-production-integration-v1-owner-exact-surface-exception-20260907.json"
+            },
+            "sha256": {
+              "$ref": "#/$defs/sha256"
+            },
+            "creating_commit": {
+              "$ref": "#/$defs/gitCommit"
+            }
+          }
+        },
+        "h0_evidence_acceptance": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "path",
+            "sha256",
+            "creating_commit"
+          ],
+          "properties": {
+            "path": {
+              "const": "docs/phase4/reports/P4.2a-v2-heldout-rehearsal-v2-2-release-authorization-20260811.json"
+            },
+            "sha256": {
+              "$ref": "#/$defs/sha256"
+            },
+            "creating_commit": {
+              "$ref": "#/$defs/gitCommit"
+            }
+          }
+        },
+        "h0_completion": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "path",
+            "sha256",
+            "bytes"
+          ],
+          "properties": {
+            "path": {
+              "const": "/Users/ouyangduning/Documents/project/interesting/AlphaPilot-EVIDENCE-DO-NOT-DELETE-epoch9-forward-rebaseline-compatibility-20260906.tYa303/independent-review-H0-evidence-acceptance-completion-receipt.json"
+            },
+            "sha256": {
+              "$ref": "#/$defs/sha256"
+            },
+            "bytes": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        },
+        "recovered_bundle": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "path",
+            "sha256",
+            "bytes"
+          ],
+          "properties": {
+            "path": {
+              "const": "docs/phase4/rehearsals/P4.2a-v2-calibration-v2-2/bundle.json"
+            },
+            "sha256": {
+              "$ref": "#/$defs/sha256"
+            },
+            "bytes": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        },
+        "paired_recovery_receipts": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "primary",
+            "secondary"
+          ],
+          "properties": {
+            "primary": {
+              "$ref": "#/$defs/externalFileRef"
+            },
+            "secondary": {
+              "$ref": "#/$defs/externalFileRef"
+            }
+          }
+        },
+        "q": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "path",
+            "sha256",
+            "creating_commit"
+          ],
+          "properties": {
+            "path": {
+              "const": "docs/phase4/reports/P4.2a-v2-2-series2-through-ordinal-000002-bundle-recovery-review-request-20260906.json"
+            },
+            "sha256": {
+              "$ref": "#/$defs/sha256"
+            },
+            "creating_commit": {
+              "$ref": "#/$defs/gitCommit"
+            }
+          }
+        },
+        "r": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "path",
+            "sha256",
+            "creating_commit"
+          ],
+          "properties": {
+            "path": {
+              "const": "docs/phase4/reports/P4.2a-v2-2-series2-through-ordinal-000002-bundle-recovery-authorization-20260906.json"
+            },
+            "sha256": {
+              "$ref": "#/$defs/sha256"
+            },
+            "creating_commit": {
+              "$ref": "#/$defs/gitCommit"
+            }
+          }
+        },
+        "b": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "path",
+            "sha256",
+            "creating_commit"
+          ],
+          "properties": {
+            "path": {
+              "const": "docs/phase4/reports/P4.2a-v2-2-series2-through-ordinal-000002-bundle-recovery-owner-confirmation-binding-20260906.json"
+            },
+            "sha256": {
+              "$ref": "#/$defs/sha256"
+            },
+            "creating_commit": {
+              "$ref": "#/$defs/gitCommit"
+            }
+          }
+        }
+      },
+      "description": "Owner exception sources and complete attempt history are verified transitively through the exact registered owner document, H0 receipt, and their bound evidence; no recovery or consumed attempt is replayed or reset."
+    },
+    "production_implementation_binding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "implementation_commit",
+        "build_manifest",
+        "prepare_exception",
+        "source_closure",
+        "active_validator",
+        "execution_environment"
+      ],
+      "properties": {
+        "implementation_commit": {
+          "$ref": "#/$defs/gitCommit"
+        },
+        "build_manifest": {
+          "$ref": "#/$defs/externalFileRef"
+        },
+        "prepare_exception": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "path",
+            "base_sha256",
+            "target_sha256",
+            "patch_sha256"
+          ],
+          "properties": {
+            "path": {
+              "const": "scripts/prepare_p4_2a_v2_heldout.py"
+            },
+            "base_sha256": {
+              "const": "ac2b3eb92ac9fadf823dfc081a1983af57132a77b36bb4f1419297c488eb9394"
+            },
+            "target_sha256": {
+              "const": "fdcb7fc9063b563ca02fcd630f36e450c1dd04d5b99aa9b2811c11c81eaba1d5"
+            },
+            "patch_sha256": {
+              "const": "aef8e0ce1ad8e4e31a091b7414dd9ef72fb6048b40113c0b1d11a8b568e43ca5"
+            }
+          }
+        },
+        "source_closure": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/sourceFileRef"
+          },
+          "description": "Complete repository source closure, recomputed from transitive imports, the new authority module, this schema, registered test files, and inherited scientific sources. The admission module rejects omissions, duplicates by path, and stale bytes."
+        },
+        "active_validator": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "path",
+            "sha256",
+            "entrypoint",
+            "implementation_commit"
+          ],
+          "properties": {
+            "path": {
+              "const": "scripts/p4_2a_successor_production_authority.py"
+            },
+            "sha256": {
+              "$ref": "#/$defs/sha256"
+            },
+            "entrypoint": {
+              "const": "validate_implementation_binding"
+            },
+            "implementation_commit": {
+              "$ref": "#/$defs/gitCommit"
+            }
+          }
+        },
+        "execution_environment": {
+          "$ref": "#/$defs/executionEnvironment"
+        }
+      }
+    },
+    "historical_anchor_h0": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "acceptance_time_live_anchor",
+        "accepted_h0_receipt",
+        "future_implementation_must_not_claim_historical_candidate_identity",
+        "future_live_source_require_current",
+        "policy",
+        "selected_historical_anchor",
+        "source"
+      ],
+      "properties": {
+        "acceptance_time_live_anchor": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "control_merkle_root_sha256",
+            "implementation_commit",
+            "implementation_epoch",
+            "real_lineage_census_sha256",
+            "require_current"
+          ],
+          "properties": {
+            "control_merkle_root_sha256": {
+              "const": "fd4f493915b9cd4aef29f57c5716a977951861439c9126e77ddf2465ce9c587a"
+            },
+            "implementation_commit": {
+              "const": "92a47995882ca6b04d495a5ed6927eb932c2a513"
+            },
+            "implementation_epoch": {
+              "const": 9
+            },
+            "real_lineage_census_sha256": {
+              "const": "f4f907531681034c51e6a34077b6f81e8001222489aa22b3655174367fd5e21c"
+            },
+            "require_current": {
+              "const": true
+            }
+          }
+        },
+        "accepted_h0_receipt": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "creating_commit",
+            "path",
+            "sha256"
+          ],
+          "properties": {
+            "creating_commit": {
+              "const": "902bfa3c4dbc2b4b5e95884479a95e4bf91c2859"
+            },
+            "path": {
+              "const": "docs/phase4/reports/P4.2a-v2-heldout-rehearsal-v2-2-release-authorization-20260811.json"
+            },
+            "sha256": {
+              "const": "2ede11c0bc3a1dbdbaff489f6c6f155f456e7a6685fda8b31ce1772ca005ad40"
+            }
+          }
+        },
+        "future_implementation_must_not_claim_historical_candidate_identity": {
+          "const": true
+        },
+        "future_live_source_require_current": {
+          "const": true
+        },
+        "policy": {
+          "const": "PRESERVE_H0_HISTORY_EXACTLY_SEPARATE_FUTURE_IMPLEMENTATION_LIVE_SOURCE_BINDING"
+        },
+        "selected_historical_anchor": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "control_merkle_root_sha256",
+            "history_root_sha256",
+            "implementation_commit",
+            "implementation_epoch",
+            "live_ledger_root_sha256",
+            "require_current"
+          ],
+          "properties": {
+            "control_merkle_root_sha256": {
+              "const": "5948fd29a8c3f38399e6518699483f61094d577ae695bc7aa0b48c84e5b8829d"
+            },
+            "history_root_sha256": {
+              "const": "832559b59a8edc09c04b0f5a7c09cea71e5c3597c2bdc0831072a4122bf016e7"
+            },
+            "implementation_commit": {
+              "const": "e5aab9772793a7b0465f100cb48f99a1bc4e45dc"
+            },
+            "implementation_epoch": {
+              "const": 6
+            },
+            "live_ledger_root_sha256": {
+              "const": "ab08612ba2e11e45c3a3415ca7079117f2a739bf470719abf4f204958272574d"
+            },
+            "require_current": {
+              "const": false
+            }
+          }
+        },
+        "source": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "bytes",
+            "path",
+            "sha256"
+          ],
+          "properties": {
+            "bytes": {
+              "const": 2193
+            },
+            "path": {
+              "const": "/Users/ouyangduning/Documents/project/interesting/AlphaPilot-EVIDENCE-DO-NOT-DELETE-H0b-push-continuation-v3-20260906.4a4b860d9931/CONSUME/commands/002-registered-consume-readonly-once/stdout"
+            },
+            "sha256": {
+              "const": "7cc85a621c23a3ac2b680bb6d87f0287fbf9b8a3d188e17f3a8dbdae6de05429"
+            }
+          }
+        }
+      },
+      "description": "Exact registered H0 historical and acceptance-time anchors. These remain historical facts and cannot be substituted for the separately validated current production implementation."
+    },
+    "registered_checks": {
+      "type": "array",
+      "minItems": 10,
+      "maxItems": 10,
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/naturalCheckResult"
+      },
+      "allOf": [
+        {
+          "contains": {
+            "properties": {
+              "check_id": {
+                "const": "old_gate_regression"
+              }
+            },
+            "required": [
+              "check_id"
+            ]
+          },
+          "minContains": 1,
+          "maxContains": 1
+        },
+        {
+          "contains": {
+            "properties": {
+              "check_id": {
+                "const": "new_gate_fail_closed"
+              }
+            },
+            "required": [
+              "check_id"
+            ]
+          },
+          "minContains": 1,
+          "maxContains": 1
+        },
+        {
+          "contains": {
+            "properties": {
+              "check_id": {
+                "const": "historical_h0_integrity"
+              }
+            },
+            "required": [
+              "check_id"
+            ]
+          },
+          "minContains": 1,
+          "maxContains": 1
+        },
+        {
+          "contains": {
+            "properties": {
+              "check_id": {
+                "const": "current_source_closure"
+              }
+            },
+            "required": [
+              "check_id"
+            ]
+          },
+          "minContains": 1,
+          "maxContains": 1
+        },
+        {
+          "contains": {
+            "properties": {
+              "check_id": {
+                "const": "five_preparation_entries"
+              }
+            },
+            "required": [
+              "check_id"
+            ]
+          },
+          "minContains": 1,
+          "maxContains": 1
+        },
+        {
+          "contains": {
+            "properties": {
+              "check_id": {
+                "const": "science_and_retry_invariants"
+              }
+            },
+            "required": [
+              "check_id"
+            ]
+          },
+          "minContains": 1,
+          "maxContains": 1
+        },
+        {
+          "contains": {
+            "properties": {
+              "check_id": {
+                "const": "manifest_version_binding"
+              }
+            },
+            "required": [
+              "check_id"
+            ]
+          },
+          "minContains": 1,
+          "maxContains": 1
+        },
+        {
+          "contains": {
+            "properties": {
+              "check_id": {
+                "const": "finalize_evaluate_locks"
+              }
+            },
+            "required": [
+              "check_id"
+            ]
+          },
+          "minContains": 1,
+          "maxContains": 1
+        },
+        {
+          "contains": {
+            "properties": {
+              "check_id": {
+                "const": "git_lineage_ref_drift"
+              }
+            },
+            "required": [
+              "check_id"
+            ]
+          },
+          "minContains": 1,
+          "maxContains": 1
+        },
+        {
+          "contains": {
+            "properties": {
+              "check_id": {
+                "const": "independent_review_requirement"
+              }
+            },
+            "required": [
+              "check_id"
+            ]
+          },
+          "minContains": 1,
+          "maxContains": 1
+        }
+      ],
+      "description": "Each registered check appears exactly once and binds its actual command and captured natural result. Schema validity alone does not attest that a command ran or a reviewer approved its result."
+    },
+    "authorized_stages": {
+      "type": "array",
+      "const": [
+        "materialize",
+        "infer",
+        "select-blind",
+        "seal-draft",
+        "build-adjudication-ui"
+      ]
+    },
+    "still_gated": {
+      "type": "array",
+      "const": [
+        "finalize-owner-adjudication",
+        "heldout-evaluation",
+        "p4.2a-done",
+        "p4.2b",
+        "p4.3",
+        "trading"
+      ]
+    },
+    "runtime_start_policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "avoid_cninfo_midnight_batch",
+        "avoid_dense_p4_1_trading_slots",
+        "backup_stamp_policy",
+        "database_backup_launchagent_policy",
+        "database_backup_lock_policy",
+        "explicit_operator_timing_attestation_required",
+        "latest_backup_manifest_policy",
+        "live_probe_required",
+        "observations_must_be_recorded_in_materialization_manifest",
+        "probe_timing"
+      ],
+      "properties": {
+        "avoid_cninfo_midnight_batch": {
+          "const": true
+        },
+        "avoid_dense_p4_1_trading_slots": {
+          "const": true
+        },
+        "backup_stamp_policy": {
+          "const": "current_Asia_Shanghai_date"
+        },
+        "database_backup_launchagent_policy": {
+          "const": "loaded_state_not_running_last_exit_code_0"
+        },
+        "database_backup_lock_policy": {
+          "const": "nonblocking_flock_proves_not_held"
+        },
+        "explicit_operator_timing_attestation_required": {
+          "const": true
+        },
+        "latest_backup_manifest_policy": {
+          "const": "created_after_22_00_CST_quick_check_ok_database_exists"
+        },
+        "live_probe_required": {
+          "const": true
+        },
+        "observations_must_be_recorded_in_materialization_manifest": {
+          "const": true
+        },
+        "probe_timing": {
+          "const": "after_release_gate_before_real_database_network_or_artifact_write"
+        }
+      },
+      "description": "Mandatory future runtime obligations, not a claim that a live probe has already passed."
+    },
+    "locks": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "heldout_evaluation_unlocked",
+        "non_simulate_orders_allowed",
+        "p4_2a_done",
+        "p4_2b_unlocked",
+        "p4_3_unlocked",
+        "trading_mode"
+      ],
+      "properties": {
+        "heldout_evaluation_unlocked": {
+          "const": false
+        },
+        "non_simulate_orders_allowed": {
+          "const": false
+        },
+        "p4_2a_done": {
+          "const": false
+        },
+        "p4_2b_unlocked": {
+          "const": false
+        },
+        "p4_3_unlocked": {
+          "const": false
+        },
+        "trading_mode": {
+          "const": "research"
+        }
+      }
+    },
+    "execution_limits": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "stage_start_limits",
+        "maximum_model_calls",
+        "maximum_total_cost_cny",
+        "currency",
+        "automatic_retries",
+        "max_inference_attempts_per_item"
+      ],
+      "properties": {
+        "stage_start_limits": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "materialize",
+            "infer",
+            "select-blind",
+            "seal-draft",
+            "build-adjudication-ui"
+          ],
+          "properties": {
+            "materialize": {
+              "const": 1
+            },
+            "infer": {
+              "const": 1
+            },
+            "select-blind": {
+              "const": 1
+            },
+            "seal-draft": {
+              "const": 1
+            },
+            "build-adjudication-ui": {
+              "const": 1
+            }
+          }
+        },
+        "maximum_model_calls": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "maximum_total_cost_cny": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "currency": {
+          "const": "CNY"
+        },
+        "automatic_retries": {
+          "const": 0
+        },
+        "max_inference_attempts_per_item": {
+          "const": 1
+        }
+      }
+    },
+    "external_cost_confirmation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "owner_source",
+        "budget_facts"
+      ],
+      "properties": {
+        "owner_source": {
+          "$ref": "#/$defs/externalVerbatimSource"
+        },
+        "budget_facts": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "estimated_model_calls",
+            "estimated_cost_cny",
+            "maximum_model_calls",
+            "maximum_total_cost_cny",
+            "currency",
+            "basis_refs"
+          ],
+          "properties": {
+            "estimated_model_calls": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "estimated_cost_cny": {
+              "type": "number",
+              "exclusiveMinimum": 0
+            },
+            "maximum_model_calls": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "maximum_total_cost_cny": {
+              "type": "number",
+              "exclusiveMinimum": 0
+            },
+            "currency": {
+              "const": "CNY"
+            },
+            "basis_refs": {
+              "$ref": "#/$defs/fileRefs"
+            }
+          }
+        }
+      },
+      "description": "A separate future owner decision binds real preparation calls and cost. Estimates are not execution ceilings; the admission module cross-checks both ceilings against execution_limits and the actual registered plan."
+    },
+    "failure_policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "amend_or_overwrite_existing_evidence",
+        "automatic_retries",
+        "new_attempt_requires_separate_explicit_authority",
+        "on_any_natural_failure",
+        "repair_or_retry_in_same_consumed_stage"
+      ],
+      "properties": {
+        "amend_or_overwrite_existing_evidence": {
+          "const": false
+        },
+        "automatic_retries": {
+          "const": 0
+        },
+        "new_attempt_requires_separate_explicit_authority": {
+          "const": true
+        },
+        "on_any_natural_failure": {
+          "const": "PRESERVE_ORIGINAL_EVIDENCE_AND_STOP_FOR_INDEPENDENT_REVIEW"
+        },
+        "repair_or_retry_in_same_consumed_stage": {
+          "const": false
+        }
+      }
+    },
+    "supporting_evidence_manifest": {
+      "$ref": "#/$defs/externalFileRef"
+    }
+  },
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "gitCommit": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$"
+    },
+    "repoRelativePath": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^(?!/)(?!.*(?:^|/)\\.{1,2}(?:/|$))(?!.*//)[^\\\\:\\u0000-\\u001f]+$"
+    },
+    "absolutePath": {
+      "type": "string",
+      "minLength": 2,
+      "pattern": "^(?!.*(?:^|/)\\.{1,2}(?:/|$))(?!.*//)/[^\\\\:\\u0000-\\u001f]+$"
+    },
+    "localPath": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/repoRelativePath"
+        },
+        {
+          "$ref": "#/$defs/absolutePath"
+        }
+      ]
+    },
+    "utcTime": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "(?:Z|\\+00:00)$"
+    },
+    "shanghaiTime": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "\\+08:00$"
+    },
+    "fileRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "sha256",
+        "bytes"
+      ],
+      "properties": {
+        "path": {
+          "$ref": "#/$defs/localPath"
+        },
+        "sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "bytes": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "externalFileRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "sha256",
+        "bytes"
+      ],
+      "properties": {
+        "path": {
+          "$ref": "#/$defs/absolutePath"
+        },
+        "sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "bytes": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "sourceFileRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "sha256",
+        "bytes"
+      ],
+      "properties": {
+        "path": {
+          "$ref": "#/$defs/repoRelativePath"
+        },
+        "sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "bytes": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "fileRefs": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/fileRef"
+      }
+    },
+    "externalVerbatimSource": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source_path",
+        "source_sha256",
+        "source_bytes",
+        "verbatim_text",
+        "relay_path",
+        "relay_sha256",
+        "observed_at_utc",
+        "delivery_channel"
+      ],
+      "properties": {
+        "source_path": {
+          "$ref": "#/$defs/absolutePath"
+        },
+        "source_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "source_bytes": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "verbatim_text": {
+          "type": "string",
+          "minLength": 1
+        },
+        "relay_path": {
+          "$ref": "#/$defs/absolutePath"
+        },
+        "relay_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "observed_at_utc": {
+          "$ref": "#/$defs/utcTime"
+        },
+        "delivery_channel": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "description": "The owner supplies verbatim_text. UTF-8 source bytes and relay are verified independently by the admission module; this schema does not create or attest an owner decision."
+    },
+    "reviewAttestation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "identity",
+        "reviewer_type",
+        "model",
+        "method",
+        "independent_of_operator",
+        "observed_at_utc",
+        "evidence_refs"
+      ],
+      "properties": {
+        "identity": {
+          "type": "string",
+          "minLength": 1
+        },
+        "reviewer_type": {
+          "enum": [
+            "human",
+            "ai"
+          ]
+        },
+        "model": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "minLength": 1
+        },
+        "method": {
+          "type": "string",
+          "minLength": 1
+        },
+        "independent_of_operator": {
+          "const": true
+        },
+        "observed_at_utc": {
+          "$ref": "#/$defs/utcTime"
+        },
+        "evidence_refs": {
+          "$ref": "#/$defs/fileRefs"
+        }
+      },
+      "description": "An actual independent reviewer supplies these fields. Hash and Git bindings do not substitute for an independent review or introduce a cryptographic-signature requirement."
+    },
+    "naturalCheckResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "check_id",
+        "command_ref",
+        "rc",
+        "stdout_sha256",
+        "stderr_sha256",
+        "status",
+        "evidence_refs"
+      ],
+      "properties": {
+        "check_id": {
+          "enum": [
+            "old_gate_regression",
+            "new_gate_fail_closed",
+            "historical_h0_integrity",
+            "current_source_closure",
+            "five_preparation_entries",
+            "science_and_retry_invariants",
+            "manifest_version_binding",
+            "finalize_evaluate_locks",
+            "git_lineage_ref_drift",
+            "independent_review_requirement"
+          ]
+        },
+        "command_ref": {
+          "$ref": "#/$defs/externalFileRef"
+        },
+        "rc": {
+          "const": 0
+        },
+        "stdout_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "stderr_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "status": {
+          "const": "PASS"
+        },
+        "evidence_refs": {
+          "$ref": "#/$defs/fileRefs"
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "package": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "version"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+        },
+        "version": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "executionEnvironment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "interpreter_realpath",
+        "interpreter_sha256",
+        "python_version",
+        "packages",
+        "packages_sha256"
+      ],
+      "properties": {
+        "interpreter_realpath": {
+          "$ref": "#/$defs/absolutePath"
+        },
+        "interpreter_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "python_version": {
+          "type": "string",
+          "minLength": 1
+        },
+        "packages": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/package"
+          }
+        },
+        "packages_sha256": {
+          "$ref": "#/$defs/sha256"
+        }
+      }
+    }
+  }
+}

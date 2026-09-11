@@ -1,0 +1,635 @@
+{
+  "schema_version": "p4.2a-v2-heldout-rehearsal-v2-1-preregistration-v1",
+  "preregistration_id": "P4.2A-V2-HELDOUT-REHEARSAL-V2-1-PREREGISTERED-20260810",
+  "created_at_utc": "2026-08-10T12:44:05Z",
+  "created_at_shanghai": "2026-08-10T20:44:05+08:00",
+  "status": "PREREGISTERED_NOT_IMPLEMENTED_NOT_EXECUTED",
+  "purpose": "Pre-register the successor v2.1 real-entry authority gate, CNInfo request pacing, complete offline replay, and post-review release boundary before any implementation or real held-out activity.",
+  "ordering_discipline": {
+    "authority_commit_before_this_preregistration": "aa082578aa48296f1dd394a380775a5a4546ca65",
+    "implementation_must_begin_only_after_this_preregistration_commit": true,
+    "implementation_commit_must_descend_from_this_preregistration_commit": true,
+    "offline_rehearsal_requires_the_implementation_commit": true,
+    "owner_release_receipt_requires_a_published_bundle_and_independent_review": true,
+    "real_materialization_network_or_model_before_owner_release_receipt": "forbidden",
+    "heldout_evaluation": "still_forbidden"
+  },
+  "authorities": {
+    "parent_heldout_preregistration": {
+      "path": "docs/phase4/reports/P4.2a-v2-heldout-preregistration-20260810.json",
+      "sha256": "ccecbf5ca7b48b16e445318b8c94a08927432f92c7e8c12f8ab40f2916578705"
+    },
+    "parent_rehearsal_v2_preregistration": {
+      "path": "docs/phase4/reports/P4.2a-v2-heldout-rehearsal-v2-preregistration-20260810.json",
+      "sha256": "35b6d757876e1308d8f28ded3dc36784afb4e5d7c5c1589b8c211cc079aac7c3"
+    },
+    "parent_rehearsal_v2_bundle_schema": {
+      "path": "config/schemas/p4_2a_v2_heldout_rehearsal_bundle_v2.schema.json",
+      "sha256": "f5ff0516c58f2285302dab5d1a03daafd70ea887d4f323387d44c7c19623a8bc"
+    },
+    "parent_rehearsal_v2_bundle": {
+      "path": "docs/phase4/rehearsals/P4.2a-v2-calibration-v2/bundle.json",
+      "sha256": "0f3cbb3fe0251994da457e1a8d36a09b06ba127a8f0b584a2d924eb02e47b01f",
+      "implementation_commit": "1de2786d04467593ac3b6260b453ca0dfe8d3a5f",
+      "evidence_commit": "bccf2e66ed749d0e2fc7460f132cadb7ea39e126",
+      "accepted_for_modified_source": false
+    },
+    "parent_rehearsal_v2_review_request": {
+      "path": "docs/phase4/reports/P4.2a-v2-heldout-rehearsal-v2-implementation-and-execution-review-request-20260810.json",
+      "sha256": "c6d818eb2e67cb1b9b47f282526e93757dc6e5d6231f1abf3d1486a4e43434e1"
+    },
+    "frame_authority_and_parent_approval": {
+      "path": "docs/phase4/reports/P4.2a-rehearsal-v2-approval-and-frame-authority-ruling-20260810.json",
+      "sha256": "8605dd30dd6bffa9621b6efe5e01c4c9cead615c9639259c2e79e14fcbbc3421",
+      "commit": "da374342781d6fde2f2c6d87d23582050bc8edaa"
+    },
+    "successor_v2_1_code_gate_authorization": {
+      "path": "docs/phase4/reports/P4.2a-successor-v2-1-code-gate-authorization-20260810.json",
+      "sha256": "e28db692dc150983f86f6760fb1a95584d8607658e8a78a0de35cf3fc81940cd",
+      "commit": "aa082578aa48296f1dd394a380775a5a4546ca65"
+    },
+    "full_pool_cost_acceptance": {
+      "path": "docs/phase4/reports/P4.2a-heldout-full-pool-inference-cost-acceptance-20260810.json",
+      "sha256": "7555b4e7ade255d0d947f2e9005246a490be92db71c8db1e559e616572e033e7"
+    },
+    "v1_incident": {
+      "path": "docs/phase4/reports/P4.2a-v2-heldout-rehearsal-v1-incident-20260810.json",
+      "sha256": "c3224b288f5181131351ae711a673ce94ec603375925d0cc968cef85d103e785"
+    },
+    "v1_fail_close_commit": "d710e885b49006eedf4f70ea09cb81fe15d176a3",
+    "same_publisher_interval_basis": {
+      "path": "config/p4_news_poll_v2_1.yaml",
+      "sha256": "9d56e137baf10bd0858723a93aff02c57bf7b35f8705f1817b16a89ec615183f",
+      "registered_value": 1.0,
+      "use": "owner_authorized_basis_only_not_a_substitute_authority"
+    }
+  },
+  "frozen_inputs": {
+    "evaluation_design": {
+      "path": "config/p4_event_evaluation_v2.yaml",
+      "sha256": "18a2428a4ec04bfea6e4f4d70692f38ea82fbaee5a223f30f2465b895b238e21"
+    },
+    "heldout_execution_contract": {
+      "path": "config/p4_event_extract_eval_v2-heldout-qwen3.6-plus.yaml",
+      "sha256": "26be1765204b122908e7bd09cac857c33bd3140233df47dc3358bc590e020199",
+      "model": "qwen3.6-plus"
+    },
+    "round3_prompt": {
+      "path": "config/prompts/p4_news_event_extract_v2-r3.txt",
+      "sha256": "0291dc882aac42878ba00c4ed3970da72f19508308cd39211467b4fd92294f44"
+    },
+    "round3_plus_contract": {
+      "path": "config/p4_event_extract_eval_v2-r3-qwen3.6-plus.yaml",
+      "sha256": "fa75a6cf33065745d02f74fe39e4f102723da43f37ac549058bb34fa8256a181"
+    },
+    "frame": {
+      "timestamp_field": "available_time",
+      "start_inclusive_utc": "2026-08-05T16:00:00Z",
+      "end_exclusive_utc": "2026-08-08T16:00:00Z",
+      "sources": ["cninfo", "akshare_ths", "sina_company_news"],
+      "raw_count": 4048,
+      "raw_by_source": {
+        "cninfo": 2824,
+        "akshare_ths": 1021,
+        "sina_company_news": 203
+      },
+      "retired_id_count": 40,
+      "retired_ids_excluded_before_ranking": true
+    },
+    "sampling": {
+      "algorithm": "sha256_rank_without_replacement_per_stratum_v1",
+      "predicted_positive_quota": 40,
+      "predicted_negative_quota": 20,
+      "extract_failed_quota": 0,
+      "insufficient_stratum": "fail_closed_no_replacement_no_reduction"
+    },
+    "inference": {
+      "one_item_per_call": true,
+      "batching": false,
+      "body_truncation": false,
+      "prefilter": false,
+      "single_started_event": true,
+      "automatic_retries": 0,
+      "failed_candidate_retries": 0
+    },
+    "no_change": [
+      "evaluation_design",
+      "frame",
+      "retired_ids",
+      "sample_quotas",
+      "sampling_seed_and_rank_algorithm",
+      "prompt",
+      "contracts",
+      "selected_model",
+      "metric_formulas_and_thresholds",
+      "development_gold_and_rounds",
+      "heldout_evaluation_lock"
+    ]
+  },
+  "registered_artifacts": {
+    "bundle_schema": {
+      "path": "config/schemas/p4_2a_v2_1_heldout_rehearsal_bundle.schema.json",
+      "sha256": "ed827e29ce853f07a9110d44c98793a4cc3ef0634a12fe7e8bc64c7290d7d716",
+      "create_only": true
+    },
+    "release_authorization_schema": {
+      "path": "config/schemas/p4_2a_v2_1_heldout_release_authorization.schema.json",
+      "sha256": "c5a4ecfe8c5bf3e3ebea2d4470337a67dde3a8e9dbe6fc3df68b1c4e16241c51",
+      "create_only": true
+    },
+    "runner": "scripts/rehearse_p4_2a_v2_1_heldout_full_path.py",
+    "validator": "scripts/validate_p4_2a_v2_1_heldout_rehearsal_bundle.py",
+    "runner_tests": "tests/test_p4_2a_v2_1_heldout_rehearsal_runner.py",
+    "validator_tests": "tests/test_p4_2a_v2_1_heldout_rehearsal_validator.py",
+    "bundle_directory": "docs/phase4/rehearsals/P4.2a-v2-calibration-v2-1",
+    "bundle_manifest": "docs/phase4/rehearsals/P4.2a-v2-calibration-v2-1/bundle.json",
+    "review_request": "docs/phase4/reports/P4.2a-v2-heldout-rehearsal-v2-1-implementation-and-execution-review-request-20260810.json",
+    "release_authorization": "docs/phase4/reports/P4.2a-v2-heldout-rehearsal-v2-1-release-authorization-20260810.json",
+    "publication": {
+      "all_result_paths_create_only": true,
+      "bundle_destination_absent_before_execution": true,
+      "stage_entire_bundle_outside_repository_and_destination": true,
+      "single_atomic_directory_rename": true,
+      "fsync_files_source_parent_and_destination_parent": true,
+      "symlink_hardlink_special_casefold_or_unexpected_entry": "fail_closed"
+    }
+  },
+  "implementation_contract": {
+    "implementation_commit": "must_be_recorded_in_bundle_and_descend_from_both_aa082578aa48296f1dd394a380775a5a4546ca65_and_the_commit_containing_this_preregistration",
+    "old_v2_prepare_sha256": "9b6d452014514c4d810fb83d91a78cde8864e3cf8de02dabbdba3c9c378a5bd7",
+    "old_v2_approval_accepted_for_modified_prepare": false,
+    "historical_v1_and_v2_files_modified": false,
+    "registered_modified_consumers": [
+      "scripts/prepare_p4_2a_v2_heldout.py",
+      "scripts/evaluate_p4_2a_v2_heldout.py",
+      "scripts/seal_p4_2a_v2_heldout_draft.py",
+      "scripts/build_p4_2a_v2_heldout_adjudication_ui.py",
+      "scripts/finalize_p4_2a_v2_heldout_adjudication.py"
+    ],
+    "registered_new_files": [
+      "scripts/rehearse_p4_2a_v2_1_heldout_full_path.py",
+      "scripts/validate_p4_2a_v2_1_heldout_rehearsal_bundle.py",
+      "tests/test_p4_2a_v2_1_heldout_rehearsal_runner.py",
+      "tests/test_p4_2a_v2_1_heldout_rehearsal_validator.py"
+    ],
+    "registered_existing_test_updates": [
+      "tests/test_p4_2a_v2_heldout.py",
+      "tests/test_p4_2a_v2_heldout_evaluator.py",
+      "tests/test_p4_2a_v2_heldout_adjudication.py"
+    ],
+    "forbidden_implementation_forms": [
+      "wrapper",
+      "monkeypatch",
+      "alternate_real_entrypoint",
+      "boolean_string_or_environment_rehearsal_bypass",
+      "reuse_v2_bundle_or_approval_for_modified_source"
+    ]
+  },
+  "real_execution_gate": {
+    "single_registered_entrypoint": "scripts/prepare_p4_2a_v2_heldout.py::run_materialize",
+    "must_execute_before": [
+      "production_database_open",
+      "artifact_parent_creation",
+      "artifact_write",
+      "network_call",
+      "model_call"
+    ],
+    "fixed_release_receipt": "docs/phase4/reports/P4.2a-v2-heldout-rehearsal-v2-1-release-authorization-20260810.json",
+    "release_receipt_checks": [
+      "strict_json_and_registered_schema_with_unknown_fields_rejected",
+      "fixed_path_regular_file_no_symlink",
+      "fixed_path_has_exactly_one_touch_on_the_current_HEAD_first_parent_lineage_and_that_touch_is_status_A",
+      "current_bytes_equal_git_blob_in_the_unique_receipt_creating_commit",
+      "no_M_D_R_C_or_readd_of_the_fixed_path_after_the_unique_receipt_creating_commit",
+      "receipt_creating_commit_descends_from_rehearsal_evidence_implementation_and_preregistration_commits",
+      "verdict_exact_APPROVE_SUCCESSOR_V2_1_REAL_HELDOUT_PREPARATION",
+      "owner_authorization_owner_ouyang_approved_true",
+      "bundle_prereg_schema_implementation_and_review_bindings_exact",
+      "new_bundle_full_independent_rehash_and_semantic_validation_pass",
+      "old_v2_and_v1_do_not_unlock_modified_source"
+    ],
+    "mutating_stages_revalidate_gate": ["materialize", "infer", "select-blind", "seal-draft", "build-adjudication-ui"],
+    "canonical_finalize_owner_adjudication_under_this_release": "REJECTED_PENDING_OWNER_ADJUDICATION_AUTHORITY_only_offline_rehearsal_capability_may_exercise_finalize",
+    "synthetic_successor_release_receipt_positive_probe": {
+      "scope": "isolated_temporary_Git_repository_only_never_the_canonical_repository",
+      "schema": "config/schemas/p4_2a_v2_1_heldout_release_authorization.schema.json",
+      "fixed_relative_receipt_path": "docs/phase4/reports/P4.2a-v2-heldout-rehearsal-v2-1-release-authorization-20260810.json",
+      "fixed_relative_bundle_path": "docs/phase4/rehearsals/P4.2a-v2-calibration-v2-1/bundle.json",
+      "receipt_is_schema_valid_and_binds_a_schema_valid_fully_rehashed_synthetic_successor_bundle_fixture": true,
+      "receipt_path_git_history": "exactly_one_status_A_touch_current_bytes_equal_creation_blob_no_later_touch",
+      "validator_code_path": "the_same_release_receipt_validator_called_by_the_canonical_real_gate",
+      "required_result": "PASS_SYNTHETIC_SUCCESSOR_RELEASE_RECEIPT_ACCEPTED_BY_VALIDATOR",
+      "registered_real_receipt_created_or_used": false,
+      "synthetic_receipt_may_unlock_canonical_real_execution": false
+    },
+    "validate_cli_before_release": "must_report_BLOCKED_PENDING_SUCCESSOR_V2_1_OWNER_RELEASE_not_valid",
+    "any_missing_drift_untracked_receipt_or_unverifiable_field": "fail_closed"
+  },
+  "offline_rehearsal_capability": {
+    "representation": "prepare_module_private_nonserializable_identity_capability",
+    "minted_only_after": "runner_rehashes_prereg_schemas_authorities_and_implementation_commit",
+    "accepted_only_when": [
+      "binding_root_is_a_distinct_noncanonical_temporary_root",
+      "database_is_a_regular_file_inside_that_temporary_root",
+      "all_outputs_are_inside_that_temporary_root",
+      "pdf_fetcher_is_a_registered_stub",
+      "clock_and_sleeper_are_registered_deterministic_fakes",
+      "network_database_model_and_external_writes_are_guarded",
+      "run_materialize_revalidates_every_condition"
+    ],
+    "canonical_project_root_with_offline_capability": "fail_closed",
+    "plain_bool_string_mapping_or_environment_variable": "fail_closed",
+    "real_release_receipt_required_in_offline_rehearsal": false,
+    "real_release_receipt_cannot_be_created_by_rehearsal": true
+  },
+  "request_interval_contract": {
+    "scope": "CNInfo announcement PDF downloads performed inside the P4.2a materialization path",
+    "host": "static.cninfo.com.cn",
+    "policy": "minimum_start_to_start",
+    "min_start_to_start_seconds": 1.0,
+    "clock": "monotonic",
+    "first_request_delay": "none",
+    "automatic_retries": 0,
+    "per_candidate_retries": 0,
+    "akshare_ths": "not_applicable_no_external_document_fetch",
+    "sina_company_news": "not_applicable_no_external_document_fetch",
+    "implementation_location": "inside_run_materialize_before_the_registered_pdf_fetcher",
+    "sleep_policy": "sleep_remaining_then_reread_monotonic_until_floor_is_met",
+    "clock_not_advancing_clock_reversal_nan_or_nonfinite": "fail_closed_before_second_fetch",
+    "deterministic_candidate_document_ineligible": {
+      "exception_class": "scripts.build_p4_2a_gold_sample.CandidateDocumentIneligible",
+      "allowed_reasons": ["pdf_text_below_min_char_gate", "pdf_exceeds_size_bound"],
+      "action": "record_exact_reason_exclude_candidate_continue_materialization",
+      "automatic_retries": 0,
+      "return_to_pool": false
+    },
+    "unexpected_transport_download_or_extractor_exception": "abort_entire_materialization_immediately_zero_retry_zero_partial_publish",
+    "unknown_candidate_document_ineligible_reason": "fail_closed_zero_retry_zero_partial_publish",
+    "manifest_evidence": [
+      "configured_min_start_to_start_seconds",
+      "clock",
+      "first_request_delayed",
+      "request_start_count",
+      "observed_gap_count",
+      "minimum_observed_start_to_start_seconds",
+      "median_observed_start_to_start_seconds",
+      "violation_count",
+      "retry_count"
+    ]
+  },
+  "materialization_manifest_amendment": {
+    "schema_version": "p4.2a-v2-heldout-materialization-manifest-v2",
+    "artifact_count_change": 0,
+    "new_required_sections": [
+      "execution_authority",
+      "request_pacing",
+      "runtime_start_preflight"
+    ],
+    "execution_authority_exact_shape": {
+      "additional_keys": "forbidden_at_every_object_level",
+      "required_keys": [
+        "mode",
+        "frame_authority",
+        "successor_code_gate_authority",
+        "successor_preregistration",
+        "preregistration_commit",
+        "implementation_commit",
+        "rehearsal_bundle",
+        "release_authorization"
+      ],
+      "mode_values": ["offline_rehearsal", "real_owner_released"],
+      "frame_authority": {
+        "required_keys": ["path", "sha256"],
+        "path": "docs/phase4/reports/P4.2a-rehearsal-v2-approval-and-frame-authority-ruling-20260810.json",
+        "sha256": "8605dd30dd6bffa9621b6efe5e01c4c9cead615c9639259c2e79e14fcbbc3421"
+      },
+      "successor_code_gate_authority": {
+        "required_keys": ["path", "sha256"],
+        "path": "docs/phase4/reports/P4.2a-successor-v2-1-code-gate-authorization-20260810.json",
+        "sha256": "e28db692dc150983f86f6760fb1a95584d8607658e8a78a0de35cf3fc81940cd"
+      },
+      "successor_preregistration": {
+        "required_keys": ["path", "sha256"],
+        "path": "docs/phase4/reports/P4.2a-v2-heldout-rehearsal-v2-1-preregistration-20260810.json",
+        "sha256_must_equal_bundle_lineage_preregistration_sha256": true
+      },
+      "preregistration_commit": "must_equal_bundle_lineage_preregistration_commit",
+      "implementation_commit": "must_equal_bundle_lineage_implementation_commit",
+      "mode_branches": {
+        "offline_rehearsal": {
+          "rehearsal_bundle": null,
+          "release_authorization": null,
+          "nonrecursive_reason": "materialization_manifest_is_a_bundle_leaf_and_must_not_bind_the_containing_bundle"
+        },
+        "real_owner_released": {
+          "rehearsal_bundle_required_keys": ["path", "sha256", "bundle_root_sha256"],
+          "rehearsal_bundle_path": "docs/phase4/rehearsals/P4.2a-v2-calibration-v2-1/bundle.json",
+          "release_authorization_required_keys": ["path", "sha256", "receipt_creating_commit", "verdict"],
+          "release_authorization_path": "docs/phase4/reports/P4.2a-v2-heldout-rehearsal-v2-1-release-authorization-20260810.json",
+          "release_authorization_verdict": "APPROVE_SUCCESSOR_V2_1_REAL_HELDOUT_PREPARATION"
+        }
+      },
+      "historical_v1_manifest_sections_and_semantics_preserved_except_for_the_registered_v2_evidence_addition": true
+    },
+    "request_pacing_exact_shape": {
+      "required_top_level_keys": ["cninfo_pdf", "akshare_ths", "sina_company_news"],
+      "cninfo_pdf_required_keys": [
+        "host",
+        "policy",
+        "configured_min_start_to_start_seconds",
+        "clock",
+        "first_request_delayed",
+        "request_start_count",
+        "observed_gap_count",
+        "minimum_observed_start_to_start_seconds",
+        "median_observed_start_to_start_seconds",
+        "violation_count",
+        "retry_count"
+      ],
+      "cninfo_pdf_constants": {
+        "host": "static.cninfo.com.cn",
+        "policy": "minimum_start_to_start",
+        "configured_min_start_to_start_seconds": 1.0,
+        "clock": "monotonic",
+        "first_request_delayed": false,
+        "retry_count": 0
+      },
+      "gap_count_formula": "max(request_start_count - 1, 0)",
+      "minimum_and_median_null_only_when_gap_count_zero": true,
+      "violation_formula": "count(gap < configured_min_start_to_start_seconds)",
+      "akshare_ths": "not_applicable_no_external_document_fetch",
+      "sina_company_news": "not_applicable_no_external_document_fetch"
+    },
+    "runtime_start_preflight_exact_shape": {
+      "offline_required_keys": ["mode", "host_probe_performed", "reason"],
+      "offline_constants": {
+        "mode": "offline_rehearsal",
+        "host_probe_performed": false,
+        "reason": "not_applicable_offline_rehearsal"
+      },
+      "real_required_keys": [
+        "mode",
+        "observed_at_utc",
+        "observed_at_shanghai",
+        "backup_stamp",
+        "database_backup_launchagent",
+        "database_backup_lock",
+        "verified_backup",
+        "operator_timing_attestation"
+      ],
+      "real_mode": "real",
+      "backup_stamp_required_keys": ["path", "expected_shanghai_date", "observed_value", "regular_file", "symlink", "mode"],
+      "launchagent_required_keys": ["label", "target", "loaded", "state", "last_exit_code"],
+      "lock_required_keys": ["path", "nonblocking_exclusive_flock_acquired", "held"],
+      "verified_backup_required_keys": ["manifest_path", "manifest_sha256", "backup_path", "backup_sha256", "created_at_utc", "created_at_shanghai", "quick_check", "verify_database_backup_passed"],
+      "operator_attestation_required_keys": [
+        "observed_start_cst",
+        "attester_identity",
+        "explicitly_supplied",
+        "input_channel",
+        "cninfo_midnight_batch_assessment",
+        "p4_1_dense_poll_slot_assessment",
+        "decision",
+        "automatic_blackout_verification",
+        "authority_path",
+        "authority_sha256"
+      ],
+      "operator_attestation_constants": {
+        "explicitly_supplied": true,
+        "input_channel": "required_real_CLI_flags_or_required_typed_run_materialize_argument_no_default",
+        "cninfo_midnight_batch_assessment": "clear_for_start",
+        "p4_1_dense_poll_slot_assessment": "clear_for_start",
+        "decision": "launched_outside_owner_identified_CNInfo_midnight_and_dense_P4_1_slots",
+        "automatic_blackout_verification": false,
+        "authority_path": "docs/phase4/reports/P4.2a-successor-v2-1-code-gate-authorization-20260810.json",
+        "authority_sha256": "e28db692dc150983f86f6760fb1a95584d8607658e8a78a0de35cf3fc81940cd"
+      }
+    },
+    "offline_runtime_start_preflight": "not_applicable_offline_rehearsal",
+    "real_runtime_start_preflight": "actual_observations_captured_at_start_not_owner_receipt_predictions",
+    "all_exact_consumers_must_be_updated_and_negative_tested": true,
+    "statistical_frame_or_sampling_change": false
+  },
+  "runtime_start_policy": {
+    "not_a_fixed_wall_clock": true,
+    "real_release_gate_precedes_runtime_probe": true,
+    "live_probe_required_before_real_network_or_artifact_write": true,
+    "code_verifiable_conditions": [
+      "backup_stamp_equals_current_Asia_Shanghai_date",
+      "database_backup_launchagent_loaded_state_not_running_last_exit_code_0",
+      "daily_backup_lock_not_held_proven_by_nonblocking_flock",
+      "latest_same_day_post_22_00_backup_passes_verify_database_backup"
+    ],
+    "registered_runtime_paths_and_formats": {
+      "runtime_directory": "~/Library/Application Support/AlphaPilot-AI/database-backup",
+      "stamp_filename": "last-success-shanghai-date",
+      "stamp_bytes": "YYYY-MM-DD\\n for the current Asia/Shanghai date",
+      "stamp_file_policy": "regular_non_symlink_mode_0600",
+      "lock_filename": ".daily-backup.lock",
+      "lock_probe": "open_without_truncation_then_flock_LOCK_EX_or_LOCK_NB_and_immediately_unlock",
+      "launchd_label": "com.alphapilot.database-backup",
+      "launchd_target": "gui/<current_uid>/com.alphapilot.database-backup",
+      "launchctl_binary": "/bin/launchctl",
+      "launchctl_required_values": {
+        "loaded": true,
+        "state": "not running",
+        "last_exit_code": 0
+      },
+      "backup_directory": "data/backups",
+      "manifest_glob": "alphapilot-full-*.manifest.json",
+      "manifest_selection": "latest created_at whose Asia/Shanghai date is current and hour is at least 22",
+      "manifest_format_version": 1,
+      "manifest_managed_by": "alphapilot.db.backup",
+      "manifest_verification": "alphapilot.db.backup.verify_database_backup must pass and return quick_check=ok"
+    },
+    "operator_timing_attestation_required": [
+      "nonempty_attester_identity",
+      "explicit_nondefault_input",
+      "actual_CST_start_decision",
+      "cninfo_midnight_batch_assessment_clear_for_start",
+      "p4_1_dense_poll_slot_assessment_clear_for_start"
+    ],
+    "operator_attestation_interface": {
+      "run_materialize_argument": "operator_timing_attestation_typed_object_or_none",
+      "none_blank_identity_implicit_default_or_any_nonclear_assessment": "fail_closed_before_database_open_artifact_parent_creation_network_or_model",
+      "canonical_CLI": "requires_explicit_attester_identity_and_two_separate_clear_for_start_flags_with_no_environment_or_config_default",
+      "offline_rehearsal": "not_applicable_and_cannot_be_reused_as_a_real_attestation"
+    },
+    "22_17_to_22_21_CST": "illustrative_consequence_only_not_a_gate_substitute",
+    "observations_persisted_in_materialization_manifest": true
+  },
+  "rehearsal_contract": {
+    "registered_runner": "scripts/rehearse_p4_2a_v2_1_heldout_full_path.py",
+    "registered_validator": "scripts/validate_p4_2a_v2_1_heldout_rehearsal_bundle.py",
+    "official_execution_count": 1,
+    "temp_root_count": 2,
+    "temp_roots_distinct_and_outside_repository": true,
+    "real_run_materialize_function_called": true,
+    "fixture_database": {
+      "type": "temporary_SQLite",
+      "timestamp_field": "available_time",
+      "raw_count": 4048,
+      "by_source": {"cninfo": 2824, "akshare_ths": 1021, "sina_company_news": 203},
+      "retired_id_intersection": 0
+    },
+    "fake_external_boundaries": {
+      "pdf_fetcher": true,
+      "pdf_text_extractor": true,
+      "model": true,
+      "clock": true,
+      "sleeper": true,
+      "real_database_reads": 0,
+      "real_network_calls": 0,
+      "real_model_calls": 0
+    },
+    "full_path_after_materialization": [
+      "run_infer",
+      "run_select_blind",
+      "seal_draft",
+      "build_adjudication_ui",
+      "finalize_owner_adjudication",
+      "synthetic_evaluator_and_report_assembly"
+    ],
+    "artifact_inventory_same_as_v2": 14,
+    "required_result": {
+      "run_a_artifact_count": 14,
+      "run_b_artifact_count": 14,
+      "byte_identical_artifact_count": 14,
+      "mismatch_count": 0,
+      "missing_artifact_count": 0,
+      "unexpected_artifact_count": 0
+    },
+    "rate_limiter_positive_evidence": {
+      "synthetic_fixture_request_start_count": 2824,
+      "synthetic_fixture_observed_gap_count": 2823,
+      "minimum_gap_seconds": 1.0,
+      "median_gap_seconds": 1.0,
+      "violation_count": 0
+    },
+    "rate_limiter_negative_probe": {
+      "sleeper": "registered_noop",
+      "required_result": "PASS_NOOP_SLEEPER_REJECTED_BEFORE_SECOND_FETCH",
+      "underlying_fetch_count": 1,
+      "second_fetch_started": false
+    },
+    "candidate_document_handling_probes": {
+      "deterministic_ineligible_reasons": ["pdf_text_below_min_char_gate", "pdf_exceeds_size_bound"],
+      "deterministic_ineligible_required_result": "PASS_RECORDED_EXCLUDED_CONTINUED_ZERO_RETRY_ZERO_RETURN_TO_POOL",
+      "unexpected_transport_download_or_extractor_failure_required_result": "PASS_ABORTED_ENTIRE_MATERIALIZATION_ZERO_RETRY_ZERO_PARTIAL_PUBLISH",
+      "unknown_candidate_document_ineligible_reason_required_result": "PASS_FAIL_CLOSED_ZERO_RETRY_ZERO_PARTIAL_PUBLISH"
+    },
+    "release_gate_positive_probe": {
+      "temporary_git_repository": true,
+      "schema_valid_successor_receipt": true,
+      "unique_status_A_creation_touch": true,
+      "modified_after_creation_negative_probe": "must_reject_even_when_modified_bytes_are_committed",
+      "uses_same_validator_as_canonical_real_gate": true,
+      "registered_real_receipt_created_or_used": false
+    },
+    "complete_control_surface_archive": true,
+    "implementation_commit_blob_binding": true,
+    "ast_local_import_closure_exact": true,
+    "runtime_inventory_bound": true,
+    "domain_separated_merkle": "p4.2a-rehearsal-v2.1",
+    "independent_validator_required_before_publication": true
+  },
+  "required_negative_tests": [
+    "missing_drifted_symlink_or_untracked_release_receipt_rejected_before_database_or_write",
+    "old_v2_bundle_or_approval_rejected_for_modified_prepare",
+    "retired_v1_receipt_rejected",
+    "forged_or_serialized_offline_capability_rejected",
+    "offline_capability_at_canonical_project_root_rejected",
+    "noop_sleeper_rejected_before_second_fetch",
+    "clock_reversal_or_nonfinite_clock_rejected",
+    "upstream_fetch_failure_called_once_and_never_retried",
+    "deterministic_candidate_document_ineligible_two_registered_reasons_are_counted_excluded_and_not_retried_or_returned_to_pool",
+    "unknown_candidate_document_ineligible_reason_or_unexpected_transport_or_extractor_failure_aborts_with_zero_retry_and_zero_partial_publish",
+    "materialization_manifest_v1_or_missing_pacing_rejected_by_every_consumer",
+    "offline_execution_authority_requires_null_bundle_and_null_release_while_real_execution_authority_requires_exact_bundle_root_and_release_bindings",
+    "schema_valid_git_backed_synthetic_successor_release_receipt_passes_the_actual_validator_but_cannot_unlock_canonical_real_execution",
+    "synthetic_receipt_modified_after_its_unique_creation_commit_is_rejected_even_when_the_modified_bytes_are_committed",
+    "seal_and_adjudication_ui_missing_or_drifted_release_receipt_rejected_before_input_read_or_artifact_write",
+    "canonical_finalize_owner_adjudication_rejects_real_context_under_this_release_while_offline_rehearsal_capability_can_exercise_it",
+    "bundle_control_or_artifact_single_byte_mutation_rejected",
+    "implementation_commit_not_descending_from_preregistration_rejected",
+    "v2_or_v2_1_registered_destination_symlink_alias_rejected",
+    "real_context_custom_clock_sleeper_or_fetcher_rejected"
+    ,"runtime_stamp_missing_stale_symlink_or_wrong_mode_rejected_before_network_or_artifact_write"
+    ,"database_backup_launchagent_unloaded_running_or_nonzero_exit_rejected_before_network_or_artifact_write"
+    ,"database_backup_lock_held_rejected_before_network_or_artifact_write"
+    ,"backup_manifest_missing_invalid_pre_22_or_failed_verification_rejected_before_network_or_artifact_write"
+    ,"operator_timing_attestation_missing_implicit_defaulted_blank_attester_or_either_assessment_not_clear_rejected_before_database_open_artifact_parent_network_or_model"
+  ],
+  "bundle_and_release_effects": {
+    "successful_bundle_status": "passed_awaiting_owner_review",
+    "bundle_itself_unlocks_real_materialization": false,
+    "release_receipt_create_only_after_owner_review": true,
+    "release_receipt_commit_binding": {
+      "reviewed_repository_head": "the_existing_rehearsal_evidence_and_review_head_examined_by_the_reviewer",
+      "receipt_creating_commit": "derived_by_the_gate_as_the_unique_status_A_touch_of_the_fixed_receipt_path_on_the_current_HEAD_first_parent_lineage_not_self_reported_inside_the_receipt",
+      "required_git_proof": "the_fixed_path_has_exactly_one_touch_and_it_is_A_current_bytes_equal_the_creation_commit_blob_there_is_no_later_M_D_R_C_or_readd_and_HEAD_and_the_creation_commit_descend_from_reviewed_repository_head_rehearsal_evidence_commit_implementation_commit_and_preregistration_commit",
+      "modified_after_owner_approval_even_if_committed": "fail_closed"
+    },
+    "release_receipt_must_bind": [
+      "preregistration_sha256_and_commit",
+      "both_schema_sha256_values",
+      "implementation_commit",
+      "bundle_sha256_and_merkle_root",
+      "rehearsal_evidence_commit",
+      "review_request_sha256",
+      "frame_authority_ruling_sha256",
+      "successor_v2_1_authorization_sha256"
+    ],
+    "release_authorizes": ["materialize", "infer", "select-blind", "blind-draft", "owner-adjudication-ui"],
+    "release_does_not_authorize": ["finalize-owner-adjudication", "heldout-evaluation", "p4.2b", "p4.3"]
+  },
+  "execution_safety": {
+    "real_database_reads_during_rehearsal": 0,
+    "real_network_calls_during_rehearsal": 0,
+    "real_model_calls_during_rehearsal": 0,
+    "production_writes_during_rehearsal": false,
+    "real_heldout_artifact_writes_during_rehearsal": false,
+    "real_heldout_metrics_computed": false,
+    "real_metrics_disclosed": false,
+    "scheduler_or_p4_1_mutation": false,
+    "proposals_orders_or_trades": false
+  },
+  "locks": {
+    "trading_mode": "research",
+    "live_trading_enabled": false,
+    "paper_trading_enabled": false,
+    "paper_auto_trading_enabled": false,
+    "futu_enable_trade": false,
+    "futu_enable_account_mutation": false,
+    "p4_2a_done": false,
+    "heldout_materialization_unlocked": false,
+    "heldout_inference_unlocked": false,
+    "heldout_evaluation_unlocked": false,
+    "p4_2b_unlocked": false,
+    "p4_3_unlocked": false
+  },
+  "authorization": {
+    "allowed_after_this_preregistration_commit": [
+      "implement_the_registered_v2_1_gate_pacing_manifest_consumers_runner_validator_and_tests",
+      "commit_the_implementation",
+      "execute_one_offline_create_only_v2_1_rehearsal_bundle",
+      "independently_rehash_and_review_the_bundle",
+      "create_a_review_request"
+    ],
+    "forbidden_until_owner_release_receipt": [
+      "real_heldout_materialization",
+      "real_network_fetch",
+      "real_model_inference",
+      "real_selection_blinding_or_drafting"
+    ],
+    "always_forbidden_in_this_scope": [
+      "wrapper_monkeypatch_or_alternate_real_entry",
+      "modify_historical_v1_or_v2_rehearsal_artifacts",
+      "change_design_frame_seed_prompt_contract_model_threshold_sample_or_gold",
+      "heldout_evaluation",
+      "unlock_p4_2b_or_p4_3",
+      "proposal_order_or_trade"
+    ],
+    "this_document_executes_nothing": true
+  }
+}
