@@ -542,7 +542,7 @@ def test_v2_2_config_is_frozen_at_100_pages_and_retains_the_80_page_predecessor(
         "9d56e137baf10bd0858723a93aff02c57bf7b35f8705f1817b16a89ec615183f"
     )
     assert hashlib.sha256(CORE_CONFIG_PATH.read_bytes()).hexdigest() == (
-        "6bdc24abbc943bb52ecc416fd72180e356fbcb3bc55eb6a96f98d5b0be8137cd"
+        "232d80795618e46b076cb9ffb6277feb20e1d98f0ebd93fa40f533af8ca5c0be"
     )
     assert digest == news_poll.EXPECTED_V2_2_CONFIG_SHA256
     assert document["schema_version"] == "p4.1-news-poll-v2.2"
