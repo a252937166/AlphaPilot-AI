@@ -109,18 +109,14 @@ def test_online_backup_includes_uncheckpointed_wal_and_records_evidence(
         f"file:{backup_path}?mode=ro",
         uri=True,
     ) as connection:
-        assert connection.execute("SELECT value FROM payload").fetchone() == (
-            "committed-in-wal",
-        )
+        assert connection.execute("SELECT value FROM payload").fetchone() == ("committed-in-wal",)
 
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     assert manifest["source"]["query_only"] is True
     assert manifest["source"]["journal_mode"] == "wal"
     assert manifest["managed_by"] == backup_module.BACKUP_MANAGED_BY
     assert manifest["backup"]["quick_check"] == "ok"
-    assert manifest["backup"]["file_identity"] == backup_module._file_identity(
-        backup_path
-    )
+    assert manifest["backup"]["file_identity"] == backup_module._file_identity(backup_path)
     assert manifest["backup"]["critical_tables"]["trade_proposals"]["rows"] == 1
     assert manifest["backup"]["critical_tables"]["broker_orders"]["rows"] == 1
     assert manifest["backup"]["critical_tables"]["runtime_flags"]["rows"] == 1
@@ -394,3 +390,26 @@ def test_backup_lock_is_non_blocking(tmp_path: Path) -> None:
         finally:
             fcntl.flock(lock.fileno(), fcntl.LOCK_UN)
             writer.close()
+
+
+def test_launchagent_template_keeps_three_backups() -> None:
+    """The daily agent passes --retain 3 explicitly; the library default stays 7."""
+
+    import plistlib
+
+    template = Path(__file__).resolve().parents[1] / (
+        "config/database_backup.launchagent.template.plist"
+    )
+    rendered = template.read_text(encoding="utf-8")
+    for placeholder in (
+        "__BACKUP_SERVICE_LABEL__",
+        "__BACKUP_VENV_PYTHON__",
+        "__BACKUP_PROJECT_DIR__",
+        "__BACKUP_STDOUT_LOG__",
+        "__BACKUP_STDERR_LOG__",
+    ):
+        rendered = rendered.replace(placeholder, "x")
+    arguments = plistlib.loads(rendered.encode("utf-8"))["ProgramArguments"]
+    assert arguments[1].endswith("scripts/run_database_backup_daily.py")
+    assert arguments[2:] == ["--retain", "3"]
+    assert backup_module.DEFAULT_RETENTION == 7
