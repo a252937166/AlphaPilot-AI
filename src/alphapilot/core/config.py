@@ -34,6 +34,10 @@ class Settings(BaseSettings):
     valuation_sync_enabled: bool = True
     # Rule-based severe regulatory disclosure screen (立案/处罚事先告知/退市风险).
     severe_disclosure_screen_enabled: bool = True
+    # Pre-registered weekly stock-pick forward test: lists and scores are create-only
+    # JSON files under this directory; the rules are frozen by evidence outside the repo.
+    stock_pick_forward_test_enabled: bool = True
+    stock_pick_forward_test_dir: str = "data/stock_picks"
 
     # Failover order used by the "auto" composite provider.
     daily_bars_provider_chain: list[str] = Field(
