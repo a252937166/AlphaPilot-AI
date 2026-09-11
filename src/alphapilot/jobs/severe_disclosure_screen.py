@@ -8,8 +8,9 @@ idempotent. ``occurred_at`` is the announcement's point-in-time ``available_time
 (the ingestion instant) and is never back-dated. An announcement whose own
 publication date is older than the lookback (a poller catch-up backfilling old
 days) is counted as stale and skipped: it is history, not a fresh warning.
-Events with strength >= 0.6 raise a notification, and the thesis-drift engine already treats any event with
-direction <= -0.5 inside its lookback as a reason to re-examine a holding.
+Events with strength >= 0.6 raise a notification, and the thesis-drift engine
+already treats any event with direction <= -0.5 inside its lookback as a reason
+to re-examine a holding.
 """
 
 from __future__ import annotations
