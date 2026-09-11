@@ -15,13 +15,14 @@ manifest 包含 SHA-256、文件大小、`PRAGMA quick_check`、页信息以及
 `trade_proposals`、`broker_orders`、`runtime_flags`、`job_runs` 的验收证据。目录权限为
 `0700`，备份、manifest、锁和日门文件为 `0600`。
 
-手动创建并保留最近 7 份受管备份：
+手动创建并保留最近 3 份受管备份（每份都是完整的 SQLite 文件，约 5 GB；库函数默认值仍是 7，
+每日 LaunchAgent 模板显式传 `--retain 3`）：
 
 ```bash
 .venv/bin/python scripts/manage_database_backup.py backup \
   --db data/alphapilot.db \
   --backup-dir data/backups \
-  --retain 7
+  --retain 3
 ```
 
 验证一份备份：

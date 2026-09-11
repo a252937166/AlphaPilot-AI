@@ -8,6 +8,10 @@
     <array>
         <string>__BACKUP_VENV_PYTHON__</string>
         <string>__BACKUP_PROJECT_DIR__/scripts/run_database_backup_daily.py</string>
+        <!-- Keep three verified full copies (each is a full SQLite file); the library
+             default of seven is too much disk for a single-machine deployment. -->
+        <string>--retain</string>
+        <string>3</string>
     </array>
     <key>WorkingDirectory</key>
     <string>__BACKUP_PROJECT_DIR__</string>
