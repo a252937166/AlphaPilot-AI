@@ -27,7 +27,11 @@ SEVERE_EVENT_TYPE = "regulatory_severe"
 _EXCLUDE = re.compile(
     r"最近五年|不存在被|未被|未受到|未曾|无违法违规|承诺|撤销|解除|自查|"
     r"法律意见书|律师事务所|会计师事务所|回复|诉讼|仲裁|案件受理|受理立案|"
-    r"公开发行|申请文件|募集说明书|问询函"
+    r"公开发行|申请文件|募集说明书|问询函|"
+    # A listing that ends because the company is absorbed in a merger is not a
+    # delisting risk; a penalty on a director for matters unrelated to the
+    # company is not a penalty on the company.
+    r"吸收合并|换股|非本公司事项"
 )
 
 
