@@ -8,6 +8,7 @@ from typing import Any
 from zoneinfo import ZoneInfo
 
 import pandas as pd
+from apscheduler.triggers.combining import OrTrigger
 from apscheduler.triggers.cron import CronTrigger
 from sqlalchemy import func, select
 from sqlalchemy.exc import OperationalError
@@ -111,9 +112,7 @@ class _ProviderTradeWindow:
         if start < self.probed_from:
             return False
         expected = {
-            trade_date
-            for trade_date in self.available_dates
-            if start <= trade_date <= self.latest
+            trade_date for trade_date in self.available_dates if start <= trade_date <= self.latest
         }
         return expected == {self.latest}
 
@@ -190,9 +189,7 @@ def _save_bars_with_lock_retry(
                     )
                 return inserted
         except OperationalError as exc:
-            if not _is_sqlite_write_lock(exc) or retry_count >= len(
-                _SQLITE_LOCK_RETRY_DELAYS
-            ):
+            if not _is_sqlite_write_lock(exc) or retry_count >= len(_SQLITE_LOCK_RETRY_DELAYS):
                 raise
             delay = _SQLITE_LOCK_RETRY_DELAYS[retry_count]
             retry_count += 1
@@ -217,9 +214,7 @@ def _mark_backfill_with_lock_retry(symbol: str, start_date: date) -> bool:
                     start_date,
                 )
         except OperationalError as exc:
-            if not _is_sqlite_write_lock(exc) or retry_count >= len(
-                _SQLITE_LOCK_RETRY_DELAYS
-            ):
+            if not _is_sqlite_write_lock(exc) or retry_count >= len(_SQLITE_LOCK_RETRY_DELAYS):
                 raise
             delay = _SQLITE_LOCK_RETRY_DELAYS[retry_count]
             retry_count += 1
@@ -239,31 +234,19 @@ def _probe_provider_trade_window(
     """Probe each source so an upstream EOD lag is not treated as mass failure."""
 
     probed_from = requested_end - timedelta(days=10)
-    frame = provider.get_daily_bars(
-        benchmark_symbol, probed_from, requested_end
-    )
-    available = {
-        pd.Timestamp(value).date()
-        for value in frame["date"]
-        if not pd.isna(value)
-    }
+    frame = provider.get_daily_bars(benchmark_symbol, probed_from, requested_end)
+    available = {pd.Timestamp(value).date() for value in frame["date"] if not pd.isna(value)}
     if not available:
-        raise DataProviderError(
-            f"{provider.name} benchmark probe returned no valid dates"
-        )
+        raise DataProviderError(f"{provider.name} benchmark probe returned no valid dates")
     latest = min(max(available), requested_end)
     normalized_dates = pd.to_datetime(frame["date"], errors="coerce").dt.date
     benchmark_frame = frame.loc[
-        normalized_dates.map(
-            lambda value: isinstance(value, date) and value <= latest
-        )
+        normalized_dates.map(lambda value: isinstance(value, date) and value <= latest)
     ].copy()
     return _ProviderTradeWindow(
         probed_from=probed_from,
         latest=latest,
-        available_dates=frozenset(
-            trade_date for trade_date in available if trade_date <= latest
-        ),
+        available_dates=frozenset(trade_date for trade_date in available if trade_date <= latest),
         benchmark_frame=benchmark_frame,
     )
 
@@ -347,9 +330,7 @@ def sync_daily_bars(
         baostock.name: _probe_provider_trade_window(baostock, "SH.000001", end),
         sina.name: _probe_provider_trade_window(sina, "920000", end),
     }
-    provider_trade_dates = {
-        source: window.latest for source, window in provider_windows.items()
-    }
+    provider_trade_dates = {source: window.latest for source, window in provider_windows.items()}
     progress = _SyncProgress(
         started=started,
         total=len(securities),
@@ -384,9 +365,7 @@ def sync_daily_bars(
         last_date = bounds[1] if bounds is not None else None
         checkpoint = _backfill_checkpoint(profile)
         backfill_is_complete = (
-            start_date is not None
-            and checkpoint is not None
-            and checkpoint <= start_date
+            start_date is not None and checkpoint is not None and checkpoint <= start_date
         )
         request_windows: list[tuple[date, date, bool]] = []
         if first_date is None or last_date is None:
@@ -398,11 +377,7 @@ def sync_daily_bars(
                 )
             )
         else:
-            if (
-                start_date is not None
-                and not backfill_is_complete
-                and first_date > start_date
-            ):
+            if start_date is not None and not backfill_is_complete and first_date > start_date:
                 request_windows.append(
                     (
                         start_date,
@@ -411,9 +386,7 @@ def sync_daily_bars(
                     )
                 )
             if last_date < provider_end:
-                request_windows.append(
-                    (last_date + timedelta(days=1), provider_end, False)
-                )
+                request_windows.append((last_date + timedelta(days=1), provider_end, False))
 
         request_windows = [
             (window_start, window_end, historical)
@@ -464,9 +437,8 @@ def sync_daily_bars(
                         # the listing date. Absence before it is an honest coverage
                         # gap, not an upstream outage or circuit-breaker signal.
                         progress.no_prior_history += 1
-                        if (
-                            start_date is not None
-                            and _mark_backfill_with_lock_retry(symbol, start_date)
+                        if start_date is not None and _mark_backfill_with_lock_retry(
+                            symbol, start_date
                         ):
                             progress.backfill_checkpoints_written += 1
                         continue
@@ -520,16 +492,26 @@ def sync_daily_bars(
     return progress.as_dict()
 
 
+# A missed 18:40 run (laptop asleep, provider login timeout) used to leave the
+# session unsynced until the next weekday, which pushed the weekly stock-pick
+# list back to a Thursday as-of date. The weekend catch-up re-fetches only the
+# sessions that are still missing (a complete symbol is skipped without any
+# provider call), and the misfire grace lets a late wake-up still run the day.
+SYNC_MISFIRE_GRACE_SECONDS = 3 * 60 * 60
+
+
 def register_daily_bars_job() -> None:
+    market = ZoneInfo("Asia/Shanghai")
     register(
         JobSpec(
             name="sync_daily_bars",
             func=sync_daily_bars,
-            trigger=CronTrigger(
-                day_of_week="mon-fri",
-                hour=18,
-                minute=40,
-                timezone=ZoneInfo("Asia/Shanghai"),
+            trigger=OrTrigger(
+                [
+                    CronTrigger(day_of_week="mon-fri", hour=18, minute=40, timezone=market),
+                    CronTrigger(day_of_week="sat,sun", hour=5, minute=0, timezone=market),
+                ]
             ),
+            misfire_grace_time=SYNC_MISFIRE_GRACE_SECONDS,
         )
     )

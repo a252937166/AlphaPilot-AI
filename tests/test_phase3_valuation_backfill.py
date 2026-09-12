@@ -343,5 +343,7 @@ def test_register_valuation_jobs_has_manual_backfill_and_post_close_increment() 
     trigger = JOBS["sync_valuation_daily"].trigger
     assert trigger is not None
     assert JOBS["sync_valuation_daily"].enabled_key == "valuation_sync_enabled"
-    assert str(trigger).find("hour='18'") >= 0
-    assert str(trigger).find("minute='50'") >= 0
+    assert "day_of_week='mon-fri', hour='18', minute='50'" in str(trigger)
+    # weekend catch-up after the daily-bars catch-up (05:00)
+    assert "day_of_week='sat,sun', hour='6', minute='30'" in str(trigger)
+    assert JOBS["sync_valuation_daily"].misfire_grace_time == 3 * 60 * 60

@@ -15,6 +15,7 @@ from zoneinfo import ZoneInfo
 
 import httpx
 import pandas as pd
+from apscheduler.triggers.combining import OrTrigger
 from apscheduler.triggers.cron import CronTrigger
 from sqlalchemy import func, select
 from sqlalchemy.exc import OperationalError
@@ -23,6 +24,7 @@ from alphapilot.data.base import DataProviderError
 from alphapilot.data.provenance import AUDITED_DAILY_BAR_SOURCES
 from alphapilot.db.engine import get_session
 from alphapilot.db.models import DailyBar, Security, ValuationDaily
+from alphapilot.jobs.daily_bars import SYNC_MISFIRE_GRACE_SECONDS
 from alphapilot.jobs.registry import JobExecutionError, JobSpec, register
 
 logger = logging.getLogger(__name__)
@@ -197,15 +199,11 @@ def fetch_valuation_em(
         ) from exc
 
     if response.status_code in {403, 412, 429}:
-        raise _EastmoneyThrottleError(
-            f"Eastmoney stock_value_em HTTP {response.status_code}"
-        )
+        raise _EastmoneyThrottleError(f"Eastmoney stock_value_em HTTP {response.status_code}")
     try:
         response.raise_for_status()
     except httpx.HTTPStatusError as exc:
-        raise DataProviderError(
-            f"Eastmoney stock_value_em HTTP {response.status_code}"
-        ) from exc
+        raise DataProviderError(f"Eastmoney stock_value_em HTTP {response.status_code}") from exc
     try:
         payload: object = response.json()
     except ValueError as exc:
@@ -226,15 +224,9 @@ def fetch_valuation_em(
     raw = pd.DataFrame(records)
     missing = set(_EM_REMOTE_COLUMNS).difference(str(column) for column in raw.columns)
     if missing:
-        raise DataProviderError(
-            f"Eastmoney valuation schema missing columns: {sorted(missing)}"
-        )
+        raise DataProviderError(f"Eastmoney valuation schema missing columns: {sorted(missing)}")
 
-    frame = (
-        raw.loc[:, list(_EM_REMOTE_COLUMNS)]
-        .rename(columns=_EM_REMOTE_COLUMNS)
-        .copy()
-    )
+    frame = raw.loc[:, list(_EM_REMOTE_COLUMNS)].rename(columns=_EM_REMOTE_COLUMNS).copy()
     frame["trade_date"] = pd.to_datetime(frame["trade_date"], errors="coerce").dt.date
     for column in ("pe_ttm", "pb_mrq", "ps_ttm"):
         frame[column] = pd.to_numeric(frame[column], errors="coerce")
@@ -290,11 +282,7 @@ def _latest_dates(symbols: list[str]) -> dict[str, date]:
                 .group_by(ValuationDaily.symbol)
             ).all()
             latest_dates.update(
-                {
-                    str(symbol): latest
-                    for symbol, latest in rows
-                    if isinstance(latest, date)
-                }
+                {str(symbol): latest for symbol, latest in rows if isinstance(latest, date)}
             )
     return latest_dates
 
@@ -344,9 +332,8 @@ def _save_rows(symbol: str, frame: pd.DataFrame) -> int:
                 session.add_all(ValuationDaily(**item) for item in values)
             return len(values)
         except OperationalError as exc:
-            if (
-                not _is_sqlite_write_lock(exc)
-                or retry_count >= len(SQLITE_LOCK_RETRY_DELAYS_SECONDS)
+            if not _is_sqlite_write_lock(exc) or retry_count >= len(
+                SQLITE_LOCK_RETRY_DELAYS_SECONDS
             ):
                 raise
             delay = SQLITE_LOCK_RETRY_DELAYS_SECONDS[retry_count]
@@ -572,8 +559,7 @@ def backfill_valuation(
 
                 if processed % batch_size == 0:
                     logger.info(
-                        "valuation backfill progress processed=%s total=%s inserted=%s "
-                        "failed=%s",
+                        "valuation backfill progress processed=%s total=%s inserted=%s failed=%s",
                         processed,
                         len(universe),
                         progress.rows_inserted,
@@ -623,12 +609,18 @@ def register_valuation_jobs() -> None:
         JobSpec(
             name="sync_valuation_daily",
             func=sync_valuation_daily,
-            trigger=CronTrigger(
-                day_of_week="mon-fri",
-                hour=18,
-                minute=50,
-                timezone=MARKET_TIMEZONE,
+            # The weekend run follows the daily-bars catch-up (05:00): the cutoff is
+            # the latest audited bar, so a Friday that was fetched on Saturday morning
+            # gets its valuation the same morning instead of on Monday night.
+            trigger=OrTrigger(
+                [
+                    CronTrigger(
+                        day_of_week="mon-fri", hour=18, minute=50, timezone=MARKET_TIMEZONE
+                    ),
+                    CronTrigger(day_of_week="sat,sun", hour=6, minute=30, timezone=MARKET_TIMEZONE),
+                ]
             ),
             enabled_key="valuation_sync_enabled",
+            misfire_grace_time=SYNC_MISFIRE_GRACE_SECONDS,
         )
     )
