@@ -311,6 +311,23 @@ def test_scoring_mechanics(patched_session: None, tmp_path: Path, engine: Engine
     assert score["benchmarks"]["equal_weight_universe_return"] == pytest.approx(
         float(returns.mean()), abs=1e-6
     )
+    with Session(engine) as session:
+        recent = pd.read_sql_query(
+            select(DailyBar.symbol, DailyBar.trade_date, DailyBar.amount).where(
+                DailyBar.trade_date <= AS_OF
+            ),
+            session.connection(),
+        )
+    last20 = sorted(recent["trade_date"].unique())[-20:]
+    amount20 = recent[recent["trade_date"].isin(last20)].groupby("symbol")["amount"].mean()
+    tradability = score["tradability"]
+    assert tradability["top_decile_median_amount_20"] == pytest.approx(
+        float(amount20.reindex(listed["top_decile_symbols"]).median()), rel=1e-9
+    )
+    assert tradability["universe_median_amount_20"] == pytest.approx(
+        float(amount20.reindex([m["symbol"] for m in listed["members"]]).median()), rel=1e-9
+    )
+    assert tradability["top20_median_amount_20"] > 0
     again = job.run_stock_pick_forward_test(now=NOW, generate=False, output_dir=out)
     assert again["scored"] == [] and again["generate_skipped"]
     assert again["tallies"]["A"]["lists_scored"] == 1

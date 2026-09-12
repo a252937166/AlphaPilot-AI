@@ -432,6 +432,29 @@ def _sessions_after(session: Session, as_of: date, count: int) -> list[date]:
     return list(rows)
 
 
+def _mean_amount_20(session: Session, symbols: list[str], as_of: date) -> pd.Series:
+    """Mean daily amount per symbol over the last 20 sessions through ``as_of``."""
+
+    sessions = session.scalars(
+        select(DailyBar.trade_date)
+        .where(DailyBar.trade_date <= as_of)
+        .group_by(DailyBar.trade_date)
+        .order_by(DailyBar.trade_date.desc())
+        .limit(20)
+    ).all()
+    if not sessions:
+        return pd.Series(dtype="float64")
+    frame = pd.read_sql_query(
+        select(DailyBar.symbol, DailyBar.amount).where(
+            DailyBar.trade_date >= min(sessions),
+            DailyBar.trade_date <= as_of,
+            DailyBar.symbol.in_(symbols),
+        ),
+        session.connection(),
+    )
+    return frame.groupby("symbol")["amount"].mean()
+
+
 def _spearman(x: np.ndarray, y: np.ndarray) -> float | None:
     if len(x) < 10:
         return None
@@ -508,6 +531,13 @@ def score_pick_list(
         if index_open > 0:
             index_return = round(float(exit_.at[INDEX_SYMBOL, "close"]) / index_open - 1, 6)
 
+    amounts = _mean_amount_20(session, symbols, as_of)
+    top_symbols = [m["symbol"] for m in members if m["rank"] <= pick_list["top_decile_n"]]
+
+    def median_amount(subset: list[str]) -> float | None:
+        values = amounts.reindex(subset).dropna()
+        return round(float(values.median()), 2) if len(values) else None
+
     def block(part: pd.DataFrame) -> dict[str, Any]:
         return {
             "n": len(part),
@@ -537,6 +567,13 @@ def score_pick_list(
             "equal_weight_universe_return": round(float(frame["return"].mean()), 6),
             "index_symbol": INDEX_SYMBOL,
             "index_return": index_return,
+        },
+        # Informational (pre-registered as such): can the list actually be traded?
+        "tradability": {
+            "unit": "CNY per session, mean over the 20 sessions through as_of",
+            "top_decile_median_amount_20": median_amount(top_symbols),
+            "top20_median_amount_20": median_amount(symbols[:20]),
+            "universe_median_amount_20": median_amount(symbols),
         },
     }
 
