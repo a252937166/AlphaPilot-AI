@@ -31,6 +31,9 @@ class Settings(BaseSettings):
     baostock_financial_sync_enabled: bool = True
     baostock_socket_timeout_seconds: float = Field(default=2.0, ge=1.0, le=120.0)
     baostock_lock_timeout_seconds: float = Field(default=1.0, ge=0.05, le=120.0)
+    # Optional SOCKS5 egress for BaoStock (host:port), e.g. an SSH -D tunnel to a host whose
+    # IP is not rate-limited; the ALPHAPILOT_BAOSTOCK_SOCKS5_PROXY process variable wins.
+    baostock_socks5_proxy: str | None = None
     valuation_sync_enabled: bool = True
     # Rule-based severe regulatory disclosure screen (立案/处罚事先告知/退市风险).
     severe_disclosure_screen_enabled: bool = True
