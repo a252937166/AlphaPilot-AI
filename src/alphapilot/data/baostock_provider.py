@@ -120,9 +120,7 @@ class _EOFGuardSocket:
     def recv(self, size: int, flags: int = 0) -> bytes:
         try:
             self._set_remaining_timeout()
-            payload = (
-                self._connection.recv(size, flags) if flags else self._connection.recv(size)
-            )
+            payload = self._connection.recv(size, flags) if flags else self._connection.recv(size)
         except (OSError, TimeoutError) as exc:
             self._record_failure(exc)
             raise
@@ -174,6 +172,8 @@ def _process_lock_path() -> Path:
 
 def _socks5_endpoint() -> tuple[str, int] | None:
     configured = os.environ.get(_SOCKS5_PROXY_ENV, "").strip()
+    if not configured:
+        configured = (get_settings().baostock_socks5_proxy or "").strip()
     if not configured:
         return None
     host, separator, raw_port = configured.rpartition(":")
@@ -694,8 +694,7 @@ class BaoStockMarketDataProvider:
             if result.error_code != "0":
                 _invalidate_failed_result_locked(result)
                 raise DataProviderError(
-                    f"BaoStock adjusted-close pagination failed for {code}: "
-                    f"{result.error_msg}"
+                    f"BaoStock adjusted-close pagination failed for {code}: {result.error_msg}"
                 )
         if not rows:
             raise EmptyDailyBarsError(f"BaoStock returned no adjusted closes for {code}")
@@ -736,9 +735,7 @@ class BaoStockMarketDataProvider:
                 rows.append(rs.get_row_data())
             if rs.error_code != "0":
                 _invalidate_failed_result_locked(rs)
-                raise DataProviderError(
-                    f"BaoStock pagination failed for {code}: {rs.error_msg}"
-                )
+                raise DataProviderError(f"BaoStock pagination failed for {code}: {rs.error_msg}")
 
         if not rows:
             label = {"d": "daily", "w": "weekly", "m": "monthly"}[frequency]
@@ -775,9 +772,7 @@ class BaoStockMarketDataProvider:
                 rows.append(rs.get_row_data())
             if rs.error_code != "0":
                 _invalidate_failed_result_locked(rs)
-                raise DataProviderError(
-                    f"BaoStock universe pagination failed: {rs.error_msg}"
-                )
+                raise DataProviderError(f"BaoStock universe pagination failed: {rs.error_msg}")
             columns = [str(field) for field in rs.fields]
         if not rows:
             raise DataProviderError(f"BaoStock returned no securities for {trade_date.isoformat()}")
@@ -798,9 +793,7 @@ class BaoStockMarketDataProvider:
                 rows.append(rs.get_row_data())
             if rs.error_code != "0":
                 _invalidate_failed_result_locked(rs)
-                raise DataProviderError(
-                    f"BaoStock industry pagination failed: {rs.error_msg}"
-                )
+                raise DataProviderError(f"BaoStock industry pagination failed: {rs.error_msg}")
             columns = [str(field) for field in rs.fields]
         if not rows:
             raise DataProviderError("BaoStock returned no stock industries")
@@ -958,8 +951,7 @@ class BaoStockMarketDataProvider:
             if rs.error_code != "0":
                 _invalidate_failed_result_locked(rs)
                 raise DataProviderError(
-                    f"BaoStock dividend pagination failed for {code}/{year}: "
-                    f"{rs.error_msg}"
+                    f"BaoStock dividend pagination failed for {code}/{year}: {rs.error_msg}"
                 )
             columns = [str(field) for field in rs.fields]
         return pd.DataFrame(rows, columns=columns)
