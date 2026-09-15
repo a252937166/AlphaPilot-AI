@@ -34,6 +34,11 @@ class Settings(BaseSettings):
     # Optional SOCKS5 egress for BaoStock (host:port), e.g. an SSH -D tunnel to a host whose
     # IP is not rate-limited; the ALPHAPILOT_BAOSTOCK_SOCKS5_PROXY process variable wins.
     baostock_socks5_proxy: str | None = None
+    # Egress choice: auto = direct first, SOCKS5 proxy when direct fails or is blacklisted;
+    # direct / proxy pin one path. Each egress gets its own daily request budget (BaoStock
+    # blacklists a source IP around 50,000 requests per day).
+    baostock_egress: str = "auto"
+    baostock_daily_request_budget: int = Field(default=45000, ge=1)
     valuation_sync_enabled: bool = True
     # Rule-based severe regulatory disclosure screen (立案/处罚事先告知/退市风险).
     severe_disclosure_screen_enabled: bool = True

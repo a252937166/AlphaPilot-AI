@@ -184,7 +184,7 @@ def test_v2_3_config_is_frozen_and_binds_v2_2_as_read_only_predecessor(tmp_path:
         news_poll.EXPECTED_V2_2_CONFIG_SHA256
     )
     assert hashlib.sha256(CORE_CONFIG_PATH.read_bytes()).hexdigest() == (
-        "fbd19fa4482bc4835c581d8d19a714386d0586b9ecf397b8ed565c25ea8c2191"
+        "88a1d037124084b57aecfdfdc65cafe26bf2c1669c304ce32c540439b88d94bc"
     )
     assert document["schema_version"] == "p4.1-news-poll-v2.3"
     assert cninfo["partitions"] == PARTITIONS
