@@ -3,17 +3,20 @@ from __future__ import annotations
 import atexit
 import errno
 import fcntl
+import json
+import logging
 import os
 import socket
 import struct
 from collections.abc import Iterator
 from contextlib import contextmanager, suppress
 from contextvars import ContextVar
-from datetime import date
+from datetime import date, datetime, timedelta
 from pathlib import Path
 from threading import Lock, local
-from time import monotonic, sleep
+from time import monotonic, sleep, time
 from typing import IO, Any
+from zoneinfo import ZoneInfo
 
 import pandas as pd
 
@@ -51,6 +54,11 @@ _LOCK_TIMEOUT_ENV = "ALPHAPILOT_BAOSTOCK_LOCK_TIMEOUT_SECONDS"
 _DEFAULT_SOCKET_TIMEOUT_SECONDS = 2.0
 _DEFAULT_LOCK_TIMEOUT_SECONDS = 1.0
 _LOGIN_ATTEMPTS = 2
+_MARKET_TZ = ZoneInfo("Asia/Shanghai")
+_DIRECT_UNHEALTHY_SECONDS = 6 * 60 * 60
+_PROXY_UNHEALTHY_SECONDS = 10 * 60
+_current_egress: str | None = None
+_logger = logging.getLogger(__name__)
 
 _FINANCIAL_QUERIES = {
     "profit": "query_profit_data",
@@ -183,6 +191,130 @@ def _socks5_endpoint() -> tuple[str, int] | None:
     if not 1 <= port <= 65_535:
         raise DataProviderError(f"{_SOCKS5_PROXY_ENV} port is out of range")
     return host, port
+
+
+def _egress_order() -> list[str]:
+    """Egress candidates in preference order (settings.baostock_egress: auto, direct, proxy)."""
+
+    mode = (get_settings().baostock_egress or "auto").strip().lower()
+    has_proxy = _socks5_endpoint() is not None
+    if mode == "direct":
+        return ["direct"]
+    if mode == "proxy":
+        if not has_proxy:
+            raise DataProviderError("baostock_egress=proxy but no SOCKS5 proxy is configured")
+        return ["proxy"]
+    if mode != "auto":
+        raise DataProviderError(f"baostock_egress must be auto, direct or proxy: {mode}")
+    return ["direct", "proxy"] if has_proxy else ["direct"]
+
+
+def _state_dir() -> Path:
+    return _process_lock_path().parent
+
+
+def _health_path(egress: str) -> Path:
+    return _state_dir() / f"alphapilot-baostock-unhealthy-{egress}.json"
+
+
+def _egress_unhealthy(egress: str) -> str | None:
+    """The reason an egress is currently sidelined, or None when it may be used."""
+
+    try:
+        payload = json.loads(_health_path(egress).read_text(encoding="utf-8"))
+        until = float(payload.get("until", 0))
+    except (OSError, ValueError, TypeError):
+        return None
+    if until <= time():
+        return None
+    return str(payload.get("reason", "unhealthy"))[:200]
+
+
+def _mark_egress_unhealthy(egress: str, reason: str, seconds: float | None = None) -> None:
+    """Sideline an egress for a while (shared across processes through a marker file)."""
+
+    if seconds is None:
+        seconds = _DIRECT_UNHEALTHY_SECONDS if egress == "direct" else _PROXY_UNHEALTHY_SECONDS
+    path = _health_path(egress)
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(
+            json.dumps({"until": time() + seconds, "reason": reason[:200], "marked_at": time()}),
+            encoding="utf-8",
+        )
+    except OSError:
+        pass  # a missing marker only costs one more failed attempt later
+    _logger.warning("BaoStock egress %s sidelined for %.0f s: %s", egress, seconds, reason)
+
+
+def _seconds_until_next_market_day() -> float:
+    now = datetime.now(_MARKET_TZ)
+    next_day = (now + timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
+    return max(60.0, (next_day - now).total_seconds())
+
+
+def _budget_day() -> str:
+    return datetime.now(_MARKET_TZ).strftime("%Y%m%d")
+
+
+def _budget_path(egress: str) -> Path:
+    return _state_dir() / f"alphapilot-baostock-budget-{egress}-{_budget_day()}.count"
+
+
+def _budget_used(egress: str) -> int:
+    try:
+        return int(_budget_path(egress).read_text(encoding="utf-8").strip() or "0")
+    except (OSError, ValueError):
+        return 0
+
+
+def _budget_limit() -> int:
+    return int(get_settings().baostock_daily_request_budget)
+
+
+def _charge_budget(egress: str) -> int:
+    """Count one request against the egress' Asia/Shanghai daily budget; raise when spent."""
+
+    used = _budget_used(egress)
+    limit = _budget_limit()
+    if used >= limit:
+        raise BaoStockRequestBudgetExceeded(
+            f"BaoStock daily request budget exhausted for egress {egress}: "
+            f"used={used}, limit={limit}, day={_budget_day()}"
+        )
+    path = _budget_path(egress)
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(str(used + 1), encoding="utf-8")
+    except OSError as exc:
+        raise DataProviderError(f"BaoStock budget counter could not be written: {path}") from exc
+    return used + 1
+
+
+class _CountingModule:
+    """Wrap the SDK so every ``query_*`` call is charged to the active egress' daily budget."""
+
+    def __init__(self, module: Any) -> None:
+        self._module = module
+
+    def __getattr__(self, name: str) -> Any:
+        attribute = getattr(self._module, name)
+        if not name.startswith("query_") or not callable(attribute):
+            return attribute
+
+        def charged(*args: Any, **kwargs: Any) -> Any:
+            egress = _current_egress or "direct"
+            try:
+                _charge_budget(egress)
+            except BaoStockRequestBudgetExceeded:
+                _mark_egress_unhealthy(
+                    egress, "daily request budget exhausted", _seconds_until_next_market_day()
+                )
+                _invalidate_baostock_session_locked()
+                raise
+            return attribute(*args, **kwargs)
+
+        return charged
 
 
 def _socket_timeout() -> float:
@@ -447,6 +579,14 @@ def _result_invalidates_session(result: Any) -> bool:
 
 
 def _invalidate_failed_result_locked(result: Any) -> None:
+    if str(getattr(result, "error_code", "")) == _BLACKLIST_ERROR_CODE:
+        _mark_egress_unhealthy(
+            _current_egress or "direct",
+            f"blacklisted: {getattr(result, 'error_msg', '')}",
+            _seconds_until_next_market_day(),
+        )
+        _invalidate_baostock_session_locked()
+        return
     if _result_invalidates_session(result):
         _invalidate_baostock_session_locked()
 
@@ -480,11 +620,13 @@ def _baostock_locked(operation: str) -> Iterator[None]:
         except Exception as exc:
             failure = _default_socket_failure()
             if failure is not None:
+                _mark_egress_unhealthy(_current_egress or "direct", f"transport: {failure}")
                 _invalidate_baostock_session_locked()
                 raise DataProviderError(
                     f"BaoStock transport failed during {operation}: {failure}"
                 ) from failure
             if isinstance(exc, (ConnectionError, TimeoutError, OSError)):
+                _mark_egress_unhealthy(_current_egress or "direct", f"transport: {exc}")
                 _invalidate_baostock_session_locked()
                 raise DataProviderError(
                     f"BaoStock transport failed during {operation}: {exc}"
@@ -493,6 +635,7 @@ def _baostock_locked(operation: str) -> Iterator[None]:
         else:
             failure = _default_socket_failure()
             if failure is not None:
+                _mark_egress_unhealthy(_current_egress or "direct", f"transport: {failure}")
                 _invalidate_baostock_session_locked()
                 raise DataProviderError(
                     f"BaoStock transport failed during {operation}: {failure}"
@@ -598,7 +741,7 @@ class BaoStockMarketDataProvider:
             raise DataProviderError(
                 'BaoStock is not installed. Run: pip install -e ".[cn-data]"'
             ) from exc
-        return bs
+        return _CountingModule(bs)
 
     @staticmethod
     def _code(symbol: str) -> str:
@@ -624,8 +767,46 @@ class BaoStockMarketDataProvider:
             _active_used_scopes.add(marker)
         if _logged_in:
             return
-        proxy = _socks5_endpoint()
+        global _current_egress
+        candidates = _egress_order()
+        proxy_endpoint = _socks5_endpoint()
         _acquire_process_lock()
+        errors: list[str] = []
+        outcome: tuple[str, str] | None = None
+        for egress in candidates:
+            sidelined = _egress_unhealthy(egress)
+            if sidelined is not None:
+                errors.append(f"{egress}: sidelined ({sidelined})")
+                continue
+            if _budget_used(egress) >= _budget_limit():
+                errors.append(f"{egress}: daily request budget exhausted")
+                continue
+            outcome = self._login_via(bs, proxy_endpoint if egress == "proxy" else None)
+            if outcome is None:
+                if _current_egress != egress:
+                    _logger.info("BaoStock egress: %s", egress)
+                _current_egress = egress
+                _logged_in = True
+                _active_module = bs
+                return
+            code, message = outcome
+            errors.append(f"{egress}: {code} {message}")
+            seconds = _seconds_until_next_market_day() if code == _BLACKLIST_ERROR_CODE else None
+            _mark_egress_unhealthy(egress, f"login {code}: {message}", seconds)
+        _close_baostock_session_locked()
+        if len(candidates) == 1 and outcome is not None:
+            code, message = outcome
+            if code == _BLACKLIST_ERROR_CODE:
+                raise DataProviderError(f"BaoStock login failed ({code}): {message}")
+            raise DataProviderError(
+                f"BaoStock login failed after {_LOGIN_ATTEMPTS} attempts ({code}): {message}"
+            )
+        raise DataProviderError("BaoStock login failed on every egress: " + "; ".join(errors))
+
+    @staticmethod
+    def _login_via(bs: Any, proxy: tuple[str, int] | None) -> tuple[str, str] | None:
+        """Try one egress; None on success, else the (error code, message) of the last attempt."""
+
         last_error_code = "unknown"
         last_error = "unknown error"
         for attempt in range(_LOGIN_ATTEMPTS):
@@ -643,22 +824,15 @@ class BaoStockMarketDataProvider:
                 continue
             error_code = str(result.error_code)
             if error_code == "0":
-                _logged_in = True
-                _active_module = bs
-                return
+                return None
             last_error_code = error_code
             last_error = str(result.error_msg)
             _discard_default_socket()
             if error_code == _BLACKLIST_ERROR_CODE:
-                _close_baostock_session_locked()
-                raise DataProviderError(f"BaoStock login failed ({last_error_code}): {last_error}")
+                return last_error_code, last_error
             if attempt + 1 < _LOGIN_ATTEMPTS:
                 sleep(float(attempt + 1))
-        _close_baostock_session_locked()
-        raise DataProviderError(
-            f"BaoStock login failed after {_LOGIN_ATTEMPTS} attempts "
-            f"({last_error_code}): {last_error}"
-        )
+        return last_error_code, last_error
 
     def get_daily_bars(self, symbol: str, start: date, end: date) -> pd.DataFrame:
         return self.get_bars(symbol, start, end, "d")

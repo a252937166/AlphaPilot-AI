@@ -33,12 +33,29 @@ os.environ["ALPHAPILOT_LLM_BASE_URL"] = ""
 os.environ["ALPHAPILOT_LLM_API_KEY"] = ""
 os.environ["ALPHAPILOT_LLM_MODEL"] = "qwen3.6-flash"
 os.environ["ALPHAPILOT_LLM_PURPOSE_MODELS"] = "{}"
+# BaoStock egress must not inherit the developer's tunnel from .env: tests assume a
+# single direct path unless they configure a proxy themselves.
+os.environ["ALPHAPILOT_BAOSTOCK_SOCKS5_PROXY"] = ""
+os.environ["ALPHAPILOT_BAOSTOCK_EGRESS"] = "auto"
+# The host-wide BaoStock lock must not collide with the developer's running scheduler.
+os.environ["ALPHAPILOT_BAOSTOCK_LOCK_FILE"] = f"{_tmpdir}/baostock.lock"
 
 import pytest  # noqa: E402
 
 from alphapilot.db.engine import init_db  # noqa: E402
 
 init_db()
+
+
+@pytest.fixture(autouse=True)
+def clear_baostock_egress_state() -> Iterator[None]:
+    """Egress health markers and budget counters persist on disk; no test inherits another's."""
+
+    from pathlib import Path
+
+    for path in Path(_tmpdir).glob("alphapilot-baostock-*"):
+        path.unlink(missing_ok=True)
+    yield
 
 
 @pytest.fixture(autouse=True, scope="session")
