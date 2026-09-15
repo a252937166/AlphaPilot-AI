@@ -6,6 +6,7 @@ from time import monotonic
 from typing import Any
 from zoneinfo import ZoneInfo
 
+from apscheduler.triggers.combining import OrTrigger
 from apscheduler.triggers.cron import CronTrigger
 from sqlalchemy import and_, func, select, update
 from sqlalchemy.orm import Session, aliased
@@ -423,11 +424,13 @@ def register_score_outcomes_job() -> None:
         JobSpec(
             name="evaluate_scores",
             func=evaluate_scores,
-            trigger=CronTrigger(
-                day_of_week="mon-fri",
-                hour=20,
-                minute=0,
-                timezone=MARKET_TIMEZONE,
+            # The 22:00 slot repeats the run when the 20:00 one was deferred by a slow bars sync;
+            # existing stat rows are updated in place, so a repeat is harmless.
+            trigger=OrTrigger(
+                [
+                    CronTrigger(day_of_week="mon-fri", hour=20, minute=0, timezone=MARKET_TIMEZONE),
+                    CronTrigger(day_of_week="mon-fri", hour=22, minute=0, timezone=MARKET_TIMEZONE),
+                ]
             ),
         )
     )

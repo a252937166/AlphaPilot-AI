@@ -281,9 +281,7 @@ def test_sync_adj_factors_falls_back_after_real_rate_limit(
                 _start: date,
                 _end: date,
             ) -> pd.DataFrame:
-                return pd.DataFrame(
-                    [{"date": date(2026, 7, 22), "close": 20.0}]
-                )
+                return pd.DataFrame([{"date": date(2026, 7, 22), "close": 20.0}])
 
         monkeypatch.setattr(adjust, "tushare_call", rate_limited)
         monkeypatch.setattr(adjust, "get_settings", lambda: Settings(tushare_token="token"))
@@ -409,9 +407,7 @@ def test_incremental_sync_preserves_each_symbols_factor_scale(
         monkeypatch.setattr(
             adjust,
             "tushare_call",
-            lambda *_args, **_kwargs: pytest.fail(
-                "已有 baostock-hfq 历史时不得切换 Tushare 标尺"
-            ),
+            lambda *_args, **_kwargs: pytest.fail("已有 baostock-hfq 历史时不得切换 Tushare 标尺"),
         )
         monkeypatch.setattr(adjust, "sleep", lambda _seconds: None)
 
@@ -488,9 +484,7 @@ def test_sync_adj_factors_backfills_before_existing_history_and_resumes(
         monkeypatch.setattr(
             adjust,
             "tushare_call",
-            lambda *_args, **_kwargs: pytest.fail(
-                "已有 baostock-hfq 历史时不得切换 Tushare 标尺"
-            ),
+            lambda *_args, **_kwargs: pytest.fail("已有 baostock-hfq 历史时不得切换 Tushare 标尺"),
         )
         monkeypatch.setattr(adjust, "sleep", lambda _seconds: None)
 
@@ -516,9 +510,7 @@ def test_sync_adj_factors_backfills_before_existing_history_and_resumes(
         assert first["failed_count"] == 0
         assert second["rows_inserted"] == 0
         assert second["skipped"] == 1
-        rows = session.scalars(
-            select(AdjFactor).order_by(AdjFactor.trade_date)
-        ).all()
+        rows = session.scalars(select(AdjFactor).order_by(AdjFactor.trade_date)).all()
         assert [(row.trade_date, row.adj_factor, row.source) for row in rows] == [
             (requested_start, 2.0, "baostock-hfq"),
             (date(2026, 7, 19), 2.0, "baostock-hfq"),
@@ -569,9 +561,7 @@ def test_tushare_history_rate_limit_never_crosses_factor_scale(
         stats = adjust.sync_adj_factors(session)
 
         rows = session.query(AdjFactor).order_by(AdjFactor.trade_date).all()
-        assert [(row.trade_date, row.source) for row in rows] == [
-            (first, "tushare")
-        ]
+        assert [(row.trade_date, row.source) for row in rows] == [(first, "tushare")]
         assert stats["failed_count"] == 1
         assert stats["tushare_rate_limited"] is True
         assert "TushareAPIError" in stats["failures"][0]["error"]
@@ -613,9 +603,7 @@ def test_sync_adj_factors_uses_sina_factor_events_for_bse(
         monkeypatch.setattr(
             adjust,
             "tushare_call",
-            lambda *_args, **_kwargs: pytest.fail(
-                "新北交所证券首建因子不得消耗 Tushare 配额"
-            ),
+            lambda *_args, **_kwargs: pytest.fail("新北交所证券首建因子不得消耗 Tushare 配额"),
         )
         monkeypatch.setattr(
             adjust,
@@ -627,9 +615,7 @@ def test_sync_adj_factors_uses_sina_factor_events_for_bse(
 
         stats = adjust.sync_adj_factors(session)
 
-        rows = session.scalars(
-            select(AdjFactor).order_by(AdjFactor.trade_date)
-        ).all()
+        rows = session.scalars(select(AdjFactor).order_by(AdjFactor.trade_date)).all()
         assert [(row.trade_date, row.adj_factor) for row in rows] == [
             (date(2026, 7, 21), 1.0),
             (date(2026, 7, 22), 1.1),
@@ -698,21 +684,14 @@ def test_tushare_bse_history_migrates_only_after_full_sina_validation(
         monkeypatch.setattr(
             adjust,
             "tushare_call",
-            lambda *_args, **_kwargs: pytest.fail(
-                "北交所全历史迁移不得调用 Tushare"
-            ),
+            lambda *_args, **_kwargs: pytest.fail("北交所全历史迁移不得调用 Tushare"),
         )
         monkeypatch.setattr(adjust, "sleep", lambda _seconds: None)
 
         stats = adjust.sync_adj_factors(session)
 
-        rows = session.scalars(
-            select(AdjFactor).order_by(AdjFactor.trade_date)
-        ).all()
-        assert [
-            (row.trade_date, row.adj_factor, row.source)
-            for row in rows
-        ] == [
+        rows = session.scalars(select(AdjFactor).order_by(AdjFactor.trade_date)).all()
+        assert [(row.trade_date, row.adj_factor, row.source) for row in rows] == [
             (first, 1.0, "sina-hfq"),
             (second, 1.1, "sina-hfq"),
             (third, 1.1, "sina-hfq"),
@@ -765,9 +744,7 @@ def test_tushare_bse_history_migration_fails_closed_on_sina_coverage_gap(
                 _symbol: str,
                 _end: date,
             ) -> pd.DataFrame:
-                return pd.DataFrame(
-                    [{"date": second, "adj_factor": 1.0}]
-                )
+                return pd.DataFrame([{"date": second, "adj_factor": 1.0}])
 
         monkeypatch.setattr(adjust, "SinaDailyBarProvider", Sina)
         monkeypatch.setattr(
@@ -778,21 +755,16 @@ def test_tushare_bse_history_migration_fails_closed_on_sina_coverage_gap(
         monkeypatch.setattr(
             adjust,
             "tushare_call",
-            lambda *_args, **_kwargs: pytest.fail(
-                "覆盖不足时不得回退 Tushare 或部分迁移"
-            ),
+            lambda *_args, **_kwargs: pytest.fail("覆盖不足时不得回退 Tushare 或部分迁移"),
         )
         monkeypatch.setattr(adjust, "sleep", lambda _seconds: None)
 
         stats = adjust.sync_adj_factors(session)
 
-        rows = session.scalars(
-            select(AdjFactor).order_by(AdjFactor.trade_date)
-        ).all()
-        assert [
-            (row.trade_date, row.adj_factor, row.source)
-            for row in rows
-        ] == [(first, 1.0, "tushare")]
+        rows = session.scalars(select(AdjFactor).order_by(AdjFactor.trade_date)).all()
+        assert [(row.trade_date, row.adj_factor, row.source) for row in rows] == [
+            (first, 1.0, "tushare")
+        ]
         assert stats["rows_inserted"] == 0
         assert stats["rows_updated"] == 0
         assert stats["failed_count"] == 1
@@ -858,21 +830,14 @@ def test_tushare_bse_history_migration_fails_closed_on_anchor_mismatch(
         monkeypatch.setattr(
             adjust,
             "tushare_call",
-            lambda *_args, **_kwargs: pytest.fail(
-                "锚点不一致时不得回退 Tushare 或部分迁移"
-            ),
+            lambda *_args, **_kwargs: pytest.fail("锚点不一致时不得回退 Tushare 或部分迁移"),
         )
         monkeypatch.setattr(adjust, "sleep", lambda _seconds: None)
 
         stats = adjust.sync_adj_factors(session)
 
-        rows = session.scalars(
-            select(AdjFactor).order_by(AdjFactor.trade_date)
-        ).all()
-        assert [
-            (row.trade_date, row.adj_factor, row.source)
-            for row in rows
-        ] == [
+        rows = session.scalars(select(AdjFactor).order_by(AdjFactor.trade_date)).all()
+        assert [(row.trade_date, row.adj_factor, row.source) for row in rows] == [
             (first, 1.0, "tushare"),
             (second, 1.0, "tushare"),
         ]
@@ -918,9 +883,7 @@ def test_sina_event_factors_are_anchored_to_existing_history(
                 end: date,
             ) -> pd.DataFrame:
                 assert (symbol, end) == ("920000", second)
-                return pd.DataFrame(
-                    [{"date": date(1900, 1, 1), "adj_factor": 1.2}]
-                )
+                return pd.DataFrame([{"date": date(1900, 1, 1), "adj_factor": 1.2}])
 
         monkeypatch.setattr(adjust, "SinaDailyBarProvider", Sina)
         monkeypatch.setattr(
@@ -931,19 +894,13 @@ def test_sina_event_factors_are_anchored_to_existing_history(
         monkeypatch.setattr(
             adjust,
             "tushare_call",
-            lambda *_args, **_kwargs: pytest.fail(
-                "已有 sina-hfq 历史时不得切换 Tushare 标尺"
-            ),
+            lambda *_args, **_kwargs: pytest.fail("已有 sina-hfq 历史时不得切换 Tushare 标尺"),
         )
         monkeypatch.setattr(adjust, "sleep", lambda _seconds: None)
 
         stats = adjust.sync_adj_factors(session)
 
-        latest = (
-            session.query(AdjFactor)
-            .filter(AdjFactor.trade_date == second)
-            .one()
-        )
+        latest = session.query(AdjFactor).filter(AdjFactor.trade_date == second).one()
         assert latest.adj_factor == pytest.approx(1.1)
         assert latest.source == "sina-hfq"
         assert stats["failed_count"] == 0
@@ -1044,10 +1001,10 @@ def test_adjustment_job_waits_for_daily_bars_and_times_out(
     assert sleeps == [5.0, 5.0]
 
     monkeypatch.setattr(backtest_jobs, "_daily_bars_running", lambda: True)
-    timeout_clock = iter([0.0, 1800.0])
+    timeout_clock = iter([0.0, 150 * 60.0])
     monkeypatch.setattr(backtest_jobs, "monotonic", lambda: next(timeout_clock))
 
-    with pytest.raises(JobExecutionError, match="超过 30 分钟") as caught:
+    with pytest.raises(JobExecutionError, match="超过 150 分钟") as caught:
         backtest_jobs._wait_for_daily_bars()
     assert caught.value.stats["reason"] == "daily_bars_wait_timeout"
 
@@ -1091,9 +1048,7 @@ def test_adjustment_job_refreshes_latest_for_wait_or_forced_recovery(
 
     monkeypatch.setattr(backtest_jobs, "sync_adj_factors", fake_sync_adj_factors)
 
-    stats = backtest_jobs.sync_adj_factors_job(
-        force_refresh_latest=force_refresh_latest
-    )
+    stats = backtest_jobs.sync_adj_factors_job(force_refresh_latest=force_refresh_latest)
 
     assert captured == {"refresh_latest": expected}
     assert stats["forced_refresh_latest"] is force_refresh_latest
@@ -1147,9 +1102,7 @@ def test_adjustment_recovery_skips_provider_when_plan_was_superseded(
         monkeypatch.setattr(
             backtest_jobs,
             "sync_adj_factors",
-            lambda *_args, **_kwargs: pytest.fail(
-                "superseded recovery must not call the provider"
-            ),
+            lambda *_args, **_kwargs: pytest.fail("superseded recovery must not call the provider"),
         )
 
         with bind_job_run(run_id=current.id, job_name="sync_adj_factors"):
@@ -1234,9 +1187,7 @@ def test_adjustment_recovery_requires_both_lineage_bindings() -> None:
             recovery_expected_daily_bars_job_run_id=401,
         )
 
-    assert caught.value.stats == {
-        "reason": "adjustment_factor_recovery_binding_incomplete"
-    }
+    assert caught.value.stats == {"reason": "adjustment_factor_recovery_binding_incomplete"}
 
 
 def test_adjustment_recovery_rejects_missing_expected_predecessor(

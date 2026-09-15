@@ -6,6 +6,7 @@ from time import monotonic
 from typing import Any
 from zoneinfo import ZoneInfo
 
+from apscheduler.triggers.combining import OrTrigger
 from apscheduler.triggers.cron import CronTrigger
 from sqlalchemy import delete, func, insert, select
 from sqlalchemy.orm import Session
@@ -35,7 +36,7 @@ UPSTREAM_JOBS = (
     "backfill_sector_flows",
 )
 UPSTREAM_LEASES = {
-    "sync_daily_bars": timedelta(hours=2),
+    "sync_daily_bars": timedelta(hours=3),  # ~2 h when BaoStock goes through the tunnel
     "sync_sector_flows": timedelta(minutes=45),
     "repair_recent_sector_flow_gaps": timedelta(minutes=30),
     "backfill_sector_flows": timedelta(hours=2),
@@ -251,8 +252,10 @@ def compute_sector_forecast(trade_date: date | None = None) -> dict[str, Any]:
         running, stale = _upstream_state(session, now=_job_now())
         fingerprint_after = _input_fingerprint(session, target_date)
         coverage_after = _input_coverage(session, target_date)
-        if running or fingerprint_before != fingerprint_after or not bool(
-            coverage_after["complete"]
+        if (
+            running
+            or fingerprint_before != fingerprint_after
+            or not bool(coverage_after["complete"])
         ):
             stats = _empty_stats(
                 target_date=target_date,
@@ -277,9 +280,7 @@ def compute_sector_forecast(trade_date: date | None = None) -> dict[str, Any]:
         "stale_upstream_runs": stale,
         "warning_count": len(stale),
         "warnings": (
-            ["检测到超出租约的上游 running 审计行，已记录并继续板块预测。"]
-            if stale
-            else []
+            ["检测到超出租约的上游 running 审计行，已记录并继续板块预测。"] if stale else []
         ),
         "source_fingerprint": fingerprint_after,
         "duration_seconds": round(monotonic() - started, 2),
@@ -291,11 +292,17 @@ def register_sector_forecast_job() -> None:
         JobSpec(
             name="sector_forecast",
             func=compute_sector_forecast,
-            trigger=CronTrigger(
-                day_of_week="mon-fri",
-                hour=19,
-                minute=50,
-                timezone=MARKET_TIMEZONE,
+            # The 22:50 slot repeats the run when the 19:50 one was deferred by a slow bars sync;
+            # the job rewrites the day's forecasts, so a repeat is harmless.
+            trigger=OrTrigger(
+                [
+                    CronTrigger(
+                        day_of_week="mon-fri", hour=19, minute=50, timezone=MARKET_TIMEZONE
+                    ),
+                    CronTrigger(
+                        day_of_week="mon-fri", hour=22, minute=50, timezone=MARKET_TIMEZONE
+                    ),
+                ]
             ),
         )
     )
