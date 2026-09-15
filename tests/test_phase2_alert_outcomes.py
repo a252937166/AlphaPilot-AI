@@ -532,7 +532,7 @@ def test_stale_upstream_audit_row_is_reported_but_does_not_block(
             job_name="sync_daily_bars",
             status="running",
             stats={},
-            started_at=fixed_now - timedelta(hours=3),
+            started_at=fixed_now - timedelta(hours=4),  # beyond the 3 h sync_daily_bars lease
         )
         session.add(stale)
         session.flush()
@@ -547,8 +547,8 @@ def test_stale_upstream_audit_row_is_reported_but_does_not_block(
         {
             "id": stale_id,
             "job_name": "sync_daily_bars",
-            "started_at": (fixed_now - timedelta(hours=3)).isoformat(),
-            "age_seconds": 10_800.0,
+            "started_at": (fixed_now - timedelta(hours=4)).isoformat(),
+            "age_seconds": 14_400.0,
         }
     ]
 
@@ -558,7 +558,7 @@ def test_alert_outcome_cron_avoids_1940_and_has_same_evening_retry() -> None:
     alert_outcome_job.register_alert_outcomes_job()
     try:
         trigger = JOBS["evaluate_alerts"].trigger
-        assert "hour='19,20'" in str(trigger)
+        assert "hour='19,20,21,22'" in str(trigger)
         assert "minute='45'" in str(trigger)
         assert str(trigger.timezone) == "Asia/Shanghai"
     finally:

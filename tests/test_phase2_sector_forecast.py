@@ -323,12 +323,15 @@ def test_job_is_idempotent_and_api_exposes_truthful_degradation(
         for response in forecasts.values()
         for row in response.json()["rows"]
     )
-    assert len(
-        {
-            round(float(response.json()["rows"][0]["expected_excess"]), 8)
-            for response in forecasts.values()
-        }
-    ) == 3
+    assert (
+        len(
+            {
+                round(float(response.json()["rows"][0]["expected_excess"]), 8)
+                for response in forecasts.values()
+            }
+        )
+        == 3
+    )
     assert all(
         row["net_inflow_5d"] is None and row["flow_coverage_days"] == 0
         for row in forecast.json()["rows"]
@@ -394,12 +397,8 @@ def test_forecast_api_exposes_complete_flow_window_and_audited_leader(
     assert payload["strength_source"] == "sector_forecasts"
     assert payload["leader_as_of"] == target.isoformat()
     assert payload["leader_source"] == "daily_bars"
-    assert payload["model_expected_excess"] == pytest.approx(
-        payload["rows"][0]["expected_excess"]
-    )
-    assert payload["model_expected_excess_scope"] == (
-        "top-20pct-portfolio-historical-mean"
-    )
+    assert payload["model_expected_excess"] == pytest.approx(payload["rows"][0]["expected_excess"])
+    assert payload["model_expected_excess_scope"] == ("top-20pct-portfolio-historical-mean")
     assert all(row["flow_coverage_days"] == 5 for row in payload["rows"])
     assert all(row["net_inflow_5d"] is not None for row in payload["rows"])
     assert all(row["flow_trade_date"] == target.isoformat() for row in payload["rows"])
@@ -413,9 +412,7 @@ def test_forecast_api_exposes_complete_flow_window_and_audited_leader(
     assert enriched["leader_previous_trade_date"] == payload["flow_window_dates"][-2]
     assert enriched["leader_source"] == "daily_bars"
     assert enriched["leader_sources"] == ["baostock"]
-    assert enriched["leader_membership_source"] == (
-        "sector_constituents-visible-before-cutoff"
-    )
+    assert enriched["leader_membership_source"] == ("sector_constituents-visible-before-cutoff")
     assert enriched["leader_coverage_ratio"] == pytest.approx(1.0)
     # The stale quote snapshot is deliberately contradictory and must be ignored.
     assert enriched["leader_change_pct"] != pytest.approx(2.5)
@@ -454,9 +451,7 @@ def test_forecast_leader_prefers_exact_pit_membership_for_forecast_date(
         app.dependency_overrides.pop(db_session_dependency, None)
 
     assert response.status_code == 200
-    row = next(
-        item for item in response.json()["rows"] if item["plate_code"] == "SH.LISTA"
-    )
+    row = next(item for item in response.json()["rows"] if item["plate_code"] == "SH.LISTA")
     assert row["leader_code"] == "600002"
     assert row["leader_as_of"] == target.isoformat()
     assert row["leader_membership_source"] == "sector_constituent_snapshots"
@@ -518,9 +513,7 @@ def test_forecast_leader_is_null_when_exact_daily_bar_coverage_is_insufficient(
         app.dependency_overrides.pop(db_session_dependency, None)
 
     assert response.status_code == 200
-    row = next(
-        item for item in response.json()["rows"] if item["plate_code"] == "SH.LISTA"
-    )
+    row = next(item for item in response.json()["rows"] if item["plate_code"] == "SH.LISTA")
     assert row["leader_code"] is None
     assert row["leader_change_pct"] is None
     assert row["leader_as_of"] is None
@@ -544,9 +537,7 @@ def test_forecast_leader_does_not_backdate_future_constituent_refresh(
     sector_job.compute_sector_forecast()
     with Session(engine) as session:
         members = session.scalars(
-            select(SectorConstituent).where(
-                SectorConstituent.plate_code == "SH.LISTA"
-            )
+            select(SectorConstituent).where(SectorConstituent.plate_code == "SH.LISTA")
         ).all()
         for member in members:
             member.refreshed_at = datetime(2026, 7, 22, 8, 0, tzinfo=UTC)
@@ -577,9 +568,7 @@ def test_forecast_leader_does_not_backdate_future_constituent_refresh(
         app.dependency_overrides.pop(db_session_dependency, None)
 
     assert response.status_code == 200
-    row = next(
-        item for item in response.json()["rows"] if item["plate_code"] == "SH.LISTA"
-    )
+    row = next(item for item in response.json()["rows"] if item["plate_code"] == "SH.LISTA")
     assert row["leader_code"] is None
     assert row["leader_change_pct"] is None
     assert row["leader_membership_source"] == "unavailable"
@@ -647,9 +636,7 @@ def test_forecast_api_serves_explicit_stale_snapshot_only_for_partial_latest_day
         client = TestClient(app)
         partial = client.get("/v1/sectors/forecast?horizon=5")
         with Session(engine) as session:
-            session.execute(
-                delete(SectorForecast).where(SectorForecast.trade_date == next_day)
-            )
+            session.execute(delete(SectorForecast).where(SectorForecast.trade_date == next_day))
             for symbol in ("600002", "000001", "000002", "300001", "300002"):
                 session.add(
                     DailyBar(
@@ -731,11 +718,14 @@ def test_sector_forecast_job_rejects_partial_same_day_before_write(
     assert caught.value.stats["skipped"] == "incomplete_daily_bars"
     assert caught.value.stats["input_coverage"]["ratio"] == pytest.approx(1 / 6, abs=1e-6)
     with Session(engine) as session:
-        assert session.scalar(
-            select(func.count()).select_from(SectorForecast).where(
-                SectorForecast.trade_date == next_day
+        assert (
+            session.scalar(
+                select(func.count())
+                .select_from(SectorForecast)
+                .where(SectorForecast.trade_date == next_day)
             )
-        ) == 0
+            == 0
+        )
 
 
 def test_consecutive_partial_days_cannot_validate_each_other(
@@ -789,11 +779,14 @@ def test_consecutive_partial_days_cannot_validate_each_other(
     assert coverage["reference_symbol_count"] == 6
     assert coverage["ratio"] == pytest.approx(1 / 6, abs=1e-6)
     with Session(engine) as session:
-        assert session.scalar(
-            select(func.count()).select_from(SectorForecast).where(
-                SectorForecast.trade_date == final_partial
+        assert (
+            session.scalar(
+                select(func.count())
+                .select_from(SectorForecast)
+                .where(SectorForecast.trade_date == final_partial)
             )
-        ) == 0
+            == 0
+        )
 
 
 def test_service_rejects_consecutive_partial_days_as_a_complete_forecast(
@@ -922,9 +915,7 @@ def test_sector_flow_window_uses_exact_recent_benchmark_sessions(
     assert row["flow_trade_date"] == target.isoformat()
     assert row["flow_available_dates"] == payload["flow_window_dates"][-2:]
     assert row["flow_missing_dates"] == payload["flow_window_dates"][:3]
-    rejected = next(
-        item for item in payload["rows"] if item["plate_code"] == "SH.LISTB"
-    )
+    rejected = next(item for item in payload["rows"] if item["plate_code"] == "SH.LISTB")
     assert rejected["flow_coverage_days"] == 0
     assert rejected["net_inflow_5d"] is None
     assert rejected["flow_trade_date"] is None
@@ -1015,9 +1006,7 @@ def test_sector_leaders_use_forecast_cutoff_and_exclude_invalid_correlations(
                 close *= 1.0 + daily_return
                 closes.append(close)
             for index, (trade_day, value) in enumerate(zip(dates, closes, strict=True)):
-                source = (
-                    "mock-fallback" if symbol == "600005" and index == 10 else "baostock"
-                )
+                source = "mock-fallback" if symbol == "600005" and index == 10 else "baostock"
                 session.add(
                     DailyBar(
                         symbol=symbol,
@@ -1215,7 +1204,7 @@ def test_sector_forecast_job_runs_after_daily_inputs() -> None:
 
 def test_sector_forecast_guards_all_sector_flow_writers() -> None:
     expected_leases = {
-        "sync_daily_bars": timedelta(hours=2),
+        "sync_daily_bars": timedelta(hours=3),
         "sync_sector_flows": timedelta(minutes=45),
         "repair_recent_sector_flow_gaps": timedelta(minutes=30),
         "backfill_sector_flows": timedelta(hours=2),

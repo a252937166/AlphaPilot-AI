@@ -14,7 +14,8 @@ from alphapilot.db.engine import get_session
 from alphapilot.db.models import JobRun, utcnow
 from alphapilot.jobs.registry import JobExecutionError, JobSpec, register
 
-_DAILY_BAR_WAIT_TIMEOUT_SECONDS = 30 * 60
+# The daily-bars sync takes ~27 min direct and ~2 h through the SOCKS5 egress tunnel.
+_DAILY_BAR_WAIT_TIMEOUT_SECONDS = 150 * 60
 _DAILY_BAR_POLL_SECONDS = 5.0
 _RECENT_JOB_WINDOW = timedelta(hours=2)
 
@@ -43,7 +44,8 @@ def _wait_for_daily_bars() -> tuple[float, bool]:
         waited = monotonic() - started
         if waited >= _DAILY_BAR_WAIT_TIMEOUT_SECONDS:
             raise JobExecutionError(
-                "等待日线同步完成超过 30 分钟，复权因子同步未启动。",
+                f"等待日线同步完成超过 {_DAILY_BAR_WAIT_TIMEOUT_SECONDS // 60} 分钟，"
+                "复权因子同步未启动。",
                 stats={
                     "reason": "daily_bars_wait_timeout",
                     "waited_seconds": round(waited, 2),
@@ -135,10 +137,7 @@ def _recovery_plan_supersession(
                 "actual_predecessor_adj_factors_job_run_id": predecessor.id,
             },
         )
-    if (
-        predecessor.id > expected_timed_out_adj_factors_job_run_id
-        and predecessor.status == "ok"
-    ):
+    if predecessor.id > expected_timed_out_adj_factors_job_run_id and predecessor.status == "ok":
         return {
             **predecessor_stats,
             "recovery_plan_superseded": True,

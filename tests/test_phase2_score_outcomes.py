@@ -589,9 +589,9 @@ def test_score_outcome_job_runs_at_2000_after_existing_analytics_chain() -> None
     score_outcome_job.register_score_outcomes_job()
     try:
         trigger = JOBS["evaluate_scores"].trigger
-        assert str(trigger.fields[4]) == "mon-fri"
-        assert str(trigger.fields[5]) == "20"
-        assert str(trigger.fields[6]) == "0"
-        assert str(trigger.timezone) == "Asia/Shanghai"
+        text = str(trigger)
+        assert "day_of_week='mon-fri', hour='20', minute='0'" in text
+        assert "day_of_week='mon-fri', hour='22', minute='0'" in text  # retry slot
+        assert all(str(t.timezone) == "Asia/Shanghai" for t in trigger.triggers)
     finally:
         JOBS.pop("evaluate_scores", None)

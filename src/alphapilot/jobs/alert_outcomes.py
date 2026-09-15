@@ -18,7 +18,7 @@ from alphapilot.services.alert_outcomes import evaluate_mature_alerts
 MARKET_TIMEZONE = ZoneInfo("Asia/Shanghai")
 UPSTREAM_JOBS = ("sync_daily_bars", "compute_style_daily")
 UPSTREAM_LEASES = {
-    "sync_daily_bars": timedelta(hours=2),
+    "sync_daily_bars": timedelta(hours=3),  # ~2 h when BaoStock goes through the tunnel
     "compute_style_daily": timedelta(minutes=30),
 }
 
@@ -108,7 +108,7 @@ def register_alert_outcomes_job() -> None:
             func=evaluate_alerts,
             trigger=CronTrigger(
                 day_of_week="mon-fri",
-                hour="19,20",
+                hour="19,20,21,22",  # later slots cover a slow (tunnelled) bars sync
                 minute=45,
                 timezone=MARKET_TIMEZONE,
             ),
