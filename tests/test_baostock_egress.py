@@ -147,3 +147,68 @@ def test_blacklist_code_on_a_query_result_sidelines_the_egress(isolated: _Module
     provider._invalidate_failed_result_locked(_Result("10001011", "黑名单用户"))
     assert "blacklisted" in (provider._egress_unhealthy("proxy") or "")
     assert provider._logged_in is False
+
+
+def test_local_network_errors_sideline_only_briefly(isolated: _Module) -> None:
+    provider._mark_egress_unhealthy(
+        "direct", "login gaierror: [Errno 8] nodename nor servname provided, or not known"
+    )
+    provider._mark_egress_unhealthy("proxy", "transport: timed out")
+    direct = provider._egress_sideline("direct")
+    proxy = provider._egress_sideline("proxy")
+    assert direct is not None and direct[0] - provider.time() <= 121
+    assert proxy is not None and proxy[0] - provider.time() >= 9 * 60
+
+
+def test_login_waits_for_a_short_sideline_instead_of_failing(
+    isolated: _Module, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    module = isolated
+    clock = {"now": 1_000_000.0}
+    slept: list[float] = []
+
+    def fake_sleep(seconds: float) -> None:
+        slept.append(seconds)
+        clock["now"] += seconds
+
+    monkeypatch.setattr(provider, "time", lambda: clock["now"])
+    monkeypatch.setattr(provider, "sleep", fake_sleep)
+    provider._mark_egress_unhealthy("direct", "login gaierror: [Errno 8] nodename", 30)
+    provider._mark_egress_unhealthy("proxy", "login ConnectionRefusedError: [Errno 61]", 60)
+    _script(module, {"direct": "0", "proxy": "0"}, monkeypatch)
+    api = provider.BaoStockMarketDataProvider()
+    api._ensure_login(module)
+    assert module.logins == ["direct"] and provider._current_egress == "direct"
+    assert slept == [31.0]
+    provider._close_baostock_session_locked()
+
+
+def test_login_does_not_wait_for_a_long_sideline(
+    isolated: _Module, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    module = isolated
+    slept: list[float] = []
+    monkeypatch.setattr(provider, "sleep", slept.append)
+    provider._mark_egress_unhealthy("direct", "transport: timed out")  # six hours
+    provider._mark_egress_unhealthy("proxy", "transport: timed out", 20 * 60)  # beyond the cap
+    _script(module, {"direct": "0", "proxy": "0"}, monkeypatch)
+    api = provider.BaoStockMarketDataProvider()
+    with pytest.raises(DataProviderError, match="sidelined"):
+        api._ensure_login(module)
+    assert module.logins == [] and slept == []
+
+
+def test_login_waits_once_then_gives_up_when_the_sideline_persists(
+    isolated: _Module, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    module = isolated
+    slept: list[float] = []
+    monkeypatch.setattr(provider, "sleep", slept.append)  # no time passes: markers stay active
+    provider._mark_egress_unhealthy("direct", "transport: timed out")  # six hours
+    provider._mark_egress_unhealthy("proxy", "transport: timed out")  # ten minutes
+    _script(module, {"direct": "0", "proxy": "0"}, monkeypatch)
+    api = provider.BaoStockMarketDataProvider()
+    with pytest.raises(DataProviderError, match="sidelined"):
+        api._ensure_login(module)
+    assert module.logins == []
+    assert len(slept) == 1 and 599 <= slept[0] <= 602

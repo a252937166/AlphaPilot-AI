@@ -57,6 +57,24 @@ _LOGIN_ATTEMPTS = 2
 _MARKET_TZ = ZoneInfo("Asia/Shanghai")
 _DIRECT_UNHEALTHY_SECONDS = 6 * 60 * 60
 _PROXY_UNHEALTHY_SECONDS = 10 * 60
+# A DNS failure or a refused local tunnel port is this machine's network, not BaoStock's
+# verdict on the egress: sideline briefly and let the next attempt see whether it is back.
+_LOCAL_NETWORK_SIDELINE_SECONDS = 2 * 60
+_LOCAL_NETWORK_HINTS = (
+    "gaierror",
+    "nodename nor servname",
+    "Name or service not known",
+    "Connection refused",
+    "Network is unreachable",
+    "No route to host",
+    "[Errno 8]",
+    "[Errno 51]",
+    "[Errno 61]",
+    "[Errno 65]",
+)
+# When every egress is sidelined by a short outage, wait for the first one to come back
+# instead of failing twenty symbols in a row and aborting the whole sync.
+_MAX_SIDELINE_WAIT_SECONDS = 15 * 60
 _current_egress: str | None = None
 _logger = logging.getLogger(__name__)
 
@@ -217,8 +235,8 @@ def _health_path(egress: str) -> Path:
     return _state_dir() / f"alphapilot-baostock-unhealthy-{egress}.json"
 
 
-def _egress_unhealthy(egress: str) -> str | None:
-    """The reason an egress is currently sidelined, or None when it may be used."""
+def _egress_sideline(egress: str) -> tuple[float, str] | None:
+    """(expiry epoch, reason) while an egress is sidelined, else None."""
 
     try:
         payload = json.loads(_health_path(egress).read_text(encoding="utf-8"))
@@ -227,14 +245,24 @@ def _egress_unhealthy(egress: str) -> str | None:
         return None
     if until <= time():
         return None
-    return str(payload.get("reason", "unhealthy"))[:200]
+    return until, str(payload.get("reason", "unhealthy"))[:200]
+
+
+def _egress_unhealthy(egress: str) -> str | None:
+    """The reason an egress is currently sidelined, or None when it may be used."""
+
+    sideline = _egress_sideline(egress)
+    return None if sideline is None else sideline[1]
 
 
 def _mark_egress_unhealthy(egress: str, reason: str, seconds: float | None = None) -> None:
     """Sideline an egress for a while (shared across processes through a marker file)."""
 
     if seconds is None:
-        seconds = _DIRECT_UNHEALTHY_SECONDS if egress == "direct" else _PROXY_UNHEALTHY_SECONDS
+        if any(hint in reason for hint in _LOCAL_NETWORK_HINTS):
+            seconds = _LOCAL_NETWORK_SIDELINE_SECONDS
+        else:
+            seconds = _DIRECT_UNHEALTHY_SECONDS if egress == "direct" else _PROXY_UNHEALTHY_SECONDS
     path = _health_path(egress)
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -773,26 +801,40 @@ class BaoStockMarketDataProvider:
         _acquire_process_lock()
         errors: list[str] = []
         outcome: tuple[str, str] | None = None
-        for egress in candidates:
-            sidelined = _egress_unhealthy(egress)
-            if sidelined is not None:
-                errors.append(f"{egress}: sidelined ({sidelined})")
-                continue
-            if _budget_used(egress) >= _budget_limit():
-                errors.append(f"{egress}: daily request budget exhausted")
-                continue
-            outcome = self._login_via(bs, proxy_endpoint if egress == "proxy" else None)
-            if outcome is None:
-                if _current_egress != egress:
-                    _logger.info("BaoStock egress: %s", egress)
-                _current_egress = egress
-                _logged_in = True
-                _active_module = bs
-                return
-            code, message = outcome
-            errors.append(f"{egress}: {code} {message}")
-            seconds = _seconds_until_next_market_day() if code == _BLACKLIST_ERROR_CODE else None
-            _mark_egress_unhealthy(egress, f"login {code}: {message}", seconds)
+        for round_index in range(2):
+            errors = []
+            expiries: list[float] = []
+            for egress in candidates:
+                sideline = _egress_sideline(egress)
+                if sideline is not None:
+                    expiries.append(sideline[0])
+                    errors.append(f"{egress}: sidelined ({sideline[1]})")
+                    continue
+                if _budget_used(egress) >= _budget_limit():
+                    errors.append(f"{egress}: daily request budget exhausted")
+                    continue
+                outcome = self._login_via(bs, proxy_endpoint if egress == "proxy" else None)
+                if outcome is None:
+                    if _current_egress != egress:
+                        _logger.info("BaoStock egress: %s", egress)
+                    _current_egress = egress
+                    _logged_in = True
+                    _active_module = bs
+                    return
+                code, message = outcome
+                errors.append(f"{egress}: {code} {message}")
+                seconds = (
+                    _seconds_until_next_market_day() if code == _BLACKLIST_ERROR_CODE else None
+                )
+                _mark_egress_unhealthy(egress, f"login {code}: {message}", seconds)
+            # Every candidate was merely sidelined: wait for the first one to come back once.
+            if round_index == 0 and expiries and len(expiries) == len(candidates):
+                wait = min(expiries) - time() + 1.0
+                if 0 < wait <= _MAX_SIDELINE_WAIT_SECONDS:
+                    _logger.warning("BaoStock: every egress sidelined; waiting %.0f s", wait)
+                    sleep(wait)
+                    continue
+            break
         _close_baostock_session_locked()
         if len(candidates) == 1 and outcome is not None:
             code, message = outcome
