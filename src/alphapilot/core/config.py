@@ -56,6 +56,9 @@ class Settings(BaseSettings):
     stock_pick_jev_enabled: bool = True
     jev_api_key: str | None = None
     jev_model: str = "jev-1.13.0"
+    # jev's shadow reading of every title the severe screen sees; never changes the screen.
+    severe_shadow_enabled: bool = True
+    severe_shadow_dir: str = "data/severe_shadow"
     # Model routing (llm.router): choice work to jev, text and reasoning to the Codex gateway
     # (gpt-6-luna medium on a remote server, reached through a local SSH tunnel). The address
     # and key come from .env only.
