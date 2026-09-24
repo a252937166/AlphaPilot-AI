@@ -28,6 +28,7 @@ def register_builtin_jobs() -> None:
     from alphapilot.jobs.severe_disclosure_screen import (
         register_severe_disclosure_screen_job,
     )
+    from alphapilot.jobs.stock_pick_actions import register_stock_pick_actions_job
     from alphapilot.jobs.stock_pick_forward_test import (
         register_stock_pick_forward_test_job,
     )
@@ -50,6 +51,7 @@ def register_builtin_jobs() -> None:
     register_news_poll_job()
     register_severe_disclosure_screen_job()
     register_stock_pick_forward_test_job()
+    register_stock_pick_actions_job()
     register_order_sync_job()
     register_paper_auto_trade_job()
     register_portfolio_jobs()

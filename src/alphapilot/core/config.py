@@ -46,6 +46,12 @@ class Settings(BaseSettings):
     # JSON files under this directory; the rules are frozen by evidence outside the repo.
     stock_pick_forward_test_enabled: bool = True
     stock_pick_forward_test_dir: str = "data/stock_picks"
+    # Paper accounts that turn the weekly lists into explicit buy/sell actions; the note
+    # directory is the owner's vault folder and is set only in the local .env.
+    stock_pick_actions_enabled: bool = True
+    stock_pick_actions_note_dir: str | None = None
+    stock_pick_actions_capital: float = Field(default=1_000_000.0, gt=0)
+    stock_pick_actions_top_n: int = Field(default=20, ge=1, le=200)
 
     # Failover order used by the "auto" composite provider.
     daily_bars_provider_chain: list[str] = Field(
