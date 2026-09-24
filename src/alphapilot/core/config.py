@@ -52,6 +52,10 @@ class Settings(BaseSettings):
     stock_pick_actions_note_dir: str | None = None
     stock_pick_actions_capital: float = Field(default=1_000_000.0, gt=0)
     stock_pick_actions_top_n: int = Field(default=20, ge=1, le=200)
+    # Candidate J (amendment A2): TypeSafe AI's jev picks 20 names from the A and B shortlists.
+    stock_pick_jev_enabled: bool = True
+    jev_api_key: str | None = None
+    jev_model: str = "jev-1.13.0"
 
     # Failover order used by the "auto" composite provider.
     daily_bars_provider_chain: list[str] = Field(

@@ -42,15 +42,18 @@ LABELS = {
     "A_ind": "A 行业中性",
     "B": "B 十信号",
     "B_ind": "B 行业中性",
+    "J": "J jev 挑选",
 }
+ACCOUNTS = (*CANDIDATES, "J")
 WEEKDAYS = "一二三四五六日"
 
 
 def _lists(root: Path) -> dict[str, list[dict[str, Any]]]:
     found: dict[str, list[dict[str, Any]]] = {}
-    for name in CANDIDATES:
+    for name in ACCOUNTS:
         paths = sorted((root / "lists" / name).glob(f"{name}-*.json"))
-        found[name] = [json.loads(p.read_bytes()) for p in paths]
+        if paths or name in CANDIDATES:
+            found[name] = [json.loads(p.read_bytes()) for p in paths]
     return found
 
 
@@ -141,17 +144,18 @@ def render_note(report: dict[str, Any]) -> str:
             "裁定在 11 月 6 日。"
         ),
         "",
-        f"数据截至 {report['last_session']} 收盘，账户自 {report['first_entry']} 开盘起算。",
+        f"数据截至 {report['last_session']} 收盘，各账户从表中的起算日开盘建仓。",
         "",
         "## 账户",
         "",
-        "| 候选 | 净值 | 累计 | 同期上证 | 持仓 | 现金 |",
-        "|---|---|---|---|---|---|",
+        "| 候选 | 起算 | 净值 | 累计 | 同期上证 | 持仓 | 现金 |",
+        "|---|---|---|---|---|---|---|",
     ]
     for name, acc in report["accounts"].items():
         lines.append(
-            f"| {LABELS[name]} | {_wan(acc['value'])} | {_pct(acc['return'])} | "
-            f"{_pct(report['index_return'])} | {len(acc['holdings'])} 只 | {_wan(acc['cash'])} |"
+            f"| {LABELS[name]} | {acc['since'] or '下次开盘建仓'} | {_wan(acc['value'])} | "
+            f"{_pct(acc['return'])} | "
+            f"{_pct(acc['index_return'])} | {len(acc['holdings'])} 只 | {_wan(acc['cash'])} |"
         )
     lines += ["", "## 下一步动作", ""]
     plans = {n: a["plan"] for n, a in report["accounts"].items() if a.get("plan")}
@@ -250,6 +254,23 @@ def build_report(
         result = simulate(candidate_lists, bars, capital=capital, top_n=top_n)
         account = result["account"]
         if not account.curve:
+            plan = result["plan"]
+            if plan:  # a new account whose first list trades at the next open
+                plan["sell_rows"] = []
+                accounts[name] = {
+                    "since": None,
+                    "index_return": None,
+                    "value": capital,
+                    "return": 0.0,
+                    "cash": capital,
+                    "holdings": [],
+                    "trades": [],
+                    "curve": [],
+                    "pending_sells": [],
+                    "skipped_last_rotation": [],
+                    "flags": {},
+                    "plan": plan,
+                }
             continue
         first_entry = account.curve[0][0] if first_entry is None else first_entry
         value = account.curve[-1][1]
@@ -275,6 +296,8 @@ def build_report(
             ]
         last_rotation = max((t["date"] for t in account.trades), default=None)
         accounts[name] = {
+            "since": account.curve[0][0].isoformat(),
+            "index_return": benchmark_return(bars, account.curve[0][0], last),
             "value": value,
             "return": value / capital - 1,
             "cash": account.cash,

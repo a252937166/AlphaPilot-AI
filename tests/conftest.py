@@ -37,6 +37,8 @@ os.environ["ALPHAPILOT_LLM_PURPOSE_MODELS"] = "{}"
 # single direct path unless they configure a proxy themselves.
 os.environ["ALPHAPILOT_BAOSTOCK_SOCKS5_PROXY"] = ""
 os.environ["ALPHAPILOT_BAOSTOCK_EGRESS"] = "auto"
+# Tests never reach TypeSafe with the developer's key.
+os.environ["ALPHAPILOT_JEV_API_KEY"] = ""
 # The host-wide BaoStock lock must not collide with the developer's running scheduler.
 os.environ["ALPHAPILOT_BAOSTOCK_LOCK_FILE"] = f"{_tmpdir}/baostock.lock"
 

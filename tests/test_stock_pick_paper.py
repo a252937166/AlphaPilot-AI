@@ -216,3 +216,38 @@ def test_job_is_registered() -> None:
     assert "hour='20', minute='30'" in str(spec.trigger) and "hour='10', minute='0'" in str(
         spec.trigger
     )
+
+
+def test_new_account_shows_its_first_orders(
+    engine: Engine, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    @contextmanager
+    def local_session() -> Iterator[Session]:
+        with Session(engine, expire_on_commit=False) as session:
+            yield session
+
+    monkeypatch.setattr(job, "get_session", local_session)
+    root = tmp_path / "picks"
+    for name, doc in (("A", LISTS[0]), ("J", {**LISTS[2], "candidate": "J"})):
+        path = root / "lists" / name / f"{name}-W-{doc['as_of'].replace('-', '')}.json"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(doc), encoding="utf-8")
+    notes = tmp_path / "vault"
+    stats = job.run_stock_pick_actions(
+        now=datetime(2026, 9, 19, 2, tzinfo=UTC),
+        output_dir=root,
+        note_dir=notes,
+        capital=100_000,
+        top_n=2,
+    )
+    assert stats["accounts"]["J"] == {
+        "value": 100_000.0,
+        "return": 0.0,
+        "holdings": 0,
+        "plan": True,
+        "flags": 0,
+    }
+    text = (notes / "2026-09-19.md").read_text(encoding="utf-8")
+    assert (
+        "| J jev 挑选 | 下次开盘建仓 |" in text and "### J jev 挑选：下一个交易日开盘执行" in text
+    )
