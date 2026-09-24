@@ -33,8 +33,9 @@ from alphapilot.engines.sector_forecast import (
     MIN_MEMBER_COVERAGE,
     normalize_constituent_symbol,
 )
-from alphapilot.llm.client import LLMUnavailable, chat_json
+from alphapilot.llm.client import LLMUnavailable
 from alphapilot.llm.prompts import REVIEW_ADVICE
+from alphapilot.llm.router import chat_json
 from alphapilot.services import market_data
 from alphapilot.services.ai_text import compose_market_summary
 from alphapilot.services.alert_outcomes import (

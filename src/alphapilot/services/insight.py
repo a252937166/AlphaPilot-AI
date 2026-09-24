@@ -24,8 +24,9 @@ from alphapilot.db.models import (
 )
 from alphapilot.engines.sector_forecast import normalize_constituent_symbol
 from alphapilot.engines.stock_score import DIMENSION_LABELS, DIMENSION_ORDER
-from alphapilot.llm.client import LLMUnavailable, chat_json
+from alphapilot.llm.client import LLMUnavailable
 from alphapilot.llm.prompts import STOCK_INSIGHT
+from alphapilot.llm.router import chat_json
 from alphapilot.services import stock_scores
 from alphapilot.services.watchlist import normalize_symbol
 

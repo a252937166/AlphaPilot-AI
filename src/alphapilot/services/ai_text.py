@@ -9,7 +9,8 @@ from typing import Any
 from sqlalchemy.orm import Session
 
 from alphapilot.core.config import Settings
-from alphapilot.llm.client import LLMUnavailable, chat_json
+from alphapilot.llm.client import LLMUnavailable
+from alphapilot.llm.router import chat_json
 
 MARKET_SUMMARY_CACHE_TTL_SECONDS = 600.0
 _MARKET_SUMMARY_CACHE_MAX_ENTRIES = 128

@@ -529,6 +529,7 @@ def test_unconfigured_real_client_is_audited_once_then_cache_hits(
         llm_base_url="",
         llm_api_key="",
         llm_model="qwen3.6-flash",
+        llm_routes={"stock_insight": "default"},
     )
     with Session(engine, expire_on_commit=False) as session:
         _seed_score(session)

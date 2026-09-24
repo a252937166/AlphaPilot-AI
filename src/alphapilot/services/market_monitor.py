@@ -23,8 +23,9 @@ from alphapilot.db.models import (
     SectorSnapshot,
     WatchlistItem,
 )
-from alphapilot.llm.client import LLMUnavailable, chat_json
+from alphapilot.llm.client import LLMUnavailable
 from alphapilot.llm.prompts import MARKET_MONITOR_POLISH
+from alphapilot.llm.router import chat_json
 
 MARKET_TIMEZONE = ZoneInfo("Asia/Shanghai")
 MAX_FEED_LIMIT = 100
