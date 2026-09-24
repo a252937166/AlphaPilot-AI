@@ -30,6 +30,8 @@ from alphapilot.llm.typesafe import JevClient
 from alphapilot.services.severe_shadow import (
     CONTEXT_DAYS,
     MARKET_TIMEZONE,
+    OUT_OF_CREDITS,
+    PREFILTER,
     QUESTION_VERSION,
     Announcement,
     Asker,
@@ -156,7 +158,7 @@ def run_severe_disclosure_shadow(
             if len(fresh) == batch:
                 break
             examined += 1
-            if not _is_stale(row.published_at, row.available_time):
+            if PREFILTER.search(row.title) and not _is_stale(row.published_at, row.available_time):
                 fresh.append(row)
         rows = rows[:examined]
         pool = _context_pool(session, fresh)
@@ -164,7 +166,7 @@ def run_severe_disclosure_shadow(
     stats: dict[str, Any] = {
         "cursor_from": cursor,
         "fetched": len(rows),
-        "stale_skipped": 0,
+        "stale_or_filtered": 0,
         "asked": 0,
         "errors": 0,
         "rule_severe": 0,
@@ -174,7 +176,7 @@ def run_severe_disclosure_shadow(
     if not rows:
         stats["duration_seconds"] = round(monotonic() - started, 2)
         return stats
-    stats["stale_skipped"] = len(rows) - len(fresh)
+    stats["stale_or_filtered"] = len(rows) - len(fresh)
     own: JevClient | None = None
     asker: Asker
     if client is None:
@@ -189,6 +191,10 @@ def run_severe_disclosure_shadow(
             own.close()
     stats["asked"] = len(fresh)
     stats["errors"] = sum(1 for result in results.values() if "error" in result)
+    if any(result.get("error") == OUT_OF_CREDITS for result in results.values()):
+        # The shared jev account is empty: keep the cursor and let the owner top it up.
+        stats["duration_seconds"] = round(monotonic() - started, 2)
+        return JobOutcome(status="degraded", stats={**stats, "reason": "jev_out_of_credits"})
     if fresh and stats["errors"] > MAX_ERROR_SHARE * len(fresh):
         # jev is down or refusing: keep the cursor so the batch is asked again next run.
         stats["duration_seconds"] = round(monotonic() - started, 2)

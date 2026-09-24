@@ -110,25 +110,27 @@ def test_shadow_logs_jev_next_to_the_rules_and_emits_nothing(database: Any, tmp_
     fake = FakeJev()
     stats = shadow_job.run_severe_disclosure_shadow(output_dir=root, client=fake, workers=2)
     assert isinstance(stats, dict)
-    assert stats["fetched"] == 5 and stats["stale_skipped"] == 1 and stats["asked"] == 4
+    # The half-year report fails the prefilter and the backfilled title is stale.
+    assert stats["fetched"] == 5 and stats["stale_or_filtered"] == 2 and stats["asked"] == 3
     assert stats["errors"] == 0 and stats["rule_severe"] == 1 and stats["jev_severe"] == 2
-    assert stats["written"] == {"2026-09-11": 4} and stats["cursor_to"] == 5
-    assert sorted(fake.asked) == sorted(TITLES.values())  # the stale title is never asked
+    assert stats["written"] == {"2026-09-11": 3} and stats["cursor_to"] == 5
+    assert sorted(fake.asked) == sorted([TITLES[1], TITLES[2], TITLES[3]])
 
     records = {r["news_id"]: r for r in _lines(root)}
     assert records[1]["rule"] == {"subtype": "investigation", "keyword": "立案告知书"}
     assert records[1]["jev"]["choice"] == "investigation"
     assert records[2]["rule"] is None and records[2]["jev"]["choice"] == "merger_delisting"
     assert records[3]["jev"]["probabilities"] == {"penalty_decision": 0.9, "other": 0.1}
-    assert records[4]["input_tokens"] == 612 and records[4]["model"] == "jev-1.13.0"
-    assert records[4]["question_version"] == severe_shadow.QUESTION_VERSION
+    assert records[1]["input_tokens"] == 612 and records[1]["model"] == "jev-1.13.0"
+    assert records[1]["question_version"] == severe_shadow.QUESTION_VERSION
+    assert records[1]["selection"] == severe_shadow.SELECTION and 4 not in records
     assert records[1]["context_ids"] == []  # each fixture title is its company's only one
 
     with Session(database) as session:
         assert session.scalar(select(func.count()).select_from(DomainEvent)) == 0
 
     again = shadow_job.run_severe_disclosure_shadow(output_dir=root, client=fake, workers=2)
-    assert isinstance(again, dict) and again["fetched"] == 0 and len(fake.asked) == 4
+    assert isinstance(again, dict) and again["fetched"] == 0 and len(fake.asked) == 3
 
 
 def test_a_mostly_failing_batch_keeps_the_cursor(database: Any, tmp_path: Path) -> None:
@@ -137,15 +139,15 @@ def test_a_mostly_failing_batch_keeps_the_cursor(database: Any, tmp_path: Path) 
         output_dir=root, client=FakeJev(fail={"*"}), workers=2
     )
     assert isinstance(down, JobOutcome) and down.status == "degraded"
-    assert down.stats["reason"] == "jev_mostly_failed" and down.stats["errors"] == 4
+    assert down.stats["reason"] == "jev_mostly_failed" and down.stats["errors"] == 3
     assert not (root / "state.json").exists() and not (root / "2026-09-11.jsonl").exists()
 
     partial = shadow_job.run_severe_disclosure_shadow(
-        output_dir=root, client=FakeJev(fail={TITLES[4]}), workers=2
+        output_dir=root, client=FakeJev(fail={TITLES[3]}), workers=2
     )
     assert isinstance(partial, dict) and partial["errors"] == 1 and partial["cursor_to"] == 5
     failed = [r for r in _lines(root) if r["error"]]
-    assert [r["news_id"] for r in failed] == [4] and failed[0]["jev"] is None
+    assert [r["news_id"] for r in failed] == [3] and failed[0]["jev"] is None
 
 
 def test_missing_key_is_a_degraded_skip(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -161,8 +163,8 @@ def test_summary_separates_agreement_from_each_side(database: Any, tmp_path: Pat
     shadow_job.run_severe_disclosure_shadow(output_dir=root, client=FakeJev(), workers=2)
     records = severe_shadow.load_records(root, date(2026, 9, 11), date(2026, 9, 11))
     summary = severe_shadow.summarize(records)
-    assert summary["answered"] == 4 and summary["both_severe"] == 1 and summary["same_subtype"] == 1
-    assert summary["rule_only"] == 0 and summary["jev_only"] == 1 and summary["neither"] == 2
+    assert summary["answered"] == 3 and summary["both_severe"] == 1 and summary["same_subtype"] == 1
+    assert summary["rule_only"] == 0 and summary["jev_only"] == 1 and summary["neither"] == 1
     assert [e["news_id"] for e in summary["jev_only_examples"]] == [3]
     assert summary["jev_choices"]["merger_delisting"] == 1
 
@@ -270,13 +272,39 @@ def test_batches_count_asked_titles_and_stale_rows_are_crossed(
     root = tmp_path / "shadow"
     fake = FakeJev()
     runs: list[dict[str, Any]] = []
-    for _ in range(4):
+    for _ in range(3):
         result = shadow_job.run_severe_disclosure_shadow(
             output_dir=root, client=fake, batch=2, workers=2
         )
         assert isinstance(result, dict)
         runs.append(result)
-    assert [r["cursor_to"] for r in runs[:3]] == [2, 4, 5]
-    assert [r["asked"] for r in runs[:3]] == [2, 2, 0]
-    assert runs[2]["stale_skipped"] == 1 and runs[3]["fetched"] == 0
-    assert len(fake.asked) == 4
+    assert [r["cursor_to"] for r in runs[:2]] == [2, 5]
+    assert [r["asked"] for r in runs[:2]] == [2, 1]
+    assert runs[1]["stale_or_filtered"] == 2 and runs[2]["fetched"] == 0
+    assert len(fake.asked) == 3
+
+
+def test_an_empty_jev_account_stops_the_batch_and_keeps_the_cursor(
+    database: Any, tmp_path: Path
+) -> None:
+    from alphapilot.llm.typesafe import JevError
+
+    class Broke(FakeJev):
+        def ask(self, state: dict[str, Any], questions: dict[str, Any]) -> dict[str, Any]:
+            self.asked.append(state["announcement_title"])
+            raise JevError("jev http 402")
+
+    broke = Broke()
+    root = tmp_path / "shadow"
+    outcome = shadow_job.run_severe_disclosure_shadow(output_dir=root, client=broke, workers=1)
+    assert isinstance(outcome, JobOutcome) and outcome.stats["reason"] == "jev_out_of_credits"
+    assert len(broke.asked) == 1  # the other titles were never sent
+    assert not (root / "state.json").exists()
+
+
+def test_every_title_the_rules_flag_passes_the_prefilter() -> None:
+    from tests.test_severe_disclosure_screen import SEVERE_TITLES
+
+    for _, title in SEVERE_TITLES:
+        assert severe_shadow.PREFILTER.search(title), title
+    assert not severe_shadow.PREFILTER.search("2026年半年度报告")
