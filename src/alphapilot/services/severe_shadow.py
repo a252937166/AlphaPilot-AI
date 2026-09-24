@@ -13,6 +13,8 @@ from __future__ import annotations
 import json
 import math
 import os
+import re
+import threading
 from collections import Counter
 from collections.abc import Iterable, Mapping
 from concurrent.futures import ThreadPoolExecutor
@@ -65,6 +67,17 @@ QUESTION = {
         "criteria": CHOICES,
     }
 }
+# Only titles touching regulation, delisting, litigation or distress are asked. Every title
+# the rules can match passes (each rule contains 立案, 处罚, 退市 or 终止上市), and in the
+# full replay of 2026-09-11..14 (9,000 titles) this kept 5.1% of titles and dropped none of
+# the 33 jev-severe or 23 rule-severe ones, at a twentieth of the cost.
+PREFILTER = re.compile(
+    r"立案|调查|侦查|留置|处罚|告知书|退市|终止上市|摘牌|风险警示|ST|警示函|问询|关注函|"
+    r"监管|谴责|批评|纪律|违规|违法|整改|责令|冻结|查封|诉讼|仲裁|逾期|违约|破产|重整|清算|"
+    r"停牌|异常波动|失信|被执行"
+)
+SELECTION = "prefilter-v1"
+OUT_OF_CREDITS = "jev account out of credits (HTTP 402)"
 # Background for a title: the same company's other titles already available at the time.
 # Rules cannot use it; it is what lets jev tell a merger delisting from a distressed one.
 CONTEXT_DAYS = 60
@@ -131,10 +144,18 @@ def build_state(title: str, context: Iterable[Announcement]) -> dict[str, Any]:
 def ask_titles(
     client: Asker, states: Mapping[int, dict[str, Any]], *, workers: int = 8
 ) -> dict[int, dict[str, Any]]:
-    """jev's answer for each state, keyed by news id; a failure is recorded, never guessed."""
+    """jev's answer for each state, keyed by news id; a failure is recorded, never guessed.
+
+    The key is shared with other jev users, so once the account reports it is out of
+    credits (HTTP 402) the remaining titles are not sent at all.
+    """
+
+    out_of_credits = threading.Event()
 
     def one(item: tuple[int, dict[str, Any]]) -> tuple[int, dict[str, Any]]:
         news_id, state = item
+        if out_of_credits.is_set():
+            return news_id, {"error": OUT_OF_CREDITS}
         try:
             data = client.ask(state, QUESTION)
             answer = data["answers"]["category"]
@@ -151,6 +172,9 @@ def ask_titles(
                 "input_tokens": (data.get("usage") or {}).get("input_tokens"),
             }
         except Exception as exc:  # one bad answer must not sink the batch
+            if "http 402" in str(exc):
+                out_of_credits.set()
+                return news_id, {"error": OUT_OF_CREDITS}
             return news_id, {"error": f"{type(exc).__name__}: {exc}"[:200]}
 
     with ThreadPoolExecutor(max_workers=workers) as pool:
@@ -187,6 +211,7 @@ def build_record(
         "input_tokens": result.get("input_tokens"),
         "model": model,
         "question_version": QUESTION_VERSION,
+        "selection": SELECTION,
         "asked_at": asked_at.isoformat(),
     }
 
