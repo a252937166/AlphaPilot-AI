@@ -56,6 +56,13 @@ class Settings(BaseSettings):
     stock_pick_jev_enabled: bool = True
     jev_api_key: str | None = None
     jev_model: str = "jev-1.13.0"
+    # Model routing (llm.router): choice work to jev, text and reasoning to the Codex gateway
+    # (gpt-6-luna medium on a remote server, reached through a local SSH tunnel). The address
+    # and key come from .env only.
+    codex_api_base_url: str | None = None
+    codex_api_key: str | None = None
+    codex_api_timeout_seconds: float = Field(default=180.0, ge=30.0, le=900.0)
+    llm_routes: dict[str, str] = Field(default_factory=dict)
 
     # Failover order used by the "auto" composite provider.
     daily_bars_provider_chain: list[str] = Field(

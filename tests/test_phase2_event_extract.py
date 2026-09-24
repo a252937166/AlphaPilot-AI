@@ -20,6 +20,12 @@ from alphapilot.services.event_extract import (
 )
 
 
+@pytest.fixture(autouse=True)
+def _provider_route(monkeypatch: pytest.MonkeyPatch) -> None:
+    """These tests cover the provider path, still used when event_extract is routed to "default"."""
+    monkeypatch.setattr(event_extract, "route_for", lambda purpose, settings=None: "default")
+
+
 def _add_disclosure(session: Session, title: str, *, suffix: str = "1") -> Disclosure:
     disclosure = Disclosure(
         symbol="600519",

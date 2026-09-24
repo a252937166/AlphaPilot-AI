@@ -499,6 +499,7 @@ def test_review_advice_real_client_uses_owned_audit_transaction(
         llm_base_url="https://llm.example.test/compatible-mode/v1",
         llm_api_key="test-only-key",
         llm_model="qwen3.6-flash",
+        llm_routes={"review_advice": "default"},
     )
     with Session(engine) as session:
         _seed_grouped_outcomes(session)
