@@ -5,7 +5,7 @@
     <login_account>__FUTU_LOGIN_ACCOUNT__</login_account>
     <login_pwd_md5>__FUTU_LOGIN_PWD_MD5__</login_pwd_md5>
     <lang>chs</lang>
-    <log_level>info</log_level>
+    <log_level>warning</log_level>
     <log_path>__FUTU_LOG_PATH__</log_path>
     <push_proto_type>0</push_proto_type>
     <telnet_ip>127.0.0.1</telnet_ip>
