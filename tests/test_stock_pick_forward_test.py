@@ -401,3 +401,30 @@ def test_lists_wait_for_a_complete_as_of_session(
     _drop_bars(engine, AS_OF, 20)
     run = job.run_stock_pick_forward_test(now=NOW, as_of=AS_OF, output_dir=tmp_path / "picks")
     assert run["generated"] == {} and run["generate_skipped"]["reason"] == "incomplete bars"
+
+
+def test_reference_scores_sit_beside_the_official_ones(
+    patched_session: None, tmp_path: Path, engine: Engine
+) -> None:
+    from alphapilot.services.stock_pick_reference import without_beijing
+
+    out = tmp_path / "picks"
+    run = job.run_stock_pick_forward_test(now=NOW, as_of=AS_OF, output_dir=out)
+    ref = out / "reference" / "no-beijing" / "A" / "A-2026-W37-20260910-h5.json"
+    official = json.loads((out / "scores" / "A" / "A-2026-W37-20260910-h5.json").read_bytes())
+    # This synthetic market has no Beijing names, so the twin equals the official score.
+    assert json.loads(ref.read_bytes())["top_bin"] == official["top_bin"]
+    assert len(run["reference_scored"]) == 4 and run["reference_tallies"]["A"]["lists_scored"] == 1
+    ref.unlink()
+    later = NOW + timedelta(minutes=1)  # summaries are create-only and named by run time
+    again = job.run_stock_pick_forward_test(now=later, generate=False, output_dir=out)
+    assert again["scored"] == [] and [r["candidate"] for r in again["reference_scored"]] == ["A"]
+
+    members = [
+        {"symbol": s, "rank": i + 1, "score": 1.0, "close": 10.0}
+        for i, s in enumerate(["920001", "600001", "830002", "600002", "600003"])
+    ]
+    trimmed = without_beijing({"members": members, "top_decile_n": 3})
+    assert [m["symbol"] for m in trimmed["members"]] == ["600001", "600002", "600003"]
+    assert [m["rank"] for m in trimmed["members"]] == [1, 2, 3]
+    assert trimmed["top_decile_n"] == 1 and trimmed["top_decile_symbols"] == ["600001"]
