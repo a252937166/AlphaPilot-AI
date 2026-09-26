@@ -8,6 +8,8 @@ lots. Costs: commission 0.025% with a 5 CNY minimum, transfer fee 0.001%, stamp 
 0.05% on sells, and a fixed slippage of 0.05% per side. A name whose open is at the upper
 limit is not bought; a holding that cannot trade (no bar, or a one-price limit-down open)
 is carried and retried at the next session's open. Holdings are marked at each close.
+Beijing Stock Exchange names are skipped because the owner's account does not buy them
+(decided 2026-09-26): the list is walked in rank order until N other names are found.
 
 This view is derived from the frozen lists and daily bars. It does not feed the
 forward-test verdict, which scores the top decile of each list.
@@ -24,6 +26,29 @@ import pandas as pd
 from alphapilot.services.stock_picks import limit_pct
 
 INDEX_SYMBOL = "SH.000001"
+SKIP_BEIJING = True  # owner, 2026-09-26: the account does not buy Beijing-exchange stocks
+
+
+def is_beijing(symbol: str) -> bool:
+    """Beijing Stock Exchange codes: 4xxxxx and 8xxxxx (moved from NEEQ) and 92xxxx."""
+
+    return symbol.startswith(("4", "8", "92"))
+
+
+def targets(
+    members: list[dict[str, Any]], top_n: int, *, skip_beijing: bool = SKIP_BEIJING
+) -> list[str]:
+    """The first ``top_n`` names of a ranked list that the account may buy."""
+
+    picked: list[str] = []
+    for member in members:
+        symbol = member["symbol"]
+        if skip_beijing and is_beijing(symbol):
+            continue
+        picked.append(symbol)
+        if len(picked) == top_n:
+            break
+    return picked
 
 
 @dataclass(frozen=True, slots=True)
@@ -79,7 +104,7 @@ def lot_shares(symbol: str, budget: float, price: float) -> int:
     raw = int(budget // price)
     if symbol.startswith("688"):  # STAR: at least 200 shares, then single shares
         return raw if raw >= 200 else 0
-    if symbol.startswith(("4", "8", "92")):  # Beijing: at least 100, then single shares
+    if is_beijing(symbol):  # Beijing: at least 100, then single shares
         return raw if raw >= 100 else 0
     return (raw // 100) * 100
 
@@ -166,6 +191,7 @@ def simulate(
     capital: float,
     top_n: int,
     costs: Costs | None = None,
+    skip_beijing: bool = SKIP_BEIJING,
 ) -> dict[str, Any]:
     """Run one candidate's account over its lists; returns the ledger and the next plan."""
 
@@ -181,7 +207,10 @@ def simulate(
             by_entry[entry] = doc
     account = Account(cash=float(capital))
     if not by_entry:
-        return {"account": account, "plan": _plan(account, bars, future, None, top_n, costs)}
+        return {
+            "account": account,
+            "plan": _plan(account, bars, future, None, top_n, costs, skip_beijing),
+        }
     first = min(by_entry)
     current: dict[str, Any] | None = None
     for day in [d for d in sessions if d >= first]:
@@ -189,7 +218,7 @@ def simulate(
         target: list[str] = []
         if doc is not None:
             current = doc
-            target = [m["symbol"] for m in doc["members"][:top_n]]
+            target = targets(doc["members"], top_n, skip_beijing=skip_beijing)
             for symbol in list(account.holdings):
                 if symbol not in target:
                     account.pending_sells.add(symbol)
@@ -206,7 +235,7 @@ def simulate(
     return {
         "account": account,
         "current_list": current,
-        "plan": _plan(account, bars, future, current, top_n, costs),
+        "plan": _plan(account, bars, future, current, top_n, costs, skip_beijing),
     }
 
 
@@ -269,6 +298,7 @@ def _plan(
     current: dict[str, Any] | None,
     top_n: int,
     costs: Costs,
+    skip_beijing: bool = SKIP_BEIJING,
 ) -> dict[str, Any] | None:
     """Orders for the next open when a list exists whose entry session has not traded yet."""
 
@@ -276,7 +306,7 @@ def _plan(
         return None
     last = bars.sessions[-1] if bars.sessions else None
     closes = {m["symbol"]: m["close"] for m in future["members"]}
-    target = [m["symbol"] for m in future["members"][:top_n]]
+    target = targets(future["members"], top_n, skip_beijing=skip_beijing)
     value = account.cash + sum(
         h.shares * ((bars.last_close(last, s) if last else None) or 0.0)
         for s, h in account.holdings.items()

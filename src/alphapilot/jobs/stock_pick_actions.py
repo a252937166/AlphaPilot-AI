@@ -26,12 +26,14 @@ from alphapilot.core.config import get_settings
 from alphapilot.db.engine import get_session
 from alphapilot.db.models import DailyBar, DomainEvent, Security
 from alphapilot.jobs.registry import JobSpec, register
+from alphapilot.services.bar_coverage import session_coverage
 from alphapilot.services.severe_disclosure import SEVERE_EVENT_TYPE
 from alphapilot.services.stock_pick_paper import (
     INDEX_SYMBOL,
     Bars,
     benchmark_return,
     simulate,
+    targets,
 )
 from alphapilot.services.stock_picks import CANDIDATES, write_json_create_only
 
@@ -139,7 +141,8 @@ def render_note(report: dict[str, Any]) -> str:
         (
             "模拟账户，不下真实单，不用任何模型。"
             f"每个候选各 {report['capital'] / 10_000:g} 万元起步，"
-            f"按名单前 {report['top_n']} 只等额买入，每周第一个交易日开盘换仓；已扣佣金、"
+            f"按名单排名取前 {report['top_n']} 只等额买入，北交所股票不买，跳过后往下补足；"
+            "每周第一个交易日开盘换仓；已扣佣金、"
             "过户费、印花税和每边 0.05% 滑点。四个候选都在前瞻测试中，没有一个被证实有效，"
             "裁定在 11 月 6 日。"
         ),
@@ -238,7 +241,7 @@ def build_report(
     if not docs:
         return None
     start = min(date.fromisoformat(doc["as_of"]) for doc in docs)
-    symbols = sorted({m["symbol"] for doc in docs for m in doc["members"][:top_n]})
+    symbols = sorted({s for doc in docs for s in targets(doc["members"], top_n)})
     bars = _bars(session, symbols, start)
     if not bars.sessions:
         return None
@@ -325,6 +328,28 @@ def build_report(
     }
 
 
+def render_withheld(report: dict[str, Any], details: dict[str, Any]) -> str:
+    running = "，日线同步仍在运行" if details["sync_running"] else ""
+    return "\n".join(
+        [
+            "---",
+            f"title: 交易动作 {report['run_date']}",
+            f"date: {report['run_date']}",
+            "tags: [alphapilot, trade-actions, paper]",
+            f"generated_at: {report['generated_at']}",
+            "---",
+            f"# 交易动作 · {report['run_date']}",
+            "",
+            "> [!warning] 数据不全，暂不出动作单",
+            f"> {details['day']} 的日线只同步了 {details['bars']} 条"
+            f"（前一交易日 {details['previous_session']} 有 {details['previous_bars']} 条）"
+            f"{running}。用一半的价格算出的净值和买卖都会是错的，所以这次不出单；"
+            "工作日 23:40 或下一次运行时数据补齐，会自动补出。",
+            "",
+        ]
+    )
+
+
 def run_stock_pick_actions(
     *,
     now: datetime | None = None,
@@ -346,9 +371,25 @@ def run_stock_pick_actions(
     top_n = int(top_n or settings.stock_pick_actions_top_n)
     with get_session() as session:
         report = build_report(session, root, capital=capital, top_n=top_n, now=current)
+        coverage = (
+            session_coverage(session, date.fromisoformat(report["last_session"]), now=current)
+            if report is not None
+            else None
+        )
     stats: dict[str, Any] = {"root": str(root), "note_dir": str(notes) if notes else None}
-    if report is None:
+    if report is None or coverage is None:
         stats["skipped"] = "no lists or no bars yet"
+        return stats
+    complete, details = coverage
+    if not complete:
+        # Half a day of prices would misstate every account: say so and wait for the retry.
+        stats["withheld"] = details
+        if notes:
+            note_path = Path(notes) / f"{report['run_date']}.md"
+            note_path.parent.mkdir(parents=True, exist_ok=True)
+            note_path.write_text(render_withheld(report, details), encoding="utf-8")
+            stats["note"] = str(note_path)
+        stats["duration_seconds"] = round(monotonic() - started, 2)
         return stats
     json_path = root / "paper" / f"actions-{report['run_date']}.json"
     if json_path.exists():
@@ -389,6 +430,10 @@ def register_stock_pick_actions_job() -> None:
                 [
                     CronTrigger(
                         day_of_week="mon-fri", hour=20, minute=30, timezone=MARKET_TIMEZONE
+                    ),
+                    # Retry when the 20:30 run was withheld for incomplete bars.
+                    CronTrigger(
+                        day_of_week="mon-fri", hour=23, minute=40, timezone=MARKET_TIMEZONE
                     ),
                     CronTrigger(day_of_week="sat,sun", hour=10, minute=0, timezone=MARKET_TIMEZONE),
                 ]

@@ -10,7 +10,7 @@ from pathlib import Path
 
 import pandas as pd
 import pytest
-from sqlalchemy import create_engine, insert
+from sqlalchemy import create_engine, delete, insert
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session
 
@@ -251,3 +251,47 @@ def test_new_account_shows_its_first_orders(
     assert (
         "| J jev 挑选 | 下次开盘建仓 |" in text and "### J jev 挑选：下一个交易日开盘执行" in text
     )
+
+
+def test_beijing_names_are_skipped_and_the_list_is_walked_further() -> None:
+    members = _doc(S[0], ["920001", X, "830002", Y, Z])["members"]
+    assert paper.targets(members, 2) == [X, Y]
+    assert paper.targets(members, 2, skip_beijing=False) == ["920001", X]
+    assert all(paper.is_beijing(s) for s in ("920001", "830002", "430017"))
+    assert not any(paper.is_beijing(s) for s in ("600001", "000001", "300750", "688981"))
+    lists = [_doc(S[0], ["920001", X, Y, Z])]
+    account = paper.simulate(lists, _bars(), capital=100_000, top_n=2)["account"]
+    assert set(account.holdings) == {X, Y}
+    plan = paper.simulate([_doc(S[6], ["920001", Z, W])], _bars(), capital=100_000, top_n=2)["plan"]
+    assert plan is not None and [b["symbol"] for b in plan["buys"]] == [Z, W]
+
+
+def test_job_withholds_the_sheet_when_the_last_session_is_half_synced(
+    engine: Engine, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    with Session(engine) as session:
+        session.execute(
+            delete(DailyBar).where(DailyBar.trade_date == S[-1], DailyBar.symbol.in_([Z, W]))
+        )
+        session.commit()
+
+    @contextmanager
+    def local_session() -> Iterator[Session]:
+        with Session(engine, expire_on_commit=False) as session:
+            yield session
+
+    monkeypatch.setattr(job, "get_session", local_session)
+    root = tmp_path / "picks"
+    for i, doc in enumerate(LISTS):
+        path = root / "lists" / "A" / f"A-2026-W{37 + i}-{doc['as_of'].replace('-', '')}.json"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(doc), encoding="utf-8")
+    notes = tmp_path / "vault"
+    now = datetime(2026, 9, 18, 12, 30, tzinfo=UTC)  # Friday 20:30 CST
+    stats = job.run_stock_pick_actions(
+        now=now, output_dir=root, note_dir=notes, capital=100_000, top_n=2
+    )
+    assert stats["withheld"]["bars"] == 3 and stats["withheld"]["previous_bars"] == 5
+    assert "json" not in stats and not list((root / "paper").glob("*.json"))
+    text = (notes / "2026-09-18.md").read_text(encoding="utf-8")
+    assert "数据不全，暂不出动作单" in text and "只同步了 3 条" in text

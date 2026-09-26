@@ -12,7 +12,7 @@ import numpy as np
 import pandas as pd
 import pytest
 from apscheduler.triggers.combining import OrTrigger
-from sqlalchemy import create_engine, insert, select
+from sqlalchemy import create_engine, delete, insert, select
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session
 
@@ -370,3 +370,34 @@ def test_job_is_registered() -> None:
     spec = JOBS[job.JOB_NAME]
     assert spec.enabled_key == "stock_pick_forward_test_enabled"
     assert isinstance(spec.trigger, OrTrigger) and spec.misfire_grace_time == 3600
+
+
+def _drop_bars(engine: Engine, day: date, count: int) -> None:
+    with Session(engine) as session:
+        victims = session.scalars(
+            select(DailyBar.symbol).where(DailyBar.trade_date == day).limit(count)
+        ).all()
+        session.execute(
+            delete(DailyBar).where(DailyBar.trade_date == day, DailyBar.symbol.in_(victims))
+        )
+        session.commit()
+
+
+def test_scoring_waits_for_a_complete_exit_session(
+    patched_session: None, tmp_path: Path, engine: Engine
+) -> None:
+    exit5 = _fwd()[4].date()
+    _drop_bars(engine, exit5, 20)  # the sync stopped partway through the exit day
+    out = tmp_path / "picks"
+    run = job.run_stock_pick_forward_test(now=NOW, as_of=AS_OF, output_dir=out)
+    assert all(v["status"] == "written" for v in run["generated"].values())
+    assert run["scored"] == [] and not list((out / "scores").rglob("*.json"))
+    assert {(d["horizon"], d["day"]) for d in run["deferred"]} == {(5, exit5.isoformat())}
+
+
+def test_lists_wait_for_a_complete_as_of_session(
+    patched_session: None, tmp_path: Path, engine: Engine
+) -> None:
+    _drop_bars(engine, AS_OF, 20)
+    run = job.run_stock_pick_forward_test(now=NOW, as_of=AS_OF, output_dir=tmp_path / "picks")
+    assert run["generated"] == {} and run["generate_skipped"]["reason"] == "incomplete bars"
