@@ -37,6 +37,11 @@ SEVERE_TITLES = [
         "暨可能被实施重大违法强制退市的风险提示公告",
     ),
     ("penalty_decision", "关于收到《行政处罚决定书》的公告"),
+    # Found by the jev shadow in 2026-09 and missed by the first rule set.
+    ("investigation", "关于收到中国证券监督管理委员会立案通知书的公告"),
+    ("delisting_risk", "关于收到终止上市事先告知书的公告"),
+    ("delisting_risk", "清越科技关于收到上海证券交易所终止上市事先告知书的公告"),
+    ("delisting_risk", "关于公司股票交易被实施退市及其它风险警示相关事项的进展公告"),
 ]
 # Titles that mention the same words but are not the event.
 BENIGN_TITLES = [
@@ -53,6 +58,7 @@ BENIGN_TITLES = [
     "信达证券股份有限公司关于公司A股股票可能终止上市的风险提示公告暨换股吸收合并进展",
     "东兴证券股份有限公司关于吸收合并事项导致公司A股股票可能终止上市的风险提示公告",
     "关于独立董事因非本公司事项收到《行政处罚决定书》暨提出辞职的公告",
+    "关于收到濉溪县城市管理行政执法局立案通知书的公告",
     "",
 ]
 
