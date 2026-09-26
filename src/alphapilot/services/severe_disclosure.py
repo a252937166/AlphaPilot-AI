@@ -55,7 +55,12 @@ _RULES: tuple[tuple[str, str, float, float, re.Pattern[str]], ...] = (
         "立案调查",
         -1.0,
         0.9,
-        re.compile(r"立案告知书|被立案|立案调查|立案侦查|立案审查"),
+        # A CSRC case may also arrive as a "立案通知书"; one from a city bureau is not a
+        # securities investigation, so the regulator must be named.
+        re.compile(
+            r"立案告知书|被立案|立案调查|立案侦查|立案审查|"
+            r"(?:证券监督管理委员会|证监会|证监局|监管局).{0,20}立案通知书"
+        ),
     ),
     (
         "delisting_risk",
@@ -63,8 +68,8 @@ _RULES: tuple[tuple[str, str, float, float, re.Pattern[str]], ...] = (
         -0.9,
         0.8,
         re.compile(
-            r"退市风险警示|终止上市风险|可能被终止上市|可能因.{0,12}终止上市|"
-            r"强制退市|终止上市的风险提示|终止上市暨"
+            r"退市风险警示|退市及其[他它]风险警示|终止上市风险|可能被终止上市|"
+            r"可能因.{0,12}终止上市|强制退市|终止上市的风险提示|终止上市暨|终止上市事先告知书"
         ),
     ),
     (
