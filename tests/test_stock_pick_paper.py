@@ -295,3 +295,65 @@ def test_job_withholds_the_sheet_when_the_last_session_is_half_synced(
     assert "json" not in stats and not list((root / "paper").glob("*.json"))
     text = (notes / "2026-09-18.md").read_text(encoding="utf-8")
     assert "数据不全，暂不出动作单" in text and "只同步了 3 条" in text
+
+
+def test_note_shows_both_score_views_and_jev_hints(
+    engine: Engine, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from alphapilot.core.config import get_settings
+    from alphapilot.services import severe_shadow
+
+    @contextmanager
+    def local_session() -> Iterator[Session]:
+        with Session(engine, expire_on_commit=False) as session:
+            yield session
+
+    monkeypatch.setattr(job, "get_session", local_session)
+    root = tmp_path / "picks"
+    for i, doc in enumerate(LISTS):
+        path = root / "lists" / "A" / f"A-2026-W{37 + i}-{doc['as_of'].replace('-', '')}.json"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(doc), encoding="utf-8")
+    stem = "A-2026-W37-20260910-h5.json"
+    for folder, hit, excess in (("scores", 0.6, 0.01), ("reference/no-beijing", 0.55, 0.008)):
+        path = root / folder / "A" / stem
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(
+            json.dumps(
+                {"as_of": "2026-09-10", "top_bin": {"hit_rate": hit, "mean_excess": excess}}
+            ),
+            encoding="utf-8",
+        )
+    shadow = tmp_path / "shadow"
+
+    def record(news_id: int, symbol: str, title: str, day: int, rule: bool = False) -> dict:
+        return {
+            "news_id": news_id,
+            "symbol": symbol,
+            "title": title,
+            "available_time": datetime(2026, 9, day, 8, tzinfo=UTC).isoformat(),
+            "rule": {"subtype": "investigation"} if rule else None,
+            "jev": {"choice": "investigation", "confidence": 0.9},
+        }
+
+    severe_shadow.append_records(
+        shadow,
+        [
+            record(1, Y, "关于收到中国证券监督管理委员会立案通知书的公告", 17),
+            record(2, W, "关于独立董事因非本公司事项收到《行政处罚决定书》的公告", 17),
+            record(3, W, "关于收到立案告知书的公告", 17, rule=True),  # the rules already flag it
+            record(4, Z, "关于收到立案通知书的公告", 5),  # older than the seven-day window
+        ],
+    )
+    monkeypatch.setattr(get_settings(), "severe_shadow_dir", str(shadow))
+    notes = tmp_path / "vault"
+    now = datetime(2026, 9, 19, 2, 0, tzinfo=UTC)  # Saturday 10:00 CST
+    job.run_stock_pick_actions(now=now, output_dir=root, note_dir=notes, capital=100_000, top_n=2)
+    text = (notes / "2026-09-19.md").read_text(encoding="utf-8")
+    assert "## 前瞻测试评分" in text
+    assert "| A 低波+低PB+低PE | 1 | 60.0% | +1.00% | 55.0% | +0.80% | 进行中，还差 7 周 |" in text
+    assert "jev 另外提示" in text and f"持有的 {Y} 股2：2026-09-17 公告《关于收到中国证券" in text
+    assert "jev 判为立案调查，置信 0.90" in text
+    hints = text.split("jev 另外提示", 1)[1].split("## 持仓明细", 1)[0]
+    assert "非本公司事项" not in hints and W not in hints  # excluded, or already flagged by rules
+    assert Z not in hints  # the Z record is older than the seven-day window

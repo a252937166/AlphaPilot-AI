@@ -26,6 +26,7 @@ from alphapilot.core.config import get_settings
 from alphapilot.db.engine import get_session
 from alphapilot.jobs.registry import JobSpec, register
 from alphapilot.services.bar_coverage import horizon_ready, session_coverage
+from alphapilot.services.stock_pick_reference import reference_path, tallies, without_beijing
 from alphapilot.services.stock_picks import (
     CANDIDATES,
     HORIZONS,
@@ -78,7 +79,9 @@ def run_stock_pick_forward_test(
         "generate_skipped": None,
         "scored": [],
         "deferred": [],
+        "reference_scored": [],
         "tallies": {},
+        "reference_tallies": {},
     }
     coverage_cache: dict[date, tuple[bool, dict[str, Any]]] = {}
     with get_session() as session:
@@ -132,7 +135,8 @@ def run_stock_pick_forward_test(
                 document = json.loads(list_path.read_bytes())
                 for horizon in HORIZONS:
                     score_path = _scores_dir(root, name) / f"{list_path.stem}-h{horizon}.json"
-                    if score_path.exists():
+                    ref_path = reference_path(root, name, list_path.stem, horizon)
+                    if score_path.exists() and ref_path.exists():
                         continue
                     ready, details = horizon_ready(
                         session,
@@ -148,28 +152,41 @@ def run_stock_pick_forward_test(
                             {"list": list_path.stem, "horizon": horizon, **details}
                         )
                         continue
-                    result = score_pick_list(session, document, horizon)
-                    if result is None:
-                        continue
-                    digest = write_json_create_only(score_path, result)
-                    stats["scored"].append(
-                        {
-                            "path": str(score_path),
-                            "sha256": digest,
-                            "candidate": name,
-                            "as_of": document["as_of"],
-                            "horizon": horizon,
-                            "top_hit": result["top_bin"]["hit_rate"],
-                            "top_excess": result["top_bin"]["mean_excess"],
-                        }
-                    )
+                    if not score_path.exists():
+                        result = score_pick_list(session, document, horizon)
+                        if result is None:
+                            continue
+                        digest = write_json_create_only(score_path, result)
+                        stats["scored"].append(
+                            {
+                                "path": str(score_path),
+                                "sha256": digest,
+                                "candidate": name,
+                                "as_of": document["as_of"],
+                                "horizon": horizon,
+                                "top_hit": result["top_bin"]["hit_rate"],
+                                "top_excess": result["top_bin"]["mean_excess"],
+                            }
+                        )
+                    if not ref_path.exists():
+                        # The owner does not buy Beijing names: a twin score without them,
+                        # outside the verdict.
+                        reference = score_pick_list(session, without_beijing(document), horizon)
+                        if reference is not None:
+                            write_json_create_only(ref_path, reference)
+                            stats["reference_scored"].append(
+                                {"candidate": name, "as_of": document["as_of"], "horizon": horizon}
+                            )
         for name in CANDIDATES:
             matured = [
                 json.loads(path.read_bytes())
                 for path in sorted(_scores_dir(root, name).glob(f"{name}-*-h5.json"))
             ]
             stats["tallies"][name] = forward_test_tally(matured)
-    changed = bool(stats["scored"]) or any(
+        stats["reference_tallies"] = {
+            name: parts["reference"] for name, parts in tallies(root).items() if name != "J"
+        }
+    changed = bool(stats["scored"] or stats["reference_scored"]) or any(
         item.get("status") == "written" for item in stats["generated"].values()
     )
     if changed:

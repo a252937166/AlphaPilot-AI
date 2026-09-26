@@ -379,3 +379,35 @@ def drift(
         }
 
     return {"horizon": horizon, **{group: stats(items) for group, items in rows.items()}}
+
+
+# jev also flags penalties on a director "for matters unrelated to the company"; the rules
+# exclude those on purpose and so do the hints.
+HINT_EXCLUDE = re.compile(r"非本公司事项")
+
+
+def recent_jev_only(
+    root: Path, symbols: set[str], until: date, *, days: int = 7
+) -> dict[str, list[dict[str, Any]]]:
+    """Recent announcements jev reads as severe and the rules do not, for these symbols."""
+
+    found: dict[str, list[dict[str, Any]]] = {}
+    for record in load_records(root, until - timedelta(days=days), until):
+        symbol = record.get("symbol")
+        if (
+            symbol in symbols
+            and jev_severe(record)
+            and not rule_severe(record)
+            and not HINT_EXCLUDE.search(record["title"])
+        ):
+            found.setdefault(symbol, []).append(
+                {
+                    "day": market_date(
+                        datetime.fromisoformat(record["available_time"])
+                    ).isoformat(),
+                    "title": record["title"],
+                    "choice": record["jev"]["choice"],
+                    "confidence": record["jev"].get("confidence"),
+                }
+            )
+    return found

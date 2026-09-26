@@ -28,6 +28,7 @@ from alphapilot.db.models import DailyBar, DomainEvent, Security
 from alphapilot.jobs.registry import JobSpec, register
 from alphapilot.services.bar_coverage import session_coverage
 from alphapilot.services.severe_disclosure import SEVERE_EVENT_TYPE
+from alphapilot.services.severe_shadow import recent_jev_only
 from alphapilot.services.stock_pick_paper import (
     INDEX_SYMBOL,
     Bars,
@@ -35,7 +36,8 @@ from alphapilot.services.stock_pick_paper import (
     simulate,
     targets,
 )
-from alphapilot.services.stock_picks import CANDIDATES, write_json_create_only
+from alphapilot.services.stock_pick_reference import tallies
+from alphapilot.services.stock_picks import CANDIDATES, VERDICT_LISTS, write_json_create_only
 
 JOB_NAME = "stock_pick_actions"
 MARKET_TIMEZONE = ZoneInfo("Asia/Shanghai")
@@ -47,6 +49,17 @@ LABELS = {
     "J": "J jev 挑选",
 }
 ACCOUNTS = (*CANDIDATES, "J")
+JEV_LABELS = {
+    "investigation": "立案调查",
+    "delisting_risk": "退市风险",
+    "penalty_notice": "行政处罚事先告知",
+    "penalty_decision": "行政处罚决定",
+}
+TALLY_STATUS = {
+    "confirmed": "确认有效",
+    "screen_only": "初筛通过",
+    "not_confirmed": "未通过",
+}
 WEEKDAYS = "一二三四五六日"
 
 
@@ -116,12 +129,63 @@ def _pct(value: float | None) -> str:
     return "—" if value is None else f"{value * 100:+.2f}%"
 
 
+def _rate(value: float | None) -> str:
+    return "—" if value is None else f"{value * 100:.1f}%"
+
+
 def _wan(value: float) -> str:
     return f"{value / 10_000:,.2f} 万"
 
 
 def _day_label(day: date) -> str:
     return f"{day.month} 月 {day.day} 日周{WEEKDAYS[day.weekday()]}"
+
+
+def _tally_lines(found: dict[str, dict[str, Any]]) -> list[str]:
+    if not found:
+        return []
+    lines = [
+        "",
+        "## 前瞻测试评分",
+        "",
+        "5 日评分：每份名单评分最高的一成，J 为它挑的 20 只。参考口径把北交所股票去掉后同样"
+        f"计算，只供对照、不进裁定。满 {VERDICT_LISTS} 周后按平均胜率和累计超额裁定。",
+        "",
+        "| 候选 | 已评周数 | 平均胜率 | 累计超额 | 不含北交所：平均胜率 "
+        "| 不含北交所：累计超额 | 状态 |",
+        "|---|---|---|---|---|---|---|",
+    ]
+    for name, parts in found.items():
+        official, reference = parts["official"], parts["reference"] or {}
+        status = TALLY_STATUS.get(
+            official["status"], f"进行中，还差 {VERDICT_LISTS - official['lists_judged']} 周"
+        )
+        lines.append(
+            f"| {LABELS[name]} | {official['lists_scored']} | "
+            f"{_rate(official['mean_hit_rate'])} | {_pct(official['cumulative_excess'])} | "
+            f"{_rate(reference.get('mean_hit_rate'))} | "
+            f"{_pct(reference.get('cumulative_excess'))} | {status} |"
+        )
+    return lines
+
+
+def _hint_lines(report: dict[str, Any], names: dict[str, str]) -> list[str]:
+    lines = []
+    for name, acc in report["accounts"].items():
+        held = {h["symbol"] for h in acc["holdings"]}
+        for symbol, items in (acc.get("jev_hints") or {}).items():
+            where = "持有" if symbol in held else "计划买入"
+            for item in items:
+                confidence = item.get("confidence")
+                sure = f"，置信 {confidence:.2f}" if isinstance(confidence, float) else ""
+                lines.append(
+                    f"- {LABELS[name]} {where}的 {symbol} {names.get(symbol, '')}："
+                    f"{item['day']} 公告《{item['title']}》，jev 判为"
+                    f"{JEV_LABELS.get(item['choice'], item['choice'])}{sure}。"
+                )
+    if not lines:
+        return ["jev 对持仓和计划买入的股票没有额外提示。"]
+    return ["jev 另外提示（回避筛规则没有标记，只供参考，不改变买卖）：", "", *lines]
 
 
 def render_note(report: dict[str, Any]) -> str:
@@ -160,6 +224,7 @@ def render_note(report: dict[str, Any]) -> str:
             f"{_pct(acc['return'])} | "
             f"{_pct(acc['index_return'])} | {len(acc['holdings'])} 只 | {_wan(acc['cash'])} |"
         )
+    lines += _tally_lines(report.get("tallies") or {})
     lines += ["", "## 下一步动作", ""]
     plans = {n: a["plan"] for n, a in report["accounts"].items() if a.get("plan")}
     if not plans:
@@ -203,6 +268,7 @@ def render_note(report: dict[str, Any]) -> str:
             )
     if not any_flag:
         lines.append("持仓里没有被回避筛标记的股票。")
+    lines += ["", *_hint_lines(report, names)]
     lines += ["", "## 持仓明细", ""]
     for name, acc in report["accounts"].items():
         lines += [
@@ -315,6 +381,17 @@ def build_report(
     if not accounts or first_entry is None:
         return None
     local = now.astimezone(MARKET_TIMEZONE)
+    # jev's shadow reading of recent announcements, for what is held or about to be bought.
+    watch: dict[str, set[str]] = {
+        name: {h["symbol"] for h in acc["holdings"]}
+        | {b["symbol"] for b in ((acc.get("plan") or {}).get("buys") or [])}
+        for name, acc in accounts.items()
+    }
+    hints = recent_jev_only(
+        Path(get_settings().severe_shadow_dir), set().union(*watch.values()), local.date()
+    )
+    for name, acc in accounts.items():
+        acc["jev_hints"] = {s: hints[s] for s in sorted(watch[name]) if s in hints}
     return {
         "run_date": local.date().isoformat(),
         "generated_at": local.isoformat(timespec="minutes"),
@@ -325,6 +402,7 @@ def build_report(
         "index_return": benchmark_return(bars, first_entry, last),
         "names": names,
         "accounts": accounts,
+        "tallies": tallies(root),
     }
 
 

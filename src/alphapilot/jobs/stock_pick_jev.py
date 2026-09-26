@@ -16,6 +16,7 @@ from zoneinfo import ZoneInfo
 
 from apscheduler.triggers.combining import OrTrigger
 from apscheduler.triggers.cron import CronTrigger
+from sqlalchemy.orm import Session
 
 from alphapilot.core.config import get_settings
 from alphapilot.db.engine import get_session
@@ -29,6 +30,7 @@ from alphapilot.services.stock_pick_jev import (
     j_tally,
     pool_from_lists,
 )
+from alphapilot.services.stock_pick_reference import reference_path, tallies, without_beijing
 from alphapilot.services.stock_picks import HORIZONS, score_pick_list, write_json_create_only
 
 JOB_NAME = "stock_pick_jev"
@@ -42,6 +44,25 @@ def _latest(root: Path, name: str) -> dict[str, dict[str, Any]]:
         doc = json.loads(path.read_bytes())
         docs[doc["iso_week"]] = doc
     return docs
+
+
+def _score_with_market(
+    session: Session, doc: dict[str, Any], a_doc: dict[str, Any] | None, horizon: int
+) -> dict[str, Any] | None:
+    """Score J's picks; with the same week's A list, also against the whole market."""
+
+    result = score_pick_list(session, doc, horizon)
+    if result is None:
+        return None
+    market = score_pick_list(session, a_doc, horizon) if a_doc is not None else None
+    if market is not None:
+        picks = result["list_top_decile"]
+        result["market_relative"] = {
+            "universe_median_return": market["median_return"],
+            "picks_mean_return": picks["mean_return"],
+            "picks_excess_vs_market": round(picks["mean_return"] - market["median_return"], 6),
+        }
+    return result
 
 
 def run_stock_pick_jev(
@@ -106,7 +127,8 @@ def run_stock_pick_jev(
             for horizon in HORIZONS:
                 stem = f"J-{week}-{doc['as_of'].replace('-', '')}"
                 path = root / "scores" / "J" / f"{stem}-h{horizon}.json"
-                if path.exists():
+                ref_path = reference_path(root, "J", stem, horizon)
+                if path.exists() and ref_path.exists():
                     continue
                 ready, details = horizon_ready(
                     session,
@@ -122,27 +144,33 @@ def run_stock_pick_jev(
                         {"list": stem, "horizon": horizon, **details}
                     )
                     continue
-                result = score_pick_list(session, doc, horizon)
-                if result is None:
-                    continue
-                market = (
-                    score_pick_list(session, a_lists[week], horizon) if week in a_lists else None
-                )
-                if market is not None:
-                    picks = result["list_top_decile"]
-                    result["market_relative"] = {
-                        "universe_median_return": market["median_return"],
-                        "picks_mean_return": picks["mean_return"],
-                        "picks_excess_vs_market": round(
-                            picks["mean_return"] - market["median_return"], 6
-                        ),
-                    }
-                digest = write_json_create_only(path, result)
-                stats["scored"].append({"path": str(path), "sha256": digest, "horizon": horizon})
+                a_week = a_lists.get(week)
+                if not path.exists():
+                    result = _score_with_market(session, doc, a_week, horizon)
+                    if result is None:
+                        continue
+                    digest = write_json_create_only(path, result)
+                    stats["scored"].append(
+                        {"path": str(path), "sha256": digest, "horizon": horizon}
+                    )
+                if not ref_path.exists():
+                    # Twin score without Beijing names, outside the verdict (owner, 2026-09-26).
+                    reference = _score_with_market(
+                        session,
+                        without_beijing(doc),
+                        without_beijing(a_week) if a_week else None,
+                        horizon,
+                    )
+                    if reference is not None:
+                        write_json_create_only(ref_path, reference)
+                        stats.setdefault("reference_scored", []).append(
+                            {"list": stem, "horizon": horizon}
+                        )
     matured = [
         json.loads(p.read_bytes()) for p in sorted((root / "scores" / "J").glob("J-*-h5.json"))
     ]
     stats["tally"] = j_tally(matured)
+    stats["reference_tally"] = tallies(root).get("J", {}).get("reference")
     stats["duration_seconds"] = round(monotonic() - started, 2)
     return stats
 
