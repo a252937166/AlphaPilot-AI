@@ -25,6 +25,7 @@ from apscheduler.triggers.cron import CronTrigger
 from alphapilot.core.config import get_settings
 from alphapilot.db.engine import get_session
 from alphapilot.jobs.registry import JobSpec, register
+from alphapilot.services.bar_coverage import horizon_ready, session_coverage
 from alphapilot.services.stock_picks import (
     CANDIDATES,
     HORIZONS,
@@ -76,8 +77,10 @@ def run_stock_pick_forward_test(
         "generated": {},
         "generate_skipped": None,
         "scored": [],
+        "deferred": [],
         "tallies": {},
     }
+    coverage_cache: dict[date, tuple[bool, dict[str, Any]]] = {}
     with get_session() as session:
         if as_of is not None:
             target: date | None = as_of
@@ -91,6 +94,12 @@ def run_stock_pick_forward_test(
         if target is not None:
             stats["as_of"] = target.isoformat()
             stats["iso_week"] = iso_week_key(target)
+        if do_generate and target is not None:
+            complete, details = session_coverage(session, target, now=current)
+            if not complete:
+                # A list built on part of the market would be frozen that way; wait for the bars.
+                do_generate = False
+                stats["generate_skipped"] = {"reason": "incomplete bars", **details}
         if do_generate and target is not None:
             week = iso_week_key(target)
             pending = {}
@@ -124,6 +133,20 @@ def run_stock_pick_forward_test(
                 for horizon in HORIZONS:
                     score_path = _scores_dir(root, name) / f"{list_path.stem}-h{horizon}.json"
                     if score_path.exists():
+                        continue
+                    ready, details = horizon_ready(
+                        session,
+                        date.fromisoformat(document["as_of"]),
+                        horizon,
+                        cache=coverage_cache,
+                        now=current,
+                    )
+                    if ready is None:
+                        continue
+                    if not ready:
+                        stats["deferred"].append(
+                            {"list": list_path.stem, "horizon": horizon, **details}
+                        )
                         continue
                     result = score_pick_list(session, document, horizon)
                     if result is None:

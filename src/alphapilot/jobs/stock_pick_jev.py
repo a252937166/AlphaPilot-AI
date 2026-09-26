@@ -21,6 +21,7 @@ from alphapilot.core.config import get_settings
 from alphapilot.db.engine import get_session
 from alphapilot.jobs.registry import JobSpec, register
 from alphapilot.llm.typesafe import JevClient
+from alphapilot.services.bar_coverage import horizon_ready
 from alphapilot.services.stock_pick_jev import (
     ask_all,
     build_j_list,
@@ -99,12 +100,27 @@ def run_stock_pick_jev(
                 "picks_top5": doc["top_decile_symbols"][:5],
             }
             j_lists[week] = doc
+    coverage_cache: dict[date, tuple[bool, dict[str, Any]]] = {}
     with get_session() as session:
         for week, doc in sorted(j_lists.items()):
             for horizon in HORIZONS:
                 stem = f"J-{week}-{doc['as_of'].replace('-', '')}"
                 path = root / "scores" / "J" / f"{stem}-h{horizon}.json"
                 if path.exists():
+                    continue
+                ready, details = horizon_ready(
+                    session,
+                    date.fromisoformat(doc["as_of"]),
+                    horizon,
+                    cache=coverage_cache,
+                    now=current,
+                )
+                if ready is None:
+                    continue
+                if not ready:
+                    stats.setdefault("deferred", []).append(
+                        {"list": stem, "horizon": horizon, **details}
+                    )
                     continue
                 result = score_pick_list(session, doc, horizon)
                 if result is None:
