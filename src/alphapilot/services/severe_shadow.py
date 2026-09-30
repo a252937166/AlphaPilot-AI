@@ -29,22 +29,34 @@ import pandas as pd
 from alphapilot.services.severe_disclosure import classify_severe_disclosure
 
 MARKET_TIMEZONE = ZoneInfo("Asia/Shanghai")
-QUESTION_VERSION = "severe-shadow-v1"
+# v2 (2026-09-30): "其他风险警示" (ST) got its own option; v1 read it as delisting risk.
+QUESTION_VERSION = "severe-shadow-v2"
 # The four families the rules treat as severe, under the rules' own subtype names.
 SEVERE_CHOICES = ("investigation", "delisting_risk", "penalty_notice", "penalty_decision")
 CHOICES = {
     "investigation": (
-        "立案调查：公司、控股股东、实际控制人或董事、监事、高管被证监会、公安机关或监察机关"
-        "立案调查、立案侦查或留置，或收到立案告知书"
+        "立案调查：公司、控股股东、实际控制人或董事、监事、高管被证监会（含派出机构）、公安机关"
+        "或监察机关立案调查、立案侦查、留置或接受调查，或收到这些机关的立案告知书、立案通知书。"
+        "城管、环保、市场监管等地方部门对日常经营事项的立案不算"
     ),
     "delisting_risk": (
-        "退市风险：公司股票被实施或可能被实施退市风险警示（*ST），可能被终止上市，"
-        "或触及强制退市情形"
+        "退市风险：公司股票被实施或可能被实施退市风险警示（*ST），进入退市整理期，"
+        "可能被终止上市，或触及强制退市情形。只被实施其他风险警示（ST）的不算"
     ),
-    "penalty_notice": "行政处罚事先告知：收到行政处罚事先告知书或市场禁入事先告知书",
-    "penalty_decision": "行政处罚决定：收到行政处罚决定书或市场禁入决定书",
+    "penalty_notice": (
+        "行政处罚事先告知：公司因自身违法违规，收到证券监管部门的行政处罚事先告知书或市场禁入"
+        "事先告知书。环保、税务等部门对日常经营的处罚告知，或董监高因非本公司事项被告知，都不算"
+    ),
+    "penalty_decision": (
+        "行政处罚决定：公司因自身违法违规，收到证券监管部门的行政处罚决定书或市场禁入决定书。"
+        "环保、税务、安全生产等部门对日常经营的处罚，或董监高因非本公司事项被处罚，都不算"
+    ),
     "merger_delisting": (
         "因吸收合并、换股、私有化等重组安排而终止上市或摘牌，不是经营或合规出了问题"
+    ),
+    "other_risk_warning": (
+        "其他风险警示（ST）：股票被实施、继续实施或叠加实施其他风险警示，或这类事项的进展，"
+        "不涉及退市风险警示（*ST）和终止上市"
     ),
     "lesser_regulatory": (
         "较轻的监管动作：问询函、关注函、监管函、警示函、责令改正、通报批评、公开谴责、纪律处分"
@@ -52,7 +64,7 @@ CHOICES = {
     "resolved_or_routine": (
         "上述事项的撤销、解除、结案或澄清，或声明自身没有违法违规、未受处罚的例行公告"
     ),
-    "other": "其他：与以上都无关的公告",
+    "other": "其他：与以上都无关的公告，包括地方部门对日常经营事项的立案或处罚",
 }
 QUESTION = {
     "category": {
