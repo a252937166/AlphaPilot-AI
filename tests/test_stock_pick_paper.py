@@ -291,7 +291,7 @@ def test_job_withholds_the_sheet_when_the_last_session_is_half_synced(
     stats = job.run_stock_pick_actions(
         now=now, output_dir=root, note_dir=notes, capital=100_000, top_n=2
     )
-    assert stats["withheld"]["bars"] == 3 and stats["withheld"]["previous_bars"] == 5
+    assert stats["withheld"]["rows"] == 3 and stats["withheld"]["reference_rows"] == 5
     assert "json" not in stats and not list((root / "paper").glob("*.json"))
     text = (notes / "2026-09-18.md").read_text(encoding="utf-8")
     assert "数据不全，暂不出动作单" in text and "只同步了 3 条" in text

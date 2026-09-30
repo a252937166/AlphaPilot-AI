@@ -617,6 +617,11 @@ def register_valuation_jobs() -> None:
                     CronTrigger(
                         day_of_week="mon-fri", hour=18, minute=50, timezone=MARKET_TIMEZONE
                     ),
+                    # A second chance the same evening: a network drop pauses the 18:50 run,
+                    # and each run resumes from every symbol's last stored date.
+                    CronTrigger(
+                        day_of_week="mon-fri", hour=22, minute=50, timezone=MARKET_TIMEZONE
+                    ),
                     CronTrigger(day_of_week="sat,sun", hour=6, minute=30, timezone=MARKET_TIMEZONE),
                 ]
             ),

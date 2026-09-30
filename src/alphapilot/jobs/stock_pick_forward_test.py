@@ -25,7 +25,11 @@ from apscheduler.triggers.cron import CronTrigger
 from alphapilot.core.config import get_settings
 from alphapilot.db.engine import get_session
 from alphapilot.jobs.registry import JobSpec, register
-from alphapilot.services.bar_coverage import horizon_ready, session_coverage
+from alphapilot.services.bar_coverage import (
+    horizon_ready,
+    session_coverage,
+    valuation_coverage,
+)
 from alphapilot.services.stock_pick_reference import reference_path, tallies, without_beijing
 from alphapilot.services.stock_picks import (
     CANDIDATES,
@@ -103,6 +107,12 @@ def run_stock_pick_forward_test(
                 # A list built on part of the market would be frozen that way; wait for the bars.
                 do_generate = False
                 stats["generate_skipped"] = {"reason": "incomplete bars", **details}
+            else:
+                complete, details = valuation_coverage(session, target, now=current)
+                if not complete:
+                    # Missing PB/PE would silently drop the value signals for those names.
+                    do_generate = False
+                    stats["generate_skipped"] = {"reason": "incomplete valuation", **details}
         if do_generate and target is not None:
             week = iso_week_key(target)
             pending = {}

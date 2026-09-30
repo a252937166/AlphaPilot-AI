@@ -337,9 +337,11 @@ def test_scoring_mechanics(patched_session: None, tmp_path: Path, engine: Engine
 def test_missing_valuation_fails_closed(patched_session: None, tmp_path: Path) -> None:
     out = tmp_path / "picks"
     no_valuation_day = _fwd()[1].date()
-    with pytest.raises(ValueError, match="valuation covers only 0/"):
-        job.run_stock_pick_forward_test(now=NOW, as_of=no_valuation_day, output_dir=out)
-    assert not list(out.rglob("*.json"))
+    # The completeness gate now stops it before the list builder's own coverage check.
+    run = job.run_stock_pick_forward_test(now=NOW, as_of=no_valuation_day, output_dir=out)
+    assert run["generated"] == {} and run["generate_skipped"]["reason"] == "incomplete valuation"
+    assert run["generate_skipped"]["rows"] == 0
+    assert not list((out / "lists").rglob("*.json"))
 
 
 def _h5(as_of: str, hit: float, excess: float) -> dict[str, object]:
