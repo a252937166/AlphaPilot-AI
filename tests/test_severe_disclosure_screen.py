@@ -42,6 +42,12 @@ SEVERE_TITLES = [
     ("delisting_risk", "关于收到终止上市事先告知书的公告"),
     ("delisting_risk", "清越科技关于收到上海证券交易所终止上市事先告知书的公告"),
     ("delisting_risk", "关于公司股票交易被实施退市及其它风险警示相关事项的进展公告"),
+    ("delisting_risk", "关于公司股票进入退市整理期交易首日的风险提示公告"),
+    ("delisting_risk", "关于收到股票终止上市决定的公告"),
+    ("delisting_risk", "关于公司股票可能触及财务类及规范类终止上市的第五次风险提示公告"),
+    ("delisting_risk", "关于公司股票退市相关风险的风险提示公告"),
+    ("investigation", "三安光电股份有限公司关于公司实际控制人被留置的进展公告"),
+    ("investigation", "安徽建工关于董事长接受调查的公告"),
 ]
 # Titles that mention the same words but are not the event.
 BENIGN_TITLES = [
