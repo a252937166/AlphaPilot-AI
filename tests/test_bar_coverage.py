@@ -11,7 +11,7 @@ import pytest
 from sqlalchemy import create_engine, insert
 from sqlalchemy.orm import Session
 
-from alphapilot.db.models import Base, DailyBar, JobRun
+from alphapilot.db.models import Base, DailyBar, JobRun, ValuationDaily
 from alphapilot.services import bar_coverage as bc
 
 D1, D2, D3 = date(2026, 9, 22), date(2026, 9, 23), date(2026, 9, 24)
@@ -49,15 +49,16 @@ def session(tmp_path: Path) -> Iterator[Session]:
 
 def test_a_half_synced_session_is_incomplete(session: Session) -> None:
     complete, details = bc.session_coverage(session, D2, now=NOW)
-    assert complete and details["previous_bars"] == 100
+    assert complete and details["reference_rows"] == 100
     complete, details = bc.session_coverage(session, D3, now=NOW)
     assert not complete
     assert details == {
         "day": "2026-09-24",
-        "bars": 58,
-        "previous_session": "2026-09-23",
-        "previous_bars": 99,
+        "rows": 58,
+        "reference_rows": 100,
+        "reference_sessions": ["2026-09-23", "2026-09-22"],
         "sync_running": False,
+        "data": "daily_bars",
     }
 
 
@@ -85,3 +86,30 @@ def test_horizon_ready_checks_the_sessions_the_scorer_would_use(session: Session
     assert bc.horizon_ready(session, D1, 1, now=NOW) == (True, {})
     ready, details = bc.horizon_ready(session, D1, 2, now=NOW)
     assert ready is False and details["day"] == "2026-09-24"
+
+
+def _valuation(day: date, count: int) -> list[dict[str, Any]]:
+    return [
+        {
+            "symbol": f"{600000 + i}",
+            "trade_date": day,
+            "pb_mrq": 1.0,
+            "pe_ttm": 10.0,
+            "source": "test",
+            "available_time": NOW,
+            "ingested_at": NOW,
+        }
+        for i in range(count)
+    ]
+
+
+def test_valuation_is_judged_against_the_best_recent_day(session: Session) -> None:
+    # Two broken evenings in a row: comparing with the day before would pass the second one.
+    session.execute(
+        insert(ValuationDaily), _valuation(D1, 100) + _valuation(D2, 60) + _valuation(D3, 59)
+    )
+    session.flush()
+    complete, details = bc.valuation_coverage(session, D3, now=NOW)
+    assert not complete and details["reference_rows"] == 100 and details["data"] == "valuation"
+    assert not bc.valuation_coverage(session, D2, now=NOW)[0]
+    assert bc.valuation_coverage(session, D1, now=NOW)[0]  # nothing earlier to compare with

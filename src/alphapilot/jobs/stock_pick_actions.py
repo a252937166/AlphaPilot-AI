@@ -419,8 +419,8 @@ def render_withheld(report: dict[str, Any], details: dict[str, Any]) -> str:
             f"# 交易动作 · {report['run_date']}",
             "",
             "> [!warning] 数据不全，暂不出动作单",
-            f"> {details['day']} 的日线只同步了 {details['bars']} 条"
-            f"（前一交易日 {details['previous_session']} 有 {details['previous_bars']} 条）"
+            f"> {details['day']} 的日线只同步了 {details['rows']} 条"
+            f"（此前五个交易日最多一天有 {details['reference_rows']} 条）"
             f"{running}。用一半的价格算出的净值和买卖都会是错的，所以这次不出单；"
             "工作日 23:40 或下一次运行时数据补齐，会自动补出。",
             "",
