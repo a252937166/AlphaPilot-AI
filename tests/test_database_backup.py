@@ -392,8 +392,8 @@ def test_backup_lock_is_non_blocking(tmp_path: Path) -> None:
             writer.close()
 
 
-def test_launchagent_template_keeps_three_backups() -> None:
-    """The daily agent passes --retain 3 explicitly; the library default stays 7."""
+def test_launchagent_template_keeps_two_backups() -> None:
+    """The daily agent passes --retain 2 explicitly; the library default stays 7."""
 
     import plistlib
 
@@ -411,5 +411,5 @@ def test_launchagent_template_keeps_three_backups() -> None:
         rendered = rendered.replace(placeholder, "x")
     arguments = plistlib.loads(rendered.encode("utf-8"))["ProgramArguments"]
     assert arguments[1].endswith("scripts/run_database_backup_daily.py")
-    assert arguments[2:] == ["--retain", "3"]
+    assert arguments[2:] == ["--retain", "2"]
     assert backup_module.DEFAULT_RETENTION == 7
